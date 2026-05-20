@@ -2292,17 +2292,11 @@
                 updateFilteredUI();
             }
 
-            // Sync active state of cards
-            document.querySelectorAll('.stat-card').forEach(c => {
-                c.classList.toggle('active', c.dataset.status === state.filters.status);
-            });
         }
 
         function setStatusFilter(val) {
             if (state.filters.status === val && val !== 'all') state.filters.status = 'all';
             else state.filters.status = val;
-
-            updateUI(100); // Trigger UI refresh to update active classes
             updateFilteredUI();
         }
 
@@ -2655,48 +2649,44 @@
             updateFilteredUI();
         }
 
-        function updateFilteredUI() {
+        function getFilteredItems() {
             const queryText = document.getElementById('filter-text').value.toLowerCase();
-            const queryPerson = document.getElementById('filter-person-input').value.toLowerCase();
+            return state.auditedItems.filter(i => {
+                if (state.excludedStatusLabels.has(i.itemStatus)) return false;
+                if (state.filters.status !== 'all' && i.status !== state.filters.status) return false;
+                if (state.filters.people.size > 0 && !i.people.some(p => state.filters.people.has(p))) return false;
+                if (state.filters.csManagers.size > 0 && !i.csManagers.some(p => state.filters.csManagers.has(p))) return false;
+                if (state.filters.csmStatuses.size > 0 && !state.filters.csmStatuses.has(i.masterCsmStatus || '')) return false;
+                return i.name.toLowerCase().includes(queryText) || i.bName.toLowerCase().includes(queryText);
+            });
+        }
 
+        function updateFilteredUI() {
             // Sync View Toggle
             document.querySelectorAll('.view-toggle-btn').forEach(btn => {
                 btn.classList.toggle('active', btn.id === 'view-' + state.viewMode);
             });
+            // Sync stat-card active state
+            document.querySelectorAll('.stat-card').forEach(c => {
+                c.classList.toggle('active', c.dataset.status === state.filters.status);
+            });
+
+            let filtered = getFilteredItems();
 
             // Dynamic Stats Calculation
-            let liveStats = { boards: new Set(), overdue: 0, soon: 0, v2w: 0, total: 0 };
-
-            let filtered = state.auditedItems.filter(i => {
-                if (state.excludedStatusLabels.has(i.itemStatus)) return false;
-                if (state.filters.status !== 'all' && i.status !== state.filters.status) return false;
-                if (state.filters.people.size > 0) {
-                    const hasMatch = i.people.some(p => state.filters.people.has(p));
-                    if (!hasMatch) return false;
-                }
-                if (state.filters.csManagers.size > 0) {
-                    const hasMatch = i.csManagers.some(p => state.filters.csManagers.has(p));
-                    if (!hasMatch) return false;
-                }
-                if (state.filters.csmStatuses.size > 0 && !state.filters.csmStatuses.has(i.masterCsmStatus || '')) return false;
-                const matchesText = i.name.toLowerCase().includes(queryText) || i.bName.toLowerCase().includes(queryText);
-                if (!matchesText) return false;
-                if (queryPerson && !i.people.some(p => p.toLowerCase().includes(queryPerson))) return false;
-
-                liveStats.total++;
+            const liveStats = { boards: new Set(), overdue: 0, soon: 0, v2w: 0 };
+            filtered.forEach(i => {
                 liveStats.boards.add(i.bId);
                 if (i.status === 'overdue') liveStats.overdue++;
                 else if (i.status === 'soon') liveStats.soon++;
                 else if (i.status === '2w') liveStats.v2w++;
-
-                return true;
             });
 
             document.getElementById('stat-boards').innerText = liveStats.boards.size;
             document.getElementById('stat-overdue').innerText = liveStats.overdue;
             document.getElementById('stat-soon').innerText = liveStats.soon;
             document.getElementById('stat-2w').innerText = liveStats.v2w;
-            document.getElementById('stat-items').innerText = liveStats.total;
+            document.getElementById('stat-items').innerText = filtered.length;
 
             // My Focus: filter to current user and sort by priority
             if (state.myFocusActive && state.currentUser) {
@@ -2864,62 +2854,61 @@
             if (b) b.classList.toggle('show');
         }
 
-        // --- Person Multi-Select Logic ---
-        function togglePersonDropdown(show) {
-            const d = document.getElementById('person-dropdown');
-            if (show) {
-                d.classList.add('show');
-                renderPersonOptions();
-            } else {
-                d.classList.remove('show');
-            }
+        // --- Multi-Select Dropdown Factory ---
+        function createDropdownFilter(cfg) {
+            const f = {
+                toggle(show) {
+                    document.getElementById(cfg.dropdownId).classList.toggle('show', show);
+                    if (show) f.renderOptions();
+                },
+                renderOptions() {
+                    const query = document.getElementById(cfg.inputId).value.toLowerCase();
+                    const opts = cfg.getOptions().filter(p => p.toLowerCase().includes(query));
+                    document.getElementById(cfg.listId).innerHTML = opts.map(p => `
+                        <div class="person-item ${cfg.filterSet.has(p) ? 'selected' : ''}" onclick="${cfg.toggleFn}('${p.replace(/'/g, "\\'")}')">
+                            <input type="checkbox" ${cfg.filterSet.has(p) ? 'checked' : ''} style="pointer-events: none;">
+                            <span>${p}</span>
+                        </div>
+                    `).join('') || `<div style="padding:10px; font-size:11px; color:var(--muted)">${cfg.emptyMsg}</div>`;
+                },
+                toggleSelection(name) {
+                    if (name) {
+                        if (cfg.filterSet.has(name)) cfg.filterSet.delete(name);
+                        else cfg.filterSet.add(name);
+                    }
+                    const input = document.getElementById(cfg.inputId);
+                    const names = [...cfg.filterSet].sort();
+                    input.placeholder = names.length > 0 ? names.join(', ') : cfg.defaultPlaceholder;
+                    f.renderOptions();
+                    updateFilteredUI();
+                },
+                selectAll() { cfg.getOptions().forEach(p => cfg.filterSet.add(p)); f.toggleSelection(null); },
+                clear()     { cfg.filterSet.clear(); f.toggleSelection(null); }
+            };
+            return f;
         }
 
-        function renderPersonOptions() {
-            const list = document.getElementById('person-list');
-            const query = document.getElementById('filter-person-input').value.toLowerCase();
+        const personFilter = createDropdownFilter({
+            dropdownId: 'person-dropdown', listId: 'person-list', inputId: 'filter-person-input',
+            filterSet: state.filters.people,
+            getOptions: () => [...new Set(state.auditedItems.flatMap(i => i.people))].sort(),
+            defaultPlaceholder: 'Filter by people...', emptyMsg: 'No people found...',
+            toggleFn: 'togglePersonSelection'
+        });
 
-            const allPeople = new Set();
-            state.auditedItems.forEach(i => {
-                i.people.forEach(p => allPeople.add(p));
-            });
-            const people = Array.from(allPeople).sort();
+        const csmFilter = createDropdownFilter({
+            dropdownId: 'csm-dropdown', listId: 'csm-list', inputId: 'filter-csm-input',
+            filterSet: state.filters.csManagers,
+            getOptions: () => [...new Set(state.auditedItems.flatMap(i => i.csManagers))].filter(p => p !== '-').sort(),
+            defaultPlaceholder: 'Filter by CS/PM...', emptyMsg: 'No CS managers found...',
+            toggleFn: 'toggleCSMSelection'
+        });
 
-            const html = people.filter(p => p.toLowerCase().includes(query)).map(p => `
-                <div class="person-item ${state.filters.people.has(p) ? 'selected' : ''}" onclick="togglePersonSelection('${p.replace(/'/g, "\\'")}')">
-                    <input type="checkbox" ${state.filters.people.has(p) ? 'checked' : ''} style="pointer-events: none;">
-                    <span>${p}</span>
-                </div>
-            `).join('');
-
-            list.innerHTML = html || '<div style="padding:10px; font-size:11px; color:var(--muted)">No people found...</div>';
-            updateFilteredUI(); // Update results as we type/search
-        }
-
-        function togglePersonSelection(name) {
-            if (name) {
-                if (state.filters.people.has(name)) state.filters.people.delete(name);
-                else state.filters.people.add(name);
-            }
-
-            // Update the input placeholder to show names separated by commas
-            const input = document.getElementById('filter-person-input');
-            const names = [...state.filters.people].sort();
-            input.placeholder = names.length > 0 ? names.join(", ") : "Filter by people...";
-
-            renderPersonOptions();
-        }
-
-        function selectAllPeople() {
-            const people = [...new Set(state.auditedItems.flatMap(i => i.people))];
-            people.forEach(p => state.filters.people.add(p));
-            togglePersonSelection(null); // Just to trigger UI refresh
-        }
-
-        function clearPeople() {
-            state.filters.people.clear();
-            togglePersonSelection(null); // Just to trigger UI refresh
-        }
+        function togglePersonDropdown(show)   { personFilter.toggle(show); }
+        function renderPersonOptions()         { personFilter.renderOptions(); }
+        function togglePersonSelection(name)   { personFilter.toggleSelection(name); }
+        function selectAllPeople()             { personFilter.selectAll(); }
+        function clearPeople()                 { personFilter.clear(); }
 
         // --- CS Manager Mapping Logic ---
         function normalizeString(str) {
@@ -3345,58 +3334,11 @@
             }
         }
 
-        function toggleCSMDropdown(show) {
-            const d = document.getElementById('csm-dropdown');
-            if (show) {
-                d.classList.add('show');
-                renderCSMOptions();
-            } else {
-                d.classList.remove('show');
-            }
-        }
-
-        function renderCSMOptions() {
-            const list = document.getElementById('csm-list');
-            const query = document.getElementById('filter-csm-input').value.toLowerCase();
-
-            const allCSMs = new Set();
-            state.auditedItems.forEach(i => {
-                i.csManagers.forEach(p => { if (p !== "-") allCSMs.add(p); });
-            });
-            const people = Array.from(allCSMs).sort();
-
-            const html = people.filter(p => p.toLowerCase().includes(query)).map(p => `
-                <div class="person-item ${state.filters.csManagers.has(p) ? 'selected' : ''}" onclick="toggleCSMSelection('${p.replace(/'/g, "\\'")}')">
-                    <input type="checkbox" ${state.filters.csManagers.has(p) ? 'checked' : ''} style="pointer-events: none;">
-                    <span>${p}</span>
-                </div>
-            `).join('');
-
-            list.innerHTML = html || '<div style="padding:10px; font-size:11px; color:var(--muted)">No CS managers found...</div>';
-            updateFilteredUI();
-        }
-
-        function toggleCSMSelection(name) {
-            if (name) {
-                if (state.filters.csManagers.has(name)) state.filters.csManagers.delete(name);
-                else state.filters.csManagers.add(name);
-            }
-            const input = document.getElementById('filter-csm-input');
-            const names = [...state.filters.csManagers].sort();
-            input.placeholder = names.length > 0 ? names.join(", ") : "Filter by CS/PM...";
-            renderCSMOptions();
-        }
-
-        function selectAllCSMs() {
-            const people = [...new Set(state.auditedItems.flatMap(i => i.csManagers))].filter(p => p !== "-");
-            people.forEach(p => state.filters.csManagers.add(p));
-            toggleCSMSelection(null);
-        }
-
-        function clearCSMs() {
-            state.filters.csManagers.clear();
-            toggleCSMSelection(null);
-        }
+        function toggleCSMDropdown(show) { csmFilter.toggle(show); }
+        function renderCSMOptions()       { csmFilter.renderOptions(); }
+        function toggleCSMSelection(name) { csmFilter.toggleSelection(name); }
+        function selectAllCSMs()          { csmFilter.selectAll(); }
+        function clearCSMs()              { csmFilter.clear(); }
 
         // --- Lookup Modal Logic ---
         function toggleLookupModal(show) {
@@ -3549,26 +3491,7 @@
         }
 
         function buildChatContext() {
-            // Replicate updateFilteredUI filtering logic to get currently visible items
-            const queryText = document.getElementById('filter-text').value.toLowerCase();
-            const queryPerson = document.getElementById('filter-person-input').value.toLowerCase();
-
-            let filtered = state.auditedItems.filter(i => {
-                if (state.excludedStatusLabels.has(i.itemStatus)) return false;
-                if (state.filters.status !== 'all' && i.status !== state.filters.status) return false;
-                if (state.filters.people.size > 0) {
-                    const hasMatch = i.people.some(p => state.filters.people.has(p));
-                    if (!hasMatch) return false;
-                }
-                if (state.filters.csManagers.size > 0) {
-                    const hasMatch = i.csManagers.some(p => state.filters.csManagers.has(p));
-                    if (!hasMatch) return false;
-                }
-                const matchesText = i.name.toLowerCase().includes(queryText) || i.bName.toLowerCase().includes(queryText);
-                if (!matchesText) return false;
-                if (queryPerson && !i.people.some(p => p.toLowerCase().includes(queryPerson))) return false;
-                return true;
-            });
+            let filtered = getFilteredItems();
 
             // If in manager view and staff cards are selected, scope down to those people
             if (state.viewMode === 'manager' && state.selectedStaffNames.size > 0) {
