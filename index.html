@@ -20209,7 +20209,44 @@
             const key = document.getElementById('seo-intel-api-key-input')?.value?.trim();
             if (!key) return;
             localStorage.setItem('monday_api_key', key);
-            fetchSeoIntel(true);
+            diagnoseSeoIntelKey(key);
+        }
+
+        async function diagnoseSeoIntelKey(key) {
+            const el = document.getElementById('cockpit-seo-intel-content');
+            if (!el) return;
+            el.innerHTML = `<div style="text-align:center;padding:30px;color:#64748b;"><i class="fas fa-spinner fa-spin fa-2x"></i><p style="margin-top:12px;font-size:0.9em;">Verifying token…</p></div>`;
+            try {
+                const resp = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'get_monday_data', api_key: key,
+                        query: '{ me { id name account { id name } } boards(ids:[2845615047]){ id name } }' })
+                });
+                const raw = await resp.json();
+                const parsed = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+                const data = parsed?.data || parsed;
+                const me = data?.me;
+                const board = data?.boards?.[0];
+                if (board) {
+                    // Token works — proceed with full fetch
+                    fetchSeoIntel(true);
+                } else {
+                    el.innerHTML = `
+                        <div style="padding:20px;font-size:0.85rem;color:#64748b;">
+                            <p style="font-weight:700;color:#dc2626;margin-bottom:10px;"><i class="fas fa-exclamation-triangle"></i> Token can't access board 2845615047</p>
+                            ${me ? `<p style="margin-bottom:8px;">Logged in as: <b>${me.name}</b> (Account: <b>${me.account?.name || me.account?.id}</b>)</p>
+                            <p style="color:#ef4444;">This account doesn't own the <em>Integrated Campaign Info Repository</em> board.<br>
+                            You need a token from the account that owns that board.</p>` : `<p>Could not verify token identity.</p>`}
+                            <p style="margin-top:12px;color:#94a3b8;font-size:0.78em;">Open the board on Monday.com, check which workspace it belongs to, and generate a new Personal API Token while logged into that workspace.</p>
+                            <button onclick="cockpitState.seoIntelBoardId=null;localStorage.removeItem('monday_api_key');fetchSeoIntel(true);" class="discovery-btn-run" style="margin-top:14px;padding:6px 14px;font-size:0.82rem;background:#6366f1;border:none;color:#fff;">
+                                <i class="fas fa-key"></i> Try a different token
+                            </button>
+                        </div>`;
+                }
+            } catch(e) {
+                console.error('Diag error:', e);
+                fetchSeoIntel(true);
+            }
         }
 
         // Column IDs confirmed from live board inspection (board 2845615047)
