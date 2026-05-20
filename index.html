@@ -20397,9 +20397,8 @@
 
         // ── Google Algorithm News Feed ────────────────────────────────────────────
         async function fetchAlgorithmNews(forceRefresh = false) {
-            const contentEl = document.getElementById('cockpit-algo-news-content');
-            const countEl = document.getElementById('cockpit-algo-news-count');
-            if (!contentEl) return;
+            // Works with or without the standalone card — sidebar is the primary target now
+            const sidebarEl = document.getElementById('movers-algo-sidebar-content');
 
             // Serve from 6-hour cache unless forced
             if (!forceRefresh && cockpitState.algoNewsCache &&
@@ -20408,9 +20407,9 @@
                 return;
             }
 
-            contentEl.innerHTML = `<div style="text-align:center;padding:40px;color:#64748b;">
-                <i class="fas fa-spinner fa-spin fa-2x"></i>
-                <p style="margin-top:15px;font-size:0.9em;">Searching for recent Google algorithm updates...</p>
+            if (sidebarEl) sidebarEl.innerHTML = `<div style="text-align:center;padding:30px;color:#64748b;">
+                <i class="fas fa-spinner fa-spin"></i>
+                <p style="margin-top:10px;font-size:0.85em;">Searching for updates...</p>
             </div>`;
 
             const prompt = `Search the web for the most recent Google search algorithm updates from 2024 and 2025 that SEO professionals should be aware of. Return ONLY a valid JSON array (no markdown, no extra text) where each object has:
@@ -20440,13 +20439,14 @@ Include at least 8 updates ordered most recent first.`;
                 renderAlgorithmNews(updates);
             } catch (e) {
                 console.error('Algorithm news error:', e);
-                contentEl.innerHTML = `<div style="padding:30px;text-align:center;color:#ef4444;">
-                    <i class="fas fa-exclamation-triangle fa-2x"></i>
-                    <p style="margin-top:12px;font-size:0.9em;">Failed to load algorithm updates.</p>
-                    <button onclick="fetchAlgorithmNews(true)" class="discovery-btn-run" style="margin-top:10px;padding:6px 16px;font-size:0.85rem;">
+                const errHtml = `<div style="padding:20px;text-align:center;color:#ef4444;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p style="margin-top:8px;font-size:0.85em;">Failed to load updates.</p>
+                    <button onclick="fetchAlgorithmNews(true)" class="discovery-btn-run" style="margin-top:8px;padding:5px 12px;font-size:0.8rem;">
                         <i class="fas fa-redo"></i> Retry
                     </button>
                 </div>`;
+                if (sidebarEl) sidebarEl.innerHTML = errHtml;
             }
         }
 
