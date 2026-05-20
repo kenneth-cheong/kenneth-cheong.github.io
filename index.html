@@ -20330,28 +20330,29 @@
                     localStorage.setItem('seoIntelBoardId', board.id);
                 }
 
-                // Paginate all items
+                // Paginate all items — inline board ID and cursor to avoid Lambda variable-forwarding issues
+                const bid = cockpitState.seoIntelBoardId;
                 const items = [];
                 let cursor = null;
                 do {
-                    const res = await mondayCockpitQuery(`
-                        query($id:[ID!],$c:String){
-                            boards(ids:$id){
-                                items_page(limit:200,cursor:$c){
-                                    cursor
-                                    items{
-                                        id name
-                                        column_values(ids:["tags","status0","status","numbers3","numbers98","timeline5"]){
-                                            id text
-                                            ...on TagsValue{ tags{ name } }
-                                            ...on StatusValue{ label }
-                                            ...on NumbersValue{ number }
-                                            ...on TimelineValue{ from to }
-                                        }
+                    const cursorArg = cursor ? `,cursor:"${cursor}"` : '';
+                    const res = await mondayCockpitQuery(`{
+                        boards(ids:[${bid}]){
+                            items_page(limit:200${cursorArg}){
+                                cursor
+                                items{
+                                    id name
+                                    column_values(ids:["tags","status0","status","numbers3","numbers98","timeline5"]){
+                                        id text
+                                        ...on TagsValue{ tags{ name } }
+                                        ...on StatusValue{ label }
+                                        ...on NumbersValue{ number }
+                                        ...on TimelineValue{ from to }
                                     }
                                 }
                             }
-                        }`, { id: [cockpitState.seoIntelBoardId], c: cursor });
+                        }
+                    }`);
                     if (Array.isArray(res?.boards) && res.boards.length === 0) {
                         throw new Error('__no_access__');
                     }
