@@ -18331,6 +18331,7 @@
             lastMoversData: [], // Store results for tab switching without re-fetch
             moversTimeSeries: {}, // siteName → { date → avgRank } for trend chart
             selectedMoversCampaigns: new Set(), // Campaign multi-select filter
+            moversFilterSearch: '',             // Live search query inside the campaign dropdown
             gscRecommendations: [], // Grouped GSC insights
             gscSearchQuery: '', // Filter for GSC properties
             selectedGscDomains: new Set(), // Filter by domain
@@ -19677,12 +19678,27 @@
                                     <span id="movers-filter-label">${filterLabel}</span>
                                     <i class="fas fa-chevron-down" style="font-size:0.6rem;color:#94a3b8;"></i>
                                 </button>
-                                <div id="movers-filter-dropdown" style="display:none;position:absolute;top:100%;left:0;min-width:200px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:300;margin-top:4px;max-height:240px;overflow-y:auto;padding:8px;">
-                                    <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600;color:#475569;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
-                                        <input type="checkbox" ${!filterActive ? 'checked' : ''} onchange="clearMoversCampaignFilter()" style="width:14px;height:14px;"> All Sites
-                                    </label>
-                                    <div style="height:1px;background:#f1f5f9;margin:4px 0;"></div>
-                                    ${allSites.map(site => `<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:0.82rem;color:#334155;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'"><input type="checkbox" ${cockpitState.selectedMoversCampaigns.has(site) ? 'checked' : ''} data-site="${site.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" onchange="toggleMoversCampaign(this.dataset.site, this.checked)" style="width:14px;height:14px;"> ${site}</label>`).join('')}
+                                <div id="movers-filter-dropdown" style="display:none;position:absolute;top:100%;left:0;min-width:260px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:300;margin-top:4px;max-height:300px;display:none;flex-direction:column;">
+                                    <!-- Search input -->
+                                    <div style="padding:8px 8px 4px;flex-shrink:0;">
+                                        <div style="position:relative;">
+                                            <i class="fas fa-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:0.7rem;color:#94a3b8;pointer-events:none;"></i>
+                                            <input type="text" id="movers-search-input" placeholder="Search campaigns…"
+                                                value="${cockpitState.moversFilterSearch}"
+                                                oninput="filterMoversDropdown(this.value)"
+                                                onclick="event.stopPropagation()"
+                                                style="width:100%;padding:5px 8px 5px 26px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.8rem;outline:none;box-sizing:border-box;background:#f8fafc;">
+                                        </div>
+                                    </div>
+                                    <!-- Scrollable list -->
+                                    <div style="overflow-y:auto;padding:4px 8px 8px;flex:1;">
+                                        <label id="movers-all-sites-label" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600;color:#475569;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
+                                            <input type="checkbox" ${!filterActive ? 'checked' : ''} onchange="clearMoversCampaignFilter()" style="width:14px;height:14px;"> All Sites
+                                        </label>
+                                        <div style="height:1px;background:#f1f5f9;margin:4px 0;"></div>
+                                        ${allSites.map(site => `<label class="movers-site-label" style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:0.82rem;color:#334155;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'"><input type="checkbox" ${cockpitState.selectedMoversCampaigns.has(site) ? 'checked' : ''} data-site="${site.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}" onchange="toggleMoversCampaign(this.dataset.site, this.checked)" style="width:14px;height:14px;"> ${site}</label>`).join('')}
+                                        <div id="movers-no-results" style="display:none;padding:10px 8px;font-size:0.8rem;color:#94a3b8;text-align:center;">No matches</div>
+                                    </div>
                                 </div>
                             </div>
                             <span style="font-size:0.75rem;color:#94a3b8;white-space:nowrap;">
@@ -20099,9 +20115,17 @@
         function toggleMoversFilterDropdown() {
             const dropdown = document.getElementById('movers-filter-dropdown');
             if (!dropdown) return;
-            const open = dropdown.style.display === 'block';
-            dropdown.style.display = open ? 'none' : 'block';
-            if (!open) {
+            const open = dropdown.style.display === 'flex';
+            if (open) {
+                dropdown.style.display = 'none';
+            } else {
+                dropdown.style.display = 'flex';
+                // Re-apply any existing search query and focus the input
+                const input = document.getElementById('movers-search-input');
+                if (input) {
+                    if (cockpitState.moversFilterSearch) filterMoversDropdown(cockpitState.moversFilterSearch);
+                    setTimeout(() => input.focus(), 30);
+                }
                 const close = (e) => {
                     const wrap = document.getElementById('movers-filter-wrap');
                     if (wrap && !wrap.contains(e.target)) {
@@ -20113,21 +20137,44 @@
             }
         }
 
+        function filterMoversDropdown(query) {
+            cockpitState.moversFilterSearch = query;
+            const q = query.trim().toLowerCase();
+            let visible = 0;
+            document.querySelectorAll('#movers-filter-dropdown .movers-site-label').forEach(label => {
+                const match = !q || label.textContent.trim().toLowerCase().includes(q);
+                label.style.display = match ? '' : 'none';
+                if (match) visible++;
+            });
+            // Show/hide "All Sites" row: hide it when searching
+            const allRow = document.getElementById('movers-all-sites-label');
+            if (allRow) allRow.style.display = q ? 'none' : '';
+            // Show "No matches" message
+            const noResults = document.getElementById('movers-no-results');
+            if (noResults) noResults.style.display = visible === 0 ? '' : 'none';
+        }
+
         function toggleMoversCampaign(site, checked) {
             if (checked) cockpitState.selectedMoversCampaigns.add(site);
             else cockpitState.selectedMoversCampaigns.delete(site);
             renderMoversContent();
-            // Keep dropdown open so user can make multiple selections
+            // Keep dropdown open and restore search
             const dd = document.getElementById('movers-filter-dropdown');
-            if (dd) dd.style.display = 'block';
+            if (dd) {
+                dd.style.display = 'flex';
+                if (cockpitState.moversFilterSearch) filterMoversDropdown(cockpitState.moversFilterSearch);
+            }
         }
 
         function clearMoversCampaignFilter() {
             cockpitState.selectedMoversCampaigns.clear();
             renderMoversContent();
-            // Keep dropdown open after clearing
+            // Keep dropdown open and restore search
             const dd = document.getElementById('movers-filter-dropdown');
-            if (dd) dd.style.display = 'block';
+            if (dd) {
+                dd.style.display = 'flex';
+                if (cockpitState.moversFilterSearch) filterMoversDropdown(cockpitState.moversFilterSearch);
+            }
         }
 
         // ── SEO Campaign Intelligence ─────────────────────────────────────────────
