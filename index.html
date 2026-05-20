@@ -20342,6 +20342,9 @@
                                 }
                             }
                         }`, { id: [cockpitState.seoIntelBoardId], c: cursor });
+                    if (Array.isArray(res?.boards) && res.boards.length === 0) {
+                        throw new Error('__no_access__');
+                    }
                     const page = res?.boards?.[0]?.items_page;
                     if (!page) break;
                     items.push(...page.items);
@@ -20361,7 +20364,30 @@
 
             } catch (e) {
                 console.error('SEO Intel error:', e);
-                const needsId = e.message.includes('not found');
+                if (e.message === '__no_access__') {
+                    // Key exists but can't see the board — prompt for the right key
+                    el.innerHTML = `
+                        <div style="padding:24px;text-align:center;color:#64748b;">
+                            <i class="fab fa-monday" style="font-size:2rem;color:#6366f1;"></i>
+                            <p style="margin:12px 0 4px;font-weight:700;color:#1e293b;font-size:0.95em;">Board not accessible</p>
+                            <p style="font-size:0.82em;color:#64748b;margin-bottom:16px;">
+                                The current API key can't read board <b>2845615047</b>.<br>
+                                Enter a token that has access to the <em>Integrated Campaign Info Repository</em>.
+                            </p>
+                            <div style="display:flex;gap:8px;justify-content:center;max-width:380px;margin:0 auto;">
+                                <input type="password" id="seo-intel-api-key-input" placeholder="Monday Personal Access Token…"
+                                    style="flex:1;padding:7px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.82rem;outline:none;"
+                                    onkeydown="if(event.key==='Enter') saveSeoIntelApiKey()">
+                                <button onclick="saveSeoIntelApiKey()" class="discovery-btn-run" style="padding:7px 14px;font-size:0.82rem;background:#6366f1;border:none;color:#fff;white-space:nowrap;">
+                                    Connect
+                                </button>
+                            </div>
+                            <p style="font-size:0.75em;color:#94a3b8;margin-top:10px;">
+                                <b>monday.com → Profile → Developers → Personal API token</b>
+                            </p>
+                        </div>`;
+                    return;
+                }
                 el.innerHTML = `
                     <div style="padding:30px;text-align:center;color:#ef4444;">
                         <i class="fas fa-exclamation-triangle fa-2x"></i>
@@ -20369,14 +20395,6 @@
                         <button onclick="fetchSeoIntel(true)" class="discovery-btn-run" style="margin-top:10px;padding:6px 16px;font-size:0.85rem;">
                             <i class="fas fa-redo"></i> Retry
                         </button>
-                        ${needsId ? `<div style="margin-top:16px;font-size:0.85rem;color:#64748b;">
-                            <p style="margin-bottom:8px;">Enter your Monday Board ID manually:</p>
-                            <div style="display:flex;gap:8px;justify-content:center;">
-                                <input type="text" id="seoIntelBoardIdInput" placeholder="e.g. 1234567890"
-                                    style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem;width:160px;text-align:center;">
-                                <button onclick="setSeoIntelBoardId()" class="discovery-btn-run" style="padding:6px 12px;">Set & Load</button>
-                            </div>
-                        </div>` : ''}
                     </div>`;
             }
         }
