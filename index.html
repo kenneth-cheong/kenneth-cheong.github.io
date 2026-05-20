@@ -10381,7 +10381,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1227</span>
+                <span id="appVersion">v1.0.1228</span>
             </a>
         </div>
 
@@ -20199,12 +20199,14 @@
 
         // Column IDs confirmed from live board inspection (board 2845615047)
         const SEO_INTEL_COLS = {
-            projectType:    'tags',      // TagsValue  — tag names e.g. "seo", "sem"
-            campaignStatus: 'status0',   // StatusValue — e.g. "Live (Active Delivery)", "Guarantee (SEO)"
-            campaignType:   'status',    // StatusValue — e.g. "Standard", "Cluster", "KPI Excluded"
-            kpiKws:         'numbers3',  // NumbersValue
-            p1Kws:          'numbers98', // NumbersValue
-            timeline:       'timeline5'  // TimelineValue
+            projectType:    'tags',              // tags — "seo", "sem", …
+            campaignStatus: 'status0',           // [CSM] Campaign Status
+            campaignType:   'status',            // SEO Campaign Type — "Standard" | "Cluster"
+            kpiKws:         'numbers3',          // SEO [Reg] KPI KWs  (Standard)
+            p1Kws:          'numbers98',         // SEO [Reg] P1 KWs   (Standard)
+            clusterKpi:     'numeric_mksrz985',  // SEO [Cluster] KPI  (Cluster)
+            clusterHit:     'numbers_18',        // SEO [Cluster] Clusters Hit (Cluster)
+            timeline:       'timeline5'          // [SEO] SEO Timeline
         };
 
         function processSeoIntelItem(item) {
@@ -20218,13 +20220,21 @@
             const csmStatus = txt(SEO_INTEL_COLS.campaignStatus).toLowerCase();
             if (!['live', 'guarantee', 'renewed', 'lit'].some(s => csmStatus.includes(s))) return null;
 
-            // SEO Campaign Type text e.g. "Standard"
-            if (!txt(SEO_INTEL_COLS.campaignType).toLowerCase().includes('standard')) return null;
+            // SEO Campaign Type — must be Standard or Cluster
+            const campTypeRaw = txt(SEO_INTEL_COLS.campaignType).toLowerCase();
+            const isStandard = campTypeRaw.includes('standard');
+            const isCluster  = campTypeRaw.includes('cluster');
+            if (!isStandard && !isCluster) return null;
 
-            // KPI and P1 — text is a plain number string e.g. "5"
-            const kpi = parseFloat(txt(SEO_INTEL_COLS.kpiKws))  || 0;
-            const p1  = parseFloat(txt(SEO_INTEL_COLS.p1Kws))   || 0;
+            // KPI and result depend on campaign type
+            const kpi = isCluster
+                ? parseFloat(txt(SEO_INTEL_COLS.clusterKpi)) || 0
+                : parseFloat(txt(SEO_INTEL_COLS.kpiKws))     || 0;
+            const p1  = isCluster
+                ? parseFloat(txt(SEO_INTEL_COLS.clusterHit)) || 0
+                : parseFloat(txt(SEO_INTEL_COLS.p1Kws))      || 0;
             if (!kpi) return null;
+            const resultLabel = isCluster ? 'Clusters Hit' : 'P1 KWs';
 
             // Timeline text is "YYYY-MM-DD - YYYY-MM-DD"
             const tlText = txt(SEO_INTEL_COLS.timeline);
@@ -20254,6 +20264,7 @@
                 seoOwner:       txt('people6') || '—',
                 campaignStatus: txt(SEO_INTEL_COLS.campaignStatus),
                 campaignType:   txt(SEO_INTEL_COLS.campaignType),
+                resultLabel,
             };
         }
 
@@ -20293,7 +20304,7 @@
                 do {
                     pageNum++;
                     const cursorArg = cursor ? `,cursor:"${cursor}"` : '';
-                    const query = `{ boards(ids:["2845615047"]){ items_page(limit:200${cursorArg}){ cursor items{ id name column_values(ids:["tags","status0","status","numbers3","numbers98","timeline5","people6"]){ id text } } } } }`;
+                    const query = `{ boards(ids:["2845615047"]){ items_page(limit:200${cursorArg}){ cursor items{ id name column_values(ids:["tags","status0","status","numbers3","numbers98","timeline5","people6","numeric_mksrz985","numbers_18"]){ id text } } } } }`;
                     const res = await mondayCockpitQuery(query);
                     console.log(`[SEO Intel v3] page ${pageNum} raw:`, JSON.stringify(res).slice(0, 200));
                     const page = res?.boards?.[0]?.items_page;
@@ -20502,7 +20513,7 @@
                     <div title="Expected at this point" style="position:absolute;top:-3px;height:13px;width:2px;background:#94a3b8;border-radius:1px;left:${expectedPct.toFixed(1)}%;"></div>
                 </div>
                 <div style="display:flex;justify-content:space-between;font-size:0.71rem;color:#64748b;">
-                    <span><span style="font-weight:700;color:#0f172a;">${c.p1}</span> P1 KWs &nbsp;·&nbsp; <span style="color:#94a3b8;">expected <b style="color:#475569;">${c.expected}</b> · KPI <b style="color:#475569;">${c.kpi}</b></span></span>
+                    <span><span style="font-weight:700;color:#0f172a;">${c.p1}</span> ${c.resultLabel} &nbsp;·&nbsp; <span style="color:#94a3b8;">expected <b style="color:#475569;">${c.expected}</b> · KPI <b style="color:#475569;">${c.kpi}</b></span></span>
                     <span style="color:#94a3b8;">${c.pctProgress}% · ${fmtDate(c.startDate)} – ${fmtDate(c.endDate)}</span>
                 </div>
             </div>`;
