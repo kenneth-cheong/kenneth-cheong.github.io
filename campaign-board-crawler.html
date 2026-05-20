@@ -1848,7 +1848,7 @@
                 'Archive', 'Done', 'Not Needed', 'Not Needed (AI)',
                 '[MO] Done', '[MO] Not Needed'
             ]),
-            timeliness: { data: [], loaded: false, loading: false, expandedStaff: new Set() },
+            timeliness: { data: [], loaded: false, loading: false, expandedStaff: new Set(), progress: { done: 0, total: 0 } },
             completionLabels: new Set(['Done', 'Completed', 'Signed Off', 'Launched', 'Live', 'Approved'])
         };
 
@@ -2633,82 +2633,77 @@
             if (state.timeliness.loading) return;
             state.timeliness.loading = true;
             state.timeliness.data = [];
-            renderTimelinessView();
 
             const boardsToQuery = [];
             state.selectedFolderIds.forEach(fid => {
                 const f = state.folders.find(x => x.id === fid);
                 if (f) f.boards.forEach(b => boardsToQuery.push({ id: b.id, name: b.name }));
             });
+            state.timeliness.progress = { done: 0, total: boardsToQuery.length };
+            renderTimelinessView();
 
-            for (const b of boardsToQuery) {
+            async function processBoard(b) {
                 try {
-                    showToast(`Timeliness: scanning ${b.name}...`);
-
-                    // Fetch all completed items with updated_at
-                    let cursor = null;
-                    const completedItems = [];
-                    do {
-                        const idata = await monday(`query($id:[ID!],$c:String){
-                            boards(ids:$id){
-                                items_page(limit:500,cursor:$c){
-                                    cursor
-                                    items{
-                                        id name updated_at
-                                        column_values{
-                                            id type
-                                            column{ title }
-                                            ...on StatusValue{ label }
-                                            ...on DateValue{ date }
-                                            ...on TimelineValue{ from to }
+                    // Items fetch and activity logs run in parallel
+                    const [completedItems, completionDateMap] = await Promise.all([
+                        (async () => {
+                            let cursor = null;
+                            const items = [];
+                            do {
+                                const idata = await monday(`query($id:[ID!],$c:String){
+                                    boards(ids:$id){
+                                        items_page(limit:500,cursor:$c){
+                                            cursor
+                                            items{
+                                                id name updated_at
+                                                column_values{
+                                                    id type
+                                                    column{ title }
+                                                    ...on StatusValue{ label }
+                                                    ...on DateValue{ date }
+                                                    ...on TimelineValue{ from to }
+                                                }
+                                            }
                                         }
                                     }
-                                }
-                            }
-                        }`, { id: [b.id], c: cursor }, false);
-                        const page = idata.boards?.[0]?.items_page;
-                        if (!page) break;
-                        page.items.forEach(i => {
-                            const sv = i.column_values.find(cv => cv.label !== undefined);
-                            if (sv && state.completionLabels.has(sv.label)) completedItems.push(i);
-                        });
-                        cursor = page.cursor;
-                    } while (cursor);
-
-                    if (completedItems.length === 0) { hideToast(); continue; }
-
-                    // Try activity logs for precise completion timestamps
-                    const completionDateMap = {};
-                    try {
-                        const ldata = await monday(`query($id:[ID!]){
-                            boards(ids:$id){
-                                activity_logs(limit:500){
-                                    event data created_at
-                                }
-                            }
-                        }`, { id: [b.id] }, false);
-                        const logs = ldata.boards?.[0]?.activity_logs || [];
-                        logs.forEach(log => {
-                            if (log.event !== 'update_column_value') return;
+                                }`, { id: [b.id], c: cursor }, false);
+                                const page = idata.boards?.[0]?.items_page;
+                                if (!page) break;
+                                page.items.forEach(i => {
+                                    const sv = i.column_values.find(cv => cv.label !== undefined);
+                                    if (sv && state.completionLabels.has(sv.label)) items.push(i);
+                                });
+                                cursor = page.cursor;
+                            } while (cursor);
+                            return items;
+                        })(),
+                        (async () => {
+                            const map = {};
                             try {
-                                const d = JSON.parse(log.data);
-                                const itemId = String(d.pulse_id);
-                                if (completionDateMap[itemId]) return; // logs are newest-first; keep first match
-                                const val = JSON.parse(d.value || '{}');
-                                const label = val.label?.text || (typeof val.label === 'string' ? val.label : '');
-                                if (state.completionLabels.has(label)) {
-                                    // created_at is Unix ms (number or numeric string) or ISO string
-                                    const raw = log.created_at;
-                                    const ts = /^\d+$/.test(String(raw))
-                                        ? new Date(Number(raw)).toISOString()
-                                        : raw;
-                                    completionDateMap[itemId] = ts;
-                                }
-                            } catch {}
-                        });
-                    } catch (e) {
-                        console.warn(`Activity log unavailable for ${b.name}:`, e);
-                    }
+                                const ldata = await monday(`query($id:[ID!]){
+                                    boards(ids:$id){
+                                        activity_logs(limit:500){ event data created_at }
+                                    }
+                                }`, { id: [b.id] }, false);
+                                (ldata.boards?.[0]?.activity_logs || []).forEach(log => {
+                                    if (log.event !== 'update_column_value') return;
+                                    try {
+                                        const d = JSON.parse(log.data);
+                                        const itemId = String(d.pulse_id);
+                                        if (map[itemId]) return;
+                                        const val = JSON.parse(d.value || '{}');
+                                        const label = val.label?.text || (typeof val.label === 'string' ? val.label : '');
+                                        if (state.completionLabels.has(label)) {
+                                            const raw = log.created_at;
+                                            map[itemId] = /^\d+$/.test(String(raw))
+                                                ? new Date(Number(raw)).toISOString() : raw;
+                                        }
+                                    } catch {}
+                                });
+                            } catch (e) { console.warn(`Activity log unavailable for ${b.name}:`, e); }
+                            return map;
+                        })()
+                    ]);
 
                     completedItems.forEach(i => {
                         const dv = i.column_values.find(cv => cv.date || cv.to);
@@ -2729,13 +2724,22 @@
                             deltaDays, people, status: sv?.label || ''
                         });
                     });
-
-                    hideToast();
                 } catch (e) {
                     console.error(`Timeliness fetch failed for ${b.id}:`, e);
-                    hideToast();
+                } finally {
+                    state.timeliness.progress.done++;
+                    renderTimelinessView(); // progressive update after each board
                 }
             }
+
+            // Worker pool: 3 boards processed concurrently
+            const queue = [...boardsToQuery];
+            await Promise.all(Array.from({ length: 3 }, async () => {
+                while (queue.length > 0) {
+                    const b = queue.shift();
+                    if (b) await processBoard(b);
+                }
+            }));
 
             state.timeliness.loading = false;
             state.timeliness.loaded = true;
@@ -2752,16 +2756,19 @@
             const container = document.getElementById('timeliness-container');
             if (!container) return;
 
-            if (state.timeliness.loading) {
+            const { loading, loaded, data, progress } = state.timeliness;
+
+            // Full spinner only before any data arrives
+            if (loading && data.length === 0) {
                 container.innerHTML = `<div style="padding:60px; text-align:center; color:var(--muted);">
                     <i class="fas fa-spinner fa-spin" style="font-size:28px; margin-bottom:16px; display:block;"></i>
                     <div style="font-size:14px; margin-bottom:6px;">Fetching timeliness data...</div>
-                    <div style="font-size:11px; opacity:0.6;">Checking activity logs then scanning completed items across all boards</div>
+                    <div style="font-size:11px; opacity:0.6;">Querying activity logs and completed items in parallel across boards</div>
                 </div>`;
                 return;
             }
 
-            if (!state.timeliness.loaded) {
+            if (!loading && !loaded) {
                 container.innerHTML = `<div style="padding:60px; text-align:center; color:var(--muted);">
                     <i class="fas fa-chart-line" style="font-size:28px; margin-bottom:16px; display:block; opacity:0.4;"></i>
                     <div style="font-size:14px;">Loading timeliness report...</div>
@@ -2769,42 +2776,33 @@
                 return;
             }
 
-            const data = state.timeliness.data;
-            if (data.length === 0) {
-                container.innerHTML = `<div style="padding:60px; text-align:center; color:var(--muted);">
-                    <div style="font-size:14px;">No completed items found across selected boards.</div>
-                    <div style="font-size:11px; margin-top:6px; opacity:0.6;">Completion labels: ${[...state.completionLabels].join(', ')}</div>
-                    <button class="btn btn-secondary" onclick="state.timeliness.loaded=false; fetchTimelinessData();" style="margin-top:16px; font-size:12px; padding:6px 14px;">
-                        <i class="fas fa-redo" style="margin-right:6px;"></i>Retry
-                    </button>
+            let html = '';
+
+            if (loading) {
+                // Compact progress bar while data streams in
+                const pct = progress.total > 0 ? Math.round(progress.done / progress.total * 100) : 0;
+                html += `<div style="margin-bottom:12px; padding:10px 14px; background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.25); border-radius:10px; display:flex; align-items:center; gap:12px;">
+                    <i class="fas fa-spinner fa-spin" style="color:var(--primary); opacity:0.8;"></i>
+                    <div style="flex:1;">
+                        <div style="font-size:12px; margin-bottom:5px; color:var(--text);">Scanning boards — ${progress.done} of ${progress.total} done</div>
+                        <div style="height:4px; background:rgba(255,255,255,0.08); border-radius:2px; overflow:hidden;">
+                            <div style="height:100%; width:${pct}%; background:var(--primary); border-radius:2px; transition:width 0.3s ease;"></div>
+                        </div>
+                    </div>
+                    <span style="font-size:12px; font-family:monospace; color:var(--muted);">${pct}%</span>
                 </div>`;
-                return;
-            }
-
-            const total = data.length;
-            const onTime = data.filter(i => i.deltaDays <= 0).length;
-            const avgDelta = Math.round(data.reduce((s, i) => s + i.deltaDays, 0) / total);
-            const logCount = data.filter(i => i.source === 'log').length;
-
-            // Group by person
-            const staffMap = {};
-            data.forEach(item => {
-                item.people.forEach(person => {
-                    if (!staffMap[person]) staffMap[person] = [];
-                    staffMap[person].push(item);
-                });
-            });
-            const staffList = Object.entries(staffMap).sort(([a], [b]) => a.localeCompare(b));
-
-            const fmtDate = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-
-            let html = `
-                <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+            } else {
+                // Full stat cards once complete
+                const total = data.length;
+                const onTime = data.filter(i => i.deltaDays <= 0).length;
+                const avgDelta = total ? Math.round(data.reduce((s, i) => s + i.deltaDays, 0) / total) : 0;
+                const logCount = data.filter(i => i.source === 'log').length;
+                html += `<div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
                     <div class="stat-card" style="flex:1; min-width:90px; text-align:center;">
                         <div class="stat-value">${total}</div><div class="stat-label">Completed</div>
                     </div>
                     <div class="stat-card" style="flex:1; min-width:90px; text-align:center;">
-                        <div class="stat-value" style="color:${Math.round(onTime/total*100)>=80?'#4ade80':Math.round(onTime/total*100)>=60?'#fbbf24':'#f87171'}">${Math.round(onTime/total*100)}%</div>
+                        <div class="stat-value" style="color:${Math.round(onTime/(total||1)*100)>=80?'#4ade80':Math.round(onTime/(total||1)*100)>=60?'#fbbf24':'#f87171'}">${Math.round(onTime/(total||1)*100)}%</div>
                         <div class="stat-label">On Time</div>
                     </div>
                     <div class="stat-card" style="flex:1; min-width:90px; text-align:center;">
@@ -2825,8 +2823,28 @@
                     <i class="fas fa-info-circle" style="margin-right:4px;"></i>
                     <i class="fas fa-history" style="margin:0 3px; opacity:0.7;"></i> dates sourced from activity logs &nbsp;·&nbsp;
                     <i class="fas fa-clock" style="margin:0 3px; color:#fbbf24; opacity:0.8;"></i> dates are last-updated proxy (may shift if item was edited post-completion)
-                </div>
-                <div style="background:var(--surface); border-radius:12px; border:1px solid var(--border); overflow:hidden;">
+                </div>`;
+            }
+
+            if (data.length === 0) {
+                html += `<div style="padding:40px; text-align:center; color:var(--muted); font-size:14px;">No completed items found yet...</div>`;
+                container.innerHTML = html;
+                return;
+            }
+
+            // Group by person
+            const staffMap = {};
+            data.forEach(item => {
+                item.people.forEach(person => {
+                    if (!staffMap[person]) staffMap[person] = [];
+                    staffMap[person].push(item);
+                });
+            });
+            const staffList = Object.entries(staffMap).sort(([a], [b]) => a.localeCompare(b));
+
+            const fmtDate = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+            html += `<div style="background:var(--surface); border-radius:12px; border:1px solid var(--border); overflow:hidden;">
                     <table style="width:100%; border-collapse:separate; border-spacing:0;">
                         <thead>
                             <tr>
