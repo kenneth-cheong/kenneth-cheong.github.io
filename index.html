@@ -20192,9 +20192,24 @@
             });
             const raw = await resp.json();
             const parsed = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+            console.log('[Monday] raw response:', JSON.stringify(parsed).slice(0, 300));
             if (parsed?.errorMessage) throw new Error(`Lambda error: ${parsed.errorMessage}`);
             if (parsed?.errors?.[0]) throw new Error(parsed.errors[0].message);
+            if (!apiKey) console.warn('[Monday] No API key found — server-side key may lack board access.');
             return parsed?.data || parsed;
+        }
+
+        function getSeoIntelApiKey() {
+            return localStorage.getItem('monday_api_key')
+                || document.getElementById('adminMondayApiKey')?.value?.trim()
+                || '';
+        }
+
+        function saveSeoIntelApiKey() {
+            const key = document.getElementById('seo-intel-api-key-input')?.value?.trim();
+            if (!key) return;
+            localStorage.setItem('monday_api_key', key);
+            fetchSeoIntel(true);
         }
 
         // Column IDs confirmed from live board inspection (board 2845615047)
@@ -20264,6 +20279,28 @@
             if (!forceRefresh && cockpitState.seoIntelCache?.length &&
                 Date.now() - cockpitState.seoIntelFetchedAt < 3600000) {
                 renderSeoIntel(cockpitState.seoIntelCache);
+                return;
+            }
+
+            // Show API key prompt if none found
+            if (!getSeoIntelApiKey()) {
+                el.innerHTML = `
+                    <div style="padding:24px;text-align:center;color:#64748b;">
+                        <i class="fab fa-monday" style="font-size:2rem;color:#6366f1;"></i>
+                        <p style="margin:12px 0 6px;font-weight:700;color:#1e293b;font-size:0.95em;">Monday.com API key required</p>
+                        <p style="font-size:0.82em;color:#64748b;margin-bottom:16px;">Enter your Personal Access Token to fetch campaign trajectory data.</p>
+                        <div style="display:flex;gap:8px;justify-content:center;max-width:380px;margin:0 auto;">
+                            <input type="password" id="seo-intel-api-key-input" placeholder="Paste Monday Personal Access Token…"
+                                style="flex:1;padding:7px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.82rem;outline:none;"
+                                onkeydown="if(event.key==='Enter') saveSeoIntelApiKey()">
+                            <button onclick="saveSeoIntelApiKey()" class="discovery-btn-run" style="padding:7px 14px;font-size:0.82rem;background:#6366f1;border:none;color:#fff;white-space:nowrap;">
+                                Connect
+                            </button>
+                        </div>
+                        <p style="font-size:0.75em;color:#94a3b8;margin-top:10px;">
+                            Get it at <b>monday.com → Profile → Developers → Personal API token</b>
+                        </p>
+                    </div>`;
                 return;
             }
 
