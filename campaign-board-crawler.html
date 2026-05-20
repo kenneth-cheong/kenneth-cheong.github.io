@@ -2954,7 +2954,6 @@
                 const sOnTime = items.filter(i => i.deltaDays <= 0).length;
                 const sPct = Math.round(sOnTime / sTotal * 100);
                 const sAvg = Math.round(items.reduce((s, i) => s + i.deltaDays, 0) / sTotal);
-                const isExpanded = state.timeliness.expandedStaff.has(name);
                 const isSelected = sel.has(name);
                 const early = items.filter(i => i.deltaDays < 0).length;
                 const exact = items.filter(i => i.deltaDays === 0).length;
@@ -2963,47 +2962,15 @@
                 const pctColor = sPct >= 80 ? '#4ade80' : sPct >= 60 ? '#fbbf24' : '#f87171';
                 const avgColor = sAvg > 3 ? '#f87171' : sAvg > 0 ? '#fbbf24' : '#4ade80';
 
-                let itemsHtml = '';
-                if (isExpanded) {
-                    const sorted = [...items].sort((a, b) => b.deltaDays - a.deltaDays);
-                    itemsHtml = `<div style="margin-top:10px; border-top:1px solid var(--border); padding-top:8px; display:flex; flex-direction:column; gap:5px;">`;
-                    sorted.forEach(item => {
-                        const dc = item.deltaDays > 3 ? '#f87171' : item.deltaDays > 0 ? '#fbbf24' : '#4ade80';
-                        const dt = item.deltaDays === 0 ? 'On time' : item.deltaDays > 0 ? `${item.deltaDays}d late` : `${Math.abs(item.deltaDays)}d early`;
-                        const si = item.source === 'log'
-                            ? `<i class="fas fa-history" title="Activity log" style="opacity:0.4;font-size:9px;margin-right:2px;"></i>`
-                            : `<i class="fas fa-clock" title="Last-updated proxy" style="color:#fbbf24;opacity:0.6;font-size:9px;margin-right:2px;"></i>`;
-                        const url = boardUrl(item.bId);
-                        itemsHtml += `<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; padding:5px 8px; background:rgba(255,255,255,0.03); border-radius:6px;">
-                            <div style="min-width:0;">
-                                <div style="font-size:11px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${item.name}</div>
-                                <div style="font-size:10px; margin-top:2px;">
-                                    ${url ? `<a href="${url}" target="_blank" style="color:var(--primary); text-decoration:none; opacity:0.8;" onclick="event.stopPropagation();">${item.bName}</a>` : `<span style="color:var(--muted);">${item.bName}</span>`}
-                                </div>
-                                <div style="font-size:10px; color:var(--muted); margin-top:2px; font-family:monospace;">
-                                    <i class="fas fa-calendar-alt" style="opacity:0.4; margin-right:3px;"></i>${fmtDate(item.deadline)}
-                                    <span style="opacity:0.3; margin:0 4px;">→</span>${si}${fmtDate(item.completionDate)}
-                                </div>
-                            </div>
-                            <span style="font-size:11px; font-weight:700; color:${dc}; white-space:nowrap; flex-shrink:0;">${dt}</span>
-                        </div>`;
-                    });
-                    itemsHtml += `</div>`;
-                }
-
-                html += `<div style="background:var(--surface); border:1.5px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}; border-radius:12px; padding:14px; position:relative; opacity:${hasSel && !isSelected ? '0.45' : '1'}; transition:opacity 0.15s, border-color 0.15s;">
-                    <div onclick="toggleTimelinessStaffSelect('${name.replace(/'/g, "\\'")}'); event.stopPropagation();"
-                         style="position:absolute; top:12px; right:12px; width:18px; height:18px; border-radius:50%;
+                html += `<div style="background:var(--surface); border:1.5px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}; border-radius:12px; padding:14px; position:relative; opacity:${hasSel && !isSelected ? '0.45' : '1'}; transition:opacity 0.15s, border-color 0.15s; cursor:pointer;" onclick="toggleTimelinessStaffSelect('${name.replace(/'/g, "\\'")}')">
+                    <div style="position:absolute; top:12px; right:12px; width:18px; height:18px; border-radius:50%;
                                 border:1.5px solid ${isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.2)'};
                                 background:${isSelected ? 'var(--primary)' : 'transparent'};
-                                display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:2;">
+                                display:flex; align-items:center; justify-content:center; pointer-events:none;">
                         ${isSelected ? '<i class="fas fa-check" style="font-size:7px;color:white;"></i>' : ''}
                     </div>
-                    <div style="cursor:pointer; padding-right:28px; margin-bottom:12px;" onclick="toggleTimelinessStaff('${name.replace(/'/g, "\\'")}')">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-weight:700; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${name}</span>
-                            <i class="fas ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}" style="opacity:0.35; font-size:10px; flex-shrink:0; margin-right:4px;"></i>
-                        </div>
+                    <div style="padding-right:28px; margin-bottom:12px;">
+                        <span style="font-weight:700; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:block;">${name}</span>
                     </div>
                     <div style="display:flex; gap:0; margin-bottom:12px; border:1px solid var(--border); border-radius:8px; overflow:hidden; text-align:center;">
                         <div style="flex:1; padding:8px 4px; border-right:1px solid var(--border);">
@@ -3025,7 +2992,6 @@
                         ${mildLate>0?`<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);">${mildLate} ≤3d late</span>`:''}
                         ${late>0?`<span style="padding:2px 8px;border-radius:4px;font-size:10px;background:rgba(248,113,113,0.15);color:#f87171;border:1px solid rgba(248,113,113,0.3);">${late} late</span>`:''}
                     </div>
-                    ${itemsHtml}
                 </div>`;
             });
 
