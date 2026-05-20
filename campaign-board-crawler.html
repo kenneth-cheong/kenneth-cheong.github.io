@@ -1848,7 +1848,7 @@
                 'Archive', 'Done', 'Not Needed', 'Not Needed (AI)',
                 '[MO] Done', '[MO] Not Needed'
             ]),
-            timeliness: { data: [], loaded: false, loading: false, expandedStaff: new Set(), selectedStaff: new Set(), showDeleted: false, progress: { done: 0, total: 0 }, tableSort: { key: 'delta', dir: 'desc' } },
+            timeliness: { data: [], loaded: false, loading: false, expandedStaff: new Set(), selectedStaff: new Set(), showDeleted: false, progress: { done: 0, total: 0 }, tableSort: { key: 'delta', dir: 'desc' }, collapsedBoards: new Set() },
             completionLabels: new Set(['Done', 'Completed', 'Signed Off', 'Launched', 'Live', 'Approved'])
         };
 
@@ -2835,6 +2835,12 @@
             renderTimelinessView();
         }
 
+        function toggleTimelinessBoard(bId) {
+            if (state.timeliness.collapsedBoards.has(bId)) state.timeliness.collapsedBoards.delete(bId);
+            else state.timeliness.collapsedBoards.add(bId);
+            renderTimelinessView();
+        }
+
         function renderTimelinessView() {
             const container = document.getElementById('timeliness-container');
             if (!container) return;
@@ -3023,6 +3029,18 @@
                         return ts.dir === 'asc' ? cmp : -cmp;
                     });
 
+                // Group items by board, preserving sort order
+                const boardGroups = [];
+                const boardGroupMap = {};
+                tableItems.forEach(item => {
+                    if (!boardGroupMap[item.bId]) {
+                        const g = { bId: item.bId, bName: item.bName, items: [] };
+                        boardGroups.push(g);
+                        boardGroupMap[item.bId] = g;
+                    }
+                    boardGroupMap[item.bId].items.push(item);
+                });
+
                 const thBase = 'padding:9px 12px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid var(--border); cursor:pointer; user-select:none; white-space:nowrap;';
                 const th = (key, label, align = 'left') => {
                     const active = ts.key === key;
@@ -3032,38 +3050,61 @@
                     return `<th onclick="sortTimelinessTable('${key}')" style="${thBase} text-align:${align}; color:${active ? 'var(--text)' : 'var(--muted)'};">${label}${icon}</th>`;
                 };
 
+                let tbodyHtml = '';
+                boardGroups.forEach(g => {
+                    const isCollapsed = state.timeliness.collapsedBoards.has(g.bId);
+                    const url = boardUrl(g.bId);
+                    const gAvg = Math.round(g.items.reduce((s, i) => s + i.deltaDays, 0) / g.items.length);
+                    const gLate = g.items.filter(i => i.deltaDays > 0).length;
+                    const avgColor = gAvg > 3 ? '#f87171' : gAvg > 0 ? '#fbbf24' : '#4ade80';
+
+                    tbodyHtml += `<tr style="background:rgba(255,255,255,0.04); cursor:pointer;" onclick="toggleTimelinessBoard('${g.bId}')">
+                        <td colspan="5" style="padding:8px 12px; border-bottom:1px solid var(--border);">
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <i class="fas ${isCollapsed ? 'fa-chevron-right' : 'fa-chevron-down'}" style="opacity:0.45; font-size:10px; width:10px; flex-shrink:0;"></i>
+                                ${url ? `<a href="${url}" target="_blank" onclick="event.stopPropagation();" style="color:var(--primary); text-decoration:none; font-size:12px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${g.bName}</a>` : `<span style="font-size:12px; font-weight:600;">${g.bName}</span>`}
+                                <span style="font-size:10px; color:var(--muted); flex-shrink:0;">${g.items.length} item${g.items.length !== 1 ? 's' : ''}</span>
+                                ${gLate > 0 ? `<span style="font-size:10px; color:#f87171; flex-shrink:0;">${gLate} late</span>` : ''}
+                                <span style="font-size:10px; font-family:monospace; color:${avgColor}; margin-left:auto; flex-shrink:0;">${gAvg > 0 ? '+' : ''}${gAvg}d avg</span>
+                            </div>
+                        </td>
+                    </tr>`;
+
+                    if (!isCollapsed) {
+                        g.items.forEach(item => {
+                            const dc = item.deltaDays > 3 ? '#f87171' : item.deltaDays > 0 ? '#fbbf24' : '#4ade80';
+                            const dt = item.deltaDays === 0 ? 'On time' : item.deltaDays > 0 ? `+${item.deltaDays}d` : `${item.deltaDays}d`;
+                            const si = item.source === 'log'
+                                ? `<i class="fas fa-history" title="Activity log" style="opacity:0.4;font-size:9px;margin-left:4px;"></i>`
+                                : `<i class="fas fa-clock" title="Proxy" style="color:#fbbf24;opacity:0.6;font-size:9px;margin-left:4px;"></i>`;
+                            const itemUrl = state.slug ? `https://${state.slug}.monday.com/boards/${item.bId}/pulses/${item.id}` : null;
+                            tbodyHtml += `<tr>
+                                <td style="padding:7px 12px 7px 32px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:12px; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                    ${itemUrl ? `<a href="${itemUrl}" target="_blank" style="color:var(--text); text-decoration:none;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text)'">${item.name}</a>` : item.name}
+                                </td>
+                                <td style="padding:7px 12px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:11px; color:var(--muted);">${item.people.filter(p => sel.has(p)).join(', ')}</td>
+                                <td style="padding:7px 12px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:11px; text-align:center; font-family:monospace; color:var(--muted); white-space:nowrap;">${fmtDate(item.deadline)}</td>
+                                <td style="padding:7px 12px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:11px; text-align:center; font-family:monospace; color:var(--muted); white-space:nowrap;">${fmtDate(item.completionDate)}${si}</td>
+                                <td style="padding:7px 12px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:11px; text-align:center; font-weight:700; color:${dc};">${dt}</td>
+                            </tr>`;
+                        });
+                    }
+                });
+
                 html += `<div style="margin-top:20px;">
                     <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:10px;">
-                        Item Detail — ${tableItems.length} items · ${[...sel].join(', ')}
+                        Item Detail — ${tableItems.length} items across ${boardGroups.length} boards · ${[...sel].join(', ')}
                     </div>
                     <div style="background:var(--surface); border-radius:12px; border:1px solid var(--border); overflow:hidden;">
                         <table style="width:100%; border-collapse:separate; border-spacing:0;">
                             <thead><tr>
                                 ${th('name','Item')}
-                                ${th('board','Board')}
                                 ${th('staff','Staff')}
                                 ${th('deadline','Deadline','center')}
                                 ${th('completed','Completed','center')}
                                 ${th('delta','Δ Days','center')}
                             </tr></thead>
-                            <tbody>${tableItems.map(item => {
-                                const dc = item.deltaDays > 3 ? '#f87171' : item.deltaDays > 0 ? '#fbbf24' : '#4ade80';
-                                const dt = item.deltaDays === 0 ? 'On time' : item.deltaDays > 0 ? `+${item.deltaDays}d` : `${item.deltaDays}d`;
-                                const si = item.source === 'log'
-                                    ? `<i class="fas fa-history" title="Activity log" style="opacity:0.4;font-size:9px;margin-left:4px;"></i>`
-                                    : `<i class="fas fa-clock" title="Proxy" style="color:#fbbf24;opacity:0.6;font-size:9px;margin-left:4px;"></i>`;
-                                const url = boardUrl(item.bId);
-                                return `<tr>
-                                    <td style="padding:7px 12px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:12px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${item.name}</td>
-                                    <td style="padding:7px 12px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:11px; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                                        ${url ? `<a href="${url}" target="_blank" style="color:var(--primary); text-decoration:none;">${item.bName}</a>` : item.bName}
-                                    </td>
-                                    <td style="padding:7px 12px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:11px; color:var(--muted);">${item.people.filter(p => sel.has(p)).join(', ')}</td>
-                                    <td style="padding:7px 12px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:11px; text-align:center; font-family:monospace; color:var(--muted); white-space:nowrap;">${fmtDate(item.deadline)}</td>
-                                    <td style="padding:7px 12px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:11px; text-align:center; font-family:monospace; color:var(--muted); white-space:nowrap;">${fmtDate(item.completionDate)}${si}</td>
-                                    <td style="padding:7px 12px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:11px; text-align:center; font-weight:700; color:${dc};">${dt}</td>
-                                </tr>`;
-                            }).join('')}</tbody>
+                            <tbody>${tbodyHtml}</tbody>
                         </table>
                     </div>
                 </div>`;
