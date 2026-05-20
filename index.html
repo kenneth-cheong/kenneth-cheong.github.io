@@ -19714,9 +19714,9 @@
                         </button>
                     </div>
 
-                    <div id="movers-render-area" style="flex: 1; overflow-y: auto;">
-                        ${view === 'graph' ? '<div style="position:relative;padding:10px 12px;"><canvas id="moversScatterChart"></canvas></div>'
-                          : view === 'trend' ? '<div style="position:relative;padding:10px 12px;min-height:280px;"><canvas id="moversTrendChart"></canvas></div>'
+                    <div id="movers-render-area" style="flex: 1; min-height: 0; ${view !== 'table' ? 'overflow: hidden; position: relative;' : 'overflow-y: auto;'}">
+                        ${view === 'graph' ? '<div style="position:absolute;top:0;left:0;right:0;bottom:0;padding:8px 12px;"><canvas id="moversScatterChart"></canvas></div>'
+                          : view === 'trend' ? '<div style="position:absolute;top:0;left:0;right:0;bottom:0;padding:8px 12px;"><canvas id="moversTrendChart"></canvas></div>'
                           : renderMoversTable(data)}
                     </div>
                 </div>
@@ -19863,10 +19863,6 @@
             // Top 20 by absolute position change, biggest first
             const top20 = [...data].sort((a, b) => b.absChange - a.absChange).slice(0, 20);
 
-            // Size canvas height to fit all bars
-            const barH = 30;
-            canvas.parentElement.style.height = Math.max(280, top20.length * barH + 70) + 'px';
-
             const labels = top20.map(m => `${m.keyword}  ·  ${m.siteName}`);
             const changes = top20.map(m => m.change);
             const bgColors = top20.map(m => m.change > 0 ? 'rgba(16,185,129,0.75)' : 'rgba(244,63,94,0.75)');
@@ -19953,8 +19949,6 @@
                 canvas.parentElement.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;font-size:0.9em;">No daily data in the selected period.</div>';
                 return;
             }
-
-            canvas.parentElement.style.height = '300px';
 
             const fmtDate = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             const ptR = dates.length > 30 ? 2 : 4;
