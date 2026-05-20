@@ -1848,7 +1848,7 @@
                 'Archive', 'Done', 'Not Needed', 'Not Needed (AI)',
                 '[MO] Done', '[MO] Not Needed'
             ]),
-            timeliness: { data: [], loaded: false, loading: false, expandedStaff: new Set(), selectedStaff: new Set(), progress: { done: 0, total: 0 } },
+            timeliness: { data: [], loaded: false, loading: false, expandedStaff: new Set(), selectedStaff: new Set(), showDeleted: false, progress: { done: 0, total: 0 } },
             completionLabels: new Set(['Done', 'Completed', 'Signed Off', 'Launched', 'Live', 'Approved'])
         };
 
@@ -2896,6 +2896,9 @@
                         ${sel.size>0?`<button class="btn btn-secondary" onclick="state.timeliness.selectedStaff.clear(); renderTimelinessView();" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px; color:#f87171; border-color:rgba(248,113,113,0.3);">
                             <i class="fas fa-times"></i> Clear (${sel.size})
                         </button>`:''}
+                        <button class="btn btn-secondary" onclick="state.timeliness.showDeleted=!state.timeliness.showDeleted; renderTimelinessView();" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px; opacity:${state.timeliness.showDeleted?'1':'0.6'};">
+                            <i class="fas fa-user-slash"></i> ${state.timeliness.showDeleted ? 'Hide Deleted' : 'Show Deleted'}
+                        </button>
                         <button class="btn btn-secondary" onclick="state.timeliness.loaded=false; state.timeliness.data=[]; fetchTimelinessData();" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px;">
                             <i class="fas fa-redo"></i> Refresh
                         </button>
@@ -2922,11 +2925,23 @@
                     staffMap[person].push(item);
                 });
             });
-            const staffList = Object.entries(staffMap).sort(([a], [b]) => a.localeCompare(b));
+            const isDeletedName = n => n.toLowerCase().includes('deleted');
+            const showDeleted = state.timeliness.showDeleted;
+            const allStaffList = Object.entries(staffMap).sort(([a], [b]) => a.localeCompare(b));
+            const deletedCount = allStaffList.filter(([n]) => isDeletedName(n)).length;
+            const staffList = showDeleted ? allStaffList : allStaffList.filter(([n]) => !isDeletedName(n));
+            const visibleStaffMap = showDeleted ? staffMap : Object.fromEntries(Object.entries(staffMap).filter(([n]) => !isDeletedName(n)));
+            const visibleData = showDeleted ? data : data.filter(i => i.people.some(p => !isDeletedName(p)));
 
-            html += buildTimelinessCharts(data, staffMap);
+            html += buildTimelinessCharts(visibleData, visibleStaffMap);
 
             const fmtDate = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+            if (!showDeleted && deletedCount > 0) {
+                html += `<div style="font-size:11px; color:var(--muted); margin-bottom:10px; opacity:0.6;">
+                    <i class="fas fa-user-slash" style="margin-right:4px;"></i>${deletedCount} deleted staff hidden — use "Show Deleted" to include them.
+                </div>`;
+            }
 
             html += `<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px;">`;
 
