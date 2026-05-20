@@ -19986,61 +19986,126 @@
             const fmtDate = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             const ptR = dates.length > 30 ? 2 : 4;
 
-            // Aggregate into one line when All Sites or 10+ campaigns selected
+            // ── Algorithm update annotations within the chart's date range ──────
+            const ALGO_COLORS = {
+                Core: '#dc2626', Spam: '#d97706', HCU: '#16a34a',
+                Reviews: '#9333ea', 'Link Spam': '#c2410c', Other: '#6366f1'
+            };
+            const algoAnnotations = (cockpitState.algoNewsCache || [])
+                .filter(u => u.date && u.date >= dates[0] && u.date <= dates[dates.length - 1])
+                .map(u => {
+                    // Find the closest date index in our dates array
+                    const target = new Date(u.date).getTime();
+                    let idx = 0, minDiff = Infinity;
+                    dates.forEach((d, i) => {
+                        const diff = Math.abs(new Date(d).getTime() - target);
+                        if (diff < minDiff) { minDiff = diff; idx = i; }
+                    });
+                    return { idx, name: u.name, type: u.type || 'Update', date: u.date,
+                             color: ALGO_COLORS[u.type] || ALGO_COLORS.Other };
+                });
+
+            // Build an idx → updates[] lookup for tooltip
+            const algoByIdx = {};
+            algoAnnotations.forEach(a => {
+                if (!algoByIdx[a.idx]) algoByIdx[a.idx] = [];
+                algoByIdx[a.idx].push(a);
+            });
+
+            // Inline Chart.js plugin that draws dashed vertical lines
+            const algoLinesPlugin = {
+                id: 'algoLines',
+                afterDatasetsDraw(chart) {
+                    if (!algoAnnotations.length) return;
+                    const ctx = chart.ctx;
+                    const yScale = chart.scales.y;
+                    const meta = chart.getDatasetMeta(0);
+                    if (!meta?.data?.length) return;
+
+                    algoAnnotations.forEach((upd, i) => {
+                        const point = meta.data[upd.idx];
+                        if (!point) return;
+                        const x = point.x;
+
+                        ctx.save();
+                        ctx.strokeStyle = upd.color + 'bb';
+                        ctx.lineWidth = 1.5;
+                        ctx.setLineDash([5, 4]);
+                        ctx.beginPath();
+                        ctx.moveTo(x, yScale.top);
+                        ctx.lineTo(x, yScale.bottom);
+                        ctx.stroke();
+
+                        // Type label — alternate height to avoid overlap on nearby dates
+                        ctx.setLineDash([]);
+                        ctx.fillStyle = upd.color;
+                        ctx.font = 'bold 8px system-ui, sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'top';
+                        const labelY = yScale.top + (i % 2 === 0 ? 3 : 15);
+                        const shortLabel = upd.type.length > 9 ? upd.type.slice(0, 9) : upd.type;
+                        ctx.fillText(shortLabel, x, labelY);
+                        ctx.restore();
+                    });
+                }
+            };
+
+            // ── Datasets ────────────────────────────────────────────────────────
             const aggregate = cockpitState.selectedMoversCampaigns.size === 0 || sites.length >= 10;
 
-            let datasets, subtitleText;
+            let datasets, subtitleParts = [];
             if (aggregate) {
                 const label = cockpitState.selectedMoversCampaigns.size === 0
                     ? `All Sites (${sites.length})`
                     : `${sites.length} sites (avg)`;
-                subtitleText = 'Showing aggregated average across all campaigns';
+                subtitleParts.push('Aggregated average across all campaigns');
                 const aggData = dates.map(d => {
                     const vals = sites.map(s => ts[s]?.[d]).filter(v => v != null);
                     return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 10) / 10 : null;
                 });
                 datasets = [{
-                    label,
-                    data: aggData,
-                    borderColor: '#6366f1',
-                    backgroundColor: '#6366f118',
-                    borderWidth: 2.5,
-                    pointRadius: ptR,
-                    pointHoverRadius: 6,
-                    tension: 0.35,
-                    spanGaps: true,
-                    fill: true
+                    label, data: aggData,
+                    borderColor: '#6366f1', backgroundColor: '#6366f118',
+                    borderWidth: 2.5, pointRadius: ptR, pointHoverRadius: 6,
+                    tension: 0.35, spanGaps: true, fill: true
                 }];
             } else {
-                subtitleText = null;
                 const COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#84cc16','#06b6d4','#a855f7'];
                 datasets = sites.map((site, i) => ({
                     label: site,
                     data: dates.map(d => ts[site]?.[d] ?? null),
                     borderColor: COLORS[i % COLORS.length],
                     backgroundColor: COLORS[i % COLORS.length] + '18',
-                    borderWidth: 2,
-                    pointRadius: ptR,
-                    pointHoverRadius: 6,
-                    tension: 0.35,
-                    spanGaps: true,
-                    fill: false
+                    borderWidth: 2, pointRadius: ptR, pointHoverRadius: 6,
+                    tension: 0.35, spanGaps: true, fill: false
                 }));
             }
+            if (algoAnnotations.length) subtitleParts.push(`${algoAnnotations.length} algorithm update${algoAnnotations.length > 1 ? 's' : ''} marked`);
+            const subtitleText = subtitleParts.length ? subtitleParts.join('  ·  ') : null;
 
             cockpitState.trendChart = new Chart(canvas.getContext('2d'), {
                 type: 'line',
                 data: { labels: dates.map(fmtDate), datasets },
+                plugins: [algoLinesPlugin],
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     interaction: { mode: 'index', intersect: false },
                     plugins: {
                         legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12, padding: 12 } },
-                        subtitle: subtitleText ? { display: true, text: subtitleText, font: { size: 10 }, color: '#94a3b8', padding: { bottom: 8 } } : { display: false },
+                        subtitle: subtitleText
+                            ? { display: true, text: subtitleText, font: { size: 10 }, color: '#94a3b8', padding: { bottom: 6 } }
+                            : { display: false },
                         tooltip: {
                             callbacks: {
-                                label: item => `${item.dataset.label}: avg rank #${item.raw ?? '—'}`
+                                label: item => `${item.dataset.label}: avg rank #${item.raw ?? '—'}`,
+                                afterBody: items => {
+                                    if (!items.length) return [];
+                                    const updates = algoByIdx[items[0].dataIndex];
+                                    if (!updates?.length) return [];
+                                    return ['', '── Algorithm Updates ──',
+                                        ...updates.map(u => `${u.type}: ${u.name} (${u.date})`)];
+                                }
                             }
                         }
                     },
