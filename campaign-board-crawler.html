@@ -1848,7 +1848,7 @@
                 'Archive', 'Done', 'Not Needed', 'Not Needed (AI)',
                 '[MO] Done', '[MO] Not Needed'
             ]),
-            timeliness: { data: [], loaded: false, loading: false, expandedStaff: new Set(), progress: { done: 0, total: 0 } },
+            timeliness: { data: [], loaded: false, loading: false, expandedStaff: new Set(), selectedStaff: new Set(), progress: { done: 0, total: 0 } },
             completionLabels: new Set(['Done', 'Completed', 'Signed Off', 'Launched', 'Live', 'Approved'])
         };
 
@@ -2747,45 +2747,55 @@
         }
 
         function buildTimelinessCharts(data, staffMap) {
+            const sel = state.timeliness.selectedStaff;
+            const activeData = sel.size > 0 ? data.filter(i => i.people.some(p => sel.has(p))) : data;
+            const activeStaffMap = sel.size > 0
+                ? Object.fromEntries(Object.entries(staffMap).filter(([n]) => sel.has(n)))
+                : staffMap;
+            const total = activeData.length || 1;
+
             // --- Delta distribution histogram (SVG) ---
             const buckets = [
-                { label: '≤-14d', test: d => d <= -14,              color: '#166534' },
-                { label: '-8→-14', test: d => d >= -14 && d <= -8,  color: '#15803d' },
-                { label: '-1→-7', test: d => d >= -7 && d <= -1,    color: '#4ade80' },
-                { label: '0d',    test: d => d === 0,                color: '#86efac' },
-                { label: '1-3d',  test: d => d >= 1 && d <= 3,      color: '#fbbf24' },
-                { label: '4-7d',  test: d => d >= 4 && d <= 7,      color: '#f97316' },
-                { label: '8-14d', test: d => d >= 8 && d <= 14,     color: '#ef4444' },
-                { label: '>14d',  test: d => d > 14,                 color: '#991b1b' },
-            ].map(b => ({ ...b, count: data.filter(i => b.test(i.deltaDays)).length }));
+                { label: '≤-14d', test: d => d <= -14,             color: '#166534' },
+                { label: '-8→-14', test: d => d >= -14 && d <= -8, color: '#15803d' },
+                { label: '-1→-7', test: d => d >= -7  && d <= -1,  color: '#4ade80' },
+                { label: '0d',    test: d => d === 0,               color: '#86efac' },
+                { label: '1-3d',  test: d => d >= 1   && d <= 3,   color: '#fbbf24' },
+                { label: '4-7d',  test: d => d >= 4   && d <= 7,   color: '#f97316' },
+                { label: '8-14d', test: d => d >= 8   && d <= 14,  color: '#ef4444' },
+                { label: '>14d',  test: d => d > 14,                color: '#991b1b' },
+            ].map(b => ({ ...b, count: activeData.filter(i => b.test(i.deltaDays)).length }));
 
             const maxCount = Math.max(...buckets.map(b => b.count), 1);
-            const chartH = 90, barW = 34, gap = 8;
+            const chartH = 90, barW = 38, gap = 8;
             const totalW = buckets.length * (barW + gap) - gap;
 
             const svgBars = buckets.map((b, i) => {
                 const h = Math.max(b.count > 0 ? Math.round((b.count / maxCount) * chartH) : 0, b.count > 0 ? 3 : 0);
                 const x = i * (barW + gap), y = chartH - h;
+                const pct = Math.round(b.count / total * 100);
                 return `<rect x="${x}" y="${y}" width="${barW}" height="${h}" fill="${b.color}" rx="2" opacity="0.85"/>
-                    ${b.count > 0 ? `<text x="${x+barW/2}" y="${Math.max(y-3,9)}" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-size="9" font-family="monospace">${b.count}</text>` : ''}
-                    <text x="${x+barW/2}" y="${chartH+13}" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="8">${b.label}</text>`;
+                    ${b.count > 0 ? `<text x="${x+barW/2}" y="${Math.max(y-12,8)}" text-anchor="middle" fill="rgba(255,255,255,0.9)" font-size="10" font-family="monospace" font-weight="600">${b.count}</text>
+                    <text x="${x+barW/2}" y="${Math.max(y-1,18)}" text-anchor="middle" fill="rgba(255,255,255,0.55)" font-size="9">${pct}%</text>` : ''}
+                    <text x="${x+barW/2}" y="${chartH+16}" text-anchor="middle" fill="rgba(255,255,255,0.45)" font-size="10">${b.label}</text>`;
             }).join('');
 
-            const histogram = `<svg viewBox="0 0 ${totalW} ${chartH+16}" style="width:100%; height:${chartH+20}px; overflow:visible;">${svgBars}</svg>`;
+            const histogram = `<svg viewBox="0 0 ${totalW} ${chartH+20}" style="width:100%; height:${chartH+24}px; overflow:visible;">${svgBars}</svg>`;
 
-            // --- Staff on-time bars (CSS, sorted desc) ---
-            const staffBars = Object.entries(staffMap)
+            // --- Staff on-time bars (CSS, sorted desc, highlights selected) ---
+            const staffBars = Object.entries(activeStaffMap)
                 .map(([name, items]) => ({
                     name,
                     pct: Math.round(items.filter(i => i.deltaDays <= 0).length / items.length * 100),
-                    count: items.length
+                    count: items.length,
+                    isSelected: sel.has(name)
                 }))
                 .sort((a, b) => b.pct - a.pct)
                 .map(s => {
                     const c = s.pct >= 80 ? '#4ade80' : s.pct >= 60 ? '#fbbf24' : '#f87171';
                     return `<div style="margin-bottom:7px;">
                         <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:3px;">
-                            <span style="font-size:11px; color:var(--text); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:62%;">${name}</span>
+                            <span style="font-size:11px; color:var(--text); font-weight:${s.isSelected?'700':'500'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:62%;">${s.name}</span>
                             <span style="font-size:11px; font-family:monospace; color:${c}; white-space:nowrap;">${s.pct}% <span style="color:var(--muted); font-size:10px;">(${s.count})</span></span>
                         </div>
                         <div style="height:5px; background:rgba(255,255,255,0.07); border-radius:3px; overflow:hidden;">
@@ -2796,11 +2806,11 @@
 
             return `<div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
                 <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px;">
-                    <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:10px;">Delta Distribution</div>
+                    <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:10px;">Delta Distribution${sel.size>0?' · filtered':''}}</div>
                     ${histogram}
                 </div>
-                <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px; overflow-y:auto; max-height:200px;">
-                    <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:10px;">On-Time Rate by Staff</div>
+                <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px; overflow-y:auto; max-height:220px;">
+                    <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:10px;">On-Time Rate by Staff${sel.size>0?' · filtered':''}</div>
                     ${staffBars || '<div style="font-size:11px;color:var(--muted);">No staff data yet...</div>'}
                 </div>
             </div>`;
@@ -2809,6 +2819,12 @@
         function toggleTimelinessStaff(name) {
             if (state.timeliness.expandedStaff.has(name)) state.timeliness.expandedStaff.delete(name);
             else state.timeliness.expandedStaff.add(name);
+            renderTimelinessView();
+        }
+
+        function toggleTimelinessStaffSelect(name) {
+            if (state.timeliness.selectedStaff.has(name)) state.timeliness.selectedStaff.delete(name);
+            else state.timeliness.selectedStaff.add(name);
             renderTimelinessView();
         }
 
@@ -2852,14 +2868,17 @@
                     <span style="font-size:12px; font-family:monospace; color:var(--muted);">${pct}%</span>
                 </div>`;
             } else {
-                // Full stat cards once complete
-                const total = data.length;
-                const onTime = data.filter(i => i.deltaDays <= 0).length;
-                const avgDelta = total ? Math.round(data.reduce((s, i) => s + i.deltaDays, 0) / total) : 0;
-                const logCount = data.filter(i => i.source === 'log').length;
-                html += `<div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+                // Full stat cards once complete — reflect active selection
+                const sel = state.timeliness.selectedStaff;
+                const activeData = sel.size > 0 ? data.filter(i => i.people.some(p => sel.has(p))) : data;
+                const total = activeData.length;
+                const onTime = activeData.filter(i => i.deltaDays <= 0).length;
+                const avgDelta = total ? Math.round(activeData.reduce((s, i) => s + i.deltaDays, 0) / total) : 0;
+                const logCount = activeData.filter(i => i.source === 'log').length;
+                html += `<div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:stretch;">
                     <div class="stat-card" style="flex:1; min-width:90px; text-align:center;">
-                        <div class="stat-value">${total}</div><div class="stat-label">Completed</div>
+                        <div class="stat-value">${total}</div>
+                        <div class="stat-label">${sel.size>0?`Completed (${sel.size} staff)`:'Completed'}</div>
                     </div>
                     <div class="stat-card" style="flex:1; min-width:90px; text-align:center;">
                         <div class="stat-value" style="color:${Math.round(onTime/(total||1)*100)>=80?'#4ade80':Math.round(onTime/(total||1)*100)>=60?'#fbbf24':'#f87171'}">${Math.round(onTime/(total||1)*100)}%</div>
@@ -2873,7 +2892,10 @@
                         <div class="stat-value" style="font-size:15px;">${logCount}<span style="font-size:12px;opacity:0.5;">/${total}</span></div>
                         <div class="stat-label">From Activity Log</div>
                     </div>
-                    <div style="display:flex; align-items:center; margin-left:auto;">
+                    <div style="display:flex; align-items:center; gap:8px; margin-left:auto;">
+                        ${sel.size>0?`<button class="btn btn-secondary" onclick="state.timeliness.selectedStaff.clear(); renderTimelinessView();" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px; color:#f87171; border-color:rgba(248,113,113,0.3);">
+                            <i class="fas fa-times"></i> Clear (${sel.size})
+                        </button>`:''}
                         <button class="btn btn-secondary" onclick="state.timeliness.loaded=false; state.timeliness.data=[]; fetchTimelinessData();" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px;">
                             <i class="fas fa-redo"></i> Refresh
                         </button>
@@ -2908,12 +2930,17 @@
 
             html += `<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px;">`;
 
+            const sel = state.timeliness.selectedStaff;
+            const hasSel = sel.size > 0;
+            const boardUrl = bId => state.slug ? `https://${state.slug}.monday.com/boards/${bId}` : null;
+
             staffList.forEach(([name, items]) => {
                 const sTotal = items.length;
                 const sOnTime = items.filter(i => i.deltaDays <= 0).length;
                 const sPct = Math.round(sOnTime / sTotal * 100);
                 const sAvg = Math.round(items.reduce((s, i) => s + i.deltaDays, 0) / sTotal);
                 const isExpanded = state.timeliness.expandedStaff.has(name);
+                const isSelected = sel.has(name);
                 const early = items.filter(i => i.deltaDays < 0).length;
                 const exact = items.filter(i => i.deltaDays === 0).length;
                 const mildLate = items.filter(i => i.deltaDays > 0 && i.deltaDays <= 3).length;
@@ -2931,9 +2958,13 @@
                         const si = item.source === 'log'
                             ? `<i class="fas fa-history" title="Activity log" style="opacity:0.4;font-size:9px;margin-right:2px;"></i>`
                             : `<i class="fas fa-clock" title="Last-updated proxy" style="color:#fbbf24;opacity:0.6;font-size:9px;margin-right:2px;"></i>`;
+                        const url = boardUrl(item.bId);
                         itemsHtml += `<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; padding:5px 8px; background:rgba(255,255,255,0.03); border-radius:6px;">
                             <div style="min-width:0;">
                                 <div style="font-size:11px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${item.name}</div>
+                                <div style="font-size:10px; margin-top:2px;">
+                                    ${url ? `<a href="${url}" target="_blank" style="color:var(--primary); text-decoration:none; opacity:0.8;" onclick="event.stopPropagation();">${item.bName}</a>` : `<span style="color:var(--muted);">${item.bName}</span>`}
+                                </div>
                                 <div style="font-size:10px; color:var(--muted); margin-top:2px; font-family:monospace;">
                                     <i class="fas fa-calendar-alt" style="opacity:0.4; margin-right:3px;"></i>${fmtDate(item.deadline)}
                                     <span style="opacity:0.3; margin:0 4px;">→</span>${si}${fmtDate(item.completionDate)}
@@ -2945,10 +2976,19 @@
                     itemsHtml += `</div>`;
                 }
 
-                html += `<div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px; cursor:pointer;" onclick="toggleTimelinessStaff('${name.replace(/'/g, "\\'")}')">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                        <span style="font-weight:700; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:80%;">${name}</span>
-                        <i class="fas ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}" style="opacity:0.35; font-size:10px; flex-shrink:0;"></i>
+                html += `<div style="background:var(--surface); border:1.5px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}; border-radius:12px; padding:14px; position:relative; opacity:${hasSel && !isSelected ? '0.45' : '1'}; transition:opacity 0.15s, border-color 0.15s;">
+                    <div onclick="toggleTimelinessStaffSelect('${name.replace(/'/g, "\\'")}'); event.stopPropagation();"
+                         style="position:absolute; top:12px; right:12px; width:18px; height:18px; border-radius:50%;
+                                border:1.5px solid ${isSelected ? 'var(--primary)' : 'rgba(255,255,255,0.2)'};
+                                background:${isSelected ? 'var(--primary)' : 'transparent'};
+                                display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:2;">
+                        ${isSelected ? '<i class="fas fa-check" style="font-size:7px;color:white;"></i>' : ''}
+                    </div>
+                    <div style="cursor:pointer; padding-right:28px; margin-bottom:12px;" onclick="toggleTimelinessStaff('${name.replace(/'/g, "\\'")}')">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-weight:700; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${name}</span>
+                            <i class="fas ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}" style="opacity:0.35; font-size:10px; flex-shrink:0; margin-right:4px;"></i>
+                        </div>
                     </div>
                     <div style="display:flex; gap:0; margin-bottom:12px; border:1px solid var(--border); border-radius:8px; overflow:hidden; text-align:center;">
                         <div style="flex:1; padding:8px 4px; border-right:1px solid var(--border);">
@@ -2975,6 +3015,49 @@
             });
 
             html += `</div>`;
+
+            // Item detail table — shown when staff are selected
+            if (hasSel) {
+                const th = s => `<th style="padding:9px 12px; text-align:${s==='left'?'left':'center'}; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border); white-space:nowrap;">`+(['Item','Board','Staff','Deadline','Completed','Δ'][['left','left','left','center','center','center'].indexOf(s)])+'</th>';
+                const tableItems = data
+                    .filter(i => i.people.some(p => sel.has(p)))
+                    .sort((a, b) => b.deltaDays - a.deltaDays);
+                html += `<div style="margin-top:20px;">
+                    <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:10px;">
+                        Item Detail — ${tableItems.length} items · ${[...sel].join(', ')}
+                    </div>
+                    <div style="background:var(--surface); border-radius:12px; border:1px solid var(--border); overflow:hidden;">
+                        <table style="width:100%; border-collapse:separate; border-spacing:0;">
+                            <thead><tr>
+                                <th style="padding:9px 12px; text-align:left; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border);">Item</th>
+                                <th style="padding:9px 12px; text-align:left; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border);">Board</th>
+                                <th style="padding:9px 12px; text-align:left; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border);">Staff</th>
+                                <th style="padding:9px 12px; text-align:center; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border);">Deadline</th>
+                                <th style="padding:9px 12px; text-align:center; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border);">Completed</th>
+                                <th style="padding:9px 12px; text-align:center; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border);">Δ Days</th>
+                            </tr></thead>
+                            <tbody>${tableItems.map(item => {
+                                const dc = item.deltaDays > 3 ? '#f87171' : item.deltaDays > 0 ? '#fbbf24' : '#4ade80';
+                                const dt = item.deltaDays === 0 ? 'On time' : item.deltaDays > 0 ? `+${item.deltaDays}d` : `${item.deltaDays}d`;
+                                const si = item.source === 'log'
+                                    ? `<i class="fas fa-history" title="Activity log" style="opacity:0.4;font-size:9px;margin-left:4px;"></i>`
+                                    : `<i class="fas fa-clock" title="Proxy" style="color:#fbbf24;opacity:0.6;font-size:9px;margin-left:4px;"></i>`;
+                                const url = boardUrl(item.bId);
+                                return `<tr>
+                                    <td style="padding:7px 12px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:12px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${item.name}</td>
+                                    <td style="padding:7px 12px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:11px; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                                        ${url ? `<a href="${url}" target="_blank" style="color:var(--primary); text-decoration:none;">${item.bName}</a>` : item.bName}
+                                    </td>
+                                    <td style="padding:7px 12px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:11px; color:var(--muted);">${item.people.filter(p => sel.has(p)).join(', ')}</td>
+                                    <td style="padding:7px 12px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:11px; text-align:center; font-family:monospace; color:var(--muted); white-space:nowrap;">${fmtDate(item.deadline)}</td>
+                                    <td style="padding:7px 12px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:11px; text-align:center; font-family:monospace; color:var(--muted); white-space:nowrap;">${fmtDate(item.completionDate)}${si}</td>
+                                    <td style="padding:7px 12px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:11px; text-align:center; font-weight:700; color:${dc};">${dt}</td>
+                                </tr>`;
+                            }).join('')}</tbody>
+                        </table>
+                    </div>
+                </div>`;
+            }
             container.innerHTML = html;
         }
 
