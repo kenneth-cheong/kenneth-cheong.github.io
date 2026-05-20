@@ -20157,18 +20157,18 @@
             return col.text || null;
         }
 
-        function processSeoIntelItem(item) {
-            // [BD]Project Type must contain #seo
-            const projectType = (seoColVal(item, '[bd]project type') || '').toLowerCase();
-            if (!projectType.includes('#seo')) return null;
+        function processSeoIntelItem(item, debug) {
+            // [BD]Project Type must contain #seo or seo
+            const projectType = (seoColVal(item, '[bd]project type') || seoColVal(item, 'project type') || '').toLowerCase();
+            if (!projectType.includes('seo')) { if (debug) debug.noSeo++; return null; }
 
             // [CSM] Campaign Status must be Live / Guarantee / Renewed / Lit
-            const csmStatus = (seoColVal(item, '[csm] campaign status') || '').toLowerCase();
-            if (!['live', 'guarantee', 'renewed', 'lit'].some(s => csmStatus.includes(s))) return null;
+            const csmStatus = (seoColVal(item, '[csm] campaign status') || seoColVal(item, 'campaign status') || '').toLowerCase();
+            if (!['live', 'guarantee', 'renewed', 'lit'].some(s => csmStatus.includes(s))) { if (debug) debug.badStatus++; return null; }
 
             // SEO Campaign Type must be Standard
-            const campaignType = (seoColVal(item, 'seo campaign type') || '').trim().toLowerCase();
-            if (campaignType !== 'standard') return null;
+            const campaignType = (seoColVal(item, 'seo campaign type') || seoColVal(item, 'campaign type') || '').trim().toLowerCase();
+            if (!campaignType.includes('standard')) { if (debug) debug.notStandard++; return null; }
 
             // KPI, P1, and timeline
             const kpiCol  = seoColByTitle(item, 'seo [reg] kpi kws');
@@ -20178,13 +20178,13 @@
             const kpi = kpiCol ? (kpiCol.number != null ? Number(kpiCol.number) : parseFloat(kpiCol.text) || 0) : 0;
             const p1  = p1Col  ? (p1Col.number  != null ? Number(p1Col.number)  : parseFloat(p1Col.text)  || 0) : 0;
 
-            if (!kpi || !tlCol?.from || !tlCol?.to) return null;
+            if (!kpi || !tlCol?.from || !tlCol?.to) { if (debug) debug.noKpiOrTimeline++; return null; }
 
             const start = new Date(tlCol.from);
             const end   = new Date(tlCol.to);
             const today = new Date();
 
-            if (today < start) return null; // Campaign hasn't started
+            if (today < start) { if (debug) debug.notStarted++; return null; }
 
             const totalDays   = Math.max(1, (end - start)   / 86400000);
             const elapsedDays = Math.min(totalDays, Math.max(0, (today - start) / 86400000));
@@ -20261,12 +20261,14 @@
                     cursor = page.cursor;
                 } while (cursor);
 
-                const campaigns = items.map(processSeoIntelItem).filter(Boolean);
+                // Track filter drop-off for debugging
+                const debug = { total: items.length, noSeo: 0, badStatus: 0, notStandard: 0, noKpiOrTimeline: 0, notStarted: 0 };
+                const campaigns = items.map(item => processSeoIntelItem(item, debug)).filter(Boolean);
                 cockpitState.seoIntelCache = campaigns;
                 cockpitState.seoIntelFetchedAt = Date.now();
                 const behindCount = campaigns.filter(c => c.isBehind).length;
                 if (countEl) countEl.textContent = `${behindCount}/${campaigns.length}`;
-                renderSeoIntel(campaigns);
+                renderSeoIntel(campaigns, campaigns.length === 0 ? { debug, sampleItem: items[0] } : null);
 
             } catch (e) {
                 console.error('SEO Intel error:', e);
@@ -20298,7 +20300,7 @@
             fetchSeoIntel(true);
         }
 
-        function renderSeoIntel(campaigns) {
+        function renderSeoIntel(campaigns, debugInfo) {
             const el      = document.getElementById('cockpit-seo-intel-content');
             const countEl = document.getElementById('cockpit-seo-intel-count');
             if (!el) return;
@@ -20308,7 +20310,29 @@
             if (countEl) countEl.textContent = `${behind.length}/${campaigns.length}`;
 
             if (!campaigns.length) {
-                el.innerHTML = '<div style="padding:20px;text-align:center;color:#64748b;">No qualifying Standard SEO campaigns found.</div>';
+                const d = debugInfo?.debug;
+                const sample = debugInfo?.sampleItem;
+                const colTitles = sample ? sample.column_values.map(cv => cv.column?.title || cv.id).join(', ') : '—';
+                const sampleVals = sample ? sample.column_values
+                    .filter(cv => cv.label || cv.text || cv.number != null)
+                    .map(cv => `<b>${cv.column?.title || cv.id}</b>: ${cv.label ?? cv.text ?? cv.number}`)
+                    .join('<br>') : '';
+                el.innerHTML = `
+                    <div style="padding:16px;font-size:0.82rem;color:#64748b;">
+                        <p style="font-weight:700;color:#dc2626;margin-bottom:10px;">No qualifying campaigns found — filter breakdown:</p>
+                        ${d ? `<ul style="margin:0 0 12px 16px;line-height:1.9;">
+                            <li>Total items fetched: <b>${d.total}</b></li>
+                            <li>Dropped — no SEO project type: <b>${d.noSeo}</b></li>
+                            <li>Dropped — wrong campaign status: <b>${d.badStatus}</b></li>
+                            <li>Dropped — not Standard type: <b>${d.notStandard}</b></li>
+                            <li>Dropped — missing KPI or timeline: <b>${d.noKpiOrTimeline}</b></li>
+                            <li>Dropped — campaign not yet started: <b>${d.notStarted}</b></li>
+                        </ul>` : ''}
+                        ${sample ? `<details style="margin-top:8px;">
+                            <summary style="cursor:pointer;font-weight:600;color:#475569;">Column titles on sample item "${sample.name}"</summary>
+                            <div style="margin-top:8px;font-size:0.78rem;line-height:1.8;color:#334155;">${sampleVals || colTitles}</div>
+                        </details>` : ''}
+                    </div>`;
                 return;
             }
 
