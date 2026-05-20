@@ -10342,8 +10342,8 @@
             </div>
         </div>
 
-        <div class="nav-item" id="cockpitNavItem">
-            <a href="#" onclick="showCockpitOnly(event)">Cockpit</a>
+        <div class="nav-item nav-cat-toggle nav-toggle-inactive" id="cockpitNavItem">
+            <a href="#" onclick="showCockpitOnly(event)"><i class="fas fa-tachometer-alt" style="margin-right:5px;font-size:0.85em;"></i>Cockpit</a>
         </div>
 
         <div class="nav-item" id="adminNavItem">
@@ -18270,9 +18270,9 @@
                 if (!skipScroll) window.scrollTo({ top: 0, behavior: 'smooth' });
                 return;
             }
-            // Leaving cockpit — remove its active highlight
-            const cockpitLink = document.querySelector('#cockpitNavItem > a');
-            if (cockpitLink) cockpitLink.classList.remove('active-menu');
+            // Leaving cockpit — reset its pill to inactive
+            const cockpitNavItem = document.getElementById('cockpitNavItem');
+            if (cockpitNavItem) cockpitNavItem.classList.replace('nav-toggle-active', 'nav-toggle-inactive');
             if (sectionId === 'adminSection') {
                 if (!skipScroll) window.scrollTo({ top: 0, behavior: 'smooth' });
                 return;
@@ -18298,11 +18298,18 @@
 
         function showCockpitOnly(event) {
             if (event) event.preventDefault();
-            // Remove active-menu from all nav links, then highlight Cockpit
-            document.querySelectorAll('#navbar a').forEach(l => l.classList.remove('active-menu'));
-            const cockpitLink = document.querySelector('#cockpitNavItem > a');
-            if (cockpitLink) cockpitLink.classList.add('active-menu');
-            showMainSection('cockpitSection', null);
+            const navItem   = document.getElementById('cockpitNavItem');
+            const isActive  = navItem?.classList.contains('nav-toggle-active');
+
+            if (isActive) {
+                // Clicking Cockpit again → deactivate and return to SEO section
+                navItem.classList.replace('nav-toggle-active', 'nav-toggle-inactive');
+                showMainSection('seoSection', 'seo', true);
+            } else {
+                // Activate Cockpit pill, deactivate others
+                navItem?.classList.replace('nav-toggle-inactive', 'nav-toggle-active');
+                showMainSection('cockpitSection', null);
+            }
         }
 
 
