@@ -11304,6 +11304,35 @@
                     </div>
                 </div>
 
+                <!-- Google Algorithm News Card -->
+                <div class="geo-card cockpit-card collapsed" id="card-algo-news">
+                    <div class="geo-card-header" style="justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0; font-size: 1.1em; color: #ea4335; display: flex; align-items: center; gap: 10px;">
+                            <i class="fab fa-google"></i> Google Algorithm Updates
+                        </h3>
+                        <div class="cockpit-card-header-actions">
+                            <button onclick="fetchAlgorithmNews(true)" class="discovery-btn-run"
+                                style="padding: 4px 12px; font-size: 0.8rem; background: #ea4335; color: #fff; border: none;">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                            <span id="cockpit-algo-news-count" class="badge-action"
+                                style="font-size: 14px; padding: 5px 10px; background: rgba(234, 67, 53, 0.1); color: #ea4335;">-</span>
+                            <button class="expand-card-btn" onclick="expandCockpitCard(this.closest('.geo-card'))" title="Expand">
+                                <i class="fas fa-expand-alt"></i>
+                            </button>
+                            <button class="minimize-card-btn" onclick="collapseCockpitCard(this.closest('.geo-card'), event)" title="Minimize">
+                                <i class="fas fa-compress-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="cockpit-algo-news-content" style="flex: 1; overflow-y: auto;">
+                        <div style="text-align: center; color: #64748b; padding: 40px;">
+                            <i class="fas fa-spinner fa-spin fa-2x"></i>
+                            <p style="margin-top: 15px;">Loading algorithm updates...</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Chatbot Card -->
                 <div class="geo-card cockpit-card collapsed" id="card-chatbot">
                     <div class="geo-card-header"
@@ -18280,6 +18309,7 @@
             moversView: 'table', // 'graph' or 'table'
             moversTimeframe: 7, // Default to 7 days
             lastMoversData: [], // Store results for tab switching without re-fetch
+            selectedMoversCampaigns: new Set(), // Campaign multi-select filter
             gscRecommendations: [], // Grouped GSC insights
             gscSearchQuery: '', // Filter for GSC properties
             selectedGscDomains: new Set(), // Filter by domain
@@ -18287,7 +18317,9 @@
             ga4SearchQuery: '', // Filter for GA4 properties
             selectedGa4Properties: new Set(), // Filter by GA4 property
             ga4ScannedProperties: new Set(), // Track which properties have been audited
-            ga4ScanningInProgress: new Set() // Track properties currently being scanned
+            ga4ScanningInProgress: new Set(), // Track properties currently being scanned
+            algoNewsCache: null, // Cached algorithm news results
+            algoNewsFetchedAt: 0  // Timestamp of last fetch
         };
 
         function switchMoversView(view) {
@@ -19255,6 +19287,7 @@
             wrap(refreshGscRecommendations);
             wrap(refreshGa4Recommendations);
             wrap(fetchCockpitMetaAds);
+            wrap(fetchAlgorithmNews);
         }
 
         function toggleFilterDropdown(id) {
@@ -19533,24 +19566,53 @@
 
         function renderMoversContent() {
             const contentEl = document.getElementById('cockpit-seranking-content');
-            const data = cockpitState.lastMoversData;
+            const allData = cockpitState.lastMoversData;
 
-            if (!data || data.length === 0) {
+            if (!allData || allData.length === 0) {
                 contentEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No recent rank changes found across any sites.</div>';
                 return;
             }
+
+            // Unique site names for the campaign filter
+            const allSites = [...new Set(allData.map(m => m.siteName))].sort();
+
+            // Apply campaign filter (empty set = show all)
+            const data = cockpitState.selectedMoversCampaigns.size > 0
+                ? allData.filter(m => cockpitState.selectedMoversCampaigns.has(m.siteName))
+                : allData;
 
             const upCount = data.filter(m => m.change > 0).length;
             const downCount = data.filter(m => m.change < 0).length;
             const isGraph = cockpitState.moversView === 'graph';
 
+            const filterActive = cockpitState.selectedMoversCampaigns.size > 0;
+            const filterLabel = !filterActive ? 'All Sites'
+                : cockpitState.selectedMoversCampaigns.size === 1 ? [...cockpitState.selectedMoversCampaigns][0]
+                : `${cockpitState.selectedMoversCampaigns.size} sites`;
+
             contentEl.innerHTML = `
                 <div style="height: 100%; display: flex; flex-direction: column;">
-                    <!-- Global Summary Bar -->
-                    <div style="padding: 12px 15px; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
-                        <div style="font-size: 0.9rem; color: #1e293b; font-weight: 600; display: flex; align-items: center; gap: 15px;">
-                            <span>Global Overview:</span>
-
+                    <!-- Summary + Campaign Filter Bar -->
+                    <div style="padding: 10px 15px; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+                            <span style="font-size: 0.78rem; color: #64748b; font-weight: 600; white-space: nowrap;">Campaigns:</span>
+                            <div style="position: relative;" id="movers-filter-wrap">
+                                <button onclick="toggleMoversFilterDropdown()" style="padding: 4px 10px; border: 1px solid ${filterActive ? '#93c5fd' : '#e2e8f0'}; border-radius: 6px; background: ${filterActive ? '#eff6ff' : '#f8fafc'}; font-size: 0.78rem; cursor: pointer; color: #1e293b; display: flex; align-items: center; gap: 5px;">
+                                    <i class="fas fa-filter" style="font-size:0.65rem;color:${filterActive ? '#3b82f6' : '#94a3b8'};"></i>
+                                    <span id="movers-filter-label">${filterLabel}</span>
+                                    <i class="fas fa-chevron-down" style="font-size:0.6rem;color:#94a3b8;"></i>
+                                </button>
+                                <div id="movers-filter-dropdown" style="display:none;position:absolute;top:100%;left:0;min-width:200px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:300;margin-top:4px;max-height:240px;overflow-y:auto;padding:8px;">
+                                    <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600;color:#475569;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
+                                        <input type="checkbox" ${!filterActive ? 'checked' : ''} onchange="clearMoversCampaignFilter()" style="width:14px;height:14px;"> All Sites
+                                    </label>
+                                    <div style="height:1px;background:#f1f5f9;margin:4px 0;"></div>
+                                    ${allSites.map(site => `<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:0.82rem;color:#334155;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'"><input type="checkbox" ${cockpitState.selectedMoversCampaigns.has(site) ? 'checked' : ''} onchange="toggleMoversCampaign(${JSON.stringify(site)}, this.checked)" style="width:14px;height:14px;"> ${site}</label>`).join('')}
+                                </div>
+                            </div>
+                            <span style="font-size:0.75rem;color:#94a3b8;white-space:nowrap;">
+                                <span style="color:#10b981;font-weight:700;">${upCount}↑</span>&nbsp;<span style="color:#f43f5e;font-weight:700;">${downCount}↓</span>
+                            </span>
                         </div>
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <label style="font-size: 0.75rem; color: #64748b; font-weight: 500;">Period:</label>
@@ -19570,22 +19632,20 @@
                     <!-- Tab Switcher -->
                     <div style="display: flex; gap: 4px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0;">
                         <button onclick="switchMoversView('graph')" style="flex: 1; padding: 6px 12px; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; ${isGraph ? 'background: #fff; color: #6366f1; box-shadow: 0 1px 2px rgba(0,0,0,0.05);' : 'background: transparent; color: #64748b;'}">
-                            <i class="fas fa-chart-line"></i> Graph View
+                            <i class="fas fa-chart-bar"></i> Bar Chart
                         </button>
                         <button onclick="switchMoversView('table')" style="flex: 1; padding: 6px 12px; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; ${!isGraph ? 'background: #fff; color: #6366f1; box-shadow: 0 1px 2px rgba(0,0,0,0.05);' : 'background: transparent; color: #64748b;'}">
-                            <i class="fas fa-list"></i> Table View
+                            <i class="fas fa-list"></i> Table
                         </button>
                     </div>
 
                     <div id="movers-render-area" style="flex: 1; overflow-y: auto;">
-                        ${isGraph ? '<div style="height: 100%; display: flex; flex-direction: column;"><div style="padding: 10px; font-size: 0.75rem; color: #94a3b8; text-align: center;">X: Old Rank | Y: New Rank</div><div style="flex: 1; position: relative; padding: 10px;"><canvas id="moversScatterChart"></canvas></div></div>' : renderMoversTable(data)}
+                        ${isGraph ? '<div style="position:relative;padding:10px 12px;"><canvas id="moversScatterChart"></canvas></div>' : renderMoversTable(data)}
                     </div>
                 </div>
             `;
 
-            if (isGraph) {
-                initMoversChart(data);
-            }
+            if (isGraph) initMoversChart(data);
         }
 
         function renderMoversTable(data) {
@@ -19718,71 +19778,208 @@
         }
 
         function initMoversChart(data) {
-            const ctx = document.getElementById('moversScatterChart').getContext('2d');
+            const canvas = document.getElementById('moversScatterChart');
+            if (!canvas) return;
+            if (cockpitState.moversChart) cockpitState.moversChart.destroy();
 
-            if (cockpitState.moversChart) {
-                cockpitState.moversChart.destroy();
-            }
+            // Top 20 by absolute position change, biggest first
+            const top20 = [...data].sort((a, b) => b.absChange - a.absChange).slice(0, 20);
 
-            const improvements = data.filter(m => m.change > 0);
-            const declines = data.filter(m => m.change <= 0);
+            // Size canvas height to fit all bars
+            const barH = 30;
+            canvas.parentElement.style.height = Math.max(280, top20.length * barH + 70) + 'px';
 
-            cockpitState.moversChart = new Chart(ctx, {
-                type: 'scatter',
+            const labels = top20.map(m => `${m.keyword}  ·  ${m.siteName}`);
+            const changes = top20.map(m => m.change);
+            const bgColors = top20.map(m => m.change > 0 ? 'rgba(16,185,129,0.75)' : 'rgba(244,63,94,0.75)');
+            const borderColors = top20.map(m => m.change > 0 ? '#10b981' : '#f43f5e');
+
+            cockpitState.moversChart = new Chart(canvas.getContext('2d'), {
+                type: 'bar',
                 data: {
-                    datasets: [
-                        {
-                            label: 'Improvements',
-                            data: improvements.map(m => ({ x: m.oldRank, y: m.newRank, keyword: m.keyword, siteName: m.siteName, change: m.change })),
-                            backgroundColor: 'rgba(34, 197, 94, 0.6)',
-                            borderColor: '#22c55e',
-                            pointRadius: 6,
-                            pointHoverRadius: 8
-                        },
-                        {
-                            label: 'Declines',
-                            data: declines.map(m => ({ x: m.oldRank, y: m.newRank, keyword: m.keyword, siteName: m.siteName, change: m.change })),
-                            backgroundColor: 'rgba(244, 63, 94, 0.6)',
-                            borderColor: '#f43f5e',
-                            pointRadius: 6,
-                            pointHoverRadius: 8
-                        }
-                    ]
+                    labels,
+                    datasets: [{
+                        data: changes,
+                        backgroundColor: bgColors,
+                        borderColor: borderColors,
+                        borderWidth: 1,
+                        borderRadius: 3,
+                        barPercentage: 0.7
+                    }]
                 },
                 options: {
+                    indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
-                    scales: {
-                        x: {
-                            title: { display: true, text: 'Previous Rank', font: { weight: 'bold' } },
-                            min: 1,
-                            max: 100,
-                            reverse: false
-                        },
-                        y: {
-                            title: { display: true, text: 'Current Rank', font: { weight: 'bold' } },
-                            min: 1,
-                            max: 100,
-                            reverse: true // Inverse because rank 1 is top
-                        }
-                    },
                     plugins: {
-                        legend: { position: 'top' },
+                        legend: { display: false },
                         tooltip: {
                             callbacks: {
-                                label: function (context) {
-                                    const p = context.raw;
+                                title: (items) => top20[items[0].dataIndex].keyword,
+                                label: (item) => {
+                                    const m = top20[item.dataIndex];
                                     return [
-                                        `${p.keyword}`,
-                                        `${p.siteName}`,
-                                        `Rank: #${p.x} → #${p.y} (${p.change > 0 ? '+' : ''}${p.change})`
+                                        `Site: ${m.siteName}`,
+                                        `Change: ${m.change > 0 ? '+' : ''}${m.change} positions`,
+                                        `#${m.oldRank} → #${m.newRank}`,
+                                        m.timeframe
                                     ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Position change  (positive = improved)', font: { size: 10 } },
+                            grid: { color: '#f1f5f9' },
+                            ticks: { font: { size: 10 } }
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: {
+                                font: { size: 10 },
+                                callback: (_, idx) => {
+                                    const lbl = labels[idx] || '';
+                                    return lbl.length > 38 ? lbl.slice(0, 38) + '…' : lbl;
                                 }
                             }
                         }
                     }
                 }
             });
+        }
+
+        // ── Top Movers campaign filter helpers ───────────────────────────────────
+        function toggleMoversFilterDropdown() {
+            const dropdown = document.getElementById('movers-filter-dropdown');
+            if (!dropdown) return;
+            const open = dropdown.style.display === 'block';
+            dropdown.style.display = open ? 'none' : 'block';
+            if (!open) {
+                const close = (e) => {
+                    const wrap = document.getElementById('movers-filter-wrap');
+                    if (wrap && !wrap.contains(e.target)) {
+                        dropdown.style.display = 'none';
+                        document.removeEventListener('click', close);
+                    }
+                };
+                setTimeout(() => document.addEventListener('click', close), 0);
+            }
+        }
+
+        function toggleMoversCampaign(site, checked) {
+            if (checked) cockpitState.selectedMoversCampaigns.add(site);
+            else cockpitState.selectedMoversCampaigns.delete(site);
+            renderMoversContent();
+        }
+
+        function clearMoversCampaignFilter() {
+            cockpitState.selectedMoversCampaigns.clear();
+            renderMoversContent();
+        }
+
+        // ── Google Algorithm News Feed ────────────────────────────────────────────
+        async function fetchAlgorithmNews(forceRefresh = false) {
+            const contentEl = document.getElementById('cockpit-algo-news-content');
+            const countEl = document.getElementById('cockpit-algo-news-count');
+            if (!contentEl) return;
+
+            // Serve from 6-hour cache unless forced
+            if (!forceRefresh && cockpitState.algoNewsCache &&
+                (Date.now() - cockpitState.algoNewsFetchedAt) < 6 * 3600 * 1000) {
+                renderAlgorithmNews(cockpitState.algoNewsCache);
+                return;
+            }
+
+            contentEl.innerHTML = `<div style="text-align:center;padding:40px;color:#64748b;">
+                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                <p style="margin-top:15px;font-size:0.9em;">Searching for recent Google algorithm updates...</p>
+            </div>`;
+
+            const prompt = `Search the web for the most recent Google search algorithm updates from 2024 and 2025 that SEO professionals should be aware of. Return ONLY a valid JSON array (no markdown, no extra text) where each object has:
+- "name": update name (string)
+- "date": date in YYYY-MM-DD format
+- "type": one of Core, Spam, HCU, Reviews, Link Spam, Other
+- "impact": one of High, Medium, Low
+- "summary": 1-2 sentence plain English description of what changed and who it affected
+Include at least 8 updates ordered most recent first.`;
+
+            try {
+                const resp = await fetch('https://0oes56fj4l.execute-api.ap-southeast-1.amazonaws.com/aiOptimiser', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'generate', model: 'perplexity', prompt, settings: { temperature: 0.2 } })
+                });
+                const result = await resp.json();
+                const body = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
+                const text = body.result || body.text || '';
+                const match = text.match(/\[[\s\S]*?\]/);
+                if (!match) throw new Error('No JSON array in response');
+                const updates = JSON.parse(match[0]);
+                if (!Array.isArray(updates) || !updates.length) throw new Error('Empty array');
+                cockpitState.algoNewsCache = updates;
+                cockpitState.algoNewsFetchedAt = Date.now();
+                if (countEl) countEl.textContent = updates.length;
+                renderAlgorithmNews(updates);
+            } catch (e) {
+                console.error('Algorithm news error:', e);
+                contentEl.innerHTML = `<div style="padding:30px;text-align:center;color:#ef4444;">
+                    <i class="fas fa-exclamation-triangle fa-2x"></i>
+                    <p style="margin-top:12px;font-size:0.9em;">Failed to load algorithm updates.</p>
+                    <button onclick="fetchAlgorithmNews(true)" class="discovery-btn-run" style="margin-top:10px;padding:6px 16px;font-size:0.85rem;">
+                        <i class="fas fa-redo"></i> Retry
+                    </button>
+                </div>`;
+            }
+        }
+
+        function renderAlgorithmNews(updates) {
+            const contentEl = document.getElementById('cockpit-algo-news-content');
+            const countEl  = document.getElementById('cockpit-algo-news-count');
+            if (!contentEl) return;
+            if (countEl) countEl.textContent = updates.length;
+
+            const typeStyle = {
+                Core:         { bg:'#eff6ff', color:'#2563eb', border:'#bfdbfe' },
+                Spam:         { bg:'#fef2f2', color:'#dc2626', border:'#fecaca' },
+                HCU:          { bg:'#f0fdf4', color:'#16a34a', border:'#bbf7d0' },
+                Reviews:      { bg:'#fdf4ff', color:'#9333ea', border:'#e9d5ff' },
+                'Link Spam':  { bg:'#fff7ed', color:'#c2410c', border:'#fed7aa' },
+                Other:        { bg:'#f8fafc', color:'#475569', border:'#e2e8f0' }
+            };
+            const impactStyle = {
+                High:   { bg:'#fef2f2', color:'#dc2626' },
+                Medium: { bg:'#fffbeb', color:'#d97706' },
+                Low:    { bg:'#f0fdf4', color:'#16a34a' }
+            };
+
+            const fetchedAt = cockpitState.algoNewsFetchedAt
+                ? new Date(cockpitState.algoNewsFetchedAt).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })
+                : '';
+
+            let html = `<div style="padding:7px 15px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:0.72rem;color:#94a3b8;display:flex;align-items:center;gap:6px;">
+                <i class="fas fa-robot" style="color:#6366f1;"></i> Powered by Perplexity web search · Updated ${fetchedAt}
+            </div><div>`;
+
+            updates.forEach((u, i) => {
+                const tc = typeStyle[u.type]   || typeStyle.Other;
+                const ic = impactStyle[u.impact] || impactStyle.Medium;
+                html += `
+                <div style="padding:14px 16px;${i < updates.length - 1 ? 'border-bottom:1px solid #f1f5f9;' : ''}">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:5px;">
+                        <div style="font-weight:700;color:#0f172a;font-size:0.88rem;flex:1;line-height:1.4;">${u.name}</div>
+                        <div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">
+                            <span style="font-size:0.68rem;padding:2px 7px;border-radius:10px;font-weight:700;background:${tc.bg};color:${tc.color};border:1px solid ${tc.border};white-space:nowrap;">${u.type}</span>
+                            <span style="font-size:0.68rem;padding:2px 7px;border-radius:10px;font-weight:700;background:${ic.bg};color:${ic.color};white-space:nowrap;">${u.impact} Impact</span>
+                        </div>
+                    </div>
+                    <div style="font-size:0.73rem;color:#94a3b8;margin-bottom:6px;"><i class="fas fa-calendar-alt"></i> ${u.date}</div>
+                    <div style="font-size:0.82rem;color:#475569;line-height:1.5;">${u.summary}</div>
+                </div>`;
+            });
+
+            html += '</div>';
+            contentEl.innerHTML = html;
         }
 
         function showSeoOnly(event) {
