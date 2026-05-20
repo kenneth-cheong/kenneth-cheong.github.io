@@ -3244,6 +3244,144 @@
             margin-top: 2rem;
         }
 
+        /* ── New Tender Wizard ── */
+        .ntm-wide {
+            max-width: 680px !important;
+            padding: 1.75rem 2rem !important;
+        }
+
+        .ntm-wizard-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            gap: 1rem;
+        }
+
+        .ntm-wizard-header h2 {
+            font-size: 1.4rem;
+            color: var(--text-main);
+            margin-bottom: 0.25rem;
+        }
+
+        .ntm-wizard-header p {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .ntm-steps {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            margin-bottom: 1.75rem;
+        }
+
+        .ntm-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3rem;
+            flex-shrink: 0;
+        }
+
+        .ntm-step-dot {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            transition: all 0.2s ease;
+        }
+
+        .ntm-step.active .ntm-step-dot {
+            background: var(--primary);
+            color: #fff;
+            box-shadow: 0 0 0 3px var(--primary-light);
+        }
+
+        .ntm-step.done .ntm-step-dot {
+            background: var(--success);
+            color: #fff;
+        }
+
+        .ntm-step-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            transition: color 0.2s;
+        }
+
+        .ntm-step.active .ntm-step-label {
+            color: var(--primary);
+        }
+
+        .ntm-step.done .ntm-step-label {
+            color: var(--success);
+        }
+
+        .ntm-step-line {
+            flex: 1;
+            height: 2px;
+            background: var(--border);
+            margin: 0 0.4rem;
+            margin-bottom: 1.1rem;
+            transition: background 0.2s;
+        }
+
+        .ntm-step-line.done {
+            background: var(--success);
+        }
+
+        .ntm-page {
+            display: none;
+        }
+
+        .ntm-page.active {
+            display: block;
+        }
+
+        .ntm-form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0 1.25rem;
+        }
+
+        .ntm-full {
+            grid-column: 1 / -1;
+        }
+
+        .ntm-textarea {
+            resize: vertical;
+            font-family: inherit;
+            min-height: 70px;
+        }
+
+        .ntm-input-group {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .ntm-currency-sel {
+            width: 90px !important;
+            flex-shrink: 0;
+        }
+
+        .ntm-required {
+            color: var(--danger);
+        }
+
+        .ntm-footer {
+            justify-content: space-between !important;
+            border-top: 1px solid var(--border);
+            padding-top: 1.25rem;
+            margin-top: 1.5rem !important;
+        }
+
         .table-input {
             border: 1px solid transparent;
             background: transparent;
@@ -4666,28 +4804,236 @@
         </div>
 
         <div class="modal-overlay" id="new-tender-modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>Create New Tender</h2>
-                    <p>Initialize a new workspace for your submission.</p>
+            <div class="modal-content ntm-wide">
+                <!-- Wizard Header -->
+                <div class="ntm-wizard-header">
+                    <div>
+                        <h2>New Tender Workspace</h2>
+                        <p id="ntm-step-subtitle">Let's start with the basics.</p>
+                    </div>
+                    <button class="icon-btn" onclick="closeTenderModal()" style="flex-shrink:0;"><i data-lucide="x" size="18"></i></button>
                 </div>
-                <div class="form-group">
-                    <label>Tender Name</label>
-                    <input type="text" id="modal-project-name" class="form-control"
-                        placeholder="e.g. Government Cloud RFP">
+
+                <!-- Step Progress -->
+                <div class="ntm-steps">
+                    <div class="ntm-step active" data-step="1">
+                        <div class="ntm-step-dot"><span>1</span></div>
+                        <div class="ntm-step-label">Basics</div>
+                    </div>
+                    <div class="ntm-step-line"></div>
+                    <div class="ntm-step" data-step="2">
+                        <div class="ntm-step-dot"><span>2</span></div>
+                        <div class="ntm-step-label">Scope</div>
+                    </div>
+                    <div class="ntm-step-line"></div>
+                    <div class="ntm-step" data-step="3">
+                        <div class="ntm-step-dot"><span>3</span></div>
+                        <div class="ntm-step-label">Position</div>
+                    </div>
+                    <div class="ntm-step-line"></div>
+                    <div class="ntm-step" data-step="4">
+                        <div class="ntm-step-dot"><span>4</span></div>
+                        <div class="ntm-step-label">Intelligence</div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Client Name</label>
-                    <input type="text" id="modal-client-name" class="form-control"
-                        placeholder="e.g. Ministry of Health">
+
+                <!-- Step 1: Tender Basics -->
+                <div class="ntm-page active" id="ntm-page-1">
+                    <div class="ntm-form-grid">
+                        <div class="form-group ntm-full">
+                            <label>Tender Name <span class="ntm-required">*</span></label>
+                            <input type="text" id="ntm-name" class="form-control" placeholder="e.g. Digital Marketing Services RFP 2025">
+                        </div>
+                        <div class="form-group">
+                            <label>Reference / RFP Number</label>
+                            <input type="text" id="ntm-ref" class="form-control" placeholder="e.g. MOH-2025-RFP-004">
+                        </div>
+                        <div class="form-group">
+                            <label>Client / Organisation <span class="ntm-required">*</span></label>
+                            <input type="text" id="ntm-client" class="form-control" placeholder="e.g. Ministry of Health">
+                        </div>
+                        <div class="form-group">
+                            <label>Client Department / Division</label>
+                            <input type="text" id="ntm-dept" class="form-control" placeholder="e.g. IT Procurement">
+                        </div>
+                        <div class="form-group">
+                            <label>Submission Deadline <span class="ntm-required">*</span></label>
+                            <input type="date" id="ntm-due-date" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Submission Time</label>
+                            <input type="time" id="ntm-due-time" class="form-control">
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Due Date</label>
-                    <input type="date" id="modal-due-date" class="form-control">
+
+                <!-- Step 2: Scope & Details -->
+                <div class="ntm-page" id="ntm-page-2">
+                    <div class="ntm-form-grid">
+                        <div class="form-group">
+                            <label>Tender Type</label>
+                            <select id="ntm-type" class="form-control">
+                                <option value="">Select type…</option>
+                                <option value="RFP">RFP – Request for Proposal</option>
+                                <option value="RFQ">RFQ – Request for Quotation</option>
+                                <option value="EOI">EOI – Expression of Interest</option>
+                                <option value="ITT">ITT – Invitation to Tender</option>
+                                <option value="RFI">RFI – Request for Information</option>
+                                <option value="RFT">RFT – Request for Tender</option>
+                                <option value="Direct">Direct Negotiation</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Industry / Sector</label>
+                            <select id="ntm-sector" class="form-control">
+                                <option value="">Select sector…</option>
+                                <option value="Government">Government & Public Sector</option>
+                                <option value="Healthcare">Healthcare & Life Sciences</option>
+                                <option value="Finance">Finance & Banking</option>
+                                <option value="Technology">Technology & IT</option>
+                                <option value="Education">Education</option>
+                                <option value="Retail">Retail & E-Commerce</option>
+                                <option value="Property">Property & Real Estate</option>
+                                <option value="FMCG">FMCG & Consumer Goods</option>
+                                <option value="Media">Media & Marketing</option>
+                                <option value="Energy">Energy & Utilities</option>
+                                <option value="Transport">Transport & Logistics</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Estimated Contract Value</label>
+                            <div class="ntm-input-group">
+                                <select id="ntm-currency" class="form-control ntm-currency-sel">
+                                    <option value="AUD">AUD</option>
+                                    <option value="SGD">SGD</option>
+                                    <option value="MYR">MYR</option>
+                                    <option value="USD">USD</option>
+                                    <option value="GBP">GBP</option>
+                                    <option value="EUR">EUR</option>
+                                </select>
+                                <input type="number" id="ntm-budget" class="form-control" placeholder="e.g. 500000" min="0">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Contract Duration</label>
+                            <input type="text" id="ntm-duration" class="form-control" placeholder="e.g. 12 months, 2 years">
+                        </div>
+                        <div class="form-group ntm-full">
+                            <label>Project Description / Scope Summary</label>
+                            <textarea id="ntm-description" class="form-control ntm-textarea" placeholder="Briefly describe what services or deliverables this tender covers…" rows="4"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Evaluation Criteria (if known)</label>
+                            <textarea id="ntm-eval-criteria" class="form-control ntm-textarea" placeholder="e.g. Technical 40%, Price 30%, Experience 20%, Innovation 10%" rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>Key Deliverables / Requirements</label>
+                            <textarea id="ntm-requirements" class="form-control ntm-textarea" placeholder="List the main deliverables or must-have requirements…" rows="3"></textarea>
+                        </div>
+                    </div>
                 </div>
-                <div class="modal-footer">
-                    <button class="btn btn-ghost" onclick="closeTenderModal()">Cancel</button>
-                    <button class="btn btn-primary" onclick="confirmCreateTender()">Create Project</button>
+
+                <!-- Step 3: Our Position -->
+                <div class="ntm-page" id="ntm-page-3">
+                    <div class="ntm-form-grid">
+                        <div class="form-group">
+                            <label>Our Role</label>
+                            <select id="ntm-role" class="form-control">
+                                <option value="Prime">Prime Contractor / Lead Bidder</option>
+                                <option value="Sub">Sub-contractor</option>
+                                <option value="JV">Joint Venture Partner</option>
+                                <option value="Consortium">Consortium Member</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Bid / Win Confidence</label>
+                            <select id="ntm-confidence" class="form-control">
+                                <option value="low">Low – Stretch bid</option>
+                                <option value="moderate" selected>Moderate – Competitive</option>
+                                <option value="high">High – Strong position</option>
+                                <option value="very-high">Very High – Incumbent / Preferred</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Target Margin %</label>
+                            <input type="number" id="ntm-margin" class="form-control" placeholder="e.g. 30" min="0" max="100" value="30">
+                        </div>
+                        <div class="form-group">
+                            <label>Past Win Price (Similar Tenders)</label>
+                            <input type="text" id="ntm-past-price" class="form-control" placeholder="e.g. $480,000 (FY2023 MOH)">
+                        </div>
+                        <div class="form-group">
+                            <label>Client Budget (if known)</label>
+                            <input type="text" id="ntm-client-budget" class="form-control" placeholder="e.g. ~$600K approved budget">
+                        </div>
+                        <div class="form-group">
+                            <label>Strategic Priority</label>
+                            <select id="ntm-priority" class="form-control">
+                                <option value="must-win">Must Win</option>
+                                <option value="high" selected>High Priority</option>
+                                <option value="medium">Medium Priority</option>
+                                <option value="low">Low Priority / Opportunistic</option>
+                            </select>
+                        </div>
+                        <div class="form-group ntm-full">
+                            <label>Key Win Themes / Differentiators</label>
+                            <textarea id="ntm-win-themes" class="form-control ntm-textarea" placeholder="What are our strongest differentiators and key themes to push in this response? e.g. Track record, local team, proprietary tech…" rows="4"></textarea>
+                        </div>
+                        <div class="form-group ntm-full">
+                            <label>Internal Briefing Notes</label>
+                            <textarea id="ntm-briefing" class="form-control ntm-textarea" placeholder="Any internal context, background, or history with this client / tender that the team should know…" rows="3"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 4: Intelligence -->
+                <div class="ntm-page" id="ntm-page-4">
+                    <div class="ntm-form-grid">
+                        <div class="form-group">
+                            <label>Client Contact Name</label>
+                            <input type="text" id="ntm-contact-name" class="form-control" placeholder="e.g. Sarah Tan">
+                        </div>
+                        <div class="form-group">
+                            <label>Client Contact Email</label>
+                            <input type="email" id="ntm-contact-email" class="form-control" placeholder="e.g. sarah@client.gov">
+                        </div>
+                        <div class="form-group">
+                            <label>Client Contact Phone</label>
+                            <input type="text" id="ntm-contact-phone" class="form-control" placeholder="e.g. +65 9123 4567">
+                        </div>
+                        <div class="form-group">
+                            <label>Tender Portal / Source URL</label>
+                            <input type="url" id="ntm-portal-url" class="form-control" placeholder="https://…">
+                        </div>
+                        <div class="form-group ntm-full">
+                            <label>Known Competitors</label>
+                            <textarea id="ntm-competitors" class="form-control ntm-textarea" placeholder="List known or likely competing firms and their positioning…" rows="3"></textarea>
+                        </div>
+                        <div class="form-group ntm-full">
+                            <label>Competitor Intelligence</label>
+                            <textarea id="ntm-competitor-intel" class="form-control ntm-textarea" placeholder="Any specific intel on competitor pricing, strategies, weaknesses, or prior bid history…" rows="3"></textarea>
+                        </div>
+                        <div class="form-group ntm-full">
+                            <label>Incumbent Supplier (if any)</label>
+                            <input type="text" id="ntm-incumbent" class="form-control" placeholder="e.g. Ogilvy – 3-year incumbent">
+                        </div>
+                        <div class="form-group ntm-full">
+                            <label>Risks & Concerns</label>
+                            <textarea id="ntm-risks" class="form-control ntm-textarea" placeholder="Flag any risks, resource constraints, compliance concerns, or red flags for this bid…" rows="3"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer Nav -->
+                <div class="modal-footer ntm-footer">
+                    <button class="btn btn-ghost" id="ntm-btn-cancel" onclick="closeTenderModal()">Cancel</button>
+                    <div style="display:flex;gap:0.5rem;">
+                        <button class="btn btn-ghost" id="ntm-btn-back" onclick="ntmNavigate(-1)" style="display:none;">Back</button>
+                        <button class="btn btn-primary" id="ntm-btn-next" onclick="ntmNavigate(1)">Next <i data-lucide="arrow-right" size="14" style="margin-left:4px;vertical-align:middle;"></i></button>
+                        <button class="btn btn-primary" id="ntm-btn-create" onclick="confirmCreateTender()" style="display:none;">Create Workspace <i data-lucide="check" size="14" style="margin-left:4px;vertical-align:middle;"></i></button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -10164,50 +10510,142 @@ ${JSON.stringify(slide.blocks)}`;
             }
 
             function createNewProject() {
+                ntmGoToStep(1);
                 document.getElementById('new-tender-modal').classList.add('active');
-                document.getElementById('modal-project-name').focus();
+                setTimeout(() => document.getElementById('ntm-name').focus(), 100);
+            }
+
+            let _ntmStep = 1;
+            const _ntmStepSubtitles = {
+                1: "Let's start with the basics.",
+                2: "Define the scope and contract details.",
+                3: "How are we positioned to win?",
+                4: "Add any available intelligence and contacts."
+            };
+
+            function ntmGoToStep(step) {
+                _ntmStep = step;
+                for (let i = 1; i <= 4; i++) {
+                    const page = document.getElementById(`ntm-page-${i}`);
+                    const dot = document.querySelector(`.ntm-step[data-step="${i}"]`);
+                    const line = document.querySelectorAll('.ntm-step-line')[i - 1];
+                    if (page) page.classList.toggle('active', i === step);
+                    if (dot) {
+                        dot.classList.toggle('active', i === step);
+                        dot.classList.toggle('done', i < step);
+                    }
+                    if (line) line.classList.toggle('done', i < step);
+                }
+                document.getElementById('ntm-step-subtitle').textContent = _ntmStepSubtitles[step];
+                document.getElementById('ntm-btn-back').style.display = step > 1 ? '' : 'none';
+                document.getElementById('ntm-btn-next').style.display = step < 4 ? '' : 'none';
+                document.getElementById('ntm-btn-create').style.display = step === 4 ? '' : 'none';
+                lucide.createIcons();
+            }
+
+            function ntmNavigate(dir) {
+                const next = _ntmStep + dir;
+                if (dir === 1 && _ntmStep === 1) {
+                    if (!document.getElementById('ntm-name').value.trim()) {
+                        document.getElementById('ntm-name').focus();
+                        document.getElementById('ntm-name').style.borderColor = 'var(--danger)';
+                        return;
+                    }
+                    if (!document.getElementById('ntm-client').value.trim()) {
+                        document.getElementById('ntm-client').focus();
+                        document.getElementById('ntm-client').style.borderColor = 'var(--danger)';
+                        return;
+                    }
+                }
+                document.getElementById('ntm-name').style.borderColor = '';
+                document.getElementById('ntm-client').style.borderColor = '';
+                if (next >= 1 && next <= 4) ntmGoToStep(next);
             }
 
             function closeTenderModal() {
                 document.getElementById('new-tender-modal').classList.remove('active');
-                // Reset fields
-                document.getElementById('modal-project-name').value = '';
-                document.getElementById('modal-client-name').value = '';
-                document.getElementById('modal-due-date').value = '';
+                ntmGoToStep(1);
+                const ids = ['ntm-name','ntm-ref','ntm-client','ntm-dept','ntm-due-date','ntm-due-time',
+                    'ntm-type','ntm-sector','ntm-budget','ntm-duration','ntm-description',
+                    'ntm-eval-criteria','ntm-requirements','ntm-past-price','ntm-client-budget',
+                    'ntm-win-themes','ntm-briefing','ntm-contact-name','ntm-contact-email',
+                    'ntm-contact-phone','ntm-portal-url','ntm-competitors','ntm-competitor-intel',
+                    'ntm-incumbent','ntm-risks'];
+                ids.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+                document.getElementById('ntm-margin').value = '30';
+                document.getElementById('ntm-confidence').value = 'moderate';
+                document.getElementById('ntm-priority').value = 'high';
+                document.getElementById('ntm-role').value = 'Prime';
+                document.getElementById('ntm-currency').value = 'AUD';
             }
 
             async function confirmCreateTender() {
-                const name = document.getElementById('modal-project-name').value;
-                const client = document.getElementById('modal-client-name').value;
-                const dueDate = document.getElementById('modal-due-date').value;
+                const name = document.getElementById('ntm-name').value.trim();
+                const client = document.getElementById('ntm-client').value.trim();
+                if (!name) { ntmGoToStep(1); document.getElementById('ntm-name').focus(); return; }
 
-                if (!name) {
-                    alert("Please enter a tender name.");
-                    return;
-                }
+                const dueDate = document.getElementById('ntm-due-date').value;
+                const dueTime = document.getElementById('ntm-due-time').value;
+                const dueDateDisplay = dueDate ? (dueTime ? `${dueDate} ${dueTime}` : dueDate) : "TBD";
+
+                const budget = document.getElementById('ntm-budget').value;
+                const currency = document.getElementById('ntm-currency').value || 'AUD';
+                const budgetDisplay = budget ? `${currency} ${Number(budget).toLocaleString()}` : '';
 
                 const newP = {
                     id: Date.now(),
                     name: name,
                     client: client || "TBD",
-                    dueDate: dueDate || "TBD",
+                    dueDate: dueDateDisplay,
                     status: "New",
                     masterPrompt: DEFAULT_MASTER_PROMPT,
                     slides: [],
-                    team: [], // Start with empty team
-                    proofs: [], // Start with empty proofs
+                    team: [],
+                    proofs: [],
                     docs: [],
                     chatHistory: [],
                     pricingItems: [],
-                    pricingMargin: 30,
-                    pricingConfidence: 'moderate',
+                    pricingMargin: parseInt(document.getElementById('ntm-margin').value) || 30,
+                    pricingConfidence: document.getElementById('ntm-confidence').value || 'moderate',
                     satisfactionScores: { strategy: 0, compliance: 0, quality: 0 },
-                    manualInputs: { briefingNotes: '', pastWinPrice: '', clientBudget: '', competitorIntel: '' },
+                    manualInputs: {
+                        briefingNotes: document.getElementById('ntm-briefing').value.trim(),
+                        pastWinPrice: document.getElementById('ntm-past-price').value.trim(),
+                        clientBudget: document.getElementById('ntm-client-budget').value.trim() || budgetDisplay,
+                        competitorIntel: document.getElementById('ntm-competitor-intel').value.trim()
+                    },
                     marketResearch: { trends: [], opportunities: [], summary: '' },
                     competitorAnalysis: { landscape: [], blueOcean: '', redOcean: '' },
                     workflowStep: 0,
                     lastModifiedBy: currentUser?.name || "System",
-                    lastModifiedAt: new Date().toISOString()
+                    lastModifiedAt: new Date().toISOString(),
+                    // Extended intake fields
+                    intake: {
+                        refNumber: document.getElementById('ntm-ref').value.trim(),
+                        department: document.getElementById('ntm-dept').value.trim(),
+                        submissionTime: dueTime,
+                        tenderType: document.getElementById('ntm-type').value,
+                        sector: document.getElementById('ntm-sector').value,
+                        currency: currency,
+                        contractValue: budget ? Number(budget) : null,
+                        contractDuration: document.getElementById('ntm-duration').value.trim(),
+                        description: document.getElementById('ntm-description').value.trim(),
+                        evalCriteria: document.getElementById('ntm-eval-criteria').value.trim(),
+                        requirements: document.getElementById('ntm-requirements').value.trim(),
+                        ourRole: document.getElementById('ntm-role').value,
+                        strategicPriority: document.getElementById('ntm-priority').value,
+                        winThemes: document.getElementById('ntm-win-themes').value.trim(),
+                        contactName: document.getElementById('ntm-contact-name').value.trim(),
+                        contactEmail: document.getElementById('ntm-contact-email').value.trim(),
+                        contactPhone: document.getElementById('ntm-contact-phone').value.trim(),
+                        portalUrl: document.getElementById('ntm-portal-url').value.trim(),
+                        competitors: document.getElementById('ntm-competitors').value.trim(),
+                        incumbent: document.getElementById('ntm-incumbent').value.trim(),
+                        risks: document.getElementById('ntm-risks').value.trim()
+                    }
                 };
 
                 projects.push(newP);
