@@ -8787,6 +8787,38 @@ Respond with: [AUDIT_SCORES: {"strategy": 85, "compliance": 90, "quality": 80}] 
 
                     let fullPrompt = `System Persona:\n${persona}\n\n`;
 
+                    // --- INJECT TENDER PROJECT BRIEF (core metadata from intake wizard) ---
+                    const _intake = current?.intake || {};
+                    const _manual = current?.manualInputs || {};
+                    let _brief = `TENDER PROJECT BRIEF:\n`;
+                    _brief += `• Tender Name: ${current?.name || 'Unnamed'}\n`;
+                    if (current?.client && current.client !== 'TBD') _brief += `• Client / Organisation: ${current.client}\n`;
+                    if (_intake.department) _brief += `• Client Department: ${_intake.department}\n`;
+                    if (current?.dueDate && current.dueDate !== 'TBD') _brief += `• Submission Deadline: ${current.dueDate}\n`;
+                    if (_intake.refNumber) _brief += `• Reference / RFP No.: ${_intake.refNumber}\n`;
+                    if (_intake.tenderType) _brief += `• Tender Type: ${_intake.tenderType}\n`;
+                    if (_intake.sector) _brief += `• Industry / Sector: ${_intake.sector}\n`;
+                    if (_intake.contractValue) _brief += `• Estimated Contract Value: ${_intake.currency || 'AUD'} ${Number(_intake.contractValue).toLocaleString()}\n`;
+                    if (_intake.contractDuration) _brief += `• Contract Duration: ${_intake.contractDuration}\n`;
+                    if (_intake.description) _brief += `• Scope Summary: ${_intake.description}\n`;
+                    if (_intake.evalCriteria) _brief += `• Evaluation Criteria: ${_intake.evalCriteria}\n`;
+                    if (_intake.requirements) _brief += `• Key Requirements / Deliverables: ${_intake.requirements}\n`;
+                    if (_intake.ourRole) _brief += `• Our Role: ${_intake.ourRole}\n`;
+                    if (_intake.strategicPriority) _brief += `• Strategic Priority: ${_intake.strategicPriority}\n`;
+                    if (current?.pricingConfidence) _brief += `• Bid Confidence: ${current.pricingConfidence}\n`;
+                    if (current?.pricingMargin) _brief += `• Target Margin: ${current.pricingMargin}%\n`;
+                    if (_intake.winThemes) _brief += `• Key Win Themes / Differentiators: ${_intake.winThemes}\n`;
+                    if (_manual.briefingNotes) _brief += `• Internal Briefing Notes: ${_manual.briefingNotes}\n`;
+                    if (_manual.clientBudget) _brief += `• Client Budget: ${_manual.clientBudget}\n`;
+                    if (_manual.pastWinPrice) _brief += `• Past Win Price (Similar Tenders): ${_manual.pastWinPrice}\n`;
+                    if (_intake.contactName) _brief += `• Client Contact: ${_intake.contactName}${_intake.contactEmail ? ' — ' + _intake.contactEmail : ''}${_intake.contactPhone ? ' / ' + _intake.contactPhone : ''}\n`;
+                    if (_intake.portalUrl) _brief += `• Tender Portal: ${_intake.portalUrl}\n`;
+                    if (_intake.competitors) _brief += `• Known Competitors: ${_intake.competitors}\n`;
+                    if (_manual.competitorIntel) _brief += `• Competitor Intelligence: ${_manual.competitorIntel}\n`;
+                    if (_intake.incumbent) _brief += `• Incumbent Supplier: ${_intake.incumbent}\n`;
+                    if (_intake.risks) _brief += `• Risks & Concerns: ${_intake.risks}\n`;
+                    fullPrompt += _brief + '\n';
+
                     if (docsSummary) {
                         fullPrompt += `PROJECT KNOWLEDGE BASE (Full Document Content):\n${docsSummary}\n\n`;
                     }
