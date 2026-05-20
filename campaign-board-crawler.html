@@ -2746,6 +2746,66 @@
             renderTimelinessView();
         }
 
+        function buildTimelinessCharts(data, staffMap) {
+            // --- Delta distribution histogram (SVG) ---
+            const buckets = [
+                { label: '≤-14d', test: d => d <= -14,              color: '#166534' },
+                { label: '-8→-14', test: d => d >= -14 && d <= -8,  color: '#15803d' },
+                { label: '-1→-7', test: d => d >= -7 && d <= -1,    color: '#4ade80' },
+                { label: '0d',    test: d => d === 0,                color: '#86efac' },
+                { label: '1-3d',  test: d => d >= 1 && d <= 3,      color: '#fbbf24' },
+                { label: '4-7d',  test: d => d >= 4 && d <= 7,      color: '#f97316' },
+                { label: '8-14d', test: d => d >= 8 && d <= 14,     color: '#ef4444' },
+                { label: '>14d',  test: d => d > 14,                 color: '#991b1b' },
+            ].map(b => ({ ...b, count: data.filter(i => b.test(i.deltaDays)).length }));
+
+            const maxCount = Math.max(...buckets.map(b => b.count), 1);
+            const chartH = 90, barW = 34, gap = 8;
+            const totalW = buckets.length * (barW + gap) - gap;
+
+            const svgBars = buckets.map((b, i) => {
+                const h = Math.max(b.count > 0 ? Math.round((b.count / maxCount) * chartH) : 0, b.count > 0 ? 3 : 0);
+                const x = i * (barW + gap), y = chartH - h;
+                return `<rect x="${x}" y="${y}" width="${barW}" height="${h}" fill="${b.color}" rx="2" opacity="0.85"/>
+                    ${b.count > 0 ? `<text x="${x+barW/2}" y="${Math.max(y-3,9)}" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-size="9" font-family="monospace">${b.count}</text>` : ''}
+                    <text x="${x+barW/2}" y="${chartH+13}" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="8">${b.label}</text>`;
+            }).join('');
+
+            const histogram = `<svg viewBox="0 0 ${totalW} ${chartH+16}" style="width:100%; height:${chartH+20}px; overflow:visible;">${svgBars}</svg>`;
+
+            // --- Staff on-time bars (CSS, sorted desc) ---
+            const staffBars = Object.entries(staffMap)
+                .map(([name, items]) => ({
+                    name,
+                    pct: Math.round(items.filter(i => i.deltaDays <= 0).length / items.length * 100),
+                    count: items.length
+                }))
+                .sort((a, b) => b.pct - a.pct)
+                .map(s => {
+                    const c = s.pct >= 80 ? '#4ade80' : s.pct >= 60 ? '#fbbf24' : '#f87171';
+                    return `<div style="margin-bottom:7px;">
+                        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:3px;">
+                            <span style="font-size:11px; color:var(--text); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:62%;">${name}</span>
+                            <span style="font-size:11px; font-family:monospace; color:${c}; white-space:nowrap;">${s.pct}% <span style="color:var(--muted); font-size:10px;">(${s.count})</span></span>
+                        </div>
+                        <div style="height:5px; background:rgba(255,255,255,0.07); border-radius:3px; overflow:hidden;">
+                            <div style="height:100%; width:${s.pct}%; background:${c}; opacity:0.85; border-radius:3px;"></div>
+                        </div>
+                    </div>`;
+                }).join('');
+
+            return `<div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+                <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px;">
+                    <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:10px;">Delta Distribution</div>
+                    ${histogram}
+                </div>
+                <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px; overflow-y:auto; max-height:200px;">
+                    <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--muted); margin-bottom:10px;">On-Time Rate by Staff</div>
+                    ${staffBars || '<div style="font-size:11px;color:var(--muted);">No staff data yet...</div>'}
+                </div>
+            </div>`;
+        }
+
         function toggleTimelinessStaff(name) {
             if (state.timeliness.expandedStaff.has(name)) state.timeliness.expandedStaff.delete(name);
             else state.timeliness.expandedStaff.add(name);
@@ -2841,6 +2901,8 @@
                 });
             });
             const staffList = Object.entries(staffMap).sort(([a], [b]) => a.localeCompare(b));
+
+            html += buildTimelinessCharts(data, staffMap);
 
             const fmtDate = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
