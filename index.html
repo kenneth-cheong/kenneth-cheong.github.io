@@ -18325,10 +18325,12 @@
         })();
 
         let cockpitState = {
-            moversChart: null, // Global reference for SE Ranking Movers chart
-            moversView: 'table', // 'graph' or 'table'
+            moversChart: null, // Global reference for SE Ranking Movers bar/scatter chart
+            trendChart: null,  // Global reference for trend line chart
+            moversView: 'table', // 'graph', 'table', or 'trend'
             moversTimeframe: 7, // Default to 7 days
             lastMoversData: [], // Store results for tab switching without re-fetch
+            moversTimeSeries: {}, // siteName → { date → avgRank } for trend chart
             selectedMoversCampaigns: new Set(), // Campaign multi-select filter
             gscRecommendations: [], // Grouped GSC insights
             gscSearchQuery: '', // Filter for GSC properties
@@ -19461,6 +19463,7 @@
                 }
 
                 let allMovers = [];
+                cockpitState.moversTimeSeries = {}; // reset on each fetch
                 let completed = 0;
                 syncStatus.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Syncing... (0/${sites.length})`;
 
@@ -19493,6 +19496,7 @@
                         if (Array.isArray(keywords)) {
                             keywords.forEach(kw => kwMap[String(kw.id)] = kw);
                         }
+                        const dateRankMap = {}; // date → {sum, count} for trend line
 
                         // Calculate changes
                         if (typeof positions === 'object') {
@@ -19502,6 +19506,17 @@
                                         engineEntry.keywords.forEach(kwPos => {
                                             const kw = kwMap[String(kwPos.id)];
                                             if (!kw || !Array.isArray(kwPos.positions) || kwPos.positions.length === 0) return;
+
+                                            // Accumulate per-day rank for trend chart
+                                            kwPos.positions.forEach(p => {
+                                                const d = (p.date || '').split('T')[0];
+                                                const r = p.pos !== undefined ? p.pos : (p.rank || 0);
+                                                if (d && r > 0 && r <= 200) {
+                                                    if (!dateRankMap[d]) dateRankMap[d] = { sum: 0, count: 0 };
+                                                    dateRankMap[d].sum += r;
+                                                    dateRankMap[d].count++;
+                                                }
+                                            });
 
                                             // Sort positions by date
                                             kwPos.positions.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -19537,6 +19552,17 @@
                                 // Date keyed object
                                 const dates = Object.keys(positions).sort((a, b) => new Date(a) - new Date(b));
                                 if (dates.length >= 2) {
+                                    // Accumulate per-day rank for trend chart
+                                    dates.forEach(d => {
+                                        Object.values(positions[d] || {}).forEach(entry => {
+                                            const r = entry.pos !== undefined ? entry.pos : (entry.rank || 0);
+                                            if (r > 0 && r <= 200) {
+                                                if (!dateRankMap[d]) dateRankMap[d] = { sum: 0, count: 0 };
+                                                dateRankMap[d].sum += r;
+                                                dateRankMap[d].count++;
+                                            }
+                                        });
+                                    });
                                     const oldestDate = dates[0];
                                     const newestDate = dates[dates.length - 1];
                                     const oldestPosData = positions[oldestDate];
@@ -19576,6 +19602,13 @@
                                 }
                             }
                         }
+
+                        // Store daily avg rank for this site's trend line
+                        const siteName = site.title || site.name;
+                        cockpitState.moversTimeSeries[siteName] = {};
+                        Object.entries(dateRankMap).forEach(([d, { sum, count }]) => {
+                            if (count > 0) cockpitState.moversTimeSeries[siteName][d] = Math.round(sum / count * 10) / 10;
+                        });
 
                     } catch (err) {
                         console.error(`Error processing site ${site.name}:`, err);
@@ -19622,7 +19655,7 @@
 
             const upCount = data.filter(m => m.change > 0).length;
             const downCount = data.filter(m => m.change < 0).length;
-            const isGraph = cockpitState.moversView === 'graph';
+            const view = cockpitState.moversView; // 'graph' | 'table' | 'trend'
 
             const filterActive = cockpitState.selectedMoversCampaigns.size > 0;
             const filterLabel = !filterActive ? 'All Sites'
@@ -19670,21 +19703,27 @@
 
                     <!-- Tab Switcher -->
                     <div style="display: flex; gap: 4px; background: #f1f5f9; border-bottom: 1px solid #e2e8f0;">
-                        <button onclick="switchMoversView('graph')" style="flex: 1; padding: 6px 12px; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; ${isGraph ? 'background: #fff; color: #6366f1; box-shadow: 0 1px 2px rgba(0,0,0,0.05);' : 'background: transparent; color: #64748b;'}">
+                        <button onclick="switchMoversView('graph')" style="flex: 1; padding: 6px 12px; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; ${view === 'graph' ? 'background: #fff; color: #6366f1; box-shadow: 0 1px 2px rgba(0,0,0,0.05);' : 'background: transparent; color: #64748b;'}">
                             <i class="fas fa-chart-bar"></i> Bar Chart
                         </button>
-                        <button onclick="switchMoversView('table')" style="flex: 1; padding: 6px 12px; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; ${!isGraph ? 'background: #fff; color: #6366f1; box-shadow: 0 1px 2px rgba(0,0,0,0.05);' : 'background: transparent; color: #64748b;'}">
+                        <button onclick="switchMoversView('table')" style="flex: 1; padding: 6px 12px; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; ${view === 'table' ? 'background: #fff; color: #6366f1; box-shadow: 0 1px 2px rgba(0,0,0,0.05);' : 'background: transparent; color: #64748b;'}">
                             <i class="fas fa-list"></i> Table
+                        </button>
+                        <button onclick="switchMoversView('trend')" style="flex: 1; padding: 6px 12px; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; ${view === 'trend' ? 'background: #fff; color: #6366f1; box-shadow: 0 1px 2px rgba(0,0,0,0.05);' : 'background: transparent; color: #64748b;'}">
+                            <i class="fas fa-chart-line"></i> Trend
                         </button>
                     </div>
 
                     <div id="movers-render-area" style="flex: 1; overflow-y: auto;">
-                        ${isGraph ? '<div style="position:relative;padding:10px 12px;"><canvas id="moversScatterChart"></canvas></div>' : renderMoversTable(data)}
+                        ${view === 'graph' ? '<div style="position:relative;padding:10px 12px;"><canvas id="moversScatterChart"></canvas></div>'
+                          : view === 'trend' ? '<div style="position:relative;padding:10px 12px;min-height:280px;"><canvas id="moversTrendChart"></canvas></div>'
+                          : renderMoversTable(data)}
                     </div>
                 </div>
             `;
 
-            if (isGraph) initMoversChart(data);
+            if (view === 'graph') initMoversChart(data);
+            else if (view === 'trend') initMoversTrendChart();
         }
 
         function renderMoversTable(data) {
@@ -19882,6 +19921,86 @@
                                     return lbl.length > 38 ? lbl.slice(0, 38) + '…' : lbl;
                                 }
                             }
+                        }
+                    }
+                }
+            });
+        }
+
+        function initMoversTrendChart() {
+            const canvas = document.getElementById('moversTrendChart');
+            if (!canvas) return;
+            if (cockpitState.trendChart) cockpitState.trendChart.destroy();
+
+            const ts = cockpitState.moversTimeSeries;
+            if (!ts || !Object.keys(ts).length) {
+                canvas.parentElement.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;font-size:0.9em;">No time-series data yet — refresh to fetch positions.</div>';
+                return;
+            }
+
+            // Which sites to show (respect campaign filter)
+            const allSites = Object.keys(ts);
+            const sites = cockpitState.selectedMoversCampaigns.size > 0
+                ? allSites.filter(s => cockpitState.selectedMoversCampaigns.has(s))
+                : allSites;
+
+            // Collect all dates across selected sites, sorted ascending
+            const dateSet = new Set();
+            sites.forEach(s => Object.keys(ts[s] || {}).forEach(d => dateSet.add(d)));
+            const dates = [...dateSet].sort();
+
+            if (!dates.length) {
+                canvas.parentElement.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;font-size:0.9em;">No daily data in the selected period.</div>';
+                return;
+            }
+
+            const COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#f97316','#84cc16','#06b6d4','#a855f7'];
+            const barH = 30;
+            canvas.parentElement.style.height = Math.max(300, sites.length * barH + 120) + 'px';
+
+            const datasets = sites.map((site, i) => ({
+                label: site,
+                data: dates.map(d => ts[site]?.[d] ?? null),
+                borderColor: COLORS[i % COLORS.length],
+                backgroundColor: COLORS[i % COLORS.length] + '18',
+                borderWidth: 2,
+                pointRadius: dates.length > 30 ? 2 : 4,
+                pointHoverRadius: 6,
+                tension: 0.35,
+                spanGaps: true,
+                fill: false
+            }));
+
+            const fmtDate = d => {
+                const [, m, day] = d.split('-');
+                return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            };
+
+            cockpitState.trendChart = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: { labels: dates.map(fmtDate), datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12, padding: 12 } },
+                        tooltip: {
+                            callbacks: {
+                                label: item => `${item.dataset.label}: #${item.raw ?? '—'}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { font: { size: 10 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 14 },
+                            grid: { color: '#f1f5f9' }
+                        },
+                        y: {
+                            reverse: true,
+                            title: { display: true, text: 'Avg. rank  (↑ = better)', font: { size: 10 } },
+                            ticks: { font: { size: 10 }, callback: v => '#' + v },
+                            grid: { color: '#f1f5f9' }
                         }
                     }
                 }
