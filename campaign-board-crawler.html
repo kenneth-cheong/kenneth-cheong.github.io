@@ -1701,6 +1701,9 @@
                             <div class="view-toggle-btn" id="view-auditor" onclick="setViewMode('auditor')">
                                 <i class="fas fa-table"></i> Auditor View
                             </div>
+                            <div class="view-toggle-btn" id="view-timeliness" onclick="setViewMode('timeliness')">
+                                <i class="fas fa-chart-line"></i> Timeliness
+                            </div>
                         </div>
                     </div>
 
@@ -1717,8 +1720,9 @@
 
                 <div id="results-scroll-area"
                     style="flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; position: relative;">
+                    <div id="timeliness-container" style="display: none;"></div>
                     <div id="manager-grid-container" style="display: none;"></div>
-                    <div class="table-container"
+                    <div id="auditor-table-container" class="table-container"
                         style="background: var(--surface); border-radius: 12px; border: 1px solid var(--border);">
                         <table style="width: 100%; border-collapse: separate; border-spacing: 0;">
                             <thead>
@@ -1843,7 +1847,9 @@
             excludedStatusLabels: new Set([
                 'Archive', 'Done', 'Not Needed', 'Not Needed (AI)',
                 '[MO] Done', '[MO] Not Needed'
-            ])
+            ]),
+            timeliness: { data: [], loaded: false, loading: false, expandedStaff: new Set() },
+            completionLabels: new Set(['Done', 'Completed', 'Signed Off', 'Launched', 'Live', 'Approved'])
         };
 
         window.onload = () => { if (state.apiKey) { document.getElementById('api-key').value = state.apiKey; connectMonday(); } };
@@ -2617,7 +2623,288 @@
 
         function setViewMode(v) {
             state.viewMode = v;
+            if (v === 'timeliness' && !state.timeliness.loaded && !state.timeliness.loading) {
+                fetchTimelinessData();
+            }
             updateFilteredUI();
+        }
+
+        async function fetchTimelinessData() {
+            if (state.timeliness.loading) return;
+            state.timeliness.loading = true;
+            state.timeliness.data = [];
+            renderTimelinessView();
+
+            const boardsToQuery = [];
+            state.selectedFolderIds.forEach(fid => {
+                const f = state.folders.find(x => x.id === fid);
+                if (f) f.boards.forEach(b => boardsToQuery.push({ id: b.id, name: b.name }));
+            });
+
+            for (const b of boardsToQuery) {
+                try {
+                    showToast(`Timeliness: scanning ${b.name}...`);
+
+                    // Fetch all completed items with updated_at
+                    let cursor = null;
+                    const completedItems = [];
+                    do {
+                        const idata = await monday(`query($id:[ID!],$c:String){
+                            boards(ids:$id){
+                                items_page(limit:500,cursor:$c){
+                                    cursor
+                                    items{
+                                        id name updated_at
+                                        column_values{
+                                            id type
+                                            column{ title }
+                                            ...on StatusValue{ label }
+                                            ...on DateValue{ date }
+                                            ...on TimelineValue{ from to }
+                                        }
+                                    }
+                                }
+                            }
+                        }`, { id: [b.id], c: cursor }, false);
+                        const page = idata.boards?.[0]?.items_page;
+                        if (!page) break;
+                        page.items.forEach(i => {
+                            const sv = i.column_values.find(cv => cv.label !== undefined);
+                            if (sv && state.completionLabels.has(sv.label)) completedItems.push(i);
+                        });
+                        cursor = page.cursor;
+                    } while (cursor);
+
+                    if (completedItems.length === 0) { hideToast(); continue; }
+
+                    // Try activity logs for precise completion timestamps
+                    const completionDateMap = {};
+                    try {
+                        const ldata = await monday(`query($id:[ID!]){
+                            boards(ids:$id){
+                                activity_logs(limit:500){
+                                    event data created_at
+                                }
+                            }
+                        }`, { id: [b.id] }, false);
+                        const logs = ldata.boards?.[0]?.activity_logs || [];
+                        logs.forEach(log => {
+                            if (log.event !== 'update_column_value') return;
+                            try {
+                                const d = JSON.parse(log.data);
+                                const itemId = String(d.pulse_id);
+                                if (completionDateMap[itemId]) return; // logs are newest-first; keep first match
+                                const val = JSON.parse(d.value || '{}');
+                                const label = val.label?.text || (typeof val.label === 'string' ? val.label : '');
+                                if (state.completionLabels.has(label)) {
+                                    // created_at is Unix ms (number or numeric string) or ISO string
+                                    const raw = log.created_at;
+                                    const ts = /^\d+$/.test(String(raw))
+                                        ? new Date(Number(raw)).toISOString()
+                                        : raw;
+                                    completionDateMap[itemId] = ts;
+                                }
+                            } catch {}
+                        });
+                    } catch (e) {
+                        console.warn(`Activity log unavailable for ${b.name}:`, e);
+                    }
+
+                    completedItems.forEach(i => {
+                        const dv = i.column_values.find(cv => cv.date || cv.to);
+                        const assigned = i.column_values.find(cv => cv.type === 'people' || cv.type === 'multiple-person');
+                        const sv = i.column_values.find(cv => cv.label !== undefined);
+                        const deadline = dv ? (dv.date || dv.to) : null;
+                        if (!deadline) return;
+                        const logDate = completionDateMap[i.id];
+                        const completionDate = logDate || i.updated_at;
+                        if (!completionDate) return;
+                        const deltaDays = Math.round((new Date(completionDate) - new Date(deadline)) / 86400000);
+                        const people = assigned?.text
+                            ? assigned.text.split(/, | & | and /).map(p => p.trim()).filter(Boolean)
+                            : ['Unassigned'];
+                        state.timeliness.data.push({
+                            id: i.id, name: i.name, bName: b.name, bId: b.id,
+                            deadline, completionDate, source: logDate ? 'log' : 'updated_at',
+                            deltaDays, people, status: sv?.label || ''
+                        });
+                    });
+
+                    hideToast();
+                } catch (e) {
+                    console.error(`Timeliness fetch failed for ${b.id}:`, e);
+                    hideToast();
+                }
+            }
+
+            state.timeliness.loading = false;
+            state.timeliness.loaded = true;
+            renderTimelinessView();
+        }
+
+        function toggleTimelinessStaff(name) {
+            if (state.timeliness.expandedStaff.has(name)) state.timeliness.expandedStaff.delete(name);
+            else state.timeliness.expandedStaff.add(name);
+            renderTimelinessView();
+        }
+
+        function renderTimelinessView() {
+            const container = document.getElementById('timeliness-container');
+            if (!container) return;
+
+            if (state.timeliness.loading) {
+                container.innerHTML = `<div style="padding:60px; text-align:center; color:var(--muted);">
+                    <i class="fas fa-spinner fa-spin" style="font-size:28px; margin-bottom:16px; display:block;"></i>
+                    <div style="font-size:14px; margin-bottom:6px;">Fetching timeliness data...</div>
+                    <div style="font-size:11px; opacity:0.6;">Checking activity logs then scanning completed items across all boards</div>
+                </div>`;
+                return;
+            }
+
+            if (!state.timeliness.loaded) {
+                container.innerHTML = `<div style="padding:60px; text-align:center; color:var(--muted);">
+                    <i class="fas fa-chart-line" style="font-size:28px; margin-bottom:16px; display:block; opacity:0.4;"></i>
+                    <div style="font-size:14px;">Loading timeliness report...</div>
+                </div>`;
+                return;
+            }
+
+            const data = state.timeliness.data;
+            if (data.length === 0) {
+                container.innerHTML = `<div style="padding:60px; text-align:center; color:var(--muted);">
+                    <div style="font-size:14px;">No completed items found across selected boards.</div>
+                    <div style="font-size:11px; margin-top:6px; opacity:0.6;">Completion labels: ${[...state.completionLabels].join(', ')}</div>
+                    <button class="btn btn-secondary" onclick="state.timeliness.loaded=false; fetchTimelinessData();" style="margin-top:16px; font-size:12px; padding:6px 14px;">
+                        <i class="fas fa-redo" style="margin-right:6px;"></i>Retry
+                    </button>
+                </div>`;
+                return;
+            }
+
+            const total = data.length;
+            const onTime = data.filter(i => i.deltaDays <= 0).length;
+            const avgDelta = Math.round(data.reduce((s, i) => s + i.deltaDays, 0) / total);
+            const logCount = data.filter(i => i.source === 'log').length;
+
+            // Group by person
+            const staffMap = {};
+            data.forEach(item => {
+                item.people.forEach(person => {
+                    if (!staffMap[person]) staffMap[person] = [];
+                    staffMap[person].push(item);
+                });
+            });
+            const staffList = Object.entries(staffMap).sort(([a], [b]) => a.localeCompare(b));
+
+            const fmtDate = d => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+            let html = `
+                <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+                    <div class="stat-card" style="flex:1; min-width:90px; text-align:center;">
+                        <div class="stat-value">${total}</div><div class="stat-label">Completed</div>
+                    </div>
+                    <div class="stat-card" style="flex:1; min-width:90px; text-align:center;">
+                        <div class="stat-value" style="color:${Math.round(onTime/total*100)>=80?'#4ade80':Math.round(onTime/total*100)>=60?'#fbbf24':'#f87171'}">${Math.round(onTime/total*100)}%</div>
+                        <div class="stat-label">On Time</div>
+                    </div>
+                    <div class="stat-card" style="flex:1; min-width:90px; text-align:center;">
+                        <div class="stat-value" style="color:${avgDelta>3?'#f87171':avgDelta>0?'#fbbf24':'#4ade80'}">${avgDelta>0?'+':''}${avgDelta}d</div>
+                        <div class="stat-label">Avg Delta</div>
+                    </div>
+                    <div class="stat-card" style="flex:1; min-width:130px; text-align:center;">
+                        <div class="stat-value" style="font-size:15px;">${logCount}<span style="font-size:12px;opacity:0.5;">/${total}</span></div>
+                        <div class="stat-label">From Activity Log</div>
+                    </div>
+                    <div style="display:flex; align-items:center; margin-left:auto;">
+                        <button class="btn btn-secondary" onclick="state.timeliness.loaded=false; state.timeliness.data=[]; fetchTimelinessData();" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px;">
+                            <i class="fas fa-redo"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div style="font-size:11px; color:var(--muted); margin-bottom:12px; padding:8px 12px; background:rgba(255,255,255,0.03); border-radius:8px; border:1px solid var(--border);">
+                    <i class="fas fa-info-circle" style="margin-right:4px;"></i>
+                    <i class="fas fa-history" style="margin:0 3px; opacity:0.7;"></i> dates sourced from activity logs &nbsp;·&nbsp;
+                    <i class="fas fa-clock" style="margin:0 3px; color:#fbbf24; opacity:0.8;"></i> dates are last-updated proxy (may shift if item was edited post-completion)
+                </div>
+                <div style="background:var(--surface); border-radius:12px; border:1px solid var(--border); overflow:hidden;">
+                    <table style="width:100%; border-collapse:separate; border-spacing:0;">
+                        <thead>
+                            <tr>
+                                <th style="padding:10px 14px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border);">Staff</th>
+                                <th style="padding:10px 14px; text-align:center; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border);">Done</th>
+                                <th style="padding:10px 14px; text-align:center; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border);">On Time</th>
+                                <th style="padding:10px 14px; text-align:center; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border);">Avg Delta</th>
+                                <th style="padding:10px 14px; text-align:center; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); border-bottom:1px solid var(--border);">Breakdown</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            staffList.forEach(([name, items]) => {
+                const sTotal = items.length;
+                const sOnTime = items.filter(i => i.deltaDays <= 0).length;
+                const sPct = Math.round(sOnTime / sTotal * 100);
+                const sAvg = Math.round(items.reduce((s, i) => s + i.deltaDays, 0) / sTotal);
+                const isExpanded = state.timeliness.expandedStaff.has(name);
+                const early = items.filter(i => i.deltaDays < 0).length;
+                const exact = items.filter(i => i.deltaDays === 0).length;
+                const mildLate = items.filter(i => i.deltaDays > 0 && i.deltaDays <= 3).length;
+                const late = items.filter(i => i.deltaDays > 3).length;
+
+                html += `<tr style="cursor:pointer;" onclick="toggleTimelinessStaff('${name.replace(/'/g, "\\'")}')">
+                    <td style="padding:10px 14px; border-bottom:1px solid var(--border);">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <i class="fas ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}" style="opacity:0.4; width:10px; font-size:10px;"></i>
+                            <span style="font-weight:600; font-size:13px;">${name}</span>
+                        </div>
+                    </td>
+                    <td style="padding:10px 14px; text-align:center; border-bottom:1px solid var(--border); font-family:monospace; font-size:13px;">${sTotal}</td>
+                    <td style="padding:10px 14px; text-align:center; border-bottom:1px solid var(--border);">
+                        <span style="font-weight:700; font-size:13px; color:${sPct>=80?'#4ade80':sPct>=60?'#fbbf24':'#f87171'}">${sPct}%</span>
+                    </td>
+                    <td style="padding:10px 14px; text-align:center; border-bottom:1px solid var(--border); font-family:monospace; font-size:13px; color:${sAvg>3?'#f87171':sAvg>0?'#fbbf24':'#4ade80'};">
+                        ${sAvg>0?'+':''}${sAvg}d
+                    </td>
+                    <td style="padding:10px 14px; text-align:center; border-bottom:1px solid var(--border);">
+                        <div style="display:flex; gap:3px; justify-content:center; flex-wrap:wrap;">
+                            ${early>0?`<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:rgba(74,222,128,0.15);color:#4ade80;border:1px solid rgba(74,222,128,0.3);">${early} early</span>`:''}
+                            ${exact>0?`<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:rgba(74,222,128,0.08);color:#86efac;border:1px solid rgba(74,222,128,0.2);">${exact} on time</span>`:''}
+                            ${mildLate>0?`<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);">${mildLate} ≤3d late</span>`:''}
+                            ${late>0?`<span style="padding:2px 7px;border-radius:4px;font-size:10px;background:rgba(248,113,113,0.15);color:#f87171;border:1px solid rgba(248,113,113,0.3);">${late} late</span>`:''}
+                        </div>
+                    </td>
+                </tr>`;
+
+                if (isExpanded) {
+                    const sorted = [...items].sort((a, b) => b.deltaDays - a.deltaDays);
+                    sorted.forEach(item => {
+                        const deltaColor = item.deltaDays > 3 ? '#f87171' : item.deltaDays > 0 ? '#fbbf24' : '#4ade80';
+                        const deltaText = item.deltaDays === 0 ? 'On time'
+                            : item.deltaDays > 0 ? `${item.deltaDays}d late`
+                            : `${Math.abs(item.deltaDays)}d early`;
+                        const srcIcon = item.source === 'log'
+                            ? `<i class="fas fa-history" title="From activity log" style="opacity:0.5;font-size:9px;margin-right:3px;"></i>`
+                            : `<i class="fas fa-clock" title="Proxy: last-updated timestamp" style="color:#fbbf24;opacity:0.7;font-size:9px;margin-right:3px;"></i>`;
+                        html += `<tr style="background:rgba(255,255,255,0.02);">
+                            <td style="padding:7px 14px 7px 34px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:12px;">
+                                ${item.name}
+                                <span style="font-size:10px; color:var(--muted); margin-left:6px;">${item.bName}</span>
+                            </td>
+                            <td colspan="3" style="padding:7px 14px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:11px; color:var(--muted); font-family:monospace; white-space:nowrap;">
+                                <i class="fas fa-calendar-alt" style="opacity:0.5; margin-right:4px;"></i>${fmtDate(item.deadline)}
+                                <span style="margin:0 8px; opacity:0.3;">→</span>
+                                ${srcIcon}${fmtDate(item.completionDate)}
+                            </td>
+                            <td style="padding:7px 14px; border-bottom:1px solid rgba(255,255,255,0.04); text-align:center;">
+                                <span style="font-size:11px; font-weight:700; color:${deltaColor};">${deltaText}</span>
+                            </td>
+                        </tr>`;
+                    });
+                }
+            });
+
+            html += `</tbody></table></div>`;
+            container.innerHTML = html;
         }
 
         function toggleStaffExpansion(name) {
@@ -2680,11 +2967,22 @@
             if (mfBtn) mfBtn.classList.toggle('active', state.myFocusActive && !!state.currentUser);
 
             const gridContainer = document.getElementById('manager-grid-container');
-            if (state.viewMode === 'manager') {
+            const auditorTable = document.getElementById('auditor-table-container');
+            const timelinessContainer = document.getElementById('timeliness-container');
+            if (state.viewMode === 'timeliness') {
+                gridContainer.style.display = 'none';
+                if (auditorTable) auditorTable.style.display = 'none';
+                if (timelinessContainer) timelinessContainer.style.display = 'block';
+                renderTimelinessView();
+            } else if (state.viewMode === 'manager') {
                 gridContainer.style.display = 'block';
+                if (auditorTable) auditorTable.style.display = 'block';
+                if (timelinessContainer) timelinessContainer.style.display = 'none';
                 renderManagerView(filtered);
             } else {
                 gridContainer.style.display = 'none';
+                if (auditorTable) auditorTable.style.display = 'block';
+                if (timelinessContainer) timelinessContainer.style.display = 'none';
                 renderAuditorView(filtered);
             }
         }
