@@ -20133,10 +20133,16 @@
 
         // ── SEO Campaign Intelligence ─────────────────────────────────────────────
         async function mondayCockpitQuery(query, variables = null) {
+            // Reuse API key from campaign board crawler (localStorage) or admin panel input
+            const apiKey = localStorage.getItem('monday_api_key')
+                || document.getElementById('adminMondayApiKey')?.value?.trim()
+                || '';
+            const payload = { action: 'get_monday_data', query, variables };
+            if (apiKey) payload.api_key = apiKey;
             const resp = await fetch(MONDAY_LAMBDA_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'get_monday_data', query, variables })
+                body: JSON.stringify(payload)
             });
             const raw = await resp.json();
             const parsed = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
