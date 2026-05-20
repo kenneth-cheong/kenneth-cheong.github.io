@@ -20192,50 +20192,50 @@
             });
             const raw = await resp.json();
             const parsed = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+            if (parsed?.errorMessage) throw new Error(`Lambda error: ${parsed.errorMessage}`);
             if (parsed?.errors?.[0]) throw new Error(parsed.errors[0].message);
             return parsed?.data || parsed;
         }
 
-        function seoColByTitle(item, substr) {
-            const s = substr.toLowerCase();
-            return item.column_values.find(cv => (cv.column?.title || '').toLowerCase().includes(s));
-        }
-
-        function seoColVal(item, substr) {
-            const col = seoColByTitle(item, substr);
-            if (!col) return null;
-            if (col.number !== undefined && col.number !== null) return Number(col.number);
-            if (col.label !== undefined) return col.label;
-            return col.text || null;
-        }
+        // Column IDs confirmed from live board inspection (board 2845615047)
+        const SEO_INTEL_COLS = {
+            projectType:    'tags',      // TagsValue  — tag names e.g. "seo", "sem"
+            campaignStatus: 'status0',   // StatusValue — e.g. "Live (Active Delivery)", "Guarantee (SEO)"
+            campaignType:   'status',    // StatusValue — e.g. "Standard", "Cluster", "KPI Excluded"
+            kpiKws:         'numbers3',  // NumbersValue
+            p1Kws:          'numbers98', // NumbersValue
+            timeline:       'timeline5'  // TimelineValue
+        };
 
         function processSeoIntelItem(item, debug) {
-            // [BD]Project Type must contain #seo or seo
-            const projectType = (seoColVal(item, '[bd]project type') || seoColVal(item, 'project type') || '').toLowerCase();
-            if (!projectType.includes('seo')) { if (debug) debug.noSeo++; return null; }
+            const col = id => item.column_values?.find(cv => cv.id === id);
 
-            // [CSM] Campaign Status must be Live / Guarantee / Renewed / Lit
-            const csmStatus = (seoColVal(item, '[csm] campaign status') || seoColVal(item, 'campaign status') || '').toLowerCase();
-            if (!['live', 'guarantee', 'renewed', 'lit'].some(s => csmStatus.includes(s))) { if (debug) debug.badStatus++; return null; }
+            // [BD]Project Type — tags column; tag name is "seo" (lowercase, no hash)
+            const tagsCol = col(SEO_INTEL_COLS.projectType);
+            const hasSeo  = tagsCol?.tags?.some(t => t.name?.toLowerCase() === 'seo')
+                          || (tagsCol?.text || '').toLowerCase().split(/[,\s]+/).includes('seo');
+            if (!hasSeo) { if (debug) debug.noSeo++; return null; }
 
-            // SEO Campaign Type must be Standard
-            const campaignType = (seoColVal(item, 'seo campaign type') || seoColVal(item, 'campaign type') || '').trim().toLowerCase();
-            if (!campaignType.includes('standard')) { if (debug) debug.notStandard++; return null; }
+            // [CSM] Campaign Status — must contain Live / Guarantee / Renewed / Lit
+            const csmStatus = (col(SEO_INTEL_COLS.campaignStatus)?.label || '').toLowerCase();
+            if (!['live', 'guarantee', 'renewed', 'lit'].some(s => csmStatus.includes(s))) {
+                if (debug) debug.badStatus++; return null;
+            }
 
-            // KPI, P1, and timeline
-            const kpiCol  = seoColByTitle(item, 'seo [reg] kpi kws');
-            const p1Col   = seoColByTitle(item, 'seo [reg] p1 kws');
-            const tlCol   = seoColByTitle(item, '[seo] seo timeline');
+            // SEO Campaign Type — must be "Standard"
+            const campType = (col(SEO_INTEL_COLS.campaignType)?.label || '').toLowerCase();
+            if (!campType.includes('standard')) { if (debug) debug.notStandard++; return null; }
 
-            const kpi = kpiCol ? (kpiCol.number != null ? Number(kpiCol.number) : parseFloat(kpiCol.text) || 0) : 0;
-            const p1  = p1Col  ? (p1Col.number  != null ? Number(p1Col.number)  : parseFloat(p1Col.text)  || 0) : 0;
+            // KPI, P1, timeline
+            const kpi = Number(col(SEO_INTEL_COLS.kpiKws)?.number)  || 0;
+            const p1  = Number(col(SEO_INTEL_COLS.p1Kws)?.number)   || 0;
+            const tl  = col(SEO_INTEL_COLS.timeline);
 
-            if (!kpi || !tlCol?.from || !tlCol?.to) { if (debug) debug.noKpiOrTimeline++; return null; }
+            if (!kpi || !tl?.from || !tl?.to) { if (debug) debug.noKpiOrTimeline++; return null; }
 
-            const start = new Date(tlCol.from);
-            const end   = new Date(tlCol.to);
+            const start = new Date(tl.from);
+            const end   = new Date(tl.to);
             const today = new Date();
-
             if (today < start) { if (debug) debug.notStarted++; return null; }
 
             const totalDays   = Math.max(1, (end - start)   / 86400000);
@@ -20246,13 +20246,11 @@
             const pctBehind   = expected > 0 ? Math.round(((expected - p1) / expected) * 100) : 0;
 
             return {
-                id: item.id,
-                name: item.name,
+                id: item.id, name: item.name,
                 kpi, p1, expected, delta, pctBehind,
                 pctProgress: Math.round(pct * 100),
                 daysRemaining: Math.max(0, Math.round((end - today) / 86400000)),
-                startDate: tlCol.from,
-                endDate: tlCol.to,
+                startDate: tl.from, endDate: tl.to,
                 isBehind: p1 < expected
             };
         }
@@ -20296,9 +20294,9 @@
                                     cursor
                                     items{
                                         id name
-                                        column_values{
-                                            id text type
-                                            column{ title }
+                                        column_values(ids:["tags","status0","status","numbers3","numbers98","timeline5"]){
+                                            id text
+                                            ...on TagsValue{ tags{ name } }
                                             ...on StatusValue{ label }
                                             ...on NumbersValue{ number }
                                             ...on TimelineValue{ from to }
