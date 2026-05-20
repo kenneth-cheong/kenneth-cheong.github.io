@@ -20296,12 +20296,14 @@
                     cursor = page.cursor;
                 } while (cursor);
 
+                console.log('[SEO Intel] items fetched:', items.length, items.slice(0,2).map(i=>({name:i.name,cols:i.column_values?.map(c=>c.id+':'+c.label+'|'+c.text+'|'+c.number)})));
                 const campaigns = items.map(item => processSeoIntelItem(item)).filter(Boolean);
+                console.log('[SEO Intel] qualifying campaigns:', campaigns.length);
                 cockpitState.seoIntelCache = campaigns;
                 cockpitState.seoIntelFetchedAt = Date.now();
                 const behindCount = campaigns.filter(c => c.isBehind).length;
                 if (countEl) countEl.textContent = `${behindCount}/${campaigns.length}`;
-                renderSeoIntel(campaigns);
+                renderSeoIntel(campaigns, items.length);
 
             } catch (e) {
                 console.error('SEO Intel error:', e);
@@ -20316,7 +20318,7 @@
             }
         }
 
-        function renderSeoIntel(campaigns) {
+        function renderSeoIntel(campaigns, totalFetched) {
             const el      = document.getElementById('cockpit-seo-intel-content');
             const countEl = document.getElementById('cockpit-seo-intel-count');
             if (!el) return;
@@ -20326,7 +20328,7 @@
             if (countEl) countEl.textContent = `${behind.length}/${campaigns.length}`;
 
             if (!campaigns.length) {
-                el.innerHTML = '<div style="padding:20px;text-align:center;color:#64748b;">No qualifying Standard SEO campaigns found.</div>';
+                el.innerHTML = `<div style="padding:20px;text-align:center;color:#64748b;">No qualifying Standard SEO campaigns found.<br><span style="font-size:0.75rem;color:#94a3b8;">(${totalFetched ?? '?'} items checked from board)</span></div>`;
                 return;
             }
 
