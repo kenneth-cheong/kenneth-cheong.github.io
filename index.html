@@ -20337,6 +20337,10 @@
                 const items = [];
                 let cursor = null;
                 do {
+                    // First check: can we even see the board metadata?
+                    const metaRes = await mondayCockpitQuery(`{ boards(ids:[${bid}]){ id name items_count } }`);
+                    console.log('[SEO Intel] board meta:', JSON.stringify(metaRes));
+
                     const cursorArg = cursor ? `,cursor:"${cursor}"` : '';
                     const res = await mondayCockpitQuery(`{
                         boards(ids:[${bid}]){
@@ -20346,6 +20350,7 @@
                             }
                         }
                     }`);
+                    console.log('[SEO Intel] items_page res:', JSON.stringify(res).slice(0, 500));
                     if (Array.isArray(res?.boards) && res.boards.length === 0) {
                         throw new Error('__no_access__');
                     }
