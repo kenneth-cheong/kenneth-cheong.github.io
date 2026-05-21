@@ -19978,21 +19978,32 @@
 
             // ── Algorithm update annotations within the chart's date range ──────
             const ALGO_COLORS = {
+                'Core Update':              '#dc2626',
+                'Spam Update':              '#d97706',
+                'Helpful Content':          '#16a34a',
+                'AI Overview / SGE':        '#0284c7',
+                'EEAT / YMYL':              '#c2410c',
+                'SERP Feature Change':      '#9333ea',
+                'Ranking Volatility':       '#b45309',
+                'Local SEO':                '#065f46',
+                'Technical SEO':            '#475569',
+                // legacy keys
                 Core: '#dc2626', Spam: '#d97706', HCU: '#16a34a',
                 Reviews: '#9333ea', 'Link Spam': '#c2410c', Other: '#6366f1'
             };
             const algoAnnotations = (cockpitState.algoNewsCache || [])
                 .filter(u => u.date && u.date >= dates[0] && u.date <= dates[dates.length - 1])
                 .map(u => {
-                    // Find the closest date index in our dates array
                     const target = new Date(u.date).getTime();
                     let idx = 0, minDiff = Infinity;
                     dates.forEach((d, i) => {
                         const diff = Math.abs(new Date(d).getTime() - target);
                         if (diff < minDiff) { minDiff = diff; idx = i; }
                     });
-                    return { idx, name: u.name, type: u.type || 'Update', date: u.date,
-                             color: ALGO_COLORS[u.type] || ALGO_COLORS.Other };
+                    const title = u.title || u.name || 'Update';
+                    const primaryCat = (Array.isArray(u.categories) ? u.categories[0] : u.type) || 'Update';
+                    return { idx, name: title, type: primaryCat, date: u.date,
+                             color: ALGO_COLORS[primaryCat] || ALGO_COLORS.Other };
                 });
 
             // Build an idx → updates[] lookup for tooltip
@@ -20026,14 +20037,14 @@
                         ctx.lineTo(x, yScale.bottom);
                         ctx.stroke();
 
-                        // Type label — alternate height to avoid overlap on nearby dates
+                        // Title label — alternate height to avoid overlap on nearby dates
                         ctx.setLineDash([]);
                         ctx.fillStyle = upd.color;
                         ctx.font = 'bold 8px system-ui, sans-serif';
                         ctx.textAlign = 'center';
                         ctx.textBaseline = 'top';
                         const labelY = yScale.top + (i % 2 === 0 ? 3 : 15);
-                        const shortLabel = upd.type.length > 9 ? upd.type.slice(0, 9) : upd.type;
+                        const shortLabel = upd.name.length > 18 ? upd.name.slice(0, 17) + '…' : upd.name;
                         ctx.fillText(shortLabel, x, labelY);
                         ctx.restore();
                     });
