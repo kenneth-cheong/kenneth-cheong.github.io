@@ -3869,6 +3869,17 @@
             sidebar.classList.toggle('active');
         }
 
+        // Close settings panel when clicking outside
+        document.addEventListener('click', function(e) {
+            const sidebar = document.getElementById('settingsSidebar');
+            if (!sidebar || !sidebar.classList.contains('active')) return;
+            // Ignore clicks inside the sidebar itself
+            if (sidebar.contains(e.target)) return;
+            // Ignore clicks on the Settings button that toggles it
+            if (e.target.closest('[onclick="toggleSettings()"]')) return;
+            sidebar.classList.remove('active');
+        }, true);
+
         async function loadSettings() {
             const rawBoards = localStorage.getItem('boardIds_v2') || "";
             let boards = [];
