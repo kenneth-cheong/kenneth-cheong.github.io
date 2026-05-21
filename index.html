@@ -42504,7 +42504,102 @@ Return ONLY valid JSON in this exact format:
         }
 
         async function generateContentPillarFramework() {
-            // ... (rest of the existing function remains the same, I'll just use a chunk to insert after it)
+            const btn = document.getElementById('generatePillarBtn');
+            const outputDisplay = document.getElementById('pillar-results-display');
+            const outputText = document.getElementById('pillar-output-text');
+            const pdfInput = document.getElementById('pillar_pdf');
+
+            // Collect Form Data
+            const businessModel = document.getElementById('pillar_business_model').value;
+            const objectives = Array.from(document.querySelectorAll('input[name="pillar_objective"]:checked')).map(cb => cb.value);
+            const audienceType = document.getElementById('pillar_audience_type').value;
+            const complexity = document.getElementById('pillar_complexity').value;
+            const platforms = Array.from(document.querySelectorAll('input[name="pillar_platform"]:checked')).map(cb => cb.value);
+            const sensitivity = document.getElementById('pillar_sensitivity').value;
+            const tolerance = document.getElementById('pillar_promo_tolerance').value;
+            const website = document.getElementById('pillar_website').value;
+            const brandGuide = document.getElementById('pillar_brand_guide').value;
+            const competitors = document.getElementById('pillar_competitors').value;
+
+            if (objectives.length > 2) {
+                alert("Please select a maximum of 2 business objectives.");
+                return;
+            }
+            if (objectives.length === 0) {
+                alert("Please select at least one business objective.");
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Strategizing...';
+            updateCollapsibleState('pillarFrameworkButton', 'running');
+
+            let pdfContent = "";
+            if (pdfInput.files && pdfInput.files[0]) {
+                const formData = new FormData();
+                formData.append('file', pdfInput.files[0]);
+                try {
+                    const pdfResponse = await fetch('https://tpsk8n8hsh.execute-api.ap-southeast-1.amazonaws.com/pdfParser', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const pdfData = await pdfResponse.json();
+                    pdfContent = pdfData.text || pdfData.body || "";
+                } catch (e) {
+                    console.error("PDF Parsing failed", e);
+                }
+            }
+
+            try {
+                const response = await fetch('https://j4aca9hcmh.execute-api.ap-southeast-1.amazonaws.com/contentPillar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'pillar_framework',
+                        business_model: businessModel,
+                        objectives: objectives,
+                        audience_type: audienceType,
+                        decision_complexity: complexity,
+                        platforms: platforms,
+                        risk_sensitivity: sensitivity,
+                        promotional_tolerance: tolerance,
+                        reference_urls: { website, brandGuide, competitors },
+                        additional_info: pdfContent
+                    })
+                });
+
+                if (!response.ok) throw new Error("Failed to generate framework.");
+
+                const data = await response.json();
+                console.log("Pillar Framework Data:", data);
+
+                let answer = "";
+                if (data.answer) {
+                    answer = data.answer;
+                } else if (data.body) {
+                    try {
+                        const body = typeof data.body === 'string' ? JSON.parse(data.body) : data.body;
+                        answer = body.answer || body.result || "";
+                    } catch (e) {
+                        answer = data.body;
+                    }
+                } else {
+                    answer = typeof data === 'string' ? data : JSON.stringify(data);
+                }
+
+                outputText.innerHTML = formatMarkdownToHTML(answer);
+                outputDisplay.style.display = "block";
+                updateCollapsibleState('pillarFrameworkButton', 'success');
+                outputDisplay.scrollIntoView({ behavior: 'smooth' });
+
+            } catch (error) {
+                console.error("Error generating pillar framework:", error);
+                alert("An error occurred while generating the framework. Check console for details.");
+                updateCollapsibleState('pillarFrameworkButton', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-magic"></i> Generate Strategic Framework';
+            }
         }
 
         /**
