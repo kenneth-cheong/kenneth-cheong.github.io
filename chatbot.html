@@ -5333,8 +5333,19 @@
         async function fetchMetaChatAdAccounts() {
             document.getElementById('metaChatStatus').innerHTML += ' — <i class="fas fa-spinner fa-spin"></i> Fetching ad accounts…';
             try {
-                const res = await metaChatGet('/me/adaccounts', { fields: 'id,name,account_status,currency' });
-                const accounts = res.data || [];
+                // Fetch all pages of ad accounts (Meta defaults to ~10; use limit=200 + follow paging.next)
+                let accounts = [];
+                let nextUrl = null;
+                const firstRes = await metaChatGet('/me/adaccounts', { fields: 'id,name,account_status,currency', limit: '200' });
+                accounts = accounts.concat(firstRes.data || []);
+                nextUrl = firstRes.paging?.next || null;
+                while (nextUrl) {
+                    const pageRes = await fetch(nextUrl).then(r => r.json());
+                    if (pageRes.error) break;
+                    accounts = accounts.concat(pageRes.data || []);
+                    nextUrl = pageRes.paging?.next || null;
+                }
+                const res = { data: accounts };
                 const select = document.getElementById('selectedMetaAccount');
                 select.innerHTML = '<option value="">-- Select Ad Account --</option>';
                 accounts.forEach(acc => {
