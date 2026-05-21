@@ -20533,16 +20533,55 @@
 
             if (sidebarEl) sidebarEl.innerHTML = `<div style="text-align:center;padding:30px;color:#64748b;">
                 <i class="fas fa-spinner fa-spin"></i>
-                <p style="margin-top:10px;font-size:0.85em;">Searching for updates...</p>
+                <p style="margin-top:10px;font-size:0.85em;">Scanning SEO intelligence sources...</p>
             </div>`;
 
-            const prompt = `Search the web for the most recent Google search algorithm updates from 2024 and 2025 that SEO professionals should be aware of. Return ONLY a valid JSON array (no markdown, no extra text) where each object has:
-- "name": update name (string)
+            const prompt = `You are an SEO Expert monitoring the SEO/GEO landscape for a digital marketing agency. Your role is NOT to summarise SEO news blindly. Your role is to detect, filter, classify, prioritise, and explain SEO developments that may affect active SEO campaigns.
+
+Scan and monitor the following trusted SEO intelligence sources for the most recent developments:
+
+OFFICIAL GOOGLE SOURCES:
+- https://developers.google.com/search/blog
+- https://x.com/searchliaison
+
+SEO PUBLICATIONS:
+- https://www.searchenginejournal.com/feed/
+- https://searchengineland.com/feed
+- https://moz.com/blog/feed
+- https://ahrefs.com/blog/feed/
+- https://www.seroundtable.com/index.xml
+
+SERP VOLATILITY SOURCES:
+- https://www.semrush.com/sensor/
+- https://moz.com/mozcast
+
+TRUSTED SEO THOUGHT LEADERS:
+- Barry Schwartz: https://x.com/rustybrick
+- Lily Ray: https://x.com/lilyraynyc
+
+Identify major SEO updates, Google algorithm/core updates, SERP changes, ranking volatility, new SEO best practices, EEAT/YMYL developments, AI search/SGE/AI Overview developments, Local SEO developments, Technical SEO developments, and changes likely to impact rankings, CTR, traffic, or conversions.
+
+DO NOT report clickbait, speculative opinions without corroboration, repeated news, generic SEO tips, or low-confidence rumours.
+
+Deduplicate similar news across sources.
+
+Return ONLY a valid JSON array (no markdown, no extra text) of the 6–10 most important recent updates, ordered by importance. Each object must have exactly these fields:
+- "title": update name or headline (string)
+- "source": publication or source name (string)
+- "author": author name if available, else "" (string)
 - "date": date in YYYY-MM-DD format
-- "type": one of Core, Spam, HCU, Reviews, Link Spam, Other
-- "impact": one of High, Medium, Low
-- "summary": 1-2 sentence plain English description of what changed and who it affected
-Include at least 8 updates ordered most recent first.`;
+- "url": source URL if available, else "" (string)
+- "categories": array of 1–3 values from: ["Core Update","Spam Update","Helpful Content","SERP Feature Change","AI Overview / SGE","EEAT / YMYL","Technical SEO","Content Strategy","Link Building","Local SEO","UX / CTR","Mobile / Page Experience","Crawl / Indexing","Ranking Volatility","Industry Observation"]
+- "impact_score": integer 1–10
+- "confidence_score": integer 1–10 (10 = official Google confirmation, 1 = unverified rumour)
+- "immediate_risk": one of "Critical","High","Medium","Low","Monitor Only"
+- "affected_factors": array of values from: ["Content Quality & Relevance","Backlink Authority","Technical SEO","On-Page Optimisation","UX Signals","SERP / External Context"]
+- "affected_industries": array of most affected industries (e.g. ["Healthcare","Ecommerce","Finance","Local Businesses"])
+- "what_happened": 1–2 sentence factual description (string)
+- "why_it_matters": 1–2 sentence explanation of agency impact (string)
+- "what_to_monitor": specific metric or signal to watch (string)
+- "recommended_actions": array of 1–3 concrete specific actions (NOT generic advice like "create quality content")
+- "urgency": one of "Immediate","High","Medium","Low"`;
 
             try {
                 const resp = await fetch('https://0oes56fj4l.execute-api.ap-southeast-1.amazonaws.com/aiOptimiser', {
@@ -20553,7 +20592,7 @@ Include at least 8 updates ordered most recent first.`;
                 const result = await resp.json();
                 const body = typeof result.body === 'string' ? JSON.parse(result.body) : result.body;
                 const text = body.result || body.text || '';
-                const match = text.match(/\[[\s\S]*?\]/);
+                const match = text.match(/\[[\s\S]*\]/);
                 if (!match) throw new Error('No JSON array in response');
                 const updates = JSON.parse(match[0]);
                 if (!Array.isArray(updates) || !updates.length) throw new Error('Empty array');
@@ -20590,18 +20629,35 @@ Include at least 8 updates ordered most recent first.`;
         function renderAlgorithmNewsInto(updates, targetEl, showFooter = true) {
             if (!targetEl) return;
 
-            const typeStyle = {
-                Core:         { bg:'#eff6ff', color:'#2563eb', border:'#bfdbfe' },
-                Spam:         { bg:'#fef2f2', color:'#dc2626', border:'#fecaca' },
-                HCU:          { bg:'#f0fdf4', color:'#16a34a', border:'#bbf7d0' },
-                Reviews:      { bg:'#fdf4ff', color:'#9333ea', border:'#e9d5ff' },
-                'Link Spam':  { bg:'#fff7ed', color:'#c2410c', border:'#fed7aa' },
-                Other:        { bg:'#f8fafc', color:'#475569', border:'#e2e8f0' }
+            const categoryStyle = {
+                'Core Update':               { bg:'#eff6ff', color:'#2563eb', border:'#bfdbfe' },
+                'Spam Update':               { bg:'#fef2f2', color:'#dc2626', border:'#fecaca' },
+                'Helpful Content':           { bg:'#f0fdf4', color:'#16a34a', border:'#bbf7d0' },
+                'SERP Feature Change':       { bg:'#fdf4ff', color:'#9333ea', border:'#e9d5ff' },
+                'AI Overview / SGE':         { bg:'#f0f9ff', color:'#0284c7', border:'#bae6fd' },
+                'EEAT / YMYL':               { bg:'#fff7ed', color:'#c2410c', border:'#fed7aa' },
+                'Technical SEO':             { bg:'#f8fafc', color:'#475569', border:'#e2e8f0' },
+                'Content Strategy':          { bg:'#fefce8', color:'#a16207', border:'#fde68a' },
+                'Link Building':             { bg:'#fdf4ff', color:'#7e22ce', border:'#ddd6fe' },
+                'Local SEO':                 { bg:'#ecfdf5', color:'#065f46', border:'#a7f3d0' },
+                'UX / CTR':                  { bg:'#fff1f2', color:'#be123c', border:'#fecdd3' },
+                'Mobile / Page Experience':  { bg:'#f0fdfa', color:'#0f766e', border:'#99f6e4' },
+                'Crawl / Indexing':          { bg:'#fafaf9', color:'#57534e', border:'#d6d3d1' },
+                'Ranking Volatility':        { bg:'#fff8f1', color:'#b45309', border:'#fcd9a0' },
+                'Industry Observation':      { bg:'#f8fafc', color:'#64748b', border:'#cbd5e1' },
             };
-            const impactStyle = {
-                High:   { bg:'#fef2f2', color:'#dc2626' },
-                Medium: { bg:'#fffbeb', color:'#d97706' },
-                Low:    { bg:'#f0fdf4', color:'#16a34a' }
+            const riskStyle = {
+                'Critical':     { bg:'#fef2f2', color:'#991b1b', border:'#fecaca' },
+                'High':         { bg:'#fff7ed', color:'#c2410c', border:'#fed7aa' },
+                'Medium':       { bg:'#fffbeb', color:'#b45309', border:'#fde68a' },
+                'Low':          { bg:'#f0fdf4', color:'#166534', border:'#bbf7d0' },
+                'Monitor Only': { bg:'#f8fafc', color:'#64748b', border:'#e2e8f0' },
+            };
+            const urgencyIcon = {
+                'Immediate': '🚨',
+                'High':      '⚠️',
+                'Medium':    '📋',
+                'Low':       '📌',
             };
 
             const fetchedAt = cockpitState.algoNewsFetchedAt
@@ -20611,24 +20667,81 @@ Include at least 8 updates ordered most recent first.`;
             let html = '';
             if (showFooter) {
                 html += `<div style="padding:7px 15px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:0.72rem;color:#94a3b8;display:flex;align-items:center;gap:6px;">
-                    <i class="fas fa-robot" style="color:#6366f1;"></i> Powered by Perplexity web search · Updated ${fetchedAt}
+                    <i class="fas fa-robot" style="color:#6366f1;"></i>
+                    Scanning: SEJ · SEL · Moz · Ahrefs · SER · Google Blog · @searchliaison · @rustybrick · @lilyraynyc · SEMrush Sensor · MozCast
+                    &nbsp;·&nbsp; Updated ${fetchedAt}
                 </div>`;
             }
             html += '<div>';
             updates.forEach((u, i) => {
-                const tc = typeStyle[u.type]   || typeStyle.Other;
-                const ic = impactStyle[u.impact] || impactStyle.Medium;
+                const cats = Array.isArray(u.categories) ? u.categories : (u.type ? [u.type] : ['Other']);
+                const primaryCat = cats[0] || 'Other';
+                const rc = riskStyle[u.immediate_risk] || riskStyle['Monitor Only'];
+                const impScore = u.impact_score || 0;
+                const confScore = u.confidence_score || 0;
+                const urg = u.urgency || '';
+                const urgIcon = urgencyIcon[urg] || '';
+                const actions = Array.isArray(u.recommended_actions) ? u.recommended_actions : [];
+                const factors = Array.isArray(u.affected_factors) ? u.affected_factors : [];
+                const industries = Array.isArray(u.affected_industries) ? u.affected_industries : [];
+
+                // Score bar helper
+                const scoreDots = (val, max, activeColor) => {
+                    let d = '';
+                    for (let j = 1; j <= max; j++) {
+                        d += `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:2px;background:${j <= val ? activeColor : '#e2e8f0'};"></span>`;
+                    }
+                    return d;
+                };
+
                 html += `
-                <div style="padding:12px 14px;${i < updates.length - 1 ? 'border-bottom:1px solid #f1f5f9;' : ''}">
-                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px;">
-                        <div style="font-weight:700;color:#0f172a;font-size:0.85rem;flex:1;line-height:1.4;">${u.name}</div>
-                        <div style="display:flex;gap:3px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">
-                            <span style="font-size:0.65rem;padding:2px 6px;border-radius:10px;font-weight:700;background:${tc.bg};color:${tc.color};border:1px solid ${tc.border};white-space:nowrap;">${u.type}</span>
-                            <span style="font-size:0.65rem;padding:2px 6px;border-radius:10px;font-weight:700;background:${ic.bg};color:${ic.color};white-space:nowrap;">${u.impact}</span>
+                <div style="padding:13px 14px;${i < updates.length - 1 ? 'border-bottom:1px solid #f1f5f9;' : ''}">
+                    <!-- Title row -->
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
+                        <div style="font-weight:700;color:#0f172a;font-size:0.84rem;flex:1;line-height:1.4;">
+                            ${urgIcon ? `<span style="margin-right:4px;">${urgIcon}</span>` : ''}${u.title || u.name || 'Update'}
+                        </div>
+                        <span style="font-size:0.63rem;padding:2px 7px;border-radius:10px;font-weight:700;background:${rc.bg};color:${rc.color};border:1px solid ${rc.border};white-space:nowrap;flex-shrink:0;">${u.immediate_risk || 'Monitor'}</span>
+                    </div>
+                    <!-- Meta row: date · source · author -->
+                    <div style="font-size:0.69rem;color:#94a3b8;margin-bottom:7px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+                        <span><i class="fas fa-calendar-alt"></i> ${u.date || ''}</span>
+                        ${u.source ? `<span><i class="fas fa-newspaper"></i> ${u.url ? `<a href="${u.url}" target="_blank" rel="noopener" style="color:#6366f1;text-decoration:none;">${u.source}</a>` : u.source}</span>` : ''}
+                        ${u.author ? `<span><i class="fas fa-user"></i> ${u.author}</span>` : ''}
+                    </div>
+                    <!-- Category tags -->
+                    <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px;">
+                        ${cats.map(c => { const cs = categoryStyle[c] || categoryStyle['Industry Observation']; return `<span style="font-size:0.62rem;padding:2px 6px;border-radius:10px;font-weight:600;background:${cs.bg};color:${cs.color};border:1px solid ${cs.border};">${c}</span>`; }).join('')}
+                    </div>
+                    <!-- Scores -->
+                    <div style="display:flex;gap:14px;margin-bottom:8px;font-size:0.69rem;color:#64748b;">
+                        <div>
+                            <span style="font-weight:600;margin-right:4px;">Impact</span>
+                            ${scoreDots(impScore, 10, '#ef4444')}
+                            <span style="margin-left:2px;font-weight:700;color:#0f172a;">${impScore}/10</span>
+                        </div>
+                        <div>
+                            <span style="font-weight:600;margin-right:4px;">Confidence</span>
+                            ${scoreDots(confScore, 10, '#6366f1')}
+                            <span style="margin-left:2px;font-weight:700;color:#0f172a;">${confScore}/10</span>
                         </div>
                     </div>
-                    <div style="font-size:0.7rem;color:#94a3b8;margin-bottom:5px;"><i class="fas fa-calendar-alt"></i> ${u.date}</div>
-                    <div style="font-size:0.8rem;color:#475569;line-height:1.5;">${u.summary}</div>
+                    <!-- What happened -->
+                    <div style="font-size:0.79rem;color:#334155;line-height:1.55;margin-bottom:6px;">${u.what_happened || u.summary || ''}</div>
+                    <!-- Why it matters -->
+                    ${u.why_it_matters ? `<div style="font-size:0.76rem;color:#475569;line-height:1.5;margin-bottom:6px;padding:6px 8px;background:#f8fafc;border-left:3px solid #6366f1;border-radius:0 4px 4px 0;"><strong style="color:#6366f1;">Why it matters:</strong> ${u.why_it_matters}</div>` : ''}
+                    <!-- Monitor -->
+                    ${u.what_to_monitor ? `<div style="font-size:0.73rem;color:#64748b;margin-bottom:6px;"><i class="fas fa-eye" style="color:#f59e0b;margin-right:4px;"></i><strong>Monitor:</strong> ${u.what_to_monitor}</div>` : ''}
+                    <!-- Actions -->
+                    ${actions.length ? `<div style="margin-bottom:6px;">
+                        <div style="font-size:0.7rem;font-weight:700;color:#0f172a;margin-bottom:3px;"><i class="fas fa-tasks" style="color:#10b981;margin-right:4px;"></i>Actions</div>
+                        ${actions.map(a => `<div style="font-size:0.73rem;color:#374151;padding:2px 0 2px 12px;line-height:1.45;">• ${a}</div>`).join('')}
+                    </div>` : ''}
+                    <!-- Affected factors + industries -->
+                    ${factors.length || industries.length ? `<div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;">
+                        ${factors.map(f => `<span style="font-size:0.6rem;padding:1px 5px;border-radius:8px;background:#ede9fe;color:#5b21b6;border:1px solid #ddd6fe;">${f}</span>`).join('')}
+                        ${industries.map(ind => `<span style="font-size:0.6rem;padding:1px 5px;border-radius:8px;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;">${ind}</span>`).join('')}
+                    </div>` : ''}
                 </div>`;
             });
             html += '</div>';
