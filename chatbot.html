@@ -2256,6 +2256,20 @@
             color: #4338ca;
         }
 
+        .insight-team {
+            padding: 3px 8px;
+            border-radius: 20px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            flex-shrink: 0;
+        }
+        .insight-team.team-seo { background: #dcfce7; color: #166534; }
+        .insight-team.team-sem { background: #fef9c3; color: #854d0e; }
+        .insight-team.team-smm { background: #fce7f3; color: #9d174d; }
+        .insight-team.team-everyone { background: #f1f5f9; color: #475569; }
+
         .insight-date {
             color: var(--text-muted);
         }
@@ -5748,9 +5762,9 @@
 
                         let query;
                         if (!cursor) {
-                            query = `{ boards(ids: [${INTERNAL_CAMPAIGN_BOARD_ID}]) { items_page (limit: 20) { cursor items { id name column_values { text value column { id title type } } updates (limit: 3) { text_body created_at creator { name } replies { text_body created_at creator { name } } } } } } }`;
+                            query = `{ boards(ids: [${INTERNAL_CAMPAIGN_BOARD_ID}]) { items_page (limit: 200) { cursor items { id name column_values { text value column { id title type } } updates (limit: 3) { text_body created_at creator { name } replies { text_body created_at creator { name } } } } } } }`;
                         } else {
-                            query = `{ next_items_page(cursor: "${cursor}", limit: 20) { cursor items { id name column_values { text value column { id title type } } updates (limit: 3) { text_body created_at creator { name } replies { text_body created_at creator { name } } } } } }`;
+                            query = `{ next_items_page(cursor: "${cursor}", limit: 200) { cursor items { id name column_values { text value column { id title type } } updates (limit: 3) { text_body created_at creator { name } replies { text_body created_at creator { name } } } } } }`;
                         }
 
                         let res, r, mData;
@@ -6069,15 +6083,18 @@
                 })));
 
                 // SAFETY: If compactData is too large, it will break the OpenAI assistant instructions
-                if (compactData.length > 200000) {
+                if (compactData.length > 50000) {
                     console.log(`[SYNC] compactData too large (${compactData.length} chars). Omitting direct injection to favor file_search.`);
                     compactData = "[]"; // Force empty array so AI relies on file_search
                 }
 
                 // Build a compact board registry string for the AI to search
                 // Format: "BoardName | https://mediaone-business-group-pte-ltd.monday.com/boards/ID" per line
+                // Capped at 100 boards to avoid bloating instructions — full list is in the vector store file.
+                const MAX_REGISTRY_LINES = 100;
                 const boardRegistryLines = window.mondayBoardRegistry.length > 0
-                    ? window.mondayBoardRegistry.map(b => `${b.name} | https://mediaone-business-group-pte-ltd.monday.com/boards/${b.id}`).join('\n')
+                    ? window.mondayBoardRegistry.slice(0, MAX_REGISTRY_LINES).map(b => `${b.name} | https://mediaone-business-group-pte-ltd.monday.com/boards/${b.id}`).join('\n')
+                        + (window.mondayBoardRegistry.length > MAX_REGISTRY_LINES ? `\n... and ${window.mondayBoardRegistry.length - MAX_REGISTRY_LINES} more boards (search the full registry via file_search).` : '')
                     : 'No boards discovered.';
 
                 const hasBoardDrilldown = hasBoardSelection;
@@ -6970,7 +6987,7 @@ CRITICAL CONTACT RULE:
             10. get_gsc_performance: For Google Search Console (clicks, impressions).
             11. get_ga4_report: For Google Analytics (sessions, users, conversions).
             12. get_ads_report: For Google Ads performance (cost, CPC, ROAS).
-            13. save_memory_note: STRICT MANDATE. Use this whenever you learn a new preference, fact, or logic about the user or their projects.
+            13. save_memory_note: STRICT MANDATE. Use this whenever you learn a new preference, fact, or logic about the user or their projects. Always include a "team" field set to one of: "SEO", "SEM", "SMM", or "Everyone" (default to "Everyone" if the memory applies broadly).
             14. get_seranking_report: Fetch keyword rankings and positions for a specific SE Ranking campaign. You MUST use this tool when the user asks about SEO keywords, rankings, or SE Ranking data.
 
             SE RANKING CRITICAL RULES:
@@ -6980,7 +6997,7 @@ CRITICAL CONTACT RULE:
             - If multiple campaigns are loaded, fetch all of them and combine the results.
 
             LEARNED MEMORIES (Context):
-            ${JSON.stringify(learnedInsights.map(i => `[${i.tag}] ${i.text}`))}
+            ${JSON.stringify(learnedInsights.map(i => `[${i.tag}][Team: ${i.team || 'Everyone'}] ${i.text}`))}
 
             CURRENT CONTEXT:
             - GSC Site: ${gscSite || 'None selected'}
@@ -7033,9 +7050,13 @@ CRITICAL CONTACT RULE:
                             delete contextObj.total_matching_campaigns;
                             system += "\n\nFOCUS MODE: You are focused on specific campaign boards. The summary board data has been removed to save tokens. Use your 'monday_graphql' tool to search these specific boards for items and details.";
                         } else if (contextObj.campaigns) {
+                            // Keep key columns so Claude can answer status/CSM/type queries without tool calls
                             contextObj.campaigns = contextObj.campaigns.slice(0, 100).map(item => ({
                                 name: item.name,
-                                url: item.monday_url
+                                url: item.monday_url,
+                                status: item.columns?.['[CSM] Campaign Status'] || item.columns?.['Status'] || undefined,
+                                csm: item.columns?.['Client Success Manager'] || item.columns?.['Staff Name'] || item.columns?.['CSM'] || undefined,
+                                type: item.columns?.['[BD]Project Type'] || item.columns?.['Type'] || undefined
                             }));
                         }
                     }
@@ -7096,7 +7117,7 @@ CRITICAL CONTACT RULE:
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action: 'claude_chat_with_tools',
-                        system,
+                        system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
                         messages: history,
                         model: 'claude-haiku-4-5', // Test if Sonnet 404 is an access issue
                         max_tokens: 4096,
@@ -7546,13 +7567,20 @@ CRITICAL CONTACT RULE:
                         <textarea id="quickAddInput"
                             placeholder="Add something to AI memory (e.g., 'User prefers dark mode' or 'Project X deadline is June 30')..."
                             style="width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 0.85rem; resize: none; min-height: 40px; font-family: inherit;"></textarea>
-                        <div style="display: flex; gap: 8px;">
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
                             <select id="quickAddTag"
                                 style="padding: 4px 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.75rem; background: #fff; color: #64748b; font-weight: 600;">
                                 <option value="Preference">Preference</option>
                                 <option value="Project Logic">Project Logic</option>
                                 <option value="Fact">Fact</option>
                                 <option value="General">General</option>
+                            </select>
+                            <select id="quickAddTeam"
+                                style="padding: 4px 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.75rem; background: #fff; color: #64748b; font-weight: 600;">
+                                <option value="Everyone">Everyone</option>
+                                <option value="SEO">SEO</option>
+                                <option value="SEM">SEM</option>
+                                <option value="SMM">SMM</option>
                             </select>
                             <span style="font-size: 0.7rem; color: #94a3b8; display: flex; align-items: center;">
                                 <i class="fas fa-info-circle" style="margin-right: 4px;"></i> The AI also learns
@@ -7683,6 +7711,7 @@ CRITICAL CONTACT RULE:
                 <div class="insight-card" id="insight-${insight.id}">
                     <div class="insight-meta">
                         <span class="insight-tag">${insight.tag}</span>
+                        ${insight.team ? `<span class="insight-team team-${insight.team.toLowerCase()}">${insight.team}</span>` : ''}
                         <span class="insight-date">${insight.date}</span>
                         <div style="margin-left: auto; display: flex; align-items: center; gap: 6px;">
                             <span class="insight-source" style="font-weight:700; color: #64748b; text-transform: uppercase; font-size: 0.6rem;">${insight.source || 'Manual'}</span>
@@ -7773,6 +7802,7 @@ CRITICAL CONTACT RULE:
         function quickAddInsight() {
             const input = document.getElementById('quickAddInput');
             const tagSelect = document.getElementById('quickAddTag');
+            const teamSelect = document.getElementById('quickAddTeam');
             const text = input.value.trim();
 
             if (!text) {
@@ -7781,9 +7811,11 @@ CRITICAL CONTACT RULE:
             }
 
             const tag = tagSelect.value;
+            const team = teamSelect ? teamSelect.value : 'Everyone';
             const currentUser = (localStorage.getItem('clientEmail') || "System").split('@')[0];
             learnedInsights.unshift({
                 tag: tag,
+                team: team,
                 text: text,
                 date: new Date().toLocaleDateString(),
                 source: "Manual",
