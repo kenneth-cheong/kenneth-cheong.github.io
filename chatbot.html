@@ -6278,58 +6278,63 @@
                         if (mData.items) items = items.concat(mData.items);
                     }
                 } else {
-                    // Fallback to exhaustive recent items (fetched until end or 45s safety limit)
-                    const startTime = Date.now();
-                    const TIMEOUT_LIMIT = 45000; // 45 seconds safety cutoff
-                    updateSyncStatus("Fetching exhaustive campaign list...", true);
+                    // Reuse already-prefetched items if available — avoids a full re-fetch on every sync
+                    if (window.allPrefetchedItems && window.allPrefetchedItems.length > 0) {
+                        items = window.allPrefetchedItems.slice();
+                        console.log(`[SYNC] Reusing ${items.length} prefetched items — skipping re-fetch`);
+                        updateSyncStatus(`Using cached ${items.length} campaigns...`, true);
+                    } else {
+                        // Cold start: no prefetch data yet — fetch exhaustively (45s safety limit)
+                        const startTime = Date.now();
+                        const TIMEOUT_LIMIT = 45000;
+                        updateSyncStatus("Fetching exhaustive campaign list...", true);
 
-                    let cursor = null;
-                    let p = 1;
-                    while (true) {
-                        // Safety checks
-                        if ((Date.now() - startTime) > TIMEOUT_LIMIT) {
-                            console.warn("Sync timed out (45s limit). Returning partial board data.");
-                            showToast("Limited by execution time (45s). Loading partial board.", 'warning', 5000);
-                            break;
-                        }
-
-                        showToast(`Fetching board data (Step ${p}/??) - ${items.length} indexed...`, 'loading', 3000);
-
-                        let query;
-                        if (!cursor) {
-                            query = `{ boards(ids: [${INTERNAL_CAMPAIGN_BOARD_ID}]) { items_page (limit: 200) { cursor items { id name column_values { text value column { id title type } } updates (limit: 3) { text_body created_at creator { name } replies { text_body created_at creator { name } } } } } } }`;
-                        } else {
-                            query = `{ next_items_page(cursor: "${cursor}", limit: 200) { cursor items { id name column_values { text value column { id title type } } updates (limit: 3) { text_body created_at creator { name } replies { text_body created_at creator { name } } } } } }`;
-                        }
-
-                        let res, r, mData;
-                        try {
-                            res = await fetch(MONDAY_LAMBDA_URL, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ action: 'get_monday_data', query })
-                            });
-                            if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-                            r = await res.json();
-                            mData = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
-                        } catch (pageErr) {
-                            console.error(`[SYNC] Page ${p} fetch failed:`, pageErr);
-                            // If first page fails, hard fail. Otherwise use partial data.
-                            if (p === 1) {
-                                throw new Error(`Step 1/5: Page 1 board data fetch failed — ${pageErr.message}`);
-                            } else {
-                                console.warn(`[SYNC] Page ${p} failed, using partial data (${items.length} items).`);
-                                showToast(`Page ${p} failed, using ${items.length} items loaded so far.`, 'warning', 5000);
+                        let cursor = null;
+                        let p = 1;
+                        while (true) {
+                            if ((Date.now() - startTime) > TIMEOUT_LIMIT) {
+                                console.warn("Sync timed out (45s limit). Returning partial board data.");
+                                showToast("Limited by execution time (45s). Loading partial board.", 'warning', 5000);
                                 break;
                             }
+
+                            showToast(`Fetching board data (page ${p}) — ${items.length} loaded...`, 'loading', 3000);
+
+                            let query;
+                            if (!cursor) {
+                                query = `{ boards(ids: [${INTERNAL_CAMPAIGN_BOARD_ID}]) { items_page (limit: 200) { cursor items { id name column_values { text value column { id title type } } } } } }`;
+                            } else {
+                                query = `{ next_items_page(cursor: "${cursor}", limit: 200) { cursor items { id name column_values { text value column { id title type } } } } }`;
+                            }
+
+                            let res, r, mData;
+                            try {
+                                res = await fetch(MONDAY_LAMBDA_URL, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ action: 'get_monday_data', query })
+                                });
+                                if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                                r = await res.json();
+                                mData = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
+                            } catch (pageErr) {
+                                console.error(`[SYNC] Page ${p} fetch failed:`, pageErr);
+                                if (p === 1) {
+                                    throw new Error(`Step 1/5: Page 1 board data fetch failed — ${pageErr.message}`);
+                                } else {
+                                    showToast(`Page ${p} failed, using ${items.length} items loaded so far.`, 'warning', 5000);
+                                    break;
+                                }
+                            }
+
+                            const resultPage = !cursor ? mData.boards?.[0]?.items_page : mData.next_items_page;
+                            if (resultPage?.items) items = items.concat(resultPage.items);
+                            cursor = resultPage?.cursor;
+                            if (!cursor) break;
+                            p++;
                         }
-
-                        const resultPage = !cursor ? mData.boards?.[0]?.items_page : mData.next_items_page;
-                        if (resultPage?.items) items = items.concat(resultPage.items);
-                        cursor = resultPage?.cursor;
-
-                        if (!cursor) break;
-                        p++;
+                        // Cache results for subsequent syncs
+                        if (items.length > 0) window.allPrefetchedItems = items;
                     }
                 }
 
