@@ -1661,6 +1661,85 @@
             display: block;
         }
 
+        /* Searchable select (replaces native <select> in settings) */
+        .searchable-select {
+            position: relative;
+            width: 100%;
+            margin-top: 8px;
+            font-size: 0.8rem;
+        }
+        .ss-trigger {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background: #fff;
+            cursor: pointer;
+            color: #334155;
+            transition: border-color 0.2s;
+            min-height: 36px;
+        }
+        .ss-trigger:hover { border-color: #94a3b8; }
+        .ss-trigger.open { border-color: #6366f1; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+        .ss-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ss-icon { font-size: 0.7rem; color: #94a3b8; flex-shrink: 0; transition: transform 0.2s; }
+        .ss-trigger.open .ss-icon { transform: rotate(180deg); }
+        .ss-panel {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0; right: 0;
+            background: #fff;
+            border: 1px solid #6366f1;
+            border-top: none;
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+            z-index: 200;
+            max-height: 240px;
+            overflow: hidden;
+            flex-direction: column;
+        }
+        .ss-panel.active { display: flex; }
+        .ss-search-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 10px;
+            border-bottom: 1px solid #f1f5f9;
+            flex-shrink: 0;
+        }
+        .ss-search-row i { color: #94a3b8; font-size: 0.75rem; }
+        .ss-search-row input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 0.78rem;
+            color: #334155;
+            background: transparent;
+            padding: 0;
+            margin: 0;
+        }
+        .ss-options {
+            overflow-y: auto;
+            flex: 1;
+        }
+        .ss-option {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 0.78rem;
+            color: #334155;
+            border-bottom: 1px solid #f8fafc;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .ss-option:hover { background: #eef2ff; color: #4338ca; }
+        .ss-option.selected { background: #eef2ff; color: #4338ca; font-weight: 600; }
+        .ss-empty { padding: 12px; text-align: center; color: #94a3b8; font-size: 0.75rem; }
+
         /* Multi-Account Service Styles */
         .service-connection-row {
             background: #fff;
@@ -2541,9 +2620,24 @@
                                     onclick="disconnectService('Gsc')" style="display:none;">Disconnect</button>
                             </div>
                             <div id="selectorGsc" style="display:none; margin-top:5px;">
-                                <select id="selectedGscSite" class="sidebar-select" onchange="saveMarketingSelection()">
+                                <select id="selectedGscSite" style="display:none;" onchange="saveMarketingSelection()">
                                     <option value="">-- Select Site --</option>
                                 </select>
+                                <div class="searchable-select" id="ss-selectedGscSite">
+                                    <div class="ss-trigger" id="ss-trigger-selectedGscSite" onclick="toggleSearchableSelect('selectedGscSite')">
+                                        <span class="ss-label">-- Select Site --</span>
+                                        <i class="fas fa-chevron-down ss-icon"></i>
+                                    </div>
+                                    <div class="ss-panel" id="ss-panel-selectedGscSite">
+                                        <div class="ss-search-row">
+                                            <i class="fas fa-search"></i>
+                                            <input type="text" placeholder="Search sites..." oninput="filterSearchableSelect('selectedGscSite', this.value)">
+                                        </div>
+                                        <div class="ss-options" id="ss-options-selectedGscSite">
+                                            <div class="ss-empty">Connect GSC first.</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -2563,10 +2657,24 @@
                                     onclick="disconnectService('Ga4')" style="display:none;">Disconnect</button>
                             </div>
                             <div id="selectorGa4" style="display:none; margin-top:5px;">
-                                <select id="selectedGa4Property" class="sidebar-select"
-                                    onchange="saveMarketingSelection()">
+                                <select id="selectedGa4Property" style="display:none;" onchange="saveMarketingSelection()">
                                     <option value="">-- Select Property --</option>
                                 </select>
+                                <div class="searchable-select" id="ss-selectedGa4Property">
+                                    <div class="ss-trigger" id="ss-trigger-selectedGa4Property" onclick="toggleSearchableSelect('selectedGa4Property')">
+                                        <span class="ss-label">-- Select Property --</span>
+                                        <i class="fas fa-chevron-down ss-icon"></i>
+                                    </div>
+                                    <div class="ss-panel" id="ss-panel-selectedGa4Property">
+                                        <div class="ss-search-row">
+                                            <i class="fas fa-search"></i>
+                                            <input type="text" placeholder="Search properties..." oninput="filterSearchableSelect('selectedGa4Property', this.value)">
+                                        </div>
+                                        <div class="ss-options" id="ss-options-selectedGa4Property">
+                                            <div class="ss-empty">Connect GA4 first.</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -2585,10 +2693,24 @@
                                     onclick="disconnectService('Ads')" style="display:none;">Disconnect</button>
                             </div>
                             <div id="selectorAds" style="display:none; margin-top:5px;">
-                                <select id="selectedAdsAccount" class="sidebar-select"
-                                    onchange="saveMarketingSelection()">
+                                <select id="selectedAdsAccount" style="display:none;" onchange="saveMarketingSelection()">
                                     <option value="">-- Select Account --</option>
                                 </select>
+                                <div class="searchable-select" id="ss-selectedAdsAccount">
+                                    <div class="ss-trigger" id="ss-trigger-selectedAdsAccount" onclick="toggleSearchableSelect('selectedAdsAccount')">
+                                        <span class="ss-label">-- Select Account --</span>
+                                        <i class="fas fa-chevron-down ss-icon"></i>
+                                    </div>
+                                    <div class="ss-panel" id="ss-panel-selectedAdsAccount">
+                                        <div class="ss-search-row">
+                                            <i class="fas fa-search"></i>
+                                            <input type="text" placeholder="Search accounts..." oninput="filterSearchableSelect('selectedAdsAccount', this.value)">
+                                        </div>
+                                        <div class="ss-options" id="ss-options-selectedAdsAccount">
+                                            <div class="ss-empty">Connect Google Ads first.</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -4994,6 +5116,7 @@
                     });
                     select.value = localStorage.getItem('selectedGscSite') || "";
                 }
+                refreshSearchableSelect('selectedGscSite');
             } catch (e) { console.error("GSC fetch failed", e); }
         }
 
@@ -5018,6 +5141,7 @@
                     });
                     select.value = localStorage.getItem('selectedGa4Property') || "";
                 }
+                refreshSearchableSelect('selectedGa4Property');
             } catch (e) { console.error("GA4 fetch failed", e); }
         }
 
@@ -5047,6 +5171,7 @@
                     });
                     select.value = localStorage.getItem('selectedAdsAccount') || "";
                 }
+                refreshSearchableSelect('selectedAdsAccount');
             } catch (e) { console.error("Ads fetch failed", e); }
         }
 
@@ -5056,6 +5181,92 @@
             localStorage.setItem('selectedAdsAccount', document.getElementById('selectedAdsAccount').value);
             showToast('Property selection saved', 'success');
         }
+
+        // ---- Searchable Select helpers (for GSC / GA4 / Ads dropdowns) ----
+        function toggleSearchableSelect(id) {
+            const panel = document.getElementById(`ss-panel-${id}`);
+            const trigger = document.getElementById(`ss-trigger-${id}`);
+            // Close any other open panels first
+            document.querySelectorAll('.ss-panel.active').forEach(p => {
+                if (p !== panel) {
+                    p.classList.remove('active');
+                    document.querySelector(`#ss-trigger-${p.id.replace('ss-panel-', '')}`).classList.remove('open');
+                }
+            });
+            const isOpen = panel.classList.toggle('active');
+            trigger.classList.toggle('open', isOpen);
+            if (isOpen) {
+                const input = panel.querySelector('input');
+                if (input) { input.value = ''; input.focus(); filterSearchableSelect(id, ''); }
+            }
+        }
+
+        function filterSearchableSelect(id, query) {
+            const q = query.toLowerCase();
+            document.querySelectorAll(`#ss-options-${id} .ss-option`).forEach(opt => {
+                opt.style.display = opt.dataset.label.toLowerCase().includes(q) ? '' : 'none';
+            });
+        }
+
+        function pickSearchableSelectOption(id, value, label) {
+            const select = document.getElementById(id);
+            select.value = value;
+            const labelEl = document.querySelector(`#ss-${id} .ss-label`);
+            if (labelEl) labelEl.textContent = label;
+            const panel = document.getElementById(`ss-panel-${id}`);
+            const trigger = document.getElementById(`ss-trigger-${id}`);
+            if (panel) panel.classList.remove('active');
+            if (trigger) trigger.classList.remove('open');
+            // Mark selected option
+            document.querySelectorAll(`#ss-options-${id} .ss-option`).forEach(o => {
+                o.classList.toggle('selected', o.dataset.value === value);
+            });
+            select.dispatchEvent(new Event('change'));
+        }
+
+        function refreshSearchableSelect(id) {
+            const select = document.getElementById(id);
+            const container = document.getElementById(`ss-options-${id}`);
+            const labelEl = document.querySelector(`#ss-${id} .ss-label`);
+            if (!select || !container) return;
+
+            const options = Array.from(select.options).filter(o => o.value);
+            container.innerHTML = '';
+
+            if (options.length === 0) {
+                container.innerHTML = '<div class="ss-empty">No options available.</div>';
+                return;
+            }
+
+            options.forEach(opt => {
+                const div = document.createElement('div');
+                div.className = 'ss-option';
+                div.dataset.value = opt.value;
+                div.dataset.label = opt.textContent;
+                div.textContent = opt.textContent;
+                if (opt.value === select.value) div.classList.add('selected');
+                div.onclick = () => pickSearchableSelectOption(id, opt.value, opt.textContent);
+                container.appendChild(div);
+            });
+
+            // Restore label for already-saved selection
+            if (select.value && labelEl) {
+                const matched = options.find(o => o.value === select.value);
+                if (matched) labelEl.textContent = matched.textContent;
+            }
+        }
+
+        // Close searchable selects when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.searchable-select')) {
+                document.querySelectorAll('.ss-panel.active').forEach(p => {
+                    p.classList.remove('active');
+                    const triggerId = `ss-trigger-${p.id.replace('ss-panel-', '')}`;
+                    const t = document.getElementById(triggerId);
+                    if (t) t.classList.remove('open');
+                });
+            }
+        });
 
         async function fetchGoogleChatSpaces() {
             if (!window.gchatAccessToken) return;
