@@ -2752,6 +2752,50 @@
                             </div>
                         </div>
 
+                        <!-- Meta Ads -->
+                        <div class="service-connection-row">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                                <span style="font-size:0.75rem; font-weight:700; color:#334155;">
+                                    <i class="fab fa-facebook" style="width:14px; opacity:0.6; color:#1877F2;"></i> Meta Ads
+                                </span>
+                                <span id="statusBadgeMeta" class="service-badge">—</span>
+                            </div>
+                            <div id="metaTokenRow" style="margin-bottom:5px;">
+                                <input id="metaChatTokenInput" type="password"
+                                    placeholder="Paste Meta access token…"
+                                    style="width:100%; padding:7px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.78rem; box-sizing:border-box;">
+                            </div>
+                            <div style="display:flex; gap:5px;">
+                                <button class="btn-service-connect" id="btnConnectMeta" onclick="connectMetaChat()">Connect</button>
+                                <button class="btn-service-disconnect" id="btnDisconnectMeta" onclick="disconnectMetaChat()" style="display:none;">Disconnect</button>
+                            </div>
+                            <div id="metaChatStatus" style="font-size:0.7rem; color:#64748b; margin-top:4px; min-height:16px;"></div>
+                            <div id="selectorMeta" style="display:none; margin-top:5px;">
+                                <select id="selectedMetaAccount" style="display:none;">
+                                    <option value="">-- Select Ad Account --</option>
+                                </select>
+                                <div class="searchable-select" id="ss-selectedMetaAccount">
+                                    <div class="ss-trigger" id="ss-trigger-selectedMetaAccount" onclick="toggleSearchableSelect('selectedMetaAccount')">
+                                        <span class="ss-label">-- Select Ad Account --</span>
+                                        <i class="fas fa-chevron-down ss-icon"></i>
+                                    </div>
+                                    <div class="ss-panel" id="ss-panel-selectedMetaAccount">
+                                        <div class="ss-search-row">
+                                            <i class="fas fa-search"></i>
+                                            <input type="text" placeholder="Search accounts..." oninput="filterSearchableSelect('selectedMetaAccount', this.value)">
+                                        </div>
+                                        <div class="ss-bulk-actions">
+                                            <button onclick="ssSelectAll('selectedMetaAccount')">✓ All</button>
+                                            <button onclick="ssClearAll('selectedMetaAccount')">✗ None</button>
+                                        </div>
+                                        <div class="ss-options" id="ss-options-selectedMetaAccount">
+                                            <div class="ss-empty">Connect Meta Ads first.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- SE Ranking Section -->
                         <div class="collapsible-section" id="serankingSection" style="margin-top: 10px;">
                             <div class="collapsible-header"
@@ -5215,11 +5259,139 @@
 
         function saveMarketingSelection() {
             if (!window.ssSelections) window.ssSelections = {};
-            ['selectedGscSite', 'selectedGa4Property', 'selectedAdsAccount'].forEach(id => {
+            ['selectedGscSite', 'selectedGa4Property', 'selectedAdsAccount', 'selectedMetaAccount'].forEach(id => {
                 localStorage.setItem(id, JSON.stringify(window.ssSelections[id] || []));
             });
             showToast('Property selection saved', 'success');
         }
+
+        // ---- Meta Ads auth (chatbot) ----
+        const META_GRAPH = 'https://graph.facebook.com/v23.0';
+        let metaChatAccessToken = localStorage.getItem('meta_access_token') || null;
+
+        async function metaChatGet(path, params = {}) {
+            const url = new URL(META_GRAPH + path);
+            url.searchParams.set('access_token', metaChatAccessToken);
+            Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+            const res = await fetch(url);
+            const json = await res.json();
+            if (json.error) throw new Error(json.error.message);
+            return json;
+        }
+
+        async function connectMetaChat() {
+            const token = document.getElementById('metaChatTokenInput').value.trim();
+            if (!token) {
+                document.getElementById('metaChatStatus').innerHTML =
+                    '<i class="fas fa-exclamation-triangle" style="color:#ea4335;"></i> Please paste your access token first.';
+                return;
+            }
+            metaChatAccessToken = token;
+            document.getElementById('metaChatStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying…';
+            document.getElementById('btnConnectMeta').disabled = true;
+
+            try {
+                const me = await metaChatGet('/me', { fields: 'id,name' });
+                localStorage.setItem('meta_access_token', token);
+                document.getElementById('metaChatStatus').innerHTML =
+                    `<i class="fas fa-check-circle" style="color:#1877F2;"></i> Connected as <strong>${me.name}</strong>`;
+                document.getElementById('btnConnectMeta').style.display = 'none';
+                document.getElementById('btnDisconnectMeta').style.display = '';
+                document.getElementById('metaChatTokenInput').disabled = true;
+                document.getElementById('statusBadgeMeta').textContent = '✓ Connected';
+                document.getElementById('statusBadgeMeta').style.cssText = 'background:#dcfce7;color:#166534;';
+                await fetchMetaChatAdAccounts();
+            } catch (err) {
+                document.getElementById('metaChatStatus').innerHTML =
+                    `<i class="fas fa-exclamation-triangle" style="color:#ea4335;"></i> ${err.message}`;
+                document.getElementById('btnConnectMeta').disabled = false;
+                metaChatAccessToken = null;
+            }
+        }
+
+        function disconnectMetaChat() {
+            metaChatAccessToken = null;
+            localStorage.removeItem('meta_access_token');
+            localStorage.removeItem('meta_ad_account_id');
+            if (!window.ssSelections) window.ssSelections = {};
+            window.ssSelections['selectedMetaAccount'] = [];
+            localStorage.setItem('selectedMetaAccount', '[]');
+
+            document.getElementById('metaChatStatus').textContent = '';
+            document.getElementById('btnConnectMeta').style.display = '';
+            document.getElementById('btnConnectMeta').disabled = false;
+            document.getElementById('btnDisconnectMeta').style.display = 'none';
+            document.getElementById('metaChatTokenInput').disabled = false;
+            document.getElementById('metaChatTokenInput').value = '';
+            document.getElementById('selectorMeta').style.display = 'none';
+            document.getElementById('ss-options-selectedMetaAccount').innerHTML = '<div class="ss-empty">Connect Meta Ads first.</div>';
+            updateSSTriggerLabel('selectedMetaAccount');
+            document.getElementById('statusBadgeMeta').textContent = '—';
+            document.getElementById('statusBadgeMeta').style.cssText = '';
+        }
+
+        async function fetchMetaChatAdAccounts() {
+            document.getElementById('metaChatStatus').innerHTML += ' — <i class="fas fa-spinner fa-spin"></i> Fetching ad accounts…';
+            try {
+                const res = await metaChatGet('/me/adaccounts', { fields: 'id,name,account_status,currency' });
+                const accounts = res.data || [];
+                const select = document.getElementById('selectedMetaAccount');
+                select.innerHTML = '<option value="">-- Select Ad Account --</option>';
+                accounts.forEach(acc => {
+                    const opt = document.createElement('option');
+                    opt.value = acc.id;
+                    opt.textContent = `${acc.name} (${acc.id}) — ${acc.currency}`;
+                    select.appendChild(opt);
+                });
+                document.getElementById('selectorMeta').style.display = '';
+
+                // Restore previously saved account selection
+                if (!window.ssSelections) window.ssSelections = {};
+                const savedRaw = localStorage.getItem('selectedMetaAccount') || '[]';
+                try {
+                    const saved = JSON.parse(savedRaw);
+                    window.ssSelections['selectedMetaAccount'] = Array.isArray(saved) ? saved : [];
+                } catch { window.ssSelections['selectedMetaAccount'] = []; }
+
+                refreshSearchableSelect('selectedMetaAccount');
+
+                // Auto-select if only one account
+                if (accounts.length === 1 && window.ssSelections['selectedMetaAccount'].length === 0) {
+                    window.ssSelections['selectedMetaAccount'] = [{ value: accounts[0].id, label: accounts[0].name + ` (${accounts[0].id}) — ${accounts[0].currency}` }];
+                    localStorage.setItem('selectedMetaAccount', JSON.stringify(window.ssSelections['selectedMetaAccount']));
+                    refreshSearchableSelect('selectedMetaAccount');
+                }
+
+                // Strip the spinner from status
+                document.getElementById('metaChatStatus').innerHTML =
+                    document.getElementById('metaChatStatus').innerHTML.replace(/ — <i.*<\/i> Fetching ad accounts…/, '');
+            } catch (err) {
+                document.getElementById('metaChatStatus').innerHTML +=
+                    ` <span style="color:#ea4335;">${err.message}</span>`;
+            }
+        }
+
+        // Restore Meta connection on page load
+        (async function initMetaChatConnection() {
+            const saved = localStorage.getItem('meta_access_token');
+            if (!saved) return;
+            document.getElementById('metaChatTokenInput').value = saved;
+            document.getElementById('metaChatTokenInput').disabled = true;
+            document.getElementById('btnConnectMeta').style.display = 'none';
+            document.getElementById('btnDisconnectMeta').style.display = '';
+            document.getElementById('statusBadgeMeta').textContent = '✓ Connected';
+            document.getElementById('statusBadgeMeta').style.cssText = 'background:#dcfce7;color:#166534;';
+            document.getElementById('metaChatStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Restoring connection…';
+            try {
+                const me = await metaChatGet('/me', { fields: 'id,name' });
+                document.getElementById('metaChatStatus').innerHTML =
+                    `<i class="fas fa-check-circle" style="color:#1877F2;"></i> Connected as <strong>${me.name}</strong>`;
+                await fetchMetaChatAdAccounts();
+            } catch {
+                document.getElementById('metaChatStatus').innerHTML = 'Session expired — please reconnect.';
+                disconnectMetaChat();
+            }
+        })();
 
         // ---- Searchable Multi-Select helpers (for GSC / GA4 / Ads dropdowns) ----
         // In-memory selections: { selectedGscSite: [{value, label}, ...], ... }
@@ -7314,6 +7486,7 @@ CRITICAL CONTACT RULE:
             12. get_ads_report: For Google Ads performance (cost, CPC, ROAS).
             13. save_memory_note: STRICT MANDATE. Use this whenever you learn a new preference, fact, or logic about the user or their projects. Always include a "team" field set to one of: "SEO", "SEM", "SMM", or "Everyone" (default to "Everyone" if the memory applies broadly).
             14. get_seranking_report: Fetch keyword rankings and positions for a specific SE Ranking campaign. You MUST use this tool when the user asks about SEO keywords, rankings, or SE Ranking data.
+            15. get_meta_ads_report: Fetch Meta (Facebook/Instagram) Ads performance data — spend, impressions, clicks, CTR, CPM, CPC, ROAS, results, and cost per result. Use this whenever the user asks about Meta Ads, Facebook Ads, Instagram Ads, or paid social performance. The ad_account_id values are in the synced context under 'meta_ad_account_ids'.
 
             SE RANKING CRITICAL RULES:
             - NEVER ask the user for an SE Ranking Site ID. The Site IDs are already in the synced context under 'loaded_seranking_campaigns'.
@@ -7328,6 +7501,7 @@ CRITICAL CONTACT RULE:
             - GSC Site(s): ${gscSites.length ? gscSites.join(', ') : 'None selected'}
             - GA4 Property/ies: ${ga4Props.length ? ga4Props.join(', ') : 'None selected'}
             - Google Ads Account(s): ${adsAccs.length ? adsAccs.join(', ') : 'None selected'}
+            - Meta Ad Account(s): ${(() => { try { const m = JSON.parse(localStorage.getItem('selectedMetaAccount') || '[]'); return m.length ? m.map(s=>s.label||s.value).join(', ') : 'None selected'; } catch { return 'None selected'; } })()}
 
             Always format results as Markdown tables. If a marketing property is not selected, ask the user to subscribe one in the settings.
 
@@ -7458,7 +7632,9 @@ CRITICAL CONTACT RULE:
                             siteUrl: gscSites[0] || '',
                             propertyId: ga4Props[0] || '',
                             customerId: adsAccs[0] || ''
-                        }
+                        },
+                        meta_access_token: localStorage.getItem('meta_access_token') || '',
+                        meta_ad_account_ids: (() => { try { return JSON.parse(localStorage.getItem('selectedMetaAccount') || '[]').map(s => s.value || s).filter(Boolean); } catch { return []; } })()
                     })
                 });
 
