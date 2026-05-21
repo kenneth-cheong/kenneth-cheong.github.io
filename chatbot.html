@@ -3544,6 +3544,12 @@
             
             await loadSettings();
             pullInsightsFromCloud(); // Refresh memories on load
+
+            // Auto-sync on page load — runs after loadSettings() so window.activeBoards is ready
+            if ((window.activeBoards || []).length > 0 || currentMode === 'internal') {
+                console.log("[AUTO-SYNC] Starting background sync...");
+                setTimeout(syncMondayToOpenAI, 1000);
+            }
             // Check for URL parameters (e.g., ?lambda=my-function)
             const urlParams = new URLSearchParams(window.location.search);
             const lambdaParam = urlParams.get('lambda');
@@ -6829,8 +6835,6 @@ You can now ask me anything about these campaigns.`);
             let contextUrlsStr = localStorage.getItem('contextUrls') || "";
 
             if (boards.length === 0) {
-                showToast("Please configure boards in settings.", "error");
-                toggleSettings();
                 return;
             }
 
@@ -7976,15 +7980,8 @@ CRITICAL CONTACT RULE:
             }
         }
 
-        // Auto-Sync on Page Load
+        // Auto-check connection status for all Google accounts on DOM ready
         window.addEventListener('DOMContentLoaded', () => {
-            const boardIds = localStorage.getItem('boardIds_v2');
-            if (boardIds) {
-                console.log("[AUTO-SYNC] Starting background sync...");
-                setTimeout(syncMondayToOpenAI, 1000);
-            }
-
-            // Auto-check connection status for all Google accounts
             checkAllGoogleServices();
         });
     </script>
