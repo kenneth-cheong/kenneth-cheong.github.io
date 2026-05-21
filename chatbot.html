@@ -3887,6 +3887,8 @@
             document.getElementById('contextUrls').value = localStorage.getItem('contextUrls') || "";
             document.getElementById('autoSync').checked = localStorage.getItem('autoSync') === 'true';
             document.getElementById('googleClientId').value = localStorage.getItem('googleClientId') || '1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com';
+            const gmailDaysBackEl = document.getElementById('gmailDaysBack');
+            if (gmailDaysBackEl) gmailDaysBackEl.value = localStorage.getItem('gmailDaysBack') || '90';
             // Restore Google Chat connection state
             if (window.gchatAccessToken) {
                 updateGchatUI(true);
@@ -4062,7 +4064,14 @@
             localStorage.setItem('googleClientId', document.getElementById('googleClientId').value.trim());
             localStorage.setItem('autoSync', autoSync);
 
-            // Collect functions
+            // Persist Gmail days-back setting
+            const gmailDaysBackEl = document.getElementById('gmailDaysBack');
+            if (gmailDaysBackEl) localStorage.setItem('gmailDaysBack', gmailDaysBackEl.value);
+
+            // Persist marketing property selections (defensive — they're also saved on each toggle)
+            saveMarketingSelection();
+
+            // Collect custom functions
             const functions = [];
             document.querySelectorAll('.function-row').forEach(row => {
                 functions.push({
@@ -4081,7 +4090,18 @@
             }
 
             toggleSettings();
-            syncMondayToOpenAI();
+
+            // Only trigger a sync if there is something to sync:
+            // client mode needs boards configured; internal mode needs the API key set.
+            const hasBoards = (window.activeBoards || []).length > 0;
+            const hasApiKey = !!mondayKey;
+            if (currentMode === 'internal' && hasApiKey) {
+                syncMondayToOpenAI();
+            } else if (currentMode !== 'internal' && hasBoards) {
+                syncMondayToOpenAI();
+            } else {
+                showToast('Settings saved.', 'success');
+            }
         }
 
         var MONDAY_LAMBDA_URL = "https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday";
@@ -5411,7 +5431,8 @@
         const SS_PLACEHOLDERS = {
             selectedGscSite: '-- Select Site(s) --',
             selectedGa4Property: '-- Select Property/ies --',
-            selectedAdsAccount: '-- Select Account(s) --'
+            selectedAdsAccount: '-- Select Account(s) --',
+            selectedMetaAccount: '-- Select Ad Account(s) --'
         };
 
         function toggleSearchableSelect(id) {
