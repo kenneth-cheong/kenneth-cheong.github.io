@@ -1727,17 +1727,43 @@
             flex: 1;
         }
         .ss-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
             padding: 8px 12px;
             cursor: pointer;
             font-size: 0.78rem;
             color: #334155;
             border-bottom: 1px solid #f8fafc;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            transition: background 0.15s;
         }
-        .ss-option:hover { background: #eef2ff; color: #4338ca; }
-        .ss-option.selected { background: #eef2ff; color: #4338ca; font-weight: 600; }
+        .ss-option:hover { background: #fffbeb; }
+        .ss-option.selected { background: #fef9c3; font-weight: 600; color: #92400e; }
+        .ss-check {
+            width: 16px; height: 16px;
+            border: 2px solid #cbd5e1;
+            border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            font-size: 0.6rem;
+            transition: all 0.15s;
+        }
+        .ss-option.selected .ss-check {
+            background: #f59e0b; border-color: #f59e0b; color: #fff;
+        }
+        .ss-opt-text { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ss-bulk-actions {
+            display: flex; gap: 6px;
+            padding: 6px 10px;
+            border-bottom: 1px solid #f1f5f9;
+            flex-shrink: 0;
+        }
+        .ss-bulk-actions button {
+            flex: 1; padding: 4px 8px; border-radius: 6px;
+            border: 1px solid #e2e8f0; background: #fff;
+            font-size: 0.7rem; font-weight: 600; cursor: pointer; color: #475569;
+        }
+        .ss-bulk-actions button:hover { background: #f1f5f9; }
         .ss-empty { padding: 12px; text-align: center; color: #94a3b8; font-size: 0.75rem; }
 
         /* Multi-Account Service Styles */
@@ -2633,6 +2659,10 @@
                                             <i class="fas fa-search"></i>
                                             <input type="text" placeholder="Search sites..." oninput="filterSearchableSelect('selectedGscSite', this.value)">
                                         </div>
+                                        <div class="ss-bulk-actions">
+                                            <button onclick="ssSelectAll('selectedGscSite')">✓ All</button>
+                                            <button onclick="ssClearAll('selectedGscSite')">✗ None</button>
+                                        </div>
                                         <div class="ss-options" id="ss-options-selectedGscSite">
                                             <div class="ss-empty">Connect GSC first.</div>
                                         </div>
@@ -2670,6 +2700,10 @@
                                             <i class="fas fa-search"></i>
                                             <input type="text" placeholder="Search properties..." oninput="filterSearchableSelect('selectedGa4Property', this.value)">
                                         </div>
+                                        <div class="ss-bulk-actions">
+                                            <button onclick="ssSelectAll('selectedGa4Property')">✓ All</button>
+                                            <button onclick="ssClearAll('selectedGa4Property')">✗ None</button>
+                                        </div>
                                         <div class="ss-options" id="ss-options-selectedGa4Property">
                                             <div class="ss-empty">Connect GA4 first.</div>
                                         </div>
@@ -2705,6 +2739,10 @@
                                         <div class="ss-search-row">
                                             <i class="fas fa-search"></i>
                                             <input type="text" placeholder="Search accounts..." oninput="filterSearchableSelect('selectedAdsAccount', this.value)">
+                                        </div>
+                                        <div class="ss-bulk-actions">
+                                            <button onclick="ssSelectAll('selectedAdsAccount')">✓ All</button>
+                                            <button onclick="ssClearAll('selectedAdsAccount')">✗ None</button>
                                         </div>
                                         <div class="ss-options" id="ss-options-selectedAdsAccount">
                                             <div class="ss-empty">Connect Google Ads first.</div>
@@ -5176,13 +5214,23 @@
         }
 
         function saveMarketingSelection() {
-            localStorage.setItem('selectedGscSite', document.getElementById('selectedGscSite').value);
-            localStorage.setItem('selectedGa4Property', document.getElementById('selectedGa4Property').value);
-            localStorage.setItem('selectedAdsAccount', document.getElementById('selectedAdsAccount').value);
+            if (!window.ssSelections) window.ssSelections = {};
+            ['selectedGscSite', 'selectedGa4Property', 'selectedAdsAccount'].forEach(id => {
+                localStorage.setItem(id, JSON.stringify(window.ssSelections[id] || []));
+            });
             showToast('Property selection saved', 'success');
         }
 
-        // ---- Searchable Select helpers (for GSC / GA4 / Ads dropdowns) ----
+        // ---- Searchable Multi-Select helpers (for GSC / GA4 / Ads dropdowns) ----
+        // In-memory selections: { selectedGscSite: [{value, label}, ...], ... }
+        if (!window.ssSelections) window.ssSelections = {};
+
+        const SS_PLACEHOLDERS = {
+            selectedGscSite: '-- Select Site(s) --',
+            selectedGa4Property: '-- Select Property/ies --',
+            selectedAdsAccount: '-- Select Account(s) --'
+        };
+
         function toggleSearchableSelect(id) {
             const panel = document.getElementById(`ss-panel-${id}`);
             const trigger = document.getElementById(`ss-trigger-${id}`);
@@ -5190,13 +5238,14 @@
             document.querySelectorAll('.ss-panel.active').forEach(p => {
                 if (p !== panel) {
                     p.classList.remove('active');
-                    document.querySelector(`#ss-trigger-${p.id.replace('ss-panel-', '')}`).classList.remove('open');
+                    const t = document.getElementById(`ss-trigger-${p.id.replace('ss-panel-', '')}`);
+                    if (t) t.classList.remove('open');
                 }
             });
             const isOpen = panel.classList.toggle('active');
             trigger.classList.toggle('open', isOpen);
             if (isOpen) {
-                const input = panel.querySelector('input');
+                const input = panel.querySelector('input[type="text"]');
                 if (input) { input.value = ''; input.focus(); filterSearchableSelect(id, ''); }
             }
         }
@@ -5208,28 +5257,79 @@
             });
         }
 
-        function pickSearchableSelectOption(id, value, label) {
-            const select = document.getElementById(id);
-            select.value = value;
+        function toggleSSOption(id, value, label) {
+            if (!window.ssSelections[id]) window.ssSelections[id] = [];
+            const idx = window.ssSelections[id].findIndex(s => s.value === value);
+            if (idx >= 0) {
+                window.ssSelections[id].splice(idx, 1);
+            } else {
+                window.ssSelections[id].push({ value, label });
+            }
+            // Update the clicked option's visual state
+            const optEl = document.querySelector(`#ss-options-${id} [data-value="${CSS.escape(value)}"]`);
+            if (optEl) {
+                const isNowSelected = idx < 0;
+                optEl.classList.toggle('selected', isNowSelected);
+                const check = optEl.querySelector('.ss-check');
+                if (check) check.innerHTML = isNowSelected ? '<i class="fas fa-check"></i>' : '';
+            }
+            updateSSTriggerLabel(id);
+            saveMarketingSelection();
+        }
+
+        function updateSSTriggerLabel(id) {
+            const sel = window.ssSelections[id] || [];
             const labelEl = document.querySelector(`#ss-${id} .ss-label`);
-            if (labelEl) labelEl.textContent = label;
-            const panel = document.getElementById(`ss-panel-${id}`);
-            const trigger = document.getElementById(`ss-trigger-${id}`);
-            if (panel) panel.classList.remove('active');
-            if (trigger) trigger.classList.remove('open');
-            // Mark selected option
-            document.querySelectorAll(`#ss-options-${id} .ss-option`).forEach(o => {
-                o.classList.toggle('selected', o.dataset.value === value);
+            if (!labelEl) return;
+            if (sel.length === 0) {
+                labelEl.textContent = SS_PLACEHOLDERS[id] || '-- Select --';
+            } else if (sel.length === 1) {
+                labelEl.textContent = sel[0].label;
+            } else {
+                labelEl.textContent = `${sel.length} selected`;
+            }
+        }
+
+        function ssSelectAll(id) {
+            const options = Array.from(document.querySelectorAll(`#ss-options-${id} .ss-option`));
+            window.ssSelections[id] = options.map(o => ({ value: o.dataset.value, label: o.dataset.label }));
+            options.forEach(o => {
+                o.classList.add('selected');
+                const check = o.querySelector('.ss-check');
+                if (check) check.innerHTML = '<i class="fas fa-check"></i>';
             });
-            select.dispatchEvent(new Event('change'));
+            updateSSTriggerLabel(id);
+            saveMarketingSelection();
+        }
+
+        function ssClearAll(id) {
+            window.ssSelections[id] = [];
+            document.querySelectorAll(`#ss-options-${id} .ss-option`).forEach(o => {
+                o.classList.remove('selected');
+                const check = o.querySelector('.ss-check');
+                if (check) check.innerHTML = '';
+            });
+            updateSSTriggerLabel(id);
+            saveMarketingSelection();
         }
 
         function refreshSearchableSelect(id) {
             const select = document.getElementById(id);
             const container = document.getElementById(`ss-options-${id}`);
-            const labelEl = document.querySelector(`#ss-${id} .ss-label`);
             if (!select || !container) return;
 
+            // Restore selections from localStorage if not yet in memory
+            if (!window.ssSelections[id]) {
+                const saved = localStorage.getItem(id) || '[]';
+                try {
+                    const parsed = JSON.parse(saved);
+                    window.ssSelections[id] = Array.isArray(parsed)
+                        ? parsed
+                        : (parsed ? [{ value: parsed, label: parsed }] : []);
+                } catch { window.ssSelections[id] = saved ? [{ value: saved, label: saved }] : []; }
+            }
+
+            const selectedValues = (window.ssSelections[id] || []).map(s => s.value);
             const options = Array.from(select.options).filter(o => o.value);
             container.innerHTML = '';
 
@@ -5239,21 +5339,24 @@
             }
 
             options.forEach(opt => {
+                const isSelected = selectedValues.includes(opt.value);
                 const div = document.createElement('div');
-                div.className = 'ss-option';
+                div.className = `ss-option${isSelected ? ' selected' : ''}`;
                 div.dataset.value = opt.value;
                 div.dataset.label = opt.textContent;
-                div.textContent = opt.textContent;
-                if (opt.value === select.value) div.classList.add('selected');
-                div.onclick = () => pickSearchableSelectOption(id, opt.value, opt.textContent);
+                div.innerHTML = `<span class="ss-check">${isSelected ? '<i class="fas fa-check"></i>' : ''}</span><span class="ss-opt-text">${opt.textContent}</span>`;
+                div.onclick = () => toggleSSOption(id, opt.value, opt.textContent);
                 container.appendChild(div);
             });
 
-            // Restore label for already-saved selection
-            if (select.value && labelEl) {
-                const matched = options.find(o => o.value === select.value);
-                if (matched) labelEl.textContent = matched.textContent;
+            // Refresh labels in case options have loaded with better display names
+            if (window.ssSelections[id].length > 0) {
+                window.ssSelections[id] = window.ssSelections[id].map(s => {
+                    const matched = options.find(o => o.value === s.value);
+                    return matched ? { value: s.value, label: matched.textContent } : s;
+                });
             }
+            updateSSTriggerLabel(id);
         }
 
         // Close searchable selects when clicking outside
@@ -5261,8 +5364,7 @@
             if (!e.target.closest('.searchable-select')) {
                 document.querySelectorAll('.ss-panel.active').forEach(p => {
                     p.classList.remove('active');
-                    const triggerId = `ss-trigger-${p.id.replace('ss-panel-', '')}`;
-                    const t = document.getElementById(triggerId);
+                    const t = document.getElementById(`ss-trigger-${p.id.replace('ss-panel-', '')}`);
                     if (t) t.classList.remove('open');
                 });
             }
@@ -7180,9 +7282,21 @@ CRITICAL CONTACT RULE:
             }
 
             // System prompt with context
-            const gscSite = localStorage.getItem('selectedGscSite') || '';
-            const ga4Prop = localStorage.getItem('selectedGa4Property') || '';
-            const adsAcc = localStorage.getItem('selectedAdsAccount') || '';
+            // Parse multi-select values (stored as JSON arrays); fall back for legacy strings
+            const _parseSSVals = (key) => {
+                try {
+                    const p = JSON.parse(localStorage.getItem(key) || '[]');
+                    if (Array.isArray(p)) return p.map(s => s.value || s).filter(Boolean);
+                    return p ? [p] : [];
+                } catch { const v = localStorage.getItem(key); return v ? [v] : []; }
+            };
+            const gscSites = _parseSSVals('selectedGscSite');
+            const ga4Props = _parseSSVals('selectedGa4Property');
+            const adsAccs  = _parseSSVals('selectedAdsAccount');
+            // Convenience strings for display / single-value tool calls
+            const gscSite = gscSites.join(', ');
+            const ga4Prop = ga4Props.join(', ');
+            const adsAcc  = adsAccs[0] || '';
 
             let system = `You are the MediaOne Internal Campaign Analyst. 
             You have access to live data via several tools:
@@ -7211,9 +7325,9 @@ CRITICAL CONTACT RULE:
             ${JSON.stringify(learnedInsights.map(i => `[${i.tag}][Team: ${i.team || 'Everyone'}] ${i.text}`))}
 
             CURRENT CONTEXT:
-            - GSC Site: ${gscSite || 'None selected'}
-            - GA4 Property: ${ga4Prop || 'None selected'}
-            - Google Ads Account: ${adsAcc || 'None selected'}
+            - GSC Site(s): ${gscSites.length ? gscSites.join(', ') : 'None selected'}
+            - GA4 Property/ies: ${ga4Props.length ? ga4Props.join(', ') : 'None selected'}
+            - Google Ads Account(s): ${adsAccs.length ? adsAccs.join(', ') : 'None selected'}
 
             Always format results as Markdown tables. If a marketing property is not selected, ask the user to subscribe one in the settings.
 
@@ -7341,9 +7455,9 @@ CRITICAL CONTACT RULE:
                             ads: localStorage.getItem('googleToken_Ads')
                         },
                         google_marketing_creds: {
-                            siteUrl: gscSite,
-                            propertyId: ga4Prop,
-                            customerId: adsAcc
+                            siteUrl: gscSites[0] || '',
+                            propertyId: ga4Props[0] || '',
+                            customerId: adsAccs[0] || ''
                         }
                     })
                 });
