@@ -10662,7 +10662,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1367</span>
+                <span id="appVersion">v1.0.1370</span>
             </a>
         </div>
 
@@ -15683,6 +15683,12 @@
                                     style="padding: 8px 12px 8px 32px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; width: 220px;">
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Date range summary label -->
+                    <div id="adsDateRangeLabel" style="display:none;padding:6px 14px;background:#f1f5f9;border-radius:8px;font-size:0.78rem;color:#475569;margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+                        <i class="fas fa-calendar-alt" style="color:#6366f1;font-size:0.72rem;"></i>
+                        <span id="adsDateRangeLabelText"></span>
                     </div>
 
                     <!-- Breadcrumbs Navigation (Redesigned as Filter/View Bar) -->
@@ -30110,6 +30116,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             if (selectedAdsAccounts.length > 0) {
                 toolsArea.style.opacity = '1';
                 updateAdsColumnAvailability();
+                updateAdsDateRangeLabel();
 
                 const labelText = selectedAdsAccounts.length === 1
                     ? selectedAdsAccounts[0].name
@@ -30366,6 +30373,34 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             updateSelectedAdsProperty(true);
         }
 
+        function updateAdsDateRangeLabel() {
+            const label = document.getElementById('adsDateRangeLabelText');
+            const wrapper = document.getElementById('adsDateRangeLabel');
+            if (!label || !wrapper) return;
+
+            const fmt = s => {
+                if (!s) return '';
+                const d = new Date(s + 'T00:00:00');
+                return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+            };
+
+            const cur = getAdsCurrentPeriodDates();
+            if (!cur?.start || !cur?.end) { wrapper.style.display = 'none'; return; }
+
+            let text = `${fmt(cur.start)} – ${fmt(cur.end)}`;
+
+            const compareMode = document.getElementById('adsCompareTo')?.value || 'none';
+            if (compareMode !== 'none') {
+                const cmp = getAdsComparisonDates();
+                if (cmp?.start && cmp?.end) {
+                    text += `  ·  compared to  ${fmt(cmp.start)} – ${fmt(cmp.end)}`;
+                }
+            }
+
+            label.textContent = text;
+            wrapper.style.display = 'flex';
+        }
+
         function adsDateRangeChanged() {
             const range = document.getElementById('adsDateRange').value;
             const customInputs = document.getElementById('adsCustomDateInputs');
@@ -30375,6 +30410,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 customInputs.style.display = 'flex';
             } else {
                 customInputs.style.display = 'none';
+                updateAdsDateRangeLabel();
                 updateSelectedAdsProperty(true);
             }
         }
@@ -30384,6 +30420,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             const customEl = document.getElementById('adsCompareCustomDates');
             if (customEl) customEl.style.display = mode === 'custom' ? 'flex' : 'none';
             adsCompareTotals = null; adsCompareDailyData = {}; adsCompareCampaignsMap = {};
+            updateAdsDateRangeLabel();
             if (mode !== 'custom') updateSelectedAdsProperty(false);
         }
 
