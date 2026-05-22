@@ -21,6 +21,9 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap"
         rel="stylesheet">
+    <!-- Driver.js guided tour -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1/dist/driver.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/driver.js@1/dist/driver.js.iife.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
@@ -2483,6 +2486,9 @@
                 </button>
                 <button class="btn btn-outline" onclick="toggleSettings()">
                     <i class="fas fa-cog"></i> Settings
+                </button>
+                <button class="btn btn-outline" id="tourBtn" onclick="startTour()" title="Take a guided tour of the chatbot">
+                    <i class="fas fa-map-signs"></i> Tour
                 </button>
             </div>
         </header>
@@ -8657,6 +8663,157 @@ CRITICAL CONTACT RULE:
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') closePromptsModal();
         });
+    </script>
+
+    <script>
+        function startTour() {
+            // Close any open sidebars so tour elements are visible
+            const history = document.getElementById('historySidebar');
+            const settings = document.getElementById('settingsSidebar');
+            if (history && history.classList.contains('active')) toggleHistory();
+            if (settings && settings.classList.contains('active')) toggleSettings();
+
+            const { driver } = window.driver.js;
+            const tourDriver = driver({
+                showProgress: true,
+                showButtons: ['next', 'previous', 'close'],
+                nextBtnText: 'Next →',
+                prevBtnText: '← Back',
+                doneBtnText: 'Done ✓',
+                progressText: '{{current}} of {{total}}',
+                popoverClass: 'chatbot-tour-popover',
+                steps: [
+                    {
+                        popover: {
+                            title: '👋 Welcome to the AI Chatbot',
+                            description: 'This quick tour covers the key features so you can get the most out of your AI assistant. It only takes about a minute.',
+                            side: 'over',
+                            align: 'center'
+                        }
+                    },
+                    {
+                        element: '#unifiedStatusBar',
+                        popover: {
+                            title: '📡 Status Bar',
+                            description: 'Shows the AI engine in use (Claude) and whether the chatbot has context loaded. <b>Green = ready</b>, spinning = syncing data in the background.',
+                            side: 'bottom',
+                            align: 'center'
+                        }
+                    },
+                    {
+                        element: 'button[onclick="openLearningModal()"]',
+                        popover: {
+                            title: '🧠 AI Memory',
+                            description: 'The AI remembers preferences, project facts, and logic it learns from your conversations. You can view, edit, or add notes here — memory is shared across sessions.',
+                            side: 'bottom',
+                            align: 'end'
+                        }
+                    },
+                    {
+                        element: 'button[onclick="toggleHistory()"]',
+                        popover: {
+                            title: '🕐 Conversation History',
+                            description: 'Access all your past conversations. Start a new chat or pick up where you left off. You can also see conversations from other team members.',
+                            side: 'bottom',
+                            align: 'end'
+                        }
+                    },
+                    {
+                        element: 'button[onclick="toggleSettings()"]',
+                        popover: {
+                            title: '⚙️ Settings & Connectors',
+                            description: 'Connect your tools here: <b>Monday.com</b> (task boards), <b>Google Workspace, GSC, GA4, Ads</b>, <b>Meta</b>, and <b>SE Ranking</b>. Once connected, the AI can query live data on your behalf.',
+                            side: 'bottom',
+                            align: 'end'
+                        }
+                    },
+                    {
+                        element: '#chatTopBar',
+                        popover: {
+                            title: '🎯 Context Selection',
+                            description: 'Choose which Monday.com boards the AI should focus on. Selecting a board loads its tasks and data into the AI\'s context window before you chat.',
+                            side: 'bottom',
+                            align: 'start'
+                        }
+                    },
+                    {
+                        element: '#topSyncBtn',
+                        popover: {
+                            title: '🔄 Sync Data',
+                            description: 'Hit Sync to pull the latest tasks from your selected boards into the AI\'s context. Always sync before asking about current board status.',
+                            side: 'bottom',
+                            align: 'end'
+                        }
+                    },
+                    {
+                        element: '#messageList',
+                        popover: {
+                            title: '💬 Conversation Area',
+                            description: 'Your chat with the AI appears here. The AI can answer questions, analyse data, write content, and use your connected tools — all in plain English.',
+                            side: 'top',
+                            align: 'center'
+                        }
+                    },
+                    {
+                        element: '.upload-btn',
+                        popover: {
+                            title: '📎 Attach Files',
+                            description: 'Upload images, PDFs, Word docs, or spreadsheets. The AI will read and analyse the content as part of your conversation.',
+                            side: 'top',
+                            align: 'start'
+                        }
+                    },
+                    {
+                        element: '#micBtn',
+                        popover: {
+                            title: '🎙️ Voice Input',
+                            description: 'Speak instead of type. Click once to start recording, click again to stop. Your speech is transcribed and sent as a message.',
+                            side: 'top',
+                            align: 'start'
+                        }
+                    },
+                    {
+                        element: '.prompts-btn',
+                        popover: {
+                            title: '✨ Quick Prompt Templates',
+                            description: 'Pre-built prompts for common tasks: Monday board analysis, GSC keyword reports, GA4 traffic breakdowns, and more. A great starting point if you\'re not sure what to ask.',
+                            side: 'top',
+                            align: 'start'
+                        }
+                    },
+                    {
+                        element: '#userInput',
+                        popover: {
+                            title: '⌨️ Chat Input',
+                            description: 'Type your question here and press <b>Enter</b> (or the send button) to chat. You can ask about your boards, request reports, get SEO insights, or just brainstorm — the AI has access to all your connected tools.',
+                            side: 'top',
+                            align: 'center'
+                        }
+                    },
+                    {
+                        element: '#tourBtn',
+                        popover: {
+                            title: '🗺️ You\'re all set!',
+                            description: 'You can relaunch this tour any time by clicking the <b>Tour</b> button. Start by connecting your tools in Settings, then sync a board and ask a question. Happy chatting!',
+                            side: 'bottom',
+                            align: 'end'
+                        }
+                    }
+                ]
+            });
+
+            tourDriver.drive();
+        }
+
+        // Auto-launch the tour on first ever visit
+        if (!localStorage.getItem('chatbot_tour_seen')) {
+            window.addEventListener('load', () => {
+                setTimeout(() => {
+                    startTour();
+                    localStorage.setItem('chatbot_tour_seen', '1');
+                }, 1200);
+            });
+        }
     </script>
 </body>
 
