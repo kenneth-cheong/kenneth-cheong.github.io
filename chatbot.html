@@ -5235,6 +5235,8 @@
             }
         }
 
+        const AUTH_VERIFY_TTL = 30 * 60 * 1000; // 30 minutes — skip live API check if verified recently
+
         async function checkAllGoogleServices() {
             for (const s of ['Workspace', 'Gsc', 'Ga4', 'Ads']) {
                 const token = localStorage.getItem(`googleToken_${s}`);
@@ -5248,18 +5250,34 @@
                     if (!ok) {
                         localStorage.removeItem(`googleToken_${s}`);
                         localStorage.removeItem(`googleToken_${s}_expires`);
+                        localStorage.removeItem(`googleToken_${s}_verified`);
                         updateServiceUI(s, false);
                         continue;
                     }
+                    localStorage.setItem(`googleToken_${s}_verified`, Date.now());
                 }
 
-                // Verify with API using the (possibly just-refreshed) token
+                // Skip live API call if verified recently
+                const lastVerified = parseInt(localStorage.getItem(`googleToken_${s}_verified`) || '0', 10);
+                if (lastVerified && Date.now() - lastVerified < AUTH_VERIFY_TTL) {
+                    const activeToken = localStorage.getItem(`googleToken_${s}`);
+                    updateServiceUI(s, true);
+                    if (s === 'Workspace') window.gchatAccessToken = activeToken;
+                    if (s !== 'Workspace') {
+                        const select = document.getElementById(`selected${s}${s === 'Gsc' ? 'Site' : (s === 'Ads' ? 'Account' : 'Property')}`);
+                        if (select && select.options.length <= 1) initializeServiceData(s);
+                    }
+                    continue;
+                }
+
+                // Full live verify (first load after TTL, or after a refresh)
                 const activeToken = localStorage.getItem(`googleToken_${s}`);
                 try {
                     const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
                         headers: { 'Authorization': `Bearer ${activeToken}` }
                     });
                     if (res.ok) {
+                        localStorage.setItem(`googleToken_${s}_verified`, Date.now());
                         updateServiceUI(s, true);
                         if (s === 'Workspace') window.gchatAccessToken = activeToken;
                         if (s !== 'Workspace') {
@@ -5267,10 +5285,10 @@
                             if (select && select.options.length <= 1) initializeServiceData(s);
                         }
                     } else {
-                        // Token rejected — try one silent refresh before showing disconnected
                         console.log(`[GOOGLE AUTH] Token for ${s} rejected (${res.status}) — attempting silent refresh.`);
                         const ok = await tryRefreshToken(s);
                         if (ok) {
+                            localStorage.setItem(`googleToken_${s}_verified`, Date.now());
                             updateServiceUI(s, true);
                             if (s === 'Workspace') window.gchatAccessToken = localStorage.getItem(`googleToken_${s}`);
                             if (s !== 'Workspace') {
@@ -5280,11 +5298,11 @@
                         } else {
                             localStorage.removeItem(`googleToken_${s}`);
                             localStorage.removeItem(`googleToken_${s}_expires`);
+                            localStorage.removeItem(`googleToken_${s}_verified`);
                             updateServiceUI(s, false);
                         }
                     }
                 } catch (e) {
-                    // Network error — don't clear the token, just leave UI as-is
                     console.warn(`[GOOGLE AUTH] Network error checking ${s}, will retry next time.`);
                 }
             }
@@ -5424,6 +5442,8 @@
         function disconnectMetaChat() {
             metaChatAccessToken = null;
             localStorage.removeItem('meta_access_token');
+            localStorage.removeItem('meta_last_verified');
+            localStorage.removeItem('meta_connected_name');
             localStorage.removeItem('meta_ad_account_id');
             if (!window.ssSelections) window.ssSelections = {};
             window.ssSelections['selectedMetaAccount'] = [];
@@ -5504,9 +5524,22 @@
             document.getElementById('btnDisconnectMeta').style.display = '';
             document.getElementById('statusBadgeMeta').textContent = '✓ Connected';
             document.getElementById('statusBadgeMeta').style.cssText = 'background:#dcfce7;color:#166534;';
+
+            // Skip live verify if checked recently — just restore from cache
+            const lastVerified = parseInt(localStorage.getItem('meta_last_verified') || '0', 10);
+            if (lastVerified && Date.now() - lastVerified < AUTH_VERIFY_TTL) {
+                const cachedName = localStorage.getItem('meta_connected_name');
+                document.getElementById('metaChatStatus').innerHTML =
+                    `<i class="fas fa-check-circle" style="color:#1877F2;"></i> Connected${cachedName ? ` as <strong>${cachedName}</strong>` : ''}`;
+                await fetchMetaChatAdAccounts();
+                return;
+            }
+
             document.getElementById('metaChatStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Restoring connection…';
             try {
                 const me = await metaChatGet('/me', { fields: 'id,name' });
+                localStorage.setItem('meta_last_verified', Date.now());
+                localStorage.setItem('meta_connected_name', me.name);
                 document.getElementById('metaChatStatus').innerHTML =
                     `<i class="fas fa-check-circle" style="color:#1877F2;"></i> Connected as <strong>${me.name}</strong>`;
                 await fetchMetaChatAdAccounts();
@@ -5535,6 +5568,7 @@
 
         function disconnectLinkedInAds() {
             localStorage.removeItem('linkedin_access_token');
+            localStorage.removeItem('linkedin_last_verified');
             localStorage.removeItem('selectedLinkedInAccount');
             if (!window.ssSelections) window.ssSelections = {};
             window.ssSelections['selectedLinkedInAccount'] = [];
@@ -5590,6 +5624,7 @@
                 const savedRaw = localStorage.getItem('selectedLinkedInAccount') || '[]';
                 try { window.ssSelections['selectedLinkedInAccount'] = JSON.parse(savedRaw); } catch { window.ssSelections['selectedLinkedInAccount'] = []; }
                 refreshSearchableSelect('selectedLinkedInAccount');
+                localStorage.setItem('linkedin_last_verified', Date.now());
             } catch (err) {
                 document.getElementById('linkedinStatus').innerHTML =
                     document.getElementById('linkedinStatus').innerHTML.replace(/ — <i.*?<\/i> Fetching accounts…/, '');
@@ -5607,6 +5642,21 @@
             document.getElementById('btnDisconnectLinkedIn').style.display = '';
             document.getElementById('statusBadgeLinkedIn').textContent = '✓ Connected';
             document.getElementById('statusBadgeLinkedIn').style.cssText = 'background:#dcfce7;color:#166534;';
+
+            // Skip Lambda call if accounts were fetched recently
+            const lastVerified = parseInt(localStorage.getItem('linkedin_last_verified') || '0', 10);
+            if (lastVerified && Date.now() - lastVerified < AUTH_VERIFY_TTL) {
+                document.getElementById('linkedinStatus').innerHTML = '<i class="fas fa-check-circle" style="color:#0A66C2;"></i> Connected.';
+                // Restore selector from cache without refetching
+                if (!window.ssSelections) window.ssSelections = {};
+                try { window.ssSelections['selectedLinkedInAccount'] = JSON.parse(localStorage.getItem('selectedLinkedInAccount') || '[]'); } catch { window.ssSelections['selectedLinkedInAccount'] = []; }
+                if ((window.ssSelections['selectedLinkedInAccount'] || []).length > 0) {
+                    document.getElementById('selectorLinkedIn').style.display = '';
+                    refreshSearchableSelect('selectedLinkedInAccount');
+                }
+                return;
+            }
+
             document.getElementById('linkedinStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Restoring connection…';
             fetchLinkedInAdAccounts();
         })();
