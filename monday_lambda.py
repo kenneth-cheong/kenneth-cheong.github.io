@@ -153,16 +153,15 @@ def linkedin_get_ad_accounts(body):
     try:
         r = requests.get(
             'https://api.linkedin.com/rest/adAccounts',
-            params={'q': 'search', 'count': 100},
+            params={'q': 'search', 'search': '(status:(values:List(ACTIVE)))', 'count': 100},
             headers={
                 'Authorization': f'Bearer {access_token}',
-                'LinkedIn-Version': '202407',
+                'LinkedIn-Version': '202510',
                 'X-Restli-Protocol-Version': '2.0.0'
             },
             timeout=15
         )
         data = r.json()
-        # Surface the raw response for debugging if elements is empty
         elements = data.get('elements', [])
         return {"statusCode": r.status_code, "body": json.dumps({"elements": elements, "_raw": data})}
     except Exception as e:
