@@ -10654,7 +10654,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1342</span>
+                <span id="appVersion">v1.0.1346</span>
             </a>
         </div>
 
@@ -29888,6 +29888,20 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 return;
             }
 
+            // Select All / Deselect All bar
+            const nonManagers = customers.filter(c => !c.isManager);
+            const allSelected = nonManagers.length > 0 && nonManagers.every(c => selectedAdsAccounts.some(a => a.id === c.id));
+            const bar = document.createElement('div');
+            bar.style.cssText = 'display:flex;gap:8px;padding:6px 10px;border-bottom:1px solid #e2e8f0;background:#f8fafc;position:sticky;top:0;z-index:1;';
+            bar.innerHTML = `
+                <button onclick="selectAllAdsAccounts()" style="flex:1;padding:4px 8px;font-size:0.75rem;font-weight:600;border:1px solid #ceead6;border-radius:6px;background:#fff;color:#0f9d58;cursor:pointer;">
+                    <i class="fas fa-check-square" style="margin-right:4px;"></i>Select All
+                </button>
+                <button onclick="deselectAllAdsAccounts()" style="flex:1;padding:4px 8px;font-size:0.75rem;font-weight:600;border:1px solid #e2e8f0;border-radius:6px;background:#fff;color:#64748b;cursor:pointer;">
+                    <i class="fas fa-square" style="margin-right:4px;"></i>Deselect All
+                </button>`;
+            resultsEl.appendChild(bar);
+
             customers.forEach(client => {
                 if (!client.isManager) {
                     const opt = document.createElement('option');
@@ -29929,6 +29943,32 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
         function selectAdsCustomer(id, name, managerId, developerToken) {
             toggleAdsAccount(id, name, managerId, developerToken);
+        }
+
+        function selectAllAdsAccounts() {
+            const nonManagers = adsCustomerList.filter(c => !c.isManager);
+            nonManagers.forEach(c => {
+                if (!selectedAdsAccounts.some(a => a.id === c.id)) {
+                    selectedAdsAccounts.push({ id: c.id, name: c.name, loginCustomerId: c.loginCustomerId, developerToken: c.developerToken });
+                }
+            });
+            const count = selectedAdsAccounts.length;
+            const searchInput = document.getElementById('adsCustomerSearch');
+            searchInput.value = count === 1 ? `${selectedAdsAccounts[0].name} (${selectedAdsAccounts[0].id})` : `${count} accounts selected`;
+            renderAdsCustomerDropdown(adsCustomerList);
+            document.getElementById('adsCustomerDropdownResults').style.display = 'block';
+            updateSelectedAdsProperty();
+        }
+
+        function deselectAllAdsAccounts() {
+            selectedAdsAccounts = [];
+            const searchInput = document.getElementById('adsCustomerSearch');
+            searchInput.value = '';
+            searchInput.placeholder = 'Search or select accounts (name or ID)...';
+            document.getElementById('adsSiteList').value = '';
+            renderAdsCustomerDropdown(adsCustomerList);
+            document.getElementById('adsCustomerDropdownResults').style.display = 'block';
+            updateSelectedAdsProperty();
         }
 
         function toggleAdsAccount(id, name, loginCustomerId, developerToken) {
