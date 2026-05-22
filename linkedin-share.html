@@ -198,10 +198,51 @@
 
         .field-row .field-group { margin-bottom: 0; }
 
-        /* ── Live Preview ── */
-        .live-preview-wrap {
-            margin-bottom: 20px;
+        /* ── AI Generate button ── */
+        .ai-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
         }
+
+        .btn-ai {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            background: linear-gradient(135deg, #7c3aed, #a855f7);
+            color: white;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .btn-ai:hover { opacity: 0.88; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(124,58,237,0.4); }
+        .btn-ai:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .btn-ai-regen {
+            background: none;
+            border: 1px solid #7c3aed;
+            color: #a78bfa;
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: none;
+        }
+
+        .btn-ai-regen:hover { background: rgba(124,58,237,0.12); }
+        .btn-ai-regen.visible { display: inline-flex; align-items: center; gap: 5px; }
+
+        /* ── Live Preview ── */
+        .live-preview-wrap { margin-bottom: 20px; }
 
         .live-preview-label {
             font-size: 11px;
@@ -237,9 +278,39 @@
             line-height: 1.75;
             white-space: pre-wrap;
             word-break: break-word;
+            min-height: 80px;
+            transition: border-color 0.3s;
         }
 
+        #live-preview.ai-mode { border-color: #7c3aed; color: var(--text-main); }
         #live-preview strong { color: var(--text-main); }
+
+        /* shimmer while AI loading */
+        .shimmer-line {
+            height: 12px;
+            border-radius: 6px;
+            background: linear-gradient(90deg, var(--border) 25%, #2d3f55 50%, var(--border) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.2s infinite;
+            margin-bottom: 10px;
+        }
+
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        .ai-badge {
+            display: none;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            color: #a78bfa;
+            background: rgba(124,58,237,0.12);
+            border: 1px solid rgba(124,58,237,0.3);
+            border-radius: 4px;
+            padding: 2px 7px;
+        }
+
+        .ai-badge.visible { display: inline-block; }
 
         /* ── Loading / Publishing ── */
         .loading-wrap {
@@ -461,9 +532,21 @@
 
             <!-- Live preview -->
             <div class="live-preview-wrap">
-                <div class="live-preview-label">
-                    <span class="dot"></span> Live Post Preview
+                <div class="ai-bar">
+                    <div class="live-preview-label" style="margin-bottom:0">
+                        <span class="dot"></span> Live Post Preview
+                        <span class="ai-badge" id="ai-badge">✨ AI</span>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <button class="btn-ai-regen" id="btn-regen" onclick="aiGenerate()">
+                            <i class="fas fa-redo" style="font-size:10px"></i> Regenerate
+                        </button>
+                        <button class="btn-ai" id="btn-ai" onclick="aiGenerate()">
+                            ✨ Generate with AI
+                        </button>
+                    </div>
                 </div>
+                <div style="height:8px"></div>
                 <div id="live-preview"></div>
             </div>
 
@@ -632,6 +715,15 @@
         }
 
         function buildPostText(firstName) {
+            const draft = sessionStorage.getItem('li_post_draft');
+            if (draft) {
+                // AI draft: personalise the opening greeting with the real name
+                if (firstName) {
+                    return draft.replace(/^Hi! /, `Hi ${firstName}! `);
+                }
+                return draft;
+            }
+            // Fallback: template-built text
             const f = getFields();
             const greeting = firstName ? `Hi ${firstName}! ` : 'Hi! ';
             const tags = formatTags(f.tags);
@@ -649,6 +741,46 @@
 
         function escHtml(str) {
             return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+        }
+
+        // ── AI Generate ──────────────────────────────────────────────────────
+        async function aiGenerate() {
+            const f = getFields();
+            const preview = document.getElementById('live-preview');
+            const btnAi   = document.getElementById('btn-ai');
+            const btnRegen = document.getElementById('btn-regen');
+
+            // Shimmer loading state
+            btnAi.disabled = true;
+            btnRegen.disabled = true;
+            preview.classList.remove('ai-mode');
+            preview.innerHTML = [1,2,3,4].map((_, i) =>
+                `<div class="shimmer-line" style="width:${[92,78,85,55][i]}%"></div>`
+            ).join('');
+
+            try {
+                const res  = await fetch(LAMBDA_URL, {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ action: 'ai_generate', ...f }),
+                });
+                const data = await res.json();
+
+                if (!data.success) throw new Error(data.error || 'AI generation failed.');
+
+                sessionStorage.setItem('li_post_draft', data.text);
+                preview.classList.add('ai-mode');
+                preview.innerHTML = escHtml(data.text);
+                document.getElementById('ai-badge').classList.add('visible');
+                btnRegen.classList.add('visible');
+                btnAi.style.display = 'none';
+            } catch (err) {
+                showError(err.message);
+                updatePreview(); // fall back to template
+            } finally {
+                btnAi.disabled = false;
+                btnRegen.disabled = false;
+            }
         }
 
         // ── Step 1: Save fields → sessionStorage, start OAuth ───────────────
@@ -730,7 +862,7 @@
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error || 'Failed to publish post.');
 
-                ['li_token','li_pid','li_state'].forEach(k => sessionStorage.removeItem(k));
+                ['li_token','li_pid','li_state','li_post_draft'].forEach(k => sessionStorage.removeItem(k));
                 showStep('success');
             } catch (err) {
                 showError(err.message);
@@ -788,7 +920,7 @@
         }
 
         function cancelAndReset() {
-            ['li_token','li_pid','li_state','li_event','li_date','li_format','li_event_url','li_tags'].forEach(k => sessionStorage.removeItem(k));
+            ['li_token','li_pid','li_state','li_event','li_date','li_format','li_event_url','li_tags','li_post_draft'].forEach(k => sessionStorage.removeItem(k));
             document.getElementById('avatar-container').innerHTML = '';
             showStep('landing');
             hideError();
