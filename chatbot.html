@@ -2823,18 +2823,25 @@
 
                         <!-- Sync toggles — off by default, auto-enabled when prompt mentions Gmail / Drive -->
                         <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0;">
-                                <div>
-                                    <div style="font-size: 0.8rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
-                                        <i class="fas fa-envelope" style="opacity: 0.5; width: 14px;"></i> Sync Gmail
-                                        <span id="gmailAccessBadge" style="display:none; font-size:0.6rem; padding:1px 6px; border-radius:8px; font-weight:700;"></span>
+                            <div style="background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0; overflow: hidden;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px;">
+                                    <div>
+                                        <div style="font-size: 0.8rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+                                            <i class="fas fa-envelope" style="opacity: 0.5; width: 14px;"></i> Sync Gmail
+                                            <span id="gmailAccessBadge" style="display:none; font-size:0.6rem; padding:1px 6px; border-radius:8px; font-weight:700;"></span>
+                                        </div>
+                                        <div style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">Include Gmail threads in sync</div>
                                     </div>
-                                    <div style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">Include Gmail threads in sync</div>
+                                    <label class="switch" style="width: 40px; height: 20px; flex-shrink: 0;">
+                                        <input type="checkbox" id="gmailIncludeToggle" onchange="document.getElementById('gmailDaysRow').style.display = this.checked ? '' : 'none'">
+                                        <span class="slider round"></span>
+                                    </label>
                                 </div>
-                                <label class="switch" style="width: 40px; height: 20px; flex-shrink: 0;">
-                                    <input type="checkbox" id="gmailIncludeToggle">
-                                    <span class="slider round"></span>
-                                </label>
+                                <div id="gmailDaysRow" style="display: none; padding: 0 14px 10px; border-top: 1px solid #e2e8f0; padding-top: 10px;">
+                                    <label style="font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; display: block; margin-bottom: 4px;">History (days)</label>
+                                    <input type="number" id="gmailDaysBack" value="90" min="1" max="730"
+                                        style="width: 100%; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.8rem; background: #fff;">
+                                </div>
                             </div>
                             <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0;">
                                 <div>
@@ -2878,13 +2885,7 @@
                             </div>
                         </div>
 
-                        <div id="gmailSection" style="margin-top: 0; margin-bottom: 16px; display: none;"></div>
-
-                        <div class="form-group" style="margin-bottom: 16px;">
-                            <label>Gmail History (days)</label>
-                            <input type="number" id="gmailDaysBack" value="90" min="1" max="730"
-                                style="width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.8rem;">
-                        </div>
+                        <div id="gmailSection" style="display: none;"></div>
 
                         <div class="filter-actions">
                             <button class="btn-amber" id="internalSyncBtn" onclick="syncInternalMode()">
@@ -7470,6 +7471,8 @@ CRITICAL CONTACT RULE:
                 const driveToggle = document.getElementById('syncDriveToggle');
                 if (gmailToggle && !gmailToggle.checked && gmailKw.some(k => lower.includes(k))) {
                     gmailToggle.checked = true;
+                    const daysRow = document.getElementById('gmailDaysRow');
+                    if (daysRow) daysRow.style.display = '';
                     showToast('Gmail sync auto-enabled for this query', 'info');
                 }
                 if (driveToggle && !driveToggle.checked && driveKw.some(k => lower.includes(k))) {
