@@ -4711,12 +4711,23 @@
         }
 
         // --- Dynamic Filter Implementation ---
-        function addDynamicFilter() {
-            if (!window.allPrefetchedColumns || window.allPrefetchedColumns.length === 0) {
-                showToast("Please wait for board data to finish loading.", "warning");
-                return;
-            }
+        function buildColOptions() {
+            let html = '<option value="">Select column…</option>';
+            (window.allPrefetchedColumns || []).forEach(c => {
+                if (c.title) html += `<option value="${c.id}">${c.title}</option>`;
+            });
+            return html;
+        }
 
+        function refreshDynamicFilterSelects() {
+            document.querySelectorAll('.dynamic-col-select').forEach(sel => {
+                const current = sel.value;
+                sel.innerHTML = buildColOptions();
+                if (current) sel.value = current;
+            });
+        }
+
+        function addDynamicFilter() {
             const id = 'dyn_' + Date.now();
             window.dynamicFilters[id] = { colId: '', operator: 'include' };
             msState[id] = { options: [], selected: [], active: false };
@@ -4725,42 +4736,41 @@
             const emptyText = document.getElementById('emptyDynamicText');
             if (emptyText) emptyText.style.display = 'none';
 
-            let colOptions = '<option value="">Select Column...</option>';
-            window.allPrefetchedColumns.forEach(c => {
-                if (c.title) colOptions += `<option value="${c.id}">${c.title}</option>`;
-            });
-
             const block = document.createElement('div');
             block.className = 'dynamic-filter';
             block.id = `filter_${id}`;
 
             block.innerHTML = `
-                <div class="dynamic-filter-header">
-                    <select onchange="updateDynamicCol('${id}', this.value)" style="flex:1;">
-                        ${colOptions}
+                <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+                    <select class="dynamic-col-select" id="colsel_${id}" onchange="updateDynamicCol('${id}', this.value)"
+                        style="flex:1; padding:5px 8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.8rem; background:#fff; min-width:0;">
+                        ${buildColOptions()}
                     </select>
-                    <select onchange="updateDynamicOp('${id}', this.value)" style="width:100px;">
+                    <button class="btn-remove" onclick="removeDynamicFilter('${id}')" style="flex-shrink:0;"><i class="fas fa-trash"></i></button>
+                </div>
+                <div style="margin-bottom:6px;">
+                    <select onchange="updateDynamicOp('${id}', this.value)"
+                        style="width:100%; padding:5px 8px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.8rem; background:#fff;">
                         <option value="include">Include</option>
                         <option value="exclude">Exclude</option>
                     </select>
-                    <button class="btn-remove" onclick="removeDynamicFilter('${id}')"><i class="fas fa-trash"></i></button>
                 </div>
-                <div class="filter-field" style="margin-top: 4px;">
+                <div class="filter-field">
                     <div class="ms-dropdown" id="${id}">
                         <div class="ms-trigger" onclick="toggleMsPanel('${id}')">
-                            <span class="ms-placeholder">Select a column first...</span>
+                            <span class="ms-placeholder">Select a column first…</span>
                         </div>
                         <div class="ms-panel">
                             <div class="ms-search">
                                 <i class="fas fa-search"></i>
-                                <input type="text" placeholder="Search values..." oninput="filterMsOptions('${id}', this.value)">
+                                <input type="text" placeholder="Search values…" oninput="filterMsOptions('${id}', this.value)">
                             </div>
                             <div class="ms-bulk-actions">
                                 <button onclick="msSelectAll('${id}')">✓ All</button>
                                 <button onclick="msUnselectAll('${id}')">✗ None</button>
                             </div>
                             <div class="ms-options">
-                                <div class="ms-loading">Select a column...</div>
+                                <div class="ms-loading">${(window.allPrefetchedColumns||[]).length === 0 ? 'Click Refresh to load data first…' : 'Select a column…'}</div>
                             </div>
                         </div>
                     </div>
@@ -4855,7 +4865,7 @@
                         if (!mData.boards || !mData.boards[0]) break;
                         resultPage = mData.boards[0].items_page;
                         // Store columns from first page
-                        if (pageCount === 0) window.allPrefetchedColumns = mData.boards[0].columns;
+                        if (pageCount === 0) { window.allPrefetchedColumns = mData.boards[0].columns; refreshDynamicFilterSelects(); }
                     } else {
                         if (!mData.next_items_page) break;
                         resultPage = mData.next_items_page;
@@ -6268,6 +6278,7 @@
 
                 // Immediately populate
                 updateDropdownsWithIncrementalData(data.items, data.columns);
+                refreshDynamicFilterSelects();
                 updateCacheStatusUI(data.timestamp);
                 return true;
             } catch (e) {
