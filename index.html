@@ -10622,7 +10622,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1336</span>
+                <span id="appVersion">v1.0.1337</span>
             </a>
         </div>
 
@@ -18670,18 +18670,20 @@
     </div>
 
 
-    <button onclick="window.scrollTo({top:0,behavior:'smooth'})"
-        style="position: fixed; bottom: 10px; right: 230px; background-color: hsl(226, 70%, 55%); color: white; border: none; padding: 10px 20px; border-radius: 100px; cursor: pointer; z-index: 1000; font-size:1.2em;box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.7);">
-        <i class="fas fa-arrow-up"></i>
-    </button>
-    <button id="cleanup-button" onclick="clearPageState()"
-        style="position: fixed; bottom: 10px; right: 80px; background-color: hsl(0, 71%, 49%); color: white; border: none; padding: 10px 20px; border-radius: 100px; cursor: pointer; z-index: 1000; font-size:1.2em;box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.7);">
-        Clear Data <i class="fas fa-trash-alt" style="margin-left: 10px;"></i>
-    </button>
-    <button id="chatbot-button"
-        style="position: fixed; bottom: 10px; right: 10px; background-color: hsl(118, 40%, 43%); color: white; border: none; padding: 10px 20px; border-radius: 100px; cursor: pointer; z-index: 1000; font-size:1.2em;box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.7);">
-        <i class="fas fa-comment-dots"></i>
-    </button>
+    <div style="position:fixed;bottom:10px;right:10px;z-index:1000;display:flex;align-items:center;gap:10px;">
+        <button onclick="window.scrollTo({top:0,behavior:'smooth'})"
+            style="background-color:hsl(226,70%,55%);color:white;border:none;padding:10px 20px;border-radius:100px;cursor:pointer;font-size:1.2em;box-shadow:0 4px 10px rgba(0,0,0,0.7);">
+            <i class="fas fa-arrow-up"></i>
+        </button>
+        <button id="cleanup-button" onclick="clearPageState()"
+            style="background-color:hsl(0,71%,49%);color:white;border:none;padding:10px 20px;border-radius:100px;cursor:pointer;font-size:1.2em;box-shadow:0 4px 10px rgba(0,0,0,0.7);">
+            Clear Data <i class="fas fa-trash-alt" style="margin-left:8px;"></i>
+        </button>
+        <button id="chatbot-button"
+            style="background-color:hsl(118,40%,43%);color:white;border:none;padding:10px 20px;border-radius:100px;cursor:pointer;font-size:1.2em;box-shadow:0 4px 10px rgba(0,0,0,0.7);">
+            <i class="fas fa-comment-dots"></i>
+        </button>
+    </div>
     </div>
 
     <script id="local-business-template" type="text/x-handlebars-template">
@@ -65589,10 +65591,22 @@ Move-In</h3>
             event.stopPropagation();
             const target = document.getElementById(sectionId);
             if (!target) return;
+
+            // If the target lives inside a hidden main section, reveal that section first
+            const mainSections = ['seoSection','smmSection','semSection','geoSection','othersSection','adminSection','cockpitSection'];
+            const mainBtnMap   = { seoSection: 'seo', smmSection: 'smm', semSection: 'semButton', geoSection: 'geoMainBtn', othersSection: 'othersMainBtn' };
+            let ancestor = target.parentElement;
+            while (ancestor && ancestor !== document.body) {
+                if (mainSections.includes(ancestor.id) && ancestor.style.display === 'none') {
+                    showMainSection(ancestor.id, mainBtnMap[ancestor.id] || null, true);
+                    break;
+                }
+                ancestor = ancestor.parentElement;
+            }
+
             // If toggled off, re-activate it (find its card and toggle back on)
             if (target.style.display === 'none') {
                 target.style.display = '';
-                // Re-activate the card that owns this section
                 const card = document.querySelector(
                     `#advancedModeCardsContainer .basic-selector-card[onclick*="${sectionId}"]`
                 );
@@ -65610,7 +65624,7 @@ Move-In</h3>
                 const offset = 80;
                 const top = target.getBoundingClientRect().top + window.scrollY - offset;
                 window.scrollTo({ top, behavior: 'smooth' });
-            }, 50);
+            }, 100);
         }
 
         function injectScrollButtons(containerSelector, getScrollAttr) {
