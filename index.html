@@ -10912,6 +10912,10 @@
                     style="display: none; background: none; border: none; font-size: 1.1rem; font-weight: 600; color: #64748b; cursor: pointer; padding: 10px 20px; border-bottom: 3px solid transparent; transition: all 0.2s;">
                     <i class="fas fa-hdd"></i> Synology NAS
                 </button>
+                <button onclick="switchAdminTab('logs')" id="tabBtnLogs" class="admin-tab-btn"
+                    style="background: none; border: none; font-size: 1.1rem; font-weight: 600; color: #64748b; cursor: pointer; padding: 10px 20px; border-bottom: 3px solid transparent; transition: all 0.2s; margin-left: auto;">
+                    <i class="fas fa-chart-bar"></i> Usage Logs
+                </button>
             </div>
 
             <!-- Google Chat Panel -->
@@ -11175,6 +11179,40 @@
                     </div>
                 </div>
             </div> <!-- End Synology Panel -->
+
+            <!-- Usage Logs Panel -->
+            <div id="adminPanelLogs" style="display: none;">
+
+                <!-- Sub-view navigation -->
+                <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 28px; border-bottom: 2px solid #e2e8f0; padding-bottom: 0;">
+                    <button onclick="switchLogsView('overview')" id="logTabOverview"
+                        style="background:none;border:none;border-bottom:3px solid #2563eb;padding:10px 20px;font-size:1rem;font-weight:600;color:#2563eb;cursor:pointer;margin-bottom:-2px;transition:all .2s;">
+                        <i class="fas fa-chart-pie"></i> Overview
+                    </button>
+                    <button onclick="switchLogsView('eventlog')" id="logTabEventlog"
+                        style="background:none;border:none;border-bottom:3px solid transparent;padding:10px 20px;font-size:1rem;font-weight:600;color:#64748b;cursor:pointer;margin-bottom:-2px;transition:all .2s;">
+                        <i class="fas fa-list-alt"></i> Event Log
+                    </button>
+                    <button onclick="switchLogsView('teams')" id="logTabTeams"
+                        style="background:none;border:none;border-bottom:3px solid transparent;padding:10px 20px;font-size:1rem;font-weight:600;color:#64748b;cursor:pointer;margin-bottom:-2px;transition:all .2s;">
+                        <i class="fas fa-users-cog"></i> Manage Teams
+                    </button>
+                    <div style="flex: 1;"></div>
+                    <button onclick="exportToolLogs()" class="discovery-btn-secondary" style="padding:7px 14px;font-size:13px;margin-bottom:6px;">
+                        <i class="fas fa-download"></i> Export CSV
+                    </button>
+                    <button onclick="if(confirm('Clear all logs?')){window._toolLogger.clearLogs();}" class="discovery-btn-secondary"
+                        style="padding:7px 14px;font-size:13px;color:#ef4444;border-color:#fca5a5;margin-bottom:6px;margin-left:6px;">
+                        <i class="fas fa-trash"></i> Clear
+                    </button>
+                </div>
+
+                <!-- Sub-view containers (filled by JS) -->
+                <div id="logsViewOverview"></div>
+                <div id="logsViewEventlog" style="display: none;"></div>
+                <div id="logsViewTeams" style="display: none;"></div>
+
+            </div> <!-- End Usage Logs Panel -->
 
             <!-- Log Section -->
             <div id="adminLogSection" class="premium-table-wrapper"
@@ -28146,6 +28184,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             document.getElementById('adminPanelGoogle').style.display = 'none';
             document.getElementById('adminPanelMonday').style.display = 'none';
             document.getElementById('adminPanelSynology').style.display = 'none';
+            document.getElementById('adminPanelLogs').style.display = 'none';
 
             if (platform === 'google') {
                 document.getElementById('tabBtnGoogle').classList.add('active');
@@ -28163,6 +28202,12 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 document.getElementById('tabBtnSynology').style.color = '#2563eb';
                 document.getElementById('tabBtnSynology').style.borderBottomColor = '#2563eb';
                 document.getElementById('adminPanelSynology').style.display = 'block';
+            } else if (platform === 'logs') {
+                document.getElementById('tabBtnLogs').classList.add('active');
+                document.getElementById('tabBtnLogs').style.color = '#2563eb';
+                document.getElementById('tabBtnLogs').style.borderBottomColor = '#2563eb';
+                document.getElementById('adminPanelLogs').style.display = 'block';
+                renderLogsPanel();
             }
         }
 
@@ -66773,6 +66818,586 @@ Move-In</h3>
                 if (el) seoContent.appendChild(el);
             });
         })();
+    </script>
+
+    <script>
+        // ============================================================
+        // Tool Usage & Error Logger (v2 — user + team tracking)
+        // ============================================================
+        (function initToolLogger() {
+            const STORAGE_KEY = 'digimetricsToolLogs';
+            const MAX_LOGS = 1000;
+
+            const URL_TO_TOOL = {
+                'seoContentAnalysisScore': { tool: 'On-Page Optimisation',         category: 'SEO' },
+                'aiOptimiser':             { tool: 'AI Content Optimiser',          category: 'SEO' },
+                'keywordFrequency':        { tool: 'Keyword Analysis',              category: 'SEO' },
+                'plagarismCheck':          { tool: 'Content Check',                 category: 'Others' },
+                'altTextGenerator':        { tool: 'On-Page Optimisation',          category: 'SEO' },
+                'gscIntegration':          { tool: 'Google Search Console',         category: 'Others' },
+                'complianceRecommender':   { tool: 'Technical SEO',                 category: 'SEO' },
+                'pageDesignAnalysis':      { tool: 'Landing Page Audit',            category: 'Others' },
+                'aiTopicPicker':           { tool: 'Digimetrics Strategy Engine',   category: 'SEO' },
+                'keywordFilter':           { tool: 'Keyword Analysis',              category: 'SEO' },
+                'deepContentCompare':      { tool: 'Competitors Identifier',        category: 'SEO' },
+                'discoverySerpCrawl':      { tool: 'AI Discovery Audit',            category: 'GEO' },
+                'geoOnPageAnalysis':       { tool: 'GEO On-Page Optimisation',      category: 'GEO' },
+                'socialMediaStrategy':     { tool: 'Social Media Strategy House',   category: 'SMM' },
+                'contentPillar':           { tool: 'Content Pillar Framework',      category: 'SMM' },
+                'anchorText':              { tool: 'Internal Anchor Text Cleaner',  category: 'SEO' },
+                '/monday':                 { tool: 'Monday.com',                    category: 'Admin' },
+                'seranking':               { tool: 'Rank Checker',                  category: 'SEO' },
+                'dataforseo':              { tool: 'Technical SEO',                 category: 'SEO' },
+                'googleapis.com/oauth':    { tool: 'Google Auth',                   category: 'Admin' },
+                'googleapis.com':          { tool: 'Google APIs',                   category: 'Others' },
+            };
+
+            const BTN_TO_TOOL = {
+                'btnRunBulkAdd':               { tool: 'Google Chat Admin',           category: 'Admin' },
+                'btnRunBulkRemove':            { tool: 'Google Chat Admin',           category: 'Admin' },
+                'btnMondayBulkAdd':            { tool: 'Monday.com Admin',            category: 'Admin' },
+                'btnMondayBulkRemove':         { tool: 'Monday.com Admin',            category: 'Admin' },
+                'btnRunAnalysisFromTopics':    { tool: 'Competitors Identifier',      category: 'SEO' },
+                'btnRunGapAnalysisFromTopics': { tool: 'Competitors Identifier',      category: 'SEO' },
+                'btnRunSeoAnalysis':           { tool: 'On-Page Optimisation',        category: 'SEO' },
+                'strat-quick-generate-btn':    { tool: 'Digimetrics Strategy Engine', category: 'SEO' },
+                'runStrategyBtn':              { tool: 'Digimetrics Strategy Engine', category: 'SEO' },
+                'btnRunAdsDiagnostics':        { tool: 'Google Ads',                  category: 'SEM' },
+                'btnRunGa4Audit':              { tool: 'Google Analytics 4',          category: 'SEM' },
+                'btnCreateSynoUser':           { tool: 'Synology NAS',                category: 'Admin' },
+                'btnConnectAdmin':             { tool: 'Google Chat Admin',           category: 'Admin' },
+                'getImagesBtn':                { tool: 'On-Page Optimisation',        category: 'SEO' },
+                'btnRunSmartLinkingToolbar':   { tool: 'Internal Anchor Text Cleaner',category: 'SEO' },
+            };
+
+            const SKIP_TEXTS = new Set(['Open', 'Expand', 'All', 'None', 'Refresh', 'Cancel', 'Close', 'Copy', 'Connect Google', 'Clear']);
+
+            function getCurrentUser() {
+                try {
+                    const u = JSON.parse(localStorage.getItem('googleUser') || 'null');
+                    return { userName: u?.name || 'Unknown', userEmail: u?.email || 'unknown' };
+                } catch (e) { return { userName: 'Unknown', userEmail: 'unknown' }; }
+            }
+
+            function getLogs() {
+                try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+                catch (e) { return []; }
+            }
+
+            function saveLogs(logs) {
+                try { localStorage.setItem(STORAGE_KEY, JSON.stringify(logs.slice(-MAX_LOGS))); }
+                catch (e) {}
+            }
+
+            function addLog(entry) {
+                const user = getCurrentUser();
+                const logs = getLogs();
+                logs.push({ ...entry, ...user, id: Date.now() + '-' + Math.random().toString(36).slice(2, 7) });
+                saveLogs(logs);
+                const panel = document.getElementById('adminPanelLogs');
+                if (panel && panel.style.display !== 'none') renderLogsPanel();
+            }
+
+            function resolveUrl(url) {
+                for (const [pat, meta] of Object.entries(URL_TO_TOOL)) {
+                    if (url.includes(pat)) return meta;
+                }
+                return null;
+            }
+
+            // ── Wrap window.fetch
+            const _origFetch = window.fetch;
+            window.fetch = async function(input, init) {
+                const url = (typeof input === 'string' ? input : input?.url) || '';
+                const isExternal = url.startsWith('http') || url.startsWith('//');
+                if (!isExternal) return _origFetch.apply(this, arguments);
+                const meta = resolveUrl(url);
+                if (!meta) return _origFetch.apply(this, arguments);
+
+                let action = 'fetch';
+                try {
+                    const body = init?.body ? JSON.parse(init.body) : null;
+                    if (body?.action) action = body.action;
+                    else if (body?.query && body.query.trim().startsWith('mutation')) action = 'mutation';
+                    else if (body?.query) action = 'query';
+                } catch (e) {}
+
+                const t0 = Date.now();
+                try {
+                    const resp = await _origFetch.apply(this, arguments);
+                    addLog({ ts: new Date().toISOString(), type: resp.ok ? 'api' : 'error',
+                        tool: meta.tool, category: meta.category, action,
+                        status: resp.ok ? 'success' : 'error',
+                        details: `HTTP ${resp.status}${resp.ok ? '' : ' ' + resp.statusText}`,
+                        duration: Date.now() - t0 });
+                    return resp;
+                } catch (err) {
+                    addLog({ ts: new Date().toISOString(), type: 'error',
+                        tool: meta.tool, category: meta.category, action,
+                        status: 'error', details: err.message, duration: Date.now() - t0 });
+                    throw err;
+                }
+            };
+
+            // ── Track button clicks
+            function toolFromButton(btn) {
+                if (btn.id && BTN_TO_TOOL[btn.id]) return BTN_TO_TOOL[btn.id];
+                if (typeof toolsList !== 'undefined') {
+                    let el = btn.parentElement;
+                    while (el && el !== document.body) {
+                        if (el.id) {
+                            const match = toolsList.find(t => t.collapsible === el.id || (t.section === el.id && t.category !== 'Admin'));
+                            if (match) return { tool: match.name, category: match.category };
+                        }
+                        el = el.parentElement;
+                    }
+                }
+                return { tool: btn.textContent.replace(/\s+/g,' ').trim().substring(0,40) || 'Unknown', category: 'Other' };
+            }
+
+            document.addEventListener('click', function(e) {
+                const btn = e.target.closest('.discovery-btn-run, .btn-gradient, .btn-sidebar, [id^="btnRun"]');
+                if (!btn) return;
+                if (btn.closest('#adminPanelLogs')) return;
+                const txt = btn.textContent.replace(/\s+/g,' ').trim();
+                if (SKIP_TEXTS.has(txt)) return;
+                if (btn.tagName === 'A' && btn.getAttribute('target') === '_blank') return;
+                const meta = toolFromButton(btn);
+                addLog({ ts: new Date().toISOString(), type: 'usage',
+                    tool: meta.tool, category: meta.category,
+                    action: txt.substring(0, 60), status: 'invoked', details: '', duration: null });
+            }, true);
+
+            // ── Intercept console.error
+            const _origConsoleError = console.error;
+            console.error = function(...args) {
+                _origConsoleError.apply(console, args);
+                const msg = args.map(a => { try { return typeof a === 'object' ? JSON.stringify(a) : String(a); } catch(e) { return String(a); } }).join(' ').substring(0, 300);
+                addLog({ ts: new Date().toISOString(), type: 'error', tool: 'JavaScript', category: 'System', action: 'console.error', status: 'error', details: msg, duration: null });
+            };
+
+            window.addEventListener('unhandledrejection', function(e) {
+                const msg = (e.reason?.message || String(e.reason) || 'Unhandled Promise Rejection').substring(0, 300);
+                addLog({ ts: new Date().toISOString(), type: 'error', tool: 'JavaScript', category: 'System', action: 'unhandledRejection', status: 'error', details: msg, duration: null });
+            });
+
+            window._toolLogger = {
+                getLogs,
+                addLog,
+                clearLogs: function() { localStorage.removeItem(STORAGE_KEY); renderLogsPanel(); },
+            };
+        })();
+
+        // ── Team management
+        const TEAMS_KEY = 'digimetricsTeams';
+
+        function getTeams() {
+            try { return JSON.parse(localStorage.getItem(TEAMS_KEY) || '[]'); }
+            catch (e) { return []; }
+        }
+
+        function saveTeams(teams) {
+            localStorage.setItem(TEAMS_KEY, JSON.stringify(teams));
+        }
+
+        function getTeamForEmail(email) {
+            if (!email || email === 'unknown') return '—';
+            const t = getTeams().find(t => t.emails.some(e => e.trim().toLowerCase() === email.toLowerCase()));
+            return t ? t.name : '—';
+        }
+
+        // ── Sub-view switcher
+        let activeLogsView = 'overview';
+
+        function switchLogsView(view) {
+            activeLogsView = view;
+            ['overview', 'eventlog', 'teams'].forEach(v => {
+                const el  = document.getElementById('logsView' + v.charAt(0).toUpperCase() + v.slice(1));
+                const tab = document.getElementById('logTab'  + v.charAt(0).toUpperCase() + v.slice(1));
+                if (el)  el.style.display = (v === view) ? '' : 'none';
+                if (tab) { tab.style.color = v === view ? '#2563eb' : '#64748b'; tab.style.borderBottomColor = v === view ? '#2563eb' : 'transparent'; }
+            });
+            renderLogsPanel();
+        }
+
+        function renderLogsPanel() {
+            if (activeLogsView === 'overview') renderLogsOverview();
+            else if (activeLogsView === 'eventlog') renderLogsEventLog();
+            else if (activeLogsView === 'teams') renderTeamsManager();
+        }
+
+        // ── Overview sub-view
+        function renderLogsOverview() {
+            const el = document.getElementById('logsViewOverview');
+            if (!el) return;
+            const logs = window._toolLogger ? window._toolLogger.getLogs() : [];
+
+            const total      = logs.length;
+            const errors     = logs.filter(l => l.type === 'error').length;
+            const errRate    = total ? Math.round(errors / total * 100) : 0;
+            const uniqueUsers = new Set(logs.map(l => l.userEmail).filter(e => e && e !== 'unknown')).size;
+            const toolCounts = {};
+            logs.forEach(l => { if (l.tool && l.type !== 'error') toolCounts[l.tool] = (toolCounts[l.tool] || 0) + 1; });
+            const topTool    = Object.entries(toolCounts).sort((a,b) => b[1]-a[1])[0];
+
+            const userMap = {};
+            logs.forEach(l => {
+                if (!l.userEmail) return;
+                if (!userMap[l.userEmail]) userMap[l.userEmail] = { name: l.userName||l.userEmail, email: l.userEmail, events: 0, errors: 0, tools: {}, lastTs: '' };
+                userMap[l.userEmail].events++;
+                if (l.type === 'error') userMap[l.userEmail].errors++;
+                if (l.tool) userMap[l.userEmail].tools[l.tool] = (userMap[l.userEmail].tools[l.tool]||0) + 1;
+                if (!userMap[l.userEmail].lastTs || l.ts > userMap[l.userEmail].lastTs) userMap[l.userEmail].lastTs = l.ts;
+            });
+
+            const teamMap = {};
+            getTeams().forEach(t => { teamMap[t.name] = { name: t.name, definedMembers: t.emails.length, events: 0, errors: 0, tools: {}, activeUsers: new Set(), lastTs: '' }; });
+            teamMap['Unassigned'] = { name: 'Unassigned', definedMembers: 0, events: 0, errors: 0, tools: {}, activeUsers: new Set(), lastTs: '' };
+            logs.forEach(l => {
+                if (!l.userEmail) return;
+                const team   = getTeamForEmail(l.userEmail);
+                const bucket = team === '—' ? 'Unassigned' : team;
+                if (!teamMap[bucket]) teamMap[bucket] = { name: bucket, definedMembers: 0, events: 0, errors: 0, tools: {}, activeUsers: new Set(), lastTs: '' };
+                teamMap[bucket].events++;
+                if (l.type === 'error') teamMap[bucket].errors++;
+                if (l.tool) teamMap[bucket].tools[l.tool] = (teamMap[bucket].tools[l.tool]||0) + 1;
+                teamMap[bucket].activeUsers.add(l.userEmail);
+                if (!teamMap[bucket].lastTs || l.ts > teamMap[bucket].lastTs) teamMap[bucket].lastTs = l.ts;
+            });
+
+            const statCards = [
+                { label: 'Total Events',  value: total,                    icon: 'fa-database',              color: '#2563eb' },
+                { label: 'Errors',        value: `${errors} (${errRate}%)`, icon: 'fa-exclamation-triangle', color: errors > 0 ? '#ef4444' : '#10b981' },
+                { label: 'Active Users',  value: uniqueUsers,              icon: 'fa-users',                  color: '#8b5cf6' },
+                { label: 'Most Used',     value: topTool ? `${topTool[0]} (${topTool[1]}×)` : '—', icon: 'fa-star', color: '#f59e0b' },
+            ].map(c => `
+                <div class="premium-table-wrapper" style="padding:20px;background:white;display:flex;align-items:center;gap:14px;">
+                    <div style="width:40px;height:40px;border-radius:10px;background:${c.color}1a;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <i class="fas ${c.icon}" style="color:${c.color};font-size:16px;"></i>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">${c.label}</div>
+                        <div style="font-size:18px;font-weight:700;color:#1e293b;margin-top:2px;word-break:break-word;">${c.value}</div>
+                    </div>
+                </div>`).join('');
+
+            const TH = (t) => `<th style="padding:10px 16px;text-align:${t.align||'left'};color:#64748b;font-weight:600;">${t.label}</th>`;
+
+            const teamRows = Object.values(teamMap).filter(t => t.events > 0 || t.name !== 'Unassigned').sort((a,b) => b.events - a.events);
+            const teamTable = teamRows.length ? `
+                <div class="premium-table-wrapper" style="padding:0;overflow:hidden;margin-bottom:24px;">
+                    <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:8px;">
+                        <i class="fas fa-layer-group" style="color:#8b5cf6;"></i>
+                        <span style="font-weight:700;color:#1e293b;">By Team</span>
+                    </div>
+                    <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">
+                        <thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
+                            ${[{label:'Team'},{label:'Active / Defined',align:'center'},{label:'Events',align:'center'},{label:'Errors',align:'center'},{label:'Top Tool'},{label:'Last Active'}].map(TH).join('')}
+                        </tr></thead>
+                        <tbody>${teamRows.map((t,i) => {
+                            const top = Object.entries(t.tools).sort((a,b)=>b[1]-a[1])[0];
+                            return `<tr style="${i%2?'background:#f8fafc;':''}border-bottom:1px solid #f1f5f9;">
+                                <td style="padding:10px 16px;font-weight:600;color:#1e293b;">${escHtml(t.name)}</td>
+                                <td style="padding:10px 16px;text-align:center;color:#64748b;">${t.activeUsers.size} / ${t.definedMembers||t.activeUsers.size}</td>
+                                <td style="padding:10px 16px;text-align:center;font-weight:600;color:#2563eb;">${t.events}</td>
+                                <td style="padding:10px 16px;text-align:center;font-weight:600;color:${t.errors>0?'#ef4444':'#10b981'};">${t.errors}</td>
+                                <td style="padding:10px 16px;color:#475569;">${top ? escHtml(top[0])+` (${top[1]}×)` : '—'}</td>
+                                <td style="padding:10px 16px;color:#94a3b8;font-size:12px;">${t.lastTs ? new Date(t.lastTs).toLocaleString() : '—'}</td>
+                            </tr>`;
+                        }).join('')}</tbody>
+                    </table></div>
+                </div>` : '';
+
+            const userRows = Object.values(userMap).sort((a,b) => b.events - a.events);
+            const userTable = userRows.length ? `
+                <div class="premium-table-wrapper" style="padding:0;overflow:hidden;">
+                    <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:8px;">
+                        <i class="fas fa-user-circle" style="color:#2563eb;"></i>
+                        <span style="font-weight:700;color:#1e293b;">By User</span>
+                    </div>
+                    <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">
+                        <thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
+                            ${[{label:'User'},{label:'Team'},{label:'Events',align:'center'},{label:'Errors',align:'center'},{label:'Top Tool'},{label:'Last Active'}].map(TH).join('')}
+                        </tr></thead>
+                        <tbody>${userRows.map((u,i) => {
+                            const top  = Object.entries(u.tools).sort((a,b)=>b[1]-a[1])[0];
+                            const team = getTeamForEmail(u.email);
+                            return `<tr style="${i%2?'background:#f8fafc;':''}border-bottom:1px solid #f1f5f9;">
+                                <td style="padding:10px 16px;">
+                                    <div style="font-weight:600;color:#1e293b;">${escHtml(u.name)}</div>
+                                    <div style="font-size:11px;color:#94a3b8;">${escHtml(u.email)}</div>
+                                </td>
+                                <td style="padding:10px 16px;color:#64748b;">${team !== '—' ? `<span style="padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:#ede9fe;color:#5b21b6;">${escHtml(team)}</span>` : '—'}</td>
+                                <td style="padding:10px 16px;text-align:center;font-weight:600;color:#2563eb;">${u.events}</td>
+                                <td style="padding:10px 16px;text-align:center;font-weight:600;color:${u.errors>0?'#ef4444':'#10b981'};">${u.errors}</td>
+                                <td style="padding:10px 16px;color:#475569;">${top ? escHtml(top[0])+` (${top[1]}×)` : '—'}</td>
+                                <td style="padding:10px 16px;color:#94a3b8;font-size:12px;">${u.lastTs ? new Date(u.lastTs).toLocaleString() : '—'}</td>
+                            </tr>`;
+                        }).join('')}</tbody>
+                    </table></div>
+                </div>` : '<div style="padding:40px;text-align:center;color:#94a3b8;">No user activity logged yet.</div>';
+
+            el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">${statCards}</div>${teamTable}${userTable}`;
+        }
+
+        // ── Event Log sub-view
+        function renderLogsEventLog() {
+            const el = document.getElementById('logsViewEventlog');
+            if (!el) return;
+
+            if (!el.querySelector('#logsSearchInput')) {
+                const teams = getTeams();
+                const teamOpts = ['<option value="all">All Teams</option>', '<option value="—">Unassigned</option>']
+                    .concat(teams.map(t => `<option value="${escHtml(t.name)}">${escHtml(t.name)}</option>`)).join('');
+                el.innerHTML = `
+                    <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
+                        <div style="position:relative;flex:1;min-width:200px;">
+                            <i class="fas fa-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:13px;"></i>
+                            <input type="text" id="logsSearchInput" placeholder="Search tool, user, action, details…"
+                                oninput="renderLogsEventLog()"
+                                style="width:100%;padding:8px 10px 8px 32px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;box-sizing:border-box;outline:none;">
+                        </div>
+                        <select id="logsTypeFilter" onchange="renderLogsEventLog()"
+                            style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;background:white;cursor:pointer;">
+                            <option value="all">All Events</option>
+                            <option value="usage">Usage Only</option>
+                            <option value="api">API Calls</option>
+                            <option value="error">Errors Only</option>
+                        </select>
+                        <select id="logsCategoryFilter" onchange="renderLogsEventLog()"
+                            style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;background:white;cursor:pointer;">
+                            <option value="all">All Categories</option>
+                            <option value="SEO">SEO</option>
+                            <option value="SMM">SMM</option>
+                            <option value="GEO">GEO</option>
+                            <option value="SEM">SEM</option>
+                            <option value="Others">Others</option>
+                            <option value="Admin">Admin</option>
+                            <option value="System">System</option>
+                        </select>
+                        <select id="logsTeamFilter" onchange="renderLogsEventLog()"
+                            style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;background:white;cursor:pointer;">${teamOpts}
+                        </select>
+                        <select id="logsGroupBy" onchange="renderLogsEventLog()"
+                            style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;background:white;cursor:pointer;">
+                            <option value="none">No Grouping</option>
+                            <option value="user">Group by User</option>
+                            <option value="team">Group by Team</option>
+                            <option value="tool">Group by Tool</option>
+                        </select>
+                    </div>
+                    <div id="logsTableContainer"></div>`;
+            }
+
+            const allLogs    = window._toolLogger ? window._toolLogger.getLogs() : [];
+            const typeFilter = document.getElementById('logsTypeFilter')?.value     || 'all';
+            const catFilter  = document.getElementById('logsCategoryFilter')?.value || 'all';
+            const teamFilter = document.getElementById('logsTeamFilter')?.value     || 'all';
+            const groupBy    = document.getElementById('logsGroupBy')?.value        || 'none';
+            const search     = (document.getElementById('logsSearchInput')?.value   || '').toLowerCase();
+
+            let rows = allLogs.filter(l => {
+                if (typeFilter !== 'all' && l.type !== typeFilter) return false;
+                if (catFilter  !== 'all' && l.category !== catFilter) return false;
+                if (teamFilter !== 'all') {
+                    const t = getTeamForEmail(l.userEmail);
+                    if (teamFilter === '—' && t !== '—') return false;
+                    if (teamFilter !== '—' && t !== teamFilter) return false;
+                }
+                if (search && ![l.tool, l.action, l.details, l.category, l.userName, l.userEmail].some(s => (s||'').toLowerCase().includes(search))) return false;
+                return true;
+            }).slice().reverse().slice(0, 500);
+
+            const TYPE_BADGE = {
+                usage: '<span style="padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:#dbeafe;color:#1e40af;">Usage</span>',
+                api:   '<span style="padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:#d1fae5;color:#065f46;">API</span>',
+                error: '<span style="padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:#fee2e2;color:#991b1b;">Error</span>',
+            };
+            const STATUS_BADGE = {
+                success: '<span style="color:#10b981;font-weight:600;">✓ Success</span>',
+                invoked: '<span style="color:#2563eb;font-weight:600;">→ Invoked</span>',
+                error:   '<span style="color:#ef4444;font-weight:600;">✕ Error</span>',
+            };
+
+            const thead = `<thead><tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
+                <th style="padding:12px 16px;text-align:left;color:#64748b;font-weight:600;white-space:nowrap;">Time</th>
+                <th style="padding:12px 16px;text-align:left;color:#64748b;font-weight:600;">User</th>
+                <th style="padding:12px 16px;text-align:left;color:#64748b;font-weight:600;">Tool</th>
+                <th style="padding:12px 16px;text-align:left;color:#64748b;font-weight:600;">Category</th>
+                <th style="padding:12px 16px;text-align:left;color:#64748b;font-weight:600;">Type</th>
+                <th style="padding:12px 16px;text-align:left;color:#64748b;font-weight:600;">Status</th>
+                <th style="padding:12px 16px;text-align:left;color:#64748b;font-weight:600;">Action / Details</th>
+                <th style="padding:12px 16px;text-align:right;color:#64748b;font-weight:600;white-space:nowrap;">Duration</th>
+            </tr></thead>`;
+
+            function makeRow(l, i) {
+                const t       = new Date(l.ts);
+                const time    = t.toLocaleDateString() + ' ' + t.toLocaleTimeString();
+                const details = [l.action, l.details].filter(Boolean).join(' — ');
+                const dur     = l.duration != null ? `${l.duration}ms` : '—';
+                const bg      = l.type === 'error' ? 'background:#fff5f5;' : (i%2 ? 'background:#f8fafc;' : '');
+                const team    = getTeamForEmail(l.userEmail);
+                return `<tr style="${bg}border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:10px 16px;color:#64748b;font-size:12px;white-space:nowrap;">${time}</td>
+                    <td style="padding:10px 16px;">
+                        <div style="font-weight:600;color:#1e293b;">${escHtml(l.userName||'Unknown')}</div>
+                        <div style="font-size:11px;color:#94a3b8;">${escHtml(l.userEmail||'')}${team!=='—'?` · <span style="color:#8b5cf6;">${escHtml(team)}</span>`:''}</div>
+                    </td>
+                    <td style="padding:10px 16px;font-weight:600;color:#1e293b;">${escHtml(l.tool)}</td>
+                    <td style="padding:10px 16px;color:#64748b;">${escHtml(l.category||'')}</td>
+                    <td style="padding:10px 16px;">${TYPE_BADGE[l.type]||l.type}</td>
+                    <td style="padding:10px 16px;">${STATUS_BADGE[l.status]||l.status}</td>
+                    <td style="padding:10px 16px;color:#475569;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(details)}">${escHtml(details)}</td>
+                    <td style="padding:10px 16px;color:#94a3b8;text-align:right;font-size:12px;">${dur}</td>
+                </tr>`;
+            }
+
+            const container = document.getElementById('logsTableContainer');
+            if (!container) return;
+
+            if (!rows.length) {
+                container.innerHTML = '<div class="premium-table-wrapper" style="padding:40px;text-align:center;color:#94a3b8;">No matching log entries.</div>';
+                return;
+            }
+
+            if (groupBy === 'none') {
+                container.innerHTML = `<div class="premium-table-wrapper" style="padding:0;overflow:hidden;"><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">${thead}<tbody>${rows.map(makeRow).join('')}</tbody></table></div></div>`;
+                return;
+            }
+
+            function groupKey(l)   { return groupBy === 'user' ? (l.userEmail||'unknown') : groupBy === 'team' ? getTeamForEmail(l.userEmail) : (l.tool||'Unknown'); }
+            function groupLabel(l) {
+                if (groupBy === 'user') return `${escHtml(l.userName||'Unknown')} <span style="font-weight:400;color:#94a3b8;font-size:12px;">(${escHtml(l.userEmail||'')})</span>`;
+                if (groupBy === 'team') { const t = getTeamForEmail(l.userEmail); return `<span style="padding:2px 10px;border-radius:12px;background:#ede9fe;color:#5b21b6;">${escHtml(t)}</span>`; }
+                return escHtml(l.tool||'Unknown');
+            }
+            const groups = {};
+            rows.forEach(l => { const k = groupKey(l); if (!groups[k]) groups[k] = { label: groupLabel(l), items: [] }; groups[k].items.push(l); });
+            container.innerHTML = Object.values(groups).map(g => `
+                <div class="premium-table-wrapper" style="padding:0;overflow:hidden;margin-bottom:16px;">
+                    <div style="padding:12px 20px;background:#f8fafc;border-bottom:2px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;">
+                        <span style="font-weight:700;color:#1e293b;font-size:14px;">${g.label}</span>
+                        <span style="font-size:12px;color:#64748b;">${g.items.length} event${g.items.length!==1?'s':''}</span>
+                    </div>
+                    <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">${thead}<tbody>${g.items.map(makeRow).join('')}</tbody></table></div>
+                </div>`).join('');
+        }
+
+        // ── Teams Manager sub-view
+        function renderTeamsManager() {
+            const el = document.getElementById('logsViewTeams');
+            if (!el) return;
+            const teams = getTeams();
+            el.innerHTML = `
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;">
+                    <div class="premium-table-wrapper" style="padding:24px;background:white;">
+                        <h3 style="margin:0 0 16px;color:#1e293b;font-size:1rem;display:flex;align-items:center;gap:8px;">
+                            <i class="fas fa-plus-circle" style="color:#2563eb;"></i> Add New Team
+                        </h3>
+                        <div style="display:flex;flex-direction:column;gap:12px;">
+                            <input type="text" id="newTeamName" placeholder="Team name (e.g. SEO Team)"
+                                style="padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;outline:none;">
+                            <textarea id="newTeamEmails" placeholder="Member emails — one per line or comma-separated"
+                                style="padding:10px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;min-height:110px;outline:none;resize:vertical;"></textarea>
+                            <button onclick="addTeam()" class="discovery-btn-run" style="align-self:flex-start;">
+                                <i class="fas fa-plus"></i> Add Team
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        ${teams.length === 0
+                            ? '<div class="premium-table-wrapper" style="padding:40px;text-align:center;color:#94a3b8;">No teams yet. Add your first team on the left.</div>'
+                            : teams.map(t => `
+                                <div class="premium-table-wrapper" style="padding:16px 20px;background:white;margin-bottom:12px;display:flex;align-items:flex-start;gap:12px;">
+                                    <div style="width:36px;height:36px;border-radius:10px;background:#8b5cf61a;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">
+                                        <i class="fas fa-users" style="color:#8b5cf6;font-size:14px;"></i>
+                                    </div>
+                                    <div style="flex:1;min-width:0;">
+                                        <div style="font-weight:700;color:#1e293b;margin-bottom:4px;">${escHtml(t.name)}</div>
+                                        <div style="font-size:12px;color:#64748b;line-height:1.6;">${t.emails.map(e=>escHtml(e.trim())).filter(Boolean).join('<br>')}</div>
+                                        <div style="font-size:11px;color:#94a3b8;margin-top:6px;">${t.emails.filter(e=>e.trim()).length} member${t.emails.filter(e=>e.trim()).length!==1?'s':''}</div>
+                                    </div>
+                                    <div style="display:flex;gap:6px;flex-shrink:0;">
+                                        <button onclick="editTeamPrompt('${escHtml(t.id)}')" class="discovery-btn-secondary" style="padding:5px 10px;font-size:12px;" title="Edit">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button onclick="deleteTeam('${escHtml(t.id)}')" class="discovery-btn-secondary" style="padding:5px 10px;font-size:12px;color:#ef4444;border-color:#fca5a5;" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>`).join('')
+                        }
+                    </div>
+                </div>`;
+        }
+
+        function addTeam() {
+            const name = document.getElementById('newTeamName')?.value.trim();
+            if (!name) { alert('Please enter a team name.'); return; }
+            const emails = (document.getElementById('newTeamEmails')?.value || '').split(/[\n,]/).map(e => e.trim()).filter(Boolean);
+            const teams  = getTeams();
+            teams.push({ id: 'team-' + Date.now(), name, emails });
+            saveTeams(teams);
+            renderTeamsManager();
+            const evEl = document.getElementById('logsViewEventlog');
+            if (evEl) evEl.innerHTML = ''; // force filter rebuild with new team
+        }
+
+        function deleteTeam(id) {
+            if (!confirm('Delete this team?')) return;
+            saveTeams(getTeams().filter(t => t.id !== id));
+            renderTeamsManager();
+            const evEl = document.getElementById('logsViewEventlog');
+            if (evEl) evEl.innerHTML = '';
+        }
+
+        function editTeamPrompt(id) {
+            const teams = getTeams();
+            const t = teams.find(t => t.id === id);
+            if (!t) return;
+            const newName   = prompt('Team name:', t.name);
+            if (!newName) return;
+            const newEmails = prompt('Member emails (comma-separated):', t.emails.join(', '));
+            if (newEmails === null) return;
+            t.name   = newName.trim();
+            t.emails = newEmails.split(/[\n,]/).map(e => e.trim()).filter(Boolean);
+            saveTeams(teams);
+            renderTeamsManager();
+            const evEl = document.getElementById('logsViewEventlog');
+            if (evEl) evEl.innerHTML = '';
+        }
+
+        function escHtml(s) {
+            return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        function exportToolLogs() {
+            if (!window._toolLogger) return;
+            const logs = window._toolLogger.getLogs();
+            const header = 'Timestamp,User Name,User Email,Team,Tool,Category,Type,Status,Action,Details,Duration (ms)';
+            const rows = logs.map(l => {
+                const team = getTeamForEmail(l.userEmail);
+                return [
+                    l.ts,
+                    `"${(l.userName||'').replace(/"/g,'""')}"`,
+                    l.userEmail || '',
+                    `"${(team==='—'?'Unassigned':team).replace(/"/g,'""')}"`,
+                    `"${(l.tool||'').replace(/"/g,'""')}"`,
+                    l.category || '',
+                    l.type || '',
+                    l.status || '',
+                    `"${(l.action||'').replace(/"/g,'""')}"`,
+                    `"${(l.details||'').replace(/"/g,'""')}"`,
+                    l.duration != null ? l.duration : '',
+                ].join(',');
+            });
+            const csv  = [header, ...rows].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const a    = document.createElement('a');
+            a.href     = URL.createObjectURL(blob);
+            a.download = `tool-logs-${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+        }
     </script>
 </body>
 
