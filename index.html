@@ -10381,7 +10381,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1263</span>
+                <span id="appVersion">v1.0.1264</span>
             </a>
         </div>
 
@@ -20270,8 +20270,8 @@
         // Column IDs confirmed from live board inspection (board 2845615047)
         const SEO_INTEL_COLS = {
             projectType:    'tags',              // tags — "seo", "sem", …
-            campaignStatus: 'status',            // SEO Campaign Status
-            campaignType:   'status',            // SEO Campaign Type — same column (Standard | Cluster | Special | Lived (PM) | Guarantee (SEO) | …)
+            campaignStatus: 'color1',            // SEO Campaign Status (Lived (PM) | Guarantee (SEO) | Renewed…)
+            campaignType:   'status',            // SEO Campaign Type  (Standard | Cluster | Special | Internal KPI | SaaS Standard)
             kpiKws:         'numbers3',          // SEO [Reg] KPI KWs  (Standard)
             p1Kws:          'numbers98',         // SEO [Reg] P1 KWs   (Standard)
             clusterKpi:     'numeric_mksrz985',  // SEO [Cluster] KPI  (Cluster)
@@ -20287,19 +20287,16 @@
             // [BD]Project Type text is "seo" or "seo, sem" etc.
             if (!txt(SEO_INTEL_COLS.projectType).toLowerCase().split(/[\s,]+/).includes('seo')) return null;
 
-            // SEO Campaign Status — only include specific active-delivery statuses
+            // SEO Campaign Status (color1) — filter to active-delivery statuses only
             const csmStatus = txt(SEO_INTEL_COLS.campaignStatus).toLowerCase();
-            const isAllowedStatus = ['lived (pm)', 'renewed no pause', 'guarantee (seo)', 'renewed (new timeline)'].some(s => csmStatus.includes(s));
-            // Also allow explicit type labels (Standard / Cluster / Special) that act as their own status
-            const isTypedLabel = ['standard', 'cluster', 'special', 'internal kpi'].some(s => csmStatus.includes(s));
-            if (!isAllowedStatus && !isTypedLabel) return null;
+            if (!['lived (pm)', 'renewed no pause', 'guarantee (seo)', 'renewed (new timeline)'].some(s => csmStatus.includes(s))) return null;
 
-            // SEO Campaign Type — explicit label only; no fallback assumption
-            const campTypeRaw = csmStatus;
+            // SEO Campaign Type (status) — explicit label; no fallback assumption
+            const campTypeRaw = txt(SEO_INTEL_COLS.campaignType).toLowerCase();
             const isStandard = campTypeRaw.includes('standard') || campTypeRaw.includes('internal kpi');
             const isCluster  = campTypeRaw.includes('cluster');
             const isSpecial  = campTypeRaw.includes('special');
-            const isUntyped  = isAllowedStatus && !isStandard && !isCluster && !isSpecial;
+            const isUntyped  = !isStandard && !isCluster && !isSpecial;
 
             // Timeline text is "YYYY-MM-DD - YYYY-MM-DD"
             const tlText = txt(SEO_INTEL_COLS.timeline);
@@ -20415,7 +20412,7 @@
                 do {
                     pageNum++;
                     const cursorArg = cursor ? `,cursor:"${cursor}"` : '';
-                    const query = `{ boards(ids:["2845615047"]){ items_page(limit:200${cursorArg}){ cursor items{ id name column_values(ids:["tags","status0","status","numbers3","numbers98","timeline5","people6","numeric_mksrz985","numbers_18","numbers40"]){ id text } } } } }`;
+                    const query = `{ boards(ids:["2845615047"]){ items_page(limit:200${cursorArg}){ cursor items{ id name column_values(ids:["tags","status0","status","color1","numbers3","numbers98","timeline5","people6","numeric_mksrz985","numbers_18","numbers40"]){ id text } } } } }`;
                     const res = await mondayCockpitQuery(query);
                     console.log(`[SEO Intel v3] page ${pageNum} raw:`, JSON.stringify(res).slice(0, 200));
                     const page = res?.boards?.[0]?.items_page;
@@ -20519,11 +20516,8 @@
             );
 
             // Build filter options
-            const TYPE_LABELS = ['standard', 'cluster', 'special', 'internal kpi', 'saas standard'];
             const allOwners   = [...new Set(campaigns.map(c => c.seoOwner).filter(Boolean))].sort();
-            const allStatuses = [...new Set(campaigns
-                .map(c => c.campaignStatus)
-                .filter(s => s && !TYPE_LABELS.some(t => s.toLowerCase().includes(t))))].sort();
+            const allStatuses = [...new Set(campaigns.map(c => c.campaignStatus).filter(Boolean))].sort();
             const allTypes    = [...new Set(campaigns.map(c => c.campaignType).filter(Boolean))].sort();
 
             const behind   = filtered.filter(c => c.isBehind)              .sort((a, b) => b.pctBehind - a.pctBehind);
@@ -20695,9 +20689,10 @@
                         <span style="font-size:0.68rem;color:#94a3b8;white-space:nowrap;">${c.daysRemaining}d left</span>
                     </div>
                 </div>
-                <!-- Meta row: owner · type -->
+                <!-- Meta row: owner · status · type -->
                 <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:7px;align-items:center;">
                     ${c.seoOwner !== '—' ? `<span style="font-size:0.72rem;color:#475569;display:flex;align-items:center;gap:3px;"><i class="fas fa-user-circle" style="color:#6366f1;font-size:0.7rem;"></i>${c.seoOwner}</span>` : ''}
+                    <span style="font-size:0.68rem;padding:2px 6px;border-radius:8px;font-weight:600;background:${csColor}18;color:${csColor};border:1px solid ${csColor}30;">${c.campaignStatus}</span>
                     <span style="font-size:0.68rem;padding:2px 6px;border-radius:8px;font-weight:600;background:#eef2ff;color:#6366f1;">Type: ${c.campaignType}</span>
                 </div>
                 <div style="position:relative;height:7px;background:#f1f5f9;border-radius:4px;margin-bottom:6px;overflow:visible;">
