@@ -10380,7 +10380,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1257</span>
+                <span id="appVersion">v1.0.1258</span>
             </a>
         </div>
 
@@ -11334,6 +11334,20 @@
                             <i class="fas fa-crosshairs"></i> SEO Campaign Intel
                         </h3>
                         <div class="cockpit-card-header-actions">
+                            <div style="position:relative;display:inline-block;">
+                                <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='block'?'none':'block'"
+                                    style="background:none;border:none;cursor:pointer;color:#6366f1;font-size:1rem;padding:4px 6px;border-radius:6px;line-height:1;"
+                                    title="About this section">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                                <div onclick="this.style.display='none'" style="display:none;position:absolute;right:0;top:calc(100% + 6px);width:300px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.12);padding:14px 16px;z-index:500;font-size:0.82rem;line-height:1.55;color:#334155;cursor:default;">
+                                    <div style="font-weight:700;color:#6366f1;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+                                        <span><i class="fas fa-crosshairs" style="margin-right:5px;"></i>SEO Campaign Intel</span>
+                                        <i class="fas fa-times" style="cursor:pointer;color:#94a3b8;font-size:0.75rem;"></i>
+                                    </div>
+                                    This section indicates whether your campaign is on track to achieve its KPI based on the campaign duration and the number of keywords that have met target rankings. Campaigns marked as <strong>'Below Trajectory'</strong> should be prioritised first for investigation, optimisation and corrective actions.
+                                </div>
+                            </div>
                             <button onclick="fetchSeoIntel(true)" class="discovery-btn-run"
                                 style="padding: 4px 12px; font-size: 0.8rem; background: #6366f1; color: #fff; border: none;">
                                 <i class="fas fa-sync-alt"></i> Refresh
@@ -20250,8 +20264,8 @@
         // Column IDs confirmed from live board inspection (board 2845615047)
         const SEO_INTEL_COLS = {
             projectType:    'tags',              // tags — "seo", "sem", …
-            campaignStatus: 'status0',           // [CSM] Campaign Status
-            campaignType:   'status',            // SEO Campaign Type — "Standard" | "Cluster" | "Special"
+            campaignStatus: 'status',            // SEO Campaign Status
+            campaignType:   'status',            // SEO Campaign Type — same column (Standard | Cluster | Special | Lived (PM) | Guarantee (SEO) | …)
             kpiKws:         'numbers3',          // SEO [Reg] KPI KWs  (Standard)
             p1Kws:          'numbers98',         // SEO [Reg] P1 KWs   (Standard)
             clusterKpi:     'numeric_mksrz985',  // SEO [Cluster] KPI  (Cluster)
@@ -20267,13 +20281,17 @@
             // [BD]Project Type text is "seo" or "seo, sem" etc.
             if (!txt(SEO_INTEL_COLS.projectType).toLowerCase().split(/[\s,]+/).includes('seo')) return null;
 
-            // [CSM] Campaign Status text e.g. "Live (Active Delivery)", "Guarantee (SEO)"
+            // SEO Campaign Status — only include specific active-delivery statuses
             const csmStatus = txt(SEO_INTEL_COLS.campaignStatus).toLowerCase();
-            if (!['live', 'guarantee', 'renewed', 'lit'].some(s => csmStatus.includes(s))) return null;
+            const isAllowedStatus = ['lived (pm)', 'renewed no pause', 'guarantee (seo)', 'renewed (new timeline)'].some(s => csmStatus.includes(s));
+            // Also allow explicit type labels (Standard / Cluster / Special) that act as their own status
+            const isTypedLabel = ['standard', 'cluster', 'special', 'internal kpi'].some(s => csmStatus.includes(s));
+            if (!isAllowedStatus && !isTypedLabel) return null;
 
-            // SEO Campaign Type — must be Standard, Cluster, or Special
-            const campTypeRaw = txt(SEO_INTEL_COLS.campaignType).toLowerCase();
-            const isStandard = campTypeRaw.includes('standard') || campTypeRaw.includes('internal kpi');
+            // SEO Campaign Type — same column; active-status campaigns default to Standard
+            const campTypeRaw = csmStatus;
+            const isStandard = campTypeRaw.includes('standard') || campTypeRaw.includes('internal kpi')
+                || (isAllowedStatus && !campTypeRaw.includes('cluster') && !campTypeRaw.includes('special'));
             const isCluster  = campTypeRaw.includes('cluster');
             const isSpecial  = campTypeRaw.includes('special');
             if (!isStandard && !isCluster && !isSpecial) return null;
@@ -49760,7 +49778,7 @@ ${fullWrittenContent}
                         element: '#seoNavItem',
                         popover: {
                             title: 'SEO',
-                            description: 'Organic search tools: keyword analysis, rank tracking, technical audits, on-page optimisation, schema generator, and more. Hover to see the full sub-menu.',
+                            description: 'Organic search tools: keyword analysis, rank tracking, technical audits, on-page optimisation, schema generator, and more. Click the pill to reveal or hide the tools for that discipline.',
                             side: 'bottom', align: 'start'
                         }
                     },
