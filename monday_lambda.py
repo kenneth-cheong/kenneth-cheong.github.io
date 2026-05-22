@@ -146,6 +146,29 @@ def google_refresh_token(body):
     except Exception as e:
         return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
 
+def tiktok_auth(body):
+    auth_code = body.get('auth_code')
+    if not auth_code:
+        return {"statusCode": 400, "body": json.dumps({"error": "Missing auth_code"})}
+    try:
+        r = requests.post(
+            'https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/',
+            json={
+                "app_id": "7530162592132792321",
+                "secret": "622e73187d25951998792c27e8c85c9ec1c6a831",
+                "auth_code": auth_code
+            },
+            headers={"Content-Type": "application/json"},
+            timeout=15
+        )
+        data = r.json()
+        access_token = data.get('data', {}).get('access_token')
+        if access_token:
+            return {"statusCode": 200, "body": json.dumps({"access_token": access_token})}
+        return {"statusCode": 400, "body": json.dumps({"error": data.get('message', 'Auth failed'), "raw": data})}
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+
 def linkedin_get_ad_accounts(body):
     access_token = body.get('access_token')
     if not access_token:
@@ -1216,6 +1239,8 @@ def lambda_handler(event, context):
             result = google_refresh_token(body)
         elif action == 'linkedin_get_ad_accounts':
             result = linkedin_get_ad_accounts(body)
+        elif action == 'tiktok_auth':
+            result = tiktok_auth(body)
         elif action == 'get_board_items':
             result = get_board_items(body)
         elif action == 'claude_chat':

@@ -3004,7 +3004,8 @@
                             <span id="statusBadgeTikTok" class="service-badge">—</span>
                         </div>
                         <div style="margin-bottom:5px;">
-                            <input id="tiktokTokenInput" type="password" placeholder="Paste TikTok access token…" style="width:100%; padding:7px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.78rem; box-sizing:border-box;">
+                            <input id="tiktokTokenInput" type="text" placeholder="Paste redirect URL or auth_code…" style="width:100%; padding:7px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.78rem; box-sizing:border-box;">
+                            <div style="font-size:0.65rem; color:#94a3b8; margin-top:3px;">Paste the full redirect URL (e.g. https://…?auth_code=…) or just the auth_code value</div>
                         </div>
                         <div style="display:flex; gap:5px;">
                             <button class="btn-service-connect" id="btnConnectTikTok" onclick="connectTikTokAds()">Connect</button>
@@ -5605,19 +5606,41 @@
         })();
 
         // ── TikTok Ads ────────────────────────────────────────────────────────
-        function connectTikTokAds() {
-            const token = document.getElementById('tiktokTokenInput').value.trim();
-            if (!token) {
-                document.getElementById('tiktokStatus').innerHTML = '<i class="fas fa-exclamation-triangle" style="color:#ea4335;"></i> Please paste your access token first.';
+        async function connectTikTokAds() {
+            let raw = document.getElementById('tiktokTokenInput').value.trim();
+            if (!raw) {
+                document.getElementById('tiktokStatus').innerHTML = '<i class="fas fa-exclamation-triangle" style="color:#ea4335;"></i> Please paste your redirect URL or auth_code first.';
                 return;
             }
-            localStorage.setItem('tiktok_access_token', token);
-            document.getElementById('tiktokTokenInput').disabled = true;
-            document.getElementById('btnConnectTikTok').style.display = 'none';
-            document.getElementById('btnDisconnectTikTok').style.display = '';
-            document.getElementById('statusBadgeTikTok').textContent = '✓ Connected';
-            document.getElementById('statusBadgeTikTok').style.cssText = 'background:#dcfce7;color:#166534;';
-            document.getElementById('tiktokStatus').innerHTML = '<i class="fas fa-check-circle" style="color:#010101;"></i> Token saved.';
+            // Extract auth_code from redirect URL if the full URL was pasted
+            let authCode = raw;
+            const match = raw.match(/[?&]auth_code=([^&]+)/);
+            if (match) authCode = match[1];
+
+            document.getElementById('tiktokStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exchanging auth code…';
+            document.getElementById('btnConnectTikTok').disabled = true;
+
+            try {
+                const res = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'tiktok_auth', auth_code: authCode })
+                }).then(r => r.json()).then(r => typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r));
+
+                const accessToken = res.access_token;
+                if (!accessToken) throw new Error(res.message || res.error || JSON.stringify(res));
+
+                localStorage.setItem('tiktok_access_token', accessToken);
+                document.getElementById('tiktokTokenInput').disabled = true;
+                document.getElementById('btnConnectTikTok').style.display = 'none';
+                document.getElementById('btnDisconnectTikTok').style.display = '';
+                document.getElementById('statusBadgeTikTok').textContent = '✓ Connected';
+                document.getElementById('statusBadgeTikTok').style.cssText = 'background:#dcfce7;color:#166534;';
+                document.getElementById('tiktokStatus').innerHTML = '<i class="fas fa-check-circle" style="color:#010101;"></i> Connected.';
+            } catch (err) {
+                document.getElementById('tiktokStatus').innerHTML = `<i class="fas fa-exclamation-triangle" style="color:#ea4335;"></i> ${err.message}`;
+                document.getElementById('btnConnectTikTok').disabled = false;
+            }
         }
 
         function disconnectTikTokAds() {
@@ -7765,6 +7788,7 @@ CRITICAL CONTACT RULE:
             13. save_memory_note: STRICT MANDATE. Use this whenever you learn a new preference, fact, or logic about the user or their projects. Always include a "team" field set to one of: "SEO", "SEM", "SMM", or "Everyone" (default to "Everyone" if the memory applies broadly).
             14. get_seranking_report: Fetch keyword rankings and positions for a specific SE Ranking campaign. You MUST use this tool when the user asks about SEO keywords, rankings, or SE Ranking data.
             15. get_meta_ads_report: Fetch Meta (Facebook/Instagram) Ads performance data — spend, impressions, clicks, CTR, CPM, CPC, ROAS, results, and cost per result. Use this whenever the user asks about Meta Ads, Facebook Ads, Instagram Ads, or paid social performance. The ad_account_id values are in the synced context under 'meta_ad_account_ids'.
+            16. get_linkedin_ads_report: Fetch LinkedIn Ads performance data — spend, impressions, clicks, CTR, CPM, CPC, conversions, and cost per conversion. Use this whenever the user asks about LinkedIn Ads or B2B paid social performance. The account_id values are in the synced context under 'linkedin_ad_account_ids'. Use the linkedin_access_token from synced context for API calls.
 
             SE RANKING CRITICAL RULES:
             - NEVER ask the user for an SE Ranking Site ID. The Site IDs are already in the synced context under 'loaded_seranking_campaigns'.
@@ -7912,7 +7936,9 @@ CRITICAL CONTACT RULE:
                             customerId: adsAccs[0] || ''
                         },
                         meta_access_token: localStorage.getItem('meta_access_token') || '',
-                        meta_ad_account_ids: (() => { try { return JSON.parse(localStorage.getItem('selectedMetaAccount') || '[]').map(s => s.value || s).filter(Boolean); } catch { return []; } })()
+                        meta_ad_account_ids: (() => { try { return JSON.parse(localStorage.getItem('selectedMetaAccount') || '[]').map(s => s.value || s).filter(Boolean); } catch { return []; } })(),
+                        linkedin_access_token: localStorage.getItem('linkedin_access_token') || '',
+                        linkedin_ad_account_ids: (() => { try { return JSON.parse(localStorage.getItem('selectedLinkedInAccount') || '[]').map(s => s.value || s).filter(Boolean); } catch { return []; } })()
                     })
                 });
 
