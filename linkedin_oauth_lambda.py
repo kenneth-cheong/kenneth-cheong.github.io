@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import time
 import urllib.request
 import urllib.parse
 
@@ -173,6 +174,33 @@ def create_post(body):
         return {'success': False, 'error': f'LinkedIn API {e.code}: {error_body}'}
 
 
+# ── Claude API call with retry on 529 overload ───────────────────────────────
+
+def call_claude(payload_dict, retries=3, backoff=2):
+    payload = json.dumps(payload_dict).encode()
+    for attempt in range(retries):
+        req = urllib.request.Request(
+            'https://api.anthropic.com/v1/messages',
+            data=payload,
+            headers={
+                'x-api-key': CLAUDE_API_KEY,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json',
+            },
+            method='POST',
+        )
+        try:
+            with urllib.request.urlopen(req) as resp:
+                return json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            if e.code == 529 and attempt < retries - 1:
+                time.sleep(backoff * (attempt + 1))
+                continue
+            error_body = e.read().decode()
+            raise Exception(f'AI API {e.code}: {error_body}')
+    raise Exception('AI API unavailable after retries.')
+
+
 # ── Action: extract event details from a URL ─────────────────────────────────
 
 def ai_extract(body):
@@ -217,36 +245,15 @@ Rules:
 - For tags: derive from the event topic/industry, 5-8 tags
 - Do not add any explanation — JSON only"""
 
-    payload = json.dumps({
-        'model': 'claude-haiku-4-5-20251001',
-        'max_tokens': 300,
-        'messages': [{'role': 'user', 'content': prompt}],
-    }).encode()
-
-    req = urllib.request.Request(
-        'https://api.anthropic.com/v1/messages',
-        data=payload,
-        headers={
-            'x-api-key': CLAUDE_API_KEY,
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json',
-        },
-        method='POST',
-    )
-
     try:
-        with urllib.request.urlopen(req) as resp:
-            result = json.loads(resp.read())
-            raw_text = result['content'][0]['text'].strip()
-            # Strip markdown fences if present
-            raw_text = re.sub(r'^```[a-z]*\n?', '', raw_text)
-            raw_text = re.sub(r'\n?```$', '', raw_text).strip()
-            extracted = json.loads(raw_text)
-            return {'success': True, **extracted}
-    except urllib.error.HTTPError as e:
-        return {'success': False, 'error': f'AI API {e.code}'}
+        result = call_claude({'model': 'claude-haiku-4-5-20251001', 'max_tokens': 300, 'messages': [{'role': 'user', 'content': prompt}]})
+        raw_text = result['content'][0]['text'].strip()
+        raw_text = re.sub(r'^```[a-z]*\n?', '', raw_text)
+        raw_text = re.sub(r'\n?```$', '', raw_text).strip()
+        extracted = json.loads(raw_text)
+        return {'success': True, **extracted}
     except Exception as e:
-        return {'success': False, 'error': f'Extraction failed: {e}'}
+        return {'success': False, 'error': str(e)}
 
 
 # ── Action: generate post text with Claude ────────────────────────────────────
@@ -287,28 +294,9 @@ Rules:
 - Total: 80–160 words
 - No extra hashtags, no preamble, no sign-off — only the post text"""
 
-    payload = json.dumps({
-        'model': 'claude-haiku-4-5-20251001',
-        'max_tokens': 400,
-        'messages': [{'role': 'user', 'content': prompt}],
-    }).encode()
-
-    req = urllib.request.Request(
-        'https://api.anthropic.com/v1/messages',
-        data=payload,
-        headers={
-            'x-api-key': CLAUDE_API_KEY,
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json',
-        },
-        method='POST',
-    )
-
     try:
-        with urllib.request.urlopen(req) as resp:
-            result = json.loads(resp.read())
-            text = result['content'][0]['text'].strip()
-            return {'success': True, 'text': text}
-    except urllib.error.HTTPError as e:
-        error_body = e.read().decode()
-        return {'success': False, 'error': f'AI API {e.code}: {error_body}'}
+        result = call_claude({'model': 'claude-haiku-4-5-20251001', 'max_tokens': 400, 'messages': [{'role': 'user', 'content': prompt}]})
+        text = result['content'][0]['text'].strip()
+        return {'success': True, 'text': text}
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
