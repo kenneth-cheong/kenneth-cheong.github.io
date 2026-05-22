@@ -1045,6 +1045,7 @@
 
         .filter-actions {
             display: flex;
+            flex-wrap: wrap;
             gap: 10px;
             align-items: center;
         }
@@ -3880,12 +3881,35 @@
         function updateSummaryFilterVisibility() {
             const grid = document.getElementById('summaryBoardFilters');
             if (!grid) return;
-            const selected = msState.msBoardDropdown?.selected || [];
-            const hasSummaryBoard = selected.some(b => {
-                const id = typeof b === 'object' ? b.id : b;
-                return String(id) === INTERNAL_CAMPAIGN_BOARD_ID;
+            // Show whenever items have been loaded — not gated on the internal board being selected
+            grid.style.display = (window.allPrefetchedItems && window.allPrefetchedItems.length > 0) ? '' : 'none';
+        }
+
+        function syncBoardSelectionToItems() {
+            if (!window.allPrefetchedItems || window.allPrefetchedItems.length === 0) return;
+            const selectedBoards = msState.msBoardDropdown.selected;
+            if (selectedBoards.length === 0) return;
+
+            const newSelections = [];
+            window.allPrefetchedItems.forEach(item => {
+                const itemName = (item.name || '').trim();
+                if (itemName.length < 3) return;
+                const itemLower = itemName.toLowerCase();
+                const matched = selectedBoards.some(b => {
+                    const boardName = (typeof b === 'object' ? b.name : b).toLowerCase();
+                    return boardName.includes(itemLower);
+                });
+                if (matched) newSelections.push({ id: item.id, name: item.name });
             });
-            grid.style.display = hasSummaryBoard ? '' : 'none';
+
+            if (newSelections.length > 0) {
+                msState.msItemDropdown.selected = deduplicateObjects(
+                    [...newSelections, ...msState.msItemDropdown.selected], 'id'
+                );
+                renderMsOptions('msItemDropdown');
+                renderMsTrigger('msItemDropdown');
+                showToast(`Auto-selected ${newSelections.length} campaign(s) from board focus`, 'info');
+            }
         }
 
         async function handleAddBoard() {
@@ -4421,6 +4445,7 @@
             refineFilteredOptions();
             if (dropdownId === 'msBoardDropdown') {
                 updateSummaryFilterVisibility();
+                syncBoardSelectionToItems();
                 const badge = document.getElementById('syncRequiredBadge');
                 if (badge) badge.style.display = 'inline-flex';
             }
@@ -4451,6 +4476,7 @@
             refineFilteredOptions();
             if (dropdownId === 'msBoardDropdown') {
                 updateSummaryFilterVisibility();
+                syncBoardSelectionToItems();
                 const badge = document.getElementById('syncRequiredBadge');
                 if (badge) badge.style.display = 'inline-flex';
             }
@@ -4533,6 +4559,7 @@
             }
             if (dropdownId === 'msBoardDropdown') {
                 updateSummaryFilterVisibility();
+                syncBoardSelectionToItems();
                 const badge = document.getElementById('syncRequiredBadge');
                 if (badge) badge.style.display = 'inline-flex';
             }
@@ -4553,6 +4580,7 @@
             }
             if (dropdownId === 'msBoardDropdown') {
                 updateSummaryFilterVisibility();
+                syncBoardSelectionToItems();
                 const badge = document.getElementById('syncRequiredBadge');
                 if (badge) badge.style.display = 'inline-flex';
             }
@@ -6003,6 +6031,8 @@
 
             // Apply current cascades if user has selections
             refineFilteredOptions();
+            // Show filter grid now that data is available
+            updateSummaryFilterVisibility();
         }
 
         /** Cascading Filters Logic **/
