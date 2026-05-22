@@ -10654,7 +10654,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1346</span>
+                <span id="appVersion">v1.0.1347</span>
             </a>
         </div>
 
@@ -30064,6 +30064,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
         let lastFetchedAdsRawData = []; // Store flattened raw rows for chart re-filtering
         let lastFetchedTotals = { imps: 0, clicks: 0, convs: 0, cost: 0 };
         let selectedAdsAccounts = []; // Multi-account selection [{id, name, loginCustomerId, developerToken}]
+        const adsAccountDataCache = {}; // Per-account fetched data cache keyed by account id
 
         // Advanced Hierarchy State
         let adsCurrentLevel = 'campaign'; // 'campaign', 'ad_group', or 'ad'
@@ -30280,6 +30281,8 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
         function adsDateRangeChanged() {
             const range = document.getElementById('adsDateRange').value;
             const customInputs = document.getElementById('adsCustomDateInputs');
+            // Clear cache so all accounts re-fetch with the new date range
+            Object.keys(adsAccountDataCache).forEach(k => delete adsAccountDataCache[k]);
             if (range === 'CUSTOM') {
                 customInputs.style.display = 'flex';
             } else {
@@ -31089,19 +31092,25 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             const overlay = document.getElementById('adsLoadingOverlay');
             if (overlay) overlay.style.display = 'flex';
             try {
-                // Fetch all accounts in parallel
-                const results = await Promise.all(accounts.map(acc =>
-                    fetchAdsInsights(acc.id, acc.loginCustomerId, acc.developerToken, isRefresh, true)
-                ));
+                // Only fetch accounts not already cached (or forced refresh)
+                const toFetch = accounts.filter(acc => isRefresh || !adsAccountDataCache[acc.id]);
+                if (toFetch.length > 0) {
+                    const fresh = await Promise.all(toFetch.map(acc =>
+                        fetchAdsInsights(acc.id, acc.loginCustomerId, acc.developerToken, isRefresh, true)
+                    ));
+                    toFetch.forEach((acc, i) => {
+                        if (fresh[i]) adsAccountDataCache[acc.id] = { ...fresh[i], accountMeta: acc };
+                    });
+                }
 
-                // Aggregate across all accounts
+                // Aggregate from cache for all currently-selected accounts
                 let aggImps = 0, aggClicks = 0, aggCostMicros = 0, aggConvs = 0;
                 const aggDaily = {};
                 const aggCampaigns = [];
 
-                results.forEach((result, i) => {
+                accounts.forEach(acc => {
+                    const result = adsAccountDataCache[acc.id];
                     if (!result) return;
-                    const acc = accounts[i];
                     aggImps += result.totalImpressions;
                     aggClicks += result.totalClicks;
                     aggCostMicros += result.totalCostMicros;
@@ -31114,10 +31123,10 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                         aggDaily[d].conversions += v.conversions;
                     });
 
-                    // Merge campaign rows (prefix ID to avoid collisions)
+                    // Append campaign rows labelled with account name
                     (result.campaignsList || []).forEach(c => {
-                        aggCampaigns.push({ ...c, id: `${acc.id}_${c.id}`, accountName: acc.name,
-                            name: `[${acc.name.substring(0,12)}] ${c.name}` });
+                        aggCampaigns.push({ ...c, id: `${acc.id}_${c.id}`,
+                            name: `[${acc.name.substring(0, 14)}] ${c.name}` });
                     });
                 });
 
