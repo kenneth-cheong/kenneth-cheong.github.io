@@ -20271,6 +20271,7 @@
             clusterKpi:     'numeric_mksrz985',  // SEO [Cluster] KPI  (Cluster)
             clusterHit:     'numbers_18',        // SEO [Cluster] Clusters Hit (Cluster)
             sepKwManual:    'numbers40',         // SEP KW Manual Check — 999 = hit (Special)
+            summary:        'long_text_mm3cc8x2', // Campaign Summary (long text)
             timeline:       'timeline5'          // [SEO] SEO Timeline
         };
 
@@ -20294,6 +20295,40 @@
                 || (isAllowedStatus && !campTypeRaw.includes('cluster') && !campTypeRaw.includes('special'));
             const isCluster  = campTypeRaw.includes('cluster');
             const isSpecial  = campTypeRaw.includes('special');
+            const isUntyped  = !isStandard && !isCluster && !isSpecial;
+
+            // Timeline text is "YYYY-MM-DD - YYYY-MM-DD"
+            const tlText = txt(SEO_INTEL_COLS.timeline);
+            const tlParts = tlText.split(' - ');
+            if (tlParts.length < 2) return null;
+            const start = new Date(tlParts[0].trim());
+            const end   = new Date(tlParts[1].trim());
+            if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+
+            const today = new Date();
+            if (today < start) return null;
+
+            const totalDays   = Math.max(1, (end - start)   / 86400000);
+            const elapsedDays = Math.min(totalDays, Math.max(0, (today - start) / 86400000));
+            const pct         = elapsedDays / totalDays;
+
+            // Untyped campaigns: show with blank KPI section
+            if (isUntyped) {
+                return {
+                    id: item.id, name: item.name,
+                    isUntyped: true,
+                    isBehind: false,
+                    pctProgress: Math.round(pct * 100),
+                    daysRemaining: Math.max(0, Math.round((end - today) / 86400000)),
+                    startDate: tlParts[0].trim(), endDate: tlParts[1].trim(),
+                    seoOwner:       txt('people6') || '—',
+                    campaignStatus: txt(SEO_INTEL_COLS.campaignStatus),
+                    campaignType:   txt(SEO_INTEL_COLS.campaignType),
+                    summary:        txt(SEO_INTEL_COLS.summary),
+                };
+            }
+
+>>>>>>> 87d34a5 (Add Campaign Summary pill to SEO Trajectory Tracker rows)
             if (!isStandard && !isCluster && !isSpecial) return null;
 
             // KPI and result depend on campaign type
@@ -20353,6 +20388,7 @@
                 seoOwner:       txt('people6') || '—',
                 campaignStatus: txt(SEO_INTEL_COLS.campaignStatus),
                 campaignType:   txt(SEO_INTEL_COLS.campaignType),
+                summary:        txt(SEO_INTEL_COLS.summary),
                 resultLabel,
             };
         }
@@ -20393,7 +20429,7 @@
                 do {
                     pageNum++;
                     const cursorArg = cursor ? `,cursor:"${cursor}"` : '';
-                    const query = `{ boards(ids:["2845615047"]){ items_page(limit:200${cursorArg}){ cursor items{ id name column_values(ids:["tags","status0","status","numbers3","numbers98","timeline5","people6","numeric_mksrz985","numbers_18","numbers40"]){ id text } } } } }`;
+                    const query = `{ boards(ids:["2845615047"]){ items_page(limit:200${cursorArg}){ cursor items{ id name column_values(ids:["tags","status0","status","color1","numbers3","numbers98","timeline5","people6","numeric_mksrz985","numbers_18","numbers40","long_text_mm3cc8x2"]){ id text } } } } }`;
                     const res = await mondayCockpitQuery(query);
                     console.log(`[SEO Intel v3] page ${pageNum} raw:`, JSON.stringify(res).slice(0, 200));
                     const page = res?.boards?.[0]?.items_page;
@@ -20594,8 +20630,39 @@
             el.innerHTML = html;
         }
 
+        function toggleSeoSummary(id) {
+            const el = document.getElementById(`seo-summary-${id}`);
+            if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+        }
+
         function renderSeoIntelRow(c) {
-            const fmtDate     = d => new Date(d).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'2-digit' });
+            const fmtDate = d => new Date(d).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'2-digit' });
+            const summaryPill = c.summary
+                ? `<button onclick="toggleSeoSummary('${c.id}')" style="font-size:0.65rem;padding:2px 8px;border-radius:10px;border:1px solid #c7d2fe;background:#eef2ff;color:#6366f1;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;"><i class="fas fa-file-alt" style="font-size:0.6rem;"></i> Summary</button>` : '';
+
+            // Untyped: no KPI configured — show name, status, owner, duration only
+            if (c.isUntyped) {
+                const csl = (c.campaignStatus || '').toLowerCase();
+                const csColor = csl.includes('guarantee') ? '#d97706' : csl.includes('live') ? '#16a34a' : csl.includes('renewed') ? '#2563eb' : '#64748b';
+                return `
+                <div style="padding:12px 16px;border-bottom:1px solid #f1f5f9;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px;">
+                        <div style="font-weight:700;color:#0f172a;font-size:0.87rem;flex:1;line-height:1.4;">${c.name}</div>
+                        <span style="font-size:0.68rem;color:#94a3b8;white-space:nowrap;flex-shrink:0;">${c.daysRemaining}d left</span>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:7px;align-items:center;">
+                        ${c.seoOwner !== '—' ? `<span style="font-size:0.72rem;color:#475569;display:flex;align-items:center;gap:3px;"><i class="fas fa-user-circle" style="color:#6366f1;font-size:0.7rem;"></i>${c.seoOwner}</span>` : ''}
+                        <span style="font-size:0.68rem;padding:2px 6px;border-radius:8px;font-weight:600;background:${csColor}18;color:${csColor};border:1px solid ${csColor}30;">${c.campaignStatus}</span>
+                        <span style="font-size:0.68rem;padding:2px 6px;border-radius:8px;font-weight:600;background:#f1f5f9;color:#94a3b8;font-style:italic;">No KPI type</span>
+                        ${summaryPill}
+                    </div>
+                    ${c.summary ? `<div id="seo-summary-${c.id}" style="display:none;margin-bottom:8px;padding:10px 12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;font-size:0.78rem;color:#334155;line-height:1.6;white-space:pre-wrap;">${c.summary.replace(/</g,'&lt;')}</div>` : ''}
+                    <div style="height:7px;background:#f1f5f9;border-radius:4px;margin-bottom:6px;">
+                        <div style="height:100%;width:${c.pctProgress}%;background:#cbd5e1;border-radius:4px;"></div>
+                    </div>
+                    <div style="font-size:0.71rem;color:#94a3b8;text-align:right;">${c.pctProgress}% · ${fmtDate(c.startDate)} – ${fmtDate(c.endDate)}</div>
+                </div>`;
+            }
 
             // Special type: binary check, expected tick fixed at 50% campaign mark
             let color, bgBadge, border, actualPct, expectedPct, statusBadge;
@@ -20631,12 +20698,14 @@
                         <span style="font-size:0.68rem;color:#94a3b8;white-space:nowrap;">${c.daysRemaining}d left</span>
                     </div>
                 </div>
-                <!-- Meta row: owner · campaign status · type -->
+                <!-- Meta row: owner · status · type · summary -->
                 <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:7px;align-items:center;">
                     ${c.seoOwner !== '—' ? `<span style="font-size:0.72rem;color:#475569;display:flex;align-items:center;gap:3px;"><i class="fas fa-user-circle" style="color:#6366f1;font-size:0.7rem;"></i>${c.seoOwner}</span>` : ''}
                     <span style="font-size:0.68rem;padding:2px 6px;border-radius:8px;font-weight:600;background:${csColor}18;color:${csColor};border:1px solid ${csColor}30;">${c.campaignStatus}</span>
                     <span style="font-size:0.68rem;padding:2px 6px;border-radius:8px;font-weight:600;background:#eef2ff;color:#6366f1;">Type: ${c.campaignType}</span>
+                    ${summaryPill}
                 </div>
+                ${c.summary ? `<div id="seo-summary-${c.id}" style="display:none;margin-bottom:8px;padding:10px 12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;font-size:0.78rem;color:#334155;line-height:1.6;white-space:pre-wrap;">${c.summary.replace(/</g,'&lt;')}</div>` : ''}
                 <div style="position:relative;height:7px;background:#f1f5f9;border-radius:4px;margin-bottom:6px;overflow:visible;">
                     <div style="position:absolute;top:0;left:0;height:100%;width:${actualPct.toFixed(1)}%;background:${color};border-radius:4px;"></div>
                     <div title="Expected at this point" style="position:absolute;top:-3px;height:13px;width:2px;background:#94a3b8;border-radius:1px;left:${expectedPct.toFixed(1)}%;"></div>
