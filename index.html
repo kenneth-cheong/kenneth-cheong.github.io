@@ -10380,7 +10380,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1256</span>
+                <span id="appVersion">v1.0.1257</span>
             </a>
         </div>
 
@@ -11334,6 +11334,20 @@
                             <i class="fas fa-crosshairs"></i> SEO Campaign Trajectory Tracker
                         </h3>
                         <div class="cockpit-card-header-actions">
+                            <div style="position:relative;display:inline-block;">
+                                <button onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='block'?'none':'block'"
+                                    style="background:none;border:none;cursor:pointer;color:#6366f1;font-size:1rem;padding:4px 6px;border-radius:6px;line-height:1;"
+                                    title="About this section">
+                                    <i class="fas fa-info-circle"></i>
+                                </button>
+                                <div onclick="this.style.display='none'" style="display:none;position:absolute;right:0;top:calc(100% + 6px);width:300px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,0.12);padding:14px 16px;z-index:500;font-size:0.82rem;line-height:1.55;color:#334155;cursor:default;">
+                                    <div style="font-weight:700;color:#6366f1;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+                                        <span><i class="fas fa-crosshairs" style="margin-right:5px;"></i>SEO Campaign Intel</span>
+                                        <i class="fas fa-times" style="cursor:pointer;color:#94a3b8;font-size:0.75rem;"></i>
+                                    </div>
+                                    This section indicates whether your campaign is on track to achieve its KPI based on the campaign duration and the number of keywords that have met target rankings. Campaigns marked as <strong>'Below Trajectory'</strong> should be prioritised first for investigation, optimisation and corrective actions.
+                                </div>
+                            </div>
                             <button onclick="fetchSeoIntel(true)" class="discovery-btn-run"
                                 style="padding: 4px 12px; font-size: 0.8rem; background: #6366f1; color: #fff; border: none;">
                                 <i class="fas fa-sync-alt"></i> Refresh
@@ -14125,7 +14139,7 @@
                         <div style="display: flex; gap: 15px; margin-top: 25px; flex-wrap: wrap;">
                             <button id="generateSmsBtn" class="config-btn-highlight" style="margin: 0;"
                                 onclick="generateSocialMediaStrategy()">
-                                <i class="fas fa-magic"></i> Generate Suggested Keywords
+                                <i class="fas fa-magic"></i> Generate Strategy
                             </button>
                             <button type="button" onclick="initSmsTour()" class="config-btn-highlight"
                                 style="background: transparent; border: 2px solid #34a853; color: #34a853; margin: 0; box-shadow: none; padding: 11px 22px; cursor: pointer; transition: all 0.2s ease-in-out;"
@@ -14140,8 +14154,7 @@
                         <hr>
                         <div
                             style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                            <h3 style="color: #004c9d; margin: 0;"><i class="fas fa-search"></i> Suggested Keywords
-                                Output</h3>
+                            <h3 style="color: #004c9d; margin: 0;"><i class="fas fa-chess"></i> Strategy Output</h3>
                             <button class="btn-gradient btn-seo" onclick="copyToClipboard('sms-output-text', event)"
                                 style="max-width: 120px; font-size: 13px; padding: 8px;">
                                 <i class="fas fa-copy"></i> Copy
@@ -17912,6 +17925,10 @@
     </div>
 
 
+    <button onclick="window.scrollTo({top:0,behavior:'smooth'})"
+        style="position: fixed; bottom: 10px; right: 230px; background-color: hsl(226, 70%, 55%); color: white; border: none; padding: 10px 20px; border-radius: 100px; cursor: pointer; z-index: 1000; font-size:1.2em;box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.7);">
+        <i class="fas fa-arrow-up"></i>
+    </button>
     <button id="cleanup-button" onclick="clearPageState()"
         style="position: fixed; bottom: 10px; right: 80px; background-color: hsl(0, 71%, 49%); color: white; border: none; padding: 10px 20px; border-radius: 100px; cursor: pointer; z-index: 1000; font-size:1.2em;box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.7);">
         Clear Data <i class="fas fa-trash-alt" style="margin-left: 10px;"></i>
@@ -18378,6 +18395,7 @@
             seoIntelBoardId: localStorage.getItem('seoIntelBoardId') || '2845615047',
             seoIntelOwnerFilter: new Set(),  // Filter by [SEO]SEO owner
             seoIntelStatusFilter: new Set(), // Filter by Campaign Status
+            seoIntelTypeFilter: new Set(),   // Filter by Campaign Type
             paidIntelCache: null,        // Cached Paid Ads trajectory results
             paidIntelFetchedAt: 0,       // Timestamp of last fetch
             paidIntelOwnerFilter: new Set(),
@@ -20246,8 +20264,8 @@
         // Column IDs confirmed from live board inspection (board 2845615047)
         const SEO_INTEL_COLS = {
             projectType:    'tags',              // tags — "seo", "sem", …
-            campaignStatus: 'status0',           // [CSM] Campaign Status
-            campaignType:   'status',            // SEO Campaign Type — "Standard" | "Cluster" | "Special"
+            campaignStatus: 'status',            // SEO Campaign Status
+            campaignType:   'status',            // SEO Campaign Type — same column (Standard | Cluster | Special | Lived (PM) | Guarantee (SEO) | …)
             kpiKws:         'numbers3',          // SEO [Reg] KPI KWs  (Standard)
             p1Kws:          'numbers98',         // SEO [Reg] P1 KWs   (Standard)
             clusterKpi:     'numeric_mksrz985',  // SEO [Cluster] KPI  (Cluster)
@@ -20263,13 +20281,17 @@
             // [BD]Project Type text is "seo" or "seo, sem" etc.
             if (!txt(SEO_INTEL_COLS.projectType).toLowerCase().split(/[\s,]+/).includes('seo')) return null;
 
-            // [CSM] Campaign Status text e.g. "Live (Active Delivery)", "Guarantee (SEO)"
+            // SEO Campaign Status — only include specific active-delivery statuses
             const csmStatus = txt(SEO_INTEL_COLS.campaignStatus).toLowerCase();
-            if (!['live', 'guarantee', 'renewed', 'lit'].some(s => csmStatus.includes(s))) return null;
+            const isAllowedStatus = ['lived (pm)', 'renewed no pause', 'guarantee (seo)', 'renewed (new timeline)'].some(s => csmStatus.includes(s));
+            // Also allow explicit type labels (Standard / Cluster / Special) that act as their own status
+            const isTypedLabel = ['standard', 'cluster', 'special', 'internal kpi'].some(s => csmStatus.includes(s));
+            if (!isAllowedStatus && !isTypedLabel) return null;
 
-            // SEO Campaign Type — must be Standard, Cluster, or Special
-            const campTypeRaw = txt(SEO_INTEL_COLS.campaignType).toLowerCase();
-            const isStandard = campTypeRaw.includes('standard');
+            // SEO Campaign Type — same column; active-status campaigns default to Standard
+            const campTypeRaw = csmStatus;
+            const isStandard = campTypeRaw.includes('standard') || campTypeRaw.includes('internal kpi')
+                || (isAllowedStatus && !campTypeRaw.includes('cluster') && !campTypeRaw.includes('special'));
             const isCluster  = campTypeRaw.includes('cluster');
             const isSpecial  = campTypeRaw.includes('special');
             if (!isStandard && !isCluster && !isSpecial) return null;
@@ -20421,9 +20443,18 @@
             if (dd) dd.style.display = 'block';
         }
 
+        function toggleSeoIntelTypeFilter(type) {
+            const f = cockpitState.seoIntelTypeFilter;
+            f.has(type) ? f.delete(type) : f.add(type);
+            renderSeoIntel(cockpitState.seoIntelCache || []);
+            const dd = document.getElementById('seo-intel-type-dropdown');
+            if (dd) dd.style.display = 'block';
+        }
+
         function clearSeoIntelFilters() {
             cockpitState.seoIntelOwnerFilter.clear();
             cockpitState.seoIntelStatusFilter.clear();
+            cockpitState.seoIntelTypeFilter.clear();
             renderSeoIntel(cockpitState.seoIntelCache || []);
         }
 
@@ -20458,14 +20489,17 @@
             // Apply filters
             const ownerF  = cockpitState.seoIntelOwnerFilter;
             const statusF = cockpitState.seoIntelStatusFilter;
+            const typeF   = cockpitState.seoIntelTypeFilter;
             const filtered = campaigns.filter(c =>
                 (ownerF.size === 0  || ownerF.has(c.seoOwner))  &&
-                (statusF.size === 0 || statusF.has(c.campaignStatus))
+                (statusF.size === 0 || statusF.has(c.campaignStatus)) &&
+                (typeF.size === 0   || typeF.has(c.campaignType))
             );
 
             // Build filter options
             const allOwners   = [...new Set(campaigns.map(c => c.seoOwner).filter(Boolean))].sort();
             const allStatuses = [...new Set(campaigns.map(c => c.campaignStatus).filter(Boolean))].sort();
+            const allTypes    = [...new Set(campaigns.map(c => c.campaignType).filter(Boolean))].sort();
 
             const behind  = filtered.filter(c => c.isBehind) .sort((a, b) => b.pctBehind - a.pctBehind);
             const onTrack = filtered.filter(c => !c.isBehind).sort((a, b) => a.pctBehind - b.pctBehind);
@@ -20475,10 +20509,11 @@
                 ? new Date(cockpitState.seoIntelFetchedAt).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })
                 : '';
 
-            const filterActive = ownerF.size > 0 || statusF.size > 0;
+            const filterActive = ownerF.size > 0 || statusF.size > 0 || typeF.size > 0;
 
             const ownerBtnLabel  = ownerF.size === 0 ? 'All SEO' : ownerF.size === 1 ? [...ownerF][0].split(' ')[0] : `${ownerF.size} owners`;
             const statusBtnLabel = statusF.size === 0 ? 'All Statuses' : statusF.size === 1 ? [...statusF][0] : `${statusF.size} statuses`;
+            const typeBtnLabel   = typeF.size === 0 ? 'All Types' : typeF.size === 1 ? [...typeF][0] : `${typeF.size} types`;
 
             const dropdownStyle = 'display:none;position:absolute;top:100%;left:0;min-width:210px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:400;margin-top:4px;max-height:220px;overflow-y:auto;padding:6px;';
             const checkItem = (label, checked, onclick) =>
@@ -20521,6 +20556,18 @@
                         </button>
                         <div id="seo-intel-status-dropdown" class="seo-intel-dropdown" style="${dropdownStyle}">
                             ${allStatuses.map(s => checkItem(s, statusF.has(s), 'toggleSeoIntelStatusFilter')).join('')}
+                        </div>
+                    </div>
+                    <!-- Type filter -->
+                    <div style="position:relative;">
+                        <button onclick="toggleSeoIntelDropdown('seo-intel-type-dropdown')"
+                            style="padding:4px 10px;border:1px solid ${typeF.size > 0 ? '#93c5fd' : '#e2e8f0'};border-radius:6px;background:${typeF.size > 0 ? '#eff6ff' : '#f8fafc'};font-size:0.78rem;cursor:pointer;color:#1e293b;display:flex;align-items:center;gap:5px;">
+                            <i class="fas fa-tag" style="font-size:0.6rem;color:${typeF.size > 0 ? '#3b82f6' : '#94a3b8'};"></i>
+                            ${typeBtnLabel}
+                            <i class="fas fa-chevron-down" style="font-size:0.6rem;color:#94a3b8;"></i>
+                        </button>
+                        <div id="seo-intel-type-dropdown" class="seo-intel-dropdown" style="${dropdownStyle}">
+                            ${allTypes.map(t => checkItem(t, typeF.has(t), 'toggleSeoIntelTypeFilter')).join('')}
                         </div>
                     </div>
                     <span style="font-size:0.72rem;color:#94a3b8;align-self:center;margin-left:4px;">${filtered.length} of ${campaigns.length} shown</span>
@@ -43141,6 +43188,13 @@ Return ONLY valid JSON in this exact format:
                     answer = typeof data === 'string' ? data : JSON.stringify(data);
                 }
 
+                // Unwrap Claude content block objects: {type:'output_text', text:'...'}
+                if (typeof answer === 'object' && answer !== null) {
+                    answer = Array.isArray(answer)
+                        ? answer.map(b => (b && b.text) || '').join('')
+                        : (answer.text || '');
+                }
+
                 outputText.innerHTML = formatMarkdownToHTML(answer);
                 outputDisplay.style.display = "block";
                 updateCollapsibleState('pillarFrameworkButton', 'success');
@@ -49696,10 +49750,119 @@ ${fullWrittenContent}
         let currentTourIndex = -1;
         let allTours = [];
 
+        function initNavTour() {
+            if (typeof window.driver === 'undefined') return;
+            const driver = window.driver.js.driver;
+            window.scrollTo({ top: 0, behavior: 'instant' });
+
+            const driverObj = driver({
+                showProgress: true,
+                allowClose: true,
+                stagePadding: 8,
+                steps: [
+                    {
+                        popover: {
+                            title: 'Welcome to the Platform',
+                            description: "Let's take 2 minutes to walk through how the navigation works. You'll only see this once — or click <b>Help</b> in the nav bar to replay it anytime.",
+                        }
+                    },
+                    {
+                        element: '#navbar',
+                        popover: {
+                            title: 'Your Navigation Bar',
+                            description: 'The top bar is your control centre. Discipline areas, the experience mode selector, and your account settings all live here.',
+                            side: 'bottom', align: 'start'
+                        }
+                    },
+                    {
+                        element: '#seoNavItem',
+                        popover: {
+                            title: 'SEO',
+                            description: 'Organic search tools: keyword analysis, rank tracking, technical audits, on-page optimisation, schema generator, and more. Click the pill to reveal or hide the tools for that discipline.',
+                            side: 'bottom', align: 'start'
+                        }
+                    },
+                    {
+                        element: '#smmNavItem',
+                        popover: {
+                            title: 'Social Media (SMM)',
+                            description: 'Social strategy tools: the Strategy House, Content Pillar Framework, Caption Generator, and Social Response Generator.',
+                            side: 'bottom', align: 'start'
+                        }
+                    },
+                    {
+                        element: '#geoNavItem',
+                        popover: {
+                            title: 'GEO — Generative Engine Optimisation',
+                            description: 'Tools for AI search visibility: llms.txt generator, AI Discovery audits, AI Mentions tracking, and GEO on-page optimisation.',
+                            side: 'bottom', align: 'start'
+                        }
+                    },
+                    {
+                        element: '#semNavItem',
+                        popover: {
+                            title: 'SEM / Paid Media',
+                            description: 'Paid media analytics: Google Ads, Meta Ads campaign data, and Google Analytics 4 integration.',
+                            side: 'bottom', align: 'start'
+                        }
+                    },
+                    {
+                        element: '#cockpitNavItem',
+                        popover: {
+                            title: 'Cockpit — Campaign Intelligence',
+                            description: 'A live dashboard showing SEO trajectory, paid ads performance, and overall campaign health across all active clients.',
+                            side: 'bottom', align: 'start'
+                        }
+                    },
+                    {
+                        element: '#modeSelectorNavItem',
+                        popover: {
+                            title: 'Experience Mode',
+                            description: '<b>Basic</b> — essential tools for day-to-day work.<br><b>Intermediate</b> — adds advanced SEO features and deeper analytics.<br><b>Advanced</b> — unlocks every tool including schema generators, GEO utilities, and deep content analysis.<br><br>Your selection is saved automatically.',
+                            side: 'bottom', align: 'end'
+                        }
+                    },
+                    {
+                        element: '#accountNavItem',
+                        popover: {
+                            title: 'Account',
+                            description: 'Check API credit usage, view the platform changelog for the latest updates, and log out.',
+                            side: 'bottom', align: 'end'
+                        }
+                    },
+                    {
+                        element: '#quickHelpNavItem',
+                        popover: {
+                            title: 'Need Help?',
+                            description: 'Click here anytime to replay the full guided masterclass — a step-by-step walkthrough of every tool on the platform.',
+                            side: 'bottom', align: 'end'
+                        }
+                    }
+                ]
+            });
+
+            driverObj.onDestroyed = () => {
+                localStorage.setItem('navTourSeen', 'true');
+                advanceTourSequence();
+            };
+
+            setTimeout(() => driverObj.drive(), 300);
+        }
+
+        // Auto-fire nav tour on first visit after login
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!localStorage.getItem('navTourSeen') && localStorage.getItem('googleUser')) {
+                setTimeout(() => {
+                    if (typeof window.driver !== 'undefined') initNavTour();
+                }, 1500);
+            }
+        });
+
         function runSequentialTours() {
             // Populate the array when the user clicks 'Help'
             // This ensures all init functions in later script blocks are now defined
             allTours = [
+                initNavTour,
                 initKeywordAnalysisTour,
                 initCrawlerSimulatorTour,
                 initTechnicalSeoTour,
