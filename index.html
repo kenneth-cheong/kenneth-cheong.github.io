@@ -11305,7 +11305,11 @@
                         style="background:none;border:none;border-bottom:3px solid transparent;padding:10px 20px;font-size:1rem;font-weight:600;color:#64748b;cursor:pointer;margin-bottom:-2px;transition:all .2s;">
                         <i class="fas fa-users-cog"></i> Manage Teams
                     </button>
-                    <div style="flex: 1;"></div>
+                    <div style="flex: 1; display:flex; align-items:center; padding-bottom:6px;">
+                        <span id="logsDataSourceBadge" style="font-size:12px; color:#94a3b8;">
+                            <i class="fas fa-clock fa-spin" style="color:#f59e0b;"></i> Loading…
+                        </span>
+                    </div>
                     <button onclick="exportToolLogs()" class="discovery-btn-secondary" style="padding:7px 14px;font-size:13px;margin-bottom:6px;">
                         <i class="fas fa-download"></i> Export CSV
                     </button>
@@ -28364,7 +28368,11 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 document.getElementById('tabBtnLogs').style.color = '#2563eb';
                 document.getElementById('tabBtnLogs').style.borderBottomColor = '#2563eb';
                 document.getElementById('adminPanelLogs').style.display = 'block';
-                fetchTeamsFromCloud().then(() => renderLogsPanel());
+                _cloudLogs = null; // reset so we show local data immediately
+                renderLogsPanel(); // instant render with local data
+                // Fetch teams + cloud logs in parallel, then re-render
+                Promise.all([fetchTeamsFromCloud(), fetchLogsFromCloud()])
+                    .then(() => renderLogsPanel());
             }
         }
 
@@ -67456,9 +67464,19 @@ Move-In</h3>
 
             function addLog(entry) {
                 const user = getCurrentUser();
+                const full = { ...entry, ...user, id: Date.now() + '-' + Math.random().toString(36).slice(2, 7) };
+                // Save locally
                 const logs = getLogs();
-                logs.push({ ...entry, ...user, id: Date.now() + '-' + Math.random().toString(36).slice(2, 7) });
+                logs.push(full);
                 saveLogs(logs);
+                // Push to cloud (fire-and-forget — never blocks or throws)
+                try {
+                    _origFetch(MONDAY_LAMBDA_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'save_tool_log', log: full }),
+                    }).catch(() => {});
+                } catch (e) {}
                 const panel = document.getElementById('adminPanelLogs');
                 if (panel && panel.style.display !== 'none') renderLogsPanel();
             }
@@ -67612,6 +67630,32 @@ Move-In</h3>
             };
         })();
 
+        // ── Cloud log fetch (all users)
+        let _cloudLogs = null; // null = not fetched yet; [] = fetched (may be empty)
+
+        async function fetchLogsFromCloud() {
+            try {
+                const resp = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'fetch_tool_logs', limit: 1000 }),
+                });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const raw  = await resp.json();
+                const body = typeof raw.body === 'string' ? JSON.parse(raw.body) : raw;
+                _cloudLogs = body.logs || [];
+                return _cloudLogs;
+            } catch (e) {
+                console.warn('Could not fetch logs from cloud:', e.message);
+                return null;
+            }
+        }
+
+        function getEffectiveLogs() {
+            // Prefer cloud (all users); fall back to local (current user only)
+            return _cloudLogs !== null ? _cloudLogs : (window._toolLogger ? window._toolLogger.getLogs() : []);
+        }
+
         // ── Team management (localStorage cache + cloud sync via Monday Lambda)
         const TEAMS_KEY = 'digimetricsTeams';
         let _teamsCache = null;
@@ -67686,6 +67730,16 @@ Move-In</h3>
         }
 
         function renderLogsPanel() {
+            // Update data-source badge
+            const badge = document.getElementById('logsDataSourceBadge');
+            if (badge) {
+                const isCloud = _cloudLogs !== null;
+                const count   = getEffectiveLogs().length;
+                badge.innerHTML = isCloud
+                    ? `<i class="fas fa-cloud" style="color:#10b981;"></i> Cloud · ${count} events (all users)`
+                    : `<i class="fas fa-clock fa-spin" style="color:#f59e0b;"></i> Loading cloud data… (showing local)`;
+                badge.style.color = isCloud ? '#10b981' : '#f59e0b';
+            }
             if (activeLogsView === 'overview') renderLogsOverview();
             else if (activeLogsView === 'eventlog') renderLogsEventLog();
             else if (activeLogsView === 'teams') renderTeamsManager();
@@ -67695,7 +67749,7 @@ Move-In</h3>
         function renderLogsOverview() {
             const el = document.getElementById('logsViewOverview');
             if (!el) return;
-            const logs = window._toolLogger ? window._toolLogger.getLogs() : [];
+            const logs = getEffectiveLogs();
 
             const total      = logs.length;
             const errors     = logs.filter(l => l.type === 'error').length;
@@ -67854,7 +67908,7 @@ Move-In</h3>
                     <div id="logsTableContainer"></div>`;
             }
 
-            const allLogs    = window._toolLogger ? window._toolLogger.getLogs() : [];
+            const allLogs    = getEffectiveLogs();
             const typeFilter = document.getElementById('logsTypeFilter')?.value     || 'all';
             const catFilter  = document.getElementById('logsCategoryFilter')?.value || 'all';
             const teamFilter = document.getElementById('logsTeamFilter')?.value     || 'all';
@@ -68083,7 +68137,7 @@ Move-In</h3>
 
         function exportToolLogs() {
             if (!window._toolLogger) return;
-            const logs = window._toolLogger.getLogs();
+            const logs = getEffectiveLogs();
             const header = 'Timestamp,User Name,User Email,Team,Tool,Category,Type,Status,Action,Details,Duration (ms)';
             const rows = logs.map(l => {
                 const team = getTeamForEmail(l.userEmail);
