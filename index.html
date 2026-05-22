@@ -10380,7 +10380,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1254</span>
+                <span id="appVersion">v1.0.1255</span>
             </a>
         </div>
 
@@ -43164,6 +43164,13 @@ Return ONLY valid JSON in this exact format:
                     }
                 } else {
                     answer = typeof data === 'string' ? data : JSON.stringify(data);
+                }
+
+                // Unwrap Claude content block objects: {type:'output_text', text:'...'}
+                if (typeof answer === 'object' && answer !== null) {
+                    answer = Array.isArray(answer)
+                        ? answer.map(b => (b && b.text) || '').join('')
+                        : (answer.text || '');
                 }
 
                 outputText.innerHTML = formatMarkdownToHTML(answer);
