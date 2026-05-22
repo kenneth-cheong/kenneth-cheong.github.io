@@ -10654,7 +10654,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1339</span>
+                <span id="appVersion">v1.0.1340</span>
             </a>
         </div>
 
@@ -66764,10 +66764,16 @@ Move-In</h3>
             toggle.textContent   = open ? `▴ Hide rows` : `▾ View ${rowCount} rows`;
         }
 
+        const _sfTableData = {};
+
         function renderSfTable(key, headers, rows) {
             const wrap   = document.getElementById('fa_pages_' + key);
             const toggle = document.getElementById('fa_toggle_' + key);
             if (!wrap || !toggle || !rows.length) return;
+
+            // Store data for export
+            _sfTableData[key] = { headers, rows };
+
             const ths = headers.map(h => `<th>${h}</th>`).join('');
             const trs = rows.map(r => {
                 const tds = r.map((cell, i) => {
@@ -66785,6 +66791,39 @@ Move-In</h3>
             toggle.textContent = `▾ View ${rows.length} rows`;
             toggle.style.display = 'block';
             wrap.style.display = 'none';
+
+            // Add export button next to toggle (once only)
+            const exportBtnId = 'fa_export_' + key;
+            if (!document.getElementById(exportBtnId)) {
+                const btn = document.createElement('button');
+                btn.id        = exportBtnId;
+                btn.type      = 'button';
+                btn.innerHTML = '<i class="fas fa-download"></i> CSV';
+                btn.style.cssText = 'margin-left:8px;font-size:0.74em;padding:1px 7px;border-radius:6px;border:1px solid rgba(96,165,250,0.3);background:rgba(96,165,250,0.08);color:#60a5fa;cursor:pointer;vertical-align:middle;';
+                btn.onclick = (e) => { e.stopPropagation(); faExportSfTable(key); };
+                toggle.parentNode.insertBefore(btn, toggle.nextSibling);
+            }
+        }
+
+        function faExportSfTable(key) {
+            const data = _sfTableData[key];
+            if (!data || !data.rows.length) return;
+            const escape = v => {
+                const s = String(v ?? '');
+                return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
+            };
+            const lines = [
+                data.headers.map(escape).join(','),
+                ...data.rows.map(r => r.map(escape).join(','))
+            ];
+            const csv  = lines.join('\r\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = `forensic_${key}_${new Date().toISOString().slice(0,10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
         }
 
         function parseFaSfCsv(event) {
