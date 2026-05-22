@@ -67277,7 +67277,7 @@ Move-In</h3>
                     </div>
                 </div>`).join('');
 
-            const TH = (t) => `<th style="padding:10px 16px;text-align:${t.align||'left'};color:#475569;font-weight:700;">${t.label}</th>`;
+            const TH = (t) => `<th style="background-color:#f1f5f9;padding:10px 16px;text-align:${t.align||'left'};color:#475569;font-weight:700;white-space:nowrap;">${t.label}</th>`;
 
             const teamRows = Object.values(teamMap).filter(t => t.events > 0 || t.name !== 'Unassigned').sort((a,b) => b.events - a.events);
             const teamTable = teamRows.length ? `
@@ -67432,22 +67432,24 @@ Move-In</h3>
                 error:   '<span style="color:#ef4444;font-weight:600;">✕ Error</span>',
             };
 
+            const TH_BG  = 'background-color:#f1f5f9;';
+            const TH_BASE = `${TH_BG}white-space:nowrap;`;
             function thCell(label, col, align) {
                 const active = logsSort.col === col;
                 const arrow  = active ? (logsSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
-                const cursor = 'cursor:pointer;user-select:none;';
-                const color  = active ? '#1e293b' : '#475569';
-                const ta     = align === 'right' ? 'right' : 'left';
-                return `<th onclick="sortLogsBy('${col}')" style="padding:12px 16px;text-align:${ta};color:${color};font-weight:700;white-space:nowrap;${cursor}">${label}${arrow}</th>`;
+                const color  = active ? 'color:#1e293b;' : 'color:#475569;';
+                const weight = active ? 'font-weight:800;' : 'font-weight:700;';
+                const ta     = align === 'right' ? 'text-align:right;' : 'text-align:left;';
+                return `<th onclick="sortLogsBy('${col}')" style="${TH_BASE}${ta}${color}${weight}padding:12px 16px;cursor:pointer;user-select:none;">${label}${arrow}</th>`;
             }
-            const thead = `<thead><tr style="background:#f1f5f9;border-bottom:2px solid #cbd5e1;">
+            const thead = `<thead><tr style="border-bottom:2px solid #cbd5e1;">
                 ${thCell('Time','ts')}
                 ${thCell('User','user')}
                 ${thCell('Tool','tool')}
                 ${thCell('Category','cat')}
                 ${thCell('Type','type')}
                 ${thCell('Status','status')}
-                <th style="padding:12px 16px;color:#475569;font-weight:700;">Action / Details</th>
+                <th style="${TH_BASE}padding:12px 16px;color:#475569;font-weight:700;white-space:normal;">Action / Details</th>
                 ${thCell('Duration','dur','right')}
             </tr></thead>`;
 
