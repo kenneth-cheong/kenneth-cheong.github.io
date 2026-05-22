@@ -252,18 +252,20 @@
         .btn-regen:disabled { opacity: 0.35; cursor: not-allowed; }
 
         #live-preview {
+            width: 100%;
             background: var(--bg-card2);
             border: 1px solid var(--border);
             border-radius: 12px;
             padding: 14px 16px;
             font-size: 13px; color: var(--text-dim);
-            line-height: 1.75; white-space: pre-wrap;
-            word-break: break-word; min-height: 72px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            line-height: 1.75; min-height: 120px;
+            resize: vertical; outline: none;
             transition: border-color 0.3s;
         }
 
         #live-preview.ai-mode { border-color: var(--purple); color: var(--text-main); }
-        #live-preview strong { color: var(--text-main); }
+        #live-preview:focus { border-color: var(--li-blue); }
 
         .shimmer-line {
             height: 11px; border-radius: 5px; margin-bottom: 9px;
@@ -451,7 +453,7 @@
                         <i class="fas fa-redo" style="font-size:10px"></i> Regenerate
                     </button>
                 </div>
-                <div id="live-preview"><span style="color:#334155">Post preview will appear here once event details are filled in.</span></div>
+                <textarea id="live-preview" oninput="onPreviewEdit()" placeholder="Post preview will appear here once event details are filled in."></textarea>
             </div>
 
             <div class="btn-row">
@@ -584,8 +586,8 @@
             const draft = sessionStorage.getItem('li_post_draft');
             if (draft) {
                 const preview = document.getElementById('live-preview');
+                preview.value = draft;
                 preview.classList.add('ai-mode');
-                preview.innerHTML = escHtml(draft);
                 document.getElementById('ai-chip').classList.add('visible');
             }
         }
@@ -697,16 +699,16 @@
         // ── Step 2: AI-generate post ─────────────────────────────────────────
         async function aiGenerate() {
             const f = getFields();
-            if (!f.event && !f.date) return; // nothing to generate yet
+            if (!f.event && !f.date) return;
 
             const preview  = document.getElementById('live-preview');
             const btnRegen = document.getElementById('btn-regen');
 
             btnRegen.disabled = true;
             preview.classList.remove('ai-mode');
-            preview.innerHTML = [1,2,3,4].map((_,i) =>
-                `<div class="shimmer-line" style="width:${[90,75,83,52][i]}%"></div>`
-            ).join('');
+            // Show shimmer via placeholder swap while keeping textarea
+            preview.value = '';
+            preview.placeholder = 'Generating post…';
 
             try {
                 const res  = await fetch(LAMBDA_URL, {
@@ -718,23 +720,26 @@
                 if (!data.success) throw new Error(data.error || 'AI generation failed.');
 
                 sessionStorage.setItem('li_post_draft', data.text);
+                preview.value = data.text;
                 preview.classList.add('ai-mode');
-                preview.innerHTML = escHtml(data.text);
                 document.getElementById('ai-chip').classList.add('visible');
             } catch (err) {
                 showError(err.message);
-                preview.innerHTML = buildTemplateFallback(getFields());
+                preview.value = buildTemplateFallback(getFields());
             } finally {
+                preview.placeholder = 'Post preview will appear here once event details are filled in.';
                 btnRegen.disabled = false;
             }
+        }
+
+        function onPreviewEdit() {
+            sessionStorage.setItem('li_post_draft', document.getElementById('live-preview').value);
         }
 
         function buildTemplateFallback(f) {
             const tags = formatTags(f.tags);
             const link = f.url ? `\nSecure your spot here: ${f.url}\n` : '';
-            return escHtml(`Hi! I am delighted to be part of the `) +
-                `<strong>${escHtml(f.event || 'this event')}!</strong> 🎉` +
-                escHtml(`\n\nLooking forward to this event and the learnings ahead.\n\n📅 ${f.date} | ${f.format} (Free)${link}\n${tags}`);
+            return `I am delighted to be part of the ${f.event || 'this event'}! 🎉\n\nLooking forward to this event and the learnings ahead.\n\n📅 ${f.date} | ${f.format} (Free)${link}\n${tags}`;
         }
 
         // ── Step 3: OAuth ─────────────────────────────────────────────────────
@@ -779,7 +784,7 @@
 
                 renderProfile(data);
 
-                const postText = buildPostText(data.first_name || data.name || '');
+                const postText = buildPostText();
                 document.getElementById('post-preview').value = postText;
                 updateCharCount();
 
@@ -831,16 +836,10 @@
             };
         }
 
-        function buildPostText(firstName) {
+        function buildPostText() {
             const draft = sessionStorage.getItem('li_post_draft');
-            if (draft) {
-                return firstName ? draft.replace(/^Hi! /, `Hi ${firstName}! `) : draft;
-            }
-            const f = getFields();
-            const greeting = firstName ? `Hi ${firstName}! ` : 'Hi! ';
-            const tags = formatTags(f.tags);
-            const link = f.url ? `\nSecure your spot here: ${f.url}\n` : '';
-            return `${greeting}I am delighted to be part of the ${f.event || 'this event'}! 🎉\n\nLooking forward to this event and the learnings ahead.\n\n📅 ${f.date} | ${f.format} (Free)${link}\n${tags}`;
+            if (draft) return draft;
+            return buildTemplateFallback(getFields());
         }
 
         function formatTags(raw) {

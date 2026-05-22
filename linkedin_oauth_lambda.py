@@ -279,7 +279,7 @@ Format: {fmt}
 {f"Registration link: {url}" if url else ""}
 
 Rules:
-- Open EXACTLY with: "Hi! I am delighted to be part of {event}! 🎉"
+- Open EXACTLY with: "I am delighted to be part of {event}! 🎉"
 - 2–3 sentences of genuine excitement — what they are looking forward to learning or experiencing
 - Then on its own line: "{date_line}"
 {f'- Then on its own line: "{link_line}"' if link_line else ""}
