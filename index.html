@@ -20288,12 +20288,43 @@
             const isTypedLabel = ['standard', 'cluster', 'special', 'internal kpi'].some(s => csmStatus.includes(s));
             if (!isAllowedStatus && !isTypedLabel) return null;
 
-            // SEO Campaign Type — same column; active-status campaigns default to Standard
+            // SEO Campaign Type — explicit label only; no fallback assumption
             const campTypeRaw = csmStatus;
-            const isStandard = campTypeRaw.includes('standard') || campTypeRaw.includes('internal kpi')
-                || (isAllowedStatus && !campTypeRaw.includes('cluster') && !campTypeRaw.includes('special'));
+            const isStandard = campTypeRaw.includes('standard') || campTypeRaw.includes('internal kpi');
             const isCluster  = campTypeRaw.includes('cluster');
             const isSpecial  = campTypeRaw.includes('special');
+            const isUntyped  = isAllowedStatus && !isStandard && !isCluster && !isSpecial;
+
+            // Timeline text is "YYYY-MM-DD - YYYY-MM-DD"
+            const tlText = txt(SEO_INTEL_COLS.timeline);
+            const tlParts = tlText.split(' - ');
+            if (tlParts.length < 2) return null;
+            const start = new Date(tlParts[0].trim());
+            const end   = new Date(tlParts[1].trim());
+            if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+
+            const today = new Date();
+            if (today < start) return null;
+
+            const totalDays   = Math.max(1, (end - start)   / 86400000);
+            const elapsedDays = Math.min(totalDays, Math.max(0, (today - start) / 86400000));
+            const pct         = elapsedDays / totalDays;
+
+            // Untyped campaigns: show with blank KPI section
+            if (isUntyped) {
+                return {
+                    id: item.id, name: item.name,
+                    isUntyped: true,
+                    isBehind: false,
+                    pctProgress: Math.round(pct * 100),
+                    daysRemaining: Math.max(0, Math.round((end - today) / 86400000)),
+                    startDate: tlParts[0].trim(), endDate: tlParts[1].trim(),
+                    seoOwner:       txt('people6') || '—',
+                    campaignStatus: txt(SEO_INTEL_COLS.campaignStatus),
+                    campaignType:   txt(SEO_INTEL_COLS.campaignType),
+                };
+            }
+
             if (!isStandard && !isCluster && !isSpecial) return null;
 
             // KPI and result depend on campaign type
@@ -20312,21 +20343,6 @@
                 if (!kpi) return null;
                 resultLabel = isCluster ? 'Clusters Hit' : 'P1 KWs';
             }
-
-            // Timeline text is "YYYY-MM-DD - YYYY-MM-DD"
-            const tlText = txt(SEO_INTEL_COLS.timeline);
-            const tlParts = tlText.split(' - ');
-            if (tlParts.length < 2) return null;
-            const start = new Date(tlParts[0].trim());
-            const end   = new Date(tlParts[1].trim());
-            if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
-
-            const today = new Date();
-            if (today < start) return null;
-
-            const totalDays   = Math.max(1, (end - start)   / 86400000);
-            const elapsedDays = Math.min(totalDays, Math.max(0, (today - start) / 86400000));
-            const pct         = elapsedDays / totalDays;
 
             let expected, delta, pctBehind, isBehind;
             if (isSpecial) {
@@ -20501,8 +20517,9 @@
             const allStatuses = [...new Set(campaigns.map(c => c.campaignStatus).filter(Boolean))].sort();
             const allTypes    = [...new Set(campaigns.map(c => c.campaignType).filter(Boolean))].sort();
 
-            const behind  = filtered.filter(c => c.isBehind) .sort((a, b) => b.pctBehind - a.pctBehind);
-            const onTrack = filtered.filter(c => !c.isBehind).sort((a, b) => a.pctBehind - b.pctBehind);
+            const behind   = filtered.filter(c => c.isBehind)              .sort((a, b) => b.pctBehind - a.pctBehind);
+            const onTrack  = filtered.filter(c => !c.isBehind && !c.isUntyped).sort((a, b) => a.pctBehind - b.pctBehind);
+            const untyped  = filtered.filter(c => c.isUntyped);
             if (countEl) countEl.textContent = `${behind.length}/${filtered.length}`;
 
             const fetchedAt = cockpitState.seoIntelFetchedAt
@@ -20587,6 +20604,13 @@
                 onTrack.forEach(c => { html += renderSeoIntelRow(c); });
             }
 
+            if (untyped.length) {
+                html += `<div style="padding:8px 14px;font-size:0.78rem;font-weight:700;color:#64748b;background:#f8fafc;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:6px;">
+                    <i class="fas fa-minus-circle"></i> No KPI Type — ${untyped.length} campaign${untyped.length > 1 ? 's' : ''}
+                </div>`;
+                untyped.forEach(c => { html += renderSeoIntelRow(c); });
+            }
+
             if (!filtered.length) {
                 html += `<div style="padding:20px;text-align:center;color:#94a3b8;font-size:0.85rem;">No campaigns match the current filters.</div>`;
             }
@@ -20595,7 +20619,29 @@
         }
 
         function renderSeoIntelRow(c) {
-            const fmtDate     = d => new Date(d).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'2-digit' });
+            const fmtDate = d => new Date(d).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'2-digit' });
+
+            // Untyped: no KPI configured — show name, status, owner, duration only
+            if (c.isUntyped) {
+                const csl = (c.campaignStatus || '').toLowerCase();
+                const csColor = csl.includes('guarantee') ? '#d97706' : csl.includes('live') ? '#16a34a' : csl.includes('renewed') ? '#2563eb' : '#64748b';
+                return `
+                <div style="padding:12px 16px;border-bottom:1px solid #f1f5f9;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px;">
+                        <div style="font-weight:700;color:#0f172a;font-size:0.87rem;flex:1;line-height:1.4;">${c.name}</div>
+                        <span style="font-size:0.68rem;color:#94a3b8;white-space:nowrap;flex-shrink:0;">${c.daysRemaining}d left</span>
+                    </div>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:7px;align-items:center;">
+                        ${c.seoOwner !== '—' ? `<span style="font-size:0.72rem;color:#475569;display:flex;align-items:center;gap:3px;"><i class="fas fa-user-circle" style="color:#6366f1;font-size:0.7rem;"></i>${c.seoOwner}</span>` : ''}
+                        <span style="font-size:0.68rem;padding:2px 6px;border-radius:8px;font-weight:600;background:${csColor}18;color:${csColor};border:1px solid ${csColor}30;">${c.campaignStatus}</span>
+                        <span style="font-size:0.68rem;padding:2px 6px;border-radius:8px;font-weight:600;background:#f1f5f9;color:#94a3b8;font-style:italic;">No KPI type</span>
+                    </div>
+                    <div style="height:7px;background:#f1f5f9;border-radius:4px;margin-bottom:6px;">
+                        <div style="height:100%;width:${c.pctProgress}%;background:#cbd5e1;border-radius:4px;"></div>
+                    </div>
+                    <div style="font-size:0.71rem;color:#94a3b8;text-align:right;">${c.pctProgress}% · ${fmtDate(c.startDate)} – ${fmtDate(c.endDate)}</div>
+                </div>`;
+            }
 
             // Special type: binary check, expected tick fixed at 50% campaign mark
             let color, bgBadge, border, actualPct, expectedPct, statusBadge;
