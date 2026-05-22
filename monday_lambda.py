@@ -146,6 +146,25 @@ def google_refresh_token(body):
     except Exception as e:
         return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
 
+def linkedin_get_ad_accounts(body):
+    access_token = body.get('access_token')
+    if not access_token:
+        return {"statusCode": 400, "body": json.dumps({"error": "Missing access_token"})}
+    try:
+        r = requests.get(
+            'https://api.linkedin.com/rest/adAccountsV2',
+            params={'q': 'search', 'search.type.values[0]': 'BUSINESS', 'search.status.values[0]': 'ACTIVE', 'count': 100},
+            headers={
+                'Authorization': f'Bearer {access_token}',
+                'LinkedIn-Version': '202407',
+                'X-Restli-Protocol-Version': '2.0.0'
+            },
+            timeout=15
+        )
+        return {"statusCode": r.status_code, "body": r.text}
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+
 def get_board_items(body):
     if not MONDAY_API_KEY:
         return {"statusCode": 500, "body": json.dumps({"error": "MONDAY_API_KEY environment variable not configured"})}
@@ -1193,6 +1212,8 @@ def lambda_handler(event, context):
             result = google_token_exchange(body)
         elif action == 'google_refresh_token':
             result = google_refresh_token(body)
+        elif action == 'linkedin_get_ad_accounts':
+            result = linkedin_get_ad_accounts(body)
         elif action == 'get_board_items':
             result = get_board_items(body)
         elif action == 'claude_chat':

@@ -2970,6 +2970,22 @@
                             <button class="btn-service-disconnect" id="btnDisconnectLinkedIn" onclick="disconnectLinkedInAds()" style="display:none;">Disconnect</button>
                         </div>
                         <div id="linkedinStatus" style="font-size:0.7rem; color:#64748b; margin-top:4px; min-height:16px;"></div>
+                        <div id="selectorLinkedIn" style="display:none; margin-top:5px;">
+                            <select id="selectedLinkedInAccount" style="display:none;">
+                                <option value="">-- Select Ad Account --</option>
+                            </select>
+                            <div class="searchable-select" id="ss-selectedLinkedInAccount">
+                                <div class="ss-trigger" id="ss-trigger-selectedLinkedInAccount" onclick="toggleSearchableSelect('selectedLinkedInAccount')">
+                                    <span class="ss-label">-- Select Ad Account --</span>
+                                    <i class="fas fa-chevron-down ss-icon"></i>
+                                </div>
+                                <div class="ss-panel" id="ss-panel-selectedLinkedInAccount">
+                                    <div class="ss-search-row"><i class="fas fa-search"></i><input type="text" placeholder="Search accounts..." oninput="filterSearchableSelect('selectedLinkedInAccount', this.value)"></div>
+                                    <div class="ss-bulk-actions"><button onclick="ssSelectAll('selectedLinkedInAccount')">✓ All</button><button onclick="ssClearAll('selectedLinkedInAccount')">✗ None</button></div>
+                                    <div class="ss-options" id="ss-options-selectedLinkedInAccount"><div class="ss-empty">Connect LinkedIn Ads first.</div></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -5505,11 +5521,15 @@
             document.getElementById('btnDisconnectLinkedIn').style.display = '';
             document.getElementById('statusBadgeLinkedIn').textContent = '✓ Connected';
             document.getElementById('statusBadgeLinkedIn').style.cssText = 'background:#dcfce7;color:#166534;';
-            document.getElementById('linkedinStatus').innerHTML = '<i class="fas fa-check-circle" style="color:#0A66C2;"></i> Token saved.';
+            document.getElementById('linkedinStatus').innerHTML = '<i class="fas fa-check-circle" style="color:#0A66C2;"></i> Connected.';
+            fetchLinkedInAdAccounts();
         }
 
         function disconnectLinkedInAds() {
             localStorage.removeItem('linkedin_access_token');
+            localStorage.removeItem('selectedLinkedInAccount');
+            if (!window.ssSelections) window.ssSelections = {};
+            window.ssSelections['selectedLinkedInAccount'] = [];
             document.getElementById('linkedinTokenInput').disabled = false;
             document.getElementById('linkedinTokenInput').value = '';
             document.getElementById('btnConnectLinkedIn').style.display = '';
@@ -5518,6 +5538,43 @@
             document.getElementById('statusBadgeLinkedIn').textContent = '—';
             document.getElementById('statusBadgeLinkedIn').style.cssText = '';
             document.getElementById('linkedinStatus').textContent = '';
+            document.getElementById('selectorLinkedIn').style.display = 'none';
+            document.getElementById('ss-options-selectedLinkedInAccount').innerHTML = '<div class="ss-empty">Connect LinkedIn Ads first.</div>';
+            updateSSTriggerLabel('selectedLinkedInAccount');
+        }
+
+        async function fetchLinkedInAdAccounts() {
+            const token = localStorage.getItem('linkedin_access_token');
+            if (!token) return;
+            document.getElementById('linkedinStatus').innerHTML += ' — <i class="fas fa-spinner fa-spin"></i> Fetching accounts…';
+            try {
+                const res = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'linkedin_get_ad_accounts', access_token: token })
+                }).then(r => r.json()).then(r => typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r));
+
+                const accounts = res.elements || [];
+                const select = document.getElementById('selectedLinkedInAccount');
+                select.innerHTML = '<option value="">-- Select Ad Account --</option>';
+                accounts.forEach(acc => {
+                    const opt = document.createElement('option');
+                    const id = acc.id || (acc.reference || '').replace('urn:li:sponsoredAccount:', '');
+                    opt.value = id;
+                    opt.textContent = `${acc.name || id} (${id})`;
+                    select.appendChild(opt);
+                });
+                document.getElementById('selectorLinkedIn').style.display = '';
+                if (!window.ssSelections) window.ssSelections = {};
+                const savedRaw = localStorage.getItem('selectedLinkedInAccount') || '[]';
+                try { window.ssSelections['selectedLinkedInAccount'] = JSON.parse(savedRaw); } catch { window.ssSelections['selectedLinkedInAccount'] = []; }
+                refreshSearchableSelect('selectedLinkedInAccount');
+                document.getElementById('linkedinStatus').innerHTML =
+                    document.getElementById('linkedinStatus').innerHTML.replace(/ — <i.*?<\/i> Fetching accounts…/, '');
+            } catch (err) {
+                document.getElementById('linkedinStatus').innerHTML +=
+                    ` <span style="color:#ea4335;">${err.message}</span>`;
+            }
         }
 
         (function initLinkedInAdsConnection() {
@@ -5529,7 +5586,8 @@
             document.getElementById('btnDisconnectLinkedIn').style.display = '';
             document.getElementById('statusBadgeLinkedIn').textContent = '✓ Connected';
             document.getElementById('statusBadgeLinkedIn').style.cssText = 'background:#dcfce7;color:#166534;';
-            document.getElementById('linkedinStatus').innerHTML = '<i class="fas fa-check-circle" style="color:#0A66C2;"></i> Token saved.';
+            document.getElementById('linkedinStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Restoring connection…';
+            fetchLinkedInAdAccounts();
         })();
 
         // ── TikTok Ads ────────────────────────────────────────────────────────
