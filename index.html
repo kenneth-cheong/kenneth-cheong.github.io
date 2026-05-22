@@ -29880,46 +29880,96 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             const resultsEl = document.getElementById('adsCustomerDropdownResults');
             const selectEl = document.getElementById('adsSiteList');
 
-            // Sync with hidden select for backward compatibility
             selectEl.innerHTML = '<option value="">-- Choose an Ads Account --</option>';
             resultsEl.innerHTML = '';
 
             if (customers.length === 0) {
-                resultsEl.innerHTML = '<div style="padding: 10px; color: #64748b; font-size: 13px;">No accounts found.</div>';
+                resultsEl.innerHTML = '<div style="padding:10px;color:#64748b;font-size:13px;">No accounts found.</div>';
                 return;
             }
 
             customers.forEach(client => {
-                // To hidden select
-                const option = document.createElement('option');
-                option.value = client.id;
-                option.dataset.managerId = client.loginCustomerId;
-                option.dataset.developerToken = client.developerToken;
-                option.textContent = client.isManager ? `[MANAGER] ${client.name} (${client.id})` : `${client.name} (${client.id})`;
-                selectEl.appendChild(option);
+                if (!client.isManager) {
+                    const opt = document.createElement('option');
+                    opt.value = client.id;
+                    opt.dataset.managerId = client.loginCustomerId;
+                    opt.dataset.developerToken = client.developerToken;
+                    opt.textContent = `${client.name} (${client.id})`;
+                    selectEl.appendChild(opt);
+                }
 
-                // To custom dropdown
+                const isSelected = selectedAdsAccounts.some(a => a.id === client.id);
                 const div = document.createElement('div');
-                div.className = 'ads-searchable-select-item' + (client.isManager ? ' manager' : '');
-                div.innerHTML = client.isManager
-                    ? `<i class="fas fa-user-tie" style="margin-right: 8px; font-size: 11px; opacity: 0.7;"></i> ${client.name} (${client.id})`
-                    : `<i class="fas fa-user" style="margin-right: 8px; font-size: 11px; opacity: 0.7;"></i> ${client.name} (${client.id})`;
+                div.className = 'ads-searchable-select-item' + (client.isManager ? ' manager' : '') + (isSelected ? ' selected' : '');
+                div.style.cssText = 'display:flex;align-items:center;gap:10px;';
 
-                div.onclick = () => selectAdsCustomer(client.id, client.name, client.loginCustomerId, client.developerToken);
+                if (!client.isManager) {
+                    const cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.checked = isSelected;
+                    cb.style.cssText = 'width:14px;height:14px;cursor:pointer;flex-shrink:0;accent-color:#0f9d58;';
+                    cb.onclick = e => e.stopPropagation();
+                    cb.onchange = () => toggleAdsAccount(client.id, client.name, client.loginCustomerId, client.developerToken);
+                    div.appendChild(cb);
+                }
+
+                const label = document.createElement('span');
+                label.style.cssText = 'flex:1;font-size:13px;';
+                label.innerHTML = client.isManager
+                    ? `<i class="fas fa-user-tie" style="margin-right:6px;font-size:11px;opacity:0.7;"></i><b>${client.name}</b> <span style="color:#94a3b8;font-size:11px;">(${client.id})</span>`
+                    : `<i class="fas fa-user" style="margin-right:6px;font-size:11px;opacity:0.7;"></i>${client.name} <span style="color:#94a3b8;font-size:11px;">(${client.id})</span>`;
+                div.appendChild(label);
+
+                if (!client.isManager) {
+                    div.onclick = () => toggleAdsAccount(client.id, client.name, client.loginCustomerId, client.developerToken);
+                }
                 resultsEl.appendChild(div);
             });
         }
 
         function selectAdsCustomer(id, name, managerId, developerToken) {
+            toggleAdsAccount(id, name, managerId, developerToken);
+        }
+
+        function toggleAdsAccount(id, name, loginCustomerId, developerToken) {
+            const idx = selectedAdsAccounts.findIndex(a => a.id === id);
+            if (idx !== -1) {
+                selectedAdsAccounts.splice(idx, 1);
+            } else {
+                selectedAdsAccounts.push({ id, name, loginCustomerId, developerToken });
+            }
+
+            // Update search box label
             const searchInput = document.getElementById('adsCustomerSearch');
+            const count = selectedAdsAccounts.length;
+            if (count === 0) {
+                searchInput.value = '';
+                searchInput.placeholder = 'Search or select accounts (name or ID)...';
+            } else if (count === 1) {
+                searchInput.value = `${selectedAdsAccounts[0].name} (${selectedAdsAccounts[0].id})`;
+            } else {
+                searchInput.value = `${count} accounts selected`;
+            }
+
+            // Update hidden select for compat (first selected account)
             const selectEl = document.getElementById('adsSiteList');
-            const resultsEl = document.getElementById('adsCustomerDropdownResults');
+            if (selectedAdsAccounts.length > 0) {
+                selectEl.value = selectedAdsAccounts[0].id;
+            } else {
+                selectEl.value = '';
+            }
 
-            searchInput.value = `${name} (${id})`;
-            selectEl.value = id;
-            resultsEl.style.display = 'none';
+            // Re-render dropdown to refresh checkboxes
+            const searchTerm = document.getElementById('adsCustomerSearch').value;
+            const isCountLabel = count > 1;
+            const filtered = (!searchTerm || isCountLabel)
+                ? adsCustomerList
+                : adsCustomerList.filter(c =>
+                    (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (c.id || '').includes(searchTerm));
+            renderAdsCustomerDropdown(filtered);
+            document.getElementById('adsCustomerDropdownResults').style.display = 'block';
 
-            // Trigger change logic
             updateSelectedAdsProperty();
         }
 
@@ -29933,29 +29983,25 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
         });
 
         async function updateSelectedAdsProperty(isRefresh = false) {
-            const selectEl = document.getElementById('adsSiteList');
-            const selectedProperty = selectEl.value;
             const toolsArea = document.getElementById('adsToolsArea');
-            if (selectedProperty) {
+            if (selectedAdsAccounts.length > 0) {
                 toolsArea.style.opacity = '1';
-                const selectedOption = selectEl.options[selectEl.selectedIndex];
-                const loginCustomerId = selectedOption.dataset.managerId || null;
-                const developerToken = selectedOption.dataset.developerToken || null;
                 updateAdsColumnAvailability();
 
-                // Update Account Chip
-                const accountName = selectedOption.text.split(' (')[0];
-                document.getElementById('adsBreadcrumbAccountName').textContent = accountName;
+                const labelText = selectedAdsAccounts.length === 1
+                    ? selectedAdsAccounts[0].name
+                    : `${selectedAdsAccounts.length} Accounts (Aggregated)`;
+                document.getElementById('adsBreadcrumbAccountName').textContent = labelText;
                 document.getElementById('adsFilterAccount').style.display = 'flex';
                 updateHierarchyChipLabels();
 
-                fetchAdsInsights(selectedProperty, loginCustomerId, developerToken, isRefresh);
-
-                // Automated Diagnostics trigger
-                setTimeout(() => {
-                    console.log("Automating Google Ads Diagnostics after account selection...");
-                    runAdsDiagnostics();
-                }, 1500);
+                if (selectedAdsAccounts.length === 1) {
+                    const acc = selectedAdsAccounts[0];
+                    fetchAdsInsights(acc.id, acc.loginCustomerId, acc.developerToken, isRefresh);
+                    setTimeout(() => runAdsDiagnostics(), 1500);
+                } else {
+                    fetchMultipleAdsInsights(selectedAdsAccounts, isRefresh);
+                }
             } else {
                 document.getElementById('adsImpressions').textContent = '-';
                 document.getElementById('adsClicks').textContent = '-';
@@ -29977,6 +30023,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
         let lastFetchedCampaignsList = []; // Store raw data for client-side filtering
         let lastFetchedAdsRawData = []; // Store flattened raw rows for chart re-filtering
         let lastFetchedTotals = { imps: 0, clicks: 0, convs: 0, cost: 0 };
+        let selectedAdsAccounts = []; // Multi-account selection [{id, name, loginCustomerId, developerToken}]
 
         // Advanced Hierarchy State
         let adsCurrentLevel = 'campaign'; // 'campaign', 'ad_group', or 'ad'
@@ -30623,9 +30670,9 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             });
         }
 
-        async function fetchAdsInsights(customerId, loginCustomerId = null, developerToken = null, isRefresh = false) {
+        async function fetchAdsInsights(customerId, loginCustomerId = null, developerToken = null, isRefresh = false, accumulate = false) {
             const overlay = document.getElementById('adsLoadingOverlay');
-            if (overlay) overlay.style.display = 'flex';
+            if (!accumulate && overlay) overlay.style.display = 'flex';
 
             try {
                 if (isRefresh) {
@@ -30753,7 +30800,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
                 const dailyData = {};
                 const campaignData = {};
-                lastFetchedAdsRawData = []; // Clear previous raw data
+                if (!accumulate) lastFetchedAdsRawData = []; // Clear previous raw data (skipped when accumulating for multi-account)
 
                 if (Array.isArray(dataStream) && dataStream.length > 0) {
                     dataStream.forEach(batch => {
@@ -30863,6 +30910,12 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
                     let costTotal = totalCostMicros / 1000000;
                     let costConv = costTotal / totalConversions || 0;
+
+                    // When accumulating for multi-account, return raw data for caller to aggregate
+                    if (accumulate) {
+                        return { totalImpressions, totalClicks, totalCostMicros, totalConversions, dailyData, campaignsList };
+                    }
+
                     lastFetchedTotals = { imps: totalImpressions, clicks: totalClicks, convs: totalConversions, cost: costTotal };
 
                     let ctr = (totalClicks / totalImpressions) * 100 || 0;
@@ -30987,6 +31040,80 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 console.log("Rendered dynamic mock data fallback for Ads.");
             } finally {
                 const overlay = document.getElementById('adsLoadingOverlay');
+                if (overlay) overlay.style.display = 'none';
+            }
+        }
+
+
+        async function fetchMultipleAdsInsights(accounts, isRefresh = false) {
+            const overlay = document.getElementById('adsLoadingOverlay');
+            if (overlay) overlay.style.display = 'flex';
+            try {
+                // Fetch all accounts in parallel
+                const results = await Promise.all(accounts.map(acc =>
+                    fetchAdsInsights(acc.id, acc.loginCustomerId, acc.developerToken, isRefresh, true)
+                ));
+
+                // Aggregate across all accounts
+                let aggImps = 0, aggClicks = 0, aggCostMicros = 0, aggConvs = 0;
+                const aggDaily = {};
+                const aggCampaigns = [];
+
+                results.forEach((result, i) => {
+                    if (!result) return;
+                    const acc = accounts[i];
+                    aggImps += result.totalImpressions;
+                    aggClicks += result.totalClicks;
+                    aggCostMicros += result.totalCostMicros;
+                    aggConvs += result.totalConversions;
+
+                    // Merge daily data
+                    Object.entries(result.dailyData || {}).forEach(([d, v]) => {
+                        if (!aggDaily[d]) aggDaily[d] = { clicks: 0, conversions: 0 };
+                        aggDaily[d].clicks += v.clicks;
+                        aggDaily[d].conversions += v.conversions;
+                    });
+
+                    // Merge campaign rows (prefix ID to avoid collisions)
+                    (result.campaignsList || []).forEach(c => {
+                        aggCampaigns.push({ ...c, id: `${acc.id}_${c.id}`, accountName: acc.name,
+                            name: `[${acc.name.substring(0,12)}] ${c.name}` });
+                    });
+                });
+
+                // Store globals
+                const costTotal = aggCostMicros / 1000000;
+                lastFetchedTotals = { imps: aggImps, clicks: aggClicks, convs: aggConvs, cost: costTotal };
+                lastFetchedCampaignsList = aggCampaigns.sort((a, b) => b.imps - a.imps);
+
+                // Render KPI cards
+                const ctr = aggImps > 0 ? (aggClicks / aggImps) * 100 : 0;
+                const convRate = aggClicks > 0 ? (aggConvs / aggClicks) * 100 : 0;
+                const costConv = aggConvs > 0 ? costTotal / aggConvs : 0;
+
+                document.getElementById('adsImpressions').textContent = aggImps.toLocaleString();
+                document.getElementById('adsClicks').textContent = aggClicks.toLocaleString();
+                document.getElementById('adsCost').textContent = '$' + costTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                document.getElementById('adsConversions').textContent = aggConvs.toLocaleString(undefined, { maximumFractionDigits: 0 });
+                document.getElementById('adsCtr').textContent = ctr.toFixed(2) + '%';
+                document.getElementById('adsConvRate').textContent = convRate.toFixed(2) + '%';
+                document.getElementById('adsCostConv').textContent = '$' + costConv.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                document.getElementById('adsRevenue').textContent = 'N/A';
+
+                // Render aggregated chart
+                const sortedDates = Object.keys(aggDaily).sort();
+                renderAdsChart(sortedDates, [
+                    { label: 'Clicks', data: sortedDates.map(d => aggDaily[d].clicks),
+                      borderColor: '#4285f4', backgroundColor: 'rgba(66,133,244,0.1)', fill: true, tension: 0.3, pointRadius: 2 },
+                    { label: 'Conversions', data: sortedDates.map(d => aggDaily[d].conversions),
+                      borderColor: '#34a853', backgroundColor: 'rgba(52,168,83,0.1)', fill: true, tension: 0.3, pointRadius: 2 }
+                ], `Aggregated Performance — ${accounts.length} accounts`);
+
+                reRenderAdsTable();
+                updateHierarchyChipLabels();
+            } catch (err) {
+                console.error('Multi-account ads fetch error:', err);
+            } finally {
                 if (overlay) overlay.style.display = 'none';
             }
         }
