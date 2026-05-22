@@ -479,7 +479,7 @@
                 <div id="avatar-container"></div>
                 <div>
                     <div class="profile-name" id="profile-name">Your Name</div>
-                    <div class="profile-label">LinkedIn Member</div>
+                    <div class="profile-label">LinkedIn Member &nbsp;·&nbsp; <a href="#" onclick="switchAccount();return false;" style="color:var(--li-blue);font-size:11px;text-decoration:none;">Switch account</a></div>
                 </div>
             </div>
             <h3>Preview Your Post</h3>
@@ -742,7 +742,36 @@
             return `I am delighted to be part of the ${f.event || 'this event'}! 🎉\n\nLooking forward to this event and the learnings ahead.\n\n📅 ${f.date} | ${f.format} (Free)${link}\n${tags}`;
         }
 
-        // ── Step 3: OAuth ─────────────────────────────────────────────────────
+        // ── LinkedIn auth persistence (localStorage, 58-day expiry) ────────────
+        const AUTH_STORE = 'li_auth_v1';
+
+        function saveAuth(data) {
+            localStorage.setItem(AUTH_STORE, JSON.stringify({
+                token:   data.access_token,
+                pid:     data.person_id,
+                name:    data.name    || '',
+                picture: data.picture || '',
+                expiry:  Date.now() + 58 * 24 * 60 * 60 * 1000,
+            }));
+        }
+
+        function getStoredAuth() {
+            try {
+                const raw = localStorage.getItem(AUTH_STORE);
+                if (!raw) return null;
+                const auth = JSON.parse(raw);
+                if (Date.now() > auth.expiry) { localStorage.removeItem(AUTH_STORE); return null; }
+                return auth;
+            } catch { return null; }
+        }
+
+        function clearStoredAuth() {
+            localStorage.removeItem(AUTH_STORE);
+            sessionStorage.removeItem('li_token');
+            sessionStorage.removeItem('li_pid');
+        }
+
+        // ── Step 3: OAuth (skipped for returning users) ──────────────────────
         function startLinkedInAuth() {
             const f = getFields();
             sessionStorage.setItem('li_event',     f.event);
@@ -750,6 +779,18 @@
             sessionStorage.setItem('li_format',    f.format);
             sessionStorage.setItem('li_event_url', f.url);
             sessionStorage.setItem('li_tags',      f.tags);
+
+            // Skip OAuth if we already have a valid stored token
+            const auth = getStoredAuth();
+            if (auth) {
+                sessionStorage.setItem('li_token', auth.token);
+                sessionStorage.setItem('li_pid',   auth.pid);
+                renderProfile({ name: auth.name, picture: auth.picture });
+                document.getElementById('post-preview').value = buildPostText();
+                updateCharCount();
+                showStep('preview');
+                return;
+            }
 
             const state = crypto.randomUUID ? crypto.randomUUID() : (Math.random().toString(36).slice(2) + Date.now());
             sessionStorage.setItem('li_state', state);
@@ -763,6 +804,13 @@
             });
 
             window.location.href = `https://www.linkedin.com/oauth/v2/authorization?${qs}`;
+        }
+
+        function switchAccount() {
+            clearStoredAuth();
+            showStep('landing');
+            // Trigger a fresh OAuth immediately
+            startLinkedInAuth();
         }
 
         // ── Exchange code → profile ──────────────────────────────────────────
@@ -779,6 +827,8 @@
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error || 'Failed to authenticate with LinkedIn.');
 
+                // Persist for future visits (58 days)
+                saveAuth(data);
                 sessionStorage.setItem('li_token', data.access_token);
                 sessionStorage.setItem('li_pid',   data.person_id);
 
