@@ -377,6 +377,38 @@
             gap: 12px;
         }
 
+        /* ── URL Input ── */
+        .url-field {
+            margin-bottom: 24px;
+        }
+
+        .url-field label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.7px;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+        }
+
+        .url-field input {
+            width: 100%;
+            background: var(--bg-card2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 14px;
+            color: var(--text-main);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .url-field input::placeholder { color: var(--text-dim); }
+
+        .url-field input:focus { border-color: var(--li-blue); }
+
         /* ── Error Banner ── */
         #error-banner {
             display: none;
@@ -458,6 +490,11 @@
                 Looking forward to learning how AI is transforming search, discovery, and purchasing behaviours — and what it means for brands in Southeast Asia.<br><br>
                 📅 May 28, 2026 | Virtual Fireside Chat (Free)<br><br>
                 #AISearch #Google #MediaOne #DigitalMarketing
+            </div>
+
+            <div class="url-field">
+                <label for="event-url-input"><i class="fas fa-link" style="margin-right:5px;color:var(--li-blue)"></i>Event registration link (optional)</label>
+                <input type="url" id="event-url-input" placeholder="https://mediaonemarketing.com.sg/..." />
             </div>
 
             <div class="btn-row">
@@ -581,6 +618,9 @@
 
         // ── Step 1: Start OAuth ─────────────────────────────────────────────
         function startLinkedInAuth() {
+            const enteredUrl = document.getElementById('event-url-input').value.trim();
+            if (enteredUrl) sessionStorage.setItem('li_event_url', enteredUrl);
+
             const state = crypto.randomUUID ? crypto.randomUUID() : (Math.random().toString(36).slice(2) + Date.now());
             sessionStorage.setItem('li_state', state);
 
@@ -681,14 +721,14 @@
         // ── Helpers ─────────────────────────────────────────────────────────
         function buildPostText(firstName) {
             const greeting = firstName ? `Hi ${firstName}! ` : 'Hi! ';
+            const eventUrl = sessionStorage.getItem('li_event_url') || EVENT_LINK;
+            const linkLine = eventUrl ? `\nSecure your spot here: ${eventUrl}\n` : '';
             return `${greeting}I am delighted to be part of the ${EVENT_NAME}! 🎉
 
 Looking forward to learning how AI is transforming search, discovery, and purchasing behaviours — and what it means for brands in Southeast Asia.
 
 📅 ${EVENT_DATE} | Virtual Fireside Chat (Free)
-
-Secure your spot here: ${EVENT_LINK}
-
+${linkLine}
 #AISearch #Google #MediaOne #DigitalMarketing #SearchMarketing #SoutheastAsia #AIMarketing`;
         }
 
@@ -748,6 +788,7 @@ Secure your spot here: ${EVENT_LINK}
             sessionStorage.removeItem('li_token');
             sessionStorage.removeItem('li_pid');
             sessionStorage.removeItem('li_state');
+            sessionStorage.removeItem('li_event_url');
             document.getElementById('avatar-container').innerHTML = '';
             showStep('landing');
             hideError();
