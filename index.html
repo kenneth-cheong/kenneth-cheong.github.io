@@ -10658,7 +10658,8 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1365</span>
+
+                <span id="appVersion">v1.0.1366</span>
             </a>
         </div>
 
@@ -16002,6 +16003,42 @@
                                     <div class="kpi-subtext">
                                         <span><i class="fas fa-arrow-up"></i> 0.0%</span>
                                         <span>~ $0.00</span>
+                                    </div>
+                                </div>
+                                <!-- Avg. CPC -->
+                                <div class="koda-kpi-card koda-bg-teal">
+                                    <div class="kpi-header">
+                                        <span>Avg. CPC</span>
+                                        <i class="fas fa-mouse-pointer kpi-icon"></i>
+                                    </div>
+                                    <div class="kpi-value" id="adsAvgCpc">-</div>
+                                    <div class="kpi-subtext">
+                                        <span><i class="fas fa-arrow-up"></i> 0.0%</span>
+                                        <span>~ $0.00</span>
+                                    </div>
+                                </div>
+                                <!-- Avg. CPM -->
+                                <div class="koda-kpi-card koda-bg-indigo">
+                                    <div class="kpi-header">
+                                        <span>Avg. CPM</span>
+                                        <i class="fas fa-broadcast-tower kpi-icon"></i>
+                                    </div>
+                                    <div class="kpi-value" id="adsAvgCpm">-</div>
+                                    <div class="kpi-subtext">
+                                        <span><i class="fas fa-arrow-up"></i> 0.0%</span>
+                                        <span>~ $0.00</span>
+                                    </div>
+                                </div>
+                                <!-- ROAS -->
+                                <div class="koda-kpi-card koda-bg-green">
+                                    <div class="kpi-header">
+                                        <span>ROAS</span>
+                                        <i class="fas fa-chart-bar kpi-icon"></i>
+                                    </div>
+                                    <div class="kpi-value" id="adsRoas">-</div>
+                                    <div class="kpi-subtext">
+                                        <span><i class="fas fa-arrow-up"></i> 0.0%</span>
+                                        <span>~ 0.00x</span>
                                     </div>
                                 </div>
                             </div>
@@ -30431,7 +30468,11 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 adsCompareDailyData = aggDaily;
                 updateAdsKpiDeltas();
                 reRenderAdsChart();
-                reRenderAdsTable();
+                // Re-render table to show Δ% columns — use renderCampaignsTable directly
+                // to avoid reRenderAdsTable() re-triggering reRenderAdsChart() with stale state
+                if (lastFetchedCampaignsList?.length > 0) {
+                    renderCampaignsTable(lastFetchedCampaignsList, lastFetchedTotals.imps, lastFetchedTotals.clicks, lastFetchedTotals.convs, lastFetchedTotals.cost);
+                }
             } catch(e) { console.error('Comparison fetch error:', e); }
         }
 
@@ -30479,6 +30520,9 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             {id:'adsConvRate',    label:'Conv. Rate'},
             {id:'adsRevenue',     label:'Revenue'},
             {id:'adsCostConv',    label:'Cost / Conv.'},
+            {id:'adsAvgCpc',      label:'Avg. CPC'},
+            {id:'adsAvgCpm',      label:'Avg. CPM'},
+            {id:'adsRoas',        label:'ROAS'},
         ];
 
         function initAdsCardsMenu() {
@@ -31138,8 +31182,8 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                     dataStream.forEach(batch => {
                         if (batch.results) {
                             batch.results.forEach(row => {
-                                // Store raw row for dynamic re-filtering of chart
-                                lastFetchedAdsRawData.push(row);
+                                // Store raw row for dynamic re-filtering of chart (skip for comparison fetches)
+                                if (!dateOverride) lastFetchedAdsRawData.push(row);
 
                                 const dateStr = row.segments?.date;
                                 if (!dateStr) return;
@@ -32011,6 +32055,10 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             if (document.getElementById('adsCtr')) document.getElementById('adsCtr').textContent = fCtr.toFixed(2) + '%';
             if (document.getElementById('adsConvRate')) document.getElementById('adsConvRate').textContent = fConvRate.toFixed(2) + '%';
             if (document.getElementById('adsAvgCpc')) document.getElementById('adsAvgCpc').textContent = '$' + fAvgCpc.toLocaleString(undefined, { minimumFractionDigits: 2 });
+            const fCpm = fImps > 0 ? (fCost / fImps) * 1000 : 0;
+            const fRoas = fCost > 0 ? (fConvs / fCost) : 0;
+            if (document.getElementById('adsAvgCpm')) document.getElementById('adsAvgCpm').textContent = '$' + fCpm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            if (document.getElementById('adsRoas')) document.getElementById('adsRoas').textContent = fRoas.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'x';
 
             let html = '';
             filteredList.forEach(item => {
