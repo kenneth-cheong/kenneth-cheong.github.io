@@ -484,6 +484,16 @@
             box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
         }
 
+        /* Toggle switch */
+        .switch { position: relative; display: inline-block; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #cbd5e1; transition: 0.3s; }
+        .slider.round { border-radius: 20px; }
+        .slider.round::before { border-radius: 50%; }
+        .slider::before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background: #fff; transition: 0.3s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        .switch input:checked + .slider { background: #6366f1; }
+        .switch input:checked + .slider::before { transform: translateX(20px); }
+
         /* Chat Area */
         .chat-area {
             flex: 1;
@@ -2811,6 +2821,35 @@
                             </div>
                         </div>
 
+                        <!-- Sync toggles — off by default, auto-enabled when prompt mentions Gmail / Drive -->
+                        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                                <div>
+                                    <div style="font-size: 0.8rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+                                        <i class="fas fa-envelope" style="opacity: 0.5; width: 14px;"></i> Sync Gmail
+                                        <span id="gmailAccessBadge" style="display:none; font-size:0.6rem; padding:1px 6px; border-radius:8px; font-weight:700;"></span>
+                                    </div>
+                                    <div style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">Include Gmail threads in sync</div>
+                                </div>
+                                <label class="switch" style="width: 40px; height: 20px; flex-shrink: 0;">
+                                    <input type="checkbox" id="gmailIncludeToggle">
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                                <div>
+                                    <div style="font-size: 0.8rem; font-weight: 700; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+                                        <i class="fab fa-google-drive" style="opacity: 0.5; width: 14px;"></i> Sync Drive
+                                    </div>
+                                    <div style="font-size: 0.65rem; color: #64748b; margin-top: 2px;">Include Google Drive documents in sync</div>
+                                </div>
+                                <label class="switch" style="width: 40px; height: 20px; flex-shrink: 0;">
+                                    <input type="checkbox" id="syncDriveToggle">
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+
                         <div id="gchatSpacesSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
                             <div class="filter-field">
                                 <label><span><i class="fab fa-google" style="margin-right:4px; opacity:0.6;"></i> Google Chat Spaces</span> <span class="label-count" id="count-msChatSpaceDropdown"></span></label>
@@ -2839,17 +2878,7 @@
                             </div>
                         </div>
 
-                        <div id="gmailSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
-                            <div class="filter-field">
-                                <label>
-                                    <span><i class="fas fa-envelope" style="margin-right:4px; opacity:0.6;"></i> Include Gmail Threads <span id="gmailAccessBadge" style="display:none; font-size:0.6rem; padding:1px 6px; border-radius:8px; font-weight:700; margin-left:4px;"></span></span>
-                                    <span style="display:flex;align-items:center;gap:6px;">
-                                        <input type="checkbox" id="gmailIncludeToggle" checked style="width:16px;height:16px;cursor:pointer;accent-color:#92400e;">
-                                    </span>
-                                </label>
-                                <div style="font-size: 0.65rem; color: #92400e; margin-top: 4px; opacity: 0.8;">Searches emails mentioning selected campaigns / staff.</div>
-                            </div>
-                        </div>
+                        <div id="gmailSection" style="margin-top: 0; margin-bottom: 16px; display: none;"></div>
 
                         <div class="form-group" style="margin-bottom: 16px;">
                             <label>Gmail History (days)</label>
@@ -6532,7 +6561,8 @@
                 // ---- Fetch Google Drive folder contents ----
                 const selectedDriveFolders = msState.msGDriveFolderDropdown.selected;
                 const driveDocuments = [];
-                if (selectedDriveFolders.length > 0 && window.gchatAccessToken) {
+                const syncDriveEnabled = document.getElementById('syncDriveToggle')?.checked;
+                if (syncDriveEnabled && selectedDriveFolders.length > 0 && window.gchatAccessToken) {
                     showToast(`Reading ${selectedDriveFolders.length} Drive folder(s)...`, 'loading', 6000);
                     updateSyncStatus(`Loading Drive documents...`, true);
                     for (const folder of selectedDriveFolders) {
@@ -7430,6 +7460,23 @@ CRITICAL CONTACT RULE:
             const input = document.getElementById('userInput');
             const text = input.value.trim();
             if (!text) return;
+
+            // --- Auto-enable Gmail / Drive sync if prompt mentions them ---
+            (function autoEnableGoogleSources(prompt) {
+                const lower = prompt.toLowerCase();
+                const gmailKw = ['gmail', 'email', 'inbox', 'mail thread', 'email thread'];
+                const driveKw = ['drive', 'google drive', 'gdrive', 'document', 'doc', 'folder', 'spreadsheet', 'slides'];
+                const gmailToggle = document.getElementById('gmailIncludeToggle');
+                const driveToggle = document.getElementById('syncDriveToggle');
+                if (gmailToggle && !gmailToggle.checked && gmailKw.some(k => lower.includes(k))) {
+                    gmailToggle.checked = true;
+                    showToast('Gmail sync auto-enabled for this query', 'info');
+                }
+                if (driveToggle && !driveToggle.checked && driveKw.some(k => lower.includes(k))) {
+                    driveToggle.checked = true;
+                    showToast('Drive sync auto-enabled for this query', 'info');
+                }
+            })(text);
 
             // --- Un-synced Filter Confirmation (Internal Mode) ---
             if (currentMode === 'internal') {
