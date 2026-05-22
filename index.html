@@ -10593,7 +10593,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1308</span>
+                <span id="appVersion">v1.0.1310</span>
             </a>
         </div>
 
@@ -66559,40 +66559,120 @@ Move-In</h3>
             e.currentTarget.classList.add('active');
         }
 
+        // RFC 4180-compliant CSV parser — handles quoted fields, embedded commas & quotes
+        function _parseSfCsv(text) {
+            const rows = [];
+            let i = 0, len = text.length;
+            while (i < len) {
+                const row = [];
+                while (i < len && text[i] !== '\n') {
+                    if (text[i] === '\r') { i++; continue; }
+                    if (text[i] === '"') {
+                        i++;
+                        let field = '';
+                        while (i < len) {
+                            if (text[i] === '"' && i + 1 < len && text[i+1] === '"') { field += '"'; i += 2; }
+                            else if (text[i] === '"') { i++; break; }
+                            else { field += text[i++]; }
+                        }
+                        row.push(field);
+                        if (i < len && text[i] === ',') i++;
+                    } else {
+                        let field = '';
+                        while (i < len && text[i] !== ',' && text[i] !== '\n' && text[i] !== '\r') field += text[i++];
+                        row.push(field.trim());
+                        if (i < len && text[i] === ',') i++;
+                    }
+                }
+                if (i < len && text[i] === '\n') i++;
+                if (row.length > 1 || (row.length === 1 && row[0])) rows.push(row);
+            }
+            return rows;
+        }
+
         function parseFaSfCsv(event) {
             const file = event.target.files[0];
             if (!file) return;
+            const statusEl = document.getElementById('fa_sfcsv_status');
+            if (statusEl) statusEl.textContent = 'Parsing…';
             const reader = new FileReader();
             reader.onload = function(e) {
-                const text = e.target.result;
-                const lines = text.split('\n');
-                const header = lines[0] ? lines[0].split(',').map(h => h.trim().replace(/"/g,'').toLowerCase()) : [];
-                // Count rows per status/issue type
-                let dup404 = 0, dupTitles = 0, dupDescs = 0, canonical = 0, hreflang = 0;
-                const statusIdx = header.indexOf('status code') !== -1 ? header.indexOf('status code') : header.indexOf('status');
-                const typeIdx   = header.indexOf('content type') !== -1 ? header.indexOf('content type') : -1;
-                const titleIdx  = header.indexOf('title 1') !== -1 ? header.indexOf('title 1') : header.indexOf('page title');
-                const descIdx   = header.indexOf('meta description 1') !== -1 ? header.indexOf('meta description 1') : header.indexOf('meta description');
-                const canonIdx  = header.indexOf('canonical link element 1') !== -1 ? header.indexOf('canonical link element 1') : -1;
-                const titleDupIdx = header.indexOf('title 1 duplicate') !== -1 ? header.indexOf('title 1 duplicate') : -1;
-                const descDupIdx  = header.indexOf('meta description 1 duplicate') !== -1 ? header.indexOf('meta description 1 duplicate') : -1;
+                try {
+                    const rows = _parseSfCsv(e.target.result);
+                    if (rows.length < 2) { if (statusEl) statusEl.textContent = 'No data rows found.'; return; }
 
-                for (let i = 1; i < lines.length; i++) {
-                    if (!lines[i].trim()) continue;
-                    const cols = lines[i].split(',').map(c => c.trim().replace(/"/g,''));
-                    const status = statusIdx >= 0 ? cols[statusIdx] : '';
-                    if (status === '404') dup404++;
-                    if (titleDupIdx >= 0 && cols[titleDupIdx] && cols[titleDupIdx].toLowerCase() === 'duplicate') dupTitles++;
-                    if (descDupIdx  >= 0 && cols[descDupIdx]  && cols[descDupIdx].toLowerCase()  === 'duplicate') dupDescs++;
-                    if (canonIdx >= 0 && cols[canonIdx] && cols[canonIdx].toLowerCase().includes('issue')) canonical++;
+                    const header = rows[0].map(h => h.toLowerCase().trim());
+                    const col = name => header.indexOf(name);
+
+                    const iAddr    = col('address');
+                    const iStatus  = col('status code') >= 0 ? col('status code') : col('status');
+                    const iCtype   = col('content type');
+                    const iIndexSt = col('indexability status');
+                    const iTitle   = col('title 1');
+                    const iTitleL  = col('title 1 length');
+                    const iDesc    = col('meta description 1');
+                    const iDescL   = col('meta description 1 length');
+                    const iCanon   = col('canonical link element 1');
+
+                    let count404 = 0, countHtml = 0, countUnoptMeta = 0, countCanonical = 0, countMultiSlash = 0;
+                    const titlesSeen = new Map(), descsSeen = new Map();
+
+                    for (let i = 1; i < rows.length; i++) {
+                        const r = rows[i];
+                        if (!r || r.length < 3) continue;
+
+                        const status  = iStatus  >= 0 ? r[iStatus].trim()  : '';
+                        const ctype   = iCtype   >= 0 ? r[iCtype].trim().toLowerCase()  : '';
+                        const addr    = iAddr    >= 0 ? r[iAddr].trim()    : '';
+                        const isHtml  = ctype.startsWith('text/html');
+
+                        if (status === '404') count404++;
+
+                        // Double-slash in URL path (e.g. domain.com//page)
+                        const pathPart = addr.replace(/^https?:\/\/[^/]+/, '');
+                        if (pathPart.includes('//')) countMultiSlash++;
+
+                        if (!isHtml) continue;
+                        countHtml++;
+
+                        const title    = iTitle  >= 0 ? r[iTitle].trim()          : '';
+                        const titleLen = iTitleL >= 0 ? (parseInt(r[iTitleL]) || 0) : title.length;
+                        const desc     = iDesc   >= 0 ? r[iDesc].trim()           : '';
+                        const descLen  = iDescL  >= 0 ? (parseInt(r[iDescL])  || 0) : desc.length;
+                        const indexSt  = iIndexSt >= 0 ? r[iIndexSt].trim().toLowerCase() : '';
+                        const canon    = iCanon  >= 0 ? r[iCanon].trim()          : '';
+
+                        // Duplicate detection — track all seen titles/descs
+                        if (title) titlesSeen.set(title, (titlesSeen.get(title) || 0) + 1);
+                        if (desc)  descsSeen.set(desc,   (descsSeen.get(desc)   || 0) + 1);
+
+                        // Unoptimised meta: missing title, missing desc, title >60 chars, desc >160 chars
+                        if (!title || !desc || titleLen > 60 || descLen > 160) countUnoptMeta++;
+
+                        // Canonical issue: page canonicalised away from itself
+                        if (indexSt === 'canonicalised' || (canon && canon !== addr)) countCanonical++;
+                    }
+
+                    // Pages whose title/desc appears on more than one page
+                    let dupTitles = 0, dupDescs = 0;
+                    for (const cnt of titlesSeen.values()) if (cnt > 1) dupTitles += cnt;
+                    for (const cnt of descsSeen.values())  if (cnt > 1) dupDescs  += cnt;
+
+                    // Populate fields (only overwrite if value > 0)
+                    const setN = (id, val) => { const el = document.getElementById(id); if (el && val > 0) el.value = val; };
+                    setN('fa_sf404',      count404);
+                    setN('fa_duptitles',  dupTitles);
+                    setN('fa_dupdescs',   dupDescs);
+                    setN('fa_unoptmeta',  countUnoptMeta);
+                    setN('fa_canonical',  countCanonical);
+                    setN('fa_multislash', countMultiSlash);
+
+                    if (statusEl) statusEl.textContent =
+                        `✓ ${countHtml} HTML pages parsed (${rows.length - 1} total rows) — "${file.name}"`;
+                } catch(err) {
+                    if (statusEl) statusEl.textContent = 'Error: ' + err.message;
+                    console.error('SF CSV parse error:', err);
                 }
-
-                if (dup404 > 0) { const el = document.getElementById('fa_sf404'); if(el) el.value = dup404; }
-                if (dupTitles > 0) { const el = document.getElementById('fa_duptitles'); if(el) el.value = dupTitles; }
-                if (dupDescs > 0)  { const el = document.getElementById('fa_dupdescs');  if(el) el.value = dupDescs; }
-                if (canonical > 0) { const el = document.getElementById('fa_canonical'); if(el) el.value = canonical; }
-
-                document.getElementById('fa_sfcsv_status').textContent = `Parsed ${lines.length-1} rows from "${file.name}"`;
             };
             reader.readAsText(file);
         }
