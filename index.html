@@ -10380,7 +10380,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1256</span>
+                <span id="appVersion">v1.0.1257</span>
             </a>
         </div>
 
@@ -49732,10 +49732,119 @@ ${fullWrittenContent}
         let currentTourIndex = -1;
         let allTours = [];
 
+        function initNavTour() {
+            if (typeof window.driver === 'undefined') return;
+            const driver = window.driver.js.driver;
+            window.scrollTo({ top: 0, behavior: 'instant' });
+
+            const driverObj = driver({
+                showProgress: true,
+                allowClose: true,
+                stagePadding: 8,
+                steps: [
+                    {
+                        popover: {
+                            title: 'Welcome to the Platform',
+                            description: "Let's take 2 minutes to walk through how the navigation works. You'll only see this once — or click <b>Help</b> in the nav bar to replay it anytime.",
+                        }
+                    },
+                    {
+                        element: '#navbar',
+                        popover: {
+                            title: 'Your Navigation Bar',
+                            description: 'The top bar is your control centre. Discipline areas, the experience mode selector, and your account settings all live here.',
+                            side: 'bottom', align: 'start'
+                        }
+                    },
+                    {
+                        element: '#seoNavItem',
+                        popover: {
+                            title: 'SEO',
+                            description: 'Organic search tools: keyword analysis, rank tracking, technical audits, on-page optimisation, schema generator, and more. Hover to see the full sub-menu.',
+                            side: 'bottom', align: 'start'
+                        }
+                    },
+                    {
+                        element: '#smmNavItem',
+                        popover: {
+                            title: 'Social Media (SMM)',
+                            description: 'Social strategy tools: the Strategy House, Content Pillar Framework, Caption Generator, and Social Response Generator.',
+                            side: 'bottom', align: 'start'
+                        }
+                    },
+                    {
+                        element: '#geoNavItem',
+                        popover: {
+                            title: 'GEO — Generative Engine Optimisation',
+                            description: 'Tools for AI search visibility: llms.txt generator, AI Discovery audits, AI Mentions tracking, and GEO on-page optimisation.',
+                            side: 'bottom', align: 'start'
+                        }
+                    },
+                    {
+                        element: '#semNavItem',
+                        popover: {
+                            title: 'SEM / Paid Media',
+                            description: 'Paid media analytics: Google Ads, Meta Ads campaign data, and Google Analytics 4 integration.',
+                            side: 'bottom', align: 'start'
+                        }
+                    },
+                    {
+                        element: '#cockpitNavItem',
+                        popover: {
+                            title: 'Cockpit — Campaign Intelligence',
+                            description: 'A live dashboard showing SEO trajectory, paid ads performance, and overall campaign health across all active clients.',
+                            side: 'bottom', align: 'start'
+                        }
+                    },
+                    {
+                        element: '#modeSelectorNavItem',
+                        popover: {
+                            title: 'Experience Mode',
+                            description: '<b>Basic</b> — essential tools for day-to-day work.<br><b>Intermediate</b> — adds advanced SEO features and deeper analytics.<br><b>Advanced</b> — unlocks every tool including schema generators, GEO utilities, and deep content analysis.<br><br>Your selection is saved automatically.',
+                            side: 'bottom', align: 'end'
+                        }
+                    },
+                    {
+                        element: '#accountNavItem',
+                        popover: {
+                            title: 'Account',
+                            description: 'Check API credit usage, view the platform changelog for the latest updates, and log out.',
+                            side: 'bottom', align: 'end'
+                        }
+                    },
+                    {
+                        element: '#quickHelpNavItem',
+                        popover: {
+                            title: 'Need Help?',
+                            description: 'Click here anytime to replay the full guided masterclass — a step-by-step walkthrough of every tool on the platform.',
+                            side: 'bottom', align: 'end'
+                        }
+                    }
+                ]
+            });
+
+            driverObj.onDestroyed = () => {
+                localStorage.setItem('navTourSeen', 'true');
+                advanceTourSequence();
+            };
+
+            setTimeout(() => driverObj.drive(), 300);
+        }
+
+        // Auto-fire nav tour on first visit after login
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!localStorage.getItem('navTourSeen') && localStorage.getItem('googleUser')) {
+                setTimeout(() => {
+                    if (typeof window.driver !== 'undefined') initNavTour();
+                }, 1500);
+            }
+        });
+
         function runSequentialTours() {
             // Populate the array when the user clicks 'Help'
             // This ensures all init functions in later script blocks are now defined
             allTours = [
+                initNavTour,
                 initKeywordAnalysisTour,
                 initCrawlerSimulatorTour,
                 initTechnicalSeoTour,
