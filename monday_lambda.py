@@ -1246,6 +1246,25 @@ def lambda_handler(event, context):
                     }
                     db.boards.update_one({"userId": user_id}, {"$set": update_doc}, upsert=True)
                     result = {"statusCode": 200, "body": json.dumps({"success": True}, cls=JSONEncoder)}
+        elif action == 'fetch_teams_config':
+            db = get_db()
+            if not db:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                doc = db.teams_config.find_one({"orgId": "digimetrics"})
+                result = {"statusCode": 200, "body": json.dumps({"teams": doc.get('teams', []) if doc else []}, cls=JSONEncoder)}
+        elif action == 'save_teams_config':
+            db = get_db()
+            if not db:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                teams = body.get('teams', [])
+                db.teams_config.update_one(
+                    {"orgId": "digimetrics"},
+                    {"$set": {"teams": teams, "lastUpdated": datetime.utcnow()}},
+                    upsert=True
+                )
+                result = {"statusCode": 200, "body": json.dumps({"success": True}, cls=JSONEncoder)}
         elif action == 'get_monday_data':
             params = body.get('data', body)
             query = params.get('query') or body.get('query')
