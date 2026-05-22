@@ -10367,9 +10367,12 @@
         }
 
         /* Advanced/Intermediate mode: category toggle pills in navbar */
+        .nav-item.nav-cat-toggle {
+            margin: 0 4px;
+        }
         .nav-item.nav-cat-toggle > a {
             border-radius: 20px;
-            padding: 5px 14px !important;
+            padding: 5px 16px !important;
             font-weight: 600;
             transition: background 0.2s, color 0.2s, opacity 0.2s;
             border: 2px solid transparent;
@@ -10544,8 +10547,8 @@
             <a href="#" onclick="showCockpitOnly(event)"><i class="fas fa-tachometer-alt" style="margin-right:5px;font-size:0.85em;"></i>Cockpit</a>
         </div>
 
-        <div class="nav-item" id="adminNavItem">
-            <a href="#" onclick="openAdminSection(event)">Admin</a>
+        <div class="nav-item nav-cat-toggle nav-toggle-inactive" id="adminNavItem">
+            <a href="#" onclick="openAdminSection(event)"><i class="fas fa-cog" style="margin-right:5px;font-size:0.85em;"></i>Admin</a>
         </div>
 
 
@@ -18994,9 +18997,11 @@
                 if (!skipScroll) window.scrollTo({ top: 0, behavior: 'smooth' });
                 return;
             }
-            // Leaving cockpit — reset its pill to inactive
+            // Leaving cockpit or admin — reset their pills to inactive
             const cockpitNavItem = document.getElementById('cockpitNavItem');
             if (cockpitNavItem) cockpitNavItem.classList.replace('nav-toggle-active', 'nav-toggle-inactive');
+            const adminNavItem = document.getElementById('adminNavItem');
+            if (adminNavItem && sectionId !== 'adminSection') adminNavItem.classList.replace('nav-toggle-active', 'nav-toggle-inactive');
             if (sectionId === 'adminSection') {
                 if (!skipScroll) window.scrollTo({ top: 0, behavior: 'smooth' });
                 return;
@@ -19014,10 +19019,18 @@
 
         function openAdminSection(event) {
             if (event) event.preventDefault();
-            showAdminOnly();
-            deactivateAllButtons();
-            closeJourneyModal();
-            switchAdminTab('google');
+            const navItem = document.getElementById('adminNavItem');
+            const isActive = navItem?.classList.contains('nav-toggle-active');
+            if (isActive) {
+                navItem.classList.replace('nav-toggle-active', 'nav-toggle-inactive');
+                showMainSection('seoSection', 'seo', true);
+            } else {
+                navItem?.classList.replace('nav-toggle-inactive', 'nav-toggle-active');
+                showAdminOnly();
+                deactivateAllButtons();
+                closeJourneyModal();
+                switchAdminTab('google');
+            }
         }
 
         function showCockpitOnly(event) {
