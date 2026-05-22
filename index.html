@@ -10111,6 +10111,35 @@
             text-transform: none;
         }
 
+        .fa-sf-pagelist {
+            margin-top: 5px;
+            font-size: 0.76em;
+            border: 1px solid var(--border, #334155);
+            border-radius: 4px;
+            background: rgba(0,0,0,0.18);
+            max-height: 130px;
+            overflow-y: auto;
+        }
+        .fa-sf-pagelist a {
+            display: block;
+            color: #60a5fa;
+            padding: 2px 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-decoration: none;
+        }
+        .fa-sf-pagelist a:hover { background: rgba(96,165,250,0.08); }
+        .fa-sf-pagetoggle {
+            display: none;
+            margin-top: 4px;
+            font-size: 0.76em;
+            color: #64748b;
+            cursor: pointer;
+            user-select: none;
+        }
+        .fa-sf-pagetoggle:hover { color: #94a3b8; }
+
         .forensic-hint {
             font-size: 0.78em;
             font-weight: 400;
@@ -10593,7 +10622,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1327</span>
+                <span id="appVersion">v1.0.1328</span>
             </a>
         </div>
 
@@ -17192,18 +17221,26 @@
                             <div class="sem-input-item">
                                 <label>Duplicate Titles</label>
                                 <input type="number" id="fa_duptitles" min="0" placeholder="0">
+                                <span class="fa-sf-pagetoggle" id="fa_toggle_duptitles" onclick="faTogglePages('duptitles')"></span>
+                                <div class="fa-sf-pagelist" id="fa_pages_duptitles" style="display:none;"></div>
                             </div>
                             <div class="sem-input-item">
                                 <label>Duplicate Descriptions</label>
                                 <input type="number" id="fa_dupdescs" min="0" placeholder="0">
+                                <span class="fa-sf-pagetoggle" id="fa_toggle_dupdescs" onclick="faTogglePages('dupdescs')"></span>
+                                <div class="fa-sf-pagelist" id="fa_pages_dupdescs" style="display:none;"></div>
                             </div>
                             <div class="sem-input-item">
                                 <label>Unoptimised Metas</label>
                                 <input type="number" id="fa_unoptmeta" min="0" placeholder="0">
+                                <span class="fa-sf-pagetoggle" id="fa_toggle_unoptmeta" onclick="faTogglePages('unoptmeta')"></span>
+                                <div class="fa-sf-pagelist" id="fa_pages_unoptmeta" style="display:none;"></div>
                             </div>
                             <div class="sem-input-item">
                                 <label>Canonical Tag Issues</label>
                                 <input type="number" id="fa_canonical" min="0" placeholder="0">
+                                <span class="fa-sf-pagetoggle" id="fa_toggle_canonical" onclick="faTogglePages('canonical')"></span>
+                                <div class="fa-sf-pagelist" id="fa_pages_canonical" style="display:none;"></div>
                             </div>
                             <div class="sem-input-item">
                                 <label>Hreflang Issues</label>
@@ -17212,15 +17249,27 @@
                             <div class="sem-input-item">
                                 <label>Multiple Slash URL Issues</label>
                                 <input type="number" id="fa_multislash" min="0" placeholder="0">
+                                <span class="fa-sf-pagetoggle" id="fa_toggle_multislash" onclick="faTogglePages('multislash')"></span>
+                                <div class="fa-sf-pagelist" id="fa_pages_multislash" style="display:none;"></div>
                             </div>
                             <div class="sem-input-item">
                                 <label>404 Response Codes</label>
                                 <input type="number" id="fa_sf404" min="0" placeholder="0">
+                                <span class="fa-sf-pagetoggle" id="fa_toggle_sf404" onclick="faTogglePages('sf404')"></span>
+                                <div class="fa-sf-pagelist" id="fa_pages_sf404" style="display:none;"></div>
                             </div>
                             <div class="sem-input-item">
                                 <label>Structured Data Errors</label>
                                 <input type="number" id="fa_sderrors" min="0" placeholder="0">
+                                <span class="fa-sf-pagetoggle" id="fa_toggle_sderrors" onclick="faTogglePages('sderrors')"></span>
+                                <div class="fa-sf-pagelist" id="fa_pages_sderrors" style="display:none;"></div>
                             </div>
+                        </div>
+                        <div class="forensic-sf-import" style="margin-top:10px;">
+                            <label style="font-size:0.82em;color:#94a3b8;margin-right:8px;"><i class="fas fa-code"></i> Structured Data CSV <span style="font-size:0.85em;">(Screaming Frog → Structured Data tab → Export)</span></label>
+                            <button type="button" class="config-btn" style="padding:5px 12px;font-size:0.82em;" onclick="document.getElementById('fa_sdcsv').click()"><i class="fas fa-upload"></i> Upload</button>
+                            <input type="file" id="fa_sdcsv" accept=".csv" onchange="parseFaSdCsv(event)" style="display:none;">
+                            <span id="fa_sdcsv_status" style="font-size:0.82em;color:#94a3b8;margin-left:8px;"></span>
                         </div>
 
                         <!-- CMS Plugins -->
@@ -66610,6 +66659,16 @@ Move-In</h3>
             return rows;
         }
 
+        function faTogglePages(key) {
+            const list   = document.getElementById('fa_pages_' + key);
+            const toggle = document.getElementById('fa_toggle_' + key);
+            if (!list || !toggle) return;
+            const open = list.style.display === 'none';
+            list.style.display   = open ? '' : 'none';
+            const count = list.querySelectorAll('a').length;
+            toggle.textContent   = open ? `▴ Hide pages` : `▾ View ${count} pages`;
+        }
+
         function parseFaSfCsv(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -66635,6 +66694,7 @@ Move-In</h3>
                     const iCanon   = col('canonical link element 1');
 
                     let count404 = 0, countHtml = 0, countUnoptMeta = 0, countCanonical = 0, countMultiSlash = 0;
+                    const pages404 = [], pagesUnopt = [], pagesCanon = [], pagesMultiSlash = [];
                     const titlesSeen = new Map(), descsSeen = new Map();
 
                     for (let i = 1; i < rows.length; i++) {
@@ -66646,11 +66706,11 @@ Move-In</h3>
                         const addr    = iAddr    >= 0 ? r[iAddr].trim()    : '';
                         const isHtml  = ctype.startsWith('text/html');
 
-                        if (status === '404') count404++;
+                        if (status === '404') { count404++; pages404.push(addr); }
 
                         // Double-slash in URL path (e.g. domain.com//page)
                         const pathPart = addr.replace(/^https?:\/\/[^/]+/, '');
-                        if (pathPart.includes('//')) countMultiSlash++;
+                        if (pathPart.includes('//')) { countMultiSlash++; pagesMultiSlash.push(addr); }
 
                         if (!isHtml) continue;
                         countHtml++;
@@ -66662,21 +66722,28 @@ Move-In</h3>
                         const indexSt  = iIndexSt >= 0 ? r[iIndexSt].trim().toLowerCase() : '';
                         const canon    = iCanon  >= 0 ? r[iCanon].trim()          : '';
 
-                        // Duplicate detection — track all seen titles/descs
-                        if (title) titlesSeen.set(title, (titlesSeen.get(title) || 0) + 1);
-                        if (desc)  descsSeen.set(desc,   (descsSeen.get(desc)   || 0) + 1);
+                        // Duplicate detection — track all seen titles/descs with their URLs
+                        if (title) {
+                            if (!titlesSeen.has(title)) titlesSeen.set(title, []);
+                            titlesSeen.get(title).push(addr);
+                        }
+                        if (desc) {
+                            if (!descsSeen.has(desc)) descsSeen.set(desc, []);
+                            descsSeen.get(desc).push(addr);
+                        }
 
                         // Unoptimised meta: missing title, missing desc, title >60 chars, desc >160 chars
-                        if (!title || !desc || titleLen > 60 || descLen > 160) countUnoptMeta++;
+                        if (!title || !desc || titleLen > 60 || descLen > 160) { countUnoptMeta++; pagesUnopt.push(addr); }
 
                         // Canonical issue: page canonicalised away from itself
-                        if (indexSt === 'canonicalised' || (canon && canon !== addr)) countCanonical++;
+                        if (indexSt === 'canonicalised' || (canon && canon !== addr)) { countCanonical++; pagesCanon.push(addr); }
                     }
 
                     // Pages whose title/desc appears on more than one page
                     let dupTitles = 0, dupDescs = 0;
-                    for (const cnt of titlesSeen.values()) if (cnt > 1) dupTitles += cnt;
-                    for (const cnt of descsSeen.values())  if (cnt > 1) dupDescs  += cnt;
+                    const pagesDupTitle = [], pagesDupDesc = [];
+                    for (const [, addrs] of titlesSeen) if (addrs.length > 1) { dupTitles += addrs.length; pagesDupTitle.push(...addrs); }
+                    for (const [, addrs] of descsSeen)  if (addrs.length > 1) { dupDescs  += addrs.length; pagesDupDesc.push(...addrs); }
 
                     // Populate fields (only overwrite if value > 0)
                     const setN = (id, val) => { const el = document.getElementById(id); if (el && val > 0) el.value = val; };
@@ -66687,11 +66754,72 @@ Move-In</h3>
                     setN('fa_canonical',  countCanonical);
                     setN('fa_multislash', countMultiSlash);
 
+                    // Render expandable page lists
+                    const renderPages = (key, urls) => {
+                        const list   = document.getElementById('fa_pages_' + key);
+                        const toggle = document.getElementById('fa_toggle_' + key);
+                        if (!list || !toggle || !urls.length) return;
+                        list.innerHTML = urls.map(u => `<a href="${u}" target="_blank" title="${u}">${u}</a>`).join('');
+                        toggle.textContent = `▾ View ${urls.length} pages`;
+                        toggle.style.display = '';
+                        list.style.display = 'none';
+                    };
+                    renderPages('sf404',      pages404);
+                    renderPages('duptitles',  pagesDupTitle);
+                    renderPages('dupdescs',   pagesDupDesc);
+                    renderPages('unoptmeta',  pagesUnopt);
+                    renderPages('canonical',  pagesCanon);
+                    renderPages('multislash', pagesMultiSlash);
+
                     if (statusEl) statusEl.textContent =
                         `✓ ${countHtml} HTML pages parsed (${rows.length - 1} total rows) — "${file.name}"`;
                 } catch(err) {
                     if (statusEl) statusEl.textContent = 'Error: ' + err.message;
                     console.error('SF CSV parse error:', err);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function parseFaSdCsv(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const statusEl = document.getElementById('fa_sdcsv_status');
+            if (statusEl) statusEl.textContent = 'Parsing…';
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const rows = _parseSfCsv(e.target.result);
+                    if (rows.length < 2) { if (statusEl) statusEl.textContent = 'No data found.'; return; }
+                    const header = rows[0].map(h => h.toLowerCase().trim());
+                    const iStatus = header.indexOf('status');
+                    const iAddr   = header.indexOf('address') >= 0 ? header.indexOf('address') : header.indexOf('url');
+                    let errors = 0;
+                    const errorPages = [];
+                    for (let i = 1; i < rows.length; i++) {
+                        const r = rows[i];
+                        if (!r || r.length < 2) continue;
+                        const st   = iStatus >= 0 ? r[iStatus].trim().toLowerCase() : '';
+                        const addr = iAddr   >= 0 ? r[iAddr].trim()  : '';
+                        if (st === 'invalid' || st === 'error' || st === 'warning') {
+                            errors++;
+                            if (addr && !errorPages.includes(addr)) errorPages.push(addr);
+                        }
+                    }
+                    const el = document.getElementById('fa_sderrors');
+                    if (el && errors > 0) el.value = errors;
+                    // Show page list for sderrors
+                    const list   = document.getElementById('fa_pages_sderrors');
+                    const toggle = document.getElementById('fa_toggle_sderrors');
+                    if (list && toggle && errorPages.length) {
+                        list.innerHTML = errorPages.map(u => `<a href="${u}" target="_blank" title="${u}">${u}</a>`).join('');
+                        toggle.textContent = `▾ View ${errorPages.length} pages`;
+                        toggle.style.display = '';
+                        list.style.display = 'none';
+                    }
+                    if (statusEl) statusEl.textContent = `✓ ${errors} structured data issue${errors !== 1 ? 's' : ''} across ${errorPages.length} page${errorPages.length !== 1 ? 's' : ''} — "${file.name}"`;
+                } catch(err) {
+                    if (statusEl) statusEl.textContent = 'Error: ' + err.message;
                 }
             };
             reader.readAsText(file);
