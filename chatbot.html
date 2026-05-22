@@ -9150,41 +9150,43 @@ CRITICAL CONTACT RULE:
 
             const query = (document.getElementById('promptSearch')?.value || '').toLowerCase().trim();
 
-            // Filter custom prompts
-            const filteredCustom = customPrompts.filter(p => {
+            const filtered = customPrompts.filter(p => {
                 if (activePromptTags.size > 0 && !(p.tags || []).some(t => activePromptTags.has(t))) return false;
                 if (query && !`${p.title} ${p.description} ${p.text} ${(p.tags||[]).join(' ')} ${p.category}`.toLowerCase().includes(query)) return false;
                 return true;
             });
 
-            // Filter built-in prompts
-            const filteredBuiltIn = [];
-            if (activePromptTags.size === 0) { // built-ins have no tags, hide when tag filter active
-                promptTemplates.forEach(cat => {
-                    const matched = cat.prompts.filter(p => !query || `${p.title} ${p.description} ${p.text} ${cat.category}`.toLowerCase().includes(query));
-                    if (matched.length) filteredBuiltIn.push({ category: cat.category, prompts: matched });
-                });
-            }
-
-            const totalShown = filteredCustom.length + filteredBuiltIn.reduce((s, c) => s + c.prompts.length, 0);
-            if (countEl) countEl.textContent = `${totalShown} prompt${totalShown !== 1 ? 's' : ''}`;
+            if (countEl) countEl.textContent = `${filtered.length} prompt${filtered.length !== 1 ? 's' : ''}`;
 
             list.innerHTML = '';
 
-            // Custom prompts section
-            if (filteredCustom.length > 0) {
+            if (filtered.length === 0) {
+                list.innerHTML = `<div style="padding:60px 20px; text-align:center; color:#94a3b8;"><i class="fas fa-search" style="font-size:2rem; opacity:0.3; margin-bottom:12px; display:block;"></i><p>No prompts match your search.</p></div>`;
+                renderPromptTagFilters();
+                return;
+            }
+
+            // Group by category
+            const grouped = {};
+            filtered.forEach(p => {
+                const cat = p.category || 'General';
+                if (!grouped[cat]) grouped[cat] = [];
+                grouped[cat].push(p);
+            });
+
+            Object.entries(grouped).forEach(([cat, prompts]) => {
                 const section = document.createElement('div');
                 section.className = 'prompt-category';
-                section.innerHTML = `<span class="prompt-category-title"><i class="fas fa-star" style="color:#f59e0b;margin-right:5px;"></i>My Prompts</span>`;
+                section.innerHTML = `<span class="prompt-category-title">${cat}</span>`;
                 const grid = document.createElement('div');
                 grid.className = 'prompt-grid';
-                filteredCustom.forEach(p => {
+                prompts.forEach(p => {
                     const item = document.createElement('div');
                     item.className = 'prompt-item';
                     item.style.position = 'relative';
                     const tagsHtml = (p.tags || []).map(t => `<span class="prompt-tag">${t}</span>`).join('');
                     item.innerHTML = `
-                        <div class="prompt-icon"><i class="fas fa-wand-magic-sparkles"></i></div>
+                        <div class="prompt-icon"><i class="fas ${p.icon || 'fa-wand-magic-sparkles'}"></i></div>
                         <div class="prompt-content" style="flex:1; min-width:0;">
                             <span class="prompt-title">${p.title}</span>
                             <span class="prompt-description">${p.description || ''}</span>
@@ -9200,40 +9202,34 @@ CRITICAL CONTACT RULE:
                 });
                 section.appendChild(grid);
                 list.appendChild(section);
-            }
-
-            // Built-in sections
-            filteredBuiltIn.forEach(cat => {
-                const catDiv = document.createElement('div');
-                catDiv.className = 'prompt-category';
-                catDiv.innerHTML = `<span class="prompt-category-title">${cat.category}</span>`;
-                const grid = document.createElement('div');
-                grid.className = 'prompt-grid';
-                cat.prompts.forEach(p => {
-                    const item = document.createElement('div');
-                    item.className = 'prompt-item';
-                    item.onclick = () => selectPrompt(p.text);
-                    item.innerHTML = `
-                        <div class="prompt-icon"><i class="fas ${p.icon}"></i></div>
-                        <div class="prompt-content">
-                            <span class="prompt-title">${p.title}</span>
-                            <span class="prompt-description">${p.description}</span>
-                        </div>
-                    `;
-                    grid.appendChild(item);
-                });
-                catDiv.appendChild(grid);
-                list.appendChild(catDiv);
             });
-
-            if (totalShown === 0) {
-                list.innerHTML = `<div style="padding:60px 20px; text-align:center; color:#94a3b8;"><i class="fas fa-search" style="font-size:2rem; opacity:0.3; margin-bottom:12px; display:block;"></i><p>No prompts match your search.</p></div>`;
-            }
 
             renderPromptTagFilters();
         }
 
+        function seedPromptsFromBuiltIns() {
+            if (customPrompts.length > 0) return; // already seeded
+            let id = Date.now();
+            promptTemplates.forEach(cat => {
+                cat.prompts.forEach(p => {
+                    customPrompts.push({
+                        id: id++,
+                        title: p.title,
+                        description: p.description || '',
+                        text: p.text,
+                        category: cat.category,
+                        tags: [],
+                        icon: p.icon || 'fa-wand-magic-sparkles',
+                        createdAt: new Date().toLocaleDateString()
+                    });
+                });
+            });
+            localStorage.setItem('chatbot_custom_prompts', JSON.stringify(customPrompts));
+            pushPromptsToCloud();
+        }
+
         function openPromptsModal() {
+            seedPromptsFromBuiltIns();
             pullPromptsFromCloud().then(() => renderPromptsModal());
             renderPromptsModal();
             document.getElementById('promptsModalOverlay').classList.add('open');
