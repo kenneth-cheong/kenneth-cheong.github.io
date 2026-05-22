@@ -1313,6 +1313,29 @@ def lambda_handler(event, context):
                     upsert=True
                 )
                 result = {"statusCode": 200, "body": json.dumps({"success": True}, cls=JSONEncoder)}
+        elif action == 'save_tool_log':
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                log = body.get('log', {})
+                if log:
+                    log['orgId'] = 'digimetrics'
+                    log['savedAt'] = datetime.utcnow()
+                    db.tool_logs.insert_one(log)
+                result = {"statusCode": 200, "body": json.dumps({"success": True}, cls=JSONEncoder)}
+        elif action == 'fetch_tool_logs':
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                limit = min(int(body.get('limit', 1000)), 2000)
+                since = body.get('since')
+                query = {"orgId": "digimetrics"}
+                if since:
+                    query["ts"] = {"$gt": since}
+                logs = list(db.tool_logs.find(query, {"_id": 0, "savedAt": 0, "orgId": 0}).sort("ts", -1).limit(limit))
+                result = {"statusCode": 200, "body": json.dumps({"logs": logs}, cls=JSONEncoder)}
         elif action == 'get_monday_data':
             params = body.get('data', body)
             query = params.get('query') or body.get('query')
