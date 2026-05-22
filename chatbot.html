@@ -5546,7 +5546,8 @@
         async function fetchLinkedInAdAccounts() {
             const token = localStorage.getItem('linkedin_access_token');
             if (!token) return;
-            document.getElementById('linkedinStatus').innerHTML += ' — <i class="fas fa-spinner fa-spin"></i> Fetching accounts…';
+            const statusEl = document.getElementById('linkedinStatus');
+            statusEl.innerHTML += ' — <i class="fas fa-spinner fa-spin"></i> Fetching accounts…';
             try {
                 const res = await fetch(MONDAY_LAMBDA_URL, {
                     method: 'POST',
@@ -5554,12 +5555,24 @@
                     body: JSON.stringify({ action: 'linkedin_get_ad_accounts', access_token: token })
                 }).then(r => r.json()).then(r => typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r));
 
+                statusEl.innerHTML = statusEl.innerHTML.replace(/ — <i.*?<\/i> Fetching accounts…/, '');
+
                 const accounts = res.elements || [];
+                if (accounts.length === 0) {
+                    const raw = res._raw || res;
+                    const errMsg = raw.message || raw.error || raw.serviceErrorCode
+                        ? `API error: ${raw.message || raw.error || JSON.stringify(raw)}`
+                        : 'No ad accounts found. Ensure your token has the r_ads scope.';
+                    statusEl.innerHTML += ` <span style="color:#f59e0b; font-size:0.65rem;">${errMsg}</span>`;
+                    console.warn('[LinkedIn] Raw response:', raw);
+                    return;
+                }
+
                 const select = document.getElementById('selectedLinkedInAccount');
                 select.innerHTML = '<option value="">-- Select Ad Account --</option>';
                 accounts.forEach(acc => {
-                    const opt = document.createElement('option');
                     const id = acc.id || (acc.reference || '').replace('urn:li:sponsoredAccount:', '');
+                    const opt = document.createElement('option');
                     opt.value = id;
                     opt.textContent = `${acc.name || id} (${id})`;
                     select.appendChild(opt);
@@ -5569,9 +5582,9 @@
                 const savedRaw = localStorage.getItem('selectedLinkedInAccount') || '[]';
                 try { window.ssSelections['selectedLinkedInAccount'] = JSON.parse(savedRaw); } catch { window.ssSelections['selectedLinkedInAccount'] = []; }
                 refreshSearchableSelect('selectedLinkedInAccount');
+            } catch (err) {
                 document.getElementById('linkedinStatus').innerHTML =
                     document.getElementById('linkedinStatus').innerHTML.replace(/ — <i.*?<\/i> Fetching accounts…/, '');
-            } catch (err) {
                 document.getElementById('linkedinStatus').innerHTML +=
                     ` <span style="color:#ea4335;">${err.message}</span>`;
             }

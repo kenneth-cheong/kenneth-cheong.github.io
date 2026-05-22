@@ -152,8 +152,8 @@ def linkedin_get_ad_accounts(body):
         return {"statusCode": 400, "body": json.dumps({"error": "Missing access_token"})}
     try:
         r = requests.get(
-            'https://api.linkedin.com/rest/adAccountsV2',
-            params={'q': 'search', 'search.type.values[0]': 'BUSINESS', 'search.status.values[0]': 'ACTIVE', 'count': 100},
+            'https://api.linkedin.com/rest/adAccounts',
+            params={'q': 'search', 'count': 100},
             headers={
                 'Authorization': f'Bearer {access_token}',
                 'LinkedIn-Version': '202407',
@@ -161,7 +161,10 @@ def linkedin_get_ad_accounts(body):
             },
             timeout=15
         )
-        return {"statusCode": r.status_code, "body": r.text}
+        data = r.json()
+        # Surface the raw response for debugging if elements is empty
+        elements = data.get('elements', [])
+        return {"statusCode": r.status_code, "body": json.dumps({"elements": elements, "_raw": data})}
     except Exception as e:
         return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
 
