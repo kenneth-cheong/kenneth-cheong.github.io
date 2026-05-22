@@ -2607,7 +2607,7 @@
             <!-- Google Multi-Account Connections -->
             <div class="collapsible-section active" id="googleChatSection">
                 <div class="collapsible-header"
-                    onclick="this.closest('.collapsible-section').classList.toggle('active')">
+                    onclick="onGoogleConnectorsExpand(this.closest('.collapsible-section'))">
                     <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-navy);"><i class="fab fa-google" style="margin-right: 8px; opacity: 0.5;"></i> Google Connectors</span>
                     <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
                 </div>
@@ -2760,48 +2760,110 @@
                             </div>
                         </div>
 
-                        <!-- Meta Ads -->
-                        <div class="service-connection-row">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                                <span style="font-size:0.75rem; font-weight:700; color:#334155;"><i class="fab fa-facebook" style="width:14px; opacity:0.6;"></i> Meta Ads</span>
-                                <span id="statusBadgeMeta" class="service-badge">—</span>
-                            </div>
-                            <div id="metaTokenRow" style="margin-bottom:5px;">
-                                <input id="metaChatTokenInput" type="password"
-                                    placeholder="Paste Meta access token…"
-                                    style="width:100%; padding:7px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.78rem; box-sizing:border-box;">
-                            </div>
-                            <div style="display:flex; gap:5px;">
-                                <button class="btn-service-connect" id="btnConnectMeta" onclick="connectMetaChat()">Connect</button>
-                                <button class="btn-service-disconnect" id="btnDisconnectMeta" onclick="disconnectMetaChat()" style="display:none;">Disconnect</button>
-                            </div>
-                            <div id="metaChatStatus" style="font-size:0.7rem; color:#64748b; margin-top:4px; min-height:16px;"></div>
-                            <div id="selectorMeta" style="display:none; margin-top:5px;">
-                                <select id="selectedMetaAccount" style="display:none;">
-                                    <option value="">-- Select Ad Account --</option>
-                                </select>
-                                <div class="searchable-select" id="ss-selectedMetaAccount">
-                                    <div class="ss-trigger" id="ss-trigger-selectedMetaAccount" onclick="toggleSearchableSelect('selectedMetaAccount')">
-                                        <span class="ss-label">-- Select Ad Account --</span>
-                                        <i class="fas fa-chevron-down ss-icon"></i>
+                    </div>
+
+                    <!-- Narrow Your Search — shown in internal mode only -->
+                    <div id="filterSection" style="display: none; margin-top: 16px; border-top: 1px solid #e2e8f0; padding-top: 14px;">
+                        <div style="font-size: 0.75rem; font-weight: 700; color: var(--primary-navy); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
+                            <i class="fas fa-filter" style="opacity: 0.5;"></i> Narrow Your Search
+                        </div>
+                        <p id="filterSubtext" style="display:none; margin: 4px 0 8px; font-size: 0.75rem; color: #a16207;">Search across all campaigns. Use filters below to narrow results before querying.</p>
+
+                        <div style="margin-bottom: 14px; display: none;">
+                            <button class="btn-amber-outline" id="fetchOptionsBtn" onclick="fetchFilterOptions()">
+                                <i class="fas fa-download"></i> Fetch Campaigns & Staff
+                            </button>
+                        </div>
+
+                        <div class="filter-grid" id="summaryBoardFilters" style="display:none;">
+                            <div class="filter-field">
+                                <label>Campaign / Item Name <span class="label-count" id="count-msItemDropdown"></span></label>
+                                <div class="ms-dropdown" id="msItemDropdown">
+                                    <div class="ms-trigger" onclick="toggleMsPanel('msItemDropdown')"><span class="ms-placeholder">Loading latest data...</span></div>
+                                    <div class="ms-panel">
+                                        <div class="ms-search"><i class="fas fa-search"></i><input type="text" placeholder="Search campaigns..." oninput="filterMsOptions('msItemDropdown', this.value)"></div>
+                                        <div class="ms-bulk-actions"><button onclick="msSelectAll('msItemDropdown')">✓ All</button><button onclick="msUnselectAll('msItemDropdown')">✗ None</button></div>
+                                        <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Loading latest data...</div></div>
                                     </div>
-                                    <div class="ss-panel" id="ss-panel-selectedMetaAccount">
-                                        <div class="ss-search-row">
-                                            <i class="fas fa-search"></i>
-                                            <input type="text" placeholder="Search accounts..." oninput="filterSearchableSelect('selectedMetaAccount', this.value)">
-                                        </div>
-                                        <div class="ss-bulk-actions">
-                                            <button onclick="ssSelectAll('selectedMetaAccount')">✓ All</button>
-                                            <button onclick="ssClearAll('selectedMetaAccount')">✗ None</button>
-                                        </div>
-                                        <div class="ss-options" id="ss-options-selectedMetaAccount">
-                                            <div class="ss-empty">Connect Meta Ads first.</div>
-                                        </div>
+                                </div>
+                            </div>
+                            <div class="filter-field">
+                                <label>Staff Name <span class="label-count" id="count-msStaffDropdown"></span></label>
+                                <div class="ms-dropdown" id="msStaffDropdown">
+                                    <div class="ms-trigger" onclick="toggleMsPanel('msStaffDropdown')"><span class="ms-placeholder">Loading latest data...</span></div>
+                                    <div class="ms-panel">
+                                        <div class="ms-search"><i class="fas fa-search"></i><input type="text" placeholder="Search staff..." oninput="filterMsOptions('msStaffDropdown', this.value)"></div>
+                                        <div class="ms-bulk-actions"><button onclick="msSelectAll('msStaffDropdown')">✓ All</button><button onclick="msUnselectAll('msStaffDropdown')">✗ None</button></div>
+                                        <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Loading latest data...</div></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="dynamicFiltersWrapper" style="grid-column: 1 / -1; margin-top: 4px; background: rgba(245, 158, 11, 0.05); border: 1px dashed rgba(245, 158, 11, 0.3); border-radius: 10px; padding: 10px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                    <label style="margin:0; font-weight:600; color:var(--text-main);"><i class="fas fa-sliders-h" style="margin-right:6px; color:#f59e0b;"></i> Advanced Filters</label>
+                                    <button class="btn-sidebar" style="background:#fff; border:1px solid #f2f2f2; color:#334155; padding:4px 10px; font-size:0.75rem; box-shadow:var(--shadow-sm); border-radius:6px;" onclick="addDynamicFilter()">
+                                        <i class="fas fa-plus" style="color:#10b981;"></i> Add Custom Filter
+                                    </button>
+                                </div>
+                                <div id="dynamicFiltersContainer" style="display:flex; flex-direction:column; gap:12px;">
+                                    <div style="font-size:0.8rem; color:var(--text-muted); font-style:italic;" id="emptyDynamicText">No custom filters active. Click "Add Custom Filter" to filter by any column.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="gchatSpacesSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
+                            <div class="filter-field">
+                                <label><span><i class="fab fa-google" style="margin-right:4px; opacity:0.6;"></i> Google Chat Spaces</span> <span class="label-count" id="count-msChatSpaceDropdown"></span></label>
+                                <div class="ms-dropdown" id="msChatSpaceDropdown">
+                                    <div class="ms-trigger" onclick="toggleMsPanel('msChatSpaceDropdown')"><span class="ms-placeholder">Connect Google Chat in Settings...</span></div>
+                                    <div class="ms-panel">
+                                        <div class="ms-search"><i class="fas fa-search"></i><input type="text" placeholder="Search spaces..." oninput="filterMsOptions('msChatSpaceDropdown', this.value)"></div>
+                                        <div class="ms-bulk-actions"><button onclick="msSelectAll('msChatSpaceDropdown')">✓ All</button><button onclick="msUnselectAll('msChatSpaceDropdown')">✗ None</button></div>
+                                        <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Connect Google Chat first...</div></div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
+                        <div id="gdriveSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
+                            <div class="filter-field">
+                                <label><span><i class="fab fa-google-drive" style="margin-right:4px; opacity:0.6;"></i> Google Drive Folders</span> <span class="label-count" id="count-msGDriveFolderDropdown"></span></label>
+                                <div class="ms-dropdown" id="msGDriveFolderDropdown">
+                                    <div class="ms-trigger" onclick="toggleMsPanel('msGDriveFolderDropdown')"><span class="ms-placeholder">Connect Google Workspace in Settings...</span></div>
+                                    <div class="ms-panel">
+                                        <div class="ms-search"><i class="fas fa-search"></i><input type="text" placeholder="Search folders..." oninput="filterMsOptions('msGDriveFolderDropdown', this.value)"></div>
+                                        <div class="ms-bulk-actions"><button onclick="msSelectAll('msGDriveFolderDropdown')">✓ All</button><button onclick="msUnselectAll('msGDriveFolderDropdown')">✗ None</button></div>
+                                        <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Connect Google Workspace first...</div></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="gmailSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
+                            <div class="filter-field">
+                                <label>
+                                    <span><i class="fas fa-envelope" style="margin-right:4px; opacity:0.6;"></i> Include Gmail Threads <span id="gmailAccessBadge" style="display:none; font-size:0.6rem; padding:1px 6px; border-radius:8px; font-weight:700; margin-left:4px;"></span></span>
+                                    <span style="display:flex;align-items:center;gap:6px;">
+                                        <input type="checkbox" id="gmailIncludeToggle" checked style="width:16px;height:16px;cursor:pointer;accent-color:#92400e;">
+                                    </span>
+                                </label>
+                                <div style="font-size: 0.65rem; color: #92400e; margin-top: 4px; opacity: 0.8;">Searches emails mentioning selected campaigns / staff.</div>
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-bottom: 16px;">
+                            <label>Gmail History (days)</label>
+                            <input type="number" id="gmailDaysBack" value="90" min="1" max="730"
+                                style="width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.8rem;">
+                        </div>
+
+                        <div class="filter-actions">
+                            <button class="btn-amber" id="internalSyncBtn" onclick="syncInternalMode()">
+                                <i class="fas fa-bolt"></i> Load Data
+                            </button>
+                            <span class="filter-hint" id="internalFilterHint">Default: Excludes Completed, Abandoned, Expired, Terminated</span>
+                            <span id="boardRegistryBadge" style="display:none; font-size:0.7rem; background:#dbeafe; color:#1e40af; padding:3px 10px; border-radius:20px; font-weight:600; margin-left:8px; white-space:nowrap;"><i class="fas fa-th-large" style="margin-right:4px;"></i><span id="boardRegistryCount">0</span> boards discovered</span>
+                        </div>
                     </div>
 
                 </div>
@@ -2826,6 +2888,94 @@
                             </div>
                             <div class="multi-select-options" id="serankingOptionsList"></div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Meta Ads -->
+            <div class="collapsible-section" id="metaSection">
+                <div class="collapsible-header" onclick="this.closest('.collapsible-section').classList.toggle('active')">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-navy);"><i class="fab fa-facebook" style="margin-right: 8px; opacity: 0.5;"></i> Meta Ads</span>
+                    <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
+                </div>
+                <div class="collapsible-content">
+                    <div class="service-connection-row">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                            <span style="font-size:0.75rem; font-weight:700; color:#334155;"><i class="fab fa-facebook" style="width:14px; opacity:0.6;"></i> Meta Ads</span>
+                            <span id="statusBadgeMeta" class="service-badge">—</span>
+                        </div>
+                        <div id="metaTokenRow" style="margin-bottom:5px;">
+                            <input id="metaChatTokenInput" type="password" placeholder="Paste Meta access token…" style="width:100%; padding:7px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.78rem; box-sizing:border-box;">
+                        </div>
+                        <div style="display:flex; gap:5px;">
+                            <button class="btn-service-connect" id="btnConnectMeta" onclick="connectMetaChat()">Connect</button>
+                            <button class="btn-service-disconnect" id="btnDisconnectMeta" onclick="disconnectMetaChat()" style="display:none;">Disconnect</button>
+                        </div>
+                        <div id="metaChatStatus" style="font-size:0.7rem; color:#64748b; margin-top:4px; min-height:16px;"></div>
+                        <div id="selectorMeta" style="display:none; margin-top:5px;">
+                            <select id="selectedMetaAccount" style="display:none;">
+                                <option value="">-- Select Ad Account --</option>
+                            </select>
+                            <div class="searchable-select" id="ss-selectedMetaAccount">
+                                <div class="ss-trigger" id="ss-trigger-selectedMetaAccount" onclick="toggleSearchableSelect('selectedMetaAccount')">
+                                    <span class="ss-label">-- Select Ad Account --</span>
+                                    <i class="fas fa-chevron-down ss-icon"></i>
+                                </div>
+                                <div class="ss-panel" id="ss-panel-selectedMetaAccount">
+                                    <div class="ss-search-row"><i class="fas fa-search"></i><input type="text" placeholder="Search accounts..." oninput="filterSearchableSelect('selectedMetaAccount', this.value)"></div>
+                                    <div class="ss-bulk-actions"><button onclick="ssSelectAll('selectedMetaAccount')">✓ All</button><button onclick="ssClearAll('selectedMetaAccount')">✗ None</button></div>
+                                    <div class="ss-options" id="ss-options-selectedMetaAccount"><div class="ss-empty">Connect Meta Ads first.</div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LinkedIn Ads -->
+            <div class="collapsible-section" id="linkedinSection">
+                <div class="collapsible-header" onclick="this.closest('.collapsible-section').classList.toggle('active')">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-navy);"><i class="fab fa-linkedin" style="margin-right: 8px; opacity: 0.5;"></i> LinkedIn Ads</span>
+                    <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
+                </div>
+                <div class="collapsible-content">
+                    <div class="service-connection-row">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                            <span style="font-size:0.75rem; font-weight:700; color:#334155;"><i class="fab fa-linkedin" style="width:14px; opacity:0.6;"></i> LinkedIn Ads</span>
+                            <span id="statusBadgeLinkedIn" class="service-badge">—</span>
+                        </div>
+                        <div style="margin-bottom:5px;">
+                            <input id="linkedinTokenInput" type="password" placeholder="Paste LinkedIn access token…" style="width:100%; padding:7px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.78rem; box-sizing:border-box;">
+                        </div>
+                        <div style="display:flex; gap:5px;">
+                            <button class="btn-service-connect" id="btnConnectLinkedIn" onclick="connectLinkedInAds()">Connect</button>
+                            <button class="btn-service-disconnect" id="btnDisconnectLinkedIn" onclick="disconnectLinkedInAds()" style="display:none;">Disconnect</button>
+                        </div>
+                        <div id="linkedinStatus" style="font-size:0.7rem; color:#64748b; margin-top:4px; min-height:16px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TikTok Ads -->
+            <div class="collapsible-section" id="tiktokSection">
+                <div class="collapsible-header" onclick="this.closest('.collapsible-section').classList.toggle('active')">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-navy);"><i class="fab fa-tiktok" style="margin-right: 8px; opacity: 0.5;"></i> TikTok Ads</span>
+                    <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
+                </div>
+                <div class="collapsible-content">
+                    <div class="service-connection-row">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                            <span style="font-size:0.75rem; font-weight:700; color:#334155;"><i class="fab fa-tiktok" style="width:14px; opacity:0.6;"></i> TikTok Ads</span>
+                            <span id="statusBadgeTikTok" class="service-badge">—</span>
+                        </div>
+                        <div style="margin-bottom:5px;">
+                            <input id="tiktokTokenInput" type="password" placeholder="Paste TikTok access token…" style="width:100%; padding:7px 10px; border:1px solid #cbd5e1; border-radius:8px; font-size:0.78rem; box-sizing:border-box;">
+                        </div>
+                        <div style="display:flex; gap:5px;">
+                            <button class="btn-service-connect" id="btnConnectTikTok" onclick="connectTikTokAds()">Connect</button>
+                            <button class="btn-service-disconnect" id="btnDisconnectTikTok" onclick="disconnectTikTokAds()" style="display:none;">Disconnect</button>
+                        </div>
+                        <div id="tiktokStatus" style="font-size:0.7rem; color:#64748b; margin-top:4px; min-height:16px;"></div>
                     </div>
                 </div>
             </div>
@@ -2866,122 +3016,6 @@
                         </button>
                     </div>
                     <div id="functionsList" style="display: flex; flex-direction: column; gap: 12px;"></div>
-                </div>
-            </div>
-
-            <!-- Narrow Your Search — shown only in internal mode -->
-            <div class="collapsible-section active" id="filterSection" style="display: none; margin-top: 10px;">
-                <div class="collapsible-header" onclick="onFilterExpand(this.closest('.collapsible-section'))">
-                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-navy);"><i class="fas fa-filter" style="margin-right: 8px; opacity: 0.5;"></i> Narrow Your Search</span>
-                    <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
-                </div>
-                <div class="collapsible-content" style="padding-top: 8px;">
-                    <p id="filterSubtext" style="display:none; margin: 4px 0 8px; font-size: 0.75rem; color: #a16207;">Search across all campaigns. Use filters below to narrow results before querying.</p>
-
-                    <div style="margin-bottom: 14px; display: none;">
-                        <button class="btn-amber-outline" id="fetchOptionsBtn" onclick="fetchFilterOptions()">
-                            <i class="fas fa-download"></i> Fetch Campaigns & Staff
-                        </button>
-                    </div>
-
-                    <div class="filter-grid" id="summaryBoardFilters" style="display:none;">
-                        <div class="filter-field">
-                            <label>Campaign / Item Name <span class="label-count" id="count-msItemDropdown"></span></label>
-                            <div class="ms-dropdown" id="msItemDropdown">
-                                <div class="ms-trigger" onclick="toggleMsPanel('msItemDropdown')">
-                                    <span class="ms-placeholder">Loading latest data...</span>
-                                </div>
-                                <div class="ms-panel">
-                                    <div class="ms-search"><i class="fas fa-search"></i><input type="text" placeholder="Search campaigns..." oninput="filterMsOptions('msItemDropdown', this.value)"></div>
-                                    <div class="ms-bulk-actions"><button onclick="msSelectAll('msItemDropdown')">✓ All</button><button onclick="msUnselectAll('msItemDropdown')">✗ None</button></div>
-                                    <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Loading latest data...</div></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="filter-field">
-                            <label>Staff Name <span class="label-count" id="count-msStaffDropdown"></span></label>
-                            <div class="ms-dropdown" id="msStaffDropdown">
-                                <div class="ms-trigger" onclick="toggleMsPanel('msStaffDropdown')">
-                                    <span class="ms-placeholder">Loading latest data...</span>
-                                </div>
-                                <div class="ms-panel">
-                                    <div class="ms-search"><i class="fas fa-search"></i><input type="text" placeholder="Search staff..." oninput="filterMsOptions('msStaffDropdown', this.value)"></div>
-                                    <div class="ms-bulk-actions"><button onclick="msSelectAll('msStaffDropdown')">✓ All</button><button onclick="msUnselectAll('msStaffDropdown')">✗ None</button></div>
-                                    <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Loading latest data...</div></div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Dynamic Filters Container -->
-                        <div id="dynamicFiltersWrapper" style="grid-column: 1 / -1; margin-top: 4px; background: rgba(245, 158, 11, 0.05); border: 1px dashed rgba(245, 158, 11, 0.3); border-radius: 10px; padding: 10px;">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                                <label style="margin:0; font-weight:600; color:var(--text-main);"><i class="fas fa-sliders-h" style="margin-right:6px; color:#f59e0b;"></i> Advanced Filters</label>
-                                <button class="btn-sidebar" style="background:#fff; border:1px solid #f2f2f2; color:#334155; padding:4px 10px; font-size:0.75rem; box-shadow:var(--shadow-sm); border-radius:6px;" onclick="addDynamicFilter()">
-                                    <i class="fas fa-plus" style="color:#10b981;"></i> Add Custom Filter
-                                </button>
-                            </div>
-                            <div id="dynamicFiltersContainer" style="display:flex; flex-direction:column; gap:12px;">
-                                <div style="font-size:0.8rem; color:var(--text-muted); font-style:italic;" id="emptyDynamicText">No custom filters active. Click "Add Custom Filter" to filter by any column.</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Google Chat Spaces -->
-                    <div id="gchatSpacesSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
-                        <div class="filter-field">
-                            <label><span><i class="fab fa-google" style="margin-right:4px; opacity:0.6;"></i> Google Chat Spaces</span> <span class="label-count" id="count-msChatSpaceDropdown"></span></label>
-                            <div class="ms-dropdown" id="msChatSpaceDropdown">
-                                <div class="ms-trigger" onclick="toggleMsPanel('msChatSpaceDropdown')"><span class="ms-placeholder">Connect Google Chat in Settings...</span></div>
-                                <div class="ms-panel">
-                                    <div class="ms-search"><i class="fas fa-search"></i><input type="text" placeholder="Search spaces..." oninput="filterMsOptions('msChatSpaceDropdown', this.value)"></div>
-                                    <div class="ms-bulk-actions"><button onclick="msSelectAll('msChatSpaceDropdown')">✓ All</button><button onclick="msUnselectAll('msChatSpaceDropdown')">✗ None</button></div>
-                                    <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Connect Google Chat first...</div></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Google Drive Folders -->
-                    <div id="gdriveSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
-                        <div class="filter-field">
-                            <label><span><i class="fab fa-google-drive" style="margin-right:4px; opacity:0.6;"></i> Google Drive Folders</span> <span class="label-count" id="count-msGDriveFolderDropdown"></span></label>
-                            <div class="ms-dropdown" id="msGDriveFolderDropdown">
-                                <div class="ms-trigger" onclick="toggleMsPanel('msGDriveFolderDropdown')"><span class="ms-placeholder">Connect Google Workspace in Settings...</span></div>
-                                <div class="ms-panel">
-                                    <div class="ms-search"><i class="fas fa-search"></i><input type="text" placeholder="Search folders..." oninput="filterMsOptions('msGDriveFolderDropdown', this.value)"></div>
-                                    <div class="ms-bulk-actions"><button onclick="msSelectAll('msGDriveFolderDropdown')">✓ All</button><button onclick="msUnselectAll('msGDriveFolderDropdown')">✗ None</button></div>
-                                    <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Connect Google Workspace first...</div></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Gmail Toggle -->
-                    <div id="gmailSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
-                        <div class="filter-field">
-                            <label>
-                                <span><i class="fas fa-envelope" style="margin-right:4px; opacity:0.6;"></i> Include Gmail Threads <span id="gmailAccessBadge" style="display:none; font-size:0.6rem; padding:1px 6px; border-radius:8px; font-weight:700; margin-left:4px;"></span></span>
-                                <span style="display:flex;align-items:center;gap:6px;">
-                                    <input type="checkbox" id="gmailIncludeToggle" checked style="width:16px;height:16px;cursor:pointer;accent-color:#92400e;">
-                                </span>
-                            </label>
-                            <div style="font-size: 0.65rem; color: #92400e; margin-top: 4px; opacity: 0.8;">Searches emails mentioning selected campaigns / staff.</div>
-                        </div>
-                    </div>
-
-                    <!-- Gmail days-back setting -->
-                    <div class="form-group" style="margin-bottom: 16px;">
-                        <label>Gmail History (days)</label>
-                        <input type="number" id="gmailDaysBack" value="90" min="1" max="730"
-                            style="width: 100%; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.8rem;">
-                    </div>
-
-                    <div class="filter-actions">
-                        <button class="btn-amber" id="internalSyncBtn" onclick="syncInternalMode()">
-                            <i class="fas fa-bolt"></i> Load Data
-                        </button>
-                        <span class="filter-hint" id="internalFilterHint">Default: Excludes Completed, Abandoned, Expired, Terminated</span>
-                        <span id="boardRegistryBadge" style="display:none; font-size:0.7rem; background:#dbeafe; color:#1e40af; padding:3px 10px; border-radius:20px; font-weight:600; margin-left:8px; white-space:nowrap;"><i class="fas fa-th-large" style="margin-right:4px;"></i><span id="boardRegistryCount">0</span> boards discovered</span>
-                    </div>
                 </div>
             </div>
 
@@ -3558,6 +3592,7 @@
 
         function applyMode(mode) {
             const filterSection = document.getElementById('filterSection');
+            const googleSection = document.getElementById('googleChatSection');
             const settingsSidebar = document.getElementById('settingsSidebar');
             const clientLabel = document.getElementById('clientModeLabel');
             const internalLabel = document.getElementById('internalModeLabel');
@@ -3567,6 +3602,7 @@
             if (mode === 'internal') {
                 document.body.classList.add('internal-mode');
                 if (filterSection) filterSection.style.display = 'block';
+                if (googleSection && !googleSection.classList.contains('active')) googleSection.classList.add('active');
                 // Auto-open settings so filters are immediately accessible
                 if (settingsSidebar && !settingsSidebar.classList.contains('active')) toggleSettings();
                 if (clientLabel) clientLabel.classList.remove('active');
@@ -4395,6 +4431,15 @@
             section.classList.toggle('active');
             // Lazy-fetch on first expand
             if (wasCollapsed && (!window.allPrefetchedItems || window.allPrefetchedItems.length === 0)) {
+                fetchFilterOptions();
+            }
+        }
+
+        function onGoogleConnectorsExpand(section) {
+            section.classList.toggle('active');
+            const filterVisible = document.getElementById('filterSection')?.style.display !== 'none';
+            if (section.classList.contains('active') && filterVisible &&
+                (!window.allPrefetchedItems || window.allPrefetchedItems.length === 0)) {
                 fetchFilterOptions();
             }
         }
@@ -5420,6 +5465,86 @@
                 document.getElementById('metaChatStatus').innerHTML = 'Session expired — please reconnect.';
                 disconnectMetaChat();
             }
+        })();
+
+        // ── LinkedIn Ads ──────────────────────────────────────────────────────
+        function connectLinkedInAds() {
+            const token = document.getElementById('linkedinTokenInput').value.trim();
+            if (!token) {
+                document.getElementById('linkedinStatus').innerHTML = '<i class="fas fa-exclamation-triangle" style="color:#ea4335;"></i> Please paste your access token first.';
+                return;
+            }
+            localStorage.setItem('linkedin_access_token', token);
+            document.getElementById('linkedinTokenInput').disabled = true;
+            document.getElementById('btnConnectLinkedIn').style.display = 'none';
+            document.getElementById('btnDisconnectLinkedIn').style.display = '';
+            document.getElementById('statusBadgeLinkedIn').textContent = '✓ Connected';
+            document.getElementById('statusBadgeLinkedIn').style.cssText = 'background:#dcfce7;color:#166534;';
+            document.getElementById('linkedinStatus').innerHTML = '<i class="fas fa-check-circle" style="color:#0A66C2;"></i> Token saved.';
+        }
+
+        function disconnectLinkedInAds() {
+            localStorage.removeItem('linkedin_access_token');
+            document.getElementById('linkedinTokenInput').disabled = false;
+            document.getElementById('linkedinTokenInput').value = '';
+            document.getElementById('btnConnectLinkedIn').style.display = '';
+            document.getElementById('btnConnectLinkedIn').disabled = false;
+            document.getElementById('btnDisconnectLinkedIn').style.display = 'none';
+            document.getElementById('statusBadgeLinkedIn').textContent = '—';
+            document.getElementById('statusBadgeLinkedIn').style.cssText = '';
+            document.getElementById('linkedinStatus').textContent = '';
+        }
+
+        (function initLinkedInAdsConnection() {
+            const saved = localStorage.getItem('linkedin_access_token');
+            if (!saved) return;
+            document.getElementById('linkedinTokenInput').value = saved;
+            document.getElementById('linkedinTokenInput').disabled = true;
+            document.getElementById('btnConnectLinkedIn').style.display = 'none';
+            document.getElementById('btnDisconnectLinkedIn').style.display = '';
+            document.getElementById('statusBadgeLinkedIn').textContent = '✓ Connected';
+            document.getElementById('statusBadgeLinkedIn').style.cssText = 'background:#dcfce7;color:#166534;';
+            document.getElementById('linkedinStatus').innerHTML = '<i class="fas fa-check-circle" style="color:#0A66C2;"></i> Token saved.';
+        })();
+
+        // ── TikTok Ads ────────────────────────────────────────────────────────
+        function connectTikTokAds() {
+            const token = document.getElementById('tiktokTokenInput').value.trim();
+            if (!token) {
+                document.getElementById('tiktokStatus').innerHTML = '<i class="fas fa-exclamation-triangle" style="color:#ea4335;"></i> Please paste your access token first.';
+                return;
+            }
+            localStorage.setItem('tiktok_access_token', token);
+            document.getElementById('tiktokTokenInput').disabled = true;
+            document.getElementById('btnConnectTikTok').style.display = 'none';
+            document.getElementById('btnDisconnectTikTok').style.display = '';
+            document.getElementById('statusBadgeTikTok').textContent = '✓ Connected';
+            document.getElementById('statusBadgeTikTok').style.cssText = 'background:#dcfce7;color:#166534;';
+            document.getElementById('tiktokStatus').innerHTML = '<i class="fas fa-check-circle" style="color:#010101;"></i> Token saved.';
+        }
+
+        function disconnectTikTokAds() {
+            localStorage.removeItem('tiktok_access_token');
+            document.getElementById('tiktokTokenInput').disabled = false;
+            document.getElementById('tiktokTokenInput').value = '';
+            document.getElementById('btnConnectTikTok').style.display = '';
+            document.getElementById('btnConnectTikTok').disabled = false;
+            document.getElementById('btnDisconnectTikTok').style.display = 'none';
+            document.getElementById('statusBadgeTikTok').textContent = '—';
+            document.getElementById('statusBadgeTikTok').style.cssText = '';
+            document.getElementById('tiktokStatus').textContent = '';
+        }
+
+        (function initTikTokAdsConnection() {
+            const saved = localStorage.getItem('tiktok_access_token');
+            if (!saved) return;
+            document.getElementById('tiktokTokenInput').value = saved;
+            document.getElementById('tiktokTokenInput').disabled = true;
+            document.getElementById('btnConnectTikTok').style.display = 'none';
+            document.getElementById('btnDisconnectTikTok').style.display = '';
+            document.getElementById('statusBadgeTikTok').textContent = '✓ Connected';
+            document.getElementById('statusBadgeTikTok').style.cssText = 'background:#dcfce7;color:#166534;';
+            document.getElementById('tiktokStatus').innerHTML = '<i class="fas fa-check-circle" style="color:#010101;"></i> Token saved.';
         })();
 
         // ---- Searchable Multi-Select helpers (for GSC / GA4 / Ads dropdowns) ----
