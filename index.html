@@ -10593,7 +10593,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1314</span>
+                <span id="appVersion">v1.0.1316</span>
             </a>
         </div>
 
@@ -65921,6 +65921,8 @@ Move-In</h3>
             // then run the remaining small txt files after Phase 1 completes.
             const homeHtmlP  = withTimeout(getHtml(rootDomain), 30000);
             const robotsP    = withTimeout(getHtml(rootDomain + '/robots.txt'), 20000);
+            // Fire Ahrefs now so it runs in parallel with Phase 1 (not sequentially after)
+            const faAhrefsP  = withTimeout(fetchAhrefsDomainOverview(baseDomain).catch(() => null), 25000);
 
             // ── Phase 1: API calls (no getHtml — different backends, no throttling) ──
             const [
@@ -65970,11 +65972,6 @@ Move-In</h3>
             ]);
 
             // ── 1. Site data: title, desc, backlinks, h1/h2, spam, referring domains, schema ────
-            // Also fire Ahrefs in parallel — prefer it for backlink/ref-domain counts
-            const faAhrefsP = withTimeout(
-                fetchAhrefsDomainOverview(baseDomain).catch(() => null),
-                20000
-            );
             let pageText = '';
             try {
                 if (siteRes.status === 'rejected') throw siteRes.reason;
