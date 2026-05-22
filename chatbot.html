@@ -7796,6 +7796,52 @@ CRITICAL CONTACT RULE:
             15. get_meta_ads_report: Fetch Meta (Facebook/Instagram) Ads performance data — spend, impressions, clicks, CTR, CPM, CPC, ROAS, results, and cost per result. Use this whenever the user asks about Meta Ads, Facebook Ads, Instagram Ads, or paid social performance. The ad_account_id values are in the synced context under 'meta_ad_account_ids'.
             16. get_linkedin_ads_report: Fetch LinkedIn Ads performance data — spend, impressions, clicks, CTR, CPM, CPC, conversions, and cost per conversion. Use this whenever the user asks about LinkedIn Ads or B2B paid social performance. The account_id values are in the synced context under 'linkedin_ad_account_ids'. Use the linkedin_access_token from synced context for API calls.
 
+            ════════════════════════════════════════════════
+            PERFORMANCE INSIGHTS FRAMEWORK
+            ════════════════════════════════════════════════
+            When the user asks for an insights report, deep dive, or EOM report, follow this pipeline exactly — do not skip steps.
+
+            STEP 1 — PULL DATA
+            Use the available connector tools to fetch current period AND comparison period data:
+            - Deep Dive: current 30 days vs prior 30 days
+            - EOM: current calendar month vs prior calendar month
+            Pull spend, impressions, clicks, CTR, CPC, CPM, CPA/cost_per_result, ROAS, conversions, conversion_rate, reach, frequency, video completion rate where available.
+
+            STEP 2 — COMPUTE DELTAS & APPLY POLARITY
+            Compute delta = (current - prior) / prior × 100 for each metric.
+            Apply this polarity table to label direction (NEVER use your own judgment — use the table):
+            IMPROVED (up is good): clicks, CTR, conversions, conversion_rate, ROAS, reach, video_completion_rate, engagement_rate
+            WORSENED (up is bad): CPC, CPM, CPA, cost_per_result, frequency
+            NEUTRAL (context-dependent): spend, impressions
+
+            STEP 3 — CLASSIFY INTO BUCKETS
+            Sort every finding into exactly one bin:
+            - actionable_findings: pause candidates, negative-keyword candidates, scale-winners, bid-strategy mismatches. These and only these become Recommendations.
+            - insight_candidates: observations worth narrating (the "what happened").
+            - insufficient_signal: anything below sample-size gates — explicitly excluded from recommendations.
+            - growth_findings: directional trends — spend-zero-conv redistribution, device mix shifts, frequency fatigue, audience saturation, spend concentration, funnel drop-off.
+
+            STEP 4 — GATE
+            Before promoting anything to actionable_findings, verify:
+            - Campaign/device level: N ≥ 30 impressions or clicks in current period
+            - Hour-of-day adjustments: N ≥ 300 clicks in current period
+            - Pause recommendations: must have meaningful spend (≥ $50 in period) + ≥ 7 days observation + exclude any campaign with status ENDED/PAUSED + exclude awareness campaign types
+            - Account intent: if ≥ 60% of total spend is in awareness campaigns → tag account [HEAVY AWARENESS]; if ≥ 20% or ≥ $1,000 → tag [MEANINGFUL AWARENESS]. Heavy awareness accounts use softer conversion-logic gates.
+            If a finding fails any gate, move it to insufficient_signal. State the reason.
+
+            STEP 5 — OUTPUT FORMAT (strict — do not deviate)
+            Section 1: **Insights** — 5 numbered observations, each anchored to a raw number and its delta with polarity label. Include growth_findings as observations, not imperatives.
+            Section 2: **Recommendations** — 3–5 items drawn EXCLUSIVELY from actionable_findings. Format: **N) Action verb phrase** — rationale referencing the exact numbers from Section 1. Cap: 5 actionable + 3 growth observations per section.
+
+            NARRATION CONTRACT
+            The computed numbers are the exclusive source of truth. You MUST NOT:
+            - Add findings not derived from the pulled data
+            - Change a percentage or direction label
+            - Invent context not in the data
+            - Recommend anything that did not pass the gates
+            If a tool call fails or returns insufficient data, surface the failure explicitly ("Could not retrieve [platform] data — [reason]") rather than fabricating a section.
+            ════════════════════════════════════════════════
+
             SE RANKING CRITICAL RULES:
             - NEVER ask the user for an SE Ranking Site ID. The Site IDs are already in the synced context under 'loaded_seranking_campaigns'.
             - When the user asks about SE Ranking keywords or rankings, immediately call get_seranking_report with the site_id from 'loaded_seranking_campaigns'.
@@ -8816,6 +8862,35 @@ CRITICAL CONTACT RULE:
                         description: "High-level Google Ads cost and CPC analysis.",
                         text: "Check my Google Ads performance. What was the total cost and average CPC for all campaigns last week?",
                         icon: "fa-rectangle-ad"
+                    }
+                ]
+            },
+            {
+                category: "Performance Insights",
+                prompts: [
+                    {
+                        title: "Meta Deep Dive",
+                        description: "30-day vs prior 30-day gated insights report for Meta Ads.",
+                        text: "Run a deep dive insights report for Meta Ads. Pull the last 30 days vs the prior 30 days. Follow the full insights framework: compute deltas with polarity, classify into buckets, apply all gates, then output the two-section report (Insights + Recommendations).",
+                        icon: "fa-magnifying-glass-chart"
+                    },
+                    {
+                        title: "Meta EOM Report",
+                        description: "End-of-month insights report for Meta Ads.",
+                        text: "Run an end-of-month insights report for Meta Ads. Pull this calendar month vs the prior calendar month. Follow the full insights framework: compute deltas with polarity, classify into buckets, apply all gates, then output the two-section report (Insights + Recommendations).",
+                        icon: "fa-calendar-check"
+                    },
+                    {
+                        title: "Google Ads Deep Dive",
+                        description: "30-day vs prior 30-day gated insights report for Google Ads.",
+                        text: "Run a deep dive insights report for Google Ads. Pull the last 30 days vs the prior 30 days. Follow the full insights framework: compute deltas with polarity, classify into buckets, apply all gates, then output the two-section report (Insights + Recommendations).",
+                        icon: "fa-magnifying-glass-chart"
+                    },
+                    {
+                        title: "Cross-Platform Deep Dive",
+                        description: "Pull all connected ad platforms and run the full insights pipeline.",
+                        text: "Run a cross-platform deep dive insights report across all connected ad accounts (Meta, Google Ads, LinkedIn). Pull the last 30 days vs the prior 30 days for each. Follow the full insights framework for each platform — compute deltas with polarity, classify into buckets, apply all gates — then produce a combined two-section report (Insights + Recommendations) ranked by impact.",
+                        icon: "fa-layer-group"
                     }
                 ]
             },
