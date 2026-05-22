@@ -8508,8 +8508,9 @@ CRITICAL CONTACT RULE:
                     </div>
                     <div>
                         <label style="font-size:0.7rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:4px;">Category</label>
-                        <input id="pf-category" type="text" placeholder="e.g. SEO, Meta Ads, Reports…"
+                        <input id="pf-category" type="text" placeholder="Pick existing or type new…" list="pf-category-list"
                             style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.85rem; font-family:inherit; box-sizing:border-box;">
+                        <datalist id="pf-category-list"></datalist>
                     </div>
                 </div>
                 <div style="margin-bottom:10px;">
@@ -8523,9 +8524,16 @@ CRITICAL CONTACT RULE:
                         style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.85rem; font-family:inherit; resize:vertical; box-sizing:border-box;"></textarea>
                 </div>
                 <div style="margin-bottom:12px;">
-                    <label style="font-size:0.7rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:4px;">Tags <span style="font-weight:400; text-transform:none;">(comma-separated)</span></label>
-                    <input id="pf-tags" type="text" placeholder="e.g. reporting, meta, weekly"
-                        style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.85rem; font-family:inherit; box-sizing:border-box;">
+                    <label style="font-size:0.7rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:4px;">Tags</label>
+                    <div id="pf-tag-chips" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; min-height:24px;"></div>
+                    <div style="display:flex; gap:6px;">
+                        <input id="pf-new-tag" type="text" placeholder="Type a new tag and press Enter or Add…"
+                            style="flex:1; padding:6px 10px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.8rem; font-family:inherit;"
+                            onkeydown="if(event.key==='Enter'){event.preventDefault();addNewTagChip();}">
+                        <button onclick="addNewTagChip()" class="btn-sidebar" style="padding:6px 12px; font-size:0.78rem; border-radius:8px; border-color:#e2e8f0;">
+                            <i class="fas fa-plus"></i> Add
+                        </button>
+                    </div>
                 </div>
                 <input id="pf-editing-id" type="hidden" value="">
                 <div style="display:flex; gap:8px;">
@@ -9237,13 +9245,75 @@ CRITICAL CONTACT RULE:
         }
 
         // Add/Edit form
+        // Collect all categories from built-ins + custom prompts
+        function getAllCategories() {
+            const cats = new Set();
+            promptTemplates.forEach(c => cats.add(c.category));
+            customPrompts.forEach(p => { if (p.category) cats.add(p.category); });
+            return [...cats].sort();
+        }
+
+        // Render category datalist
+        function refreshCategoryDatalist() {
+            const dl = document.getElementById('pf-category-list');
+            if (!dl) return;
+            dl.innerHTML = getAllCategories().map(c => `<option value="${c}">`).join('');
+        }
+
+        // Tag chip state for the form
+        let formSelectedTags = new Set();
+
+        function renderFormTagChips() {
+            const container = document.getElementById('pf-tag-chips');
+            if (!container) return;
+            const allTags = getAllPromptTags();
+            // Show all existing tags as toggleable chips
+            const chips = allTags.map(t => {
+                const active = formSelectedTags.has(t);
+                return `<button type="button" onclick="toggleFormTag('${t}')"
+                    style="padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:700; cursor:pointer; font-family:inherit;
+                    border:1px solid ${active ? '#f97316' : '#e2e8f0'};
+                    background:${active ? '#fff7ed' : '#f8fafc'};
+                    color:${active ? '#ea580c' : '#64748b'};">
+                    ${active ? '✓ ' : ''}${t}
+                </button>`;
+            }).join('');
+            // Also show any selected tags not in allTags (newly added this session)
+            const extras = [...formSelectedTags].filter(t => !allTags.includes(t)).map(t =>
+                `<button type="button" onclick="toggleFormTag('${t}')"
+                    style="padding:3px 10px; border-radius:20px; font-size:0.72rem; font-weight:700; cursor:pointer; font-family:inherit;
+                    border:1px solid #f97316; background:#fff7ed; color:#ea580c;">
+                    ✓ ${t}
+                </button>`
+            ).join('');
+            container.innerHTML = chips + extras || '<span style="font-size:0.72rem; color:#94a3b8;">No existing tags yet — type one below</span>';
+        }
+
+        function toggleFormTag(tag) {
+            if (formSelectedTags.has(tag)) formSelectedTags.delete(tag);
+            else formSelectedTags.add(tag);
+            renderFormTagChips();
+        }
+
+        function addNewTagChip() {
+            const input = document.getElementById('pf-new-tag');
+            const val = input.value.trim().toLowerCase().replace(/[^a-z0-9 _-]/g, '');
+            if (!val) return;
+            formSelectedTags.add(val);
+            input.value = '';
+            renderFormTagChips();
+        }
+
         function openAddPromptForm() {
             document.getElementById('pf-editing-id').value = '';
             document.getElementById('pf-title').value = '';
             document.getElementById('pf-description').value = '';
             document.getElementById('pf-text').value = '';
             document.getElementById('pf-category').value = '';
-            document.getElementById('pf-tags').value = '';
+            document.getElementById('pf-new-tag').value = '';
+            formSelectedTags = new Set();
+            refreshCategoryDatalist();
+            renderFormTagChips();
             showPromptForm();
         }
 
@@ -9255,20 +9325,23 @@ CRITICAL CONTACT RULE:
             document.getElementById('pf-description').value = p.description || '';
             document.getElementById('pf-text').value = p.text || '';
             document.getElementById('pf-category').value = p.category || '';
-            document.getElementById('pf-tags').value = (p.tags || []).join(', ');
+            document.getElementById('pf-new-tag').value = '';
+            formSelectedTags = new Set(p.tags || []);
+            refreshCategoryDatalist();
+            renderFormTagChips();
             showPromptForm();
         }
 
         function showPromptForm() {
             const panel = document.getElementById('promptFormPanel');
             panel.style.display = 'block';
-            // Scroll the panel into view inside the modal
             panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             setTimeout(() => document.getElementById('pf-title').focus(), 150);
         }
 
         function cancelPromptForm() {
             document.getElementById('promptFormPanel').style.display = 'none';
+            formSelectedTags = new Set();
         }
 
         function savePromptForm() {
@@ -9276,7 +9349,10 @@ CRITICAL CONTACT RULE:
             const text = document.getElementById('pf-text').value.trim();
             if (!title || !text) { showToast('Title and Prompt Text are required', 'warning'); return; }
 
-            const tags = document.getElementById('pf-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+            // Collect tags: selected chips + anything still typed in the new-tag input
+            const newTagInput = document.getElementById('pf-new-tag').value.trim().toLowerCase();
+            if (newTagInput) formSelectedTags.add(newTagInput);
+            const tags = [...formSelectedTags];
             const editingId = document.getElementById('pf-editing-id').value;
 
             if (editingId) {
