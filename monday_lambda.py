@@ -151,9 +151,9 @@ def linkedin_get_ad_accounts(body):
     if not access_token:
         return {"statusCode": 400, "body": json.dumps({"error": "Missing access_token"})}
     try:
+        url = "https://api.linkedin.com/rest/adAccounts?q=search&search=(status:(values:List(ACTIVE)))&count=100"
         r = requests.get(
-            'https://api.linkedin.com/rest/adAccounts',
-            params={'q': 'search', 'search': '(status:(values:List(ACTIVE)))', 'count': 100},
+            url,
             headers={
                 'Authorization': f'Bearer {access_token}',
                 'LinkedIn-Version': '202510',
