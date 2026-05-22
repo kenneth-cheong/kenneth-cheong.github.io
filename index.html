@@ -10658,7 +10658,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1363</span>
+                <span id="appVersion">v1.0.1366</span>
             </a>
         </div>
 
@@ -30467,7 +30467,11 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 adsCompareDailyData = aggDaily;
                 updateAdsKpiDeltas();
                 reRenderAdsChart();
-                reRenderAdsTable();
+                // Re-render table to show Δ% columns — use renderCampaignsTable directly
+                // to avoid reRenderAdsTable() re-triggering reRenderAdsChart() with stale state
+                if (lastFetchedCampaignsList?.length > 0) {
+                    renderCampaignsTable(lastFetchedCampaignsList, lastFetchedTotals.imps, lastFetchedTotals.clicks, lastFetchedTotals.convs, lastFetchedTotals.cost);
+                }
             } catch(e) { console.error('Comparison fetch error:', e); }
         }
 
@@ -31177,8 +31181,8 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                     dataStream.forEach(batch => {
                         if (batch.results) {
                             batch.results.forEach(row => {
-                                // Store raw row for dynamic re-filtering of chart
-                                lastFetchedAdsRawData.push(row);
+                                // Store raw row for dynamic re-filtering of chart (skip for comparison fetches)
+                                if (!dateOverride) lastFetchedAdsRawData.push(row);
 
                                 const dateStr = row.segments?.date;
                                 if (!dateStr) return;
