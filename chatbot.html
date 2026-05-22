@@ -1004,52 +1004,7 @@
         }
 
         /* Internal Mode Filter Panel */
-        .internal-filter-panel {
-            display: none;
-            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
-            border: 1px solid #fcd34d;
-            border-radius: 12px;
-            padding: 10px 14px;
-            margin-bottom: 10px;
-            animation: fadeIn 0.3s ease-out;
-        }
-
-        .internal-filter-panel.visible {
-            display: block;
-            max-height: 80vh;
-            scrollbar-width: thin;
-            scrollbar-color: #fcd34d transparent;
-        }
-
-        .internal-filter-panel.visible::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .internal-filter-panel.visible::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        .internal-filter-panel.visible::-webkit-scrollbar-thumb {
-            background-color: #fcd34d;
-            border-radius: 20px;
-        }
-
-        .internal-filter-panel h3 {
-            font-family: 'Outfit', sans-serif;
-            font-size: 0.85rem;
-            color: #92400e;
-            margin: 0;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .internal-filter-panel p {
-            font-size: 0.75rem;
-            color: #a16207;
-            margin: 0;
-            display: none;
-        }
+        /* #filterSection lives inside the settings sidebar — no separate panel CSS needed */
 
         .filter-grid {
             display: grid;
@@ -2952,6 +2907,115 @@
                 </div>
             </div>
 
+            <!-- Narrow Your Search — shown only in internal mode -->
+            <div class="collapsible-section active" id="filterSection" style="display: none; margin-top: 10px;">
+                <div class="collapsible-header" onclick="onFilterExpand(this.closest('.collapsible-section'))">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-navy);"><i class="fas fa-filter" style="margin-right: 8px; opacity: 0.5;"></i> Narrow Your Search</span>
+                    <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
+                </div>
+                <div class="collapsible-content" style="padding-top: 8px;">
+                    <p id="filterSubtext" style="display:none; margin: 4px 0 8px; font-size: 0.75rem; color: #a16207;">Search across all campaigns. Use filters below to narrow results before querying.</p>
+
+                    <div style="margin-bottom: 14px; display: none;">
+                        <button class="btn-amber-outline" id="fetchOptionsBtn" onclick="fetchFilterOptions()">
+                            <i class="fas fa-download"></i> Fetch Campaigns & Staff
+                        </button>
+                    </div>
+
+                    <div class="filter-grid" id="summaryBoardFilters" style="display:none;">
+                        <div class="filter-field">
+                            <label>Campaign / Item Name <span class="label-count" id="count-msItemDropdown"></span></label>
+                            <div class="ms-dropdown" id="msItemDropdown">
+                                <div class="ms-trigger" onclick="toggleMsPanel('msItemDropdown')">
+                                    <span class="ms-placeholder">Loading latest data...</span>
+                                </div>
+                                <div class="ms-panel">
+                                    <div class="ms-search"><i class="fas fa-search"></i><input type="text" placeholder="Search campaigns..." oninput="filterMsOptions('msItemDropdown', this.value)"></div>
+                                    <div class="ms-bulk-actions"><button onclick="msSelectAll('msItemDropdown')">✓ All</button><button onclick="msUnselectAll('msItemDropdown')">✗ None</button></div>
+                                    <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Loading latest data...</div></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="filter-field">
+                            <label>Staff Name <span class="label-count" id="count-msStaffDropdown"></span></label>
+                            <div class="ms-dropdown" id="msStaffDropdown">
+                                <div class="ms-trigger" onclick="toggleMsPanel('msStaffDropdown')">
+                                    <span class="ms-placeholder">Loading latest data...</span>
+                                </div>
+                                <div class="ms-panel">
+                                    <div class="ms-search"><i class="fas fa-search"></i><input type="text" placeholder="Search staff..." oninput="filterMsOptions('msStaffDropdown', this.value)"></div>
+                                    <div class="ms-bulk-actions"><button onclick="msSelectAll('msStaffDropdown')">✓ All</button><button onclick="msUnselectAll('msStaffDropdown')">✗ None</button></div>
+                                    <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Loading latest data...</div></div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Dynamic Filters Container -->
+                        <div id="dynamicFiltersWrapper" style="grid-column: 1 / -1; margin-top: 4px; background: rgba(245, 158, 11, 0.05); border: 1px dashed rgba(245, 158, 11, 0.3); border-radius: 10px; padding: 10px;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                <label style="margin:0; font-weight:600; color:var(--text-main);"><i class="fas fa-sliders-h" style="margin-right:6px; color:#f59e0b;"></i> Advanced Filters</label>
+                                <button class="btn-sidebar" style="background:#fff; border:1px solid #f2f2f2; color:#334155; padding:4px 10px; font-size:0.75rem; box-shadow:var(--shadow-sm); border-radius:6px;" onclick="addDynamicFilter()">
+                                    <i class="fas fa-plus" style="color:#10b981;"></i> Add Custom Filter
+                                </button>
+                            </div>
+                            <div id="dynamicFiltersContainer" style="display:flex; flex-direction:column; gap:12px;">
+                                <div style="font-size:0.8rem; color:var(--text-muted); font-style:italic;" id="emptyDynamicText">No custom filters active. Click "Add Custom Filter" to filter by any column.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Google Chat Spaces -->
+                    <div id="gchatSpacesSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
+                        <div class="filter-field">
+                            <label><span><i class="fab fa-google" style="margin-right:4px; opacity:0.6;"></i> Google Chat Spaces</span> <span class="label-count" id="count-msChatSpaceDropdown"></span></label>
+                            <div class="ms-dropdown" id="msChatSpaceDropdown">
+                                <div class="ms-trigger" onclick="toggleMsPanel('msChatSpaceDropdown')"><span class="ms-placeholder">Connect Google Chat in Settings...</span></div>
+                                <div class="ms-panel">
+                                    <div class="ms-search"><i class="fas fa-search"></i><input type="text" placeholder="Search spaces..." oninput="filterMsOptions('msChatSpaceDropdown', this.value)"></div>
+                                    <div class="ms-bulk-actions"><button onclick="msSelectAll('msChatSpaceDropdown')">✓ All</button><button onclick="msUnselectAll('msChatSpaceDropdown')">✗ None</button></div>
+                                    <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Connect Google Chat first...</div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Google Drive Folders -->
+                    <div id="gdriveSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
+                        <div class="filter-field">
+                            <label><span><i class="fab fa-google-drive" style="margin-right:4px; opacity:0.6;"></i> Google Drive Folders</span> <span class="label-count" id="count-msGDriveFolderDropdown"></span></label>
+                            <div class="ms-dropdown" id="msGDriveFolderDropdown">
+                                <div class="ms-trigger" onclick="toggleMsPanel('msGDriveFolderDropdown')"><span class="ms-placeholder">Connect Google Workspace in Settings...</span></div>
+                                <div class="ms-panel">
+                                    <div class="ms-search"><i class="fas fa-search"></i><input type="text" placeholder="Search folders..." oninput="filterMsOptions('msGDriveFolderDropdown', this.value)"></div>
+                                    <div class="ms-bulk-actions"><button onclick="msSelectAll('msGDriveFolderDropdown')">✓ All</button><button onclick="msUnselectAll('msGDriveFolderDropdown')">✗ None</button></div>
+                                    <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Connect Google Workspace first...</div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gmail Toggle -->
+                    <div id="gmailSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
+                        <div class="filter-field">
+                            <label>
+                                <span><i class="fas fa-envelope" style="margin-right:4px; opacity:0.6;"></i> Include Gmail Threads <span id="gmailAccessBadge" style="display:none; font-size:0.6rem; padding:1px 6px; border-radius:8px; font-weight:700; margin-left:4px;"></span></span>
+                                <span style="display:flex;align-items:center;gap:6px;">
+                                    <input type="checkbox" id="gmailIncludeToggle" checked style="width:16px;height:16px;cursor:pointer;accent-color:#92400e;">
+                                </span>
+                            </label>
+                            <div style="font-size: 0.65rem; color: #92400e; margin-top: 4px; opacity: 0.8;">Searches emails mentioning selected campaigns / staff.</div>
+                        </div>
+                    </div>
+
+                    <div class="filter-actions">
+                        <button class="btn-amber" id="internalSyncBtn" onclick="syncInternalMode()">
+                            <i class="fas fa-bolt"></i> Load Data
+                        </button>
+                        <span class="filter-hint" id="internalFilterHint">Default: Excludes Completed, Abandoned, Expired, Terminated</span>
+                        <span id="boardRegistryBadge" style="display:none; font-size:0.7rem; background:#dbeafe; color:#1e40af; padding:3px 10px; border-radius:20px; font-weight:600; margin-left:8px; white-space:nowrap;"><i class="fas fa-th-large" style="margin-right:4px;"></i><span id="boardRegistryCount">0</span> boards discovered</span>
+                    </div>
+                </div>
+            </div>
+
             <div style="min-height: 80px;"></div> <!-- Spacer for scrollable content -->
 
             <div
@@ -3006,182 +3070,6 @@
             </div>
 
             <!-- Internal Mode Filter Panel (Campaign/Staff specific) -->
-            <div class="internal-filter-panel" id="internalFilterPanel">
-                <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:2px 0;"
-                    onclick="toggleFilterCollapse()">
-                    <h3><i class="fas fa-filter" style="font-size:0.75rem;opacity:0.7;"></i> Narrow Your Search</h3>
-                    <i class="fas fa-chevron-up" id="filterCollapseIcon"
-                        style="color:#94a3b8;transition:transform 0.3s;transform:rotate(180deg);"></i>
-                </div>
-                <p id="filterSubtext" style="display:none;margin:4px 0 0;">Search across all campaigns. Use filters below to narrow results before querying.</p>
-                <div id="filterCollapsible" style="display:none;">
-
-                    <div style="margin-bottom: 14px; display: none;">
-                        <button class="btn-amber-outline" id="fetchOptionsBtn" onclick="fetchFilterOptions()">
-                            <i class="fas fa-download"></i> Fetch Campaigns & Staff
-                        </button>
-                    </div>
-
-                    <div class="filter-grid" id="summaryBoardFilters" style="display:none;">
-                        <div class="filter-field">
-                            <label>Campaign / Item Name <span class="label-count"
-                                    id="count-msItemDropdown"></span></label>
-                            <div class="ms-dropdown" id="msItemDropdown">
-                                <div class="ms-trigger" onclick="toggleMsPanel('msItemDropdown')">
-                                    <span class="ms-placeholder">Loading latest data...</span>
-                                </div>
-                                <div class="ms-panel">
-                                    <div class="ms-search">
-                                        <i class="fas fa-search"></i>
-                                        <input type="text" placeholder="Search campaigns..."
-                                            oninput="filterMsOptions('msItemDropdown', this.value)">
-                                    </div>
-                                    <div class="ms-bulk-actions">
-                                        <button onclick="msSelectAll('msItemDropdown')">✓ All</button>
-                                        <button onclick="msUnselectAll('msItemDropdown')">✗ None</button>
-                                    </div>
-                                    <div class="ms-options">
-                                        <div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Loading latest
-                                            data...</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="filter-field">
-                            <label>Staff Name <span class="label-count" id="count-msStaffDropdown"></span></label>
-                            <div class="ms-dropdown" id="msStaffDropdown">
-                                <div class="ms-trigger" onclick="toggleMsPanel('msStaffDropdown')">
-                                    <span class="ms-placeholder">Loading latest data...</span>
-                                </div>
-                                <div class="ms-panel">
-                                    <div class="ms-search">
-                                        <i class="fas fa-search"></i>
-                                        <input type="text" placeholder="Search staff..."
-                                            oninput="filterMsOptions('msStaffDropdown', this.value)">
-                                    </div>
-                                    <div class="ms-bulk-actions">
-                                        <button onclick="msSelectAll('msStaffDropdown')">✓ All</button>
-                                        <button onclick="msUnselectAll('msStaffDropdown')">✗ None</button>
-                                    </div>
-                                    <div class="ms-options">
-                                        <div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Loading latest
-                                            data...</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- Dynamic Filters Container -->
-                        <div id="dynamicFiltersWrapper"
-                            style="grid-column: 1 / -1; margin-top: 4px; background: rgba(245, 158, 11, 0.05); border: 1px dashed rgba(245, 158, 11, 0.3); border-radius: 10px; padding: 10px;">
-                            <div
-                                style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                                <label style="margin:0; font-weight:600; color:var(--text-main);"><i
-                                        class="fas fa-sliders-h" style="margin-right:6px; color:#f59e0b;"></i> Advanced
-                                    Filters</label>
-                                <button class="btn-sidebar"
-                                    style="background:#fff; border:1px solid #f2f2f2; color:#334155; padding:4px 10px; font-size:0.75rem; box-shadow:var(--shadow-sm); border-radius:6px;"
-                                    onclick="addDynamicFilter()">
-                                    <i class="fas fa-plus" style="color:#10b981;"></i> Add Custom Filter
-                                </button>
-                            </div>
-                            <div id="dynamicFiltersContainer" style="display:flex; flex-direction:column; gap:12px;">
-                                <div style="font-size:0.8rem; color:var(--text-muted); font-style:italic;"
-                                    id="emptyDynamicText">No custom filters active. Click "Add Custom Filter" to filter
-                                    by any column.</div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Campaign Boards Dropdown moved to chat-top-bar -->
-                    <!-- Google Chat Spaces Dropdown -->
-                    <div id="gchatSpacesSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
-                        <div class="filter-field">
-                            <label><span><i class="fab fa-google" style="margin-right:4px; opacity:0.6;"></i> Google
-                                    Chat Spaces</span> <span class="label-count"
-                                    id="count-msChatSpaceDropdown"></span></label>
-                            <div class="ms-dropdown" id="msChatSpaceDropdown">
-                                <div class="ms-trigger" onclick="toggleMsPanel('msChatSpaceDropdown')">
-                                    <span class="ms-placeholder">Connect Google Chat in Settings...</span>
-                                </div>
-                                <div class="ms-panel">
-                                    <div class="ms-search">
-                                        <i class="fas fa-search"></i>
-                                        <input type="text" placeholder="Search spaces..."
-                                            oninput="filterMsOptions('msChatSpaceDropdown', this.value)">
-                                    </div>
-                                    <div class="ms-bulk-actions">
-                                        <button onclick="msSelectAll('msChatSpaceDropdown')">✓ All</button>
-                                        <button onclick="msUnselectAll('msChatSpaceDropdown')">✗ None</button>
-                                    </div>
-                                    <div class="ms-options">
-                                        <div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Connect Google
-                                            Chat first...</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Google Drive Folders Dropdown -->
-                    <div id="gdriveSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
-                        <div class="filter-field">
-                            <label><span><i class="fab fa-google-drive" style="margin-right:4px; opacity:0.6;"></i>
-                                    Google Drive Folders</span> <span class="label-count"
-                                    id="count-msGDriveFolderDropdown"></span></label>
-                            <div class="ms-dropdown" id="msGDriveFolderDropdown">
-                                <div class="ms-trigger" onclick="toggleMsPanel('msGDriveFolderDropdown')">
-                                    <span class="ms-placeholder">Connect Google Workspace in Settings...</span>
-                                </div>
-                                <div class="ms-panel">
-                                    <div class="ms-search">
-                                        <i class="fas fa-search"></i>
-                                        <input type="text" placeholder="Search folders..."
-                                            oninput="filterMsOptions('msGDriveFolderDropdown', this.value)">
-                                    </div>
-                                    <div class="ms-bulk-actions">
-                                        <button onclick="msSelectAll('msGDriveFolderDropdown')">✓ All</button>
-                                        <button onclick="msUnselectAll('msGDriveFolderDropdown')">✗ None</button>
-                                    </div>
-                                    <div class="ms-options">
-                                        <div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Connect Google
-                                            Workspace first...</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Gmail Toggle -->
-                    <div id="gmailSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
-                        <div class="filter-field">
-                            <label>
-                                <span><i class="fas fa-envelope" style="margin-right:4px; opacity:0.6;"></i> Include
-                                    Gmail Threads <span id="gmailAccessBadge"
-                                        style="display:none; font-size:0.6rem; padding:1px 6px; border-radius:8px; font-weight:700; margin-left:4px;"></span></span>
-                                <span style="display:flex;align-items:center;gap:6px;">
-                                    <input type="checkbox" id="gmailIncludeToggle" checked
-                                        style="width:16px;height:16px;cursor:pointer;accent-color:#92400e;">
-                                </span>
-                            </label>
-                            <div style="font-size: 0.65rem; color: #92400e; margin-top: 4px; opacity: 0.8;">
-                                Searches emails mentioning selected campaigns / staff.
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="filter-actions">
-                        <button class="btn-amber" id="internalSyncBtn" onclick="syncInternalMode()">
-                            <i class="fas fa-bolt"></i> Load Data
-                        </button>
-                        <span class="filter-hint" id="internalFilterHint">Default: Excludes Completed, Abandoned,
-                            Expired, Terminated</span>
-                        <span id="boardRegistryBadge"
-                            style="display:none; font-size:0.7rem; background:#dbeafe; color:#1e40af; padding:3px 10px; border-radius:20px; font-weight:600; margin-left:8px; white-space:nowrap;"><i
-                                class="fas fa-th-large" style="margin-right:4px;"></i><span
-                                id="boardRegistryCount">0</span> boards discovered</span>
-                    </div>
-                </div>
-            </div>
-
             <div id="messageList">
                 <div class="message bot" id="welcomeMessage">
                     <div class="msg-content">
@@ -3700,7 +3588,8 @@
         }
 
         function applyMode(mode) {
-            const filterPanel = document.getElementById('internalFilterPanel');
+            const filterSection = document.getElementById('filterSection');
+            const settingsSidebar = document.getElementById('settingsSidebar');
             const clientLabel = document.getElementById('clientModeLabel');
             const internalLabel = document.getElementById('internalModeLabel');
             const headerTitle = document.getElementById('headerTitle');
@@ -3708,7 +3597,9 @@
 
             if (mode === 'internal') {
                 document.body.classList.add('internal-mode');
-                if (filterPanel) filterPanel.classList.add('visible');
+                if (filterSection) filterSection.style.display = 'block';
+                // Auto-open settings so filters are immediately accessible
+                if (settingsSidebar && !settingsSidebar.classList.contains('active')) toggleSettings();
                 if (clientLabel) clientLabel.classList.remove('active');
                 if (internalLabel) internalLabel.classList.add('active');
                 if (headerTitle) headerTitle.textContent = 'Super Chatbot';
@@ -3730,7 +3621,7 @@
                 document.getElementById('customFunctionsSection').style.display = 'none';
             } else {
                 document.body.classList.remove('internal-mode');
-                filterPanel.classList.remove('visible');
+                if (filterSection) filterSection.style.display = 'none';
                 clientLabel.classList.add('active');
                 internalLabel.classList.remove('active');
                 headerTitle.textContent = 'Client Portal Chatbot Testing';
@@ -4507,19 +4398,12 @@
         });
 
         // --- Filter Panel Collapse ---
-        function toggleFilterCollapse() {
-            const body = document.getElementById('filterCollapsible');
-            const icon = document.getElementById('filterCollapseIcon');
-            if (body.style.display === 'none') {
-                body.style.display = '';
-                icon.style.transform = 'rotate(0deg)';
-                // Lazy-fetch filter options on first expand if no data loaded yet
-                if (!window.allPrefetchedItems || window.allPrefetchedItems.length === 0) {
-                    fetchFilterOptions();
-                }
-            } else {
-                body.style.display = 'none';
-                icon.style.transform = 'rotate(180deg)';
+        function onFilterExpand(section) {
+            const wasCollapsed = !section.classList.contains('active');
+            section.classList.toggle('active');
+            // Lazy-fetch on first expand
+            if (wasCollapsed && (!window.allPrefetchedItems || window.allPrefetchedItems.length === 0)) {
+                fetchFilterOptions();
             }
         }
 
