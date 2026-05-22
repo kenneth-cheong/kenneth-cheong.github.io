@@ -10654,7 +10654,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1348</span>
+                <span id="appVersion">v1.0.1351</span>
             </a>
         </div>
 
@@ -15628,6 +15628,27 @@
                                     <option value="LAST_MONTH">Last Month</option>
                                     <option value="CUSTOM">Custom Range</option>
                                 </select>
+                            </div>
+                            <div>
+                                <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">Compare to</label>
+                                <select id="adsCompareTo" onchange="adsCompareToChanged()"
+                                    style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc; min-width: 150px; cursor: pointer;">
+                                    <option value="none">None</option>
+                                    <option value="prev_period">Previous Period</option>
+                                    <option value="prev_year">Previous Year</option>
+                                    <option value="custom">Custom Range</option>
+                                </select>
+                            </div>
+                            <div id="adsCompareCustomDates" style="display:none;align-items:flex-end;gap:10px;">
+                                <div>
+                                    <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">Compare Start</label>
+                                    <input type="date" id="adsCompareStart" style="padding: 7px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc;">
+                                </div>
+                                <div>
+                                    <label style="font-size: 11px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px; text-transform: uppercase;">Compare End</label>
+                                    <input type="date" id="adsCompareEnd" style="padding: 7px 10px; border-radius: 6px; border: 1px solid #cbd5e1; font-size: 13px; color: #1e293b; outline: none; background: #f8fafc;">
+                                </div>
+                                <button onclick="updateSelectedAdsProperty(true)" style="padding: 8px 15px; border-radius: 6px; border: none; background: #6366f1; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;">Apply</button>
                             </div>
                             <div id="adsCustomDateInputs" style="display: none; align-items: flex-end; gap: 10px;">
                                 <div>
@@ -30037,11 +30058,13 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
                 if (selectedAdsAccounts.length === 1) {
                     const acc = selectedAdsAccounts[0];
-                    fetchAdsInsights(acc.id, acc.loginCustomerId, acc.developerToken, isRefresh);
+                    await fetchAdsInsights(acc.id, acc.loginCustomerId, acc.developerToken, isRefresh);
                     setTimeout(() => runAdsDiagnostics(), 1500);
                 } else {
-                    fetchMultipleAdsInsights(selectedAdsAccounts, isRefresh);
+                    await fetchMultipleAdsInsights(selectedAdsAccounts, isRefresh);
                 }
+                // Run comparison fetch after primary data is loaded
+                fetchAdsComparisonData();
             } else {
                 document.getElementById('adsImpressions').textContent = '-';
                 document.getElementById('adsClicks').textContent = '-';
@@ -30065,6 +30088,8 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
         let lastFetchedTotals = { imps: 0, clicks: 0, convs: 0, cost: 0 };
         let selectedAdsAccounts = []; // Multi-account selection [{id, name, loginCustomerId, developerToken}]
         const adsAccountDataCache = {}; // Per-account fetched data cache keyed by account id
+        let adsCompareTotals = null;    // Comparison period aggregated totals
+        let adsCompareDailyData = {};   // Comparison period daily data for chart
 
         // Advanced Hierarchy State
         let adsCurrentLevel = 'campaign'; // 'campaign', 'ad_group', or 'ad'
@@ -30281,14 +30306,171 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
         function adsDateRangeChanged() {
             const range = document.getElementById('adsDateRange').value;
             const customInputs = document.getElementById('adsCustomDateInputs');
-            // Clear cache so all accounts re-fetch with the new date range
             Object.keys(adsAccountDataCache).forEach(k => delete adsAccountDataCache[k]);
+            adsCompareTotals = null; adsCompareDailyData = {};
             if (range === 'CUSTOM') {
                 customInputs.style.display = 'flex';
             } else {
                 customInputs.style.display = 'none';
                 updateSelectedAdsProperty(true);
             }
+        }
+
+        function adsCompareToChanged() {
+            const mode = document.getElementById('adsCompareTo').value;
+            const customEl = document.getElementById('adsCompareCustomDates');
+            if (customEl) customEl.style.display = mode === 'custom' ? 'flex' : 'none';
+            adsCompareTotals = null; adsCompareDailyData = {};
+            if (mode !== 'custom') updateSelectedAdsProperty(false);
+        }
+
+        function getAdsCurrentPeriodDates() {
+            const range = document.getElementById('adsDateRange')?.value || 'LAST_30_DAYS';
+            const today = new Date(); today.setHours(0,0,0,0);
+            const yest = new Date(today - 86400000);
+            const fmt = d => d.toISOString().split('T')[0];
+            const daysAgo = n => new Date(yest - (n-1)*86400000);
+            switch (range) {
+                case 'LAST_7_DAYS':    return { start: fmt(daysAgo(7)),   end: fmt(yest) };
+                case 'LAST_14_DAYS':   return { start: fmt(daysAgo(14)),  end: fmt(yest) };
+                case 'LAST_30_DAYS':   return { start: fmt(daysAgo(30)),  end: fmt(yest) };
+                case 'LAST_90_DAYS':   return { start: fmt(daysAgo(90)),  end: fmt(yest) };
+                case 'LAST_365_DAYS':  return { start: fmt(daysAgo(365)), end: fmt(yest) };
+                case 'THIS_MONTH': {
+                    const s = new Date(today.getFullYear(), today.getMonth(), 1);
+                    return { start: fmt(s), end: fmt(yest) };
+                }
+                case 'LAST_MONTH': {
+                    const s = new Date(today.getFullYear(), today.getMonth()-1, 1);
+                    const e = new Date(today.getFullYear(), today.getMonth(), 0);
+                    return { start: fmt(s), end: fmt(e) };
+                }
+                case 'CUSTOM':
+                    return { start: document.getElementById('adsStartDate')?.value, end: document.getElementById('adsEndDate')?.value };
+                default: return { start: fmt(daysAgo(30)), end: fmt(yest) };
+            }
+        }
+
+        function getAdsComparisonDates() {
+            const mode = document.getElementById('adsCompareTo')?.value || 'none';
+            if (mode === 'none') return null;
+            const fmt = d => d.toISOString().split('T')[0];
+            const { start: cs, end: ce } = getAdsCurrentPeriodDates();
+            if (!cs || !ce) return null;
+            const curStart = new Date(cs), curEnd = new Date(ce);
+            const duration = Math.round((curEnd - curStart) / 86400000);
+            if (mode === 'prev_period') {
+                const compEnd = new Date(curStart - 86400000);
+                const compStart = new Date(compEnd - duration * 86400000);
+                return { start: fmt(compStart), end: fmt(compEnd) };
+            }
+            if (mode === 'prev_year') {
+                const s = new Date(curStart); s.setFullYear(s.getFullYear()-1);
+                const e = new Date(curEnd);   e.setFullYear(e.getFullYear()-1);
+                return { start: fmt(s), end: fmt(e) };
+            }
+            if (mode === 'custom') {
+                return { start: document.getElementById('adsCompareStart')?.value, end: document.getElementById('adsCompareEnd')?.value };
+            }
+            return null;
+        }
+
+        async function fetchAdsComparisonData() {
+            const dates = getAdsComparisonDates();
+            if (!dates?.start || !dates?.end || selectedAdsAccounts.length === 0) return;
+            try {
+                const results = await Promise.all(selectedAdsAccounts.map(acc =>
+                    fetchAdsInsightsWithDateRange(acc.id, acc.loginCustomerId, acc.developerToken, dates.start, dates.end)
+                ));
+                let aggImps=0, aggClicks=0, aggCostMicros=0, aggConvs=0;
+                const aggDaily = {};
+                results.forEach(r => {
+                    if (!r) return;
+                    aggImps += r.totalImpressions; aggClicks += r.totalClicks;
+                    aggCostMicros += r.totalCostMicros; aggConvs += r.totalConversions;
+                    Object.entries(r.dailyData||{}).forEach(([d,v]) => {
+                        if (!aggDaily[d]) aggDaily[d] = {clicks:0,conversions:0};
+                        aggDaily[d].clicks += v.clicks; aggDaily[d].conversions += v.conversions;
+                    });
+                });
+                adsCompareTotals = { imps:aggImps, clicks:aggClicks, costMicros:aggCostMicros, cost:aggCostMicros/1e6, convs:aggConvs };
+                adsCompareDailyData = aggDaily;
+                updateAdsKpiDeltas();
+                reRenderAdsChart();
+            } catch(e) { console.error('Comparison fetch error:', e); }
+        }
+
+        async function fetchAdsInsightsWithDateRange(customerId, loginCustomerId, developerToken, startDate, endDate) {
+            try {
+                const query = `{ boards(ids:["2845615047"]) { items_page { items { id } } } }`;
+                const dateCondition = `segments.date BETWEEN '${startDate}' AND '${endDate}'`;
+                const selects = ['segments.date','metrics.impressions','metrics.clicks','metrics.conversions','metrics.cost_micros','campaign.name','campaign.id','campaign.status'];
+                const gaqlQuery = `SELECT ${selects.join(',')} FROM campaign WHERE ${dateCondition}`;
+                const devToken = developerToken || 'YOUR_DEVELOPER_TOKEN';
+                const loginId = loginCustomerId || customerId;
+                const resp = await fetch('https://j4aca9hcmh.execute-api.ap-southeast-1.amazonaws.com/googleAds', {
+                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ query: gaqlQuery, customer_id: customerId, login_customer_id: loginId, developer_token: devToken })
+                });
+                const dataStream = await resp.json();
+                let totalImpressions=0, totalClicks=0, totalCostMicros=0, totalConversions=0;
+                const dailyData = {};
+                const campaignsList = [];
+                (Array.isArray(dataStream)?dataStream:[dataStream]).forEach(batch => {
+                    (batch?.results||[]).forEach(row => {
+                        const d = row.segments?.date;
+                        const imps = parseInt(row.metrics?.impressions)||0;
+                        const clks = parseInt(row.metrics?.clicks)||0;
+                        const cost = parseInt(row.metrics?.costMicros)||0;
+                        const convs = parseFloat(row.metrics?.conversions)||0;
+                        totalImpressions+=imps; totalClicks+=clks; totalCostMicros+=cost; totalConversions+=convs;
+                        if (d) {
+                            const fd = `${d.substring(5,7)}/${d.substring(8,10)}`;
+                            if (!dailyData[fd]) dailyData[fd]={clicks:0,conversions:0};
+                            dailyData[fd].clicks+=clks; dailyData[fd].conversions+=convs;
+                        }
+                    });
+                });
+                return { totalImpressions, totalClicks, totalCostMicros, totalConversions, dailyData, campaignsList };
+            } catch(e) { return null; }
+        }
+
+        function updateAdsKpiDeltas() {
+            if (!adsCompareTotals) {
+                // Clear deltas
+                [['adsImpressions','imps'],['adsClicks','clicks'],['adsCost','cost'],['adsConversions','convs']].forEach(([id]) => {
+                    const card = document.getElementById(id)?.closest('.koda-kpi-card');
+                    const sub = card?.querySelector('.kpi-subtext');
+                    if (sub) sub.innerHTML = sub.innerHTML.replace(/<span class="ads-compare-badge"[^<]*<\/span>/g,'');
+                });
+                return;
+            }
+            const cur = lastFetchedTotals;
+            const cmp = adsCompareTotals;
+            const pct = (cur, prev) => prev === 0 ? null : ((cur - prev) / Math.abs(prev) * 100);
+            const badge = (curVal, prevVal, invert=false) => {
+                const p = pct(curVal, prevVal);
+                if (p === null) return '';
+                const up = invert ? p < 0 : p > 0;
+                const color = up ? '#16a34a' : '#dc2626';
+                const icon = p > 0 ? '↑' : '↓';
+                const prevFmt = typeof prevVal === 'number' && prevVal > 1000 ? prevVal.toLocaleString(undefined,{maximumFractionDigits:0}) : prevVal?.toLocaleString(undefined,{maximumFractionDigits:2})||'—';
+                return `<span class="ads-compare-badge" style="display:inline-flex;align-items:center;gap:3px;font-size:0.75rem;font-weight:700;color:${color};background:${up?'#f0fdf4':'#fef2f2'};border-radius:6px;padding:1px 6px;margin-left:4px;">${icon} ${Math.abs(p).toFixed(1)}%</span>`;
+            };
+            const pairs = [
+                ['adsImpressions', cur.imps, cmp.imps, false],
+                ['adsClicks', cur.clicks, cmp.clicks, false],
+                ['adsCost', cur.cost, cmp.cost, true],
+                ['adsConversions', cur.convs, cmp.convs, false],
+            ];
+            pairs.forEach(([id, curVal, prevVal, invert]) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                // Remove existing badge first
+                const existing = el.parentElement?.querySelector('.ads-compare-badge');
+                if (existing) existing.remove();
+                el.insertAdjacentHTML('afterend', badge(curVal, prevVal, invert));
+            });
         }
 
         function drillDownToAdGroups(campaignId, campaignName) {
@@ -31271,6 +31453,29 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 }
             }
 
+            // Add comparison period dashed series if available
+            if (adsCompareTotals && Object.keys(adsCompareDailyData).length > 0) {
+                const compDates = Object.keys(adsCompareDailyData).sort();
+                const metricKey = m => {
+                    if (m === 'metrics.clicks') return 'clicks';
+                    if (m === 'metrics.conversions') return 'conversions';
+                    return 'clicks';
+                };
+                const compLabel = (() => {
+                    const mode = document.getElementById('adsCompareTo')?.value;
+                    if (mode === 'prev_period') return 'Previous Period';
+                    if (mode === 'prev_year') return 'Previous Year';
+                    return 'Comparison';
+                })();
+                datasets.push({
+                    label: `${document.querySelector(`#adsChartMetricPrimary option[value="${primaryMetric}"]`)?.text || ''} (${compLabel})`,
+                    data: compDates.map(d => adsCompareDailyData[d]?.[metricKey(primaryMetric)] || 0),
+                    metric: primaryMetric,
+                    _isComparison: true
+                });
+                chartTitle += ` vs ${compLabel}`;
+            }
+
             renderAdsChart(chartDates, datasets, chartTitle);
         }
 
@@ -31777,22 +31982,23 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
             const datasets = dynamicDatasets.map((ds, idx) => {
                 const colors = colorMap[ds.metric] || { color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.4)' };
+                const isComp = !!ds._isComparison;
                 const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-                gradient.addColorStop(0, colors.bg);
-                gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-
+                gradient.addColorStop(0, isComp ? 'rgba(0,0,0,0)' : colors.bg);
+                gradient.addColorStop(1, 'rgba(255,255,255,0)');
                 return {
                     label: ds.label,
                     data: ds.data,
-                    borderColor: colors.color,
-                    backgroundColor: gradient,
-                    borderWidth: 2,
-                    fill: true,
+                    borderColor: isComp ? colors.color + '80' : colors.color,
+                    backgroundColor: isComp ? 'transparent' : gradient,
+                    borderWidth: isComp ? 1.5 : 2,
+                    borderDash: isComp ? [6, 3] : [],
+                    fill: !isComp,
                     tension: 0.4,
-                    pointRadius: 3,
+                    pointRadius: isComp ? 0 : 3,
                     pointBackgroundColor: '#fff',
                     pointBorderColor: colors.color,
-                    yAxisID: idx === 0 ? 'y' : 'y1'
+                    yAxisID: (idx === 0 || (isComp && idx === dynamicDatasets.filter(d=>!d._isComparison).length)) ? 'y' : 'y1'
                 };
             });
 
