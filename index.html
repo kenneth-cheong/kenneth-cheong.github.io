@@ -10381,7 +10381,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1264</span>
+                <span id="appVersion">v1.0.1265</span>
             </a>
         </div>
 
@@ -45405,11 +45405,11 @@ Return compact valid JSON only. No prose.
         // ── State ──
         const PQ = {
             tab: 'seo',
-            durationMonths: 3,
+            durationMonths: 6,
             // Per-discipline include toggle (true = included in the unified quote)
             include: { seo: true, geo: false, paid: false, smm: false },
             // Per-discipline slider values (persist when switching tabs)
-            kwCount: { seo: 20, geo: 20, paid: 3, smm: 12 },
+            kwCount: { seo: 20, geo: 15, paid: 3, smm: 8 },
             kd:      { seo: 45, geo: 45, paid: 45, smm: 2 },
             // Per-discipline service state (initialised in initPricingQuote)
             services: { seo: [], geo: [], paid: [], smm: [] },
@@ -45418,49 +45418,65 @@ Return compact valid JSON only. No prose.
         // ── Per-tab service definitions ──
         const PQ_TAB_SERVICES = {
             seo: [
-                { id:'strategy',  label:'Keyword Strategy & Roadmap',    icon:'fa-chess',          base:800,  perKw:0,  kdMult:0.4, essential:true  },
-                { id:'onpage',    label:'On-Page Optimisation',           icon:'fa-file-code',      base:400,  perKw:8,  kdMult:0.5, essential:true  },
-                { id:'links',     label:'Link Building',                  icon:'fa-link',           base:600,  perKw:0,  kdMult:1.2, essential:true  },
-                { id:'technical', label:'Technical SEO Audit & Fixes',    icon:'fa-tools',          base:500,  perKw:0,  kdMult:0.2, essential:true  },
-                { id:'reporting', label:'Monthly Reporting & Calls',      icon:'fa-chart-bar',      base:300,  perKw:0,  kdMult:0.1, essential:true  },
-                { id:'gsc',       label:'GSC / Analytics Setup',          icon:'fa-google',         base:250,  perKw:0,  kdMult:0,   essential:true  },
-                { id:'schema',    label:'Schema & Structured Data',       icon:'fa-code',           base:200,  perKw:2,  kdMult:0.1, essential:true  },
-                { id:'content',   label:'Content Creation',               icon:'fa-pen-nib',        base:300,  perKw:15, kdMult:0.6, essential:false },
+                // Essential items priced as a package via getSeoMonthlyBase() — base values are display-only
+                { id:'strategy',  label:'Keywords Research, Strategy & Roadmap',         icon:'fa-chess',          base:0, perKw:0, kdMult:0, essential:true  },
+                { id:'onpage',    label:'On-Page Recommendation & Implementation',        icon:'fa-file-code',      base:0, perKw:0, kdMult:0, essential:true  },
+                { id:'technical', label:'Website & Technical Pre-Audit',                  icon:'fa-tools',          base:0, perKw:0, kdMult:0, essential:true  },
+                { id:'links',     label:'High Domain Authority Backlinks',                icon:'fa-link',           base:0, perKw:0, kdMult:0, essential:true  },
+                { id:'reporting', label:'24/7 SEO Reporting & Monthly Report',            icon:'fa-chart-bar',      base:0, perKw:0, kdMult:0, essential:true  },
+                { id:'gsc',       label:'GSC Installation & Dedicated Coordinator',       icon:'fa-google',         base:0, perKw:0, kdMult:0, essential:true  },
+                { id:'content',   label:'Blog Content Creation (up to 500 words/article)',icon:'fa-pen-nib',        base:400, perKw:0, kdMult:0, essential:false },
             ],
             geo: [
-                { id:'geo-strategy', label:'GEO Strategy & Research',       icon:'fa-robot',        base:700,  perKw:0,  kdMult:0.3, essential:true  },
-                { id:'geo-schema',   label:'Schema & Structured Data',       icon:'fa-code',         base:300,  perKw:0,  kdMult:0.1, essential:true  },
-                { id:'geo-llms',     label:'LLMs.txt & Robots.txt Setup',    icon:'fa-file-alt',     base:250,  perKw:0,  kdMult:0,   essential:true  },
-                { id:'geo-monitor',  label:'AI Monitoring & Reporting',      icon:'fa-chart-line',   base:350,  perKw:0,  kdMult:0.1, essential:true  },
-                { id:'geo-citation', label:'Citation & Source Optimisation', icon:'fa-quote-right',  base:400,  perKw:4,  kdMult:0.3, essential:true  },
-                { id:'geo-content',  label:'AI-Optimised Content',           icon:'fa-pen-nib',      base:400,  perKw:10, kdMult:0.5, essential:false },
+                // Essential items priced via getGeoMonthlyBase() — base values are display-only
+                { id:'geo-audit',   label:'GEO Audit & Prompt Research (10+5 prompts)',  icon:'fa-robot',          base:0, perKw:0, kdMult:0, essential:true  },
+                { id:'geo-content', label:'AI-Optimised Content (up to 2 pieces/month)', icon:'fa-pen-nib',        base:0, perKw:0, kdMult:0, essential:true  },
+                { id:'geo-llms',    label:'LLMs.txt, Robots.txt & Dataset Training',     icon:'fa-file-alt',       base:0, perKw:0, kdMult:0, essential:true  },
+                { id:'geo-brand',   label:'Brand Mentions (2–3/month)',                  icon:'fa-quote-right',    base:0, perKw:0, kdMult:0, essential:true  },
+                { id:'geo-schema',  label:'Schema & Technical GEO Setup',                icon:'fa-code',           base:0, perKw:0, kdMult:0, essential:true  },
+                { id:'geo-monitor', label:'Monthly AI Performance Reports',              icon:'fa-chart-line',     base:0, perKw:0, kdMult:0, essential:true  },
             ],
             paid: [
-                { id:'paid-strategy',label:'Campaign Strategy & Setup',      icon:'fa-chess',        base:600,  perKw:0,  kdMult:0.2, essential:true  },
-                { id:'paid-copy',    label:'Ad Copy & Creative Direction',    icon:'fa-ad',           base:400,  perKw:10, kdMult:0.3, essential:true  },
-                { id:'paid-bid',     label:'Bid Management & Optimisation',   icon:'fa-sliders-h',    base:500,  perKw:0,  kdMult:0.4, essential:true  },
-                { id:'paid-report',  label:'Monthly Reporting & Calls',       icon:'fa-chart-bar',    base:300,  perKw:0,  kdMult:0.1, essential:true  },
-                { id:'paid-display', label:'Display & Remarketing',           icon:'fa-images',       base:400,  perKw:0,  kdMult:0.3, essential:false },
-                { id:'paid-lp',      label:'Landing Page Review & CRO',       icon:'fa-clipboard-check',base:300,perKw:0,  kdMult:0.2, essential:false },
+                // One-time setup fees + monthly management — note labels accordingly
+                { id:'paid-track',  label:'Tracking & Measurement Setup (per platform)',         icon:'fa-tag',            base:500, perKw:0, kdMult:0, essential:true  },
+                { id:'paid-setup',  label:'Campaign Setup Fee (per campaign)',                    icon:'fa-chess',          base:500, perKw:0, kdMult:0, essential:true  },
+                { id:'paid-mgmt',   label:'Ad Management & Optimisation (25% ad budget, min $500/mo)', icon:'fa-sliders-h', base:500, perKw:0, kdMult:0, essential:true  },
+                { id:'paid-report', label:'Monthly Report & Zoom Review (up to 1 hr)',           icon:'fa-chart-bar',      base:0,   perKw:0, kdMult:0, essential:true  },
+                { id:'paid-lp',     label:'Landing Page Creation',                                icon:'fa-clipboard-check',base:1000,perKw:0, kdMult:0, essential:false },
             ],
             smm: [
-                { id:'smm-strategy', label:'Social Strategy & Calendar',     icon:'fa-calendar-alt', base:500,  perKw:0,  kdMult:0.2, essential:true  },
-                { id:'smm-community',label:'Community Management',           icon:'fa-comments',     base:400,  perKw:0,  kdMult:0.1, essential:true  },
-                { id:'smm-analytics',label:'Analytics & Monthly Reporting',  icon:'fa-chart-pie',    base:300,  perKw:0,  kdMult:0.1, essential:true  },
-                { id:'smm-content',  label:'Caption & Content Writing',      icon:'fa-pen-nib',      base:350,  perKw:8,  kdMult:0.3, essential:false },
-                { id:'smm-design',   label:'Graphic Design & Creatives',     icon:'fa-paint-brush',  base:500,  perKw:5,  kdMult:0.2, essential:false },
+                // Essential priced via SMM_BASE_PRICE proportional to posts — base values are display-only
+                { id:'smm-calendar', label:'Content Calendar & Monthly Performance Report',       icon:'fa-calendar-alt',   base:0, perKw:0, kdMult:0, essential:true  },
+                { id:'smm-posts',    label:'Posts & Reels (up to 4 reels 30s + 4 static/month)', icon:'fa-hashtag',        base:0, perKw:0, kdMult:0, essential:true  },
+                { id:'smm-strategy', label:'Social Media Strategy Research (one-time)',           icon:'fa-chess',          base:400, perKw:0, kdMult:0, essential:false },
+                { id:'smm-video',    label:'Semi-Pro Video Production (30s)',                     icon:'fa-video',          base:1200,perKw:0, kdMult:0, essential:false },
+                { id:'smm-iphone',   label:'iPhone Video Production (30s)',                       icon:'fa-mobile-alt',     base:700, perKw:0, kdMult:0, essential:false },
+                { id:'smm-artwork',  label:'Additional Static Artwork',                           icon:'fa-paint-brush',    base:175, perKw:0, kdMult:0, essential:false },
+                { id:'smm-lp',       label:'Landing Page',                                        icon:'fa-clipboard-check',base:1000,perKw:0, kdMult:0, essential:false },
             ],
         };
 
         const PQ_TAB_META = {
-            seo:  { title:'SEO',        color:'#6366f1', icon:'fa-search',   s1Label:'Keywords',          s1Min:5,  s1Max:200, s1Step:5,  s2Label:'Avg. Difficulty' },
-            geo:  { title:'GEO',        color:'#10b981', icon:'fa-robot',    s1Label:'AI Prompts Tracked', s1Min:5,  s1Max:100, s1Step:5,  s2Label:'Optimisation Depth' },
-            paid: { title:'Paid Ads',   color:'#f59e0b', icon:'fa-ad',       s1Label:'Ad Campaigns',       s1Min:1,  s1Max:20,  s1Step:1,  s2Label:'Competitiveness' },
-            smm:  { title:'Social',     color:'#ec4899', icon:'fa-hashtag',  s1Label:'Posts / Month',      s1Min:4,  s1Max:60,  s1Step:4,  s2Label:'Platforms' },
+            seo:  { title:'SEO',        color:'#6366f1', icon:'fa-search',   s1Label:'Keywords',          s1Min:10, s1Max:50,  s1Step:5,  s2Label:'Avg. Difficulty' },
+            geo:  { title:'GEO',        color:'#10b981', icon:'fa-robot',    s1Label:'AI Prompts',        s1Min:10, s1Max:30,  s1Step:5,  s2Label:'Optimisation Depth' },
+            paid: { title:'Paid Ads',   color:'#f59e0b', icon:'fa-ad',       s1Label:'Campaigns',         s1Min:1,  s1Max:10,  s1Step:1,  s2Label:'Competitiveness' },
+            smm:  { title:'Social',     color:'#ec4899', icon:'fa-hashtag',  s1Label:'Posts / Month',     s1Min:8,  s1Max:60,  s1Step:4,  s2Label:'Platforms' },
         };
 
         const PQ_DISC_ORDER = ['seo','geo','paid','smm'];
         const PQ_DURATION_DISCOUNT = { 3:0, 6:0.05, 12:0.10, 24:0.15 };
+
+        // Spreadsheet-backed pricing tiers (Rates sheet, board 2845615047)
+        const SEO_KW_TIERS = [[10,850],[15,1250],[20,1600],[30,2280],[50,3550]];
+        function getSeoMonthlyBase(kw) {
+            if (kw <= 10) return 850;
+            for (let i = 0; i < SEO_KW_TIERS.length - 1; i++) {
+                const [k0,p0] = SEO_KW_TIERS[i], [k1,p1] = SEO_KW_TIERS[i+1];
+                if (kw <= k1) return Math.round((p0 + (kw-k0)/(k1-k0)*(p1-p0))/50)*50;
+            }
+            return Math.round((3550 + (kw-50)*64)/50)*50; // extrapolate ~$64/kw beyond 50
+        }
+        function getGeoMonthlyBase(months) { return months >= 12 ? 950 : 1100; }
 
         function initPricingQuote() {
             // Initialise per-discipline service arrays
@@ -45656,7 +45672,17 @@ Return compact valid JSON only. No prose.
 
                 const essential = svcs.filter(s => s.essential && s.enabled);
                 const addons    = svcs.filter(s => !s.essential && s.enabled);
-                const essTotal  = essential.reduce((sum, s) => sum + calcPrice(s, kw, kd), 0);
+                // Tier/fixed pricing for SEO and GEO; proportional for SMM; formula for Paid
+                let essTotal;
+                if (disc === 'seo') {
+                    essTotal = essential.length ? Math.round(getSeoMonthlyBase(kw) * (1-discount) / 50) * 50 : 0;
+                } else if (disc === 'geo') {
+                    essTotal = essential.length ? Math.round(getGeoMonthlyBase(PQ.durationMonths) * (1-discount) / 50) * 50 : 0;
+                } else if (disc === 'smm') {
+                    essTotal = essential.length ? Math.round(3400 * (kw / 8) * (1-discount) / 50) * 50 : 0;
+                } else {
+                    essTotal = essential.reduce((sum, s) => sum + calcPrice(s, kw, kd), 0);
+                }
                 const addonTotal= addons.reduce((sum, s) => sum + calcPrice(s, kw, kd), 0);
                 const discTotal = essTotal + addonTotal;
                 grandMonthly   += discTotal;
