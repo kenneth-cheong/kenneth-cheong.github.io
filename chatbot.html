@@ -104,6 +104,19 @@
         header .controls {
             display: flex;
             gap: 12px;
+            flex-shrink: 0;
+        }
+
+        /* Collapse header buttons to icon-only on narrower viewports */
+        @media (max-width: 1080px) {
+            header .controls .btn {
+                padding: 8px 12px;
+                font-size: 0;
+                gap: 0;
+            }
+            header .controls .btn i {
+                font-size: 0.9rem;
+            }
         }
 
         .btn {
@@ -2415,6 +2428,22 @@
         .insight-btn:hover {
             color: #ef4444;
         }
+
+        .insight-tag-select {
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: #eef2ff;
+            color: #4338ca;
+            border: 1px solid #c7d2fe;
+            font-size: 0.75rem;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+        .insight-tag-select:hover { background: #e0e7ff; }
 
         .empty-insights {
             padding: 60px 40px;
@@ -8388,7 +8417,11 @@ CRITICAL CONTACT RULE:
             list.innerHTML = filtered.map((insight, index) => `
                 <div class="insight-card" id="insight-${insight.id}">
                     <div class="insight-meta">
-                        <span class="insight-tag">${insight.tag}</span>
+                        <select class="insight-tag-select" onchange="saveInsightTag('${insight.id}', this.value)" title="Change tag">
+                            ${['Preference','Project Logic','Fact','General'].map(t =>
+                                `<option value="${t}"${insight.tag === t ? ' selected' : ''}>${t}</option>`
+                            ).join('')}
+                        </select>
                         ${insight.team ? `<span class="insight-team team-${insight.team.toLowerCase()}">${insight.team}</span>` : ''}
                         <span class="insight-date">${insight.date}</span>
                         <div style="margin-left: auto; display: flex; align-items: center; gap: 6px;">
@@ -8465,6 +8498,15 @@ CRITICAL CONTACT RULE:
             renderInsights();
             pushInsightsToCloud();
             showToast('Memory updated successfully', 'success');
+        }
+
+        function saveInsightTag(id, newTag) {
+            const insight = learnedInsights.find(i => i.id == id);
+            if (!insight || insight.tag === newTag) return;
+            insight.tag = newTag;
+            localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
+            pushInsightsToCloud();
+            showToast('Tag updated', 'info');
         }
 
         function deleteInsight(id) {
