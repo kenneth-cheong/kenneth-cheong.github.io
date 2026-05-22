@@ -2802,39 +2802,35 @@
 
                     </div>
 
-                    <!-- Narrow Your Search — shown in internal mode only -->
+                    <!-- Monday Integrated Campaign Repository Sync — shown in internal mode only -->
                     <div id="filterSection" style="display: none; margin-top: 16px; border-top: 1px solid #e2e8f0; padding-top: 14px;">
-                        <div style="font-size: 0.75rem; font-weight: 700; color: var(--primary-navy); margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
-                            <i class="fas fa-filter" style="opacity: 0.5;"></i> Narrow Your Search
-                        </div>
-                        <p id="filterSubtext" style="display:none; margin: 4px 0 8px; font-size: 0.75rem; color: #a16207;">Search across all campaigns. Use filters below to narrow results before querying.</p>
-
-                        <div style="margin-bottom: 14px; display: none;">
-                            <button class="btn-amber-outline" id="fetchOptionsBtn" onclick="fetchFilterOptions()">
-                                <i class="fas fa-download"></i> Fetch Campaigns & Staff
+                        <div style="font-size: 0.75rem; font-weight: 700; color: var(--primary-navy); margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                            <span style="display:flex; align-items:center; gap:6px;"><i class="fas fa-th" style="opacity: 0.5;"></i> Monday Integrated Campaign Repository Sync</span>
+                            <button class="btn-amber-outline" id="fetchOptionsBtn" onclick="fetchFilterOptions()" style="font-size:0.7rem; padding:3px 10px; white-space:nowrap;">
+                                <i class="fas fa-sync-alt"></i> Refresh
                             </button>
                         </div>
 
-                        <div class="filter-grid" id="summaryBoardFilters" style="display:none;">
+                        <div class="filter-grid" id="summaryBoardFilters">
                             <div class="filter-field">
                                 <label>Campaign / Item Name <span class="label-count" id="count-msItemDropdown"></span></label>
                                 <div class="ms-dropdown" id="msItemDropdown">
-                                    <div class="ms-trigger" onclick="toggleMsPanel('msItemDropdown')"><span class="ms-placeholder">Loading latest data...</span></div>
+                                    <div class="ms-trigger" onclick="toggleMsPanel('msItemDropdown')"><span class="ms-placeholder">Select campaigns...</span></div>
                                     <div class="ms-panel">
                                         <div class="ms-search"><i class="fas fa-search"></i><input type="text" placeholder="Search campaigns..." oninput="filterMsOptions('msItemDropdown', this.value)"></div>
                                         <div class="ms-bulk-actions"><button onclick="msSelectAll('msItemDropdown')">✓ All</button><button onclick="msUnselectAll('msItemDropdown')">✗ None</button></div>
-                                        <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Loading latest data...</div></div>
+                                        <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Click Refresh to load campaigns...</div></div>
                                     </div>
                                 </div>
                             </div>
                             <div class="filter-field">
                                 <label>Staff Name <span class="label-count" id="count-msStaffDropdown"></span></label>
                                 <div class="ms-dropdown" id="msStaffDropdown">
-                                    <div class="ms-trigger" onclick="toggleMsPanel('msStaffDropdown')"><span class="ms-placeholder">Loading latest data...</span></div>
+                                    <div class="ms-trigger" onclick="toggleMsPanel('msStaffDropdown')"><span class="ms-placeholder">Select staff...</span></div>
                                     <div class="ms-panel">
                                         <div class="ms-search"><i class="fas fa-search"></i><input type="text" placeholder="Search staff..." oninput="filterMsOptions('msStaffDropdown', this.value)"></div>
                                         <div class="ms-bulk-actions"><button onclick="msSelectAll('msStaffDropdown')">✓ All</button><button onclick="msUnselectAll('msStaffDropdown')">✗ None</button></div>
-                                        <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Loading latest data...</div></div>
+                                        <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Click Refresh to load staff...</div></div>
                                     </div>
                                 </div>
                             </div>
@@ -3923,10 +3919,7 @@
         }
 
         function updateSummaryFilterVisibility() {
-            const grid = document.getElementById('summaryBoardFilters');
-            if (!grid) return;
-            // Show whenever items have been loaded — not gated on the internal board being selected
-            grid.style.display = (window.allPrefetchedItems && window.allPrefetchedItems.length > 0) ? '' : 'none';
+            // summaryBoardFilters is always visible — nothing to toggle
         }
 
         function syncBoardSelectionToItems() {
