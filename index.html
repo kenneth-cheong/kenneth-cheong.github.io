@@ -10654,7 +10654,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1353</span>
+                <span id="appVersion">v1.0.1354</span>
             </a>
         </div>
 
@@ -30380,7 +30380,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             if (!dates?.start || !dates?.end || selectedAdsAccounts.length === 0) return;
             try {
                 const results = await Promise.all(selectedAdsAccounts.map(acc =>
-                    fetchAdsInsightsWithDateRange(acc.id, acc.loginCustomerId, acc.developerToken, dates.start, dates.end)
+                    fetchAdsInsights(acc.id, acc.loginCustomerId, acc.developerToken, false, true, dates)
                 ));
                 let aggImps=0, aggClicks=0, aggCostMicros=0, aggConvs=0;
                 const aggDaily = {};
@@ -30436,41 +30436,48 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
         }
 
         function updateAdsKpiDeltas() {
+            const resetSubtext = (id, line1, line2) => {
+                const card = document.getElementById(id)?.closest('.koda-kpi-card');
+                const spans = card?.querySelectorAll('.kpi-subtext span');
+                if (!spans || spans.length < 2) return;
+                spans[0].innerHTML = line1;
+                spans[1].textContent = line2;
+            };
+
             if (!adsCompareTotals) {
-                // Clear deltas
-                [['adsImpressions','imps'],['adsClicks','clicks'],['adsCost','cost'],['adsConversions','convs']].forEach(([id]) => {
-                    const card = document.getElementById(id)?.closest('.koda-kpi-card');
-                    const sub = card?.querySelector('.kpi-subtext');
-                    if (sub) sub.innerHTML = sub.innerHTML.replace(/<span class="ads-compare-badge"[^<]*<\/span>/g,'');
-                });
+                // Restore defaults
+                resetSubtext('adsImpressions', '<i class="fas fa-arrow-up"></i> 0.0%', '~ 0');
+                resetSubtext('adsClicks',      '<i class="fas fa-arrow-up"></i> 0.0%', '~ 0');
+                resetSubtext('adsCost',        '<i class="fas fa-arrow-up"></i> 0.0%', '~ $0.00');
+                resetSubtext('adsConversions', '<i class="fas fa-arrow-up"></i> 0.0%', '~ 0');
                 return;
             }
+
+            // Build comparison date range label
+            const dates = getAdsComparisonDates();
+            const fmtDate = s => {
+                if (!s) return '';
+                const d = new Date(s + 'T00:00:00');
+                return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+            };
+            const dateLabel = dates ? `vs ${fmtDate(dates.start)} – ${fmtDate(dates.end)}` : 'vs prev. period';
+
             const cur = lastFetchedTotals;
             const cmp = adsCompareTotals;
-            const pct = (cur, prev) => prev === 0 ? null : ((cur - prev) / Math.abs(prev) * 100);
-            const badge = (curVal, prevVal, invert=false) => {
-                const p = pct(curVal, prevVal);
-                if (p === null) return '';
+
+            const deltaHtml = (curVal, prevVal, invert = false) => {
+                if (!prevVal) return '<i class="fas fa-minus"></i> —';
+                const p = (curVal - prevVal) / Math.abs(prevVal) * 100;
                 const up = invert ? p < 0 : p > 0;
-                const color = up ? '#16a34a' : '#dc2626';
+                const color = up ? 'rgba(255,255,255,0.95)' : 'rgba(255,220,220,0.95)';
                 const icon = p > 0 ? '↑' : '↓';
-                const prevFmt = typeof prevVal === 'number' && prevVal > 1000 ? prevVal.toLocaleString(undefined,{maximumFractionDigits:0}) : prevVal?.toLocaleString(undefined,{maximumFractionDigits:2})||'—';
-                return `<span class="ads-compare-badge" style="display:inline-flex;align-items:center;gap:3px;font-size:0.75rem;font-weight:700;color:${color};background:${up?'#f0fdf4':'#fef2f2'};border-radius:6px;padding:1px 6px;margin-left:4px;">${icon} ${Math.abs(p).toFixed(1)}%</span>`;
+                return `<span style="font-weight:700;color:${color};">${icon} ${Math.abs(p).toFixed(1)}%</span>`;
             };
-            const pairs = [
-                ['adsImpressions', cur.imps, cmp.imps, false],
-                ['adsClicks', cur.clicks, cmp.clicks, false],
-                ['adsCost', cur.cost, cmp.cost, true],
-                ['adsConversions', cur.convs, cmp.convs, false],
-            ];
-            pairs.forEach(([id, curVal, prevVal, invert]) => {
-                const el = document.getElementById(id);
-                if (!el) return;
-                // Remove existing badge first
-                const existing = el.parentElement?.querySelector('.ads-compare-badge');
-                if (existing) existing.remove();
-                el.insertAdjacentHTML('afterend', badge(curVal, prevVal, invert));
-            });
+
+            resetSubtext('adsImpressions', deltaHtml(cur.imps,   cmp.imps,   false), dateLabel);
+            resetSubtext('adsClicks',      deltaHtml(cur.clicks, cmp.clicks, false), dateLabel);
+            resetSubtext('adsCost',        deltaHtml(cur.cost,   cmp.cost,   true),  dateLabel);
+            resetSubtext('adsConversions', deltaHtml(cur.convs,  cmp.convs,  false), dateLabel);
         }
 
         function drillDownToAdGroups(campaignId, campaignName) {
@@ -30895,7 +30902,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             });
         }
 
-        async function fetchAdsInsights(customerId, loginCustomerId = null, developerToken = null, isRefresh = false, accumulate = false) {
+        async function fetchAdsInsights(customerId, loginCustomerId = null, developerToken = null, isRefresh = false, accumulate = false, dateOverride = null) {
             const overlay = document.getElementById('adsLoadingOverlay');
             if (!accumulate && overlay) overlay.style.display = 'flex';
 
@@ -30904,7 +30911,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                     document.getElementById('adsCampaignsTableBody').innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Loading ' + adsCurrentLevel.replace('_', ' ') + 's...</td></tr>';
                 }
 
-                const dateRangeFilter = document.getElementById('adsDateRange').value || 'LAST_30_DAYS';
+                const dateRangeFilter = dateOverride ? 'CUSTOM' : (document.getElementById('adsDateRange').value || 'LAST_30_DAYS');
 
                 // 1. Determine Resource Based on Level
                 let resource = 'campaign';
@@ -30942,31 +30949,28 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 const allSelects = [...new Set([...mandatorySelects, ...checkedFields])];
 
                 // 3. Build WHERE clause
-                let dateCondition = `segments.date DURING ${dateRangeFilter}`;
-
-                if (dateRangeFilter === 'LAST_90_DAYS' || dateRangeFilter === 'LAST_365_DAYS' || dateRangeFilter === 'CUSTOM') {
-                    let start, end;
-                    const now = new Date();
-                    const endDay = new Date(now.getTime() - 86400000); // Yesterday
-
-                    if (dateRangeFilter === 'LAST_90_DAYS') {
-                        const startDay = new Date(now.getTime() - (90 * 86400000));
-                        start = startDay.toISOString().split('T')[0];
-                        end = endDay.toISOString().split('T')[0];
-                    } else if (dateRangeFilter === 'LAST_365_DAYS') {
-                        const startDay = new Date(now.getTime() - (365 * 86400000));
-                        start = startDay.toISOString().split('T')[0];
-                        end = endDay.toISOString().split('T')[0];
-                    } else {
-                        // CUSTOM
-                        start = document.getElementById('adsStartDate').value;
-                        end = document.getElementById('adsEndDate').value;
-                        if (!start || !end) {
-                            console.warn("Custom dates not fully set");
-                            return; // Don't fetch yet
+                let dateCondition;
+                if (dateOverride?.start && dateOverride?.end) {
+                    dateCondition = `segments.date BETWEEN '${dateOverride.start}' AND '${dateOverride.end}'`;
+                } else {
+                    dateCondition = `segments.date DURING ${dateRangeFilter}`;
+                    if (dateRangeFilter === 'LAST_90_DAYS' || dateRangeFilter === 'LAST_365_DAYS' || dateRangeFilter === 'CUSTOM') {
+                        let start, end;
+                        const now = new Date();
+                        const endDay = new Date(now.getTime() - 86400000);
+                        if (dateRangeFilter === 'LAST_90_DAYS') {
+                            start = new Date(now.getTime() - 90*86400000).toISOString().split('T')[0];
+                            end = endDay.toISOString().split('T')[0];
+                        } else if (dateRangeFilter === 'LAST_365_DAYS') {
+                            start = new Date(now.getTime() - 365*86400000).toISOString().split('T')[0];
+                            end = endDay.toISOString().split('T')[0];
+                        } else {
+                            start = document.getElementById('adsStartDate').value;
+                            end = document.getElementById('adsEndDate').value;
+                            if (!start || !end) { console.warn("Custom dates not fully set"); return; }
                         }
+                        dateCondition = `segments.date BETWEEN '${start}' AND '${end}'`;
                     }
-                    dateCondition = `segments.date BETWEEN '${start}' AND '${end}'`;
                 }
 
                 let whereClause = `WHERE ${dateCondition}`;
