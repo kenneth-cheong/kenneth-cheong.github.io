@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Share on LinkedIn | Google × MediaOne AI Search Webinar 2026</title>
+    <link rel="icon" href="/MO_Logo2.png" sizes="32x32">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --li-blue: #0A66C2;
+            --li-blue-dark: #004182;
+            --li-blue-hover: #0077B5;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-card2: #162032;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --border: #334155;
+            --success: #22c55e;
+            --error: #ef4444;
+            --gradient: linear-gradient(135deg, #0A66C2 0%, #00a0dc 100%);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        /* ── Event Banner ── */
+        .event-banner {
+            width: 100%;
+            max-width: 580px;
+            background: linear-gradient(135deg, rgba(10,102,194,0.15) 0%, rgba(0,160,220,0.1) 100%);
+            border: 1px solid rgba(10,102,194,0.4);
+            border-radius: 16px;
+            padding: 28px 32px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .event-banner img {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            object-fit: contain;
+            background: white;
+            padding: 6px;
+            flex-shrink: 0;
+        }
+
+        .event-info .event-label {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            color: var(--li-blue);
+            margin-bottom: 6px;
+        }
+
+        .event-info h2 {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 8px;
+            line-height: 1.3;
+        }
+
+        .event-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+        }
+
+        .event-meta span {
+            font-size: 13px;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .event-meta i { color: var(--li-blue); font-size: 12px; }
+
+        /* ── Card ── */
+        .card {
+            width: 100%;
+            max-width: 580px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 40px;
+        }
+
+        /* ── Steps ── */
+        .step { display: none; }
+        .step.active { display: block; }
+
+        /* ── Step: Landing ── */
+        #step-landing .icon-wrap {
+            width: 72px;
+            height: 72px;
+            background: var(--gradient);
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+        }
+
+        #step-landing .icon-wrap i {
+            font-size: 32px;
+            color: white;
+        }
+
+        #step-landing h1 {
+            font-size: 24px;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 12px;
+        }
+
+        #step-landing p {
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 15px;
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }
+
+        .preview-sample {
+            background: var(--bg-card2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px 20px;
+            margin-bottom: 28px;
+            font-size: 14px;
+            color: var(--text-dim);
+            line-height: 1.7;
+            position: relative;
+        }
+
+        .preview-sample::before {
+            content: 'Your post will look like this';
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            color: var(--li-blue);
+            margin-bottom: 10px;
+        }
+
+        .preview-sample strong {
+            color: var(--text-main);
+        }
+
+        /* ── Step: Loading / Publishing ── */
+        .loading-wrap {
+            text-align: center;
+            padding: 20px 0;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 3px solid var(--border);
+            border-top-color: var(--li-blue);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading-wrap h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .loading-wrap p {
+            color: var(--text-dim);
+            font-size: 14px;
+        }
+
+        /* ── Step: Preview ── */
+        #step-preview .profile-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 20px;
+        }
+
+        #step-preview .avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--li-blue);
+        }
+
+        #step-preview .avatar-placeholder {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 700;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        #step-preview .profile-name {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        #step-preview .profile-label {
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        #step-preview h3 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        #step-preview .edit-note {
+            font-size: 13px;
+            color: var(--text-dim);
+            margin-bottom: 14px;
+        }
+
+        #post-preview {
+            width: 100%;
+            background: var(--bg-card2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            color: var(--text-main);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 14px;
+            line-height: 1.7;
+            resize: vertical;
+            min-height: 200px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        #post-preview:focus {
+            border-color: var(--li-blue);
+        }
+
+        .char-count {
+            text-align: right;
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-top: 6px;
+            margin-bottom: 20px;
+        }
+
+        .char-count.over { color: var(--error); }
+
+        /* ── Step: Success ── */
+        #step-success {
+            text-align: center;
+        }
+
+        #step-success .success-icon {
+            width: 72px;
+            height: 72px;
+            background: rgba(34,197,94,0.15);
+            border: 2px solid var(--success);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+        }
+
+        #step-success .success-icon i {
+            font-size: 30px;
+            color: var(--success);
+        }
+
+        #step-success h2 {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        #step-success p {
+            color: var(--text-dim);
+            font-size: 15px;
+            margin-bottom: 28px;
+        }
+
+        /* ── Buttons ── */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 14px 28px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            text-decoration: none;
+            width: 100%;
+        }
+
+        .btn-linkedin {
+            background: var(--li-blue);
+            color: white;
+        }
+
+        .btn-linkedin:hover {
+            background: var(--li-blue-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(10,102,194,0.35);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--text-dim);
+            border: 1px solid var(--border);
+        }
+
+        .btn-outline:hover {
+            color: var(--text-main);
+            border-color: var(--text-dim);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #16a34a;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(34,197,94,0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        .btn-row {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* ── Error Banner ── */
+        #error-banner {
+            display: none;
+            background: rgba(239,68,68,0.12);
+            border: 1px solid rgba(239,68,68,0.4);
+            border-radius: 10px;
+            padding: 14px 18px;
+            color: #fca5a5;
+            font-size: 14px;
+            margin-bottom: 20px;
+            display: none;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* ── Divider ── */
+        .divider {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 24px 0;
+        }
+
+        /* ── Footer ── */
+        .footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        .footer a {
+            color: var(--li-blue);
+            text-decoration: none;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 480px) {
+            .card { padding: 28px 20px; }
+            .event-banner { flex-direction: column; padding: 20px; }
+            .event-banner img { width: 48px; height: 48px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Event Banner -->
+    <div class="event-banner">
+        <img src="/MO_Logo2.png" alt="MediaOne Logo">
+        <div class="event-info">
+            <div class="event-label">Upcoming Webinar</div>
+            <h2>Google × MediaOne AI Search Webinar 2026</h2>
+            <div class="event-meta">
+                <span><i class="fas fa-calendar-alt"></i> May 28, 2026</span>
+                <span><i class="fas fa-video"></i> Free Virtual Fireside Chat</span>
+                <span><i class="fas fa-globe"></i> Southeast Asia</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Card -->
+    <div class="card">
+
+        <!-- Error Banner -->
+        <div id="error-banner">
+            <i class="fas fa-exclamation-circle"></i>
+            <span id="error-msg"></span>
+        </div>
+
+        <!-- Step: Landing -->
+        <div id="step-landing" class="step">
+            <div class="icon-wrap">
+                <i class="fab fa-linkedin-in"></i>
+            </div>
+            <h1>Share Your Attendance</h1>
+            <p>Let your network know you're attending this webinar. We'll personalise a LinkedIn post with your name — you'll preview it before anything is published.</p>
+
+            <div class="preview-sample">
+                Hi! I am delighted to be part of the <strong>Google × MediaOne AI Search Webinar 2026!</strong> 🎉<br><br>
+                Looking forward to learning how AI is transforming search, discovery, and purchasing behaviours — and what it means for brands in Southeast Asia.<br><br>
+                📅 May 28, 2026 | Virtual Fireside Chat (Free)<br><br>
+                #AISearch #Google #MediaOne #DigitalMarketing
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-linkedin" onclick="startLinkedInAuth()">
+                    <i class="fab fa-linkedin-in"></i> Create my LinkedIn Post
+                </button>
+            </div>
+        </div>
+
+        <!-- Step: Loading (code exchange) -->
+        <div id="step-loading" class="step">
+            <div class="loading-wrap">
+                <div class="spinner"></div>
+                <h3>Connecting to LinkedIn...</h3>
+                <p>Fetching your profile to personalise your post.</p>
+            </div>
+        </div>
+
+        <!-- Step: Preview -->
+        <div id="step-preview" class="step">
+            <div class="profile-row">
+                <div id="avatar-container"></div>
+                <div>
+                    <div class="profile-name" id="profile-name">Your Name</div>
+                    <div class="profile-label">LinkedIn Member</div>
+                </div>
+            </div>
+
+            <h3>Preview Your Post</h3>
+            <p class="edit-note">You can edit the text before publishing.</p>
+
+            <textarea id="post-preview" oninput="updateCharCount()"></textarea>
+            <div class="char-count" id="char-count">0 / 3000</div>
+
+            <div class="btn-row">
+                <button class="btn btn-linkedin" id="publish-btn" onclick="publishPost()">
+                    <i class="fab fa-linkedin-in"></i> Publish to LinkedIn
+                </button>
+                <button class="btn btn-outline" onclick="cancelAndReset()">
+                    Cancel
+                </button>
+            </div>
+        </div>
+
+        <!-- Step: Publishing -->
+        <div id="step-publishing" class="step">
+            <div class="loading-wrap">
+                <div class="spinner"></div>
+                <h3>Publishing your post...</h3>
+                <p>Just a moment while we send it to LinkedIn.</p>
+            </div>
+        </div>
+
+        <!-- Step: Success -->
+        <div id="step-success" class="step">
+            <div class="success-icon">
+                <i class="fas fa-check"></i>
+            </div>
+            <h2>Post Published!</h2>
+            <p>Your LinkedIn post is now live. Thank you for spreading the word about the webinar!</p>
+            <div class="btn-row">
+                <a href="https://www.linkedin.com/feed/" target="_blank" class="btn btn-linkedin">
+                    <i class="fab fa-linkedin-in"></i> View on LinkedIn
+                </a>
+                <button class="btn btn-outline" onclick="cancelAndReset()">
+                    Back to Start
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="footer">
+        By connecting LinkedIn, you authorise this app to publish one post on your behalf.<br>
+        Powered by <a href="https://digimetrics.ai">Digimetrics</a> &amp; <a href="https://mediaonemarketing.com.sg" target="_blank">MediaOne</a>
+    </div>
+
+    <script>
+        // ── Config ─────────────────────────────────────────────────────────
+        // Replace LINKEDIN_CLIENT_ID with your LinkedIn Developer App's Client ID.
+        // The redirect_uri must exactly match what is registered in your LinkedIn Developer App.
+        const LINKEDIN_CLIENT_ID = '86jnbm07ei2pqx';
+        const REDIRECT_URI = 'https://app.digimetrics.ai/linkedin-share.html';
+        const LAMBDA_URL = 'https://bksr9bawwg.execute-api.ap-southeast-1.amazonaws.com/linkedinOAuth';
+
+        const EVENT_NAME = 'Google × MediaOne AI Search Webinar 2026';
+        const EVENT_DATE = 'May 28, 2026';
+        // Replace with the actual registration link for the webinar
+        const EVENT_LINK = 'https://mediaonemarketing.com.sg/google-ai-search-webinar-2026/';
+
+        // ── Init ────────────────────────────────────────────────────────────
+        window.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('code');
+            const state = params.get('state');
+            const error = params.get('error');
+
+            // Clean the URL so code/state don't persist on refresh
+            if (code || error) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+
+            if (error) {
+                showError('LinkedIn authorisation was declined. You can try again below.');
+                showStep('landing');
+                return;
+            }
+
+            if (code) {
+                const savedState = sessionStorage.getItem('li_state');
+                if (!savedState || state !== savedState) {
+                    showError('Security check failed. Please try again.');
+                    showStep('landing');
+                    return;
+                }
+                handleCallback(code);
+            } else {
+                showStep('landing');
+            }
+        });
+
+        // ── Step 1: Start OAuth ─────────────────────────────────────────────
+        function startLinkedInAuth() {
+            const state = crypto.randomUUID ? crypto.randomUUID() : (Math.random().toString(36).slice(2) + Date.now());
+            sessionStorage.setItem('li_state', state);
+
+            const qs = new URLSearchParams({
+                response_type: 'code',
+                client_id: LINKEDIN_CLIENT_ID,
+                redirect_uri: REDIRECT_URI,
+                state: state,
+                scope: 'openid profile email w_member_social'
+            });
+
+            window.location.href = `https://www.linkedin.com/oauth/v2/authorization?${qs}`;
+        }
+
+        // ── Step 2: Exchange code → profile ────────────────────────────────
+        async function handleCallback(code) {
+            showStep('loading');
+            hideError();
+
+            try {
+                const res = await fetch(LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'exchange', code, redirect_uri: REDIRECT_URI })
+                });
+
+                const data = await res.json();
+
+                if (!data.success) throw new Error(data.error || 'Failed to authenticate with LinkedIn.');
+
+                // Persist token for the publish step (session only)
+                sessionStorage.setItem('li_token', data.access_token);
+                sessionStorage.setItem('li_pid', data.person_id);
+
+                // Populate preview
+                renderProfile(data);
+                const postText = buildPostText(data.first_name || data.name || '');
+                document.getElementById('post-preview').value = postText;
+                updateCharCount();
+
+                showStep('preview');
+
+            } catch (err) {
+                showError(err.message);
+                showStep('landing');
+            }
+        }
+
+        // ── Step 3: Publish ─────────────────────────────────────────────────
+        async function publishPost() {
+            const token = sessionStorage.getItem('li_token');
+            const personId = sessionStorage.getItem('li_pid');
+            const text = document.getElementById('post-preview').value.trim();
+
+            if (!token || !personId) {
+                showError('Session expired. Please authorise LinkedIn again.');
+                showStep('landing');
+                return;
+            }
+
+            if (!text) {
+                showError('Post text cannot be empty.');
+                return;
+            }
+
+            if (text.length > 3000) {
+                showError('Post text exceeds LinkedIn\'s 3000-character limit.');
+                return;
+            }
+
+            showStep('publishing');
+            hideError();
+
+            try {
+                const res = await fetch(LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'post', access_token: token, person_id: personId, text })
+                });
+
+                const data = await res.json();
+
+                if (!data.success) throw new Error(data.error || 'Failed to publish post.');
+
+                // Clear session tokens
+                sessionStorage.removeItem('li_token');
+                sessionStorage.removeItem('li_pid');
+                sessionStorage.removeItem('li_state');
+
+                showStep('success');
+
+            } catch (err) {
+                showError(err.message);
+                showStep('preview');
+            }
+        }
+
+        // ── Helpers ─────────────────────────────────────────────────────────
+        function buildPostText(firstName) {
+            const greeting = firstName ? `Hi ${firstName}! ` : 'Hi! ';
+            return `${greeting}I am delighted to be part of the ${EVENT_NAME}! 🎉
+
+Looking forward to learning how AI is transforming search, discovery, and purchasing behaviours — and what it means for brands in Southeast Asia.
+
+📅 ${EVENT_DATE} | Virtual Fireside Chat (Free)
+
+Secure your spot here: ${EVENT_LINK}
+
+#AISearch #Google #MediaOne #DigitalMarketing #SearchMarketing #SoutheastAsia #AIMarketing`;
+        }
+
+        function renderProfile(data) {
+            const container = document.getElementById('avatar-container');
+            if (data.picture) {
+                const img = document.createElement('img');
+                img.src = data.picture;
+                img.className = 'avatar';
+                img.alt = data.name || 'Profile';
+                img.onerror = () => renderInitialsAvatar(container, data.name);
+                container.appendChild(img);
+            } else {
+                renderInitialsAvatar(container, data.name);
+            }
+
+            const displayName = data.name || `${data.first_name || ''} ${data.last_name || ''}`.trim() || 'LinkedIn Member';
+            document.getElementById('profile-name').textContent = displayName;
+        }
+
+        function renderInitialsAvatar(container, name) {
+            container.innerHTML = '';
+            const div = document.createElement('div');
+            div.className = 'avatar-placeholder';
+            const initials = (name || 'U').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+            div.textContent = initials;
+            container.appendChild(div);
+        }
+
+        function updateCharCount() {
+            const textarea = document.getElementById('post-preview');
+            const countEl = document.getElementById('char-count');
+            const len = textarea.value.length;
+            countEl.textContent = `${len} / 3000`;
+            countEl.classList.toggle('over', len > 3000);
+            document.getElementById('publish-btn').disabled = len > 3000 || len === 0;
+        }
+
+        function showStep(name) {
+            ['landing', 'loading', 'preview', 'publishing', 'success'].forEach(s => {
+                const el = document.getElementById(`step-${s}`);
+                el.classList.toggle('active', s === name);
+            });
+        }
+
+        function showError(msg) {
+            const banner = document.getElementById('error-banner');
+            document.getElementById('error-msg').textContent = msg;
+            banner.style.display = 'flex';
+        }
+
+        function hideError() {
+            document.getElementById('error-banner').style.display = 'none';
+        }
+
+        function cancelAndReset() {
+            sessionStorage.removeItem('li_token');
+            sessionStorage.removeItem('li_pid');
+            sessionStorage.removeItem('li_state');
+            document.getElementById('avatar-container').innerHTML = '';
+            showStep('landing');
+            hideError();
+        }
+    </script>
+</body>
+</html>
