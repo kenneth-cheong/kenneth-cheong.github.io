@@ -127,6 +127,25 @@ def google_token_exchange(body):
     except Exception as e:
         return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
 
+def google_refresh_token(body):
+    refresh_token = body.get('refresh_token')
+    client_id = body.get('client_id')
+    client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
+    if not refresh_token or not client_id:
+        return {"statusCode": 400, "body": json.dumps({"error": "Missing refresh_token or client_id"})}
+    if not client_secret:
+        return {"statusCode": 500, "body": json.dumps({"error": "GOOGLE_CLIENT_SECRET environment variable not configured"})}
+    try:
+        r = requests.post('https://oauth2.googleapis.com/token', data={
+            'refresh_token': refresh_token,
+            'client_id': client_id,
+            'client_secret': client_secret,
+            'grant_type': 'refresh_token'
+        }, timeout=15)
+        return {"statusCode": r.status_code, "body": r.text}
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+
 def get_board_items(body):
     if not MONDAY_API_KEY:
         return {"statusCode": 500, "body": json.dumps({"error": "MONDAY_API_KEY environment variable not configured"})}
@@ -1172,6 +1191,8 @@ def lambda_handler(event, context):
             result = download_file(body)
         elif action == 'google_token_exchange':
             result = google_token_exchange(body)
+        elif action == 'google_refresh_token':
+            result = google_refresh_token(body)
         elif action == 'get_board_items':
             result = get_board_items(body)
         elif action == 'claude_chat':

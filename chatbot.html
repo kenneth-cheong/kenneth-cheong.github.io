@@ -5128,12 +5128,35 @@
         function disconnectService(service) {
             localStorage.removeItem(`googleToken_${service}`);
             localStorage.removeItem(`googleRefresh_${service}`);
+            localStorage.removeItem(`googleToken_${service}_expires`);
             if (service === 'Workspace') {
                 window.gchatAccessToken = null;
                 window.gchatSpaces = [];
             }
             updateServiceUI(service, false);
             showToast(`${service} disconnected`, 'success');
+        }
+
+        async function tryRefreshToken(service) {
+            const refreshToken = localStorage.getItem(`googleRefresh_${service}`);
+            const clientId = localStorage.getItem('googleClientId') || '';
+            if (!refreshToken || !clientId) return false;
+            try {
+                const res = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'google_refresh_token', refresh_token: refreshToken, client_id: clientId })
+                }).then(r => r.json()).then(r => typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r));
+                if (res.access_token) {
+                    localStorage.setItem(`googleToken_${service}`, res.access_token);
+                    localStorage.setItem(`googleToken_${service}_expires`, Date.now() + ((res.expires_in || 3600) * 1000));
+                    console.log(`[GOOGLE AUTH] Silent refresh succeeded for ${service}`);
+                    return true;
+                }
+            } catch (e) {
+                console.error(`[GOOGLE AUTH] Silent refresh failed for ${service}`, e);
+            }
+            return false;
         }
 
         function updateServiceUI(service, connected) {
@@ -5181,43 +5204,62 @@
         }
 
         async function checkAllGoogleServices() {
-            ['Workspace', 'Gsc', 'Ga4', 'Ads'].forEach(async (s) => {
+            for (const s of ['Workspace', 'Gsc', 'Ga4', 'Ads']) {
                 const token = localStorage.getItem(`googleToken_${s}`);
-                if (!token) return;
+                if (!token) continue;
 
-                // Check expiry timestamp first — avoids unnecessary 401 network calls
+                // Check expiry — attempt silent refresh before giving up
                 const expiresAt = parseInt(localStorage.getItem(`googleToken_${s}_expires`) || '0', 10);
                 if (expiresAt && Date.now() > expiresAt) {
-                    console.log(`[GOOGLE AUTH] Token for ${s} has expired, clearing.`);
-                    localStorage.removeItem(`googleToken_${s}`);
-                    localStorage.removeItem(`googleToken_${s}_expires`);
-                    updateServiceUI(s, false);
-                    return;
+                    console.log(`[GOOGLE AUTH] Token for ${s} expired — attempting silent refresh.`);
+                    const ok = await tryRefreshToken(s);
+                    if (!ok) {
+                        localStorage.removeItem(`googleToken_${s}`);
+                        localStorage.removeItem(`googleToken_${s}_expires`);
+                        updateServiceUI(s, false);
+                        continue;
+                    }
                 }
 
-                // Verify with API
+                // Verify with API using the (possibly just-refreshed) token
+                const activeToken = localStorage.getItem(`googleToken_${s}`);
                 try {
                     const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                        headers: { 'Authorization': `Bearer ${token}` }
+                        headers: { 'Authorization': `Bearer ${activeToken}` }
                     });
                     if (res.ok) {
                         updateServiceUI(s, true);
-                        if (s === 'Workspace') window.gchatAccessToken = token;
-                        // Pre-load data if selectors are empty
+                        if (s === 'Workspace') window.gchatAccessToken = activeToken;
                         if (s !== 'Workspace') {
                             const select = document.getElementById(`selected${s}${s === 'Gsc' ? 'Site' : (s === 'Ads' ? 'Account' : 'Property')}`);
                             if (select && select.options.length <= 1) initializeServiceData(s);
                         }
                     } else {
-                        // Token is invalid/revoked — clear it silently
-                        console.log(`[GOOGLE AUTH] Token for ${s} rejected (${res.status}), clearing.`);
-                        localStorage.removeItem(`googleToken_${s}`);
-                        localStorage.removeItem(`googleToken_${s}_expires`);
-                        updateServiceUI(s, false);
+                        // Token rejected — try one silent refresh before showing disconnected
+                        console.log(`[GOOGLE AUTH] Token for ${s} rejected (${res.status}) — attempting silent refresh.`);
+                        const ok = await tryRefreshToken(s);
+                        if (ok) {
+                            updateServiceUI(s, true);
+                            if (s === 'Workspace') window.gchatAccessToken = localStorage.getItem(`googleToken_${s}`);
+                            if (s !== 'Workspace') {
+                                const select = document.getElementById(`selected${s}${s === 'Gsc' ? 'Site' : (s === 'Ads' ? 'Account' : 'Property')}`);
+                                if (select && select.options.length <= 1) initializeServiceData(s);
+                            }
+                        } else {
+                            localStorage.removeItem(`googleToken_${s}`);
+                            localStorage.removeItem(`googleToken_${s}_expires`);
+                            updateServiceUI(s, false);
+                        }
                     }
-                } catch (e) { updateServiceUI(s, false); }
-            });
+                } catch (e) {
+                    // Network error — don't clear the token, just leave UI as-is
+                    console.warn(`[GOOGLE AUTH] Network error checking ${s}, will retry next time.`);
+                }
+            }
         }
+
+        // Proactively re-validate and refresh tokens every 45 minutes while the page is open
+        setInterval(checkAllGoogleServices, 45 * 60 * 1000);
 
         async function fetchGscSites(token) {
             try {
