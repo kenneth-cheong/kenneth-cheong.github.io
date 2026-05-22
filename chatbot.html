@@ -1978,10 +1978,8 @@
         /* Quick Prompts Modal Styles */
         .prompts-modal-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
             background: rgba(15, 23, 42, 0.6);
             backdrop-filter: blur(8px);
             z-index: 2000;
@@ -2008,15 +2006,15 @@
 
         .prompts-modal {
             background: #fff;
-            width: 100%;
-            max-width: 600px;
-            max-height: 80vh;
+            width: 95vw;
+            max-width: 1100px;
+            height: 90vh;
             border-radius: 24px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            border: 1px solid rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(249, 115, 22, 0.15);
             animation: modalPopUp 0.4s cubic-bezier(0.17, 0.67, 0.41, 1.08);
         }
 
@@ -2033,21 +2031,23 @@
         }
 
         .prompts-modal-header {
-            padding: 24px 32px;
+            padding: 20px 24px;
             border-bottom: 1px solid #f1f5f9;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            background: linear-gradient(to right, #fffbf5, #fff8f0);
+            flex-shrink: 0;
         }
 
         .prompts-modal-header h2 {
             margin: 0;
             font-family: 'Outfit', sans-serif;
-            font-size: 1.5rem;
-            color: var(--primary-navy);
+            font-size: 1.4rem;
+            color: #c2410c;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
         }
 
         .prompts-modal-header h2 i {
@@ -2075,11 +2075,12 @@
         }
 
         .prompts-list {
-            padding: 24px 32px;
+            flex: 1;
             overflow-y: auto;
+            padding: 20px 24px;
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 24px;
         }
 
         .prompts-list::-webkit-scrollbar {
@@ -2107,7 +2108,7 @@
 
         .prompt-grid {
             display: grid;
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
             gap: 12px;
         }
 
@@ -2151,6 +2152,41 @@
             color: #fff;
             transform: scale(1.1);
         }
+
+        .prompt-tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            background: #fef3c7;
+            color: #92400e;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .prompt-card-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            flex-shrink: 0;
+        }
+        .prompt-item:hover .prompt-card-actions { opacity: 1; }
+        .prompt-filter-chip {
+            padding: 4px 12px;
+            border-radius: 20px;
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
+            color: #64748b;
+            font-size: 0.72rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+        .prompt-filter-chip:hover { border-color: #f97316; color: #f97316; }
+        .prompt-filter-chip.active { background: #f97316; border-color: #f97316; color: #fff; }
 
         .prompt-content {
             flex: 1;
@@ -8436,13 +8472,82 @@ CRITICAL CONTACT RULE:
     <!-- Quick Prompts Modal -->
     <div id="promptsModalOverlay" class="prompts-modal-overlay" onclick="closePromptsModal()">
         <div class="prompts-modal" onclick="event.stopPropagation()">
+            <!-- Header -->
             <div class="prompts-modal-header">
                 <h2><i class="fas fa-wand-magic-sparkles"></i> Quick Prompts</h2>
-                <button class="close-prompts" onclick="closePromptsModal()">
-                    <i class="fas fa-times"></i>
-                </button>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <button class="btn btn-primary" onclick="openAddPromptForm()" style="padding:6px 14px; font-size:0.8rem; border-radius:10px;">
+                        <i class="fas fa-plus"></i> Add Prompt
+                    </button>
+                    <button class="close-prompts" onclick="closePromptsModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
             </div>
-            <div class="prompts-list" id="promptsList"></div>
+
+            <!-- Search + Tag Filters -->
+            <div style="padding:14px 24px; border-bottom:1px solid #f1f5f9; background:#fcfdff; display:flex; flex-direction:column; gap:10px;">
+                <div style="position:relative;">
+                    <i class="fas fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:0.8rem;"></i>
+                    <input id="promptSearch" type="text" placeholder="Search prompts…" oninput="renderPromptsModal()"
+                        style="width:100%; padding:9px 12px 9px 34px; border:1px solid #e2e8f0; border-radius:10px; font-size:0.85rem; font-family:inherit; box-sizing:border-box;">
+                </div>
+                <div id="promptTagFilters" style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+                    <span style="font-size:0.7rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.05em; margin-right:4px;">Filter:</span>
+                    <!-- tag chips rendered by JS -->
+                </div>
+            </div>
+
+            <!-- Add/Edit form (hidden by default) -->
+            <div id="promptFormPanel" style="display:none; padding:16px 24px; border-bottom:1px solid #f1f5f9; background:#fffbf5;">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:10px;">
+                    <div>
+                        <label style="font-size:0.7rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:4px;">Title *</label>
+                        <input id="pf-title" type="text" placeholder="Short descriptive title"
+                            style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.85rem; font-family:inherit; box-sizing:border-box;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.7rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:4px;">Category</label>
+                        <input id="pf-category" type="text" placeholder="e.g. SEO, Meta Ads, Reports…"
+                            style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.85rem; font-family:inherit; box-sizing:border-box;">
+                    </div>
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label style="font-size:0.7rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:4px;">Description</label>
+                    <input id="pf-description" type="text" placeholder="One-line summary shown on the card"
+                        style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.85rem; font-family:inherit; box-sizing:border-box;">
+                </div>
+                <div style="margin-bottom:10px;">
+                    <label style="font-size:0.7rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:4px;">Prompt Text *</label>
+                    <textarea id="pf-text" placeholder="The full prompt text that will be sent to the AI…" rows="3"
+                        style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.85rem; font-family:inherit; resize:vertical; box-sizing:border-box;"></textarea>
+                </div>
+                <div style="margin-bottom:12px;">
+                    <label style="font-size:0.7rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:4px;">Tags <span style="font-weight:400; text-transform:none;">(comma-separated)</span></label>
+                    <input id="pf-tags" type="text" placeholder="e.g. reporting, meta, weekly"
+                        style="width:100%; padding:8px 12px; border:1px solid #e2e8f0; border-radius:8px; font-size:0.85rem; font-family:inherit; box-sizing:border-box;">
+                </div>
+                <input id="pf-editing-id" type="hidden" value="">
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-primary" onclick="savePromptForm()" style="border-radius:10px; font-size:0.85rem;">
+                        <i class="fas fa-check"></i> Save
+                    </button>
+                    <button class="btn btn-outline" onclick="cancelPromptForm()" style="border-radius:10px; font-size:0.85rem; color:#64748b;">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+
+            <!-- Prompts list -->
+            <div class="prompts-list" id="promptsList" style="flex:1; overflow-y:auto; padding:20px 24px;">
+                <!-- rendered by JS -->
+            </div>
+
+            <!-- Footer count -->
+            <div style="padding:10px 24px; border-top:1px solid #f1f5f9; background:#f8fafc; font-size:0.72rem; color:#94a3b8; display:flex; justify-content:space-between; align-items:center;">
+                <span id="promptCount"></span>
+                <span style="font-size:0.65rem; color:#cbd5e1;">Custom prompts sync to cloud automatically</span>
+            </div>
         </div>
     </div>
 
@@ -8844,7 +8949,10 @@ CRITICAL CONTACT RULE:
             quickAddInsight(); // Re-use the new logic
         }
 
-        // --- Original Quick Prompts Logic ---
+        // ── Quick Prompts ─────────────────────────────────────────────────────────
+        let customPrompts = JSON.parse(localStorage.getItem('chatbot_custom_prompts') || '[]');
+        let activePromptTags = new Set(); // currently selected tag filters
+
         const promptTemplates = [
             {
                 category: "Monday.com Insights",
@@ -8969,54 +9077,232 @@ CRITICAL CONTACT RULE:
             }
         ];
 
-        function openPromptsModal() {
-            const overlay = document.getElementById('promptsModalOverlay');
+        // Cloud sync
+        async function pushPromptsToCloud() {
+            const email = "global_chatbot_prompts";
+            try {
+                await fetch(PERSISTENCE_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'save_insights', email, insights: customPrompts })
+                });
+            } catch (e) { console.error('[PROMPTS] Cloud sync failed', e); }
+        }
+
+        async function pullPromptsFromCloud() {
+            const email = "global_chatbot_prompts";
+            try {
+                const res = await fetch(PERSISTENCE_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'get_insights', email })
+                });
+                const data = await res.json();
+                const body = typeof data.body === 'string' ? JSON.parse(data.body) : (data.body || data);
+                if (body.insights && Array.isArray(body.insights)) {
+                    customPrompts = body.insights;
+                    localStorage.setItem('chatbot_custom_prompts', JSON.stringify(customPrompts));
+                }
+            } catch (e) { console.error('[PROMPTS] Cloud pull failed', e); }
+        }
+
+        // Collect all unique tags across custom prompts
+        function getAllPromptTags() {
+            const tags = new Set();
+            customPrompts.forEach(p => (p.tags || []).forEach(t => tags.add(t)));
+            return [...tags].sort();
+        }
+
+        // Render the tag filter chips
+        function renderPromptTagFilters() {
+            const container = document.getElementById('promptTagFilters');
+            if (!container) return;
+            const tags = getAllPromptTags();
+            const allChip = `<button class="prompt-filter-chip${activePromptTags.size === 0 ? ' active' : ''}" onclick="setPromptTagFilter(null)">All</button>`;
+            const tagChips = tags.map(t =>
+                `<button class="prompt-filter-chip${activePromptTags.has(t) ? ' active' : ''}" onclick="setPromptTagFilter('${t}')">${t}</button>`
+            ).join('');
+            container.innerHTML = `<span style="font-size:0.7rem; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.05em; margin-right:4px;">Filter:</span>${allChip}${tagChips}`;
+        }
+
+        function setPromptTagFilter(tag) {
+            if (tag === null) {
+                activePromptTags.clear();
+            } else {
+                if (activePromptTags.has(tag)) activePromptTags.delete(tag);
+                else activePromptTags.add(tag);
+            }
+            renderPromptsModal();
+        }
+
+        function renderPromptsModal() {
             const list = document.getElementById('promptsList');
+            const countEl = document.getElementById('promptCount');
+            if (!list) return;
 
-            // Render prompts if list is empty
-            if (list.children.length === 0) {
+            const query = (document.getElementById('promptSearch')?.value || '').toLowerCase().trim();
+
+            // Filter custom prompts
+            const filteredCustom = customPrompts.filter(p => {
+                if (activePromptTags.size > 0 && !(p.tags || []).some(t => activePromptTags.has(t))) return false;
+                if (query && !`${p.title} ${p.description} ${p.text} ${(p.tags||[]).join(' ')} ${p.category}`.toLowerCase().includes(query)) return false;
+                return true;
+            });
+
+            // Filter built-in prompts
+            const filteredBuiltIn = [];
+            if (activePromptTags.size === 0) { // built-ins have no tags, hide when tag filter active
                 promptTemplates.forEach(cat => {
-                    const catDiv = document.createElement('div');
-                    catDiv.className = 'prompt-category';
-                    catDiv.innerHTML = `<span class="prompt-category-title">${cat.category}</span>`;
-
-                    const grid = document.createElement('div');
-                    grid.className = 'prompt-grid';
-
-                    cat.prompts.forEach(p => {
-                        const item = document.createElement('div');
-                        item.className = 'prompt-item';
-                        item.onclick = () => selectPrompt(p.text);
-                        item.innerHTML = `
-                            <div class="prompt-icon"><i class="fas ${p.icon}"></i></div>
-                            <div class="prompt-content">
-                                <span class="prompt-title">${p.title}</span>
-                                <span class="prompt-description">${p.description}</span>
-                            </div>
-                        `;
-                        grid.appendChild(item);
-                    });
-
-                    catDiv.appendChild(grid);
-                    list.appendChild(catDiv);
+                    const matched = cat.prompts.filter(p => !query || `${p.title} ${p.description} ${p.text} ${cat.category}`.toLowerCase().includes(query));
+                    if (matched.length) filteredBuiltIn.push({ category: cat.category, prompts: matched });
                 });
             }
 
-            overlay.classList.add('open');
+            const totalShown = filteredCustom.length + filteredBuiltIn.reduce((s, c) => s + c.prompts.length, 0);
+            if (countEl) countEl.textContent = `${totalShown} prompt${totalShown !== 1 ? 's' : ''}`;
+
+            list.innerHTML = '';
+
+            // Custom prompts section
+            if (filteredCustom.length > 0) {
+                const section = document.createElement('div');
+                section.className = 'prompt-category';
+                section.innerHTML = `<span class="prompt-category-title"><i class="fas fa-star" style="color:#f59e0b;margin-right:5px;"></i>My Prompts</span>`;
+                const grid = document.createElement('div');
+                grid.className = 'prompt-grid';
+                filteredCustom.forEach(p => {
+                    const item = document.createElement('div');
+                    item.className = 'prompt-item';
+                    item.style.position = 'relative';
+                    const tagsHtml = (p.tags || []).map(t => `<span class="prompt-tag">${t}</span>`).join('');
+                    item.innerHTML = `
+                        <div class="prompt-icon"><i class="fas fa-wand-magic-sparkles"></i></div>
+                        <div class="prompt-content" style="flex:1; min-width:0;">
+                            <span class="prompt-title">${p.title}</span>
+                            <span class="prompt-description">${p.description || ''}</span>
+                            ${tagsHtml ? `<div style="margin-top:5px; display:flex; flex-wrap:wrap; gap:4px;">${tagsHtml}</div>` : ''}
+                        </div>
+                        <div class="prompt-card-actions">
+                            <button onclick="event.stopPropagation(); editCustomPrompt('${p.id}')" title="Edit" style="background:none;border:none;cursor:pointer;color:#6366f1;font-size:0.85rem;padding:4px;"><i class="fas fa-edit"></i></button>
+                            <button onclick="event.stopPropagation(); deleteCustomPrompt('${p.id}')" title="Delete" style="background:none;border:none;cursor:pointer;color:#ef4444;font-size:0.85rem;padding:4px;"><i class="fas fa-trash"></i></button>
+                        </div>
+                    `;
+                    item.onclick = () => selectPrompt(p.text);
+                    grid.appendChild(item);
+                });
+                section.appendChild(grid);
+                list.appendChild(section);
+            }
+
+            // Built-in sections
+            filteredBuiltIn.forEach(cat => {
+                const catDiv = document.createElement('div');
+                catDiv.className = 'prompt-category';
+                catDiv.innerHTML = `<span class="prompt-category-title">${cat.category}</span>`;
+                const grid = document.createElement('div');
+                grid.className = 'prompt-grid';
+                cat.prompts.forEach(p => {
+                    const item = document.createElement('div');
+                    item.className = 'prompt-item';
+                    item.onclick = () => selectPrompt(p.text);
+                    item.innerHTML = `
+                        <div class="prompt-icon"><i class="fas ${p.icon}"></i></div>
+                        <div class="prompt-content">
+                            <span class="prompt-title">${p.title}</span>
+                            <span class="prompt-description">${p.description}</span>
+                        </div>
+                    `;
+                    grid.appendChild(item);
+                });
+                catDiv.appendChild(grid);
+                list.appendChild(catDiv);
+            });
+
+            if (totalShown === 0) {
+                list.innerHTML = `<div style="padding:60px 20px; text-align:center; color:#94a3b8;"><i class="fas fa-search" style="font-size:2rem; opacity:0.3; margin-bottom:12px; display:block;"></i><p>No prompts match your search.</p></div>`;
+            }
+
+            renderPromptTagFilters();
+        }
+
+        function openPromptsModal() {
+            pullPromptsFromCloud().then(() => renderPromptsModal());
+            renderPromptsModal();
+            document.getElementById('promptsModalOverlay').classList.add('open');
         }
 
         function closePromptsModal() {
             document.getElementById('promptsModalOverlay').classList.remove('open');
+            cancelPromptForm();
+        }
+
+        // Add/Edit form
+        function openAddPromptForm() {
+            document.getElementById('pf-editing-id').value = '';
+            document.getElementById('pf-title').value = '';
+            document.getElementById('pf-description').value = '';
+            document.getElementById('pf-text').value = '';
+            document.getElementById('pf-category').value = '';
+            document.getElementById('pf-tags').value = '';
+            document.getElementById('promptFormPanel').style.display = '';
+            document.getElementById('pf-title').focus();
+        }
+
+        function editCustomPrompt(id) {
+            const p = customPrompts.find(x => String(x.id) === String(id));
+            if (!p) return;
+            document.getElementById('pf-editing-id').value = id;
+            document.getElementById('pf-title').value = p.title || '';
+            document.getElementById('pf-description').value = p.description || '';
+            document.getElementById('pf-text').value = p.text || '';
+            document.getElementById('pf-category').value = p.category || '';
+            document.getElementById('pf-tags').value = (p.tags || []).join(', ');
+            document.getElementById('promptFormPanel').style.display = '';
+            document.getElementById('pf-title').focus();
+        }
+
+        function cancelPromptForm() {
+            document.getElementById('promptFormPanel').style.display = 'none';
+        }
+
+        function savePromptForm() {
+            const title = document.getElementById('pf-title').value.trim();
+            const text = document.getElementById('pf-text').value.trim();
+            if (!title || !text) { showToast('Title and Prompt Text are required', 'warning'); return; }
+
+            const tags = document.getElementById('pf-tags').value.split(',').map(t => t.trim()).filter(Boolean);
+            const editingId = document.getElementById('pf-editing-id').value;
+
+            if (editingId) {
+                const idx = customPrompts.findIndex(x => String(x.id) === editingId);
+                if (idx >= 0) {
+                    customPrompts[idx] = { ...customPrompts[idx], title, description: document.getElementById('pf-description').value.trim(), text, category: document.getElementById('pf-category').value.trim(), tags };
+                }
+            } else {
+                customPrompts.unshift({ id: Date.now(), title, description: document.getElementById('pf-description').value.trim(), text, category: document.getElementById('pf-category').value.trim(), tags, createdAt: new Date().toLocaleDateString() });
+            }
+
+            localStorage.setItem('chatbot_custom_prompts', JSON.stringify(customPrompts));
+            pushPromptsToCloud();
+            cancelPromptForm();
+            renderPromptsModal();
+            showToast(editingId ? 'Prompt updated' : 'Prompt saved', 'success');
+        }
+
+        function deleteCustomPrompt(id) {
+            if (!confirm('Delete this prompt?')) return;
+            customPrompts = customPrompts.filter(x => String(x.id) !== String(id));
+            localStorage.setItem('chatbot_custom_prompts', JSON.stringify(customPrompts));
+            pushPromptsToCloud();
+            renderPromptsModal();
+            showToast('Prompt deleted', 'info');
         }
 
         function selectPrompt(text) {
             const textarea = document.getElementById('userInput');
             textarea.value = text;
             textarea.focus();
-
-            // Trigger auto-resize if any
             textarea.dispatchEvent(new Event('input', { bubbles: true }));
-
             closePromptsModal();
         }
 
