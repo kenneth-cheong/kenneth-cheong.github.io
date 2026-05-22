@@ -2445,6 +2445,26 @@
         }
         .insight-tag-select:hover { background: #e0e7ff; }
 
+        .insight-team-select {
+            padding: 3px 8px;
+            border-radius: 20px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            flex-shrink: 0;
+            border: 1px solid transparent;
+            cursor: pointer;
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+            font-family: inherit;
+        }
+        .insight-team-select.team-seo      { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+        .insight-team-select.team-sem      { background: #fef9c3; color: #854d0e; border-color: #fef08a; }
+        .insight-team-select.team-smm      { background: #fce7f3; color: #9d174d; border-color: #fbcfe8; }
+        .insight-team-select.team-everyone { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
+
         .empty-insights {
             padding: 60px 40px;
             text-align: center;
@@ -8422,7 +8442,11 @@ CRITICAL CONTACT RULE:
                                 `<option value="${t}"${insight.tag === t ? ' selected' : ''}>${t}</option>`
                             ).join('')}
                         </select>
-                        ${insight.team ? `<span class="insight-team team-${insight.team.toLowerCase()}">${insight.team}</span>` : ''}
+                        <select class="insight-team-select team-${(insight.team||'everyone').toLowerCase()}" onchange="saveInsightTeam('${insight.id}', this.value, this)" title="Change team">
+                            ${['Everyone','SEO','SEM','SMM'].map(t =>
+                                `<option value="${t}"${(insight.team||'Everyone') === t ? ' selected' : ''}>${t}</option>`
+                            ).join('')}
+                        </select>
                         <span class="insight-date">${insight.date}</span>
                         <div style="margin-left: auto; display: flex; align-items: center; gap: 6px;">
                             <span class="insight-source" style="font-weight:700; color: #64748b; text-transform: uppercase; font-size: 0.6rem;">${insight.source || 'Manual'}</span>
@@ -8498,6 +8522,16 @@ CRITICAL CONTACT RULE:
             renderInsights();
             pushInsightsToCloud();
             showToast('Memory updated successfully', 'success');
+        }
+
+        function saveInsightTeam(id, newTeam, selectEl) {
+            const insight = learnedInsights.find(i => i.id == id);
+            if (!insight || insight.team === newTeam) return;
+            insight.team = newTeam;
+            selectEl.className = `insight-team-select team-${newTeam.toLowerCase()}`;
+            localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
+            pushInsightsToCloud();
+            showToast('Team updated', 'info');
         }
 
         function saveInsightTag(id, newTag) {
@@ -8709,11 +8743,20 @@ CRITICAL CONTACT RULE:
 
     <script>
         function startTour() {
-            // Close any open sidebars so tour elements are visible
-            const history = document.getElementById('historySidebar');
-            const settings = document.getElementById('settingsSidebar');
-            if (history && history.classList.contains('active')) toggleHistory();
-            if (settings && settings.classList.contains('active')) toggleSettings();
+            const settingsSidebar = document.getElementById('settingsSidebar');
+            const historySidebar = document.getElementById('historySidebar');
+
+            function openSettings() {
+                if (historySidebar && historySidebar.classList.contains('active')) toggleHistory();
+                if (settingsSidebar && !settingsSidebar.classList.contains('active')) toggleSettings();
+            }
+            function closeSettings() {
+                if (settingsSidebar && settingsSidebar.classList.contains('active')) toggleSettings();
+            }
+
+            // Start clean — close any open sidebars
+            closeSettings();
+            if (historySidebar && historySidebar.classList.contains('active')) toggleHistory();
 
             const { driver } = window.driver.js;
             const tourDriver = driver({
@@ -8728,7 +8771,7 @@ CRITICAL CONTACT RULE:
                     {
                         popover: {
                             title: '👋 Welcome to the AI Chatbot',
-                            description: 'This quick tour covers the key features so you can get the most out of your AI assistant. It only takes about a minute.',
+                            description: 'This quick tour covers the key features — including connectors and auth — so you can get the most out of your AI assistant.',
                             side: 'over',
                             align: 'center'
                         }
@@ -8760,15 +8803,48 @@ CRITICAL CONTACT RULE:
                             align: 'end'
                         }
                     },
+                    // ── Settings panel ───────────────────────────────────────
                     {
                         element: 'button[onclick="toggleSettings()"]',
                         popover: {
-                            title: '⚙️ Settings & Connectors',
-                            description: 'Connect your tools here: <b>Monday.com</b> (task boards), <b>Google Workspace, GSC, GA4, Ads</b>, <b>Meta</b>, and <b>SE Ranking</b>. Once connected, the AI can query live data on your behalf.',
+                            title: '⚙️ Settings Panel',
+                            description: 'Click Settings to open the configuration panel. The next steps will walk you through what\'s inside.',
                             side: 'bottom',
                             align: 'end'
-                        }
+                        },
+                        onDeselected: openSettings
                     },
+                    {
+                        element: '#authSection',
+                        popover: {
+                            title: '🔑 Monday.com Authentication',
+                            description: 'Paste your <b>Monday.com Personal API Key</b> here. You can find it under your Monday.com profile → <em>Developers</em>. This is required before the AI can read your boards.',
+                            side: 'right',
+                            align: 'start'
+                        },
+                        onHighlightStarted: openSettings
+                    },
+                    {
+                        element: '#googleChatSection',
+                        popover: {
+                            title: '🔗 Google Connectors',
+                            description: 'Connect <b>Google Workspace</b> (Chat, Drive, Gmail), <b>Search Console</b>, <b>GA4</b>, and <b>Google Ads</b>. Each service uses OAuth — click Connect and sign in. Tokens are saved and silently refreshed so you won\'t need to reconnect often.',
+                            side: 'right',
+                            align: 'start'
+                        },
+                        onHighlightStarted: openSettings
+                    },
+                    {
+                        element: '#serankingSection',
+                        popover: {
+                            title: '📊 SE Ranking',
+                            description: 'Connect your SE Ranking account to pull live keyword rankings and campaign data directly into chat. Enter your API key in Settings to enable this.',
+                            side: 'right',
+                            align: 'start'
+                        },
+                        onHighlightStarted: openSettings
+                    },
+                    // ── Back to main chat ─────────────────────────────────────
                     {
                         element: '#chatTopBar',
                         popover: {
@@ -8776,7 +8852,8 @@ CRITICAL CONTACT RULE:
                             description: 'Choose which Monday.com boards the AI should focus on. Selecting a board loads its tasks and data into the AI\'s context window before you chat.',
                             side: 'bottom',
                             align: 'start'
-                        }
+                        },
+                        onHighlightStarted: closeSettings
                     },
                     {
                         element: '#topSyncBtn',
@@ -8827,7 +8904,7 @@ CRITICAL CONTACT RULE:
                         element: '#userInput',
                         popover: {
                             title: '⌨️ Chat Input',
-                            description: 'Type your question here and press <b>Enter</b> (or the send button) to chat. You can ask about your boards, request reports, get SEO insights, or just brainstorm — the AI has access to all your connected tools.',
+                            description: 'Type your question here and press <b>Enter</b> (or the send button) to chat. You can ask about your boards, request reports, get SEO insights, or just brainstorm.',
                             side: 'top',
                             align: 'center'
                         }
@@ -8836,10 +8913,11 @@ CRITICAL CONTACT RULE:
                         element: '#tourBtn',
                         popover: {
                             title: '🗺️ You\'re all set!',
-                            description: 'You can relaunch this tour any time by clicking the <b>Tour</b> button. Start by connecting your tools in Settings, then sync a board and ask a question. Happy chatting!',
+                            description: 'Relaunch this tour any time via the <b>Tour</b> button. Start by connecting your tools in Settings, then sync a board and ask a question. Happy chatting!',
                             side: 'bottom',
                             align: 'end'
-                        }
+                        },
+                        onHighlightStarted: closeSettings
                     }
                 ]
             });
