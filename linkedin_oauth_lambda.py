@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import urllib.request
 import urllib.parse
 
@@ -37,6 +38,8 @@ def lambda_handler(event, context):
             result = exchange_code(body)
         elif action == 'post':
             result = create_post(body)
+        elif action == 'ai_extract':
+            result = ai_extract(body)
         elif action == 'ai_generate':
             result = ai_generate(body)
         else:
@@ -168,6 +171,82 @@ def create_post(body):
     except urllib.error.HTTPError as e:
         error_body = e.read().decode()
         return {'success': False, 'error': f'LinkedIn API {e.code}: {error_body}'}
+
+
+# ── Action: extract event details from a URL ─────────────────────────────────
+
+def ai_extract(body):
+    if not CLAUDE_API_KEY:
+        return {'success': False, 'error': 'AI is not configured on the server.'}
+
+    url = body.get('url', '').strip()
+    if not url:
+        return {'success': False, 'error': 'URL is required.'}
+
+    # Try to fetch the page; gracefully handle auth walls / errors
+    page_text = ''
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={'User-Agent': 'Mozilla/5.0 (compatible; EventBot/1.0)'},
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            raw = resp.read().decode('utf-8', errors='ignore')
+        # Strip HTML tags and collapse whitespace
+        page_text = re.sub(r'<[^>]+>', ' ', raw)
+        page_text = re.sub(r'\s+', ' ', page_text).strip()[:4000]
+    except Exception:
+        pass  # Claude will infer from URL alone
+
+    prompt = f"""Extract structured event details from the URL and any page content provided.
+
+URL: {url}
+Page content (may be partial or empty if behind a login wall):
+{page_text or "(page could not be fetched — infer from URL only)"}
+
+Return ONLY a JSON object with these keys:
+{{
+  "event": "Full event name",
+  "date": "Human-readable date, e.g. May 28, 2026",
+  "format": "Event format, e.g. Virtual Webinar, In-Person Conference, Fireside Chat",
+  "tags": "Comma-separated hashtag words without #, e.g. AISearch, Google, Marketing"
+}}
+
+Rules:
+- Use empty string "" for any field you cannot determine
+- For tags: derive from the event topic/industry, 5-8 tags
+- Do not add any explanation — JSON only"""
+
+    payload = json.dumps({
+        'model': 'claude-haiku-4-5-20251001',
+        'max_tokens': 300,
+        'messages': [{'role': 'user', 'content': prompt}],
+    }).encode()
+
+    req = urllib.request.Request(
+        'https://api.anthropic.com/v1/messages',
+        data=payload,
+        headers={
+            'x-api-key': CLAUDE_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+        },
+        method='POST',
+    )
+
+    try:
+        with urllib.request.urlopen(req) as resp:
+            result = json.loads(resp.read())
+            raw_text = result['content'][0]['text'].strip()
+            # Strip markdown fences if present
+            raw_text = re.sub(r'^```[a-z]*\n?', '', raw_text)
+            raw_text = re.sub(r'\n?```$', '', raw_text).strip()
+            extracted = json.loads(raw_text)
+            return {'success': True, **extracted}
+    except urllib.error.HTTPError as e:
+        return {'success': False, 'error': f'AI API {e.code}'}
+    except Exception as e:
+        return {'success': False, 'error': f'Extraction failed: {e}'}
 
 
 # ── Action: generate post text with Claude ────────────────────────────────────
