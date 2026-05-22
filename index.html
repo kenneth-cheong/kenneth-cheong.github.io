@@ -10654,7 +10654,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1346</span>
+                <span id="appVersion">v1.0.1348</span>
             </a>
         </div>
 
@@ -31123,10 +31123,9 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                         aggDaily[d].conversions += v.conversions;
                     });
 
-                    // Append campaign rows labelled with account name
+                    // Append campaign rows, preserving original name and storing accountName separately
                     (result.campaignsList || []).forEach(c => {
-                        aggCampaigns.push({ ...c, id: `${acc.id}_${c.id}`,
-                            name: `[${acc.name.substring(0, 14)}] ${c.name}` });
+                        aggCampaigns.push({ ...c, id: `${acc.id}_${c.id}`, accountName: acc.name });
                     });
                 });
 
@@ -31635,11 +31634,38 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             const checkedFields = Array.from(document.querySelectorAll('#adsColumnMenu input:checked')).map(el => el.value);
             const filterText = document.getElementById('adsCampaignFilter')?.value.toLowerCase() || '';
 
+            // Multi-account mode flag
+            const isMultiAccount = selectedAdsAccounts.length > 1;
+
+            // Inject / update account filter dropdown when multi-account
+            const filterBarParent = document.getElementById('adsCampaignFilter')?.parentElement?.parentElement;
+            let accountFilterEl = document.getElementById('adsAccountFilter');
+            if (isMultiAccount && filterBarParent) {
+                if (!accountFilterEl) {
+                    const wrapper = document.createElement('div');
+                    wrapper.style.cssText = 'position:relative;';
+                    wrapper.innerHTML = `<select id="adsAccountFilter" onchange="reRenderAdsTable()"
+                        style="padding:8px 12px;border-radius:6px;border:1px solid #cbd5e1;font-size:13px;color:#1e293b;outline:none;background:#f8fafc;min-width:180px;cursor:pointer;">
+                        <option value="">All Accounts</option></select>`;
+                    filterBarParent.appendChild(wrapper);
+                    accountFilterEl = document.getElementById('adsAccountFilter');
+                }
+                const uniqueAccounts = [...new Set(campaignsList.map(c => c.accountName).filter(Boolean))];
+                const currentVal = accountFilterEl.value;
+                accountFilterEl.innerHTML = `<option value="">All Accounts</option>` +
+                    uniqueAccounts.map(a => `<option value="${a}"${a === currentVal ? ' selected' : ''}>${a}</option>`).join('');
+                accountFilterEl.parentElement.style.display = '';
+            } else if (accountFilterEl) {
+                accountFilterEl.parentElement.style.display = 'none';
+            }
+            const accountFilter = (accountFilterEl?.value || '').toLowerCase();
+
             // 2. Render Header
             if (thead) {
-                let headerHtml = `<th style="padding-left: 15px;">Name</th>`;
+                let headerHtml = isMultiAccount ? `<th style="padding-left:12px;white-space:nowrap;color:#0f9d58;">Account</th>` : '';
+                headerHtml += `<th style="padding-left: 15px;">Name</th>`;
                 checkedFields.forEach(f => {
-                    if (f.includes('.name')) return; // Skip name as it's the primary col
+                    if (f.includes('.name')) return;
                     headerHtml += `<th>${adsFieldLabels[f] || f}</th>`;
                 });
                 thead.innerHTML = headerHtml;
@@ -31648,8 +31674,9 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             // 3. Filter & Render Rows
             const filteredList = campaignsList.filter(item => {
                 const nameMatch = item.name.toLowerCase().includes(filterText);
+                const accountMatch = !accountFilter || (item.accountName || '').toLowerCase().includes(accountFilter);
                 const advancedMatch = matchesAdvancedFilters(item);
-                return nameMatch && advancedMatch;
+                return nameMatch && accountMatch && advancedMatch;
             });
 
             // 3b. Recalculate Totals based on Filtered List for KPI Cards
@@ -31682,7 +31709,10 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                     nameCell = `<span style="color: #475569; font-weight: 500;">${item.name}</span>`;
                 }
 
-                html += `<tr><td style="padding-left: 15px; max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${item.name}">${nameCell}</td>`;
+                const accountCell = isMultiAccount
+                    ? `<td style="padding-left:12px;white-space:nowrap;font-size:12px;color:#0f9d58;font-weight:600;">${item.accountName || '—'}</td>`
+                    : '';
+                html += `<tr>${accountCell}<td style="padding-left: 15px; max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${item.name}">${nameCell}</td>`;
 
                 checkedFields.forEach(f => {
                     if (f.includes('.name')) return;
