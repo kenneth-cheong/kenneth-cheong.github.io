@@ -10593,7 +10593,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1305</span>
+                <span id="appVersion">v1.0.1306</span>
             </a>
         </div>
 
@@ -28273,7 +28273,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 document.getElementById('tabBtnLogs').style.color = '#2563eb';
                 document.getElementById('tabBtnLogs').style.borderBottomColor = '#2563eb';
                 document.getElementById('adminPanelLogs').style.display = 'block';
-                renderLogsPanel();
+                fetchTeamsFromCloud().then(() => renderLogsPanel());
             }
         }
 
@@ -67063,16 +67063,51 @@ Move-In</h3>
             };
         })();
 
-        // ── Team management
+        // ── Team management (localStorage cache + cloud sync via Monday Lambda)
         const TEAMS_KEY = 'digimetricsTeams';
+        let _teamsCache = null;
 
         function getTeams() {
+            if (_teamsCache !== null) return _teamsCache;
             try { return JSON.parse(localStorage.getItem(TEAMS_KEY) || '[]'); }
             catch (e) { return []; }
         }
 
         function saveTeams(teams) {
-            localStorage.setItem(TEAMS_KEY, JSON.stringify(teams));
+            _teamsCache = teams;
+            try { localStorage.setItem(TEAMS_KEY, JSON.stringify(teams)); } catch(e) {}
+        }
+
+        async function fetchTeamsFromCloud() {
+            try {
+                const resp = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'fetch_teams_config' }),
+                });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const raw = await resp.json();
+                const body = typeof raw.body === 'string' ? JSON.parse(raw.body) : raw;
+                const teams = body.teams || [];
+                saveTeams(teams);
+                return teams;
+            } catch (e) {
+                console.warn('Teams cloud fetch failed, using local cache:', e.message);
+                return getTeams();
+            }
+        }
+
+        async function pushTeamsToCloud(teams) {
+            saveTeams(teams);
+            try {
+                await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'save_teams_config', teams }),
+                });
+            } catch (e) {
+                console.warn('Teams cloud save failed:', e.message);
+            }
         }
 
         function getTeamForEmail(email) {
@@ -67396,6 +67431,9 @@ Move-In</h3>
             if (!el) return;
             const teams = getTeams();
             el.innerHTML = `
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;font-size:12px;color:#64748b;">
+                    <span id="teamsSyncStatus"><i class="fas fa-cloud" style="color:#94a3b8;"></i> Synced to cloud</span>
+                </div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;">
                     <div class="premium-table-wrapper" style="padding:24px;background:white;">
                         <h3 style="margin:0 0 16px;color:#1e293b;font-size:1rem;display:flex;align-items:center;gap:8px;">
@@ -67444,15 +67482,16 @@ Move-In</h3>
             const emails = (document.getElementById('newTeamEmails')?.value || '').split(/[\n,]/).map(e => e.trim()).filter(Boolean);
             const teams  = getTeams();
             teams.push({ id: 'team-' + Date.now(), name, emails });
-            saveTeams(teams);
+            pushTeamsToCloud(teams).then(() => setTeamsSyncStatus('saved'));
             renderTeamsManager();
             const evEl = document.getElementById('logsViewEventlog');
-            if (evEl) evEl.innerHTML = ''; // force filter rebuild with new team
+            if (evEl) evEl.innerHTML = '';
         }
 
         function deleteTeam(id) {
             if (!confirm('Delete this team?')) return;
-            saveTeams(getTeams().filter(t => t.id !== id));
+            const teams = getTeams().filter(t => t.id !== id);
+            pushTeamsToCloud(teams).then(() => setTeamsSyncStatus('saved'));
             renderTeamsManager();
             const evEl = document.getElementById('logsViewEventlog');
             if (evEl) evEl.innerHTML = '';
@@ -67468,10 +67507,23 @@ Move-In</h3>
             if (newEmails === null) return;
             t.name   = newName.trim();
             t.emails = newEmails.split(/[\n,]/).map(e => e.trim()).filter(Boolean);
-            saveTeams(teams);
+            pushTeamsToCloud(teams).then(() => setTeamsSyncStatus('saved'));
             renderTeamsManager();
             const evEl = document.getElementById('logsViewEventlog');
             if (evEl) evEl.innerHTML = '';
+        }
+
+        function setTeamsSyncStatus(state) {
+            const el = document.getElementById('teamsSyncStatus');
+            if (!el) return;
+            if (state === 'syncing') {
+                el.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:#f59e0b;"></i> Syncing…';
+            } else if (state === 'saved') {
+                el.innerHTML = '<i class="fas fa-cloud-upload-alt" style="color:#10b981;"></i> Saved to cloud';
+                setTimeout(() => { if (el) el.innerHTML = '<i class="fas fa-cloud" style="color:#94a3b8;"></i> Synced'; }, 2500);
+            } else if (state === 'error') {
+                el.innerHTML = '<i class="fas fa-exclamation-circle" style="color:#ef4444;"></i> Cloud save failed — changes local only';
+            }
         }
 
         function escHtml(s) {
