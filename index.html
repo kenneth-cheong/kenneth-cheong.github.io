@@ -10654,7 +10654,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1351</span>
+                <span id="appVersion">v1.0.1352</span>
             </a>
         </div>
 
@@ -30380,7 +30380,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             if (!dates?.start || !dates?.end || selectedAdsAccounts.length === 0) return;
             try {
                 const results = await Promise.all(selectedAdsAccounts.map(acc =>
-                    fetchAdsInsightsWithDateRange(acc.id, acc.loginCustomerId, acc.developerToken, dates.start, dates.end)
+                    fetchAdsInsights(acc.id, acc.loginCustomerId, acc.developerToken, false, true, dates)
                 ));
                 let aggImps=0, aggClicks=0, aggCostMicros=0, aggConvs=0;
                 const aggDaily = {};
@@ -30895,7 +30895,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
             });
         }
 
-        async function fetchAdsInsights(customerId, loginCustomerId = null, developerToken = null, isRefresh = false, accumulate = false) {
+        async function fetchAdsInsights(customerId, loginCustomerId = null, developerToken = null, isRefresh = false, accumulate = false, dateOverride = null) {
             const overlay = document.getElementById('adsLoadingOverlay');
             if (!accumulate && overlay) overlay.style.display = 'flex';
 
@@ -30904,7 +30904,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                     document.getElementById('adsCampaignsTableBody').innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Loading ' + adsCurrentLevel.replace('_', ' ') + 's...</td></tr>';
                 }
 
-                const dateRangeFilter = document.getElementById('adsDateRange').value || 'LAST_30_DAYS';
+                const dateRangeFilter = dateOverride ? 'CUSTOM' : (document.getElementById('adsDateRange').value || 'LAST_30_DAYS');
 
                 // 1. Determine Resource Based on Level
                 let resource = 'campaign';
@@ -30942,31 +30942,28 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 const allSelects = [...new Set([...mandatorySelects, ...checkedFields])];
 
                 // 3. Build WHERE clause
-                let dateCondition = `segments.date DURING ${dateRangeFilter}`;
-
-                if (dateRangeFilter === 'LAST_90_DAYS' || dateRangeFilter === 'LAST_365_DAYS' || dateRangeFilter === 'CUSTOM') {
-                    let start, end;
-                    const now = new Date();
-                    const endDay = new Date(now.getTime() - 86400000); // Yesterday
-
-                    if (dateRangeFilter === 'LAST_90_DAYS') {
-                        const startDay = new Date(now.getTime() - (90 * 86400000));
-                        start = startDay.toISOString().split('T')[0];
-                        end = endDay.toISOString().split('T')[0];
-                    } else if (dateRangeFilter === 'LAST_365_DAYS') {
-                        const startDay = new Date(now.getTime() - (365 * 86400000));
-                        start = startDay.toISOString().split('T')[0];
-                        end = endDay.toISOString().split('T')[0];
-                    } else {
-                        // CUSTOM
-                        start = document.getElementById('adsStartDate').value;
-                        end = document.getElementById('adsEndDate').value;
-                        if (!start || !end) {
-                            console.warn("Custom dates not fully set");
-                            return; // Don't fetch yet
+                let dateCondition;
+                if (dateOverride?.start && dateOverride?.end) {
+                    dateCondition = `segments.date BETWEEN '${dateOverride.start}' AND '${dateOverride.end}'`;
+                } else {
+                    dateCondition = `segments.date DURING ${dateRangeFilter}`;
+                    if (dateRangeFilter === 'LAST_90_DAYS' || dateRangeFilter === 'LAST_365_DAYS' || dateRangeFilter === 'CUSTOM') {
+                        let start, end;
+                        const now = new Date();
+                        const endDay = new Date(now.getTime() - 86400000);
+                        if (dateRangeFilter === 'LAST_90_DAYS') {
+                            start = new Date(now.getTime() - 90*86400000).toISOString().split('T')[0];
+                            end = endDay.toISOString().split('T')[0];
+                        } else if (dateRangeFilter === 'LAST_365_DAYS') {
+                            start = new Date(now.getTime() - 365*86400000).toISOString().split('T')[0];
+                            end = endDay.toISOString().split('T')[0];
+                        } else {
+                            start = document.getElementById('adsStartDate').value;
+                            end = document.getElementById('adsEndDate').value;
+                            if (!start || !end) { console.warn("Custom dates not fully set"); return; }
                         }
+                        dateCondition = `segments.date BETWEEN '${start}' AND '${end}'`;
                     }
-                    dateCondition = `segments.date BETWEEN '${start}' AND '${end}'`;
                 }
 
                 let whereClause = `WHERE ${dateCondition}`;
