@@ -10593,7 +10593,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1302</span>
+                <span id="appVersion">v1.0.1305</span>
             </a>
         </div>
 
@@ -17066,6 +17066,15 @@
                                 <label>Siteliner % <span class="forensic-hint">internal duplicate</span></label>
                                 <input type="number" id="fa_siteliner" min="0" max="100" placeholder="e.g. 20">
                             </div>
+                        </div>
+
+                        <!-- robots.txt viewer -->
+                        <div id="fa_robots_preview" style="display:none;margin:4px 0 14px;border:1px solid var(--border,#334155);border-radius:6px;overflow:hidden;font-size:0.82em;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 12px;background:rgba(255,255,255,0.03);border-bottom:1px solid var(--border,#334155);color:#64748b;">
+                                <span><i class="fas fa-robot" style="margin-right:5px;color:#818cf8;"></i><span id="fa_robots_url" style="font-family:monospace;color:#94a3b8;"></span></span>
+                                <button onclick="const b=document.getElementById('fa_robots_body');b.style.display=b.style.display==='none'?'':'none';" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:0.85em;padding:0;">Toggle ▾</button>
+                            </div>
+                            <pre id="fa_robots_body" style="margin:0;padding:10px 12px;color:#cbd5e1;white-space:pre-wrap;word-break:break-all;max-height:220px;overflow-y:auto;background:rgba(0,0,0,0.15);font-size:0.9em;line-height:1.5;"></pre>
                         </div>
 
                         <!-- On-Page -->
@@ -66105,6 +66114,15 @@ Move-In</h3>
                 const ok = robots.length > 10 && !robots.toLowerCase().startsWith('error') &&
                     !robots.includes('<!DOCTYPE') && !robots.includes('<html');
                 setF('fa_robots', ok ? 'Pass' : 'Missing');
+                // Show robots.txt content viewer
+                const robotsPreview = document.getElementById('fa_robots_preview');
+                const robotsUrlEl   = document.getElementById('fa_robots_url');
+                const robotsBodyEl  = document.getElementById('fa_robots_body');
+                if (robotsPreview && robotsUrlEl && robotsBodyEl) {
+                    robotsUrlEl.textContent = urlObj.origin + '/robots.txt';
+                    robotsBodyEl.textContent = ok ? robots : '(No valid robots.txt found)';
+                    robotsPreview.style.display = '';
+                }
                 if (ok) {
                     const lines = robots.split('\n').map(l => l.trim());
                     let agent = '', blocked = false;
