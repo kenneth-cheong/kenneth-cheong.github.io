@@ -10654,7 +10654,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1338</span>
+                <span id="appVersion">v1.0.1339</span>
             </a>
         </div>
 
@@ -66559,7 +66559,34 @@ Move-In</h3>
             return recs;
         }
 
-        function saveForensicAudit() {
+        async function faSyncToCloud(audits) {
+            const email = getUserEmail();
+            if (!email || email === 'anonymous') return;
+            try {
+                await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'save_forensic_audits', email, audits })
+                });
+            } catch(e) { console.warn('[FA] Cloud sync failed:', e.message); }
+        }
+
+        async function faFetchFromCloud() {
+            const email = getUserEmail();
+            if (!email || email === 'anonymous') return null;
+            try {
+                const resp = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'get_forensic_audits', email })
+                });
+                const raw = await resp.json();
+                const body = typeof raw.body === 'string' ? JSON.parse(raw.body) : raw;
+                return Array.isArray(body.audits) ? body.audits : null;
+            } catch(e) { console.warn('[FA] Cloud fetch failed:', e.message); return null; }
+        }
+
+        async function saveForensicAudit() {
             const d = faGetFormData();
             if (!d.client && !d.url) { alert('Please enter at least a Client Name or Target URL before saving.'); return; }
             const recs = faCollectRecsWithTracking();
@@ -66570,13 +66597,25 @@ Move-In</h3>
             localStorage.setItem(FA_STORAGE_KEY, JSON.stringify(audits));
             faPopulateHistory();
             faRenderLog();
+            faSyncToCloud(audits);
             alert('Audit saved successfully!');
         }
 
-        function faPopulateHistory() {
+        async function faPopulateHistory() {
             const sel = document.getElementById('fa_history_select');
             if (!sel) return;
-            const audits = JSON.parse(localStorage.getItem(FA_STORAGE_KEY) || '[]');
+            // Try cloud first; merge with local if cloud has more recent entries
+            const cloudAudits = await faFetchFromCloud();
+            let audits = JSON.parse(localStorage.getItem(FA_STORAGE_KEY) || '[]');
+            if (cloudAudits && cloudAudits.length > 0) {
+                // Merge: combine cloud + local, dedupe by id, sort newest first
+                const merged = [...cloudAudits, ...audits];
+                const seen = new Set();
+                const deduped = merged.filter(a => { if (seen.has(a.id)) return false; seen.add(a.id); return true; });
+                deduped.sort((a, b) => new Date(b.savedOn) - new Date(a.savedOn));
+                localStorage.setItem(FA_STORAGE_KEY, JSON.stringify(deduped));
+                audits = deduped;
+            }
             sel.innerHTML = '<option value="">-- Select saved audit --</option>';
             audits.forEach(a => {
                 const opt = document.createElement('option');
@@ -66615,6 +66654,7 @@ Move-In</h3>
             let audits = JSON.parse(localStorage.getItem(FA_STORAGE_KEY) || '[]');
             audits = audits.filter(a => a.id !== id);
             localStorage.setItem(FA_STORAGE_KEY, JSON.stringify(audits));
+            faSyncToCloud(audits);
             faPopulateHistory();
             faRenderLog();
         }
@@ -66622,6 +66662,7 @@ Move-In</h3>
         function clearAllForensicAudits() {
             if (!confirm('Clear ALL saved audits? This cannot be undone.')) return;
             localStorage.removeItem(FA_STORAGE_KEY);
+            faSyncToCloud([]);
             faPopulateHistory();
             faRenderLog();
         }

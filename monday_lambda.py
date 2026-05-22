@@ -1331,6 +1331,33 @@ def lambda_handler(event, context):
                 else:
                     doc = db.insights.find_one({"email": email.lower()})
                     result = {"statusCode": 200, "body": json.dumps({"insights": doc.get('insights', []) if doc else []}, cls=JSONEncoder)}
+        elif action == 'get_forensic_audits':
+            db = get_db()
+            if not db:
+                result = {"statusCode": 500, "body": json.dumps({"error": "DB Connection Failed"})}
+            else:
+                email = body.get('email')
+                if not email:
+                    result = {"statusCode": 400, "body": json.dumps({"error": "Email missing"})}
+                else:
+                    doc = db.forensic_audits.find_one({"email": email.lower()})
+                    result = {"statusCode": 200, "body": json.dumps({"audits": doc.get('audits', []) if doc else []}, cls=JSONEncoder)}
+        elif action == 'save_forensic_audits':
+            db = get_db()
+            if not db:
+                result = {"statusCode": 500, "body": json.dumps({"error": "DB Connection Failed"})}
+            else:
+                email = body.get('email')
+                audits = body.get('audits', [])
+                if not email:
+                    result = {"statusCode": 400, "body": json.dumps({"error": "Email missing"})}
+                else:
+                    db.forensic_audits.update_one(
+                        {"email": email.lower()},
+                        {"$set": {"audits": audits, "updated_at": datetime.now()}},
+                        upsert=True
+                    )
+                    result = {"statusCode": 200, "body": json.dumps({"status": "success"})}
         elif action == 'save_insights':
             db = get_db()
             if not db: 
