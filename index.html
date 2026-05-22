@@ -10380,7 +10380,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1251</span>
+                <span id="appVersion">v1.0.1252</span>
             </a>
         </div>
 
@@ -18378,6 +18378,7 @@
             seoIntelBoardId: localStorage.getItem('seoIntelBoardId') || '2845615047',
             seoIntelOwnerFilter: new Set(),  // Filter by [SEO]SEO owner
             seoIntelStatusFilter: new Set(), // Filter by Campaign Status
+            seoIntelTypeFilter: new Set(),   // Filter by Campaign Type
             paidIntelCache: null,        // Cached Paid Ads trajectory results
             paidIntelFetchedAt: 0,       // Timestamp of last fetch
             paidIntelOwnerFilter: new Set(),
@@ -20421,9 +20422,18 @@
             if (dd) dd.style.display = 'block';
         }
 
+        function toggleSeoIntelTypeFilter(type) {
+            const f = cockpitState.seoIntelTypeFilter;
+            f.has(type) ? f.delete(type) : f.add(type);
+            renderSeoIntel(cockpitState.seoIntelCache || []);
+            const dd = document.getElementById('seo-intel-type-dropdown');
+            if (dd) dd.style.display = 'block';
+        }
+
         function clearSeoIntelFilters() {
             cockpitState.seoIntelOwnerFilter.clear();
             cockpitState.seoIntelStatusFilter.clear();
+            cockpitState.seoIntelTypeFilter.clear();
             renderSeoIntel(cockpitState.seoIntelCache || []);
         }
 
@@ -20458,14 +20468,17 @@
             // Apply filters
             const ownerF  = cockpitState.seoIntelOwnerFilter;
             const statusF = cockpitState.seoIntelStatusFilter;
+            const typeF   = cockpitState.seoIntelTypeFilter;
             const filtered = campaigns.filter(c =>
                 (ownerF.size === 0  || ownerF.has(c.seoOwner))  &&
-                (statusF.size === 0 || statusF.has(c.campaignStatus))
+                (statusF.size === 0 || statusF.has(c.campaignStatus)) &&
+                (typeF.size === 0   || typeF.has(c.campaignType))
             );
 
             // Build filter options
             const allOwners   = [...new Set(campaigns.map(c => c.seoOwner).filter(Boolean))].sort();
             const allStatuses = [...new Set(campaigns.map(c => c.campaignStatus).filter(Boolean))].sort();
+            const allTypes    = [...new Set(campaigns.map(c => c.campaignType).filter(Boolean))].sort();
 
             const behind  = filtered.filter(c => c.isBehind) .sort((a, b) => b.pctBehind - a.pctBehind);
             const onTrack = filtered.filter(c => !c.isBehind).sort((a, b) => a.pctBehind - b.pctBehind);
@@ -20475,10 +20488,11 @@
                 ? new Date(cockpitState.seoIntelFetchedAt).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })
                 : '';
 
-            const filterActive = ownerF.size > 0 || statusF.size > 0;
+            const filterActive = ownerF.size > 0 || statusF.size > 0 || typeF.size > 0;
 
             const ownerBtnLabel  = ownerF.size === 0 ? 'All SEO' : ownerF.size === 1 ? [...ownerF][0].split(' ')[0] : `${ownerF.size} owners`;
             const statusBtnLabel = statusF.size === 0 ? 'All Statuses' : statusF.size === 1 ? [...statusF][0] : `${statusF.size} statuses`;
+            const typeBtnLabel   = typeF.size === 0 ? 'All Types' : typeF.size === 1 ? [...typeF][0] : `${typeF.size} types`;
 
             const dropdownStyle = 'display:none;position:absolute;top:100%;left:0;min-width:210px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:400;margin-top:4px;max-height:220px;overflow-y:auto;padding:6px;';
             const checkItem = (label, checked, onclick) =>
@@ -20521,6 +20535,18 @@
                         </button>
                         <div id="seo-intel-status-dropdown" class="seo-intel-dropdown" style="${dropdownStyle}">
                             ${allStatuses.map(s => checkItem(s, statusF.has(s), 'toggleSeoIntelStatusFilter')).join('')}
+                        </div>
+                    </div>
+                    <!-- Type filter -->
+                    <div style="position:relative;">
+                        <button onclick="toggleSeoIntelDropdown('seo-intel-type-dropdown')"
+                            style="padding:4px 10px;border:1px solid ${typeF.size > 0 ? '#93c5fd' : '#e2e8f0'};border-radius:6px;background:${typeF.size > 0 ? '#eff6ff' : '#f8fafc'};font-size:0.78rem;cursor:pointer;color:#1e293b;display:flex;align-items:center;gap:5px;">
+                            <i class="fas fa-tag" style="font-size:0.6rem;color:${typeF.size > 0 ? '#3b82f6' : '#94a3b8'};"></i>
+                            ${typeBtnLabel}
+                            <i class="fas fa-chevron-down" style="font-size:0.6rem;color:#94a3b8;"></i>
+                        </button>
+                        <div id="seo-intel-type-dropdown" class="seo-intel-dropdown" style="${dropdownStyle}">
+                            ${allTypes.map(t => checkItem(t, typeF.has(t), 'toggleSeoIntelTypeFilter')).join('')}
                         </div>
                     </div>
                     <span style="font-size:0.72rem;color:#94a3b8;align-self:center;margin-left:4px;">${filtered.length} of ${campaigns.length} shown</span>
