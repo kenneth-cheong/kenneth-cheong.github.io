@@ -3952,6 +3952,9 @@
             updateSummaryFilterVisibility();
 
             document.getElementById('mondayApiKey').value = localStorage.getItem('mondayApiKey') || '';
+            // Sanitize legacy corrupted clientEmail (was stored as DOM element in older code)
+            const _storedEmail = localStorage.getItem('clientEmail') || '';
+            if (_storedEmail.toLowerCase().startsWith('[object')) localStorage.removeItem('clientEmail');
             document.getElementById('clientEmail').value = localStorage.getItem('clientEmail') || "";
             document.getElementById('privateMemoryMode').checked = localStorage.getItem('privateMemoryMode') === 'true';
             const vsId = localStorage.getItem('vectorStoreId') || "";
@@ -7823,7 +7826,7 @@ CRITICAL CONTACT RULE:
 
                 // Handle Automated Memory Updates
                 if (data.memory_updates && data.memory_updates.length > 0) {
-                    const currentUser = (localStorage.getItem('clientEmail') || "System").split('@')[0];
+                    const _raw = localStorage.getItem('clientEmail') || ''; const currentUser = (_raw && !_raw.toLowerCase().startsWith('[object')) ? _raw.split('@')[0] : 'System';
                     data.memory_updates.forEach(updateStr => {
                         try {
                             const jsonStr = updateStr.replace('MEM_SAVE: ', '');
@@ -8450,7 +8453,7 @@ CRITICAL CONTACT RULE:
                         <span class="insight-date">${insight.date}</span>
                         <div style="margin-left: auto; display: flex; align-items: center; gap: 6px;">
                             <span class="insight-source" style="font-weight:700; color: #64748b; text-transform: uppercase; font-size: 0.6rem;">${insight.source || 'Manual'}</span>
-                            ${insight.user ? `<span style="font-size: 0.6rem; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; color: #475569;"><i class="fas fa-user" style="font-size: 0.5rem;"></i> ${insight.user}</span>` : ''}
+                            ${(insight.user && !insight.user.toLowerCase().startsWith('[object')) ? `<span style="font-size: 0.6rem; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; color: #475569;"><i class="fas fa-user" style="font-size: 0.5rem;"></i> ${insight.user}</span>` : ''}
                         </div>
                     </div>
                     <div class="insight-text" id="text-${insight.id}" contenteditable="false">${insight.text}</div>
