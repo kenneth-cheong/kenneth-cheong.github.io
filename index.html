@@ -68499,23 +68499,22 @@ Move-In</h3>
                 const teams = getTeams();
                 const teamOpts = ['<option value="all">All Teams</option>', '<option value="—">Unassigned</option>']
                     .concat(teams.map(t => `<option value="${escHtml(t.name)}">${escHtml(t.name)}</option>`)).join('');
+                const inputStyle = 'padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;background:white;cursor:pointer;outline:none;';
                 el.innerHTML = `
-                    <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
+                    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
                         <div style="position:relative;flex:1;min-width:200px;">
                             <i class="fas fa-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:13px;"></i>
                             <input type="text" id="logsSearchInput" placeholder="Search tool, user, action, details…"
                                 oninput="renderLogsEventLog()"
                                 style="width:100%;padding:8px 10px 8px 32px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;box-sizing:border-box;outline:none;">
                         </div>
-                        <select id="logsTypeFilter" onchange="renderLogsEventLog()"
-                            style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;background:white;cursor:pointer;">
+                        <select id="logsTypeFilter" onchange="renderLogsEventLog()" style="${inputStyle}">
                             <option value="all">All Events</option>
                             <option value="usage">Usage Only</option>
                             <option value="api">API Calls</option>
                             <option value="error">Errors Only</option>
                         </select>
-                        <select id="logsCategoryFilter" onchange="renderLogsEventLog()"
-                            style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;background:white;cursor:pointer;">
+                        <select id="logsCategoryFilter" onchange="renderLogsEventLog()" style="${inputStyle}">
                             <option value="all">All Categories</option>
                             <option value="SEO">SEO</option>
                             <option value="SMM">SMM</option>
@@ -68525,26 +68524,47 @@ Move-In</h3>
                             <option value="Admin">Admin</option>
                             <option value="System">System</option>
                         </select>
-                        <select id="logsTeamFilter" onchange="renderLogsEventLog()"
-                            style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;background:white;cursor:pointer;">${teamOpts}
-                        </select>
-                        <select id="logsGroupBy" onchange="renderLogsEventLog()"
-                            style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;background:white;cursor:pointer;">
+                        <select id="logsTeamFilter" onchange="renderLogsEventLog()" style="${inputStyle}">${teamOpts}</select>
+                        <select id="logsGroupBy" onchange="renderLogsEventLog()" style="${inputStyle}">
                             <option value="none">No Grouping</option>
                             <option value="user">Group by User</option>
                             <option value="team">Group by Team</option>
                             <option value="tool">Group by Tool</option>
                         </select>
                     </div>
+                    <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <label style="font-size:13px;color:#475569;font-weight:600;white-space:nowrap;">From</label>
+                            <input type="date" id="logsDateFrom" onchange="renderLogsEventLog()"
+                                style="${inputStyle}cursor:default;">
+                        </div>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <label style="font-size:13px;color:#475569;font-weight:600;white-space:nowrap;">To</label>
+                            <input type="date" id="logsDateTo" onchange="renderLogsEventLog()"
+                                style="${inputStyle}cursor:default;">
+                        </div>
+                        <button onclick="document.getElementById('logsDateFrom').value='';document.getElementById('logsDateTo').value='';renderLogsEventLog();"
+                            id="logsDateClear"
+                            style="display:none;padding:7px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;color:#64748b;background:white;cursor:pointer;">
+                            <i class="fas fa-times"></i> Clear dates
+                        </button>
+                        <span id="logsMatchCount" style="font-size:12px;color:#94a3b8;margin-left:auto;"></span>
+                    </div>
                     <div id="logsTableContainer"></div>`;
             }
 
             const allLogs    = getEffectiveLogs();
-            const typeFilter = document.getElementById('logsTypeFilter')?.value     || 'all';
+            const typeFilter = document.getElementById('logsTypeFilter')?.value  || 'all';
             const catFilter  = document.getElementById('logsCategoryFilter')?.value || 'all';
-            const teamFilter = document.getElementById('logsTeamFilter')?.value     || 'all';
-            const groupBy    = document.getElementById('logsGroupBy')?.value        || 'none';
-            const search     = (document.getElementById('logsSearchInput')?.value   || '').toLowerCase();
+            const teamFilter = document.getElementById('logsTeamFilter')?.value  || 'all';
+            const groupBy    = document.getElementById('logsGroupBy')?.value     || 'none';
+            const search     = (document.getElementById('logsSearchInput')?.value || '').toLowerCase();
+            const dateFrom   = document.getElementById('logsDateFrom')?.value    || '';  // YYYY-MM-DD
+            const dateTo     = document.getElementById('logsDateTo')?.value      || '';  // YYYY-MM-DD
+
+            // Show/hide clear button
+            const clearBtn = document.getElementById('logsDateClear');
+            if (clearBtn) clearBtn.style.display = (dateFrom || dateTo) ? 'inline-block' : 'none';
 
             let rows = allLogs.filter(l => {
                 if (typeFilter !== 'all' && l.type !== typeFilter) return false;
@@ -68555,6 +68575,10 @@ Move-In</h3>
                     if (teamFilter !== '—' && t !== teamFilter) return false;
                 }
                 if (search && ![l.tool, l.action, l.details, l.category, l.userName, l.userEmail].some(s => (s||'').toLowerCase().includes(search))) return false;
+                // Date range: l.ts is ISO "YYYY-MM-DDTHH:mm:ss…", slice to YYYY-MM-DD for comparison
+                const day = (l.ts || '').slice(0, 10);
+                if (dateFrom && day < dateFrom) return false;
+                if (dateTo   && day > dateTo)   return false;
                 return true;
             });
 
@@ -68574,6 +68598,10 @@ Move-In</h3>
                 return logsSort.dir === 'asc' ? cmp : -cmp;
             });
             rows = rows.slice(0, 500);
+
+            // Update match count
+            const countEl = document.getElementById('logsMatchCount');
+            if (countEl) countEl.textContent = rows.length ? `${rows.length} result${rows.length !== 1 ? 's' : ''}` : '';
 
             const TYPE_BADGE = {
                 usage: '<span style="padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:#dbeafe;color:#1e40af;">Usage</span>',
