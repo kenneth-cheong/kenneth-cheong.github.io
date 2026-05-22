@@ -8,6 +8,7 @@ import urllib.parse
 #   LINKEDIN_CLIENT_SECRET – from your LinkedIn Developer App
 LINKEDIN_CLIENT_ID = os.environ.get('LINKEDIN_CLIENT_ID', '')
 LINKEDIN_CLIENT_SECRET = os.environ.get('LINKEDIN_CLIENT_SECRET', '')
+CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
 
 LINKEDIN_VERSION = '202501'  # Update monthly as needed
 
@@ -36,6 +37,8 @@ def lambda_handler(event, context):
             result = exchange_code(body)
         elif action == 'post':
             result = create_post(body)
+        elif action == 'ai_generate':
+            result = ai_generate(body)
         else:
             result = {'success': False, 'error': f'Unknown action: {action}'}
     except Exception as e:
@@ -75,8 +78,17 @@ def exchange_code(body):
         method='POST',
     )
 
-    with urllib.request.urlopen(token_req) as resp:
-        token_data = json.loads(resp.read())
+    try:
+        with urllib.request.urlopen(token_req) as resp:
+            token_data = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode()
+        try:
+            err_json = json.loads(error_body)
+            detail = err_json.get('error_description') or err_json.get('message') or error_body
+        except Exception:
+            detail = error_body
+        return {'success': False, 'error': f'LinkedIn token exchange {e.code}: {detail}'}
 
     if 'access_token' not in token_data:
         return {'success': False, 'error': f'Token exchange failed: {token_data.get("error_description", token_data)}'}
@@ -156,3 +168,68 @@ def create_post(body):
     except urllib.error.HTTPError as e:
         error_body = e.read().decode()
         return {'success': False, 'error': f'LinkedIn API {e.code}: {error_body}'}
+
+
+# ── Action: generate post text with Claude ────────────────────────────────────
+
+def ai_generate(body):
+    if not CLAUDE_API_KEY:
+        return {'success': False, 'error': 'AI generation is not configured on the server.'}
+
+    event   = body.get('event', '').strip()
+    date    = body.get('date', '').strip()
+    fmt     = body.get('format', '').strip()
+    url     = body.get('url', '').strip()
+    tags    = body.get('tags', '').strip()
+
+    if not event:
+        return {'success': False, 'error': 'Event name is required for AI generation.'}
+
+    tag_str = ' '.join(
+        f"#{t.strip().lstrip('#')}"
+        for t in tags.split(',') if t.strip()
+    )
+    link_line = f'Secure your spot here: {url}' if url else ''
+    date_line = f'📅 {date} | {fmt} (Free)' if date else ''
+
+    prompt = f"""Write a short, warm, first-person LinkedIn post for someone attending this event.
+
+Event: {event}
+Date: {date}
+Format: {fmt}
+{f"Registration link: {url}" if url else ""}
+
+Rules:
+- Open EXACTLY with: "Hi! I am delighted to be part of {event}! 🎉"
+- 2–3 sentences of genuine excitement — what they are looking forward to learning or experiencing
+- Then on its own line: "{date_line}"
+{f'- Then on its own line: "{link_line}"' if link_line else ""}
+- End with the hashtags on their own line: {tag_str}
+- Total: 80–160 words
+- No extra hashtags, no preamble, no sign-off — only the post text"""
+
+    payload = json.dumps({
+        'model': 'claude-haiku-4-5-20251001',
+        'max_tokens': 400,
+        'messages': [{'role': 'user', 'content': prompt}],
+    }).encode()
+
+    req = urllib.request.Request(
+        'https://api.anthropic.com/v1/messages',
+        data=payload,
+        headers={
+            'x-api-key': CLAUDE_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+        },
+        method='POST',
+    )
+
+    try:
+        with urllib.request.urlopen(req) as resp:
+            result = json.loads(resp.read())
+            text = result['content'][0]['text'].strip()
+            return {'success': True, 'text': text}
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode()
+        return {'success': False, 'error': f'AI API {e.code}: {error_body}'}
