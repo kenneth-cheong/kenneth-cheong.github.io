@@ -8141,6 +8141,45 @@ CRITICAL CONTACT RULE:
                     </button>
                 </div>
             </div>
+            <!-- Filter & Sort Bar -->
+            <div style="padding: 12px 32px; border-bottom: 1px solid #f1f5f9; background: #f8fafc; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+                <div style="position: relative; flex: 1; min-width: 140px;">
+                    <i class="fas fa-search" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.75rem; pointer-events: none;"></i>
+                    <input id="insightSearch" type="text" placeholder="Search memories…"
+                        oninput="renderInsights()"
+                        style="width: 100%; padding: 6px 10px 6px 28px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.8rem; font-family: inherit; background: #fff; color: #334155; box-sizing: border-box;">
+                </div>
+                <select id="insightFilterTag" onchange="renderInsights()"
+                    style="padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.75rem; font-family: inherit; background: #fff; color: #475569; font-weight: 600; cursor: pointer;">
+                    <option value="">All Tags</option>
+                    <option value="Preference">Preference</option>
+                    <option value="Project Logic">Project Logic</option>
+                    <option value="Fact">Fact</option>
+                    <option value="General">General</option>
+                </select>
+                <select id="insightFilterTeam" onchange="renderInsights()"
+                    style="padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.75rem; font-family: inherit; background: #fff; color: #475569; font-weight: 600; cursor: pointer;">
+                    <option value="">All Teams</option>
+                    <option value="Everyone">Everyone</option>
+                    <option value="SEO">SEO</option>
+                    <option value="SEM">SEM</option>
+                    <option value="SMM">SMM</option>
+                </select>
+                <select id="insightFilterSource" onchange="renderInsights()"
+                    style="padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.75rem; font-family: inherit; background: #fff; color: #475569; font-weight: 600; cursor: pointer;">
+                    <option value="">All Sources</option>
+                    <option value="Manual">Manual</option>
+                    <option value="AI Learned">AI Learned</option>
+                </select>
+                <select id="insightSort" onchange="renderInsights()"
+                    style="padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.75rem; font-family: inherit; background: #fff; color: #475569; font-weight: 600; cursor: pointer;">
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="az">A → Z</option>
+                    <option value="za">Z → A</option>
+                </select>
+                <span id="insightCount" style="font-size: 0.72rem; color: #94a3b8; white-space: nowrap; padding-left: 4px;"></span>
+            </div>
             <div class="insights-list" id="insightsList">
                 <!-- Insights will be injected here -->
             </div>
@@ -8244,6 +8283,40 @@ CRITICAL CONTACT RULE:
 
         function renderInsights() {
             const list = document.getElementById('insightsList');
+
+            const search = (document.getElementById('insightSearch')?.value || '').toLowerCase().trim();
+            const filterTag = document.getElementById('insightFilterTag')?.value || '';
+            const filterTeam = document.getElementById('insightFilterTeam')?.value || '';
+            const filterSource = document.getElementById('insightFilterSource')?.value || '';
+            const sortMode = document.getElementById('insightSort')?.value || 'newest';
+
+            let filtered = learnedInsights.filter(ins => {
+                if (search && !(ins.text || '').toLowerCase().includes(search)) return false;
+                if (filterTag && ins.tag !== filterTag) return false;
+                if (filterTeam && (ins.team || '') !== filterTeam) return false;
+                if (filterSource) {
+                    const src = (ins.source || 'Manual');
+                    if (filterSource === 'Manual' && src !== 'Manual') return false;
+                    if (filterSource === 'AI Learned' && src === 'Manual') return false;
+                }
+                return true;
+            });
+
+            filtered = [...filtered].sort((a, b) => {
+                if (sortMode === 'oldest') return (a.id || 0) - (b.id || 0);
+                if (sortMode === 'az') return (a.text || '').localeCompare(b.text || '');
+                if (sortMode === 'za') return (b.text || '').localeCompare(a.text || '');
+                return (b.id || 0) - (a.id || 0); // newest
+            });
+
+            const countEl = document.getElementById('insightCount');
+            if (countEl) {
+                const total = learnedInsights.length;
+                countEl.textContent = filtered.length < total
+                    ? `${filtered.length} of ${total}`
+                    : `${total} item${total !== 1 ? 's' : ''}`;
+            }
+
             if (learnedInsights.length === 0) {
                 list.innerHTML = `
                     <div class="empty-insights">
@@ -8254,7 +8327,17 @@ CRITICAL CONTACT RULE:
                 return;
             }
 
-            list.innerHTML = learnedInsights.map((insight, index) => `
+            if (filtered.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-insights">
+                        <i class="fas fa-filter" style="color: #94a3b8; font-size: 2rem; margin-bottom: 12px; opacity: 0.4;"></i>
+                        <p>No memories match your filters.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = filtered.map((insight, index) => `
                 <div class="insight-card" id="insight-${insight.id}">
                     <div class="insight-meta">
                         <span class="insight-tag">${insight.tag}</span>
