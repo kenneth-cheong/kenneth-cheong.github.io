@@ -537,14 +537,9 @@
                         <span class="dot"></span> Live Post Preview
                         <span class="ai-badge" id="ai-badge">✨ AI</span>
                     </div>
-                    <div style="display:flex;gap:8px;align-items:center">
-                        <button class="btn-ai-regen" id="btn-regen" onclick="aiGenerate()">
-                            <i class="fas fa-redo" style="font-size:10px"></i> Regenerate
-                        </button>
-                        <button class="btn-ai" id="btn-ai" onclick="aiGenerate()">
-                            ✨ Generate with AI
-                        </button>
-                    </div>
+                    <button class="btn-ai-regen visible" id="btn-regen" onclick="aiGenerate()">
+                        <i class="fas fa-redo" style="font-size:10px"></i> Regenerate
+                    </button>
                 </div>
                 <div style="height:8px"></div>
                 <div id="live-preview"></div>
@@ -669,9 +664,19 @@
                     showStep('landing');
                     return;
                 }
+                // Restore AI draft in preview if it exists (don't regenerate)
+                const draft = sessionStorage.getItem('li_post_draft');
+                if (draft) {
+                    const preview = document.getElementById('live-preview');
+                    preview.classList.add('ai-mode');
+                    preview.innerHTML = escHtml(draft);
+                    document.getElementById('ai-badge').classList.add('visible');
+                }
                 handleCallback(code);
             } else {
                 showStep('landing');
+                // Auto-generate on fresh page load
+                aiGenerate();
             }
         });
 
@@ -745,13 +750,10 @@
 
         // ── AI Generate ──────────────────────────────────────────────────────
         async function aiGenerate() {
-            const f = getFields();
+            const f       = getFields();
             const preview = document.getElementById('live-preview');
-            const btnAi   = document.getElementById('btn-ai');
             const btnRegen = document.getElementById('btn-regen');
 
-            // Shimmer loading state
-            btnAi.disabled = true;
             btnRegen.disabled = true;
             preview.classList.remove('ai-mode');
             preview.innerHTML = [1,2,3,4].map((_, i) =>
@@ -772,13 +774,10 @@
                 preview.classList.add('ai-mode');
                 preview.innerHTML = escHtml(data.text);
                 document.getElementById('ai-badge').classList.add('visible');
-                btnRegen.classList.add('visible');
-                btnAi.style.display = 'none';
             } catch (err) {
                 showError(err.message);
                 updatePreview(); // fall back to template
             } finally {
-                btnAi.disabled = false;
                 btnRegen.disabled = false;
             }
         }
