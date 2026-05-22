@@ -594,6 +594,9 @@
         function onUrlInput() {
             clearTimeout(urlDebounce);
             const val = document.getElementById('field-url').value.trim();
+            // Keep the page URL in sync so it's always shareable
+            const qs = val ? '?url=' + encodeURIComponent(val) : window.location.pathname;
+            window.history.replaceState({}, '', val ? '?url=' + encodeURIComponent(val) : window.location.pathname);
             if (!val) return;
             urlDebounce = setTimeout(() => analyseUrl(), 900);
         }
