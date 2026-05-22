@@ -543,8 +543,8 @@
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
 
-            // Restore URL from params or session
-            const savedUrl = params.get('url') || sessionStorage.getItem('li_event_url') || '';
+            // URL param always wins — lets a shared link override any stale session value
+            const savedUrl = params.get('url') || (!code && !error ? sessionStorage.getItem('li_event_url') : '') || '';
             document.getElementById('field-url').value = savedUrl;
 
             if (error) {
@@ -595,7 +595,6 @@
             clearTimeout(urlDebounce);
             const val = document.getElementById('field-url').value.trim();
             // Keep the page URL in sync so it's always shareable
-            const qs = val ? '?url=' + encodeURIComponent(val) : window.location.pathname;
             window.history.replaceState({}, '', val ? '?url=' + encodeURIComponent(val) : window.location.pathname);
             if (!val) return;
             urlDebounce = setTimeout(() => analyseUrl(), 900);
@@ -620,6 +619,9 @@
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error || 'Could not extract event details.');
 
+                // Rebuild fields before setting values — shimmer replaced them with divs
+                setFieldsLoading(false);
+
                 document.getElementById('field-event').value  = data.event  || '';
                 document.getElementById('field-date').value   = data.date   || '';
                 document.getElementById('field-format').value = data.format || '';
@@ -629,13 +631,12 @@
                 document.getElementById('fields-section').classList.add('ai-populated');
 
                 updateBanner();
-                // Auto-generate post once fields are ready
                 await aiGenerate();
 
             } catch (err) {
+                setFieldsLoading(false);
                 showError(err.message);
             } finally {
-                setFieldsLoading(false);
                 document.getElementById('btn-analyse').disabled = false;
                 document.getElementById('field-url').classList.remove('analysing');
             }
