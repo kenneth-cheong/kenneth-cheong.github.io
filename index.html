@@ -25988,22 +25988,11 @@ Return ONLY a valid JSON array (no markdown, no extra text). Each object must ha
 
                 if (!append) promptList.innerHTML = '';
 
-                prompts.forEach((p, idx) => {
+                prompts.forEach((p) => {
                     // Quick duplicate check on the client side as well
-                    const isDuplicate = Array.from(document.querySelectorAll('.disc-prompt-item span')).some(s => s.innerText.trim() === p.trim());
+                    const isDuplicate = Array.from(document.querySelectorAll('.disc-prompt-item .editable-prompt-text')).some(s => s.innerText.trim() === p.trim());
                     if (isDuplicate) return;
-
-                    const item = document.createElement('div');
-                    item.style.cssText = "display: flex; align-items: flex-start; gap: 12px; padding: 15px; background: var(--bg-cool); border-radius: 12px; border: 1px solid #e2e8f0; line-height: 1.5; font-size: 0.9em; transition: all 0.2s; position: relative; min-height: 80px; height: 100%;";
-                    item.className = "disc-prompt-item";
-                    item.innerHTML = `
-                        <input type="radio" name="selectedDiscoveryPrompt" value="${p.replace(/"/g, '&quot;')}" style="width: 18px !important; height: 18px !important; flex-shrink: 0; margin-top: 4px; border-style: solid !important;">
-                        <div contenteditable="true" class="editable-prompt-text" style="color: var(--text-slate); flex: 1; text-align: left; word-break: break-word; outline: none; padding: 2px 5px; border-radius: 4px; transition: background 0.2s;" onfocus="this.style.background='#fff'; this.style.boxShadow='0 0 0 2px var(--primary-blue)';" onblur="this.style.background='transparent'; this.style.boxShadow='none';">${p}</div>
-                        <button onclick="deleteDiscoveryPrompt(this)" style="background: none; border: none; color: #ef4444; cursor: pointer; opacity: 0.6; transition: opacity 0.2s; padding: 5px; flex-shrink: 0; margin-left: auto;">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
-                    `;
-                    promptList.appendChild(item);
+                    promptList.appendChild(_buildDiscPromptItem(p, false));
                 });
 
                 promptArea.style.display = 'block';
@@ -26029,55 +26018,66 @@ Return ONLY a valid JSON array (no markdown, no extra text). Each object must ha
         }
 
         async function verifyDiscoveryMentions() {
-            const selectedRadio = document.querySelector('input[name="selectedDiscoveryPrompt"]:checked');
-            const selectedPrompt = selectedRadio?.closest('.disc-prompt-item')?.querySelector('.editable-prompt-text')?.innerText.trim();
+            const checkedItems = Array.from(document.querySelectorAll('#discPromptsChecklist input[name="selectedDiscoveryPrompt"]:checked'));
+            const selectedPrompts = checkedItems
+                .map(cb => cb.closest('.disc-prompt-item')?.querySelector('.editable-prompt-text')?.innerText.trim())
+                .filter(Boolean);
+
+            if (selectedPrompts.length === 0) return alert("Please check at least one prompt to verify.");
+
             const targetUrl = document.getElementById('discKeywordUrl').value;
             const brand = targetUrl.includes('.') ? targetUrl.split('.')[0] : targetUrl;
             const location = document.getElementById('discKeywordLocation').value;
             const btn = document.querySelector('#discPromptArea button');
             const resultsArea = document.getElementById('discVerificationResults');
 
-            if (!selectedPrompt) return alert("Please select a prompt to verify.");
-
             const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Verifying ${selectedPrompts.length} prompt${selectedPrompts.length > 1 ? 's' : ''}...`;
             btn.disabled = true;
 
-            // 1. Prepare the results grid with loading placeholders
+            // 1. Build results container — one grid section per prompt
             const models = ["gpt-4o-mini", "claude-haiku-4-5", "gemini-3.1-flash-lite-preview", "perplexity", "copilot"];
-            resultsArea.innerHTML = `
-                <div id="discResultsGrid" style="display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); margin-top: 20px;">
-                    ${models.map(m => `
-                        <div id="resCard_${m}" class="geo-card" style="border-left: 5px solid #e2e8f0; min-height: 250px; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #fff; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); border-radius: 15px; position: relative; overflow: hidden;">
-                            <div style="position: absolute; top: 15px; left: 20px; font-weight: 700; font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">
-                                <i class="fas fa-robot"></i> ${m.toUpperCase().replace('-MINI', '').replace('-FLASH', '').replace('-HAIKU-4-5', '')}
+            resultsArea.innerHTML = selectedPrompts.map((prompt, pi) => `
+                <div style="margin-top: ${pi > 0 ? '32px' : '20px'};">
+                    <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: #6366f1; margin-bottom: 10px;">
+                        <i class="fas fa-comment-dots" style="margin-right: 6px;"></i>Prompt ${pi + 1} of ${selectedPrompts.length}
+                    </div>
+                    <div style="font-size: 0.85rem; font-style: italic; color: #334155; background: #f8fafc; border-left: 3px solid #6366f1; padding: 8px 12px; border-radius: 0 8px 8px 0; margin-bottom: 12px; line-height: 1.5;">
+                        "${prompt}"
+                    </div>
+                    <div id="discResultsGrid_${pi}" style="display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));">
+                        ${models.map(m => `
+                            <div id="resCard_${pi}_${m}" class="geo-card" style="border-left: 5px solid #e2e8f0; min-height: 250px; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #fff; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); border-radius: 15px; position: relative; overflow: hidden;">
+                                <div style="position: absolute; top: 15px; left: 20px; font-weight: 700; font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">
+                                    <i class="fas fa-robot"></i> ${m.toUpperCase().replace('-MINI', '').replace('-FLASH', '').replace('-HAIKU-4-5', '')}
+                                </div>
+                                <div class="loader-content" style="text-align: center; padding: 20px;">
+                                    <i class="fas fa-circle-notch fa-spin" style="font-size: 2em; color: #6366f1; margin-bottom: 12px;"></i>
+                                    <div style="font-size: 0.85em; color: #64748b; font-weight: 600;">Analyzing Context...</div>
+                                    <div style="font-size: 0.7em; color: #94a3b8; margin-top: 4px;">Connecting to engine</div>
+                                </div>
                             </div>
-                            <div class="loader-content" style="text-align: center; padding: 20px;">
-                                <i class="fas fa-circle-notch fa-spin" style="font-size: 2em; color: #6366f1; margin-bottom: 12px;"></i>
-                                <div style="font-size: 0.85em; color: #64748b; font-weight: 600;">Analyzing Context...</div>
-                                <div style="font-size: 0.7em; color: #94a3b8; margin-top: 4px;">Connecting to engine</div>
-                            </div>
-                        </div>
-                    `).join('')}
+                        `).join('')}
+                    </div>
                 </div>
-            `;
+            `).join('');
             resultsArea.style.display = 'block';
             resultsArea.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-            // 2. Define the single-model verification logic
-            const verifyModel = async (model) => {
-                const card = document.getElementById(`resCard_${model}`);
+            // 2. Define the per-prompt × per-model verification logic
+            const verifyModel = async (prompt, pi, model) => {
+                const card = document.getElementById(`resCard_${pi}_${model}`);
                 try {
                     const response = await fetch('https://y0ypcivaz1.execute-api.ap-southeast-1.amazonaws.com/aiMentions', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             action: 'verify_mentions',
-                            prompt: selectedPrompt,
+                            prompt: prompt,
                             brand: brand,
                             url: targetUrl,
                             location: location,
-                            models: [model] // Single model request
+                            models: [model]
                         })
                     });
 
@@ -26176,7 +26176,7 @@ Return ONLY a valid JSON array (no markdown, no extra text). Each object must ha
                         </div>
                         <div style="padding: 20px;">
                             <div style="font-size: 0.7rem; color: #64748b; margin-bottom: 12px; font-style: italic; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; line-height: 1.4;">
-                                <i class="fas fa-quote-left" style="font-size: 0.8em; opacity: 0.5; margin-right: 4px;"></i> ${selectedPrompt}
+                                <i class="fas fa-quote-left" style="font-size: 0.8em; opacity: 0.5; margin-right: 4px;"></i> ${prompt}
                             </div>
                             <div style="display: flex; gap: 8px; margin-bottom: 12px;">
                                 <span class="badge" style="background: ${sentiment === 'positive' ? '#dcfce7' : '#f1f5f9'}; color: ${sentiment === 'positive' ? '#166534' : '#475569'};">${sentiment.toUpperCase()}</span>
@@ -26222,11 +26222,11 @@ Return ONLY a valid JSON array (no markdown, no extra text). Each object must ha
                 }
             };
 
-            // 3. Trigger all fetches concurrently
-            const fetchPromises = models.map(m => verifyModel(m));
-
-            // Wait for all to finish only to reset the main button
-            Promise.all(fetchPromises).finally(() => {
+            // 3. Trigger all prompts × all models concurrently
+            const allPromises = selectedPrompts.flatMap((prompt, pi) =>
+                models.map(m => verifyModel(prompt, pi, m))
+            );
+            Promise.all(allPromises).finally(() => {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
             });
@@ -26731,6 +26731,20 @@ Return ONLY a valid JSON array (no markdown, no extra text). Each object must ha
             closeJourneyModal();
         }
 
+        function _buildDiscPromptItem(p, checked = false) {
+            const item = document.createElement('div');
+            item.className = 'disc-prompt-item';
+            item.style.cssText = 'display: flex; align-items: flex-start; gap: 12px; padding: 15px; background: var(--bg-cool); border-radius: 12px; border: 1px solid #e2e8f0; line-height: 1.5; font-size: 0.9em; transition: all 0.2s; position: relative; min-height: 80px; height: 100%;';
+            item.innerHTML = `
+                <input type="checkbox" name="selectedDiscoveryPrompt" value="${p.replace(/"/g, '&quot;')}" ${checked ? 'checked' : ''} style="width: 18px !important; height: 18px !important; flex-shrink: 0; margin-top: 4px; border-style: solid !important;">
+                <div contenteditable="true" class="editable-prompt-text" style="color: var(--text-slate); flex: 1; text-align: left; word-break: break-word; outline: none; padding: 2px 5px; border-radius: 4px; transition: background 0.2s;" onfocus="this.style.background='#fff'; this.style.boxShadow='0 0 0 2px var(--primary-blue)';" onblur="this.style.background='transparent'; this.style.boxShadow='none';">${p}</div>
+                <button onclick="deleteDiscoveryPrompt(this)" style="background: none; border: none; color: #ef4444; cursor: pointer; opacity: 0.6; transition: opacity 0.2s; padding: 5px; flex-shrink: 0; margin-left: auto;">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            `;
+            return item;
+        }
+
         async function autoRunGeoDiscovery(url) {
             if (!url) return;
 
@@ -26799,9 +26813,24 @@ Return ONLY a valid JSON array (no markdown, no extra text). Each object must ha
             });
             listArea.style.display = 'block';
 
-            // 6. Generate prompts for the top keywords automatically
-            const aiPrompt = `Based on these keywords: ${topKeywords.join(', ')}, generate 10 realistic user-intent questions or prompts that someone might ask a Generative AI engine (like ChatGPT or Perplexity) to search for services/products related to these keywords. The language of the prompts MUST match the language of the keywords FULLY.
-Format: Return ONLY a JSON array of strings. Do not include any explanation or markdown formatting.`;
+            // 6. Generate 5 strategy-tailored prompts using strategy context if available
+            const si = window._strategyInputs;
+            const contextLines = [
+                si?.clientProfile   ? `Business: ${si.clientProfile}`       : null,
+                si?.targetAudience  ? `Audience: ${si.targetAudience}`      : null,
+                si?.marketContext   ? `Market: ${si.marketContext}`          : null,
+                `Keywords: ${topKeywords.join(', ')}`
+            ].filter(Boolean).join('\n');
+
+            const aiPrompt = `${contextLines}
+
+Generate exactly 5 realistic search queries a potential customer would type into an AI assistant (ChatGPT, Perplexity, Google Gemini) when looking for the products or services described above. These should be high-intent discovery questions where appearing in the AI's answer would drive qualified leads.
+
+Rules:
+- Natural, conversational questions (not just keyword lists)
+- Mix of informational and transactional intent
+- Language must fully match the keywords / market context
+- Return ONLY a JSON array of exactly 5 strings — no explanation, no markdown`;
 
             let prompts = [];
             try {
@@ -26815,31 +26844,25 @@ Format: Return ONLY a JSON array of strings. Do not include any explanation or m
                 const content = body.result || body.text || '';
                 const jsonMatch = content.match(/\[.*\]/s);
                 prompts = JSON.parse(jsonMatch ? jsonMatch[0] : content);
+                if (!Array.isArray(prompts)) throw new Error('Not an array');
+                prompts = prompts.slice(0, 5);
             } catch (e) {
                 console.warn('autoRunGeoDiscovery: prompt generation failed', e);
                 return;
             }
 
-            // 7. Render prompts
+            // 7. Render prompts as pre-checked checkboxes (all 5 selected by default)
             const promptList = document.getElementById('discPromptsChecklist');
             const promptArea = document.getElementById('discPromptArea');
             if (!promptList || !promptArea) return;
 
             promptList.innerHTML = '';
             prompts.forEach(p => {
-                const item = document.createElement('div');
-                item.className = 'disc-prompt-item';
-                item.style.cssText = 'display: flex; align-items: flex-start; gap: 12px; padding: 15px; background: var(--bg-cool); border-radius: 12px; border: 1px solid #e2e8f0; line-height: 1.5; font-size: 0.9em; transition: all 0.2s; position: relative; min-height: 80px; height: 100%;';
-                item.innerHTML = `
-                    <input type="radio" name="selectedDiscoveryPrompt" value="${p.replace(/"/g, '&quot;')}" style="width: 18px !important; height: 18px !important; flex-shrink: 0; margin-top: 4px; border-style: solid !important;">
-                    <div contenteditable="true" class="editable-prompt-text" style="color: var(--text-slate); flex: 1; text-align: left; word-break: break-word; outline: none; padding: 2px 5px; border-radius: 4px; transition: background 0.2s;" onfocus="this.style.background='#fff'; this.style.boxShadow='0 0 0 2px var(--primary-blue)';" onblur="this.style.background='transparent'; this.style.boxShadow='none';">${p}</div>
-                    <button onclick="deleteDiscoveryPrompt(this)" style="background: none; border: none; color: #ef4444; cursor: pointer; opacity: 0.6; transition: opacity 0.2s; padding: 5px; flex-shrink: 0; margin-left: auto;">
-                        <i class="fas fa-trash-alt"></i>
-                    </button>
-                `;
-                promptList.appendChild(item);
+                promptList.appendChild(_buildDiscPromptItem(p, true));
             });
             promptArea.style.display = 'block';
+
+            if (typeof setTaskStatus === 'function') setTaskStatus('geo', 'done');
         }
 
         function updateDiscLanguageBasedOnLocation() {
@@ -46954,6 +46977,7 @@ Return ONLY a valid JSON object (no markdown, no explanation):
                     }, 800); // Slight delay to ensure UI is ready
 
                     // Auto-trigger GEO Discovery Audit + AI Mentions (LLM-driven, no human input needed)
+                    window._strategyInputs = inputs; // Share with autoRunGeoDiscovery for prompt context
                     setTimeout(() => {
                         setTaskStatus('geo', 'running');
                         autoRunGeoDiscovery(quickInput).catch(e => console.warn('Auto-GEO error:', e));
