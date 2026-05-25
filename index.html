@@ -10686,7 +10686,7 @@
             <a href="#" onclick="showSeoOnly(event)">SEO</a>
             <div class="dropdown-content">
                 <a href="#strategyEngine" onclick="openStrategyEngine(event)">Strategy Engine</a>
-                <a href="#pricingQuoteSection" onclick="openPricingQuoteNav(event)">SEO Quote Generator</a>
+                <a href="#pricingQuoteSection" onclick="openPricingQuoteNav(event)">Quote Generator</a>
                 <a href="#keywordAnalysis" onclick="openKeywordAnalysis(event)">Keyword Analysis</a>
 
                 <a href="#crawlerSimulator" onclick="openCrawlerSimulator(event)">Google Crawler Simulator</a>
@@ -11933,14 +11933,6 @@
             </div>
             <span class="card-pill-tag" data-cat="SEO">SEO</span>
         </div>
-        <div class="basic-selector-card" onclick="selectBasicSection('pricingQuote')">
-            <div class="card-icon" style="background: #e0e7ff; color: #4f46e5;"><i class="fas fa-calculator"></i></div>
-            <div class="card-info">
-                <h4>SEO Pricing Quote</h4>
-                <p>Itemised quote builder & cluster pricing</p>
-            </div>
-            <span class="card-pill-tag" data-cat="SEO">SEO</span>
-        </div>
         <div class="basic-selector-card active" onclick="selectBasicSection('siteAnalysis')">
             <div class="card-icon" style="background: #fef3c7; color: #d97706;"><i class="fas fa-chart-line"></i></div>
             <div class="card-info">
@@ -12024,6 +12016,14 @@
             <div class="card-info">
                 <h4>Landing Page Audit</h4>
                 <p>Evaluate landing pages for conversion rate optimization</p>
+            </div>
+            <span class="card-pill-tag" data-cat="Others">Others</span>
+        </div>
+        <div class="basic-selector-card" onclick="selectBasicSection('pricingQuote')">
+            <div class="card-icon" style="background: #e0e7ff; color: #4f46e5;"><i class="fas fa-calculator"></i></div>
+            <div class="card-info">
+                <h4>Pricing Quote</h4>
+                <p>Itemised quote builder & cluster pricing</p>
             </div>
             <span class="card-pill-tag" data-cat="Others">Others</span>
         </div>
@@ -12795,335 +12795,6 @@
             </div>
 
             <!-- ═══════════════════════════════════════════════════════════ -->
-            <!-- Pricing Quote Generator                                     -->
-            <!-- ═══════════════════════════════════════════════════════════ -->
-            <div id="pricingQuoteSection" style="margin-bottom: 4px;">
-                <button class="strat-collapsible" id="pricingQuoteBtn" onclick="togglePricingQuote(event)"
-                    style="background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);">
-                    <i class="fas fa-plus-square"></i>
-                    SEO Pricing Quote Generator
-                </button>
-                <div class="content" id="pricing-quote-content"
-                    style="display:none; padding: 28px; background: #f8fafc; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px; margin-bottom: 20px;">
-
-                    <!-- ── Channel Tabs ── -->
-                    <div style="display:flex; gap:6px; margin-bottom:24px; background:#f1f5f9; border-radius:12px; padding:4px;">
-                        <button class="pq-tab active" id="pq-tab-seo" onclick="switchPricingTab('seo')"><i class="fas fa-search"></i> SEO</button>
-                        <button class="pq-tab" id="pq-tab-geo" onclick="switchPricingTab('geo')"><i class="fas fa-robot"></i> GEO</button>
-                        <button class="pq-tab" id="pq-tab-paid" onclick="switchPricingTab('paid')"><i class="fas fa-ad"></i> Paid Ads</button>
-                        <button class="pq-tab" id="pq-tab-smm" onclick="switchPricingTab('smm')"><i class="fas fa-hashtag"></i> Social Media</button>
-                    </div>
-
-                    <!-- ── Header Row ── -->
-                    <div style="display:flex; align-items:center; margin-bottom:22px;">
-                        <div>
-                            <div style="font-size:1.15rem; font-weight:800; color:#0f172a; font-family:'Outfit',sans-serif;">
-                                <i class="fas fa-calculator" style="color:#6366f1;"></i> <span id="pq-channel-title">SEO Quote Builder</span>
-                            </div>
-                            <div style="font-size:0.78rem; color:#64748b; margin-top:3px;">Adjust parameters to generate a live client-facing quote</div>
-                        </div>
-                    </div>
-
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
-
-                        <!-- ── LEFT PANEL: Sliders & Service Selector ── -->
-                        <div style="display:flex; flex-direction:column; gap:20px;">
-
-                            <!-- Keyword Count Slider -->
-                            <div style="background:white; border-radius:14px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.05); border:1px solid #e2e8f0;">
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                                    <div style="font-size:0.8rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.06em;">
-                                        <i class="fas fa-key" style="color:#6366f1;"></i> <span id="pq-kw-label">Keywords</span>
-                                    </div>
-                                    <div style="font-size:1.4rem; font-weight:900; color:#6366f1; min-width:45px; text-align:right;" id="pq-kw-count-display">20</div>
-                                </div>
-                                <input type="range" id="pq-kw-count" min="5" max="200" step="5" value="20"
-                                    oninput="updatePricingQuote()"
-                                    style="width:100%; accent-color:#6366f1; cursor:pointer; height:6px;">
-                                <div style="display:flex; justify-content:space-between; font-size:0.68rem; color:#94a3b8; margin-top:6px;">
-                                    <span>5</span><span>200</span>
-                                </div>
-                            </div>
-
-                            <!-- Keyword Difficulty Slider -->
-                            <div style="background:white; border-radius:14px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.05); border:1px solid #e2e8f0;">
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                                    <div style="font-size:0.8rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.06em;">
-                                        <i class="fas fa-signal" style="color:#f59e0b;"></i> <span id="pq-slider2-label">Avg. Keyword Difficulty</span>
-                                    </div>
-                                    <div style="font-size:1.4rem; font-weight:900; color:#f59e0b; min-width:70px; text-align:right;">
-                                        <span id="pq-kd-display">45</span>
-                                        <span id="pq-kd-label" style="font-size:0.7rem; font-weight:700; color:#64748b; margin-left:4px;">Medium</span>
-                                    </div>
-                                </div>
-                                <input type="range" id="pq-kd" min="0" max="100" step="1" value="45"
-                                    oninput="updatePricingQuote()"
-                                    style="width:100%; accent-color:#f59e0b; cursor:pointer; height:6px;">
-                                <div style="display:flex; justify-content:space-between; font-size:0.68rem; color:#94a3b8; margin-top:6px;">
-                                    <span>0 Easy</span><span>100 Very Hard</span>
-                                </div>
-                            </div>
-
-                            <!-- Contract Duration -->
-                            <div style="background:white; border-radius:14px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.05); border:1px solid #e2e8f0;">
-                                <div style="font-size:0.8rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:12px;">
-                                    <i class="fas fa-calendar-alt" style="color:#10b981;"></i> Contract Duration
-                                </div>
-                                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                                    <button class="pq-duration-btn active" data-months="3" onclick="selectPricingDuration(this, 3)">3 mo</button>
-                                    <button class="pq-duration-btn" data-months="6" onclick="selectPricingDuration(this, 6)">6 mo</button>
-                                    <button class="pq-duration-btn" data-months="12" onclick="selectPricingDuration(this, 12)">12 mo</button>
-                                    <button class="pq-duration-btn" data-months="24" onclick="selectPricingDuration(this, 24)">24 mo</button>
-                                </div>
-                            </div>
-
-                            <!-- Services Selector -->
-                            <div style="background:white; border-radius:14px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.05); border:1px solid #e2e8f0;">
-                                <div style="font-size:0.8rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:14px;">
-                                    <i class="fas fa-cogs" style="color:#8b5cf6;"></i> Services Included
-                                </div>
-                                <div style="display:flex; flex-direction:column; gap:10px;" id="pq-services-list">
-                                    <!-- Services injected by JS -->
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- ── RIGHT PANEL: Live Quote ── -->
-                        <div style="display:flex; flex-direction:column; gap:16px;">
-
-                            <!-- Quote Card -->
-                            <div style="background:linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); border-radius:18px; padding:26px; color:white; box-shadow:0 8px 30px rgba(15,23,42,0.25);">
-                                <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; color:#93c5fd; margin-bottom:4px;">Estimated Monthly Retainer</div>
-                                <div style="font-size:2.6rem; font-weight:900; font-family:'Outfit',sans-serif; line-height:1;" id="pq-total-display">SGD 0</div>
-                                <div style="font-size:0.75rem; color:#94a3b8; margin-top:6px;" id="pq-contract-summary">/month · 3-month contract</div>
-
-                                <div style="margin-top:20px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.12);">
-                                    <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#93c5fd; margin-bottom:10px;">Contract Total</div>
-                                    <div style="font-size:1.5rem; font-weight:800; font-family:'Outfit',sans-serif;" id="pq-contract-total-display">SGD 0</div>
-                                </div>
-                            </div>
-
-                            <!-- Itemised Breakdown -->
-                            <div style="background:white; border-radius:14px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.05); border:1px solid #e2e8f0; flex:1;">
-                                <div style="font-size:0.8rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:14px;">
-                                    <i class="fas fa-receipt" style="color:#6366f1;"></i> Itemised Breakdown
-                                </div>
-                                <div id="pq-breakdown-list" style="display:flex; flex-direction:column; gap:8px;">
-                                    <!-- Breakdown rows injected by JS -->
-                                </div>
-                            </div>
-
-                            <!-- Action Buttons -->
-                            <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                                <button onclick="copyPricingQuote()"
-                                    style="flex:1; padding:12px; background:#6366f1; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.83rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; transition:all 0.2s;">
-                                    <i class="fas fa-copy"></i> Copy Quote
-                                </button>
-                                <button onclick="exportPricingQuotePDF()"
-                                    style="flex:1; padding:12px; background:white; color:#1e293b; border:1px solid #e2e8f0; border-radius:10px; font-weight:700; font-size:0.83rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; transition:all 0.2s;">
-                                    <i class="fas fa-file-pdf" style="color:#ef4444;"></i> Export PDF
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- ═══ End Pricing Quote Generator ════════════════════════════ -->
-
-            <div id="keywordMappingSection">
-                <button class="collapsible" id="keyword_mapping"><i class="fas fa-plus-square"></i>Keyword
-                    Mapping</button>
-                <div class="content" id="keywordMapping">
-                    <div class="mapping-instructions">
-                        <h4><i class="fas fa-info-circle"></i> Quick Guide: Keyword Mapping</h4>
-                        <ul>
-                            <li><i class="fas fa-mouse-pointer"></i> <strong>Drag & Drop:</strong> Click and hold a
-                                keyword, then drag it to any URL card to map it.</li>
-                            <li><i class="fas fa-edit"></i> <strong>Map URLs:</strong> Update the text box at the top of
-                                each card to define the target URL path.</li>
-                            <li><i class="fas fa-wand-sparkles"></i> <strong>Smart Suggestions:</strong> Click "Page
-                                Recommendations" to get AI-powered mapping ideas.</li>
-                            <li><i class="fas fa-plus"></i> <strong>Expand:</strong> Use "Add New URL" to create more
-                                mapping destinations.</li>
-                        </ul>
-                    </div>
-                    <button id="addListBtn"><i class="fas fa-plus"></i> Add New URL</button>
-                    <button id="undoBtn" disabled><i class="fas fa-undo"></i> Undo Delete</button>
-                    <div class="container" id="listsContainer"></div>
-                    <div id="recommendations"></div>
-                </div>
-            </div>
-            <div id="siteAnalysisSection">
-            <button id="siteAnalysisToggle" class="collapsible">
-                <i class="fas fa-plus-square"></i>
-                Page Technical & Domain Analysis
-            </button>
-            <div id="siteAnalysisContent" class="content"
-                style="display: none; border: 1px solid #e2e8f0; border-top: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; background: white; padding: 24px; margin-bottom: 30px;">
-                <div id="metaDataSection" class="premium-table-wrapper" style="padding: 24px; margin-bottom: 30px;">
-                    <h3
-                        style="margin-top: 0; margin-bottom: 20px; font-weight: 800; color: #0f172a; font-size: 1.25rem; display: flex; align-items: center; gap: 12px;">
-                        <span
-                            style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; background: #f0f9ff; color: #0369a1; border-radius: 10px;">
-                            <i class="fas fa-info-circle"></i>
-                        </span>
-                        Page Metadata
-                    </h3>
-                    <div id="metaData" class="geo-input-group" style="grid-template-columns: 1fr; gap: 16px;">
-                        <div class="geo-section-item" style="margin: 0;">
-                            <div
-                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                <span
-                                    style="font-weight: 700; font-size: 0.8em; color: var(--text-muted); text-transform: uppercase;">Meta
-                                    Title</span>
-                                <button
-                                    onclick="copyToClipboard(document.getElementById('targetTitle').innerText, this)"
-                                    style="background:none; border:none; color: var(--text-muted); cursor:pointer;"><i
-                                        class="fas fa-copy"></i></button>
-                            </div>
-                            <div id="targetTitle" style="font-weight: 600; color: var(--text-slate); font-size: 1.1em;">
-                                -</div>
-                        </div>
-                        <div class="geo-section-item" style="margin: 0;">
-                            <div
-                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                <span
-                                    style="font-weight: 700; font-size: 0.8em; color: var(--text-muted); text-transform: uppercase;">Meta
-                                    Description</span>
-                                <button
-                                    onclick="copyToClipboard(document.getElementById('targetDescription').innerText, this)"
-                                    style="background:none; border:none; color: var(--text-muted); cursor:pointer;"><i
-                                        class="fas fa-copy"></i></button>
-                            </div>
-                            <div id="targetDescription"
-                                style="font-weight: 500; color: var(--text-slate); line-height: 1.5;">-</div>
-                        </div>
-                        <div class="geo-section-item" style="margin: 0;">
-                            <div
-                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                <span
-                                    style="font-weight: 700; font-size: 0.8em; color: var(--text-muted); text-transform: uppercase;">H1
-                                    Header</span>
-                                <button onclick="copyToClipboard(document.getElementById('targetH1').innerText, this)"
-                                    style="background:none; border:none; color: var(--text-muted); cursor:pointer;"><i
-                                        class="fas fa-copy"></i></button>
-                            </div>
-                            <div id="targetH1" style="font-weight: 700; color: var(--primary-blue); font-size: 1.25em;">
-                                -</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="domainMetricsSummary" style="margin-bottom: 20px;"></div>
-
-                <div id="domainMetricsSection" class="premium-table-wrapper" style="padding: 24px;">
-                    <h3
-                        style="margin-top: 0; margin-bottom: 24px; font-weight: 800; color: #0f172a; font-size: 1.25rem; display: flex; align-items: center; gap: 12px;">
-                        <span
-                            style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; background: #eff6ff; color: #2563eb; border-radius: 10px;">
-                            <i class="fas fa-chart-line"></i>
-                        </span>
-                        Domain & Page Metrics
-                    </h3>
-                    <div id="domainMetrics"
-                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
-                        <!-- Metric Cards -->
-                        <div class="metric-card-premium">
-                            <div class="metric-header">Domain Authority</div>
-                            <div class="metric-value-large" id="da">-</div>
-                            <div class="metric-sub">Moz DA Score</div>
-                        </div>
-                        <div class="metric-card-premium">
-                            <div class="metric-header">Page Authority</div>
-                            <div class="metric-value-large" id="pa">-</div>
-                            <div class="metric-sub">Moz PA Score</div>
-                        </div>
-                        <div class="metric-card-premium">
-                            <div class="metric-header">Backlinks</div>
-                            <div class="metric-value-large" id="targetBacklinks">-</div>
-                            <div class="metric-sub" id="targetSpamScore">Spam Score: -</div>
-                            <div id="backlinkSourceBadge" style="display:none; margin-top:5px; font-size:0.7em; padding:2px 7px; border-radius:10px; font-weight:700; width:fit-content;"></div>
-                        </div>
-                        <div class="metric-card-premium">
-                            <div class="metric-header">Ref. Domains</div>
-                            <div class="metric-value-large" id="targetRefDomains">-</div>
-                            <div class="metric-sub">Unique Domains</div>
-                            <div id="refDomainsSourceBadge" style="display:none; margin-top:5px; font-size:0.7em; padding:2px 7px; border-radius:10px; font-weight:700; width:fit-content;"></div>
-                        </div>
-                        <div class="metric-card-premium">
-                            <div class="metric-header">Organic Traffic</div>
-                            <div class="metric-value-large" id="targetOrgTraffic">-</div>
-                            <div class="metric-sub">Est. Monthly Visits</div>
-                            <div id="orgTrafficSourceBadge" style="display:none; margin-top:5px; font-size:0.7em; padding:2px 7px; border-radius:10px; font-weight:700; width:fit-content; background:#e0f2fe; color:#0369a1;"></div>
-                        </div>
-                        <div class="metric-card-premium">
-                            <div class="metric-header">Organic Keywords</div>
-                            <div class="metric-value-large" id="targetOrgKeywords">-</div>
-                            <div class="metric-sub">Total Ranking Keywords</div>
-                            <div id="orgKeywordsSourceBadge" style="display:none; margin-top:5px; font-size:0.7em; padding:2px 7px; border-radius:10px; font-weight:700; width:fit-content; background:#e0f2fe; color:#0369a1;"></div>
-                        </div>
-                        <div class="metric-card-premium">
-                            <div class="metric-header">Word Count</div>
-                            <div class="metric-value-large" id="targetWordCount">-</div>
-                            <div class="metric-sub" id="targetReadability">Readability: -</div>
-                        </div>
-                        <div class="metric-card-premium">
-                            <div class="metric-header">Core Web Vitals</div>
-                            <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 10px;">
-                                <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                                    <span>CLS</span> <span id="targetCls" class="premium-badge">-</span>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                                    <span>LCP</span> <span id="targetLcp" class="premium-badge">-</span>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                                    <span>FID</span> <span id="targetFid" class="premium-badge">-</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="metric-card-premium">
-                            <div class="metric-header">Links & Media</div>
-                            <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 10px;">
-                                <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                                    <span>Internal</span> <span id="targetInternalLinks"
-                                        style="font-weight: 700;">-</span>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                                    <span>External</span> <span id="targetExternalLinks"
-                                        style="font-weight: 700;">-</span>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                                    <span>Images</span> <span id="targetImages" style="font-weight: 700;">-</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="metric-card-premium">
-                            <div class="metric-header">Schema Markup</div>
-                            <div id="targetSchema" style="margin-top: 10px; font-weight: 600;">-</div>
-                        </div>
-                    </div>
-
-                    <!-- Metric Guide -->
-                    <details style="margin-top: 18px; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;">
-                        <summary style="padding: 10px 16px; background: #f8fafc; cursor: pointer; font-size: 0.78rem; font-weight: 700; color: #475569; list-style: none; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-info-circle" style="color: #2563eb;"></i> How to read these metrics
-                        </summary>
-                        <div style="padding: 14px 16px; font-size: 0.75rem; color: #64748b; line-height: 1.8; background: white;">
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px;">
-                                <div><strong style="color:#334155;">DA / PA</strong> — 0–100. 40+ good · 60+ strong · 80+ excellent</div>
-                                <div><strong style="color:#334155;">Spam Score</strong> — Lower is better. &lt;30% safe · 30–60% caution · &gt;60% high risk</div>
-                                <div><strong style="color:#334155;">Backlinks</strong> — More unique ref. domains = stronger authority signal</div>
-                                <div><strong style="color:#334155;">Word Count</strong> — 1,000+ competitive · 2,000+ comprehensive coverage</div>
-                                <div><strong style="color:#334155;">Readability (Flesch)</strong> — 60–70 standard · 80+ easy · &lt;30 very difficult</div>
-                                <div><strong style="color:#334155;">CLS</strong> — &lt;0.1 good · &lt;0.25 needs improvement · &gt;0.25 poor</div>
-                                <div><strong style="color:#334155;">LCP</strong> — &lt;2.5s good · &lt;4s needs improvement · &gt;4s poor</div>
-                                <div><strong style="color:#334155;">FID</strong> — &lt;100ms good · &lt;300ms needs improvement · &gt;300ms poor</div>
-                            </div>
-                        </div>
-                    </details>
-                </div>
-            </div>
-            </div>
             <div id="keywordAnalysisSection">
                 <div class="page-break"></div>
                 <button class="collapsible" id="keywordAnalysisBtn"><i class="fas fa-plus-square"></i>Keyword
@@ -14683,6 +14354,336 @@
                 </div>
             </div>
         </div>
+
+            <!-- Pricing Quote Generator                                     -->
+            <!-- ═══════════════════════════════════════════════════════════ -->
+            <div id="pricingQuoteSection" style="margin-bottom: 4px;">
+                <button class="strat-collapsible" id="pricingQuoteBtn" onclick="togglePricingQuote(event)"
+                    style="background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);">
+                    <i class="fas fa-plus-square"></i>
+                    Pricing Quote Generator
+                </button>
+                <div class="content" id="pricing-quote-content"
+                    style="display:none; padding: 28px; background: #f8fafc; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px; margin-bottom: 20px;">
+
+                    <!-- ── Channel Tabs ── -->
+                    <div style="display:flex; gap:6px; margin-bottom:24px; background:#f1f5f9; border-radius:12px; padding:4px;">
+                        <button class="pq-tab active" id="pq-tab-seo" onclick="switchPricingTab('seo')"><i class="fas fa-search"></i> SEO</button>
+                        <button class="pq-tab" id="pq-tab-geo" onclick="switchPricingTab('geo')"><i class="fas fa-robot"></i> GEO</button>
+                        <button class="pq-tab" id="pq-tab-paid" onclick="switchPricingTab('paid')"><i class="fas fa-ad"></i> Paid Ads</button>
+                        <button class="pq-tab" id="pq-tab-smm" onclick="switchPricingTab('smm')"><i class="fas fa-hashtag"></i> Social Media</button>
+                    </div>
+
+                    <!-- ── Header Row ── -->
+                    <div style="display:flex; align-items:center; margin-bottom:22px;">
+                        <div>
+                            <div style="font-size:1.15rem; font-weight:800; color:#0f172a; font-family:'Outfit',sans-serif;">
+                                <i class="fas fa-calculator" style="color:#6366f1;"></i> <span id="pq-channel-title">SEO Quote Builder</span>
+                            </div>
+                            <div style="font-size:0.78rem; color:#64748b; margin-top:3px;">Adjust parameters to generate a live client-facing quote</div>
+                        </div>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+
+                        <!-- ── LEFT PANEL: Sliders & Service Selector ── -->
+                        <div style="display:flex; flex-direction:column; gap:20px;">
+
+                            <!-- Keyword Count Slider -->
+                            <div style="background:white; border-radius:14px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.05); border:1px solid #e2e8f0;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                    <div style="font-size:0.8rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.06em;">
+                                        <i class="fas fa-key" style="color:#6366f1;"></i> <span id="pq-kw-label">Keywords</span>
+                                    </div>
+                                    <div style="font-size:1.4rem; font-weight:900; color:#6366f1; min-width:45px; text-align:right;" id="pq-kw-count-display">20</div>
+                                </div>
+                                <input type="range" id="pq-kw-count" min="5" max="200" step="5" value="20"
+                                    oninput="updatePricingQuote()"
+                                    style="width:100%; accent-color:#6366f1; cursor:pointer; height:6px;">
+                                <div style="display:flex; justify-content:space-between; font-size:0.68rem; color:#94a3b8; margin-top:6px;">
+                                    <span>5</span><span>200</span>
+                                </div>
+                            </div>
+
+                            <!-- Keyword Difficulty Slider -->
+                            <div style="background:white; border-radius:14px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.05); border:1px solid #e2e8f0;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                    <div style="font-size:0.8rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.06em;">
+                                        <i class="fas fa-signal" style="color:#f59e0b;"></i> <span id="pq-slider2-label">Avg. Keyword Difficulty</span>
+                                    </div>
+                                    <div style="font-size:1.4rem; font-weight:900; color:#f59e0b; min-width:70px; text-align:right;">
+                                        <span id="pq-kd-display">45</span>
+                                        <span id="pq-kd-label" style="font-size:0.7rem; font-weight:700; color:#64748b; margin-left:4px;">Medium</span>
+                                    </div>
+                                </div>
+                                <input type="range" id="pq-kd" min="0" max="100" step="1" value="45"
+                                    oninput="updatePricingQuote()"
+                                    style="width:100%; accent-color:#f59e0b; cursor:pointer; height:6px;">
+                                <div style="display:flex; justify-content:space-between; font-size:0.68rem; color:#94a3b8; margin-top:6px;">
+                                    <span>0 Easy</span><span>100 Very Hard</span>
+                                </div>
+                            </div>
+
+                            <!-- Contract Duration -->
+                            <div style="background:white; border-radius:14px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.05); border:1px solid #e2e8f0;">
+                                <div style="font-size:0.8rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:12px;">
+                                    <i class="fas fa-calendar-alt" style="color:#10b981;"></i> Contract Duration
+                                </div>
+                                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                                    <button class="pq-duration-btn active" data-months="3" onclick="selectPricingDuration(this, 3)">3 mo</button>
+                                    <button class="pq-duration-btn" data-months="6" onclick="selectPricingDuration(this, 6)">6 mo</button>
+                                    <button class="pq-duration-btn" data-months="12" onclick="selectPricingDuration(this, 12)">12 mo</button>
+                                    <button class="pq-duration-btn" data-months="24" onclick="selectPricingDuration(this, 24)">24 mo</button>
+                                </div>
+                            </div>
+
+                            <!-- Services Selector -->
+                            <div style="background:white; border-radius:14px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.05); border:1px solid #e2e8f0;">
+                                <div style="font-size:0.8rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:14px;">
+                                    <i class="fas fa-cogs" style="color:#8b5cf6;"></i> Services Included
+                                </div>
+                                <div style="display:flex; flex-direction:column; gap:10px;" id="pq-services-list">
+                                    <!-- Services injected by JS -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ── RIGHT PANEL: Live Quote ── -->
+                        <div style="display:flex; flex-direction:column; gap:16px;">
+
+                            <!-- Quote Card -->
+                            <div style="background:linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); border-radius:18px; padding:26px; color:white; box-shadow:0 8px 30px rgba(15,23,42,0.25);">
+                                <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; color:#93c5fd; margin-bottom:4px;">Estimated Monthly Retainer</div>
+                                <div style="font-size:2.6rem; font-weight:900; font-family:'Outfit',sans-serif; line-height:1;" id="pq-total-display">SGD 0</div>
+                                <div style="font-size:0.75rem; color:#94a3b8; margin-top:6px;" id="pq-contract-summary">/month · 3-month contract</div>
+
+                                <div style="margin-top:20px; padding-top:16px; border-top:1px solid rgba(255,255,255,0.12);">
+                                    <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#93c5fd; margin-bottom:10px;">Contract Total</div>
+                                    <div style="font-size:1.5rem; font-weight:800; font-family:'Outfit',sans-serif;" id="pq-contract-total-display">SGD 0</div>
+                                </div>
+                            </div>
+
+                            <!-- Itemised Breakdown -->
+                            <div style="background:white; border-radius:14px; padding:20px; box-shadow:0 2px 8px rgba(0,0,0,0.05); border:1px solid #e2e8f0; flex:1;">
+                                <div style="font-size:0.8rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:14px;">
+                                    <i class="fas fa-receipt" style="color:#6366f1;"></i> Itemised Breakdown
+                                </div>
+                                <div id="pq-breakdown-list" style="display:flex; flex-direction:column; gap:8px;">
+                                    <!-- Breakdown rows injected by JS -->
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                <button onclick="copyPricingQuote()"
+                                    style="flex:1; padding:12px; background:#6366f1; color:white; border:none; border-radius:10px; font-weight:700; font-size:0.83rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; transition:all 0.2s;">
+                                    <i class="fas fa-copy"></i> Copy Quote
+                                </button>
+                                <button onclick="exportPricingQuotePDF()"
+                                    style="flex:1; padding:12px; background:white; color:#1e293b; border:1px solid #e2e8f0; border-radius:10px; font-weight:700; font-size:0.83rem; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; transition:all 0.2s;">
+                                    <i class="fas fa-file-pdf" style="color:#ef4444;"></i> Export PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- ═══ End Pricing Quote Generator ════════════════════════════ -->
+
+            <div id="keywordMappingSection">
+                <button class="collapsible" id="keyword_mapping"><i class="fas fa-plus-square"></i>Keyword
+                    Mapping</button>
+                <div class="content" id="keywordMapping">
+                    <div class="mapping-instructions">
+                        <h4><i class="fas fa-info-circle"></i> Quick Guide: Keyword Mapping</h4>
+                        <ul>
+                            <li><i class="fas fa-mouse-pointer"></i> <strong>Drag & Drop:</strong> Click and hold a
+                                keyword, then drag it to any URL card to map it.</li>
+                            <li><i class="fas fa-edit"></i> <strong>Map URLs:</strong> Update the text box at the top of
+                                each card to define the target URL path.</li>
+                            <li><i class="fas fa-wand-sparkles"></i> <strong>Smart Suggestions:</strong> Click "Page
+                                Recommendations" to get AI-powered mapping ideas.</li>
+                            <li><i class="fas fa-plus"></i> <strong>Expand:</strong> Use "Add New URL" to create more
+                                mapping destinations.</li>
+                        </ul>
+                    </div>
+                    <button id="addListBtn"><i class="fas fa-plus"></i> Add New URL</button>
+                    <button id="undoBtn" disabled><i class="fas fa-undo"></i> Undo Delete</button>
+                    <div class="container" id="listsContainer"></div>
+                    <div id="recommendations"></div>
+                </div>
+            </div>
+            <div id="siteAnalysisSection">
+            <button id="siteAnalysisToggle" class="collapsible">
+                <i class="fas fa-plus-square"></i>
+                Page Technical & Domain Analysis
+            </button>
+            <div id="siteAnalysisContent" class="content"
+                style="display: none; border: 1px solid #e2e8f0; border-top: none; border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; background: white; padding: 24px; margin-bottom: 30px;">
+                <div id="metaDataSection" class="premium-table-wrapper" style="padding: 24px; margin-bottom: 30px;">
+                    <h3
+                        style="margin-top: 0; margin-bottom: 20px; font-weight: 800; color: #0f172a; font-size: 1.25rem; display: flex; align-items: center; gap: 12px;">
+                        <span
+                            style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; background: #f0f9ff; color: #0369a1; border-radius: 10px;">
+                            <i class="fas fa-info-circle"></i>
+                        </span>
+                        Page Metadata
+                    </h3>
+                    <div id="metaData" class="geo-input-group" style="grid-template-columns: 1fr; gap: 16px;">
+                        <div class="geo-section-item" style="margin: 0;">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <span
+                                    style="font-weight: 700; font-size: 0.8em; color: var(--text-muted); text-transform: uppercase;">Meta
+                                    Title</span>
+                                <button
+                                    onclick="copyToClipboard(document.getElementById('targetTitle').innerText, this)"
+                                    style="background:none; border:none; color: var(--text-muted); cursor:pointer;"><i
+                                        class="fas fa-copy"></i></button>
+                            </div>
+                            <div id="targetTitle" style="font-weight: 600; color: var(--text-slate); font-size: 1.1em;">
+                                -</div>
+                        </div>
+                        <div class="geo-section-item" style="margin: 0;">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <span
+                                    style="font-weight: 700; font-size: 0.8em; color: var(--text-muted); text-transform: uppercase;">Meta
+                                    Description</span>
+                                <button
+                                    onclick="copyToClipboard(document.getElementById('targetDescription').innerText, this)"
+                                    style="background:none; border:none; color: var(--text-muted); cursor:pointer;"><i
+                                        class="fas fa-copy"></i></button>
+                            </div>
+                            <div id="targetDescription"
+                                style="font-weight: 500; color: var(--text-slate); line-height: 1.5;">-</div>
+                        </div>
+                        <div class="geo-section-item" style="margin: 0;">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <span
+                                    style="font-weight: 700; font-size: 0.8em; color: var(--text-muted); text-transform: uppercase;">H1
+                                    Header</span>
+                                <button onclick="copyToClipboard(document.getElementById('targetH1').innerText, this)"
+                                    style="background:none; border:none; color: var(--text-muted); cursor:pointer;"><i
+                                        class="fas fa-copy"></i></button>
+                            </div>
+                            <div id="targetH1" style="font-weight: 700; color: var(--primary-blue); font-size: 1.25em;">
+                                -</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="domainMetricsSummary" style="margin-bottom: 20px;"></div>
+
+                <div id="domainMetricsSection" class="premium-table-wrapper" style="padding: 24px;">
+                    <h3
+                        style="margin-top: 0; margin-bottom: 24px; font-weight: 800; color: #0f172a; font-size: 1.25rem; display: flex; align-items: center; gap: 12px;">
+                        <span
+                            style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; background: #eff6ff; color: #2563eb; border-radius: 10px;">
+                            <i class="fas fa-chart-line"></i>
+                        </span>
+                        Domain & Page Metrics
+                    </h3>
+                    <div id="domainMetrics"
+                        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                        <!-- Metric Cards -->
+                        <div class="metric-card-premium">
+                            <div class="metric-header">Domain Authority</div>
+                            <div class="metric-value-large" id="da">-</div>
+                            <div class="metric-sub">Moz DA Score</div>
+                        </div>
+                        <div class="metric-card-premium">
+                            <div class="metric-header">Page Authority</div>
+                            <div class="metric-value-large" id="pa">-</div>
+                            <div class="metric-sub">Moz PA Score</div>
+                        </div>
+                        <div class="metric-card-premium">
+                            <div class="metric-header">Backlinks</div>
+                            <div class="metric-value-large" id="targetBacklinks">-</div>
+                            <div class="metric-sub" id="targetSpamScore">Spam Score: -</div>
+                            <div id="backlinkSourceBadge" style="display:none; margin-top:5px; font-size:0.7em; padding:2px 7px; border-radius:10px; font-weight:700; width:fit-content;"></div>
+                        </div>
+                        <div class="metric-card-premium">
+                            <div class="metric-header">Ref. Domains</div>
+                            <div class="metric-value-large" id="targetRefDomains">-</div>
+                            <div class="metric-sub">Unique Domains</div>
+                            <div id="refDomainsSourceBadge" style="display:none; margin-top:5px; font-size:0.7em; padding:2px 7px; border-radius:10px; font-weight:700; width:fit-content;"></div>
+                        </div>
+                        <div class="metric-card-premium">
+                            <div class="metric-header">Organic Traffic</div>
+                            <div class="metric-value-large" id="targetOrgTraffic">-</div>
+                            <div class="metric-sub">Est. Monthly Visits</div>
+                            <div id="orgTrafficSourceBadge" style="display:none; margin-top:5px; font-size:0.7em; padding:2px 7px; border-radius:10px; font-weight:700; width:fit-content; background:#e0f2fe; color:#0369a1;"></div>
+                        </div>
+                        <div class="metric-card-premium">
+                            <div class="metric-header">Organic Keywords</div>
+                            <div class="metric-value-large" id="targetOrgKeywords">-</div>
+                            <div class="metric-sub">Total Ranking Keywords</div>
+                            <div id="orgKeywordsSourceBadge" style="display:none; margin-top:5px; font-size:0.7em; padding:2px 7px; border-radius:10px; font-weight:700; width:fit-content; background:#e0f2fe; color:#0369a1;"></div>
+                        </div>
+                        <div class="metric-card-premium">
+                            <div class="metric-header">Word Count</div>
+                            <div class="metric-value-large" id="targetWordCount">-</div>
+                            <div class="metric-sub" id="targetReadability">Readability: -</div>
+                        </div>
+                        <div class="metric-card-premium">
+                            <div class="metric-header">Core Web Vitals</div>
+                            <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 10px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                                    <span>CLS</span> <span id="targetCls" class="premium-badge">-</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                                    <span>LCP</span> <span id="targetLcp" class="premium-badge">-</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                                    <span>FID</span> <span id="targetFid" class="premium-badge">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="metric-card-premium">
+                            <div class="metric-header">Links & Media</div>
+                            <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 10px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                                    <span>Internal</span> <span id="targetInternalLinks"
+                                        style="font-weight: 700;">-</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                                    <span>External</span> <span id="targetExternalLinks"
+                                        style="font-weight: 700;">-</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                                    <span>Images</span> <span id="targetImages" style="font-weight: 700;">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="metric-card-premium">
+                            <div class="metric-header">Schema Markup</div>
+                            <div id="targetSchema" style="margin-top: 10px; font-weight: 600;">-</div>
+                        </div>
+                    </div>
+
+                    <!-- Metric Guide -->
+                    <details style="margin-top: 18px; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden;">
+                        <summary style="padding: 10px 16px; background: #f8fafc; cursor: pointer; font-size: 0.78rem; font-weight: 700; color: #475569; list-style: none; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-info-circle" style="color: #2563eb;"></i> How to read these metrics
+                        </summary>
+                        <div style="padding: 14px 16px; font-size: 0.75rem; color: #64748b; line-height: 1.8; background: white;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px;">
+                                <div><strong style="color:#334155;">DA / PA</strong> — 0–100. 40+ good · 60+ strong · 80+ excellent</div>
+                                <div><strong style="color:#334155;">Spam Score</strong> — Lower is better. &lt;30% safe · 30–60% caution · &gt;60% high risk</div>
+                                <div><strong style="color:#334155;">Backlinks</strong> — More unique ref. domains = stronger authority signal</div>
+                                <div><strong style="color:#334155;">Word Count</strong> — 1,000+ competitive · 2,000+ comprehensive coverage</div>
+                                <div><strong style="color:#334155;">Readability (Flesch)</strong> — 60–70 standard · 80+ easy · &lt;30 very difficult</div>
+                                <div><strong style="color:#334155;">CLS</strong> — &lt;0.1 good · &lt;0.25 needs improvement · &gt;0.25 poor</div>
+                                <div><strong style="color:#334155;">LCP</strong> — &lt;2.5s good · &lt;4s needs improvement · &gt;4s poor</div>
+                                <div><strong style="color:#334155;">FID</strong> — &lt;100ms good · &lt;300ms needs improvement · &gt;300ms poor</div>
+                            </div>
+                        </div>
+                    </details>
+                </div>
+            </div>
+            </div>
         <hr id="seoSectionHr">
 
     </div>
@@ -68133,7 +68134,7 @@ Move-In</h3>
                 // SEO
                 'strategyEngineSection':    { icon: 'fas fa-magic',           title: 'AI Strategy Engine' },
                 'seoTime2RankSection':      { icon: 'fas fa-clock',           title: 'Time to Rank' },
-                'pricingQuoteSection':      { icon: 'fas fa-calculator',      title: 'SEO Pricing Quote' },
+                'pricingQuoteSection':      { icon: 'fas fa-calculator',      title: 'Pricing Quote' },
                 'siteAnalysisSection':      { icon: 'fas fa-chart-line',      title: 'Domain Analysis' },
                 'technicalSeoSection':      { icon: 'fas fa-tools',           title: 'Technical SEO' },
                 'keywordMappingSection':    { icon: 'fas fa-map',             title: 'Keyword Mapping' },
