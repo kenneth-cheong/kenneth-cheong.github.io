@@ -10787,7 +10787,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1440</span>
+                <span id="appVersion">v1.0.1442</span>
             </a>
         </div>
 
@@ -38371,81 +38371,91 @@ Output ONLY the finished ${contentTypeLabel} — no meta-commentary, no explanat
                 });
             });
 
-            fetch("https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new", {
-                method: 'POST',
-                headers: { "Accept": "application/json", "Content-Type": "application/json" },
-                body: JSON.stringify({ url: domain })
-            })
-                .then(response => {
-                    if (!response.ok) throw new Error(`Error obtaining domain metrics Status: ${response.status}`);
-                    return response.json();
-                })
-                .then(async data => {
-                    console.log(data);
-                    const setOrNone = (id, val, style) => {
-                        const el = document.getElementById(id);
-                        if (!el) return;
-                        if (val === null || val === undefined || String(val).trim() === '') {
-                            el.innerHTML = '<span style="color:#94a3b8;font-style:italic;font-weight:400;">None</span>';
-                        } else {
-                            el.innerText = val;
-                            if (style) Object.assign(el.style, style);
-                        }
-                    };
+            // Run DataForSEO page analysis and Ahrefs overview independently so a
+            // 504 from DataForSEO doesn't block Ahrefs backlink / traffic data.
+            (async () => {
+                const [dfsRes, ahrefsRes] = await Promise.allSettled([
+                    fetch("https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new", {
+                        method: 'POST',
+                        headers: { "Accept": "application/json", "Content-Type": "application/json" },
+                        body: JSON.stringify({ url: domain })
+                    }).then(r => { if (!r.ok) throw new Error(`DataForSEO ${r.status}`); return r.json(); }),
+                    ahrefsOverviewPromise
+                ]);
 
-                    // Page-level metrics — DataForSEO only
-                    setOrNone('targetTitle', data.body.title);
-                    setOrNone('targetDescription', data.body.description);
-                    document.getElementById('targetSpamScore').innerText = data.body.backlinks_spam_score;
-                    document.getElementById('targetInternalLinks').innerText = data.body.internal_links_count;
-                    document.getElementById('targetExternalLinks').innerText = data.body.external_links_count;
-                    setOrNone('targetH1', data.body.h1);
-                    document.getElementById('targetImages').innerText = data.body.image;
-                    document.getElementById('targetCls').innerText = data.body.cls;
-                    document.getElementById('targetLcp').innerText = data.body.lcp;
-                    document.getElementById('targetFid').innerText = data.body.fid;
-                    document.getElementById('targetSchema').innerText = data.body.schema;
-                    document.getElementById('targetReadability').innerText = data.body.readability;
-                    document.getElementById('targetWordCount').innerText = data.body.word_count;
+                if (dfsRes.status === 'rejected') console.error('DataForSEO page analysis failed:', dfsRes.reason);
+                if (ahrefsRes.status === 'rejected') console.warn('Ahrefs overview unavailable:', ahrefsRes.reason);
 
-                    // Backlinks & referring domains — prefer Ahrefs, fall back to DataForSEO
-                    const ahrefsData = await ahrefsOverviewPromise;
-                    const bl = ahrefsData?.backlinks        ?? ahrefsData?.domain?.backlinks        ?? data.body.backlinks;
-                    const rd = ahrefsData?.referring_domains ?? ahrefsData?.domain?.referring_domains ?? data.body.referring_domains;
-                    document.getElementById('targetBacklinks').innerText = bl != null ? Number(bl).toLocaleString() : data.body.backlinks;
-                    document.getElementById('targetRefDomains').innerText = rd != null ? Number(rd).toLocaleString() : data.body.referring_domains;
+                const dfsBody   = dfsRes.status   === 'fulfilled' ? (dfsRes.value?.body   ?? dfsRes.value)   : null;
+                const ahrefsData = ahrefsRes.status === 'fulfilled' ? ahrefsRes.value : null;
 
-                    // Organic traffic & keywords (Ahrefs only)
-                    const ot = ahrefsData?.org_traffic  ?? ahrefsData?.domain?.org_traffic;
-                    const ok = ahrefsData?.org_keywords ?? ahrefsData?.domain?.org_keywords;
-                    if (ot != null) { document.getElementById('targetOrgTraffic').innerText = Number(ot).toLocaleString(); document.getElementById('orgTrafficSourceBadge').textContent = 'Ahrefs'; document.getElementById('orgTrafficSourceBadge').style.display = ''; }
-                    if (ok != null) { document.getElementById('targetOrgKeywords').innerText = Number(ok).toLocaleString(); document.getElementById('orgKeywordsSourceBadge').textContent = 'Ahrefs'; document.getElementById('orgKeywordsSourceBadge').style.display = ''; }
+                const setOrNone = (id, val, style) => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    if (val === null || val === undefined || String(val).trim() === '') {
+                        el.innerHTML = '<span style="color:#94a3b8;font-style:italic;font-weight:400;">None</span>';
+                    } else {
+                        el.innerText = val;
+                        if (style) Object.assign(el.style, style);
+                    }
+                };
 
-                    // Source indicator badges
-                    const blSource = ahrefsData != null ? 'Ahrefs' : 'DataForSEO';
-                    const blBg    = ahrefsData != null ? '#e0f2fe' : '#f0fdf4';
-                    const blColor = ahrefsData != null ? '#0369a1' : '#16a34a';
-                    ['backlinkSourceBadge', 'refDomainsSourceBadge'].forEach(id => {
-                        const el = document.getElementById(id);
-                        if (!el) return;
-                        el.textContent = blSource;
-                        el.style.display = '';
-                        el.style.background = blBg;
-                        el.style.color = blColor;
-                    });
+                // Page-level metrics — DataForSEO only
+                if (dfsBody) {
+                    console.log(dfsBody);
+                    setOrNone('targetTitle', dfsBody.title);
+                    setOrNone('targetDescription', dfsBody.description);
+                    document.getElementById('targetSpamScore').innerText = dfsBody.backlinks_spam_score;
+                    document.getElementById('targetInternalLinks').innerText = dfsBody.internal_links_count;
+                    document.getElementById('targetExternalLinks').innerText = dfsBody.external_links_count;
+                    setOrNone('targetH1', dfsBody.h1);
+                    document.getElementById('targetImages').innerText = dfsBody.image;
+                    document.getElementById('targetCls').innerText = dfsBody.cls;
+                    document.getElementById('targetLcp').innerText = dfsBody.lcp;
+                    document.getElementById('targetFid').innerText = dfsBody.fid;
+                    document.getElementById('targetSchema').innerText = dfsBody.schema;
+                    document.getElementById('targetReadability').innerText = dfsBody.readability;
+                    document.getElementById('targetWordCount').innerText = dfsBody.word_count;
+                }
 
+                // Backlinks & referring domains — prefer Ahrefs, fall back to DataForSEO
+                const bl = ahrefsData?.backlinks        ?? ahrefsData?.domain?.backlinks        ?? dfsBody?.backlinks;
+                const rd = ahrefsData?.referring_domains ?? ahrefsData?.domain?.referring_domains ?? dfsBody?.referring_domains;
+                if (bl != null) document.getElementById('targetBacklinks').innerText = Number(bl).toLocaleString();
+                if (rd != null) document.getElementById('targetRefDomains').innerText = Number(rd).toLocaleString();
+
+                // Organic traffic & keywords (Ahrefs only)
+                const ot = ahrefsData?.org_traffic  ?? ahrefsData?.domain?.org_traffic;
+                const ok = ahrefsData?.org_keywords ?? ahrefsData?.domain?.org_keywords;
+                if (ot != null) { document.getElementById('targetOrgTraffic').innerText = Number(ot).toLocaleString(); document.getElementById('orgTrafficSourceBadge').textContent = 'Ahrefs'; document.getElementById('orgTrafficSourceBadge').style.display = ''; }
+                if (ok != null) { document.getElementById('targetOrgKeywords').innerText = Number(ok).toLocaleString(); document.getElementById('orgKeywordsSourceBadge').textContent = 'Ahrefs'; document.getElementById('orgKeywordsSourceBadge').style.display = ''; }
+
+                // Source indicator badges
+                const blSource = ahrefsData != null ? 'Ahrefs' : 'DataForSEO';
+                const blBg    = ahrefsData != null ? '#e0f2fe' : '#f0fdf4';
+                const blColor = ahrefsData != null ? '#0369a1' : '#16a34a';
+                ['backlinkSourceBadge', 'refDomainsSourceBadge'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    el.textContent = blSource;
+                    el.style.display = '';
+                    el.style.background = blBg;
+                    el.style.color = blColor;
+                });
+
+                if (dfsBody || ahrefsData) {
                     updateCollapsibleState('siteAnalysisToggle', 'success');
                     const daValue = document.getElementById('da').innerText;
                     updateDomainSummaryTable(domain, {
                         da: daValue,
-                        linking_domains: rd ?? data.body.referring_domains,
-                        backlinks: bl ?? data.body.backlinks
+                        linking_domains: rd ?? dfsBody?.referring_domains,
+                        backlinks: bl ?? dfsBody?.backlinks
                     });
-                })
-                .catch(error => {
-                    console.error("Error fetching targeted domain data:", error);
+                } else {
+                    console.error('Both DataForSEO and Ahrefs failed for domain metrics');
                     document.getElementById('keyword-research-analysis-button').innerText = "Get Time To Rank";
-                });
+                }
+            })();
         }
 
         function updateDomainSummaryTable(domain, metrics) {
