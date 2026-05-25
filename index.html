@@ -10787,7 +10787,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1437</span>
+                <span id="appVersion">v1.0.1438</span>
             </a>
         </div>
 
@@ -22355,9 +22355,10 @@
 
         function _holisticNorm(str) {
             return (str || '').toLowerCase()
-                .replace(/https?:\/\/(www\.)?/, '')
-                .replace(/\/$/, '')
+                .replace(/https?:\/\/\S*/g, '')   // remove full URLs (not just protocol)
+                .replace(/\bwww\.\S*/g, '')        // remove bare www.domain patterns
                 .replace(/[^a-z0-9\s]/g, ' ')
+                .replace(/\s+/g, ' ')
                 .trim();
         }
 
@@ -22587,7 +22588,11 @@
 
                 // Full-funnel crisis — emit single combined insight to avoid duplication
                 if (e.intel?.isBehind && e.paidAtRisk && e.bigDrops.length > 0 && allCritical > 0) {
-                    local.push({ entity: name, sev: 'critical', icon: 'fa-exclamation-circle', text: `<b>${name}</b>: Full-funnel crisis — SEO behind trajectory, paid at risk, ${e.bigDrops.length} rank drop${e.bigDrops.length>1?'s':''}, and ${allCritical} critical GSC/GA4 issue${allCritical>1?'s':''}. Escalate immediately.${ml()}` });
+                    local.push({ entity: name, sev: 'critical', icon: 'fa-exclamation-circle',
+                        text: `<b>${name}</b>: Full-funnel crisis — SEO behind trajectory, paid at risk, ${e.bigDrops.length} rank drop${e.bigDrops.length>1?'s':''}, and ${allCritical} critical GSC/GA4 issue${allCritical>1?'s':''}. Escalate immediately.${ml()}`,
+                        cause: 'Compounding failures across all channels point to a systemic issue — likely a combination of technical debt, content gaps, and market-level pressure.',
+                        rec: 'Convene a cross-channel review immediately. Fix high-impact GSC issues first to recover crawlability, pause underperforming ad sets, refresh core landing pages, and compare against competitor SERP positions.'
+                    });
                     insights.push(...local);
                     return;
                 }
@@ -22595,50 +22600,104 @@
                 // SEO trajectory
                 if (e.intel?.isBehind) {
                     if (e.bigDrops.length > 0 && allCritical > 0) {
-                        local.push({ entity: name, sev: 'critical', icon: 'fa-exclamation-circle', text: `<b>${name}</b>: Behind trajectory with ${e.bigDrops.length} keyword${e.bigDrops.length>1?'s':''} dropping 5+ positions and ${allCritical} critical GSC/GA4 issue${allCritical>1?'s':''}. Prioritise immediately.${ml()}` });
+                        local.push({ entity: name, sev: 'critical', icon: 'fa-exclamation-circle',
+                            text: `<b>${name}</b>: Behind trajectory with ${e.bigDrops.length} keyword${e.bigDrops.length>1?'s':''} dropping 5+ positions and ${allCritical} critical GSC/GA4 issue${allCritical>1?'s':''}. Prioritise immediately.${ml()}`,
+                            cause: 'Technical crawlability or indexation issues are likely suppressing rankings, compounding the trajectory shortfall.',
+                            rec: `Fix the ${e.gscHigh.length > 0 ? e.gscHigh.length + ' high-impact GSC issue' + (e.gscHigh.length>1?'s':'') : 'GSC issues'} first (crawl errors, indexation blocks, Core Web Vitals), then audit the dropping keywords for content freshness and competitor displacement.`
+                        });
                     } else if (e.bigDrops.length > 0) {
-                        local.push({ entity: name, sev: 'high', icon: 'fa-arrow-trend-down', text: `<b>${name}</b>: Behind KPI trajectory with ${e.bigDrops.length} keyword${e.bigDrops.length>1?'s':''} dropping 5+ positions.${ml()}` });
+                        local.push({ entity: name, sev: 'high', icon: 'fa-arrow-trend-down',
+                            text: `<b>${name}</b>: Behind KPI trajectory with ${e.bigDrops.length} keyword${e.bigDrops.length>1?'s':''} dropping 5+ positions.${ml()}`,
+                            cause: 'Likely content relevance loss or competitor displacement on target keywords — rankings are actively declining.',
+                            rec: 'Audit the dropping keywords for content freshness, E-E-A-T signals, and competitor gaps. Refresh or consolidate underperforming pages and review internal linking to those URLs.'
+                        });
                     } else if (e.rankGains.length > e.rankDrops.length) {
-                        local.push({ entity: name, sev: 'medium', icon: 'fa-clock', text: `<b>${name}</b>: Behind trajectory but net-positive rankings — may self-correct. Monitor closely.${ml()}` });
+                        local.push({ entity: name, sev: 'medium', icon: 'fa-clock',
+                            text: `<b>${name}</b>: Behind trajectory but net-positive rankings — may self-correct. Monitor closely.${ml()}`,
+                            cause: 'The campaign may be ahead on ranking momentum but behind on pace — common when new content is indexing or a recent push is taking effect.',
+                            rec: 'Monitor weekly for the next 2–3 weeks. If trajectory gap persists despite positive rankings, review whether the KPI target reflects current search volumes.'
+                        });
                     } else {
-                        local.push({ entity: name, sev: 'high', icon: 'fa-crosshairs', text: `<b>${name}</b>: Behind SEO KPI trajectory.${ml()}` });
+                        local.push({ entity: name, sev: 'high', icon: 'fa-crosshairs',
+                            text: `<b>${name}</b>: Behind SEO KPI trajectory.${ml()}`,
+                            cause: 'Campaign may be off-pace due to slow content indexing, unresolved technical debt, or seasonality.',
+                            rec: 'Review milestone delivery vs timeline, check index coverage in GSC, and compare current traffic against seasonal benchmarks from prior year.'
+                        });
                     }
                 } else if (e.intel && !e.intel.isBehind && e.bigDrops.length > 0) {
-                    local.push({ entity: name, sev: 'medium', icon: 'fa-eye', text: `<b>${name}</b>: On trajectory but ${e.bigDrops.length} notable rank drop${e.bigDrops.length>1?'s':''} — watch for momentum shift.${ml()}` });
+                    local.push({ entity: name, sev: 'medium', icon: 'fa-eye',
+                        text: `<b>${name}</b>: On trajectory but ${e.bigDrops.length} notable rank drop${e.bigDrops.length>1?'s':''} — watch for momentum shift.${ml()}`,
+                        cause: 'Isolated ranking drops may indicate early competitor encroachment or a recent algorithm sensitivity on those specific keywords.',
+                        rec: `Monitor the ${e.bigDrops.length} dropped keyword${e.bigDrops.length>1?'s':''} weekly. If drops persist beyond 2 weeks, refresh the corresponding pages and check for any recent technical changes.`
+                    });
                 } else if (e.bigDrops.length >= 3 && !e.intel) {
-                    local.push({ entity: name, sev: 'high', icon: 'fa-chart-line', text: `<b>${name}</b>: ${e.bigDrops.length} large rank drops with no linked SEO campaign.${ml()}` });
+                    local.push({ entity: name, sev: 'high', icon: 'fa-chart-line',
+                        text: `<b>${name}</b>: ${e.bigDrops.length} large rank drops with no linked SEO campaign.${ml()}`,
+                        cause: 'No active SEO management means there is no recovery strategy in place for these ranking losses.',
+                        rec: 'Consider onboarding an SEO campaign for this domain, or at minimum run a technical SEO audit and content gap analysis to understand the root cause.'
+                    });
                 }
 
                 // GSC issues — independent of trajectory
                 if (e.gscHigh.length > 0) {
-                    local.push({ entity: name, sev: e.intel?.isBehind ? 'high' : 'medium', icon: 'fa-exclamation-triangle', text: `<b>${name}</b>: ${e.gscHigh.length} high-impact GSC issue${e.gscHigh.length>1?'s':''} — technical issues likely suppressing rankings.` });
+                    local.push({ entity: name, sev: e.intel?.isBehind ? 'high' : 'medium', icon: 'fa-exclamation-triangle',
+                        text: `<b>${name}</b>: ${e.gscHigh.length} high-impact GSC issue${e.gscHigh.length>1?'s':''} detected — technical issues likely suppressing rankings.`,
+                        cause: 'High-impact GSC issues (crawl errors, mobile usability failures, Core Web Vitals, indexation blocks) directly reduce organic visibility.',
+                        rec: `Open GSC for this property and resolve the ${e.gscHigh.length} HIGH-impact issue${e.gscHigh.length>1?'s':''} in priority order. Focus on crawl errors and indexation issues first as they affect all pages.`
+                    });
                 }
 
                 // GA4 issues — independent
                 if (e.ga4Critical.length > 0) {
                     const context = e.bigDrops.length > 0 ? ` alongside ${e.bigDrops.length} rank drop${e.bigDrops.length>1?'s':''}` : '';
-                    local.push({ entity: name, sev: e.intel?.isBehind ? 'high' : 'medium', icon: 'fa-chart-area', text: `<b>${name}</b>: GA4 flags ${e.ga4Critical.length} critical behaviour issue${e.ga4Critical.length>1?'s':''}${context} — conversion impact likely.` });
+                    local.push({ entity: name, sev: e.intel?.isBehind ? 'high' : 'medium', icon: 'fa-chart-area',
+                        text: `<b>${name}</b>: GA4 flags ${e.ga4Critical.length} critical behaviour issue${e.ga4Critical.length>1?'s':''}${context} — conversion impact likely.`,
+                        cause: 'Significant changes in user engagement, conversion rates, or traffic source mix — could indicate tracking breaks, landing page issues, or a sudden audience shift.',
+                        rec: 'Check GA4 for the specific critical signals (conversion drops, session anomalies, bounce rate spikes). Verify tracking integrity first, then review landing page changes and traffic source shifts.'
+                    });
                 }
 
                 // Paid performance — independent
                 if (e.paidAtRisk && e.intel?.isBehind) {
-                    local.push({ entity: name, sev: 'critical', icon: 'fa-dollar-sign', text: `<b>${name}</b>: Both SEO and paid campaigns underperforming — cross-channel revenue at risk.` });
+                    local.push({ entity: name, sev: 'critical', icon: 'fa-dollar-sign',
+                        text: `<b>${name}</b>: Both SEO and paid campaigns underperforming — cross-channel revenue at risk.`,
+                        cause: 'When both organic and paid are struggling simultaneously, the issue is likely demand-side — the target audience is not converting across any channel.',
+                        rec: 'Review audience targeting, landing page quality, and offer messaging together. A cross-channel creative and positioning refresh is likely needed before further budget is spent.'
+                    });
                 } else if (e.paidAtRisk && e.adsHigh.length > 0) {
-                    local.push({ entity: name, sev: 'high', icon: 'fa-ad', text: `<b>${name}</b>: Paid campaign at risk with ${e.adsHigh.length} high-priority Ads issue${e.adsHigh.length>1?'s':''}.` });
+                    local.push({ entity: name, sev: 'high', icon: 'fa-ad',
+                        text: `<b>${name}</b>: Paid campaign at risk with ${e.adsHigh.length} high-priority Ads issue${e.adsHigh.length>1?'s':''}.`,
+                        cause: 'Ad account inefficiencies (quality score issues, disapprovals, poor budget allocation) are compounding KPI underperformance.',
+                        rec: `Address the ${e.adsHigh.length} high-priority Ads issue${e.adsHigh.length>1?'s':''} first — focus on quality score, disapproved ads, and keyword-landing page alignment. Then review bid strategy against current KPI targets.`
+                    });
                 } else if (e.paidAtRisk && !e.intel) {
-                    local.push({ entity: name, sev: 'medium', icon: 'fa-ad', text: `<b>${name}</b>: Paid campaign at risk with no linked SEO campaign — no organic fallback.` });
+                    local.push({ entity: name, sev: 'medium', icon: 'fa-ad',
+                        text: `<b>${name}</b>: Paid campaign at risk with no linked SEO campaign — no organic fallback.`,
+                        cause: 'Paid-only campaigns have no organic safety net, so any paid underperformance directly impacts all lead/conversion volume.',
+                        rec: 'Prioritise resolving paid KPI gaps via audience refinement or bid adjustments. Consider whether an SEO strategy could reduce dependency on paid for this domain long-term.'
+                    });
                 } else if (e.paidAtRisk) {
-                    local.push({ entity: name, sev: 'medium', icon: 'fa-dollar-sign', text: `<b>${name}</b>: Paid campaign underperforming — KPI or budget pacing at risk.` });
+                    local.push({ entity: name, sev: 'medium', icon: 'fa-dollar-sign',
+                        text: `<b>${name}</b>: Paid campaign underperforming — KPI or budget pacing at risk.`,
+                        cause: 'KPI targets or budget pacing are off — may be due to auction competition, audience saturation, or seasonal demand shifts.',
+                        rec: 'Review campaign budget pacing and bid strategy. Check for audience overlap or frequency caps, and compare performance against the same period last month or year.'
+                    });
                 }
 
                 // Ads issues — independent (only if not already covered above)
                 if (e.adsHigh.length > 0 && !e.paidAtRisk) {
-                    local.push({ entity: name, sev: 'medium', icon: 'fa-ad', text: `<b>${name}</b>: Google Ads flags ${e.adsHigh.length} high-priority issue${e.adsHigh.length>1?'s':''}.` });
+                    local.push({ entity: name, sev: 'medium', icon: 'fa-ad',
+                        text: `<b>${name}</b>: Google Ads flags ${e.adsHigh.length} high-priority issue${e.adsHigh.length>1?'s':''}.`,
+                        cause: 'High-priority Ads issues (low quality scores, disapprovals, budget imbalances) reduce ad efficiency even if KPIs are currently on track.',
+                        rec: `Resolve the ${e.adsHigh.length} Ads issue${e.adsHigh.length>1?'s':''} proactively to protect future performance. Prioritise any disapprovals or quality score issues below 5.`
+                    });
                 }
 
                 // All healthy
                 if (local.length === 0 && e.intel && !e.intel.isBehind && !e.paidAtRisk && allCritical === 0 && e.bigDrops.length === 0 && e.adsHigh.length === 0) {
-                    local.push({ entity: name, sev: 'good', icon: 'fa-check-circle', text: `<b>${name}</b>: All signals healthy — on trajectory, no critical issues, stable rankings${e.paidCamp ? ', paid on track' : ''}.${_holisticMetricLine({...e, paidAtRisk:false, paidWarn:false})}` });
+                    local.push({ entity: name, sev: 'good', icon: 'fa-check-circle',
+                        text: `<b>${name}</b>: All signals healthy — on trajectory, no critical issues, stable rankings${e.paidCamp ? ', paid on track' : ''}.${_holisticMetricLine({...e, paidAtRisk:false, paidWarn:false})}`
+                    });
                 }
 
                 insights.push(...local);
@@ -22651,7 +22710,10 @@
                 const w = allDrops[0];
                 const tf = w.timeframe ? ` (${w.timeframe})` : '';
                 insights.unshift({ entity: '__portfolio__', sev: 'high', icon: 'fa-arrow-down',
-                    text: `Biggest single drop: <b>&ldquo;${w.keyword}&rdquo;</b> on <b>${w.entity}</b> — #${w.oldRank}→#${w.newRank} (fell ${Math.abs(w.change)} positions${tf}).` });
+                    text: `Biggest single drop: <b>&ldquo;${w.keyword}&rdquo;</b> on <b>${w.entity}</b> — #${w.oldRank}→#${w.newRank} (fell ${Math.abs(w.change)} positions${tf}).`,
+                    cause: 'A single keyword losing this many positions quickly usually signals a content freshness issue, a new strong competitor, or an algorithm sensitivity on that page.',
+                    rec: `Investigate the page ranking for "${w.keyword}" on ${w.entity} — check for recent content changes, competitor SERP entries, and whether the page is still the strongest match for that intent.`
+                });
             }
 
             const allGa4Crit = matrix.flatMap(e => e.ga4Critical.map(r => ({ ...r, entity: e.name })));
@@ -22660,7 +22722,10 @@
                 const topDesc = allGa4Crit[0]?.desc;
                 const detail = topDesc ? `<div style="font-size:0.72rem;color:#64748b;margin-top:5px;border-top:1px solid rgba(0,0,0,0.07);padding-top:5px;">Top finding (28d vs prior 28d): ${topDesc.length > 140 ? topDesc.substring(0,137)+'…' : topDesc}</div>` : '';
                 insights.unshift({ entity: '__portfolio__', sev: 'high', icon: 'fa-chart-area',
-                    text: `GA4 portfolio: <b>${allGa4Crit.length} critical signal${allGa4Crit.length>1?'s':''}</b> across ${props} propert${props>1?'ies':'y'} — review conversion paths.${detail}` });
+                    text: `GA4 portfolio: <b>${allGa4Crit.length} critical signal${allGa4Crit.length>1?'s':''}</b> across ${props} propert${props>1?'ies':'y'} — review conversion paths.${detail}`,
+                    cause: 'Portfolio-wide GA4 critical signals suggest a common factor — possibly a shared CMS update, a tracking change, or broader market behaviour shifts.',
+                    rec: 'Cross-reference the affected properties for shared elements (same theme, plugin, or tracking setup). Verify GA4 event tracking integrity before drawing conversion conclusions.'
+                });
             }
 
             const totalAdsHigh = matrix.reduce((s, e) => s + e.adsHigh.length, 0);
@@ -22669,7 +22734,10 @@
                 const topAdsDesc = matrix.find(e => e.adsHigh.length > 0)?.topAdsDesc;
                 const detail = topAdsDesc ? `<div style="font-size:0.72rem;color:#64748b;margin-top:5px;border-top:1px solid rgba(0,0,0,0.07);padding-top:5px;">Top issue: ${topAdsDesc.length > 140 ? topAdsDesc.substring(0,137)+'…' : topAdsDesc}</div>` : '';
                 insights.unshift({ entity: '__portfolio__', sev: 'high', icon: 'fa-ad',
-                    text: `Google Ads portfolio: <b>${totalAdsHigh} high-priority issue${totalAdsHigh>1?'s':''}</b> across ${accs} account${accs>1?'s':''}.${detail}` });
+                    text: `Google Ads portfolio: <b>${totalAdsHigh} high-priority issue${totalAdsHigh>1?'s':''}</b> across ${accs} account${accs>1?'s':''}.${detail}`,
+                    cause: 'Portfolio-level Ads issues indicate systemic account health problems that will degrade performance across campaigns if left unresolved.',
+                    rec: `Triage the ${totalAdsHigh} high-priority issues across ${accs} account${accs>1?'s':''}. Address disapprovals and quality score issues first — these have the broadest performance impact.`
+                });
             }
 
             return insights;
@@ -22682,9 +22750,14 @@
 
         function _buildInsightCard(i, sevStyle) {
             const [c, bg, br] = sevStyle[i.sev] || sevStyle.medium;
+            const causeRec = (i.cause || i.rec) ? `
+                <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(0,0,0,0.07);display:flex;flex-direction:column;gap:3px;">
+                    ${i.cause ? `<div style="font-size:0.74rem;color:#64748b;line-height:1.45;"><span style="font-weight:700;color:#475569;">Why:</span> ${i.cause}</div>` : ''}
+                    ${i.rec   ? `<div style="font-size:0.74rem;color:#0f5132;line-height:1.45;background:rgba(16,185,129,0.06);padding:3px 6px;border-radius:4px;"><span style="font-weight:700;">Action:</span> ${i.rec}</div>` : ''}
+                </div>` : '';
             return `<div style="display:flex;gap:10px;padding:10px 12px;background:${bg};border:1px solid ${br};border-left:4px solid ${c};border-radius:8px;">
                 <i class="fas ${i.icon}" style="color:${c};margin-top:2px;flex-shrink:0;font-size:0.82rem;"></i>
-                <div style="font-size:0.8rem;color:#1e293b;line-height:1.5;">${i.text}</div>
+                <div style="font-size:0.8rem;color:#1e293b;line-height:1.5;flex:1;">${i.text}${causeRec}</div>
             </div>`;
         }
 
@@ -67240,7 +67313,7 @@ Move-In</h3>
     </div>
     <!-- Holistic Source Mapping Modal -->
     <div id="holisticMappingModal" onclick="if(event.target===this)closeMappingModal()" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,0.55);overflow:auto;">
-        <div style="background:#fff;margin:40px auto 60px;border-radius:14px;max-width:960px;width:95%;box-shadow:0 24px 64px rgba(0,0,0,0.3);">
+        <div style="background:#fff;margin:24px auto 40px;border-radius:14px;max-width:1400px;width:97%;box-shadow:0 24px 64px rgba(0,0,0,0.3);">
             <div style="padding:20px 24px;border-bottom:1px solid #e2e8f0;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
                 <div>
                     <h2 style="margin:0;font-size:1.15rem;color:#1e293b;display:flex;align-items:center;gap:8px;"><i class="fas fa-link" style="color:#6366f1;"></i> Source Mappings</h2>
@@ -67248,7 +67321,7 @@ Move-In</h3>
                 </div>
                 <button onclick="closeMappingModal()" style="background:none;border:none;font-size:1.5rem;line-height:1;cursor:pointer;color:#94a3b8;padding:0 4px;flex-shrink:0;">&times;</button>
             </div>
-            <div id="holisticMappingBody" style="padding:20px 24px;max-height:58vh;overflow-y:auto;">
+            <div id="holisticMappingBody" style="padding:20px 24px;max-height:72vh;overflow-y:auto;">
                 <div style="text-align:center;padding:30px;color:#94a3b8;font-size:0.9rem;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
             </div>
             <div style="padding:14px 24px;border-top:1px solid #e2e8f0;display:flex;gap:10px;justify-content:flex-end;background:#f8fafc;border-radius:0 0 14px 14px;">
