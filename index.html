@@ -10787,7 +10787,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1429</span>
+                <span id="appVersion">v1.0.1430</span>
             </a>
         </div>
 
@@ -38198,15 +38198,7 @@ Output ONLY the finished ${contentTypeLabel} — no meta-commentary, no explanat
             const resp = await fetch(AHREFS_PROXY, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    endpoint: 'overview',
-                    params: {
-                        select: 'domain_rating,url_rating,backlinks,referring_domains,org_keywords,org_traffic',
-                        target,
-                        mode: 'domain',
-                        output: 'json'
-                    }
-                })
+                body: JSON.stringify({ endpoint: 'overview', params: { target } })
             });
             if (!resp.ok) throw new Error(`Ahrefs overview HTTP ${resp.status}`);
             return resp.json();
@@ -38218,31 +38210,19 @@ Output ONLY the finished ${contentTypeLabel} — no meta-commentary, no explanat
             const resp = await fetch(AHREFS_PROXY, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    endpoint: 'keywords',
-                    params: {
-                        select: 'keyword,volume,difficulty,traffic,position',
-                        target,
-                        mode: 'domain',
-                        country,
-                        limit: '100',
-                        order_by: 'traffic:desc',
-                        output: 'json'
-                    }
-                })
+                body: JSON.stringify({ endpoint: 'keywords', params: { target, country, limit: '100' } })
             });
             if (!resp.ok) throw new Error(`Ahrefs keywords HTTP ${resp.status}`);
             const json = await resp.json();
-            // Normalise to { keyword: { search_volume, rank, difficulty } }
             const keywords = json.keywords || json.data || [];
             if (!keywords.length) throw new Error('Ahrefs returned 0 keywords');
             const body = {};
             keywords.forEach(kw => {
                 body[kw.keyword] = {
-                    search_volume: kw.volume    ?? null,
-                    rank:          kw.position  ?? null,
-                    difficulty:    kw.difficulty ?? null,
-                    traffic:       kw.traffic   ?? null
+                    search_volume: kw.volume             ?? null,
+                    rank:          kw.best_position      ?? null,
+                    difficulty:    kw.keyword_difficulty ?? null,
+                    traffic:       kw.sum_traffic        ?? null
                 };
             });
             return body;
