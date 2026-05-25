@@ -10787,7 +10787,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1421</span>
+                <span id="appVersion">v1.0.1422</span>
             </a>
         </div>
 
@@ -38206,6 +38206,23 @@ Output ONLY the finished ${contentTypeLabel} — no meta-commentary, no explanat
             // all page-level metrics that Ahrefs doesn't have (title, H1, CWV, etc.)
             const ahrefsOverviewPromise = fetchAhrefsDomainOverview(domain)
                 .catch(e => { console.warn('Ahrefs domain overview failed — DataForSEO backlink data will be used:', e); return null; });
+
+            // Apply Ahrefs data independently — renders even if DataForSEO times out
+            ahrefsOverviewPromise.then(ahrefsData => {
+                if (!ahrefsData) return;
+                const bl = ahrefsData.backlinks        ?? ahrefsData.domain?.backlinks;
+                const rd = ahrefsData.referring_domains ?? ahrefsData.domain?.referring_domains;
+                const ot = ahrefsData.org_traffic       ?? ahrefsData.domain?.org_traffic;
+                const ok = ahrefsData.org_keywords      ?? ahrefsData.domain?.org_keywords;
+                if (bl != null) document.getElementById('targetBacklinks').innerText = Number(bl).toLocaleString();
+                if (rd != null) document.getElementById('targetRefDomains').innerText = Number(rd).toLocaleString();
+                if (ot != null) { document.getElementById('targetOrgTraffic').innerText = Number(ot).toLocaleString(); document.getElementById('orgTrafficSourceBadge').textContent = 'Ahrefs'; document.getElementById('orgTrafficSourceBadge').style.display = ''; }
+                if (ok != null) { document.getElementById('targetOrgKeywords').innerText = Number(ok).toLocaleString(); document.getElementById('orgKeywordsSourceBadge').textContent = 'Ahrefs'; document.getElementById('orgKeywordsSourceBadge').style.display = ''; }
+                ['backlinkSourceBadge', 'refDomainsSourceBadge'].forEach(id => {
+                    const el = document.getElementById(id); if (!el) return;
+                    el.textContent = 'Ahrefs'; el.style.display = ''; el.style.background = '#e0f2fe'; el.style.color = '#0369a1';
+                });
+            });
 
             fetch("https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new", {
                 method: 'POST',
