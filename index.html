@@ -12566,14 +12566,30 @@
                                 <input type="text" id="strat-quick-input" placeholder="e.g. Digimetrics or https://digimetrics.com.sg" 
                                     style="width: 100%; padding: 12px 15px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.95rem; box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);"
                                     onkeypress="if(event.key === 'Enter') handleQuickStrategyStart()">
-                                <div style="display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
-                                    <button class="btn btn-outline" id="strat-quick-btn" onclick="handleQuickStrategyStart()"
-                                        style="padding: 10px 22px; font-size: 0.85rem; border-color: #3b82f6; color: #3b82f6; background: white; white-space: nowrap; min-width: 150px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s;">
-                                        <i class="fas fa-magic"></i> AI Fill Fields
+                                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+                                    <button id="strat-quick-generate-btn" onclick="runDigimetricsStrategyEngine('auto')"
+                                        style="width:100%; padding: 12px 16px; border:none; border-radius: 10px; background: linear-gradient(135deg,#1d4ed8,#4f46e5); color:white; display:flex; align-items:flex-start; gap:12px; text-align:left; cursor:pointer; transition:opacity 0.2s;">
+                                        <i class="fas fa-rocket" style="margin-top:3px; font-size:1rem; flex-shrink:0;"></i>
+                                        <div>
+                                            <div style="font-weight:800; font-size:0.85rem; line-height:1.2;">Full Auto Run</div>
+                                            <div style="font-size:0.72rem; opacity:0.82; margin-top:3px; font-weight:400; line-height:1.4;">Builds your strategy, picks the best plan, then automatically analyses every keyword's SERP competitiveness &amp; time-to-rank — no interruptions</div>
+                                        </div>
                                     </button>
-                                    <button class="btn btn-primary" id="strat-quick-generate-btn" onclick="runDigimetricsStrategyEngine()"
-                                        style="padding: 10px 22px; font-size: 0.85rem; background: #2563eb; color: white; white-space: nowrap; min-width: 150px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s;">
-                                        <i class="fas fa-play"></i> Start Strategy
+                                    <button id="strat-blueprint-btn" onclick="runDigimetricsStrategyEngine('review')"
+                                        style="width:100%; padding: 12px 16px; border:none; border-radius: 10px; background: linear-gradient(135deg,#0369a1,#0891b2); color:white; display:flex; align-items:flex-start; gap:12px; text-align:left; cursor:pointer; transition:opacity 0.2s;">
+                                        <i class="fas fa-map" style="margin-top:3px; font-size:1rem; flex-shrink:0;"></i>
+                                        <div>
+                                            <div style="font-weight:800; font-size:0.85rem; line-height:1.2;">Strategy Blueprint</div>
+                                            <div style="font-size:0.72rem; opacity:0.82; margin-top:3px; font-weight:400; line-height:1.4;">Builds your strategy &amp; keyword plan, then pauses so you can review, edit or add keywords before running the deep-dive analysis</div>
+                                        </div>
+                                    </button>
+                                    <button id="strat-quick-btn" onclick="handleQuickStrategyStart()"
+                                        style="width:100%; padding: 12px 16px; border: 1.5px solid #3b82f6; border-radius: 10px; background:white; color:#1d4ed8; display:flex; align-items:flex-start; gap:12px; text-align:left; cursor:pointer; transition:opacity 0.2s;">
+                                        <i class="fas fa-magic" style="margin-top:3px; font-size:1rem; flex-shrink:0;"></i>
+                                        <div>
+                                            <div style="font-weight:800; font-size:0.85rem; line-height:1.2;">AI Fill Fields</div>
+                                            <div style="font-size:0.72rem; color:#475569; margin-top:3px; font-weight:400; line-height:1.4;">Uses AI to auto-fill your profile, objectives, audience &amp; seed keywords from the URL or company name above — then review before running</div>
+                                        </div>
                                     </button>
                                 </div>
                             </div>
@@ -46491,12 +46507,14 @@ Return ONLY a valid JSON object (no markdown, no explanation):
             }
         }
 
-        async function runDigimetricsStrategyEngine() {
+        async function runDigimetricsStrategyEngine(mode = 'review') {
             const runBtn = document.getElementById('runStrategyBtn');
             const quickGenBtn = document.getElementById('strat-quick-generate-btn');
+            const blueprintBtn = document.getElementById('strat-blueprint-btn');
             const resultsContainer = document.getElementById('strategy-results-container');
             const originalBtnText = runBtn.innerHTML;
             const originalQuickText = quickGenBtn ? quickGenBtn.innerHTML : "";
+            const originalBlueprintText = blueprintBtn ? blueprintBtn.innerHTML : "";
 
             try {
                 // 1. Collect inputs
@@ -46582,9 +46600,11 @@ Return ONLY a valid JSON object (no markdown, no explanation):
                 // UI Loading State
                 runBtn.disabled = true;
                 if (quickGenBtn) quickGenBtn.disabled = true;
-                
+                if (blueprintBtn) blueprintBtn.disabled = true;
+
                 runBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
                 if (quickGenBtn) quickGenBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running...';
+                if (blueprintBtn) blueprintBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running...';
                 
                 resultsContainer.style.display = "none";
                 updateKeywordAnalysisLoader("Strategy Engine", "Starting strategy formulation...");
@@ -46671,7 +46691,7 @@ Return ONLY a valid JSON object (no markdown, no explanation):
                     if (recommendedStrategy) {
                         console.log("Strategy Engine: Rendering recommended strategy:", recommendedStrategy.name);
                         renderSuggestedKeywords(recommendedStrategy);
-                        showTTRPromptBanner(recommendedStrategy, inputs);
+                        showTTRPromptBanner(recommendedStrategy, inputs, mode);
                         // Show results immediately, then async-fetch recommendations
                         const area = document.getElementById('actionable-recommendations-area');
                         if (area) area.style.display = 'block';
@@ -46715,8 +46735,10 @@ Return ONLY a valid JSON object (no markdown, no explanation):
             } finally {
                 runBtn.disabled = false;
                 if (quickGenBtn) quickGenBtn.disabled = false;
+                if (blueprintBtn) blueprintBtn.disabled = false;
                 runBtn.innerHTML = originalBtnText;
                 if (quickGenBtn) quickGenBtn.innerHTML = originalQuickText;
+                if (blueprintBtn) blueprintBtn.innerHTML = originalBlueprintText;
             }
         }
 
@@ -47389,7 +47411,7 @@ Return compact valid JSON only. No prose.
             `;
         }
 
-        function showTTRPromptBanner(strategy, inputs) {
+        function showTTRPromptBanner(strategy, inputs, mode = 'review') {
             const banner = document.getElementById('ttr-prompt-banner');
             if (!banner) return;
 
@@ -47411,13 +47433,47 @@ Return compact valid JSON only. No prose.
             const estSeconds = keywords.length * 30;
             const estMins = Math.ceil(estSeconds / 60);
 
-            const rows = keywords.map((kw, i) => `
-                <label style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; cursor:pointer; background:#f8fafc; border:1px solid #e2e8f0; font-size:0.8rem; color:#334155; font-weight:600; transition:background 0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
-                    <input type="checkbox" class="ttr-kw-check" value="${kw.replace(/"/g,'&quot;')}" checked style="accent-color:#6366f1; width:15px; height:15px; cursor:pointer;">
-                    <span>${kw}</span>
-                    <span class="ttr-val-inline" data-kw="${kw.toLowerCase()}" style="margin-left:auto; font-size:0.7rem; font-weight:700; color:#94a3b8; background:#f1f5f9; border-radius:20px; padding:2px 8px;">-</span>
-                </label>
-            `).join('');
+            // Build keyword rows — editable in 'review' mode, read-only otherwise
+            const rows = keywords.map((kw) => {
+                const safeVal = kw.replace(/"/g, '&quot;');
+                if (mode === 'review') {
+                    return `
+                        <div class="ttr-kw-row" style="display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:8px; background:#f8fafc; border:1px solid #e2e8f0;">
+                            <input type="checkbox" class="ttr-kw-check" value="${safeVal}" checked style="accent-color:#6366f1; width:15px; height:15px; flex-shrink:0; cursor:pointer;">
+                            <input type="text" class="ttr-kw-text-input" value="${safeVal}" style="flex:1; border:none; background:transparent; font-size:0.8rem; font-weight:600; color:#334155; outline:none; min-width:0; cursor:text;" oninput="ttrUpdateEstimate()">
+                            <span class="ttr-val-inline" data-kw="${kw.toLowerCase()}" style="font-size:0.7rem; font-weight:700; color:#94a3b8; background:#f1f5f9; border-radius:20px; padding:2px 8px; white-space:nowrap;">-</span>
+                            <button onclick="this.closest('.ttr-kw-row').remove(); ttrUpdateEstimate();" title="Remove" style="border:none; background:none; color:#cbd5e1; font-size:1rem; line-height:1; cursor:pointer; padding:0 2px; flex-shrink:0;">&times;</button>
+                        </div>`;
+                }
+                return `
+                    <label style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; cursor:pointer; background:#f8fafc; border:1px solid #e2e8f0; font-size:0.8rem; color:#334155; font-weight:600;">
+                        <input type="checkbox" class="ttr-kw-check" value="${safeVal}" checked style="accent-color:#6366f1; width:15px; height:15px; cursor:pointer;">
+                        <span>${kw}</span>
+                        <span class="ttr-val-inline" data-kw="${kw.toLowerCase()}" style="margin-left:auto; font-size:0.7rem; font-weight:700; color:#94a3b8; background:#f1f5f9; border-radius:20px; padding:2px 8px;">-</span>
+                    </label>`;
+            }).join('');
+
+            // Add-keyword row (review mode only)
+            const addRow = mode === 'review' ? `
+                <div style="display:flex; gap:8px; margin-top:4px;">
+                    <input type="text" id="ttr-add-kw-input" placeholder="Add a keyword…" onkeydown="if(event.key==='Enter'){event.preventDefault();addTTRKeyword();}"
+                        style="flex:1; padding:7px 10px; border:1.5px dashed #a5b4fc; border-radius:8px; font-size:0.8rem; color:#334155; outline:none; background:#f8fafc;">
+                    <button onclick="addTTRKeyword()" style="background:#6366f1; color:white; border:none; border-radius:8px; padding:7px 14px; font-size:0.8rem; font-weight:700; cursor:pointer; white-space:nowrap;">+ Add</button>
+                </div>` : '';
+
+            const subtitleText = mode === 'auto'
+                ? `Auto-running deep SERP + content analysis on all ${keywords.length} keyword${keywords.length > 1 ? 's' : ''} — ~${estMins} min. Results will appear in Keyword Analysis below.`
+                : `Deep SERP + content analysis per keyword — includes AI-powered time-to-rank estimate. ~<span id="ttr-est-label">${estMins} min for ${keywords.length} keyword${keywords.length > 1 ? 's' : ''}</span>.`;
+
+            const actionRow = mode === 'auto' ? `
+                <span id="ttr-run-status" style="font-size:0.75rem; color:#6366f1; font-weight:600; display:inline-flex; align-items:center; gap:6px;"><i class="fas fa-spinner fa-spin"></i> <span id="ttr-run-status-text">Starting…</span></span>` : `
+                <button onclick="runStrategyTTRAnalysis()" style="background:linear-gradient(135deg,#6366f1,#4f46e5); color:white; border:none; border-radius:10px; padding:10px 20px; font-size:0.8rem; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:8px;" id="ttr-run-btn">
+                    <i class="fas fa-play"></i> Run Keyword Analysis
+                </button>
+                <button onclick="document.getElementById('ttr-prompt-banner').style.display='none'" style="background:transparent; color:#94a3b8; border:1px solid #e2e8f0; border-radius:10px; padding:10px 16px; font-size:0.8rem; font-weight:600; cursor:pointer;">
+                    Dismiss
+                </button>
+                <span id="ttr-run-status" style="font-size:0.75rem; color:#6366f1; font-weight:600; display:none;"><i class="fas fa-spinner fa-spin"></i> <span id="ttr-run-status-text"></span></span>`;
 
             banner.style.display = 'block';
             banner.innerHTML = `
@@ -47427,19 +47483,16 @@ Return compact valid JSON only. No prose.
                             <i class="fas fa-microscope"></i>
                         </div>
                         <div style="flex:1;">
-                            <div style="font-size:0.9rem; font-weight:800; color:#3730a3; margin-bottom:4px;">Run Individual Keyword Analysis?</div>
-                            <div style="font-size:0.75rem; color:#6366f1; margin-bottom:14px;">Deep SERP + content analysis per keyword — includes AI-powered time-to-rank estimate. ~${estMins} min for ${keywords.length} keyword${keywords.length > 1 ? 's' : ''}.</div>
-                            <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:16px;">
+                            <div style="font-size:0.9rem; font-weight:800; color:#3730a3; margin-bottom:4px;">
+                                ${mode === 'auto' ? 'Auto-Running Keyword Analysis' : 'Review &amp; Run Keyword Analysis'}
+                            </div>
+                            <div style="font-size:0.75rem; color:#6366f1; margin-bottom:14px;">${subtitleText}</div>
+                            <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;" id="ttr-kw-list">
                                 ${rows}
                             </div>
-                            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                                <button onclick="runStrategyTTRAnalysis()" style="background:linear-gradient(135deg,#6366f1,#4f46e5); color:white; border:none; border-radius:10px; padding:10px 20px; font-size:0.8rem; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:8px;" id="ttr-run-btn">
-                                    <i class="fas fa-play"></i> Run Keyword Analysis
-                                </button>
-                                <button onclick="document.getElementById('ttr-prompt-banner').style.display='none'" style="background:transparent; color:#94a3b8; border:1px solid #e2e8f0; border-radius:10px; padding:10px 16px; font-size:0.8rem; font-weight:600; cursor:pointer;">
-                                    Dismiss
-                                </button>
-                                <span id="ttr-run-status" style="font-size:0.75rem; color:#6366f1; font-weight:600; display:none;"><i class="fas fa-spinner fa-spin"></i> <span id="ttr-run-status-text"></span></span>
+                            ${addRow}
+                            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:14px;">
+                                ${actionRow}
                             </div>
                         </div>
                     </div>
@@ -47448,6 +47501,41 @@ Return compact valid JSON only. No prose.
 
             // Store inputs on the banner element for use by runStrategyTTRAnalysis
             banner._ttrInputs = inputs;
+
+            // Auto-run immediately for 'auto' mode
+            if (mode === 'auto') {
+                setTimeout(() => runStrategyTTRAnalysis(), 300);
+            }
+        }
+
+        function ttrUpdateEstimate() {
+            const banner = document.getElementById('ttr-prompt-banner');
+            if (!banner) return;
+            const checked = banner.querySelectorAll('.ttr-kw-check:checked').length;
+            const estMins = Math.ceil(checked * 30 / 60);
+            const label = banner.querySelector('#ttr-est-label');
+            if (label) label.textContent = `${estMins} min for ${checked} keyword${checked !== 1 ? 's' : ''}`;
+        }
+
+        function addTTRKeyword() {
+            const input = document.getElementById('ttr-add-kw-input');
+            if (!input) return;
+            const kw = input.value.trim();
+            if (!kw) return;
+            const list = document.getElementById('ttr-kw-list');
+            if (!list) return;
+            const safeVal = kw.replace(/"/g, '&quot;');
+            const row = document.createElement('div');
+            row.className = 'ttr-kw-row';
+            row.style.cssText = 'display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:8px; background:#f8fafc; border:1px solid #e2e8f0;';
+            row.innerHTML = `
+                <input type="checkbox" class="ttr-kw-check" value="${safeVal}" checked style="accent-color:#6366f1; width:15px; height:15px; flex-shrink:0; cursor:pointer;">
+                <input type="text" class="ttr-kw-text-input" value="${safeVal}" style="flex:1; border:none; background:transparent; font-size:0.8rem; font-weight:600; color:#334155; outline:none; min-width:0;" oninput="ttrUpdateEstimate()">
+                <span class="ttr-val-inline" data-kw="${kw.toLowerCase()}" style="font-size:0.7rem; font-weight:700; color:#94a3b8; background:#f1f5f9; border-radius:20px; padding:2px 8px; white-space:nowrap;">-</span>
+                <button onclick="this.closest('.ttr-kw-row').remove(); ttrUpdateEstimate();" title="Remove" style="border:none; background:none; color:#cbd5e1; font-size:1rem; line-height:1; cursor:pointer; padding:0 2px; flex-shrink:0;">&times;</button>`;
+            list.appendChild(row);
+            input.value = '';
+            ttrUpdateEstimate();
         }
 
         async function runStrategyTTRAnalysis() {
@@ -47455,8 +47543,18 @@ Return compact valid JSON only. No prose.
             if (!banner) return;
 
             const inputs = banner._ttrInputs || {};
+
+            // Collect keywords — support editable text inputs (review mode) and plain checkboxes
+            // Build [{kw, inlineEl}] so we can update the badge even if the keyword was edited
             const checks = banner.querySelectorAll('.ttr-kw-check:checked');
-            const selectedKeywords = Array.from(checks).map(c => c.value).filter(Boolean);
+            const selectedEntries = Array.from(checks).map(c => {
+                const row = c.closest('.ttr-kw-row');
+                const textInput = row?.querySelector('.ttr-kw-text-input');
+                const kw = (textInput ? textInput.value.trim() : c.value);
+                const inlineEl = row ? row.querySelector('.ttr-val-inline') : banner.querySelector(`.ttr-val-inline[data-kw="${kw.toLowerCase()}"]`);
+                return { kw, inlineEl };
+            }).filter(e => e.kw);
+            const selectedKeywords = selectedEntries.map(e => e.kw);
             if (selectedKeywords.length === 0) { alert('Select at least one keyword.'); return; }
 
             const runBtn = document.getElementById('ttr-run-btn');
@@ -47484,22 +47582,22 @@ Return compact valid JSON only. No prose.
                 'more than 12 months': { color: '#7f1d1d', bg: '#f4746b' },
             };
 
-            for (let i = 0; i < selectedKeywords.length; i++) {
-                const kw = selectedKeywords[i];
-                if (statusText) statusText.textContent = `Analysing "${kw}" (${i + 1}/${selectedKeywords.length})…`;
+            for (let i = 0; i < selectedEntries.length; i++) {
+                const { kw, inlineEl } = selectedEntries[i];
+                if (statusText) statusText.textContent = `Analysing "${kw}" (${i + 1}/${selectedEntries.length})…`;
 
                 try {
                     await keywordAnalysis(kw, language, location, target);
 
-                    // Read TTR from global keywordMetrics (set by keywordAnalysis)
                     const ttr = (keywordMetrics[kw] || {}).timeToRank;
                     if (ttr) {
                         const normalised = ttr.toLowerCase().includes('more') ? 'more than 12 months' : ttr;
                         const style = ttrColorMap[normalised] || { color: '#475569', bg: '#f1f5f9' };
+                        const label = normalised.replace(' months', 'mo').replace('more than ', '>');
 
-                        // Update TTR cell in the blueprint keyword rows
+                        // Update TTR cell in the strategy blueprint rows
                         document.querySelectorAll(`.strategy-kw-row[data-keyword="${kw.toLowerCase()}"] .ttr-val`).forEach(el => {
-                            el.textContent = normalised.replace(' months', 'mo').replace('more than ', '>');
+                            el.textContent = label;
                             el.style.color = style.color;
                             el.style.background = style.bg;
                             el.style.padding = '1px 5px';
@@ -47507,10 +47605,9 @@ Return compact valid JSON only. No prose.
                             el.style.fontSize = '0.65rem';
                         });
 
-                        // Update inline label in the banner
-                        const inlineEl = banner.querySelector(`.ttr-val-inline[data-kw="${kw.toLowerCase()}"]`);
+                        // Update inline badge in the banner row
                         if (inlineEl) {
-                            inlineEl.textContent = normalised.replace(' months', 'mo').replace('more than ', '>');
+                            inlineEl.textContent = label;
                             inlineEl.style.color = style.color;
                             inlineEl.style.background = style.bg;
                         }
