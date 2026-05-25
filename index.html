@@ -10915,7 +10915,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1446</span>
+                <span id="appVersion">v1.0.1447</span>
             </a>
         </div>
 
@@ -22929,6 +22929,107 @@
         let _holisticSelected = new Set();
         let _holisticLastInsights = [];
         let _holisticLastSevStyle = null;
+        let _holisticLastMatrix = [];
+        let _holisticSortCol = 'risk';
+        let _holisticSortDir = 'desc';
+        let _holisticPageSize = 20;
+
+        function _hbk(txt, bg, color, border, title) {
+            return `<span${title ? ` title="${title}"` : ''} style="font-size:0.62rem;padding:2px 6px;border-radius:7px;font-weight:700;background:${bg};color:${color};border:1px solid ${border};white-space:nowrap;">${txt}</span>`;
+        }
+        const _hdash = `<span style="font-size:0.62rem;color:#94a3b8;">—</span>`;
+
+        function _buildHolisticMatrixRow(e) {
+            const bk = _hbk, dash = _hdash;
+            const trajTip = e.intel ? (e.intel.isBehind ? `${e.intel.p1}/${e.intel.expected} ${e.intel.resultLabel||'KWs'} · ${e.intel.pctBehind}% below target · ${e.intel.pctProgress}% through campaign · ${e.intel.daysRemaining}d left` : `${e.intel.p1}/${e.intel.kpi} ${e.intel.resultLabel||'KWs'} · ${e.intel.pctProgress}% through campaign · ${e.intel.daysRemaining}d left`) : '';
+            const trajBadge = e.intel ? (e.intel.isBehind ? bk('Behind','#fef2f2','#dc2626','#fecaca',trajTip) : bk('On Track','#f0fdf4','#16a34a','#bbf7d0',trajTip)) : bk('No Intel','#f8fafc','#94a3b8','#e2e8f0');
+            const serTip = e.worstDrop ? `Worst: "${e.worstDrop.keyword}" #${e.worstDrop.oldRank}→#${e.worstDrop.newRank}${e.worstDrop.timeframe?' ('+e.worstDrop.timeframe+')':''}` : (e.rankGains.length>0?`${e.rankGains.length} gains · ${e.rankDrops.length} drops`:'');
+            const serBadge = e.serSite ? (e.bigDrops.length>0 ? bk(`${e.bigDrops.length} drop${e.bigDrops.length>1?'s':''}`, '#fff7ed','#f97316','#fed7aa',serTip) : e.rankGains.length>0 ? bk(`${e.rankGains.length} gain${e.rankGains.length>1?'s':''}`, '#f0fdf4','#16a34a','#bbf7d0',serTip) : bk('Stable','#f8fafc','#64748b','#e2e8f0')) : dash;
+            const gscTip = e.topGscDesc ? `${e.topGscIssue}: ${e.topGscDesc}` : (e.topGscIssue||'');
+            const gscBadge = e.gscProp ? (e.gscHigh.length>0 ? bk(`${e.gscHigh.length} critical`,'#fef2f2','#dc2626','#fecaca',gscTip) : e.gscMed.length>0 ? bk(`${e.gscMed.length} medium`,'#fffbeb','#d97706','#fde68a',gscTip) : bk('Clean','#f0fdf4','#16a34a','#bbf7d0')) : dash;
+            const ga4Tip = e.topGa4Desc ? `${e.topGa4Issue}: ${e.topGa4Desc}` : (e.topGa4Issue||'');
+            const ga4Badge = e.ga4Prop ? (e.ga4Critical.length>0 ? bk(`${e.ga4Critical.length} critical`,'#fef2f2','#dc2626','#fecaca',ga4Tip) : e.ga4High.length>0 ? bk(`${e.ga4High.length} high`,'#fff7ed','#f97316','#fed7aa',ga4Tip) : e.ga4Med.length>0 ? bk(`${e.ga4Med.length} medium`,'#fffbeb','#d97706','#fde68a',ga4Tip) : bk('Clean','#f0fdf4','#16a34a','#bbf7d0')) : dash;
+            const adsTip = e.topAdsDesc ? `${e.topAdsIssue}: ${e.topAdsDesc}` : (e.topAdsIssue||'');
+            const adsBadge = e.adsAccount ? (e.adsHigh.length>0 ? bk(`${e.adsHigh.length} high`,'#fef2f2','#ea4335','#fecaca',adsTip) : e.adsMed.length>0 ? bk(`${e.adsMed.length} med`,'#fffbeb','#d97706','#fde68a',adsTip) : bk('Clean','#f0fdf4','#16a34a','#bbf7d0')) : dash;
+            const paidKpiStr = (e.paidKpiDelta!==null&&e.paidExpectedKpi>0) ? `KPI: ${e.paidTotalResults??'?'}/${e.paidExpectedKpi} (${e.paidKpiDelta>0?'+':''}${e.paidKpiDelta}%)` : null;
+            const paidBudStr = (e.paidBudgetDelta!==null&&e.paidExpectedSpend>0) ? `Budget: $${(e.paidTotalSpend??0).toLocaleString()} vs $${(e.paidExpectedSpend??0).toLocaleString()} expected (${e.paidBudgetDelta>0?'+':''}${e.paidBudgetDelta}%)` : null;
+            const paidTip = [paidKpiStr,paidBudStr].filter(Boolean).join(' · ');
+            const paidBadge = e.paidCamp ? (e.paidAtRisk ? bk(e.paidCamp.kpiStatus==='behind'?`KPI ${e.paidKpiDelta!==null?e.paidKpiDelta+'%':'Behind'}`:'Overspend','#fef2f2','#dc2626','#fecaca',paidTip) : e.paidWarn ? bk('Underspend','#fffbeb','#d97706','#fde68a',paidTip) : bk('On Track','#f0fdf4','#16a34a','#bbf7d0',paidTip)) : dash;
+            const scoreColor = e.risk>=60?'#dc2626':e.risk>=30?'#d97706':'#16a34a';
+            const scoreBg    = e.risk>=60?'#fef2f2':e.risk>=30?'#fffbeb':'#f0fdf4';
+            const pctBar = `<div style="position:relative;height:4px;background:#f1f5f9;border-radius:3px;width:44px;display:inline-block;vertical-align:middle;margin-left:4px;"><div style="position:absolute;top:0;left:0;height:100%;width:${e.risk}%;background:${scoreColor};border-radius:3px;"></div></div>`;
+            const _sk = s => s&&s.length>24?s.substring(0,21)+'…':(s||'');
+            const _si = s => s&&s.length>32?s.substring(0,29)+'…':(s||'');
+            let actionPrimary='', actionDetails=[];
+            if (e.intel?.isBehind&&e.paidAtRisk) { const gap=e.intel.expected>0?` — need ${Math.max(0,e.intel.expected-e.intel.p1)} more ${e.intel.resultLabel||'KWs'}`:''; actionPrimary=`Full-funnel recovery${gap}`; if(e.paidKpiDelta!==null&&e.paidExpectedKpi>0) actionDetails.push(`Paid KPI: ${e.paidTotalResults??'?'}/${e.paidExpectedKpi} (${e.paidKpiDelta>0?'+':''}${e.paidKpiDelta}%)`); }
+            else if (e.adsHigh.length>0&&e.intel?.isBehind) { actionPrimary=`Fix Ads quality + boost SEO content`; if(e.topAdsIssue) actionDetails.push(`Ads: ${_si(e.topAdsIssue)}`); if(e.intel.expected>0) actionDetails.push(`SEO: ${e.intel.p1}/${e.intel.expected} ${e.intel.resultLabel||'KWs'}`); }
+            else if (e.ga4Critical.length>0&&e.intel?.isBehind) { actionPrimary=`Fix conversion path + grow organic`; if(e.topGa4Issue) actionDetails.push(`GA4: ${_si(e.topGa4Issue)}`); if(e.intel.expected>0) actionDetails.push(`${e.intel.pctBehind}% below KPI target`); }
+            else if (e.intel?.isBehind&&e.gscHigh.length>0) { actionPrimary=`Fix ${_si(e.topGscIssue||'GSC issue')} → unblock rankings`; if(e.intel.expected>0) actionDetails.push(`Need ${Math.max(0,e.intel.expected-e.intel.p1)} more ${e.intel.resultLabel||'KWs'} (${e.intel.daysRemaining}d left)`); }
+            else if (e.intel?.isBehind) { const need=e.intel.expected>0?Math.max(0,e.intel.expected-e.intel.p1):null; actionPrimary=`Accelerate content${need!==null?` — push ${need} more ${e.intel.resultLabel||'KWs'} to P1`:''}`; if(e.intel.expected>0) actionDetails.push(`${e.intel.pctProgress}% through campaign, ${e.intel.daysRemaining}d left`); }
+            else if (e.paidAtRisk) { const kpiLine=e.paidKpiDelta!==null&&e.paidExpectedKpi>0?`${e.paidTotalResults??'?'}/${e.paidExpectedKpi} target (${e.paidKpiDelta>0?'+':''}${e.paidKpiDelta}%)`:e.paidCamp?.budgetStatus==='overspend'?`budget ${e.paidBudgetDelta>0?'+':''}${e.paidBudgetDelta??'?'}% vs pacing`:null; actionPrimary=`Review paid strategy${kpiLine?' — '+kpiLine:''}`; }
+            else if (e.adsHigh.length>0) { actionPrimary=`Fix: ${_si(e.topAdsIssue||'Ads quality issues')}`; if(e.topAdsDesc) actionDetails.push(_si(e.topAdsDesc)); }
+            else if (e.ga4Critical.length>0) { actionPrimary=`Investigate: ${_si(e.topGa4Issue||'GA4 behaviour signal')}`; if(e.topGa4Desc) actionDetails.push(_si(e.topGa4Desc)); }
+            else if (e.bigDrops.length>0) { actionPrimary=`Recover rankings — ${e.bigDrops.length} keyword${e.bigDrops.length>1?'s':''} dropped 5+ pos`; }
+            else if (e.gscHigh.length>0) { actionPrimary=`Fix: ${_si(e.topGscIssue||'GSC issue')}`; if(e.topGscDesc) actionDetails.push(_si(e.topGscDesc)); }
+            else { actionPrimary='Maintain momentum'; }
+            if (e.worstDrop&&(e.intel?.isBehind||e.bigDrops.length>0)&&actionDetails.length<2) actionDetails.push(`Recover "${_sk(e.worstDrop.keyword)}" from #${e.worstDrop.newRank} → target top ${e.worstDrop.newRank>10?'10':'3'}`);
+            const topAction = `<div><div style="font-size:0.74rem;font-weight:600;color:#1e293b;line-height:1.35;">${actionPrimary}</div>${actionDetails.slice(0,2).map(d=>`<div style="font-size:0.65rem;color:#64748b;margin-top:1px;line-height:1.3;">${d}</div>`).join('')}</div>`;
+            return `<tr data-hol-campaign="${e.name.replace(/"/g,'&quot;')}" style="border-bottom:1px solid #f1f5f9;cursor:pointer;" onclick="holisticToggleRow(this.dataset.holCampaign)" onmouseover="holisticRowHover(this,true)" onmouseout="holisticRowHover(this,false)">
+                <td style="padding:8px 10px;font-weight:600;font-size:0.8rem;color:#1e293b;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${e.name}">${e.name}</td>
+                <td style="padding:8px 10px;text-align:center;">${trajBadge}</td>
+                <td style="padding:8px 10px;text-align:center;">${serBadge}</td>
+                <td style="padding:8px 10px;text-align:center;">${gscBadge}</td>
+                <td style="padding:8px 10px;text-align:center;">${ga4Badge}</td>
+                <td style="padding:8px 10px;text-align:center;">${adsBadge}</td>
+                <td style="padding:8px 10px;text-align:center;">${paidBadge}</td>
+                <td style="padding:8px 10px;text-align:center;"><span style="font-size:0.72rem;font-weight:700;color:${scoreColor};background:${scoreBg};padding:2px 6px;border-radius:7px;">${e.risk}</span>${pctBar}</td>
+                <td style="padding:8px 10px;min-width:200px;">${topAction}</td>
+            </tr>`;
+        }
+
+        function _renderHolisticMatrix() {
+            const tbody = document.getElementById('holistic-matrix-tbody');
+            const loadMoreEl = document.getElementById('holistic-load-more');
+            const subtitle = document.getElementById('holistic-matrix-subtitle');
+            if (!tbody) return;
+            const sortVal = e => {
+                switch (_holisticSortCol) {
+                    case 'name': return (e.name||'').toLowerCase();
+                    case 'seo':  return e.intel ? (e.intel.isBehind?2:1) : 0;
+                    case 'ser':  return e.bigDrops.length*10+e.rankDrops.length;
+                    case 'gsc':  return e.gscHigh.length*3+e.gscMed.length;
+                    case 'ga4':  return e.ga4Critical.length*3+e.ga4High.length*2+e.ga4Med.length;
+                    case 'ads':  return e.adsHigh.length*2+e.adsMed.length;
+                    case 'mon':  return e.paidAtRisk?2:e.paidWarn?1:e.paidCamp?0:-1;
+                    default:     return e.risk;
+                }
+            };
+            const sorted = [..._holisticLastMatrix].sort((a,b) => {
+                const av=sortVal(a), bv=sortVal(b);
+                if (typeof av==='string') return _holisticSortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av);
+                return _holisticSortDir==='asc'?av-bv:bv-av;
+            });
+            tbody.innerHTML = sorted.slice(0,_holisticPageSize).map(e=>_buildHolisticMatrixRow(e)).join('');
+            document.querySelectorAll('[data-hm-sort]').forEach(th => {
+                const col=th.dataset.hmSort, arrow=th.querySelector('.hm-sort-arrow');
+                if (arrow) { arrow.textContent=col===_holisticSortCol?(_holisticSortDir==='asc'?' ↑':' ↓'):' ↕'; arrow.style.opacity=col===_holisticSortCol?'1':'0.35'; }
+            });
+            if (subtitle) { const n=Math.min(_holisticPageSize,sorted.length); subtitle.textContent=`${n} of ${sorted.length}, sorted by ${_holisticSortCol}`; }
+            if (loadMoreEl) {
+                const remaining=sorted.length-_holisticPageSize;
+                loadMoreEl.innerHTML = remaining>0
+                    ? `<button onclick="holisticLoadMore(${_holisticPageSize+20})" style="padding:5px 16px;border:1px solid #e2e8f0;border-radius:7px;background:#f8fafc;cursor:pointer;font-size:0.76rem;color:#475569;margin:4px 0;"><i class="fas fa-chevron-down" style="font-size:0.6rem;margin-right:4px;color:#94a3b8;"></i>Load ${Math.min(20,remaining)} more <span style="color:#94a3b8;">(${remaining} remaining)</span></button>`
+                    : (sorted.length>20?`<div style="font-size:0.68rem;color:#94a3b8;padding:4px 0;">All ${sorted.length} items shown</div>`:'');
+            }
+        }
+
+        function holisticSortBy(col) {
+            if (_holisticSortCol===col) { _holisticSortDir=_holisticSortDir==='asc'?'desc':'asc'; }
+            else { _holisticSortCol=col; _holisticSortDir=col==='name'?'asc':'desc'; }
+            _renderHolisticMatrix();
+        }
+
+        function holisticLoadMore(n) { _holisticPageSize=n; _renderHolisticMatrix(); }
 
         function _buildInsightCard(i, sevStyle) {
             const [c, bg, br] = sevStyle[i.sev] || sevStyle.medium;
@@ -23043,145 +23144,10 @@
             const dash = `<span style="font-size:0.62rem;color:#94a3b8;">—</span>`;
 
             const isExpanded = document.getElementById('card-holistic')?.classList.contains('expanded');
-            const topItems = matrix.filter(e => e.risk > 0).slice(0, 20);
-
-            const tableRows = topItems.map(e => {
-                // Traj badge: show KPI numbers in tooltip
-                const trajTip = e.intel
-                    ? (e.intel.isBehind
-                        ? `${e.intel.p1}/${e.intel.expected} ${e.intel.resultLabel||'KWs'} · ${e.intel.pctBehind}% below target · ${e.intel.pctProgress}% through campaign · ${e.intel.daysRemaining}d left`
-                        : `${e.intel.p1}/${e.intel.kpi} ${e.intel.resultLabel||'KWs'} · ${e.intel.pctProgress}% through campaign · ${e.intel.daysRemaining}d left`)
-                    : '';
-                const trajBadge = e.intel
-                    ? (e.intel.isBehind ? bk('Behind','#fef2f2','#dc2626','#fecaca', trajTip) : bk('On Track','#f0fdf4','#16a34a','#bbf7d0', trajTip))
-                    : bk('No Intel','#f8fafc','#94a3b8','#e2e8f0');
-
-                // SE Rank badge: show worst drop in tooltip
-                const serTip = e.worstDrop
-                    ? `Worst: "${e.worstDrop.keyword}" #${e.worstDrop.oldRank}→#${e.worstDrop.newRank}${e.worstDrop.timeframe ? ' ('+e.worstDrop.timeframe+')' : ''}`
-                    : (e.rankGains.length > 0 ? `${e.rankGains.length} gains · ${e.rankDrops.length} drops` : '');
-                const serBadge = e.serSite
-                    ? (e.bigDrops.length > 0 ? bk(`${e.bigDrops.length} drop${e.bigDrops.length>1?'s':''}`, '#fff7ed','#f97316','#fed7aa', serTip)
-                        : e.rankGains.length > 0 ? bk(`${e.rankGains.length} gain${e.rankGains.length>1?'s':''}`, '#f0fdf4','#16a34a','#bbf7d0', serTip)
-                        : bk('Stable','#f8fafc','#64748b','#e2e8f0'))
-                    : dash;
-
-                // GSC badge: show desc in tooltip (already has real numbers)
-                const gscTip = e.topGscDesc ? `${e.topGscIssue}: ${e.topGscDesc}` : (e.topGscIssue || '');
-                const gscBadge = e.gscProp
-                    ? (e.gscHigh.length > 0 ? bk(`${e.gscHigh.length} critical`,'#fef2f2','#dc2626','#fecaca', gscTip)
-                        : e.gscMed.length > 0 ? bk(`${e.gscMed.length} medium`,'#fffbeb','#d97706','#fde68a', gscTip)
-                        : bk('Clean','#f0fdf4','#16a34a','#bbf7d0'))
-                    : dash;
-
-                // GA4 badge: show desc in tooltip
-                const ga4Tip = e.topGa4Desc ? `${e.topGa4Issue}: ${e.topGa4Desc}` : (e.topGa4Issue || '');
-                const ga4Badge = e.ga4Prop
-                    ? (e.ga4Critical.length > 0 ? bk(`${e.ga4Critical.length} critical`,'#fef2f2','#dc2626','#fecaca', ga4Tip)
-                        : e.ga4High.length > 0 ? bk(`${e.ga4High.length} high`,'#fff7ed','#f97316','#fed7aa', ga4Tip)
-                        : e.ga4Med.length > 0 ? bk(`${e.ga4Med.length} medium`,'#fffbeb','#d97706','#fde68a', ga4Tip)
-                        : bk('Clean','#f0fdf4','#16a34a','#bbf7d0'))
-                    : dash;
-
-                // Ads badge: show desc in tooltip
-                const adsTip = e.topAdsDesc ? `${e.topAdsIssue}: ${e.topAdsDesc}` : (e.topAdsIssue || '');
-                const adsBadge = e.adsAccount
-                    ? (e.adsHigh.length > 0 ? bk(`${e.adsHigh.length} high`,'#fef2f2','#ea4335','#fecaca', adsTip)
-                        : e.adsMed.length > 0 ? bk(`${e.adsMed.length} med`,'#fffbeb','#d97706','#fde68a', adsTip)
-                        : bk('Clean','#f0fdf4','#16a34a','#bbf7d0'))
-                    : dash;
-
-                // Paid badge: show actual KPI/budget numbers
-                const paidKpiStr = (e.paidKpiDelta !== null && e.paidExpectedKpi > 0)
-                    ? `KPI: ${e.paidTotalResults??'?'}/${e.paidExpectedKpi} (${e.paidKpiDelta>0?'+':''}${e.paidKpiDelta}%)`
-                    : null;
-                const paidBudStr = (e.paidBudgetDelta !== null && e.paidExpectedSpend > 0)
-                    ? `Budget: $${(e.paidTotalSpend??0).toLocaleString()} vs $${(e.paidExpectedSpend??0).toLocaleString()} expected (${e.paidBudgetDelta>0?'+':''}${e.paidBudgetDelta}%)`
-                    : null;
-                const paidTip = [paidKpiStr, paidBudStr].filter(Boolean).join(' · ');
-                const paidBadge = e.paidCamp
-                    ? (e.paidAtRisk
-                        ? bk(e.paidCamp.kpiStatus==='behind'?`KPI ${e.paidKpiDelta!==null?e.paidKpiDelta+'%':'Behind'}`:'Overspend','#fef2f2','#dc2626','#fecaca', paidTip)
-                        : e.paidWarn ? bk('Underspend','#fffbeb','#d97706','#fde68a', paidTip)
-                        : bk('On Track','#f0fdf4','#16a34a','#bbf7d0', paidTip))
-                    : dash;
-
-                const scoreColor = e.risk >= 60 ? '#dc2626' : e.risk >= 30 ? '#d97706' : '#16a34a';
-                const scoreBg    = e.risk >= 60 ? '#fef2f2' : e.risk >= 30 ? '#fffbeb' : '#f0fdf4';
-                const pctBar     = `<div style="position:relative;height:4px;background:#f1f5f9;border-radius:3px;width:44px;display:inline-block;vertical-align:middle;margin-left:4px;">
-                    <div style="position:absolute;top:0;left:0;height:100%;width:${e.risk}%;background:${scoreColor};border-radius:3px;"></div></div>`;
-
-                // ── Specific Top Action ────────────────────────────────────────
-                const _sk = s => s && s.length > 24 ? s.substring(0,21)+'…' : (s||'');
-                const _si = s => s && s.length > 32 ? s.substring(0,29)+'…' : (s||'');
-
-                let actionPrimary = '', actionDetails = [];
-
-                if (e.intel?.isBehind && e.paidAtRisk) {
-                    const gap = e.intel.expected > 0 ? ` — need ${Math.max(0,e.intel.expected-e.intel.p1)} more ${e.intel.resultLabel||'KWs'}` : '';
-                    actionPrimary = `Full-funnel recovery${gap}`;
-                    if (e.paidKpiDelta !== null && e.paidExpectedKpi > 0)
-                        actionDetails.push(`Paid KPI: ${e.paidTotalResults??'?'}/${e.paidExpectedKpi} (${e.paidKpiDelta>0?'+':''}${e.paidKpiDelta}%)`);
-                } else if (e.adsHigh.length > 0 && e.intel?.isBehind) {
-                    actionPrimary = `Fix Ads quality + boost SEO content`;
-                    if (e.topAdsIssue) actionDetails.push(`Ads: ${_si(e.topAdsIssue)}`);
-                    if (e.intel.expected > 0) actionDetails.push(`SEO: ${e.intel.p1}/${e.intel.expected} ${e.intel.resultLabel||'KWs'}`);
-                } else if (e.ga4Critical.length > 0 && e.intel?.isBehind) {
-                    actionPrimary = `Fix conversion path + grow organic`;
-                    if (e.topGa4Issue) actionDetails.push(`GA4: ${_si(e.topGa4Issue)}`);
-                    if (e.intel.expected > 0) actionDetails.push(`${e.intel.pctBehind}% below KPI target`);
-                } else if (e.intel?.isBehind && e.gscHigh.length > 0) {
-                    actionPrimary = `Fix ${_si(e.topGscIssue||'GSC issue')} → unblock rankings`;
-                    if (e.intel.expected > 0) actionDetails.push(`Need ${Math.max(0,e.intel.expected-e.intel.p1)} more ${e.intel.resultLabel||'KWs'} (${e.intel.daysRemaining}d left)`);
-                } else if (e.intel?.isBehind) {
-                    const need = e.intel.expected > 0 ? Math.max(0,e.intel.expected-e.intel.p1) : null;
-                    actionPrimary = `Accelerate content${need!==null ? ` — push ${need} more ${e.intel.resultLabel||'KWs'} to P1` : ''}`;
-                    if (e.intel.expected > 0) actionDetails.push(`${e.intel.pctProgress}% through campaign, ${e.intel.daysRemaining}d left`);
-                } else if (e.paidAtRisk) {
-                    const kpiLine = e.paidKpiDelta !== null && e.paidExpectedKpi > 0
-                        ? `${e.paidTotalResults??'?'}/${e.paidExpectedKpi} target (${e.paidKpiDelta>0?'+':''}${e.paidKpiDelta}%)`
-                        : e.paidCamp?.budgetStatus==='overspend' ? `budget ${e.paidBudgetDelta>0?'+':''}${e.paidBudgetDelta??'?'}% vs pacing` : null;
-                    actionPrimary = `Review paid strategy${kpiLine ? ' — ' + kpiLine : ''}`;
-                } else if (e.adsHigh.length > 0) {
-                    actionPrimary = `Fix: ${_si(e.topAdsIssue||'Ads quality issues')}`;
-                    if (e.topAdsDesc) actionDetails.push(_si(e.topAdsDesc));
-                } else if (e.ga4Critical.length > 0) {
-                    actionPrimary = `Investigate: ${_si(e.topGa4Issue||'GA4 behaviour signal')}`;
-                    if (e.topGa4Desc) actionDetails.push(_si(e.topGa4Desc));
-                } else if (e.bigDrops.length > 0) {
-                    actionPrimary = `Recover rankings — ${e.bigDrops.length} keyword${e.bigDrops.length>1?'s':''} dropped 5+ pos`;
-                } else if (e.gscHigh.length > 0) {
-                    actionPrimary = `Fix: ${_si(e.topGscIssue||'GSC issue')}`;
-                    if (e.topGscDesc) actionDetails.push(_si(e.topGscDesc));
-                } else {
-                    actionPrimary = 'Maintain momentum';
-                }
-
-                // Always add the worst rank drop as a specific target if relevant
-                if (e.worstDrop && (e.intel?.isBehind || e.bigDrops.length > 0) && actionDetails.length < 2) {
-                    actionDetails.push(`Recover "${_sk(e.worstDrop.keyword)}" from #${e.worstDrop.newRank} → target top ${e.worstDrop.newRank > 10 ? '10' : '3'}`);
-                }
-
-                const topAction = `<div>
-                    <div style="font-size:0.74rem;font-weight:600;color:#1e293b;line-height:1.35;">${actionPrimary}</div>
-                    ${actionDetails.slice(0,2).map(d=>`<div style="font-size:0.65rem;color:#64748b;margin-top:1px;line-height:1.3;">${d}</div>`).join('')}
-                </div>`;
-
-                return `<tr data-hol-campaign="${e.name.replace(/"/g,'&quot;')}" style="border-bottom:1px solid #f1f5f9;cursor:pointer;" onclick="holisticToggleRow(this.dataset.holCampaign)" onmouseover="holisticRowHover(this,true)" onmouseout="holisticRowHover(this,false)">
-                    <td style="padding:8px 10px;font-weight:600;font-size:0.8rem;color:#1e293b;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${e.name}">${e.name}</td>
-                    <td style="padding:8px 10px;text-align:center;">${trajBadge}</td>
-                    <td style="padding:8px 10px;text-align:center;">${serBadge}</td>
-                    <td style="padding:8px 10px;text-align:center;">${gscBadge}</td>
-                    <td style="padding:8px 10px;text-align:center;">${ga4Badge}</td>
-                    <td style="padding:8px 10px;text-align:center;">${adsBadge}</td>
-                    <td style="padding:8px 10px;text-align:center;">${paidBadge}</td>
-                    <td style="padding:8px 10px;text-align:center;">
-                        <span style="font-size:0.72rem;font-weight:700;color:${scoreColor};background:${scoreBg};padding:2px 6px;border-radius:7px;">${e.risk}</span>
-                        ${pctBar}
-                    </td>
-                    <td style="padding:8px 10px;min-width:200px;">${topAction}</td>
-                </tr>`;
-            }).join('');
+            _holisticLastMatrix = matrix.filter(e => e.risk > 0);
+            _holisticSortCol = 'risk';
+            _holisticSortDir = 'desc';
+            _holisticPageSize = 20;
 
             const insightHtml = insights.slice(0, 10).map(i => {
                 const [c, bg, br] = sevStyle[i.sev] || sevStyle.medium;
@@ -23224,7 +23190,7 @@
                 ${avgHealth !== null ? tile('fa-heartbeat', healthColor, healthColor + '18', avgHealth + '%', 'Portfolio Health', 'composite score') : ''}
             </div>
 
-            ${isExpanded && insights.length && topItems.length ? `
+            ${isExpanded && insights.length && _holisticLastMatrix.length ? `
             <div style="display:flex;flex:1;min-height:0;overflow:hidden;">
                 <div id="holistic-insights-panel" style="width:360px;flex-shrink:0;overflow-y:auto;padding:10px 14px;border-right:1px solid #e2e8f0;">
                     ${buildHolisticInsightsPanel(insights, _holisticSelected, sevStyle)}
@@ -23232,57 +23198,60 @@
                 <div style="flex:1;overflow-y:auto;padding:10px 14px;min-width:0;">
                     <div style="font-size:0.72rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
                         <i class="fas fa-table" style="color:#6366f1;"></i> Priority Matrix
-                        <span style="font-weight:400;color:#94a3b8;text-transform:none;font-size:0.68rem;">(top ${topItems.length}, sorted by risk)</span>
+                        <span style="font-weight:400;color:#94a3b8;text-transform:none;font-size:0.68rem;"><span id="holistic-matrix-subtitle" style="font-style:normal;"></span></span>
                     </div>
-                    <div style="overflow-x:auto;border-radius:10px;border:1px solid #e2e8f0;">
+                    <div style="max-height:460px;overflow:auto;border-radius:10px;border:1px solid #e2e8f0;">
                         <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
                             <thead>
-                                <tr style="background:#f8fafc;">
-                                    <th style="padding:8px 10px;text-align:left;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Campaign / Site<div style="font-size:0.55rem;font-weight:400;color:#94a3b8;text-transform:none;letter-spacing:0;margin-top:1px;">click to filter</div></th>
-                                    <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;" title="SEO Campaign Intel trajectory">SEO Traj.</th>
-                                    <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;" title="SE Ranking movers">SE Rank</th>
-                                    <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;" title="Google Search Console">GSC</th>
-                                    <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;" title="Google Analytics 4">GA4</th>
-                                    <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#ea4335;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;" title="Google Ads recommendations">G. Ads</th>
-                                    <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;" title="Monday.com Campaign Intel">Mon.</th>
-                                    <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Risk</th>
-                                    <th style="padding:8px 10px;text-align:left;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Top Action</th>
+                                <tr style="background:#f8fafc;" id="holistic-matrix-header-exp">
+                                    <th data-hm-sort="name" onclick="holisticSortBy('name')" style="padding:8px 10px;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:2px solid #e2e8f0;user-select:none;text-align:left;color:#64748b;">Campaign / Site<span class="hm-sort-arrow" style="opacity:0.35;font-weight:400;"> ↕</span><div style="font-size:0.55rem;font-weight:400;color:#94a3b8;text-transform:none;letter-spacing:0;margin-top:1px;">click to filter / sort</div></th>
+                                    <th data-hm-sort="seo" onclick="holisticSortBy('seo')" title="SEO Campaign Intel trajectory" style="padding:8px 10px;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:2px solid #e2e8f0;user-select:none;text-align:center;color:#64748b;">SEO Traj.<span class="hm-sort-arrow" style="opacity:0.35;font-weight:400;"> ↕</span></th>
+                                    <th data-hm-sort="ser" onclick="holisticSortBy('ser')" title="SE Ranking movers" style="padding:8px 10px;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:2px solid #e2e8f0;user-select:none;text-align:center;color:#64748b;">SE Rank<span class="hm-sort-arrow" style="opacity:0.35;font-weight:400;"> ↕</span></th>
+                                    <th data-hm-sort="gsc" onclick="holisticSortBy('gsc')" title="Google Search Console" style="padding:8px 10px;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:2px solid #e2e8f0;user-select:none;text-align:center;color:#64748b;">GSC<span class="hm-sort-arrow" style="opacity:0.35;font-weight:400;"> ↕</span></th>
+                                    <th data-hm-sort="ga4" onclick="holisticSortBy('ga4')" title="Google Analytics 4" style="padding:8px 10px;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:2px solid #e2e8f0;user-select:none;text-align:center;color:#64748b;">GA4<span class="hm-sort-arrow" style="opacity:0.35;font-weight:400;"> ↕</span></th>
+                                    <th data-hm-sort="ads" onclick="holisticSortBy('ads')" title="Google Ads recommendations" style="padding:8px 10px;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:2px solid #e2e8f0;user-select:none;text-align:center;color:#ea4335;">G. Ads<span class="hm-sort-arrow" style="opacity:0.35;font-weight:400;"> ↕</span></th>
+                                    <th data-hm-sort="mon" onclick="holisticSortBy('mon')" title="Monday.com Campaign Intel" style="padding:8px 10px;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:2px solid #e2e8f0;user-select:none;text-align:center;color:#f59e0b;">Mon.<span class="hm-sort-arrow" style="opacity:0.35;font-weight:400;"> ↕</span></th>
+                                    <th data-hm-sort="risk" onclick="holisticSortBy('risk')" style="padding:8px 10px;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:2px solid #e2e8f0;user-select:none;text-align:center;color:#64748b;">Risk<span class="hm-sort-arrow" style="opacity:1;font-weight:400;"> ↓</span></th>
+                                    <th style="padding:8px 10px;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:2px solid #e2e8f0;user-select:none;text-align:left;color:#64748b;cursor:default;">Top Action</th>
                                 </tr>
                             </thead>
-                            <tbody>${tableRows}</tbody>
+                            <tbody id="holistic-matrix-tbody"></tbody>
                         </table>
                     </div>
+                    <div id="holistic-load-more" style="text-align:center;padding:4px 14px;"></div>
                 </div>
             </div>` : `
             ${insights.length ? `
             <div id="holistic-insights-panel" style="padding:0 14px 10px;">
                 ${buildHolisticInsightsPanel(insights, _holisticSelected, sevStyle)}
             </div>` : ''}
-            ${topItems.length ? `
+            ${_holisticLastMatrix.length ? `
             <div style="padding:0 14px 14px;">
                 <div style="font-size:0.72rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
                     <i class="fas fa-table" style="color:#6366f1;"></i> Priority Matrix
-                    <span style="font-weight:400;color:#94a3b8;text-transform:none;font-size:0.68rem;">(top ${topItems.length}, sorted by risk)</span>
+                    <span id="holistic-matrix-subtitle" style="font-style:normal;color:#94a3b8;font-size:0.68rem;font-weight:400;"></span>
                 </div>
-                <div style="overflow-x:auto;border-radius:10px;border:1px solid #e2e8f0;">
+                <div style="max-height:460px;overflow:auto;border-radius:10px;border:1px solid #e2e8f0;">
                     <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
                         <thead>
-                            <tr style="background:#f8fafc;">
-                                <th style="padding:8px 10px;text-align:left;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Campaign / Site<div style="font-size:0.55rem;font-weight:400;color:#94a3b8;text-transform:none;letter-spacing:0;margin-top:1px;">click to filter</div></th>
-                                <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;" title="SEO Campaign Intel trajectory">SEO Traj.</th>
-                                <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;" title="SE Ranking movers">SE Rank</th>
-                                <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;" title="Google Search Console">GSC</th>
-                                <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;" title="Google Analytics 4">GA4</th>
-                                <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#ea4335;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;" title="Google Ads recommendations">G. Ads</th>
-                                <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;" title="Monday.com Paid Campaign Intel">Paid</th>
-                                <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Risk</th>
-                                <th style="padding:8px 10px;text-align:left;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Top Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>${tableRows}</tbody>
+                                <tr style="background:#f8fafc;" id="holistic-matrix-header-col">
+                                    <th data-hm-sort="name" onclick="holisticSortBy('name')" style="padding:8px 10px;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:2px solid #e2e8f0;user-select:none;text-align:left;color:#64748b;">Campaign / Site<span class="hm-sort-arrow" style="opacity:0.35;font-weight:400;"> ↕</span><div style="font-size:0.55rem;font-weight:400;color:#94a3b8;text-transform:none;letter-spacing:0;margin-top:1px;">click to filter / sort</div></th>
+                                    <th data-hm-sort="seo" onclick="holisticSortBy('seo')" title="SEO Campaign Intel trajectory" style="padding:8px 10px;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:2px solid #e2e8f0;user-select:none;text-align:center;color:#64748b;">SEO Traj.<span class="hm-sort-arrow" style="opacity:0.35;font-weight:400;"> ↕</span></th>
+                                    <th data-hm-sort="ser" onclick="holisticSortBy('ser')" title="SE Ranking movers" style="padding:8px 10px;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:2px solid #e2e8f0;user-select:none;text-align:center;color:#64748b;">SE Rank<span class="hm-sort-arrow" style="opacity:0.35;font-weight:400;"> ↕</span></th>
+                                    <th data-hm-sort="gsc" onclick="holisticSortBy('gsc')" title="Google Search Console" style="padding:8px 10px;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:2px solid #e2e8f0;user-select:none;text-align:center;color:#64748b;">GSC<span class="hm-sort-arrow" style="opacity:0.35;font-weight:400;"> ↕</span></th>
+                                    <th data-hm-sort="ga4" onclick="holisticSortBy('ga4')" title="Google Analytics 4" style="padding:8px 10px;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:2px solid #e2e8f0;user-select:none;text-align:center;color:#64748b;">GA4<span class="hm-sort-arrow" style="opacity:0.35;font-weight:400;"> ↕</span></th>
+                                    <th data-hm-sort="ads" onclick="holisticSortBy('ads')" title="Google Ads recommendations" style="padding:8px 10px;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:2px solid #e2e8f0;user-select:none;text-align:center;color:#ea4335;">G. Ads<span class="hm-sort-arrow" style="opacity:0.35;font-weight:400;"> ↕</span></th>
+                                    <th data-hm-sort="mon" onclick="holisticSortBy('mon')" title="Monday.com Campaign Intel" style="padding:8px 10px;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:2px solid #e2e8f0;user-select:none;text-align:center;color:#f59e0b;">Mon.<span class="hm-sort-arrow" style="opacity:0.35;font-weight:400;"> ↕</span></th>
+                                    <th data-hm-sort="risk" onclick="holisticSortBy('risk')" style="padding:8px 10px;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:2px solid #e2e8f0;user-select:none;text-align:center;color:#64748b;">Risk<span class="hm-sort-arrow" style="opacity:1;font-weight:400;"> ↓</span></th>
+                                    <th style="padding:8px 10px;font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;cursor:pointer;position:sticky;top:0;z-index:2;background:#f8fafc;border-bottom:2px solid #e2e8f0;user-select:none;text-align:left;color:#64748b;cursor:default;">Top Action</th>
+                                </tr>
+                            </thead>
+                        <tbody id="holistic-matrix-tbody"></tbody>
                     </table>
                 </div>
+                <div id="holistic-load-more" style="text-align:center;padding:4px 14px;"></div>
             </div>` : ''}`}`;
+            _renderHolisticMatrix();
         }
 
         // ── Holistic Source Mapping ───────────────────────────────────────────────
