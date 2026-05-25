@@ -12700,6 +12700,19 @@
                             </div>
                         </div>
 
+                        <div id="strat-task-tracker" style="display:none; margin-top:10px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px;">
+                            <div style="font-size:0.7rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px;">Running Tasks</div>
+                            <div style="display:flex; flex-direction:column; gap:5px;" id="strat-task-list">
+                                <div class="strat-task-row" id="strat-task-strategy" data-label="Strategy Generation"></div>
+                                <div class="strat-task-row" id="strat-task-domain" data-label="Domain Metrics"></div>
+                                <div class="strat-task-row" id="strat-task-technical" data-label="Technical Audit"></div>
+                                <div class="strat-task-row" id="strat-task-geo" data-label="GEO Discovery"></div>
+                                <div class="strat-task-row" id="strat-task-competitors" data-label="Competitor Analysis"></div>
+                                <div class="strat-task-row" id="strat-task-recommendations" data-label="Actionable Recommendations"></div>
+                                <div class="strat-task-row" id="strat-task-ttr" data-label="Keyword TTR Analysis"></div>
+                            </div>
+                        </div>
+
                         <div style="margin-top: 20px;">
                             <button class="btn-sidebar" onclick="runDigimetricsStrategyEngine()" id="runStrategyBtn"
                                 style="width: 100%; height: 50px; font-weight: 700; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border: none; border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;">
@@ -45960,6 +45973,7 @@ Return ONLY valid JSON in this exact format:
         let selectedFiles_pillar = [];
         let selectedFiles_strat = [];
         let currentStrategies = []; // Global store for strategies
+        window._selectedStrategy = null; // User-chosen strategy (drives blueprint + PDF)
         let hiddenStrategyNames = new Set(); // Track hidden strategy names
 
         function renderPillarAttachments() {
@@ -46591,7 +46605,11 @@ Return ONLY a valid JSON object (no markdown, no explanation):
             try {
                 // 1. Collect inputs
                 let inputs = collectStrategyInputs();
-                
+
+                // Show tracker, initialise all as pending
+                ['strategy','domain','technical','geo','competitors','recommendations','ttr'].forEach(t => setTaskStatus(t, 'pending'));
+                setTaskStatus('strategy', 'running');
+
                 // Auto-research if only quick input is provided
                 const quickInput = document.getElementById('strat-quick-input').value.trim();
                 if (!inputs.clientProfile && quickInput) {
@@ -46633,7 +46651,10 @@ Return ONLY a valid JSON object (no markdown, no explanation):
                                 
                                 // Start the audit
                                 subBtn.click();
-                                
+                                setTaskStatus('domain', 'running');
+                                setTaskStatus('technical', 'running');
+                                setTaskStatus('competitors', 'running');
+
                                 // Visual feedback
                                 if (typeof openTechnicalSeo === 'function') {
                                     openTechnicalSeo(null, true); // Open section to show progress
@@ -46660,6 +46681,7 @@ Return ONLY a valid JSON object (no markdown, no explanation):
 
                     // Auto-trigger GEO Discovery Audit + AI Mentions (LLM-driven, no human input needed)
                     setTimeout(() => {
+                        setTaskStatus('geo', 'running');
                         autoRunGeoDiscovery(quickInput).catch(e => console.warn('Auto-GEO error:', e));
                     }, 1200);
                 }
@@ -46753,11 +46775,14 @@ Return ONLY a valid JSON object (no markdown, no explanation):
                 const strategies = parseAIStrategyResponse(aiResponse);
                 if (!strategies || strategies.length === 0) throw new Error("Could not parse strategy data from AI response. Raw AI text logged to console.");
 
+                setTaskStatus('strategy', 'done');
+
                 console.log("Strategy Engine: Parsed Strategies:", strategies);
                 currentStrategies = strategies; // Store globally
                 hiddenStrategyNames.clear(); // Reset hidden state for new run
-                
+
                 let recommendedStrategy = strategies.find(s => s.recommended) || strategies[0];
+                window._selectedStrategy = recommendedStrategy;
                 try {
                     renderStrategyComparisonGrid(strategies);
                     if (recommendedStrategy) {
@@ -46767,7 +46792,8 @@ Return ONLY a valid JSON object (no markdown, no explanation):
                         // Show results immediately, then async-fetch recommendations
                         const area = document.getElementById('actionable-recommendations-area');
                         if (area) area.style.display = 'block';
-                        fetchAndRenderRecommendations(recommendedStrategy, auditContext); // non-blocking
+                        setTaskStatus('recommendations', 'running');
+                        fetchAndRenderRecommendations(recommendedStrategy, auditContext).then(() => setTaskStatus('recommendations', 'done')).catch(() => setTaskStatus('recommendations', 'error')); // non-blocking
                     }
                 } catch (renderErr) {
                     console.error("Strategy Engine: Rendering failed:", renderErr);
@@ -46794,7 +46820,6 @@ Return ONLY a valid JSON object (no markdown, no explanation):
                 enrichStrategyKeywords(strategies, quickInput, inputs.location, inputs.language);
 
                 resultsContainer.style.display = "block";
-                resultsContainer.scrollIntoView({ behavior: 'smooth' });
                 updateKeywordAnalysisLoader(null, null, false);
                 updateStrategyStatus("Complete", 100);
                 setTimeout(() => updateStrategyStatus(null, null, false), 3000);
@@ -46831,6 +46856,35 @@ Return ONLY a valid JSON object (no markdown, no explanation):
                 }
             } else {
                 statusDiv.style.display = 'none';
+            }
+        }
+
+        function setTaskStatus(taskId, status) {
+            const el = document.getElementById('strat-task-' + taskId);
+            if (!el) return;
+            const label = el.getAttribute('data-label') || taskId;
+            const tracker = document.getElementById('strat-task-tracker');
+            if (tracker) tracker.style.display = 'block';
+
+            const configs = {
+                pending:  { iconClass: 'fas fa-circle',         color: '#cbd5e1', opacity: '0.4' },
+                running:  { iconClass: 'fas fa-circle-notch fa-spin', color: '#6366f1', opacity: '1' },
+                done:     { iconClass: 'fas fa-check-circle',   color: '#10b981', opacity: '1' },
+                error:    { iconClass: 'fas fa-times-circle',   color: '#ef4444', opacity: '1' }
+            };
+            const cfg = configs[status] || configs.pending;
+            el.innerHTML = `<div style="display:flex; align-items:center; gap:8px; font-size:0.75rem; opacity:${cfg.opacity};"><i class="${cfg.iconClass}" style="color:${cfg.color}; font-size:0.75rem;"></i><span style="color:#334155;">${label}</span></div>`;
+
+            // Auto-hide tracker when all tasks are done or error
+            if (tracker) {
+                const allRows = tracker.querySelectorAll('.strat-task-row');
+                const allDone = Array.from(allRows).every(r => {
+                    const icon = r.querySelector('i');
+                    return icon && (icon.classList.contains('fa-check-circle') || icon.classList.contains('fa-times-circle'));
+                });
+                if (allDone && allRows.length > 0) {
+                    setTimeout(() => { tracker.style.display = 'none'; }, 2000);
+                }
             }
         }
 
@@ -47319,15 +47373,19 @@ Return compact valid JSON only. No prose.
             body.innerHTML = '';
 
             visibleStrategies.forEach((s, idx) => {
+                const isSelected = window._selectedStrategy?.name === s.name;
                 headers.innerHTML += `
-                    <th style="background: ${s.recommended ? '#f0f9ff' : '#fff'} !important; color: #1e293b !important; padding: 15px !important; border-bottom: 2px solid #e2e8f0 !important; position: relative !important; text-align: center !important; border-right: 1px solid #e2e8f0 !important;">
-                        <button onclick="toggleStrategyVisibility('${s.name.replace(/'/g, "\\'")}')" 
-                                style="position: absolute; top: 5px; right: 5px; background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 0.8rem; z-index: 10; padding: 5px;" 
+                    <th style="background: ${s.recommended ? '#f0f9ff' : '#fff'} !important; color: #1e293b !important; padding: 15px !important; border-bottom: 2px solid #e2e8f0 !important; position: relative !important; text-align: center !important; border-right: 1px solid #e2e8f0 !important; ${isSelected ? 'border-left: 3px solid #6366f1 !important;' : ''}">
+                        <button onclick="toggleStrategyVisibility('${s.name.replace(/'/g, "\\'")}')"
+                                style="position: absolute; top: 5px; right: 5px; background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 0.8rem; z-index: 10; padding: 5px;"
                                 title="Hide this strategy">
                             <i class="fas fa-times-circle"></i>
                         </button>
                         ${s.recommended ? '<div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: #3b82f6; color: white !important; padding: 2px 10px; border-radius: 10px; font-size: 10px; font-weight: 700; white-space: nowrap; z-index: 5; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);">RECOMMENDED</div>' : ''}
                         <div style="font-size: 0.95rem !important; font-weight: 800 !important; color: #0f172a !important;">${s.name}</div>
+                        <button onclick="selectStrategyForBlueprint('${s.name.replace(/'/g, "\\'")}')" style="margin-top: 8px; padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; cursor: pointer; transition: all 0.2s; ${isSelected ? 'background: #6366f1; color: white; border: 1.5px solid #6366f1;' : 'background: transparent; color: #6366f1; border: 1.5px solid #6366f1;'}">
+                            ${isSelected ? '<i class="fas fa-check" style="margin-right:4px;"></i>Selected' : 'Use This Strategy'}
+                        </button>
                     </th>`;
             });
 
@@ -47357,6 +47415,16 @@ Return compact valid JSON only. No prose.
             } else {
                 hiddenStrategyNames.add(name);
             }
+            renderStrategyComparisonGrid(currentStrategies);
+        }
+
+        function selectStrategyForBlueprint(name) {
+            const strategy = currentStrategies.find(s => s.name === name);
+            if (!strategy) return;
+            window._selectedStrategy = strategy;
+            renderSuggestedKeywords(strategy);
+            const banner = document.getElementById('ttr-prompt-banner');
+            showTTRPromptBanner(strategy, banner?._ttrInputs || {}, 'review');
             renderStrategyComparisonGrid(currentStrategies);
         }
 
@@ -47624,6 +47692,8 @@ Return compact valid JSON only. No prose.
             }).filter(e => e.kw);
             if (selectedEntries.length === 0) { alert('Select at least one keyword.'); return; }
 
+            if (typeof setTaskStatus === 'function') setTaskStatus('ttr', 'running');
+
             const runBtn = document.getElementById('ttr-run-btn');
             const statusEl = document.getElementById('ttr-run-status');
             const statusText = document.getElementById('ttr-run-status-text');
@@ -47686,6 +47756,7 @@ Return compact valid JSON only. No prose.
                 }
             }));
 
+            if (typeof setTaskStatus === 'function') setTaskStatus('ttr', 'done');
             if (runBtn) { runBtn.disabled = false; runBtn.innerHTML = '<i class="fas fa-check"></i> Analysis Complete'; }
             if (statusEl) statusEl.style.display = 'none';
         }
@@ -48804,7 +48875,7 @@ Return compact valid JSON only. No prose.
                 // ── Strategy overview section ──
                 let strategyHTML = '';
                 if (strategies.length > 0) {
-                    const recommended = strategies.find(s => s.recommended) || strategies[0];
+                    const recommended = window._selectedStrategy || strategies.find(s => s.recommended) || strategies[0];
                     const formatList = val => {
                         if (!val) return '';
                         const items = Array.isArray(val) ? val : String(val).split(/,\s*|\n|;\s*/);
@@ -48812,7 +48883,7 @@ Return compact valid JSON only. No prose.
                     };
                     strategyHTML = `
                         <div style="padding:28px 48px 24px;background:#f0f9ff;border-top:4px solid #0ea5e9;">
-                            <div style="font-size:10px;font-weight:800;color:#0ea5e9;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Recommended Strategy</div>
+                            <div style="font-size:10px;font-weight:800;color:#0ea5e9;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">${window._selectedStrategy ? 'Selected Strategy' : 'Recommended Strategy'}</div>
                             <div style="font-size:18px;font-weight:800;color:#0f172a;margin-bottom:${recommended.focus?'4':'16'}px;">${esc(recommended.name||'Strategy Overview')}</div>
                             ${recommended.focus ? `<div style="font-size:11.5px;color:#334155;margin-bottom:16px;font-style:italic;">${esc(recommended.focus)}</div>` : ''}
                             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
@@ -48861,7 +48932,7 @@ Return compact valid JSON only. No prose.
 
                 // ── Keyword Blueprint (semantic hub + clusters + long-tail) ──
                 let blueprintHTML = '';
-                const bpStrat = strategies.find(s => s.recommended) || strategies[0];
+                const bpStrat = window._selectedStrategy || strategies.find(s => s.recommended) || strategies[0];
                 if (bpStrat && bpStrat.keyword_data) {
                     const kd = bpStrat.keyword_data;
                     const intentStyle = {
