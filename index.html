@@ -10915,7 +10915,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1450</span>
+                <span id="appVersion">v1.0.1451</span>
             </a>
         </div>
 
@@ -19627,6 +19627,9 @@
             moversTimeSeries: {}, // siteName → { date → avgRank } for trend chart
             selectedMoversCampaigns: new Set(), // Campaign multi-select filter
             moversFilterSearch: '',             // Live search query inside the campaign dropdown
+            basketChart: null,        // Chart.js instance for keyword basket distribution
+            basketChartData: null,    // Cached monthly basket counts
+            basketChartMonths: 6,     // How many months of history to fetch
             gscRecommendations: [], // Grouped GSC insights
             gscSearchQuery: '', // Filter for GSC properties
             selectedGscDomains: new Set(), // Filter by domain
@@ -21926,6 +21929,28 @@
                         </div>
                     </div>
                     <span style="font-size:0.72rem;color:#94a3b8;align-self:center;margin-left:4px;">${filtered.length} of ${campaigns.length} shown</span>
+                </div>
+
+                <!-- Keyword Basket Distribution Chart -->
+                <div style="padding:12px 16px 10px;border-bottom:1px solid #e2e8f0;background:#fafafa;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <span style="font-size:0.78rem;font-weight:700;color:#334155;display:flex;align-items:center;gap:6px;">
+                            <i class="fas fa-chart-area" style="color:#6366f1;"></i> Keyword Basket Distribution
+                        </span>
+                        <select id="basket-months-select"
+                            onchange="cockpitState.basketChartMonths=parseInt(this.value);cockpitState.basketChartData=null;fetchBasketDistribution()"
+                            style="padding:3px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.73rem;background:#fff;color:#334155;cursor:pointer;outline:none;">
+                            <option value="3" ${cockpitState.basketChartMonths===3?'selected':''}>3 Months</option>
+                            <option value="6" ${cockpitState.basketChartMonths===6?'selected':''}>6 Months</option>
+                            <option value="12" ${cockpitState.basketChartMonths===12?'selected':''}>12 Months</option>
+                        </select>
+                    </div>
+                    <div id="basket-dist-loading" style="display:flex;align-items:center;justify-content:center;height:170px;gap:8px;color:#94a3b8;font-size:0.8rem;">
+                        <i class="fas fa-spinner fa-spin"></i> Loading basket data…
+                    </div>
+                    <div id="basket-dist-chart-wrap" style="display:none;height:170px;position:relative;">
+                        <canvas id="basket-dist-chart"></canvas>
+                    </div>
                 </div>`;
 
             if (behind.length) {
@@ -21947,6 +21972,201 @@
             }
 
             el.innerHTML = html;
+
+            // Chart: re-render from cache or fetch fresh
+            if (cockpitState.basketChartData) {
+                const { months, baskets } = cockpitState.basketChartData;
+                document.getElementById('basket-dist-loading').style.display = 'none';
+                document.getElementById('basket-dist-chart-wrap').style.display = 'block';
+                renderBasketChart(months, baskets);
+            } else {
+                fetchBasketDistribution();
+            }
+        }
+
+        async function fetchBasketDistribution() {
+            const loadEl  = document.getElementById('basket-dist-loading');
+            const wrapEl  = document.getElementById('basket-dist-chart-wrap');
+            if (!loadEl || !wrapEl) return;
+
+            loadEl.style.display  = 'flex';
+            wrapEl.style.display  = 'none';
+
+            try {
+                const months  = cockpitState.basketChartMonths || 6;
+                const dateTo  = new Date().toISOString().split('T')[0];
+                const dateFrom = new Date(new Date().setMonth(new Date().getMonth() - months)).toISOString().split('T')[0];
+
+                const SER_URL = 'https://u2u2ptqaxd.execute-api.ap-southeast-1.amazonaws.com/seRanking';
+
+                // Fetch sites list
+                let stData = await fetch(SER_URL, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'get_sites' })
+                }).then(r => r.json());
+                if (stData.body && typeof stData.body === 'string') stData = JSON.parse(stData.body);
+                const sites = Array.isArray(stData) ? stData : (stData.sites || []);
+
+                if (!sites.length) {
+                    loadEl.innerHTML = '<span style="font-size:0.78rem;color:#94a3b8;">No SE Ranking sites found.</span>';
+                    return;
+                }
+
+                // YYYY-MM → {p1,p2,p3,p4}
+                const monthlyBaskets = {};
+                const toYYYYMM = d => (d || '').slice(0, 7);
+                const getBasket = pos => {
+                    if (pos >= 1  && pos <= 10) return 'p1';
+                    if (pos >= 11 && pos <= 20) return 'p2';
+                    if (pos >= 21 && pos <= 30) return 'p3';
+                    if (pos >= 31 && pos <= 40) return 'p4';
+                    return null;
+                };
+
+                await Promise.all(sites.map(async site => {
+                    try {
+                        let posData = await fetch(SER_URL, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ action: 'get_positions', siteId: site.id, date_from: dateFrom, date_to: dateTo, with_landing_pages: 0 })
+                        }).then(r => r.json());
+                        if (posData.body && typeof posData.body === 'string') posData = JSON.parse(posData.body);
+                        const positions = (posData && posData.data) ? posData.data : (Array.isArray(posData) ? posData : (typeof posData === 'object' ? posData : []));
+
+                        // kwId → {YYYY-MM → {pos, date}}  (keeps latest date per month)
+                        const kwMonthPos = {};
+
+                        if (Array.isArray(positions)) {
+                            positions.forEach(engineEntry => {
+                                if (!Array.isArray(engineEntry.keywords)) return;
+                                engineEntry.keywords.forEach(kwPos => {
+                                    if (!Array.isArray(kwPos.positions)) return;
+                                    const kwId = String(kwPos.id);
+                                    if (!kwMonthPos[kwId]) kwMonthPos[kwId] = {};
+                                    kwPos.positions.forEach(p => {
+                                        const d  = (p.date || '').split('T')[0];
+                                        const ym = toYYYYMM(d);
+                                        const pos = p.pos !== undefined ? p.pos : (p.rank || 0);
+                                        if (ym && pos > 0 && (!kwMonthPos[kwId][ym] || d > kwMonthPos[kwId][ym].date)) {
+                                            kwMonthPos[kwId][ym] = { pos, date: d };
+                                        }
+                                    });
+                                });
+                            });
+                        } else if (typeof positions === 'object') {
+                            Object.entries(positions).forEach(([date, kwMap]) => {
+                                const ym = toYYYYMM(date);
+                                if (!ym) return;
+                                Object.entries(kwMap || {}).forEach(([kwId, entry]) => {
+                                    const pos = entry.pos !== undefined ? entry.pos : (entry.rank || 0);
+                                    if (pos > 0) {
+                                        if (!kwMonthPos[kwId]) kwMonthPos[kwId] = {};
+                                        if (!kwMonthPos[kwId][ym] || date > kwMonthPos[kwId][ym].date) {
+                                            kwMonthPos[kwId][ym] = { pos, date };
+                                        }
+                                    }
+                                });
+                            });
+                        }
+
+                        // Accumulate into global monthly baskets
+                        Object.values(kwMonthPos).forEach(monthMap => {
+                            Object.entries(monthMap).forEach(([ym, { pos }]) => {
+                                const basket = getBasket(pos);
+                                if (!basket) return;
+                                if (!monthlyBaskets[ym]) monthlyBaskets[ym] = { p1: 0, p2: 0, p3: 0, p4: 0 };
+                                monthlyBaskets[ym][basket]++;
+                            });
+                        });
+
+                    } catch (e) {
+                        console.warn('[BasketChart] error for site', site.id, e);
+                    }
+                }));
+
+                const sortedMonths = Object.keys(monthlyBaskets).sort();
+                cockpitState.basketChartData = { months: sortedMonths, baskets: monthlyBaskets };
+
+                loadEl.style.display = 'none';
+                wrapEl.style.display = 'block';
+                renderBasketChart(sortedMonths, monthlyBaskets);
+
+            } catch (e) {
+                console.error('[BasketChart] fetch error', e);
+                loadEl.innerHTML = `<span style="font-size:0.78rem;color:#ef4444;"><i class="fas fa-exclamation-triangle"></i> Failed to load basket data.</span>`;
+            }
+        }
+
+        function renderBasketChart(months, baskets) {
+            const canvas = document.getElementById('basket-dist-chart');
+            if (!canvas) return;
+            if (cockpitState.basketChart) { cockpitState.basketChart.destroy(); cockpitState.basketChart = null; }
+
+            const fmtMonth = ym => {
+                const [y, m] = ym.split('-');
+                return new Date(+y, +m - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+            };
+
+            cockpitState.basketChart = new Chart(canvas.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: months.map(fmtMonth),
+                    datasets: [
+                        {
+                            label: 'Page 1 (1–10)',
+                            data: months.map(m => baskets[m]?.p1 || 0),
+                            backgroundColor: 'rgba(16,185,129,0.82)',
+                            borderColor: '#10b981', borderWidth: 1, stack: 'b'
+                        },
+                        {
+                            label: 'Page 2 (11–20)',
+                            data: months.map(m => baskets[m]?.p2 || 0),
+                            backgroundColor: 'rgba(99,102,241,0.82)',
+                            borderColor: '#6366f1', borderWidth: 1, stack: 'b'
+                        },
+                        {
+                            label: 'Page 3 (21–30)',
+                            data: months.map(m => baskets[m]?.p3 || 0),
+                            backgroundColor: 'rgba(245,158,11,0.82)',
+                            borderColor: '#f59e0b', borderWidth: 1, stack: 'b'
+                        },
+                        {
+                            label: 'Page 4 (31–40)',
+                            data: months.map(m => baskets[m]?.p4 || 0),
+                            backgroundColor: 'rgba(239,68,68,0.80)',
+                            borderColor: '#ef4444', borderWidth: 1, stack: 'b'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { boxWidth: 11, font: { size: 10 }, padding: 10 }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => ` ${ctx.dataset.label}: ${ctx.raw} keywords`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            stacked: true,
+                            ticks: { font: { size: 10 }, color: '#64748b' },
+                            grid: { display: false }
+                        },
+                        y: {
+                            stacked: true,
+                            beginAtZero: true,
+                            ticks: { font: { size: 10 }, color: '#64748b', precision: 0 },
+                            grid: { color: 'rgba(0,0,0,0.05)' },
+                            title: { display: true, text: 'Keywords', color: '#64748b', font: { size: 10 } }
+                        }
+                    }
+                }
+            });
         }
 
         function toggleSeoSummary(id) {
