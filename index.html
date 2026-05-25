@@ -11739,6 +11739,29 @@
                     </div>
                 </div>
 
+                <!-- Holistic SEO Intelligence Card -->
+                <div class="geo-card cockpit-card collapsed" id="card-holistic" style="grid-column: span 2;">
+                    <div class="geo-card-header" style="justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0; font-size: 1.1em; background: linear-gradient(135deg, #6366f1, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-layer-group" style="-webkit-text-fill-color: #6366f1;"></i> Holistic SEO Intelligence
+                        </h3>
+                        <div class="cockpit-card-header-actions">
+                            <button onclick="refreshHolisticSummary()" class="discovery-btn-run" style="padding: 4px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #6366f1, #a855f7); color: #fff; border: none;">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                            <span id="cockpit-holistic-badge" class="badge-action" style="font-size: 14px; padding: 5px 10px; background: rgba(99,102,241,0.1); color: #6366f1;">—</span>
+                            <button class="expand-card-btn" onclick="expandCockpitCard(this.closest('.geo-card'))" title="Expand"><i class="fas fa-expand-alt"></i></button>
+                            <button class="minimize-card-btn" onclick="collapseCockpitCard(this.closest('.geo-card'), event)" title="Minimize"><i class="fas fa-compress-alt"></i></button>
+                        </div>
+                    </div>
+                    <div id="cockpit-holistic-content" style="flex: 1; overflow-y: auto;">
+                        <div style="text-align: center; color: #64748b; padding: 40px;">
+                            <i class="fas fa-spinner fa-spin fa-2x"></i>
+                            <p style="margin-top: 15px;">Loading holistic intelligence...</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Chatbot Card -->
                 <div class="geo-card cockpit-card collapsed" id="card-chatbot">
                     <div class="geo-card-header"
@@ -19306,7 +19329,9 @@
             paidIntelFetchedAt: 0,       // Timestamp of last fetch
             paidIntelOwnerFilter: new Set(),
             paidIntelPlatformFilter: new Set(),
-            paidIntelStatusFilter: new Set()
+            paidIntelStatusFilter: new Set(),
+            holisticCache: null,
+            holisticFetchedAt: 0
         };
 
         function switchMoversView(view) {
@@ -19731,6 +19756,7 @@
             if (loadingEl) loadingEl.style.display = 'none';
             cockpitState.gscRecommendations = allRecommendations;
             renderGscRecommendations();
+            refreshHolisticSummary();
 
             if (totalFound === 0) {
                 listContainer.innerHTML = `
@@ -20296,6 +20322,7 @@
             wrap(fetchAlgorithmNews); // populates algo sidebar in Top Movers when expanded
             wrap(fetchSeoIntel);
             wrap(fetchPaidAdsIntel);
+            wrap(refreshHolisticSummary);
         }
 
         function toggleFilterDropdown(id) {
@@ -20592,6 +20619,7 @@
                 cockpitState.lastMoversData = allMovers;
 
                 renderMoversContent();
+                refreshHolisticSummary();
                 syncStatus.innerHTML = `Complete (${sites.length} sites checked)`;
 
             } catch (e) {
@@ -21338,6 +21366,7 @@
                 const behindCount = campaigns.filter(c => c.isBehind).length;
                 if (countEl) countEl.textContent = `${behindCount}/${campaigns.length}`;
                 renderSeoIntel(campaigns, items.length);
+                refreshHolisticSummary();
 
             } catch (e) {
                 console.error('SEO Intel error:', e);
@@ -22064,6 +22093,338 @@
                 </div>
                 ${linkUI}
             </div>`;
+        }
+
+        // ── Holistic SEO Intelligence ─────────────────────────────────────────────
+
+        function refreshHolisticSummary() {
+            const el    = document.getElementById('cockpit-holistic-content');
+            const badge = document.getElementById('cockpit-holistic-badge');
+            if (!el) return;
+
+            const seoIntel  = cockpitState.seoIntelCache  || [];
+            const gscRecs   = cockpitState.gscRecommendations || [];
+            const movers    = cockpitState.lastMoversData || [];
+
+            const noData = seoIntel.length === 0 && gscRecs.length === 0 && movers.length === 0;
+            if (noData) {
+                el.innerHTML = `<div style="text-align:center;padding:30px;color:#94a3b8;">
+                    <i class="fas fa-layer-group fa-2x" style="margin-bottom:12px;opacity:0.4;"></i>
+                    <p style="font-size:0.9rem;">Waiting for data sources — refresh SE Ranking, GSC, and SEO Intel first.</p>
+                </div>`;
+                if (badge) badge.textContent = '—';
+                return;
+            }
+
+            renderHolisticSummary(seoIntel, gscRecs, movers, badge);
+        }
+
+        function _holisticNorm(str) {
+            return (str || '').toLowerCase()
+                .replace(/https?:\/\/(www\.)?/, '')
+                .replace(/\/$/, '')
+                .replace(/[^a-z0-9\s]/g, ' ')
+                .trim();
+        }
+
+        function _holisticMatchScore(a, b) {
+            const wa = _holisticNorm(a).split(/\s+/).filter(w => w.length > 2);
+            const wb = _holisticNorm(b).split(/\s+/).filter(w => w.length > 2);
+            if (!wa.length || !wb.length) return 0;
+            const hits = wa.filter(w => wb.some(bw => bw.includes(w) || w.includes(bw))).length;
+            return hits / Math.max(wa.length, wb.length);
+        }
+
+        function _extractDomain(url) {
+            try { return new URL(url.includes('://') ? url : 'https://' + url).hostname.replace(/^www\./, ''); }
+            catch { return url.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0]; }
+        }
+
+        function buildCrossSourceMatrix(seoIntel, gscRecs, movers) {
+            // Build per-domain GSC index
+            const gscByDomain = {};
+            gscRecs.forEach(r => {
+                const dom = _extractDomain(r.property);
+                if (!gscByDomain[dom]) gscByDomain[dom] = [];
+                gscByDomain[dom].push(r);
+            });
+
+            // Build per-site SE Ranking index
+            const serBySite = {};
+            movers.forEach(m => {
+                if (!serBySite[m.siteName]) serBySite[m.siteName] = [];
+                serBySite[m.siteName].push(m);
+            });
+            const serSiteNames = Object.keys(serBySite);
+            const gscDomains   = Object.keys(gscByDomain);
+
+            // Merge all named entities (prefer SEO Intel as master list)
+            const entities = {};
+
+            // Seed from SEO Intel
+            seoIntel.forEach(c => {
+                entities[c.name] = entities[c.name] || { name: c.name, seoIntel: null, serSite: null, gscDomain: null };
+                entities[c.name].seoIntel = c;
+            });
+
+            // Seed standalone SE Ranking sites not yet matched
+            serSiteNames.forEach(site => {
+                const matched = Object.keys(entities).find(k => _holisticMatchScore(k, site) >= 0.35);
+                if (matched) {
+                    entities[matched].serSite = site;
+                } else {
+                    entities[site] = entities[site] || { name: site, seoIntel: null, serSite: null, gscDomain: null };
+                    entities[site].serSite = site;
+                }
+            });
+
+            // Seed standalone GSC domains not yet matched
+            gscDomains.forEach(dom => {
+                const matched = Object.keys(entities).find(k => _holisticMatchScore(k, dom) >= 0.25);
+                if (matched) {
+                    entities[matched].gscDomain = dom;
+                } else {
+                    entities[dom] = entities[dom] || { name: dom, seoIntel: null, serSite: null, gscDomain: null };
+                    entities[dom].gscDomain = dom;
+                }
+            });
+
+            // For entities without a serSite, try fuzzy-match against all sites
+            Object.values(entities).forEach(e => {
+                if (!e.serSite) {
+                    let best = null, bestScore = 0;
+                    serSiteNames.forEach(site => {
+                        const s = _holisticMatchScore(e.name, site);
+                        if (s > bestScore) { bestScore = s; best = site; }
+                    });
+                    if (bestScore >= 0.3) e.serSite = best;
+                }
+                if (!e.gscDomain) {
+                    let best = null, bestScore = 0;
+                    gscDomains.forEach(dom => {
+                        const s = _holisticMatchScore(e.name, dom);
+                        if (s > bestScore) { bestScore = s; best = dom; }
+                    });
+                    if (bestScore >= 0.25) e.gscDomain = best;
+                }
+            });
+
+            // Enrich each entity with aggregated metrics
+            return Object.values(entities).map(e => {
+                const intel   = e.seoIntel;
+                const serData = e.serSite ? serBySite[e.serSite] || [] : [];
+                const gscData = e.gscDomain ? gscByDomain[e.gscDomain] || [] : [];
+
+                const rankDrops = serData.filter(m => m.change < 0);
+                const rankGains = serData.filter(m => m.change > 0);
+                const bigDrops  = rankDrops.filter(m => m.absChange >= 5);
+                const gscHigh   = gscData.filter(r => r.impact === 'HIGH');
+                const gscMed    = gscData.filter(r => r.impact === 'MEDIUM');
+
+                // Composite risk score 0–100
+                let risk = 0;
+                if (intel?.isBehind)     risk += 35;
+                if (bigDrops.length > 0) risk += Math.min(25, bigDrops.length * 8);
+                if (gscHigh.length > 0)  risk += Math.min(25, gscHigh.length * 10);
+                if (rankDrops.length > rankGains.length) risk += 15;
+                risk = Math.min(100, risk);
+
+                // Health score (inverse of risk, also factor in positive signals)
+                let health = Math.max(0, 100 - risk);
+                if (intel && !intel.isBehind && intel.pctProgress > 20) health = Math.min(100, health + 5);
+                if (rankGains.length > rankDrops.length)                 health = Math.min(100, health + 5);
+
+                return {
+                    name:          e.name,
+                    intel,
+                    serSite:       e.serSite,
+                    gscDomain:     e.gscDomain,
+                    serMovers:     serData,
+                    rankDrops, rankGains, bigDrops,
+                    gscRecs:       gscData,
+                    gscHigh, gscMed,
+                    risk,
+                    health,
+                    topGscIssue:   gscHigh[0]?.title || gscMed[0]?.title || null,
+                };
+            }).sort((a, b) => b.risk - a.risk);
+        }
+
+        function generateHolisticInsights(matrix) {
+            const insights = [];
+
+            matrix.forEach(e => {
+                const name = e.name;
+
+                if (e.intel?.isBehind && e.bigDrops.length > 0 && e.gscHigh.length > 0) {
+                    insights.push({ sev: 'critical', icon: 'fa-exclamation-circle', text: `<b>${name}</b>: Behind trajectory, ${e.bigDrops.length} significant rank drop${e.bigDrops.length > 1 ? 's' : ''}, and ${e.gscHigh.length} critical GSC issue${e.gscHigh.length > 1 ? 's' : ''} — all three signals converge. Prioritise immediately.` });
+                } else if (e.intel?.isBehind && e.bigDrops.length > 0) {
+                    insights.push({ sev: 'high', icon: 'fa-arrow-trend-down', text: `<b>${name}</b> is behind KPI trajectory with ${e.bigDrops.length} keyword${e.bigDrops.length > 1 ? 's' : ''} dropping 5+ positions. Investigate content freshness and competitor movements.` });
+                } else if (e.intel?.isBehind && e.gscHigh.length > 0) {
+                    insights.push({ sev: 'high', icon: 'fa-exclamation-triangle', text: `<b>${name}</b> is behind trajectory and has ${e.gscHigh.length} high-impact GSC issue${e.gscHigh.length > 1 ? 's' : ''} — technical problems may be suppressing rankings.` });
+                } else if (e.bigDrops.length >= 3 && !e.intel) {
+                    insights.push({ sev: 'high', icon: 'fa-chart-line', text: `<b>${name}</b> shows ${e.bigDrops.length} large rank drops in SE Ranking with no linked campaign tracking. Check if this site needs a campaign or manual review.` });
+                } else if (e.gscHigh.length >= 2 && !e.intel) {
+                    insights.push({ sev: 'medium', icon: 'fa-search', text: `<b>${name}</b> has ${e.gscHigh.length} high-priority GSC issues but no active SEO campaign recorded. Consider investigating.` });
+                } else if (e.intel?.isBehind && e.rankGains.length > e.rankDrops.length) {
+                    insights.push({ sev: 'medium', icon: 'fa-clock', text: `<b>${name}</b> is technically behind trajectory but rankings are net-positive this period. May self-correct — monitor closely.` });
+                } else if (!e.intel?.isBehind && e.bigDrops.length > 0 && e.intel) {
+                    insights.push({ sev: 'medium', icon: 'fa-eye', text: `<b>${name}</b> is on trajectory but has ${e.bigDrops.length} notable rank drop${e.bigDrops.length > 1 ? 's' : ''} — watch for momentum shift before next review.` });
+                } else if (e.intel && !e.intel.isBehind && e.gscHigh.length === 0 && e.bigDrops.length === 0) {
+                    insights.push({ sev: 'good', icon: 'fa-check-circle', text: `<b>${name}</b> is on trajectory with no critical GSC issues and stable rankings.` });
+                }
+            });
+
+            // Surface top keywords losing most rank across all sites
+            const allDrops = matrix.flatMap(e => e.bigDrops.map(d => ({ ...d, entity: e.name })));
+            allDrops.sort((a, b) => a.change - b.change);
+            if (allDrops.length > 0) {
+                const worst = allDrops[0];
+                insights.unshift({ sev: 'high', icon: 'fa-arrow-down', text: `Biggest single drop: <b>"${worst.keyword}"</b> on <b>${worst.entity}</b> fell ${Math.abs(worst.change)} positions to rank ${worst.newRank}.` });
+            }
+
+            return insights;
+        }
+
+        function renderHolisticSummary(seoIntel, gscRecs, movers, badge) {
+            const el = document.getElementById('cockpit-holistic-content');
+            if (!el) return;
+
+            const matrix   = buildCrossSourceMatrix(seoIntel, gscRecs, movers);
+            const insights = generateHolisticInsights(matrix);
+
+            const totalCampaigns  = matrix.filter(e => e.intel).length;
+            const behind          = matrix.filter(e => e.intel?.isBehind).length;
+            const totalGscHigh    = matrix.reduce((s, e) => s + e.gscHigh.length, 0);
+            const totalBigDrops   = matrix.reduce((s, e) => s + e.bigDrops.length, 0);
+            const avgHealth       = matrix.length ? Math.round(matrix.reduce((s, e) => s + e.health, 0) / matrix.length) : null;
+            const priorityCount   = matrix.filter(e => e.risk >= 35).length;
+
+            if (badge) badge.textContent = `${priorityCount} alert${priorityCount !== 1 ? 's' : ''}`;
+
+            const healthColor = avgHealth == null ? '#94a3b8' : avgHealth >= 70 ? '#16a34a' : avgHealth >= 40 ? '#d97706' : '#dc2626';
+            const sevStyle    = { critical: ['#dc2626','#fef2f2','#fecaca'], high: ['#f97316','#fff7ed','#fed7aa'], medium: ['#d97706','#fffbeb','#fde68a'], good: ['#16a34a','#f0fdf4','#bbf7d0'] };
+
+            // KPI tile helper
+            const tile = (icon, iconColor, bg, val, label, subLabel) => `
+                <div style="flex:1;min-width:130px;background:${bg};border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;">
+                    <div style="display:flex;align-items:center;gap:7px;color:${iconColor};font-size:0.9rem;font-weight:700;">
+                        <i class="fas ${icon}"></i>
+                        <span style="font-size:1.5rem;line-height:1;">${val}</span>
+                    </div>
+                    <div style="font-size:0.72rem;font-weight:700;color:#1e293b;">${label}</div>
+                    ${subLabel ? `<div style="font-size:0.68rem;color:#64748b;">${subLabel}</div>` : ''}
+                </div>`;
+
+            // Priority matrix table
+            const topItems = matrix.filter(e => e.risk > 0).slice(0, 15);
+
+            const tableRows = topItems.map(e => {
+                const trajBadge = e.intel
+                    ? (e.intel.isBehind
+                        ? `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">Behind</span>`
+                        : `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;">On Track</span>`)
+                    : `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#f8fafc;color:#94a3b8;border:1px solid #e2e8f0;">No Intel</span>`;
+
+                const serBadge = e.serSite
+                    ? (e.bigDrops.length > 0
+                        ? `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#fff7ed;color:#f97316;border:1px solid #fed7aa;">${e.bigDrops.length} drop${e.bigDrops.length > 1 ? 's' : ''}</span>`
+                        : (e.rankGains.length > 0
+                            ? `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;">${e.rankGains.length} gain${e.rankGains.length > 1 ? 's' : ''}</span>`
+                            : `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#f8fafc;color:#64748b;border:1px solid #e2e8f0;">Stable</span>`))
+                    : `<span style="font-size:0.65rem;color:#94a3b8;">—</span>`;
+
+                const gscBadge = e.gscDomain
+                    ? (e.gscHigh.length > 0
+                        ? `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">${e.gscHigh.length} critical</span>`
+                        : (e.gscMed.length > 0
+                            ? `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#fffbeb;color:#d97706;border:1px solid #fde68a;">${e.gscMed.length} medium</span>`
+                            : `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;">Clean</span>`))
+                    : `<span style="font-size:0.65rem;color:#94a3b8;">—</span>`;
+
+                const scoreColor = e.risk >= 60 ? '#dc2626' : e.risk >= 30 ? '#d97706' : '#16a34a';
+                const scoreBg    = e.risk >= 60 ? '#fef2f2' : e.risk >= 30 ? '#fffbeb' : '#f0fdf4';
+                const pctBar     = `<div style="position:relative;height:5px;background:#f1f5f9;border-radius:3px;width:60px;display:inline-block;vertical-align:middle;margin-left:5px;">
+                    <div style="position:absolute;top:0;left:0;height:100%;width:${e.risk}%;background:${scoreColor};border-radius:3px;"></div></div>`;
+
+                const topAction = e.intel?.isBehind
+                    ? (e.gscHigh.length ? 'Fix GSC issues & content' : 'Review content + links')
+                    : (e.bigDrops.length ? 'Monitor rank drops' : (e.gscHigh.length ? 'Address GSC findings' : 'Maintain'));
+
+                return `<tr style="border-bottom:1px solid #f1f5f9;transition:background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                    <td style="padding:10px 12px;font-weight:600;font-size:0.82rem;color:#1e293b;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${e.name}">${e.name}</td>
+                    <td style="padding:10px 12px;text-align:center;">${trajBadge}</td>
+                    <td style="padding:10px 12px;text-align:center;">${serBadge}</td>
+                    <td style="padding:10px 12px;text-align:center;">${gscBadge}</td>
+                    <td style="padding:10px 12px;text-align:center;">
+                        <span style="font-size:0.75rem;font-weight:700;color:${scoreColor};background:${scoreBg};padding:2px 7px;border-radius:8px;">${e.risk}</span>
+                        ${pctBar}
+                    </td>
+                    <td style="padding:10px 12px;font-size:0.75rem;color:#475569;">${topAction}</td>
+                </tr>`;
+            }).join('');
+
+            const insightHtml = insights.slice(0, 8).map(i => {
+                const [c, bg, br] = sevStyle[i.sev] || sevStyle.medium;
+                return `<div style="display:flex;gap:10px;padding:10px 12px;background:${bg};border:1px solid ${br};border-left:4px solid ${c};border-radius:8px;">
+                    <i class="fas ${i.icon}" style="color:${c};margin-top:2px;flex-shrink:0;font-size:0.85rem;"></i>
+                    <div style="font-size:0.82rem;color:#1e293b;line-height:1.5;">${i.text}</div>
+                </div>`;
+            }).join('');
+
+            // Source freshness
+            const serFresh  = cockpitState.lastMoversData?.length   ? `<span style="color:#16a34a;"><i class="fas fa-check-circle"></i> SE Ranking (${cockpitState.lastMoversData.length} movers)</span>` : `<span style="color:#94a3b8;"><i class="fas fa-circle"></i> SE Ranking (no data)</span>`;
+            const gscFresh  = cockpitState.gscRecommendations?.length  ? `<span style="color:#16a34a;"><i class="fas fa-check-circle"></i> GSC (${cockpitState.gscRecommendations.length} recs)</span>` : `<span style="color:#94a3b8;"><i class="fas fa-circle"></i> GSC (no data)</span>`;
+            const intelFresh = cockpitState.seoIntelCache?.length    ? `<span style="color:#16a34a;"><i class="fas fa-check-circle"></i> SEO Intel (${cockpitState.seoIntelCache.length} campaigns)</span>` : `<span style="color:#94a3b8;"><i class="fas fa-circle"></i> SEO Intel (no data)</span>`;
+
+            el.innerHTML = `
+            <!-- Source freshness bar -->
+            <div style="padding:6px 14px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:0.69rem;display:flex;gap:14px;flex-wrap:wrap;align-items:center;color:#64748b;">
+                <span style="font-weight:700;color:#475569;">Data sources:</span>
+                ${serFresh} ${gscFresh} ${intelFresh}
+                <span style="color:#94a3b8;margin-left:auto;font-size:0.65rem;">Cross-correlated ${matrix.length} entities</span>
+            </div>
+
+            <!-- KPI tiles -->
+            <div style="display:flex;gap:10px;padding:14px;flex-wrap:wrap;">
+                ${tile('fa-crosshairs', '#dc2626', '#fef2f2', behind, 'Campaigns Behind', `of ${totalCampaigns} tracked`)}
+                ${tile('fa-arrow-trend-down', '#f97316', '#fff7ed', totalBigDrops, 'Significant Rank Drops', 'keywords ≥5 positions')}
+                ${tile('fa-exclamation-triangle', '#dc2626', '#fef2f2', totalGscHigh, 'GSC Critical Issues', 'across all properties')}
+                ${avgHealth !== null ? tile('fa-heartbeat', healthColor, healthColor + '18', avgHealth + '%', 'Avg Portfolio Health', 'composite score') : ''}
+            </div>
+
+            <!-- Insights -->
+            ${insights.length ? `
+            <div style="padding:0 14px 10px;">
+                <div style="font-size:0.75rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                    <i class="fas fa-lightbulb" style="color:#f59e0b;"></i> Cross-Source Insights
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px;">${insightHtml}</div>
+            </div>` : ''}
+
+            <!-- Priority matrix -->
+            ${topItems.length ? `
+            <div style="padding:0 14px 14px;">
+                <div style="font-size:0.75rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                    <i class="fas fa-table" style="color:#6366f1;"></i> Priority Matrix
+                    <span style="font-weight:400;color:#94a3b8;text-transform:none;font-size:0.7rem;">(sorted by risk score)</span>
+                </div>
+                <div style="overflow-x:auto;border-radius:10px;border:1px solid #e2e8f0;">
+                    <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+                        <thead>
+                            <tr style="background:#f8fafc;">
+                                <th style="padding:9px 12px;text-align:left;font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Campaign / Site</th>
+                                <th style="padding:9px 12px;text-align:center;font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Trajectory</th>
+                                <th style="padding:9px 12px;text-align:center;font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">SE Ranking</th>
+                                <th style="padding:9px 12px;text-align:center;font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">GSC</th>
+                                <th style="padding:9px 12px;text-align:center;font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Risk</th>
+                                <th style="padding:9px 12px;text-align:left;font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Top Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>${tableRows}</tbody>
+                    </table>
+                </div>
+            </div>` : ''}`;
         }
 
         // ── Google Algorithm News Feed ────────────────────────────────────────────
