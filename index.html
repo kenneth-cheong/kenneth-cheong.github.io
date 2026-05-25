@@ -10787,7 +10787,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1433</span>
+                <span id="appVersion">v1.0.1434</span>
             </a>
         </div>
 
@@ -38271,6 +38271,16 @@ Output ONLY the finished ${contentTypeLabel} — no meta-commentary, no explanat
                     const el = document.getElementById(id); if (!el) return;
                     el.textContent = 'Ahrefs'; el.style.display = ''; el.style.background = '#e0f2fe'; el.style.color = '#0369a1';
                 });
+                // Mark section complete and populate summary with Ahrefs data
+                // (DataForSEO success path will overwrite with more complete data if it arrives)
+                document.getElementById('keyword-research-analysis-button').innerText = "Get Time To Rank";
+                updateCollapsibleState('siteAnalysisToggle', 'success');
+                const daValue = document.getElementById('da').innerText;
+                updateDomainSummaryTable(domain, {
+                    da: daValue,
+                    linking_domains: rd,
+                    backlinks: bl
+                });
             });
 
             fetch("https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new", {
@@ -38344,7 +38354,10 @@ Output ONLY the finished ${contentTypeLabel} — no meta-commentary, no explanat
                         backlinks: bl ?? data.body.backlinks
                     });
                 })
-                .catch(error => console.error("Error fetching targeted domain data:", error));
+                .catch(error => {
+                    console.error("Error fetching targeted domain data:", error);
+                    document.getElementById('keyword-research-analysis-button').innerText = "Get Time To Rank";
+                });
         }
 
         function updateDomainSummaryTable(domain, metrics) {
