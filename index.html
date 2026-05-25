@@ -10748,7 +10748,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1397</span>
+                <span id="appVersion">v1.0.1398</span>
             </a>
         </div>
 
@@ -22667,62 +22667,71 @@
                 return;
             }
 
+            const AI_ENDPOINT = 'https://0oes56fj4l.execute-api.ap-southeast-1.amazonaws.com/aiOptimiser';
+
             if (sidebarEl) sidebarEl.innerHTML = `<div style="text-align:center;padding:30px;color:#64748b;">
                 <i class="fas fa-spinner fa-spin"></i>
-                <p style="margin-top:10px;font-size:0.85em;">Scanning SEO intelligence sources...</p>
+                <p style="margin-top:10px;font-size:0.85em;">Fetching latest SEO articles...</p>
             </div>`;
 
-            const prompt = `You are an SEO Expert monitoring the SEO/GEO landscape for a digital marketing agency. Your role is NOT to summarise SEO news blindly. Your role is to detect, filter, classify, prioritise, and explain SEO developments that may affect active SEO campaigns.
+            try {
+                // Step 1: Fetch real articles from RSS feeds (URLs are real, not AI-generated)
+                const feedsResp = await fetch(AI_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'fetch_seo_feeds' })
+                });
+                const feedsResult = await feedsResp.json();
+                const feedsBody = typeof feedsResult.body === 'string' ? JSON.parse(feedsResult.body) : feedsResult.body;
+                const articles = feedsBody.articles || [];
+                if (!articles.length) throw new Error('No articles from RSS feeds');
 
-Scan and monitor the following trusted SEO intelligence sources for the most recent developments:
+                if (sidebarEl) sidebarEl.innerHTML = `<div style="text-align:center;padding:30px;color:#64748b;">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p style="margin-top:10px;font-size:0.85em;">Analysing ${articles.length} articles...</p>
+                </div>`;
 
-OFFICIAL GOOGLE SOURCES:
-- https://developers.google.com/search/blog
-- https://x.com/searchliaison
+                // Step 2: AI classifies real articles — must copy URLs verbatim, never generate new ones
+                const articleList = articles.map((a, i) =>
+                    `[${i + 1}] title: "${a.title}" | source: "${a.source}" | date: "${a.date}" | url: "${a.url}" | description: "${(a.description || '').replace(/"/g, '\\"')}"`
+                ).join('\n');
 
-SEO PUBLICATIONS:
-- https://www.searchenginejournal.com/feed/
-- https://searchengineland.com/feed
-- https://moz.com/blog/feed
-- https://ahrefs.com/blog/feed/
-- https://www.seroundtable.com/index.xml
+                const prompt = `You are an SEO Expert classifying and prioritising real SEO news articles for a digital marketing agency.
 
-SERP VOLATILITY SOURCES:
-- https://www.semrush.com/sensor/
-- https://moz.com/mozcast
+The following articles were fetched live from trusted SEO publication RSS feeds. Each has a REAL, VERIFIED URL from the feed — you MUST copy each URL EXACTLY as provided, with NO modifications.
 
-TRUSTED SEO THOUGHT LEADERS:
-- Barry Schwartz: https://x.com/rustybrick
-- Lily Ray: https://x.com/lilyraynyc
+ARTICLES TO CLASSIFY:
+${articleList}
 
-Identify major SEO updates, Google algorithm/core updates, SERP changes, ranking volatility, new SEO best practices, EEAT/YMYL developments, AI search/SGE/AI Overview developments, Local SEO developments, Technical SEO developments, and changes likely to impact rankings, CTR, traffic, or conversions.
+Today's date is ${new Date().toISOString().split('T')[0]}.
 
-DO NOT report clickbait, speculative opinions without corroboration, repeated news, generic SEO tips, or low-confidence rumours.
+Your task: Select the 20–25 most important/relevant articles from the list above and classify each one.
+RULES:
+- DO NOT invent new articles — only use articles from the list above.
+- DO NOT modify URLs — copy the "url" field verbatim for each article.
+- Exclude generic SEO tips, clickbait, speculative rumours without corroboration.
+- Prioritise: Google algorithm updates, SERP changes, AI Overview/SGE news, ranking volatility, technical SEO changes.
+- Order by date descending (most recent first).
 
-Deduplicate similar news across sources.
-
-Today's date is ${new Date().toISOString().split('T')[0]}. Focus ONLY on updates and news from the last 90 days. Do not include anything older than 3 months. If there are very recent developments from the last 2–4 weeks, prioritise those first.
-
-Return ONLY a valid JSON array (no markdown, no extra text) of the 20–25 most important recent updates, ordered most recent first. Each object must have exactly these fields:
-- "title": update name or headline (string)
-- "source": publication or source name (string)
-- "author": author name if available, else "" (string)
-- "date": date in YYYY-MM-DD format
-- "url": You MUST use your real-time web search to find and retrieve each article before including its URL. Only output the exact URL of the HTML article page returned by your web search — copied verbatim from the search result. STRICT RULES: (1) Never construct, guess, or infer a URL. (2) Never return image or media file URLs (.png .jpg .jpeg .gif .webp .svg .mp4 .pdf etc). (3) Never return static/CDN asset paths (e.g. /wp-content/, /uploads/, /cdn/, /static/, /assets/). (4) Never return a URL to a category page, tag page, author page, or site homepage. (5) The URL must be to a specific published article or blog post with a slug (e.g. https://searchengineland.com/google-march-2025-core-update-452381). If you cannot confirm a valid article URL via web search, use "" (string)
+Return ONLY a valid JSON array (no markdown, no extra text). Each object must have exactly these fields:
+- "title": copy the title from the article list above (string)
+- "source": copy the source from the article list above (string)
+- "author": author name if identifiable from description, else "" (string)
+- "date": copy the date from the article list above in YYYY-MM-DD format
+- "url": COPY THE EXACT URL from the article list above — never modify, shorten, or reconstruct it (string)
 - "categories": array of 1–3 values from: ["Core Update","Spam Update","Helpful Content","SERP Feature Change","AI Overview / SGE","EEAT / YMYL","Technical SEO","Content Strategy","Link Building","Local SEO","UX / CTR","Mobile / Page Experience","Crawl / Indexing","Ranking Volatility","Industry Observation"]
 - "impact_score": integer 1–10
 - "confidence_score": integer 1–10 (10 = official Google confirmation, 1 = unverified rumour)
 - "immediate_risk": one of "Critical","High","Medium","Low","Monitor Only"
 - "affected_factors": array of values from: ["Content Quality & Relevance","Backlink Authority","Technical SEO","On-Page Optimisation","UX Signals","SERP / External Context"]
 - "affected_industries": array of most affected industries (e.g. ["Healthcare","Ecommerce","Finance","Local Businesses"])
-- "what_happened": 1–2 sentence factual description (string)
+- "what_happened": 1–2 sentence factual description based on title and description (string)
 - "why_it_matters": 1–2 sentence explanation of agency impact (string)
 - "what_to_monitor": specific metric or signal to watch (string)
 - "recommended_actions": array of 1–3 concrete specific actions (NOT generic advice like "create quality content")
 - "urgency": one of "Immediate","High","Medium","Low"`;
 
-            try {
-                const resp = await fetch('https://0oes56fj4l.execute-api.ap-southeast-1.amazonaws.com/aiOptimiser', {
+                const resp = await fetch(AI_ENDPOINT, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'generate', model: 'perplexity', prompt, settings: { temperature: 0.2 } })
@@ -22734,7 +22743,9 @@ Return ONLY a valid JSON array (no markdown, no extra text) of the 20–25 most 
                 if (!match) throw new Error('No JSON array in response');
                 let updates = JSON.parse(match[0]);
                 if (!Array.isArray(updates) || !updates.length) throw new Error('Empty array');
-                // Strip non-article URLs — reject feeds, homepages, media files, asset paths
+
+                // Build a lookup of valid RSS URLs — final sanity check rejects anything not from the feed
+                const validRssUrls = new Set(articles.map(a => a.url).filter(Boolean));
                 const BAD_EXTS = /\.(png|jpe?g|gif|webp|svg|ico|mp4|pdf|zip|css|js)(\?.*)?$/i;
                 const BAD_PATHS = /\/(wp-content|wp-includes|uploads|cdn|static|assets|images|media|files)\//i;
                 updates = updates.map(u => {
@@ -22747,12 +22758,14 @@ Return ONLY a valid JSON array (no markdown, no extra text) of the 20–25 most 
                                 /\/feed\/?$/.test(path) ||
                                 path === '/' || path === '' ||
                                 BAD_EXTS.test(path) ||
-                                BAD_PATHS.test(path)
+                                BAD_PATHS.test(path) ||
+                                !validRssUrls.has(url)
                             ) url = '';
                         } catch (e) { url = ''; }
                     }
                     return { ...u, url };
                 });
+
                 cockpitState.algoNewsCache = updates;
                 cockpitState.algoNewsFetchedAt = Date.now();
                 renderAlgorithmNews(updates);
