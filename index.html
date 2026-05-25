@@ -47559,7 +47559,6 @@ Return compact valid JSON only. No prose.
             const inputs = banner._ttrInputs || {};
 
             // Collect keywords — support editable text inputs (review mode) and plain checkboxes
-            // Build [{kw, inlineEl}] so we can update the badge even if the keyword was edited
             const checks = banner.querySelectorAll('.ttr-kw-check:checked');
             const selectedEntries = Array.from(checks).map(c => {
                 const row = c.closest('.ttr-kw-row');
@@ -47568,14 +47567,14 @@ Return compact valid JSON only. No prose.
                 const inlineEl = row ? row.querySelector('.ttr-val-inline') : banner.querySelector(`.ttr-val-inline[data-kw="${kw.toLowerCase()}"]`);
                 return { kw, inlineEl };
             }).filter(e => e.kw);
-            const selectedKeywords = selectedEntries.map(e => e.kw);
-            if (selectedKeywords.length === 0) { alert('Select at least one keyword.'); return; }
+            if (selectedEntries.length === 0) { alert('Select at least one keyword.'); return; }
 
             const runBtn = document.getElementById('ttr-run-btn');
             const statusEl = document.getElementById('ttr-run-status');
             const statusText = document.getElementById('ttr-run-status-text');
             if (runBtn) { runBtn.disabled = true; runBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running...'; }
             if (statusEl) statusEl.style.display = 'inline-flex';
+            if (statusText) statusText.textContent = `0 / ${selectedEntries.length} complete…`;
 
             const language = inputs.language || document.getElementById('language')?.value || 'English';
             const location = inputs.location || document.getElementById('location')?.value || 'Singapore';
@@ -47596,10 +47595,10 @@ Return compact valid JSON only. No prose.
                 'more than 12 months': { color: '#7f1d1d', bg: '#f4746b' },
             };
 
-            for (let i = 0; i < selectedEntries.length; i++) {
-                const { kw, inlineEl } = selectedEntries[i];
-                if (statusText) statusText.textContent = `Analysing "${kw}" (${i + 1}/${selectedEntries.length})…`;
+            let completed = 0;
 
+            // Run all keyword analyses in parallel — each writes to its own DOM container
+            await Promise.allSettled(selectedEntries.map(async ({ kw, inlineEl }) => {
                 try {
                     await keywordAnalysis(kw, language, location, target);
 
@@ -47609,7 +47608,6 @@ Return compact valid JSON only. No prose.
                         const style = ttrColorMap[normalised] || { color: '#475569', bg: '#f1f5f9' };
                         const label = normalised.replace(' months', 'mo').replace('more than ', '>');
 
-                        // Update TTR cell in the strategy blueprint rows
                         document.querySelectorAll(`.strategy-kw-row[data-keyword="${kw.toLowerCase()}"] .ttr-val`).forEach(el => {
                             el.textContent = label;
                             el.style.color = style.color;
@@ -47619,7 +47617,6 @@ Return compact valid JSON only. No prose.
                             el.style.fontSize = '0.65rem';
                         });
 
-                        // Update inline badge in the banner row
                         if (inlineEl) {
                             inlineEl.textContent = label;
                             inlineEl.style.color = style.color;
@@ -47628,8 +47625,11 @@ Return compact valid JSON only. No prose.
                     }
                 } catch (err) {
                     console.error(`TTR analysis error for "${kw}":`, err);
+                } finally {
+                    completed++;
+                    if (statusText) statusText.textContent = `${completed} / ${selectedEntries.length} complete…`;
                 }
-            }
+            }));
 
             if (runBtn) { runBtn.disabled = false; runBtn.innerHTML = '<i class="fas fa-check"></i> Analysis Complete'; }
             if (statusEl) statusEl.style.display = 'none';
