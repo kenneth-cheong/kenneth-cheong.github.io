@@ -69387,20 +69387,89 @@ Move-In</h3>
         }
 
         // ── Overview sub-view
+        let _ovSelectedTools = null; // null = all tools selected
+        let _ovToolPickerOpen = false;
+        let _ovToolPickerListenerAdded = false;
+
+        function toggleOvToolPicker(e) {
+            e.stopPropagation();
+            _ovToolPickerOpen = !_ovToolPickerOpen;
+            const panel = document.getElementById('ovToolPickerPanel');
+            const btn   = document.getElementById('ovToolPickerBtn');
+            if (panel) panel.style.display = _ovToolPickerOpen ? 'block' : 'none';
+            if (btn)   btn.style.borderColor = _ovToolPickerOpen ? '#6366f1' : '#e2e8f0';
+        }
+        function filterOvToolList() {
+            const q = (document.getElementById('ovToolSearch')?.value || '').toLowerCase();
+            document.querySelectorAll('.ov-tool-item').forEach(row => {
+                row.style.display = row.dataset.label.toLowerCase().includes(q) ? '' : 'none';
+            });
+        }
+        function onOvToolChange() {
+            const checked = [...document.querySelectorAll('.ov-tool-cb:checked')].map(cb => cb.value);
+            const all     = [...document.querySelectorAll('.ov-tool-cb')];
+            _ovSelectedTools = checked.length === all.length ? null : new Set(checked);
+            const btn = document.getElementById('ovToolPickerBtn');
+            if (btn) {
+                const label = _ovSelectedTools === null ? 'All Tools' : `${checked.length} tool${checked.length!==1?'s':''} selected`;
+                btn.querySelector('.ov-tool-btn-label').textContent = label;
+                btn.style.borderColor = _ovSelectedTools !== null ? '#6366f1' : '#e2e8f0';
+                btn.style.color       = _ovSelectedTools !== null ? '#6366f1' : '#1e293b';
+            }
+            renderLogsOverview();
+        }
+        function selectAllOvTools() {
+            document.querySelectorAll('.ov-tool-cb').forEach(cb => { cb.checked = true; });
+            onOvToolChange();
+        }
+        function clearAllOvTools() {
+            document.querySelectorAll('.ov-tool-cb').forEach(cb => { cb.checked = false; });
+            onOvToolChange();
+        }
+
         function renderLogsOverview() {
             const el = document.getElementById('logsViewOverview');
             if (!el) return;
 
-            // Render filter bar once; rebuild team options when teams change
+            if (!_ovToolPickerListenerAdded) {
+                _ovToolPickerListenerAdded = true;
+                document.addEventListener('click', () => {
+                    if (_ovToolPickerOpen) {
+                        _ovToolPickerOpen = false;
+                        const panel = document.getElementById('ovToolPickerPanel');
+                        const btn   = document.getElementById('ovToolPickerBtn');
+                        if (panel) panel.style.display = 'none';
+                        if (btn)   btn.style.borderColor = _ovSelectedTools !== null ? '#6366f1' : '#e2e8f0';
+                    }
+                });
+            }
+
+            // Compute all unique tool labels from current logs
+            const allToolLabels = [...new Set(getEffectiveLogs().map(l => toolActionLabel(l)).filter(Boolean))].sort();
+            const toolSig = allToolLabels.join('|');
+
+            // Render filter bar once; rebuild team options when teams change or tool list changes
             const teamsNow = getTeams();
             const teamSig  = teamsNow.map(t => t.name).join(',');
-            if (!el.querySelector('#ovTeamFilter') || el.dataset.teamSig !== teamSig) {
+            if (!el.querySelector('#ovTeamFilter') || el.dataset.teamSig !== teamSig || el.dataset.toolSig !== toolSig) {
                 const teamOpts = ['<option value="all">All Teams</option>', '<option value="—">Unassigned</option>']
                     .concat(teamsNow.map(t => `<option value="${escHtml(t.name)}">${escHtml(t.name)}</option>`)).join('');
                 const sel = 'padding:7px 11px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;background:white;cursor:pointer;outline:none;';
                 const prevTeam = el.querySelector('#ovTeamFilter')?.value || 'all';
                 const prevCat  = el.querySelector('#ovCatFilter')?.value  || 'all';
                 const prevType = el.querySelector('#ovTypeFilter')?.value || 'all';
+
+                const toolBtnLabel = _ovSelectedTools === null ? 'All Tools' : `${_ovSelectedTools.size} tool${_ovSelectedTools.size!==1?'s':''} selected`;
+                const toolBtnColor = _ovSelectedTools !== null ? '#6366f1' : '#1e293b';
+                const toolBtnBorder = _ovSelectedTools !== null ? '#6366f1' : '#e2e8f0';
+                const toolCheckboxes = allToolLabels.map(t => {
+                    const checked = (_ovSelectedTools === null || _ovSelectedTools.has(t)) ? 'checked' : '';
+                    return `<label class="ov-tool-item" data-label="${escHtml(t)}" style="display:flex;align-items:center;gap:8px;padding:5px 10px;cursor:pointer;border-radius:5px;font-size:12px;color:#334155;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background=''">
+                        <input type="checkbox" class="ov-tool-cb" value="${escHtml(t)}" ${checked} onchange="onOvToolChange()" style="cursor:pointer;accent-color:#6366f1;">
+                        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(t)}</span>
+                    </label>`;
+                }).join('');
+
                 el.innerHTML = `
                     <div style="display:flex;gap:10px;align-items:center;margin-bottom:20px;flex-wrap:wrap;">
                         <select id="ovTeamFilter" onchange="renderLogsOverview()" style="${sel}">
@@ -69422,10 +69491,30 @@ Move-In</h3>
                             <option value="api">API Calls</option>
                             <option value="error">Errors Only</option>
                         </select>
+                        <div style="position:relative;" onclick="event.stopPropagation()">
+                            <button id="ovToolPickerBtn" onclick="toggleOvToolPicker(event)" style="display:flex;align-items:center;gap:6px;padding:7px 11px;border:1px solid ${toolBtnBorder};border-radius:8px;font-size:13px;color:${toolBtnColor};background:white;cursor:pointer;outline:none;white-space:nowrap;">
+                                <i class="fas fa-wrench" style="font-size:11px;opacity:.7;"></i>
+                                <span class="ov-tool-btn-label">${toolBtnLabel}</span>
+                                <i class="fas fa-chevron-down" style="font-size:10px;opacity:.5;margin-left:2px;"></i>
+                            </button>
+                            <div id="ovToolPickerPanel" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:9999;background:white;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);min-width:240px;max-width:320px;padding:8px 0;" onclick="event.stopPropagation()">
+                                <div style="padding:6px 10px 4px;">
+                                    <input id="ovToolSearch" type="text" placeholder="Search tools…" oninput="filterOvToolList()" style="width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid #e2e8f0;border-radius:7px;font-size:12px;outline:none;color:#334155;">
+                                </div>
+                                <div style="display:flex;gap:4px;padding:4px 10px 6px;border-bottom:1px solid #f1f5f9;">
+                                    <button onclick="selectAllOvTools()" style="flex:1;padding:3px 0;border:1px solid #e2e8f0;border-radius:5px;font-size:11px;color:#475569;background:white;cursor:pointer;">All</button>
+                                    <button onclick="clearAllOvTools()" style="flex:1;padding:3px 0;border:1px solid #e2e8f0;border-radius:5px;font-size:11px;color:#475569;background:white;cursor:pointer;">None</button>
+                                </div>
+                                <div style="max-height:220px;overflow-y:auto;padding:4px 0;">
+                                    ${toolCheckboxes}
+                                </div>
+                            </div>
+                        </div>
                         <span id="ovFilterCount" style="font-size:12px;color:#94a3b8;margin-left:auto;"></span>
                     </div>
                     <div id="ovContent"></div>`;
                 el.dataset.teamSig = teamSig;
+                el.dataset.toolSig = toolSig;
                 // Restore previous selections after rebuild
                 const tf = el.querySelector('#ovTeamFilter'); if (tf) tf.value = prevTeam;
                 const cf = el.querySelector('#ovCatFilter');  if (cf) cf.value = prevCat;
@@ -69443,6 +69532,7 @@ Move-In</h3>
                 if (dateTo   && day > dateTo)   return false;
                 if (catFilter !== 'all' && l.category !== catFilter) return false;
                 if (typeFilter !== 'all' && l.type !== typeFilter) return false;
+                if (_ovSelectedTools !== null && !_ovSelectedTools.has(toolActionLabel(l))) return false;
                 if (teamFilter !== 'all') {
                     const t = getTeamForEmail(l.userEmail);
                     if (teamFilter === '—' && t !== '—') return false;
