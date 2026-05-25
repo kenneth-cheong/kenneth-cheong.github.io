@@ -10783,7 +10783,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1415</span>
+                <span id="appVersion">v1.0.1417</span>
             </a>
         </div>
 
@@ -22945,7 +22945,7 @@
         function openMappingModal() {
             const seoIntel = cockpitState.seoIntelCache || [];
             if (!seoIntel.length) {
-                alert('No SE Ranking campaigns loaded yet. Please load SE Ranking data first.');
+                alert('No SEO campaign data loaded yet. Please load SE Ranking / Monday.com data first.');
                 return;
             }
             const mappings  = loadHolisticMappings();
@@ -22955,27 +22955,34 @@
             const paidNames = (cockpitState.paidIntelCache || []).map(c => c.name).filter(Boolean).sort();
             const serSites  = [...new Set((cockpitState.lastMoversData || []).map(m => m.siteName).filter(Boolean))].sort();
 
-            const makeSelect = (opts, val, rowIdx, key) => {
-                const esc = s => s.replace(/"/g, '&quot;');
-                const options = ['<option value="">— not mapped —</option>',
-                    ...opts.map(o => `<option value="${esc(o)}"${o === val ? ' selected' : ''}>${o}</option>`)
-                ].join('');
-                return `<select data-row="${rowIdx}" data-key="${key}" style="width:100%;padding:4px 7px;border:1px solid #cbd5e1;border-radius:5px;font-size:0.76rem;background:#fff;color:#1e293b;min-width:120px;">${options}</select>`;
+            const esc = s => String(s).replace(/"/g, '&quot;');
+
+            const makeSearchSelect = (opts, val, rowIdx, key) => {
+                if (opts.length === 0) {
+                    return `<span style="font-size:0.72rem;color:#94a3b8;padding:4px 8px;display:inline-block;background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;white-space:nowrap;"><i class="fas fa-ban" style="font-size:0.65rem;margin-right:3px;color:#cbd5e1;"></i>Not connected</span>`;
+                }
+                const listId = `hm-dl-${key}-${rowIdx}`;
+                const optsHtml = opts.map(o => `<option value="${esc(o)}">`).join('');
+                return `<input type="text" list="${listId}" value="${esc(val)}" data-row="${rowIdx}" data-key="${key}" placeholder="— type to search —" style="width:100%;padding:4px 7px;border:1px solid #cbd5e1;border-radius:5px;font-size:0.76rem;background:#fff;color:#1e293b;min-width:130px;box-sizing:border-box;"><datalist id="${listId}">${optsHtml}</datalist>`;
             };
 
             const colStyle = 'padding:6px 8px;vertical-align:middle;';
-            const thStyle  = 'padding:8px 10px;text-align:left;font-size:0.76rem;color:#64748b;font-weight:700;white-space:nowrap;background:#f8fafc;position:sticky;top:0;';
+            const thStyle  = 'padding:8px 10px;text-align:left;font-size:0.76rem;color:#64748b;font-weight:700;white-space:nowrap;background:#f8fafc;position:sticky;top:0;border-bottom:2px solid #e2e8f0;';
+
+            const thConn = (label, opts) => {
+                const ok = opts.length > 0;
+                return `<th style="${thStyle}">${label}<div style="font-size:0.63rem;font-weight:400;margin-top:3px;color:${ok ? '#10b981' : '#ef4444'};"><i class="fas fa-${ok ? 'check-circle' : 'exclamation-circle'}"></i> ${ok ? opts.length + (opts.length === 1 ? ' option' : ' options') : 'Not connected'}</div></th>`;
+            };
 
             const rows = seoIntel.map((c, i) => {
-                const m   = mappings[c.name] || {};
-                const esc = s => s.replace(/"/g, '&quot;');
+                const m = mappings[c.name] || {};
                 return `<tr style="border-bottom:1px solid #f1f5f9;" data-campaign="${esc(c.name)}">
                     <td style="${colStyle}font-size:0.82rem;font-weight:600;color:#1e293b;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(c.name)}">${c.name}</td>
-                    <td style="${colStyle}">${makeSelect(serSites,  m.ser  || '', i, 'ser')}</td>
-                    <td style="${colStyle}">${makeSelect(gscProps,  m.gsc  || '', i, 'gsc')}</td>
-                    <td style="${colStyle}">${makeSelect(ga4Props,  m.ga4  || '', i, 'ga4')}</td>
-                    <td style="${colStyle}">${makeSelect(adsAccts,  m.ads  || '', i, 'ads')}</td>
-                    <td style="${colStyle}">${makeSelect(paidNames, m.paid || '', i, 'paid')}</td>
+                    <td style="${colStyle}">${makeSearchSelect(serSites,  m.ser  || '', i, 'ser')}</td>
+                    <td style="${colStyle}">${makeSearchSelect(gscProps,  m.gsc  || '', i, 'gsc')}</td>
+                    <td style="${colStyle}">${makeSearchSelect(ga4Props,  m.ga4  || '', i, 'ga4')}</td>
+                    <td style="${colStyle}">${makeSearchSelect(adsAccts,  m.ads  || '', i, 'ads')}</td>
+                    <td style="${colStyle}">${makeSearchSelect(paidNames, m.paid || '', i, 'paid')}</td>
                 </tr>`;
             }).join('');
 
@@ -22983,17 +22990,23 @@
                 <table style="width:100%;border-collapse:collapse;">
                     <thead>
                         <tr>
-                            <th style="${thStyle}">SE Ranking Campaign</th>
-                            <th style="${thStyle}">SE Rank Site</th>
-                            <th style="${thStyle}">GSC Property</th>
-                            <th style="${thStyle}">GA4 Property</th>
-                            <th style="${thStyle}">Google Ads Account</th>
-                            <th style="${thStyle}">Paid Campaign</th>
+                            <th style="${thStyle}">SE Ranking Campaign<div style="font-size:0.63rem;font-weight:400;margin-top:3px;color:#10b981;"><i class="fas fa-check-circle"></i> ${seoIntel.length} campaigns</div></th>
+                            ${thConn('SE Rank Site', serSites)}
+                            ${thConn('GSC Property', gscProps)}
+                            ${thConn('GA4 Property', ga4Props)}
+                            ${thConn('Google Ads Account', adsAccts)}
+                            ${thConn('Mon. Paid Intel', paidNames)}
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>
                 </table>
-                <p style="font-size:0.74rem;color:#94a3b8;margin-top:10px;"><i class="fas fa-info-circle"></i> Unset fields fall back to fuzzy name matching. Click <strong>Auto-detect</strong> to pre-fill best guesses, then adjust as needed.</p>`;
+                <div style="font-size:0.74rem;color:#64748b;margin-top:12px;padding:10px 12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;line-height:1.6;">
+                    <i class="fas fa-info-circle" style="color:#6366f1;margin-right:4px;"></i>
+                    Type in any field to search — select a match or clear to fall back to fuzzy matching. Click <strong>Auto-detect</strong> to pre-fill best guesses.
+                    <span style="color:#94a3b8;margin:0 6px;">|</span>
+                    <strong>Included CSM statuses:</strong> Lived (PM) · Renewed No Pause · Guarantee (SEO) · Renewed (New Timeline) · Standard · Cluster · Special · Internal KPI.
+                    Campaigns not matching any of these are excluded from the holistic analysis.
+                </div>`;
 
             document.getElementById('holisticMappingModal').style.display = 'block';
         }
@@ -23004,7 +23017,10 @@
                 const name = tr.dataset.campaign;
                 if (!name) return;
                 const m = {};
-                tr.querySelectorAll('select').forEach(sel => { if (sel.value) m[sel.dataset.key] = sel.value; });
+                tr.querySelectorAll('input[data-key]').forEach(inp => {
+                    const v = inp.value.trim();
+                    if (v) m[inp.dataset.key] = v;
+                });
                 if (Object.keys(m).length) mappings[name] = m;
             });
             localStorage.setItem('holisticMappings', JSON.stringify(mappings));
@@ -23029,12 +23045,12 @@
             document.querySelectorAll('#holisticMappingBody tbody tr').forEach((tr, i) => {
                 const name = seoIntel[i]?.name;
                 if (!name) return;
-                const sels = tr.querySelectorAll('select');
+                const inps = tr.querySelectorAll('input[data-key]');
                 const pairs = [[serSites, 0.30], [gscProps, 0.18], [ga4Props, 0.18], [adsAccts, 0.18], [paidNames, 0.22]];
                 pairs.forEach(([opts, thr], j) => {
-                    if (!sels[j] || sels[j].value) return;
+                    if (!inps[j] || inps[j].value) return;
                     const match = bestMatch(name, opts, thr);
-                    if (match) sels[j].value = match;
+                    if (match) inps[j].value = match;
                 });
             });
         }
