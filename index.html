@@ -10120,55 +10120,79 @@
         }
 
         .fa-sf-table-wrap {
-            margin-top: 6px;
-            max-height: 160px;
+            margin-top: 8px;
+            max-height: 200px;
             overflow-y: auto;
-            border: 1px solid var(--border, #334155);
-            border-radius: 4px;
-            background: rgba(0,0,0,0.18);
+            border: 1px solid rgba(51,65,85,0.6);
+            border-radius: 8px;
+            background: rgba(15,23,42,0.6);
             font-size: 0.76em;
+            scrollbar-width: thin;
+            scrollbar-color: #334155 transparent;
         }
+        .fa-sf-table-wrap::-webkit-scrollbar { width: 4px; }
+        .fa-sf-table-wrap::-webkit-scrollbar-track { background: transparent; }
+        .fa-sf-table-wrap::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
         .fa-sf-table-wrap table {
             width: 100%;
             border-collapse: collapse;
-            table-layout: auto;
+            table-layout: fixed;
         }
         .fa-sf-table-wrap th {
             position: sticky;
             top: 0;
-            background: rgba(30,41,59,0.95);
-            color: #94a3b8;
-            font-weight: 600;
+            background: rgba(15,23,42,0.98);
+            color: #64748b;
+            font-weight: 700;
             text-transform: uppercase;
-            font-size: 0.85em;
-            letter-spacing: 0.05em;
-            padding: 4px 8px;
+            font-size: 0.8em;
+            letter-spacing: 0.08em;
+            padding: 6px 10px;
             white-space: nowrap;
-            border-bottom: 1px solid var(--border, #334155);
+            border-bottom: 1px solid rgba(51,65,85,0.7);
             text-align: left;
         }
         .fa-sf-table-wrap td {
-            padding: 3px 8px;
-            border-bottom: 1px solid rgba(51,65,85,0.5);
-            vertical-align: top;
-            word-break: break-all;
-            max-width: 280px;
+            padding: 5px 10px;
+            border-bottom: 1px solid rgba(51,65,85,0.3);
+            vertical-align: middle;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
+        .fa-sf-table-wrap tbody tr:hover td { background: rgba(51,65,85,0.25); }
         .fa-sf-table-wrap td a {
             color: #60a5fa;
             text-decoration: none;
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
-        .fa-sf-table-wrap td a:hover { text-decoration: underline; }
+        .fa-sf-table-wrap td a:hover { color: #93c5fd; text-decoration: underline; }
         .fa-sf-table-wrap tr:last-child td { border-bottom: none; }
+        .fa-sf-table-wrap td.sf-td-badges { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.6; }
         .fa-sf-table-wrap .badge-issue {
             display: inline-block;
-            padding: 1px 6px;
-            border-radius: 8px;
-            font-size: 0.85em;
-            background: rgba(239,68,68,0.12);
-            color: #f87171;
-            border: 1px solid rgba(239,68,68,0.25);
+            padding: 1px 7px;
+            border-radius: 20px;
+            font-size: 0.88em;
+            background: rgba(239,68,68,0.1);
+            color: #fca5a5;
+            border: 1px solid rgba(239,68,68,0.2);
             white-space: nowrap;
+            font-weight: 500;
+        }
+        .fa-sf-table-wrap .badge-warn {
+            display: inline-block;
+            padding: 1px 7px;
+            border-radius: 20px;
+            font-size: 0.88em;
+            background: rgba(245,158,11,0.1);
+            color: #fcd34d;
+            border: 1px solid rgba(245,158,11,0.2);
+            white-space: nowrap;
+            font-weight: 500;
         }
         .fa-sf-pagetoggle {
             display: none;
@@ -17503,11 +17527,25 @@
 
                         <!-- Screaming Frog -->
                         <div class="forensic-section-label" style="background:rgba(6,182,212,0.1);color:#22d3ee;">Screaming Frog Counts <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.82em;font-weight:700;padding:1px 7px;border-radius:10px;background:rgba(6,182,212,0.18);color:#67e8f9;border:1px solid rgba(6,182,212,0.3);letter-spacing:0;text-transform:none;"><i class="fas fa-file-csv"></i> CSV</span></div>
-                        <div class="forensic-sf-import">
-                            <label for="fa_sfcsv" class="forensic-sf-label"><i class="fas fa-file-csv"></i> Import Screaming Frog CSV</label>
+                        <div class="forensic-sf-import" style="flex-wrap:wrap;gap:10px;">
                             <input type="file" id="fa_sfcsv" accept=".csv" onchange="parseFaSfCsv(event)" style="display:none;">
-                            <button type="button" class="config-btn-highlight" style="padding:6px 14px;font-size:0.85em;" onclick="document.getElementById('fa_sfcsv').click()"><i class="fas fa-upload"></i> Upload CSV</button>
-                            <span id="fa_sfcsv_status" style="font-size:0.82em;color:#94a3b8;margin-left:8px;"></span>
+                            <span style="display:inline-flex;align-items:center;gap:6px;">
+                                <label for="fa_sfcsv" class="forensic-sf-label" style="margin:0;"><i class="fas fa-file-csv"></i> Screaming Frog CSV</label>
+                                <button type="button" class="config-btn-highlight" style="padding:5px 12px;font-size:0.82em;" onclick="document.getElementById('fa_sfcsv').click()"><i class="fas fa-upload"></i> Upload</button>
+                                <span id="fa_sfcsv_status" style="font-size:0.82em;color:#94a3b8;"></span>
+                            </span>
+                            <span style="display:inline-flex;align-items:center;gap:6px;">
+                                <label style="font-size:0.82em;color:#94a3b8;margin:0;"><i class="fas fa-code"></i> Structured Data CSV</label>
+                                <button type="button" class="config-btn" style="padding:5px 12px;font-size:0.82em;" onclick="document.getElementById('fa_sdcsv').click()"><i class="fas fa-upload"></i> Upload</button>
+                                <input type="file" id="fa_sdcsv" accept=".csv" onchange="parseFaSdCsv(event)" style="display:none;">
+                                <span id="fa_sdcsv_status" style="font-size:0.82em;color:#94a3b8;"></span>
+                            </span>
+                            <span style="display:inline-flex;align-items:center;gap:6px;">
+                                <label style="font-size:0.82em;color:#94a3b8;margin:0;"><i class="fas fa-globe"></i> Hreflang CSV</label>
+                                <button type="button" class="config-btn" style="padding:5px 12px;font-size:0.82em;" onclick="document.getElementById('fa_hreflangcsv').click()"><i class="fas fa-upload"></i> Upload</button>
+                                <input type="file" id="fa_hreflangcsv" accept=".csv" onchange="parseFaHreflangCsv(event)" style="display:none;">
+                                <span id="fa_hreflangcsv_status" style="font-size:0.82em;color:#94a3b8;"></span>
+                            </span>
                         </div>
                         <div class="sem-input-group">
                             <div class="sem-input-item">
@@ -17558,18 +17596,6 @@
                                 <span class="fa-sf-pagetoggle" id="fa_toggle_sderrors" onclick="faTogglePages('sderrors')"></span>
                                 <div class="fa-sf-table-wrap" id="fa_pages_sderrors" style="display:none;"></div>
                             </div>
-                        </div>
-                        <div class="forensic-sf-import" style="margin-top:10px;">
-                            <label style="font-size:0.82em;color:#94a3b8;margin-right:8px;"><i class="fas fa-code"></i> Structured Data CSV <span style="font-size:0.85em;">(Screaming Frog → Structured Data tab → Export)</span></label>
-                            <button type="button" class="config-btn" style="padding:5px 12px;font-size:0.82em;" onclick="document.getElementById('fa_sdcsv').click()"><i class="fas fa-upload"></i> Upload</button>
-                            <input type="file" id="fa_sdcsv" accept=".csv" onchange="parseFaSdCsv(event)" style="display:none;">
-                            <span id="fa_sdcsv_status" style="font-size:0.82em;color:#94a3b8;margin-left:8px;"></span>
-                        </div>
-                        <div class="forensic-sf-import" style="margin-top:8px;">
-                            <label style="font-size:0.82em;color:#94a3b8;margin-right:8px;"><i class="fas fa-globe"></i> Hreflang CSV <span style="font-size:0.85em;">(Screaming Frog → Hreflang tab → Export)</span></label>
-                            <button type="button" class="config-btn" style="padding:5px 12px;font-size:0.82em;" onclick="document.getElementById('fa_hreflangcsv').click()"><i class="fas fa-upload"></i> Upload</button>
-                            <input type="file" id="fa_hreflangcsv" accept=".csv" onchange="parseFaHreflangCsv(event)" style="display:none;">
-                            <span id="fa_hreflangcsv_status" style="font-size:0.82em;color:#94a3b8;margin-left:8px;"></span>
                         </div>
 
                         <!-- CMS Plugins -->
@@ -68287,20 +68313,35 @@ Move-In</h3>
             // Store data for export
             _sfTableData[key] = { headers, rows };
 
+            // Set col widths: URL col gets most space, others share the rest
+            const urlColIdx = headers.findIndex(h => h.toUpperCase() === 'URL');
+            const colWidths = headers.map((h, i) => {
+                if (h.toUpperCase() === 'URL') return '45%';
+                if (headers.length === 1) return '100%';
+                return null; // auto
+            });
+            const colsHtml = headers.map((h, i) => colWidths[i] ? `<col style="width:${colWidths[i]}">` : '<col>').join('');
             const ths = headers.map(h => `<th>${h}</th>`).join('');
+            const issueHeaders = new Set(['issue', 'status', 'shared by']);
             const trs = rows.map(r => {
                 const tds = r.map((cell, i) => {
-                    if (typeof cell === 'string' && cell.startsWith('http')) {
-                        return `<td><a href="${cell}" target="_blank">${cell}</a></td>`;
+                    const val = cell ?? '';
+                    if (typeof val === 'string' && val.startsWith('http')) {
+                        return `<td title="${val}"><a href="${val}" target="_blank">${val}</a></td>`;
                     }
-                    if (key === 'unoptmeta' && i === r.length - 1) {
-                        return `<td>${String(cell ?? '').split(', ').map(s => `<span class="badge-issue">${s}</span>`).join(' ')}</td>`;
+                    const hLower = (headers[i] || '').toLowerCase();
+                    if (issueHeaders.has(hLower) || (key === 'unoptmeta' && i === r.length - 1)) {
+                        const badges = String(val).split(', ').filter(Boolean).map(s => {
+                            const cls = s.toLowerCase().includes('placeholder') || s.toLowerCase().includes('non-index') ? 'badge-warn' : 'badge-issue';
+                            return `<span class="${cls}">${s}</span>`;
+                        }).join(' ');
+                        return `<td class="sf-td-badges" title="${val}">${badges || val}</td>`;
                     }
-                    return `<td>${cell ?? ''}</td>`;
+                    return `<td title="${val}">${val}</td>`;
                 }).join('');
                 return `<tr>${tds}</tr>`;
             }).join('');
-            wrap.innerHTML = `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+            wrap.innerHTML = `<table><colgroup>${colsHtml}</colgroup><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
             toggle.textContent = `▾ View ${rows.length} rows`;
             toggle.style.display = 'block';
             wrap.style.display = 'none';
