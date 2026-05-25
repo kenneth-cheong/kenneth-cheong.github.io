@@ -3266,6 +3266,10 @@
             width: 12%;
         }
 
+        .uniform-kw-table .col-traffic {
+            width: 12%;
+        }
+
         .uniform-kw-table .col-choose {
             width: 10%;
             text-align: center;
@@ -10783,7 +10787,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1417</span>
+                <span id="appVersion">v1.0.1418</span>
             </a>
         </div>
 
@@ -12506,11 +12510,12 @@
                                             <th class="col-vol" onclick="sortRankedKeywords(1)">Search Vol</th>
                                             <th class="col-rank" onclick="sortRankedKeywords(2)">Rank</th>
                                             <th class="col-comp" onclick="sortRankedKeywords(3)">Difficulty</th>
+                                            <th class="col-traffic" onclick="sortRankedKeywords(4)">Traffic</th>
                                             <th class="col-choose">Choose</th>
                                         </tr>
                                     </thead>
                                     <tbody id="rankedKeywordList">
-                                        <tr class="kw-empty-row"><td colspan="5"><div class="kw-empty-msg"><i class="fas fa-chart-bar"></i>Enter your domain &amp; location above, then click <strong>Ranking Keywords</strong> to see what you already rank for</div></td></tr>
+                                        <tr class="kw-empty-row"><td colspan="6"><div class="kw-empty-msg"><i class="fas fa-chart-bar"></i>Enter your domain &amp; location above, then click <strong>Ranking Keywords</strong> to see what you already rank for</div></td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -13015,6 +13020,18 @@
                             <div class="metric-value-large" id="targetRefDomains">-</div>
                             <div class="metric-sub">Unique Domains</div>
                             <div id="refDomainsSourceBadge" style="display:none; margin-top:5px; font-size:0.7em; padding:2px 7px; border-radius:10px; font-weight:700; width:fit-content;"></div>
+                        </div>
+                        <div class="metric-card-premium">
+                            <div class="metric-header">Organic Traffic</div>
+                            <div class="metric-value-large" id="targetOrgTraffic">-</div>
+                            <div class="metric-sub">Est. Monthly Visits</div>
+                            <div id="orgTrafficSourceBadge" style="display:none; margin-top:5px; font-size:0.7em; padding:2px 7px; border-radius:10px; font-weight:700; width:fit-content; background:#e0f2fe; color:#0369a1;"></div>
+                        </div>
+                        <div class="metric-card-premium">
+                            <div class="metric-header">Organic Keywords</div>
+                            <div class="metric-value-large" id="targetOrgKeywords">-</div>
+                            <div class="metric-sub">Total Ranking Keywords</div>
+                            <div id="orgKeywordsSourceBadge" style="display:none; margin-top:5px; font-size:0.7em; padding:2px 7px; border-radius:10px; font-weight:700; width:fit-content; background:#e0f2fe; color:#0369a1;"></div>
                         </div>
                         <div class="metric-card-premium">
                             <div class="metric-header">Word Count</div>
@@ -36669,7 +36686,8 @@ Output ONLY the finished ${contentTypeLabel} — no meta-commentary, no explanat
                 keyword: keyword,
                 search_volume: data.search_volume,
                 rank: data.rank,
-                difficulty: data.difficulty
+                difficulty: data.difficulty,
+                traffic: data.traffic
             }));
 
             rankedKeywordsArray.forEach((keywordObj, index) => {
@@ -36694,6 +36712,11 @@ Output ONLY the finished ${contentTypeLabel} — no meta-commentary, no explanat
                 const difficultyCell = document.createElement('td');
                 difficultyCell.textContent = keywordObj.difficulty || '-';
                 row.appendChild(difficultyCell);
+
+                // Traffic column
+                const trafficCell = document.createElement('td');
+                trafficCell.textContent = keywordObj.traffic != null ? Number(keywordObj.traffic).toLocaleString() : '-';
+                row.appendChild(trafficCell);
 
                 // Checkbox column
                 const checkboxCell = document.createElement('td');
@@ -38081,9 +38104,10 @@ Output ONLY the finished ${contentTypeLabel} — no meta-commentary, no explanat
             const body = {};
             keywords.forEach(kw => {
                 body[kw.keyword] = {
-                    search_volume: kw.volume   ?? null,
-                    rank:          kw.position ?? null,
-                    difficulty:    kw.difficulty ?? null
+                    search_volume: kw.volume    ?? null,
+                    rank:          kw.position  ?? null,
+                    difficulty:    kw.difficulty ?? null,
+                    traffic:       kw.traffic   ?? null
                 };
             });
             return body;
@@ -38159,6 +38183,12 @@ Output ONLY the finished ${contentTypeLabel} — no meta-commentary, no explanat
                     const rd = ahrefsData?.referring_domains ?? ahrefsData?.domain?.referring_domains ?? data.body.referring_domains;
                     document.getElementById('targetBacklinks').innerText = bl != null ? Number(bl).toLocaleString() : data.body.backlinks;
                     document.getElementById('targetRefDomains').innerText = rd != null ? Number(rd).toLocaleString() : data.body.referring_domains;
+
+                    // Organic traffic & keywords (Ahrefs only)
+                    const ot = ahrefsData?.org_traffic  ?? ahrefsData?.domain?.org_traffic;
+                    const ok = ahrefsData?.org_keywords ?? ahrefsData?.domain?.org_keywords;
+                    if (ot != null) { document.getElementById('targetOrgTraffic').innerText = Number(ot).toLocaleString(); document.getElementById('orgTrafficSourceBadge').textContent = 'Ahrefs'; document.getElementById('orgTrafficSourceBadge').style.display = ''; }
+                    if (ok != null) { document.getElementById('targetOrgKeywords').innerText = Number(ok).toLocaleString(); document.getElementById('orgKeywordsSourceBadge').textContent = 'Ahrefs'; document.getElementById('orgKeywordsSourceBadge').style.display = ''; }
 
                     // Source indicator badges
                     const blSource = ahrefsData != null ? 'Ahrefs' : 'DataForSEO';
@@ -68036,6 +68066,12 @@ Move-In</h3>
                 const rd = ahrefsData?.referring_domains ?? ahrefsData?.domain?.referring_domains ?? d.referring_domains;
                 if (bl != null) setF('fa_backlinks',  bl);
                 if (rd != null) setF('fa_refdomains',  rd);
+
+                // Organic traffic & keywords (Ahrefs only)
+                const ot = ahrefsData?.org_traffic  ?? ahrefsData?.domain?.org_traffic;
+                const ok = ahrefsData?.org_keywords ?? ahrefsData?.domain?.org_keywords;
+                if (ot != null) { const el = document.getElementById('targetOrgTraffic'); if (el) { el.innerText = Number(ot).toLocaleString(); document.getElementById('orgTrafficSourceBadge').textContent = 'Ahrefs'; document.getElementById('orgTrafficSourceBadge').style.display = ''; } }
+                if (ok != null) { const el = document.getElementById('targetOrgKeywords'); if (el) { el.innerText = Number(ok).toLocaleString(); document.getElementById('orgKeywordsSourceBadge').textContent = 'Ahrefs'; document.getElementById('orgKeywordsSourceBadge').style.display = ''; } }
 
                 // Source badge
                 const srcBadge = document.getElementById('fa_backlinks_source');
