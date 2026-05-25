@@ -24791,7 +24791,7 @@ Return ONLY a valid JSON array (no markdown, no extra text). Each object must ha
             { name: 'Apple', icon: 'fab fa-apple', userAgent: 'Applebot-Extended', color: '#555555', description: 'Key for ecosystem-wide discovery on iOS and macOS Apple Intelligence.' }
         ];
 
-        async function runDiscoveryAudit() {
+        async function runDiscoveryAudit(skipScroll = false) {
             const url = document.getElementById('discoveryUrl').value;
             if (!url) {
                 alert("Please enter a domain or URL to audit.");
@@ -24811,7 +24811,7 @@ Return ONLY a valid JSON array (no markdown, no extra text). Each object must ha
 
             // Show results container immediately
             document.getElementById('discoveryResults').style.display = 'block';
-            document.getElementById('discoveryResults').scrollIntoView({ behavior: 'smooth' });
+            if (!skipScroll) document.getElementById('discoveryResults').scrollIntoView({ behavior: 'smooth' });
 
             const domainForFetch = url.startsWith('http') ? url : 'https://' + url;
 
@@ -26480,7 +26480,7 @@ Return ONLY a valid JSON array (no markdown, no extra text). Each object must ha
             const discoveryUrlField = document.getElementById('discoveryUrl');
             if (discoveryUrlField) {
                 discoveryUrlField.value = cleanUrl;
-                runDiscoveryAudit().catch(e => console.warn('Discovery audit error:', e));
+                runDiscoveryAudit(true).catch(e => console.warn('Discovery audit error:', e));
             }
 
             // 2. Populate AI Mentions URL field
