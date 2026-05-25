@@ -69339,13 +69339,70 @@ Move-In</h3>
         function renderLogsOverview() {
             const el = document.getElementById('logsViewOverview');
             if (!el) return;
+
+            // Render filter bar once; rebuild team options when teams change
+            const teamsNow = getTeams();
+            const teamSig  = teamsNow.map(t => t.name).join(',');
+            if (!el.querySelector('#ovTeamFilter') || el.dataset.teamSig !== teamSig) {
+                const teamOpts = ['<option value="all">All Teams</option>', '<option value="—">Unassigned</option>']
+                    .concat(teamsNow.map(t => `<option value="${escHtml(t.name)}">${escHtml(t.name)}</option>`)).join('');
+                const sel = 'padding:7px 11px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;background:white;cursor:pointer;outline:none;';
+                const prevTeam = el.querySelector('#ovTeamFilter')?.value || 'all';
+                const prevCat  = el.querySelector('#ovCatFilter')?.value  || 'all';
+                const prevType = el.querySelector('#ovTypeFilter')?.value || 'all';
+                el.innerHTML = `
+                    <div style="display:flex;gap:10px;align-items:center;margin-bottom:20px;flex-wrap:wrap;">
+                        <select id="ovTeamFilter" onchange="renderLogsOverview()" style="${sel}">
+                            ${teamOpts}
+                        </select>
+                        <select id="ovCatFilter" onchange="renderLogsOverview()" style="${sel}">
+                            <option value="all">All Categories</option>
+                            <option value="SEO">SEO</option>
+                            <option value="SMM">SMM</option>
+                            <option value="GEO">GEO</option>
+                            <option value="SEM">SEM</option>
+                            <option value="Others">Others</option>
+                            <option value="Admin">Admin</option>
+                            <option value="System">System</option>
+                        </select>
+                        <select id="ovTypeFilter" onchange="renderLogsOverview()" style="${sel}">
+                            <option value="all">All Types</option>
+                            <option value="usage">Usage Only</option>
+                            <option value="api">API Calls</option>
+                            <option value="error">Errors Only</option>
+                        </select>
+                        <span id="ovFilterCount" style="font-size:12px;color:#94a3b8;margin-left:auto;"></span>
+                    </div>
+                    <div id="ovContent"></div>`;
+                el.dataset.teamSig = teamSig;
+                // Restore previous selections after rebuild
+                const tf = el.querySelector('#ovTeamFilter'); if (tf) tf.value = prevTeam;
+                const cf = el.querySelector('#ovCatFilter');  if (cf) cf.value = prevCat;
+                const xf = el.querySelector('#ovTypeFilter'); if (xf) xf.value = prevType;
+            }
+
+            const teamFilter = el.querySelector('#ovTeamFilter')?.value || 'all';
+            const catFilter  = el.querySelector('#ovCatFilter')?.value  || 'all';
+            const typeFilter = el.querySelector('#ovTypeFilter')?.value || 'all';
+
             const { from: dateFrom, to: dateTo } = getLogsDateRange();
             const logs = getEffectiveLogs().filter(l => {
                 const day = (l.ts || '').slice(0, 10);
                 if (dateFrom && day < dateFrom) return false;
                 if (dateTo   && day > dateTo)   return false;
+                if (catFilter !== 'all' && l.category !== catFilter) return false;
+                if (typeFilter !== 'all' && l.type !== typeFilter) return false;
+                if (teamFilter !== 'all') {
+                    const t = getTeamForEmail(l.userEmail);
+                    if (teamFilter === '—' && t !== '—') return false;
+                    if (teamFilter !== '—' && t !== teamFilter) return false;
+                }
                 return true;
             });
+
+            const countEl = el.querySelector('#ovFilterCount');
+            const total0  = getEffectiveLogs().length;
+            if (countEl) countEl.textContent = logs.length < total0 ? `${logs.length} of ${total0} events` : `${total0} events`;
 
             const total      = logs.length;
             const errors     = logs.filter(l => l.type === 'error').length;
@@ -69453,7 +69510,8 @@ Move-In</h3>
                     </table></div>
                 </div>` : '<div style="padding:40px;text-align:center;color:#94a3b8;">No user activity logged yet.</div>';
 
-            el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">${statCards}</div>${teamTable}${userTable}`;
+            const content = document.getElementById('ovContent');
+            if (content) content.innerHTML = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">${statCards}</div>${teamTable}${userTable}`;
         }
 
         // ── Event Log sub-view
