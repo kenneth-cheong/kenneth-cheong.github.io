@@ -28876,9 +28876,8 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 document.getElementById('adminPanelLogs').style.display = 'block';
                 _cloudLogs = null; // reset so we show local data immediately
                 renderLogsPanel(); // instant render with local data
-                // Fetch teams + cloud logs in parallel, then re-render
-                Promise.all([fetchTeamsFromCloud(), fetchLogsFromCloud()])
-                    .then(() => renderLogsPanel());
+                fetchTeamsFromCloud(); // async, re-renders not needed
+                fetchLogsFromCloud(); // paginates + re-renders after each batch
             }
         }
 
@@ -68753,25 +68752,47 @@ Move-In</h3>
             };
         })();
 
-        // ── Cloud log fetch (all users)
-        let _cloudLogs = null; // null = not fetched yet; [] = fetched (may be empty)
+        // ── Cloud log fetch (all users) — cursor-paginated, progressively appended
+        let _cloudLogs        = null;  // null = not started; [] = fetching or done
+        let _cloudLogsFetching = false; // true while pages are still loading
 
         async function fetchLogsFromCloud() {
+            _cloudLogs        = [];   // switch to cloud mode immediately
+            _cloudLogsFetching = true;
+            renderLogsPanel();        // show empty cloud state / loading badge right away
+
+            const PAGE_SIZE = 500;
+            let before = null;        // cursor: fetch logs older than this ts
+
             try {
-                const resp = await fetch(MONDAY_LAMBDA_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'fetch_tool_logs', limit: 1000 }),
-                });
-                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                const raw  = await resp.json();
-                const body = typeof raw.body === 'string' ? JSON.parse(raw.body) : raw;
-                _cloudLogs = body.logs || [];
-                return _cloudLogs;
+                while (true) {
+                    const payload = { action: 'fetch_tool_logs', limit: PAGE_SIZE };
+                    if (before) payload.before = before;
+
+                    const resp = await fetch(MONDAY_LAMBDA_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    const raw  = await resp.json();
+                    const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : raw;
+                    const page = data.logs || [];
+
+                    _cloudLogs = _cloudLogs.concat(page);
+                    renderLogsPanel(); // progressive render after each batch
+
+                    if (!data.has_more || page.length < PAGE_SIZE) break;
+                    before = page[page.length - 1].ts; // oldest ts in this page → next cursor
+                }
             } catch (e) {
                 console.warn('Could not fetch logs from cloud:', e.message);
-                return null;
+                if (!_cloudLogs.length) _cloudLogs = null; // fall back to local if nothing loaded
             }
+
+            _cloudLogsFetching = false;
+            renderLogsPanel();
+            return _cloudLogs;
         }
 
         function getEffectiveLogs() {
@@ -68888,9 +68909,11 @@ Move-In</h3>
                 const isCloud = _cloudLogs !== null;
                 const count   = getEffectiveLogs().length;
                 badge.innerHTML = isCloud
-                    ? `<i class="fas fa-cloud" style="color:#10b981;"></i> Cloud · ${count} events (all users)`
+                    ? (_cloudLogsFetching
+                        ? `<i class="fas fa-circle-notch fa-spin" style="color:#f59e0b;"></i> Loading… ${count} events fetched so far`
+                        : `<i class="fas fa-cloud" style="color:#10b981;"></i> Cloud · ${count} events (all users)`)
                     : `<i class="fas fa-clock fa-spin" style="color:#f59e0b;"></i> Loading cloud data… (showing local)`;
-                badge.style.color = isCloud ? '#10b981' : '#f59e0b';
+                badge.style.color = isCloud ? (_cloudLogsFetching ? '#f59e0b' : '#10b981') : '#f59e0b';
             }
             if (activeLogsView === 'overview') renderLogsOverview();
             else if (activeLogsView === 'eventlog') renderLogsEventLog();
@@ -69103,7 +69126,7 @@ Move-In</h3>
                 const cmp = typeof av === 'number' ? av - bv : av.localeCompare(bv);
                 return logsSort.dir === 'asc' ? cmp : -cmp;
             });
-            rows = rows.slice(0, 500);
+            // No row cap — all matching entries are rendered
 
             // Update match count
             const countEl = document.getElementById('logsMatchCount');
