@@ -10787,7 +10787,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1418</span>
+                <span id="appVersion">v1.0.1421</span>
             </a>
         </div>
 
@@ -46887,30 +46887,27 @@ Return ONLY a valid JSON object (no markdown, no explanation):
 
         function generateStrategyPrompt(inputs, discoveryData) {
             return `
-            You are the Digimetrics Strategy Engine, a high-level SEO consultant. Generate exactly 3 distinct keyword-led SEO strategies for a client.
-            
+            You are the Digimetrics Strategy Engine, a senior SEO strategist. Analyse the client context below and devise 3 to 5 distinct keyword-led SEO strategies that are genuinely tailored to this specific business, market, and set of objectives. Do NOT use generic template strategy names — invent strategy angles that make sense for this client.
+
             CLIENT PROFILE: ${inputs.clientProfile}
             BUSINESS OBJECTIVES: ${inputs.objectives.length > 0 ? inputs.objectives.join(', ') : 'General Growth'}
             TARGET AUDIENCE: ${inputs.targetAudience || 'General'}
             MARKET CONTEXT: ${inputs.marketContext || 'Standard Industry'}
             SEMANTIC DATA SIGNALS: ${JSON.stringify(discoveryData.slice(0, 10))}
 
-            TASK: Formulate EXACTLY 3 distinct SEO strategies:
-            1. High-Volume/Competitive (Core Head Terms)
-            2. Long-Tail/Niche (Specific Intent)
-            3. Authority/Conversion (Bottom of Funnel)
-            
+            TASK: Based on the above context, determine how many strategies (3–5) are warranted and what angles are most valuable for this client. Each strategy should target a meaningfully different audience segment, intent type, or growth lever — avoid overlap. Name each strategy to reflect the specific opportunity, not a generic category.
+
             OUTPUT FORMAT (MANDATORY JSON):
             Return ONLY a JSON object with a "strategies" array. Each strategy MUST have:
-            - "name": Strategic name
-            - "focus": 1-sentence strategic core
-            - "target_keywords": Array of 10-15 primary keyword themes
-            - "content_approach": Brief content strategy
+            - "name": Descriptive, client-specific strategy name (e.g. "Relocation-Season Demand Capture" not "Long-Tail")
+            - "focus": 1-sentence strategic core specific to this client
+            - "target_keywords": Array of 10-15 primary keyword themes relevant to this strategy
+            - "content_approach": Brief content strategy tailored to this angle
             - "expected_impact": "High", "Medium", or "Very High"
             - "time_to_rank": Est. months (number)
             - "recommended": boolean (true for exactly one)
             - "keyword_data": { "primary_theme": "Core theme", "semantic_clusters": [ { "topic": "Topic 1", "keywords": ["kw1","kw2","kw3","kw4","kw5"], "intent": "Informational" }, { "topic": "Topic 2", "keywords": ["kw6","kw7","kw8","kw9","kw10"], "intent": "Transactional" } ], "longtail_opportunities": "5 specific high-intent phrases" }
-            
+
             Return compact valid JSON only. No prose.
             `;
         }
