@@ -10662,7 +10662,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1385</span>
+                <span id="appVersion">v1.0.1386</span>
             </a>
         </div>
 
@@ -68583,18 +68583,6 @@ Move-In</h3>
                 'googleapis.com':            { tool: 'Google APIs',                    category: 'Others' },
             };
 
-            // Tools that are generic API proxies — enrich their action with the last clicked feature name
-            const GENERIC_PROXY_TOOLS = new Set(['Monday.com', 'Synology NAS', 'Google Chat Admin']);
-
-            // Returns a display key combining tool + action for richer labelling
-            function toolActionLabel(l) {
-                const a = (l.action || '').trim();
-                const skip = new Set(['fetch', 'query', 'mutation', 'invoked', '']);
-                if (!a || skip.has(a.toLowerCase())) return l.tool || '';
-                const pretty = a.replace(/_/g, ' ').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).substring(0, 50);
-                return (l.tool || '') + ' — ' + pretty;
-            }
-
             // ── Shared context trackers for cross-promise error attribution
             window._activeFetches   = new Map(); // reqId → { tool, category, endpoint, action, startTs }
             window._lastClickedTool = null;       // { tool, category, action, ts }
@@ -68810,6 +68798,18 @@ Move-In</h3>
                 clearLogs: function() { localStorage.removeItem(STORAGE_KEY); renderLogsPanel(); },
             };
         })();
+
+        // Tools that are generic API proxies — enrich their action with the last clicked feature name
+        const GENERIC_PROXY_TOOLS = new Set(['Monday.com', 'Synology NAS', 'Google Chat Admin']);
+
+        // Returns a display key combining tool + action for richer labelling
+        function toolActionLabel(l) {
+            const a = (l.action || '').trim();
+            const skip = new Set(['fetch', 'query', 'mutation', 'invoked', '']);
+            if (!a || skip.has(a.toLowerCase())) return l.tool || '';
+            const pretty = a.replace(/_/g, ' ').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).substring(0, 50);
+            return (l.tool || '') + ' — ' + pretty;
+        }
 
         // ── Cloud log fetch (all users) — cursor-paginated, progressively appended
         let _cloudLogs        = null;  // null = not started; [] = fetching or done
