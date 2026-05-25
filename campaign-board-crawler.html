@@ -4885,9 +4885,13 @@ ${JSON.stringify(contextData)}`;
 
         // Helper to safely get the driver constructor across UMD/IIFE builds
         function getDriver() {
-            // Driver.js v1.3.x IIFE build exposes constructor at window.driver.js
-            if (window.driver && typeof window.driver.js === 'function') return window.driver.js;
+            // Driver.js v1.3.x IIFE build: window.driver.js is the module, .driver is the constructor
+            if (window.driver && window.driver.js && typeof window.driver.js.driver === 'function') {
+                return window.driver.js.driver;
+            }
+            // Other possible shapes
             if (window.driver && typeof window.driver.driver === 'function') return window.driver.driver;
+            if (window.driver && typeof window.driver.js === 'function') return window.driver.js;
             if (typeof window.driver === 'function') return window.driver;
             return null;
         }
