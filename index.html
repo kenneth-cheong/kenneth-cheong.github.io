@@ -11983,11 +11983,11 @@
                     </div>
                 </div>
 
-                <!-- Holistic SEO Intelligence Card -->
+                <!-- Performance Intelligence Card -->
                 <div class="geo-card cockpit-card collapsed" id="card-holistic" style="grid-column: span 2;">
                     <div class="geo-card-header" style="justify-content: space-between; align-items: center;">
                         <h3 style="margin: 0; font-size: 1.1em; background: linear-gradient(135deg, #6366f1, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; display: flex; align-items: center; gap: 10px;">
-                            <i class="fas fa-layer-group" style="-webkit-text-fill-color: #6366f1;"></i> Holistic SEO Intelligence
+                            <i class="fas fa-layer-group" style="-webkit-text-fill-color: #6366f1;"></i> Performance Intelligence
                         </h3>
                         <div class="cockpit-card-header-actions">
                             <button onclick="openMappingModal()" class="discovery-btn-run" style="padding: 4px 12px; font-size: 0.8rem; background: #475569; color: #fff; border: none;" title="Explicitly map each campaign to its data sources">
@@ -19648,6 +19648,7 @@
             paidIntelOwnerFilter: new Set(),
             paidIntelPlatformFilter: new Set(),
             paidIntelStatusFilter: new Set(),
+            metaAdsRecommendations: [],
             holisticCache: null,
             holisticFetchedAt: 0
         };
@@ -19771,6 +19772,8 @@
                 </div>`).join('');
 
             badge.textContent = recs.length;
+            cockpitState.metaAdsRecommendations = recs;
+            refreshHolisticSummary();
         }
 
         function refreshAdsRecommendations() {
@@ -20401,9 +20404,36 @@
             }
         }
 
-        async function fetchProgressiveGa4Recommendations() {
-            for (const prop of ga4PropertyList) {
+        function _ga4GetMappedProperties() {
+            const mappings = loadHolisticMappings();
+            const mapped = new Set();
+            Object.values(mappings).forEach(m => { if (m.ga4) mapped.add(m.ga4); });
+            return mapped;
+        }
+
+        async function fetchProgressiveGa4Recommendations(scanAll = false) {
+            const mappedProps = _ga4GetMappedProperties();
+            const hasMappings = mappedProps.size > 0;
+            const toScan = (scanAll || !hasMappings)
+                ? ga4PropertyList.filter(p => !cockpitState.ga4ScannedProperties.has(p.displayName))
+                : ga4PropertyList.filter(p => mappedProps.has(p.displayName) && !cockpitState.ga4ScannedProperties.has(p.displayName));
+
+            for (const prop of toScan) {
                 await fetchSingleGa4PropertyAudit(prop);
+            }
+
+            if (!scanAll && hasMappings) {
+                const unscanned = ga4PropertyList.filter(p => !cockpitState.ga4ScannedProperties.has(p.displayName));
+                if (unscanned.length > 0) {
+                    const listContainer = document.getElementById('ga4-recs-list');
+                    if (listContainer && !document.getElementById('ga4-scan-all-btn')) {
+                        const scanAllDiv = document.createElement('div');
+                        scanAllDiv.id = 'ga4-scan-all-btn';
+                        scanAllDiv.style.cssText = 'padding:10px 14px;text-align:center;border-top:1px solid #e2e8f0;margin-top:4px;';
+                        scanAllDiv.innerHTML = `<button onclick="document.getElementById('ga4-scan-all-btn').remove();fetchProgressiveGa4Recommendations(true)" style="background:#f8fafc;border:1px solid #e2e8f0;padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.82rem;color:#64748b;"><i class="fas fa-search" style="margin-right:6px;color:#8b5cf6;"></i>Scan remaining ${unscanned.length} propert${unscanned.length === 1 ? 'y' : 'ies'}</button>`;
+                        listContainer.appendChild(scanAllDiv);
+                    }
+                }
             }
         }
 
@@ -22468,15 +22498,17 @@
             const badge = document.getElementById('cockpit-holistic-badge');
             if (!el) return;
 
-            const seoIntel  = cockpitState.seoIntelCache        || [];
-            const gscRecs   = cockpitState.gscRecommendations   || [];
-            const movers    = cockpitState.lastMoversData        || [];
-            const ga4Recs   = cockpitState.ga4Recommendations   || [];
-            const adsRecs   = cockpitState.adsRecommendations   || [];
-            const paidIntel = cockpitState.paidIntelCache        || [];
+            const seoIntel  = cockpitState.seoIntelCache           || [];
+            const gscRecs   = cockpitState.gscRecommendations      || [];
+            const movers    = cockpitState.lastMoversData           || [];
+            const ga4Recs   = cockpitState.ga4Recommendations      || [];
+            const adsRecs   = cockpitState.adsRecommendations      || [];
+            const paidIntel = cockpitState.paidIntelCache           || [];
+            const metaRecs  = cockpitState.metaAdsRecommendations  || [];
 
             const noData = seoIntel.length === 0 && gscRecs.length === 0 && movers.length === 0
-                        && ga4Recs.length === 0 && adsRecs.length === 0 && paidIntel.length === 0;
+                        && ga4Recs.length === 0 && adsRecs.length === 0 && paidIntel.length === 0
+                        && metaRecs.length === 0;
             if (noData) {
                 el.innerHTML = `<div style="text-align:center;padding:30px;color:#94a3b8;">
                     <i class="fas fa-layer-group fa-2x" style="margin-bottom:12px;opacity:0.4;"></i>
@@ -22486,7 +22518,7 @@
                 return;
             }
 
-            renderHolisticSummary(seoIntel, gscRecs, ga4Recs, adsRecs, paidIntel, movers, badge);
+            renderHolisticSummary(seoIntel, gscRecs, ga4Recs, adsRecs, paidIntel, movers, metaRecs, badge);
         }
 
         function _holisticNorm(str) {
@@ -22971,7 +23003,7 @@
             setTimeout(() => { card.style.boxShadow = ''; }, 2000);
         }
 
-        function renderHolisticSummary(seoIntel, gscRecs, ga4Recs, adsRecs, paidIntel, movers, badge) {
+        function renderHolisticSummary(seoIntel, gscRecs, ga4Recs, adsRecs, paidIntel, movers, metaRecs, badge) {
             const el = document.getElementById('cockpit-holistic-content');
             if (!el) return;
 
@@ -23178,6 +23210,7 @@
                 ${fresh(ga4Recs.length,   'GA4',        ga4Recs.length + ' findings', 'last 28d vs prior 28d',           'cockpit-ga4-recommendations-content',   'card-ga4')}
                 ${fresh(adsRecs.length,   'G. Ads',     adsRecs.length + ' recs',     'Google Ads recommendations',      'cockpit-ads-recommendations-content',   'card-ads')}
                 ${fresh(paidIntel.length, 'Monday.com', paidIntel.length + ' campaigns', 'Monday.com · budget &amp; KPI pacing', 'cockpit-paid-intel-content', 'card-paid-intel')}
+                ${fresh(metaRecs.length,  'Meta Ads',   metaRecs.length + ' insights',  'Meta campaign performance',            'cockpit-meta-ads-recommendations-content', 'card-meta-ads')}
                 <span style="color:#94a3b8;margin-left:auto;font-size:0.63rem;">${matrix.length} entities cross-correlated</span>
             </div>
 
@@ -23279,7 +23312,10 @@
             }
             const mappings  = loadHolisticMappings();
             const gscProps  = [...new Set((cockpitState.gscRecommendations || []).map(r => r.property).filter(Boolean))].sort();
-            const ga4Props  = [...new Set((cockpitState.ga4Recommendations || []).map(r => r.property).filter(Boolean))].sort();
+            const ga4Props  = [...new Set([
+                ...ga4PropertyList.map(p => p.displayName),
+                ...(cockpitState.ga4Recommendations || []).map(r => r.property)
+            ].filter(Boolean))].sort();
             const adsAccts  = [...new Set((cockpitState.adsRecommendations || []).map(r => r.account).filter(Boolean))].sort();
             const paidNames = (cockpitState.paidIntelCache || []).map(c => c.name).filter(Boolean).sort();
             const serSites  = [...new Set((cockpitState.lastMoversData || []).map(m => m.siteName).filter(Boolean))].sort();
