@@ -21398,6 +21398,14 @@
             timeline:       'timeline5'          // [SEO] SEO Timeline
         };
 
+        function getSeoIntelAllowedStatuses() {
+            try {
+                const saved = JSON.parse(localStorage.getItem('seoIntelAllowedStatuses') || 'null');
+                if (saved && Array.isArray(saved) && saved.length > 0) return saved.map(s => s.toLowerCase());
+            } catch {}
+            return ['lived (pm)', 'renewed no pause', 'guarantee (seo)', 'renewed (new timeline)', 'standard', 'cluster', 'special', 'internal kpi'];
+        }
+
         function processSeoIntelItem(item) {
             // Use .text only — works regardless of which column type fragments the Lambda supports
             const txt = id => (item.column_values?.find(cv => cv.id === id)?.text || '').trim();
@@ -21405,17 +21413,15 @@
             // [BD]Project Type text is "seo" or "seo, sem" etc.
             if (!txt(SEO_INTEL_COLS.projectType).toLowerCase().split(/[\s,]+/).includes('seo')) return null;
 
-            // SEO Campaign Status — only include specific active-delivery statuses
+            // SEO Campaign Status — user-configurable filter (saved in localStorage)
             const csmStatus = txt(SEO_INTEL_COLS.campaignStatus).toLowerCase();
-            const isAllowedStatus = ['lived (pm)', 'renewed no pause', 'guarantee (seo)', 'renewed (new timeline)'].some(s => csmStatus.includes(s));
-            // Also allow explicit type labels (Standard / Cluster / Special) that act as their own status
-            const isTypedLabel = ['standard', 'cluster', 'special', 'internal kpi'].some(s => csmStatus.includes(s));
-            if (!isAllowedStatus && !isTypedLabel) return null;
+            if (!getSeoIntelAllowedStatuses().some(s => csmStatus.includes(s))) return null;
 
-            // SEO Campaign Type — same column; active-status campaigns default to Standard
+            // SEO Campaign Type — delivery statuses default to Standard; explicit type labels override
             const campTypeRaw = csmStatus;
+            const isDelivery = ['lived (pm)', 'renewed no pause', 'guarantee (seo)', 'renewed (new timeline)'].some(s => csmStatus.includes(s));
             const isStandard = campTypeRaw.includes('standard') || campTypeRaw.includes('internal kpi')
-                || (isAllowedStatus && !campTypeRaw.includes('cluster') && !campTypeRaw.includes('special'));
+                || (isDelivery && !campTypeRaw.includes('cluster') && !campTypeRaw.includes('special'));
             const isCluster  = campTypeRaw.includes('cluster');
             const isSpecial  = campTypeRaw.includes('special');
             const isUntyped  = !isStandard && !isCluster && !isSpecial;
@@ -21548,6 +21554,10 @@
                 } while (cursor);
 
                 console.log('[SEO Intel v3] total items fetched:', items.length);
+                cockpitState.rawSeoItems = items;
+                cockpitState.allSeoStatuses = [...new Set(items.map(item =>
+                    (item.column_values?.find(cv => cv.id === SEO_INTEL_COLS.campaignStatus)?.text || '').trim()
+                ).filter(Boolean))].sort();
                 const campaigns = items.map(item => processSeoIntelItem(item)).filter(Boolean);
                 console.log('[SEO Intel] qualifying campaigns:', campaigns.length);
                 cockpitState.seoIntelCache = campaigns;
@@ -22959,6 +22969,14 @@
             document.getElementById('holisticMappingModal').style.display = 'none';
         }
 
+        function toggleSeoStatusChip(btn) {
+            const isActive = btn.dataset.active === 'true';
+            btn.dataset.active = String(!isActive);
+            btn.style.borderColor = !isActive ? '#6366f1' : '#e2e8f0';
+            btn.style.background  = !isActive ? '#eef2ff' : '#f8fafc';
+            btn.style.color       = !isActive ? '#6366f1' : '#94a3b8';
+        }
+
         function openMappingModal() {
             const seoIntel = cockpitState.seoIntelCache || [];
             if (!seoIntel.length) {
@@ -23003,7 +23021,25 @@
                 </tr>`;
             }).join('');
 
+            // Build status chip section
+            const savedAllowed = getSeoIntelAllowedStatuses();
+            const knownDefaults = ['Lived (PM)', 'Renewed No Pause', 'Guarantee (SEO)', 'Renewed (New Timeline)', 'Standard', 'Cluster', 'Special', 'Internal KPI'];
+            const discovered = cockpitState.allSeoStatuses || [];
+            const mergedStatuses = [...discovered];
+            knownDefaults.forEach(s => { if (!mergedStatuses.some(m => m.toLowerCase() === s.toLowerCase())) mergedStatuses.push(s); });
+            const statusChipsHtml = mergedStatuses.map(s => {
+                const isActive = savedAllowed.some(a => s.toLowerCase() === a);
+                return `<button type="button" data-status="${s.replace(/"/g,'&quot;')}" data-active="${isActive}" onclick="toggleSeoStatusChip(this)" style="padding:4px 12px;border-radius:12px;font-size:0.74rem;font-weight:600;cursor:pointer;border:1.5px solid ${isActive?'#6366f1':'#e2e8f0'};background:${isActive?'#eef2ff':'#f8fafc'};color:${isActive?'#6366f1':'#94a3b8'};">${s}</button>`;
+            }).join('');
+
             document.getElementById('holisticMappingBody').innerHTML = `
+                <div style="padding:12px 16px 10px;background:#fafafa;border-bottom:1px solid #e2e8f0;">
+                    <div style="font-size:0.74rem;font-weight:700;color:#475569;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                        <i class="fas fa-filter" style="color:#6366f1;font-size:0.7rem;"></i> Campaign Status Filter
+                        <span style="font-size:0.65rem;font-weight:400;color:#94a3b8;">Campaigns with these statuses are included in the analysis</span>
+                    </div>
+                    <div id="seoStatusFilterChips" style="display:flex;flex-wrap:wrap;gap:6px;">${statusChipsHtml}</div>
+                </div>
                 <table style="width:100%;border-collapse:collapse;">
                     <thead>
                         <tr>
@@ -23029,6 +23065,13 @@
         }
 
         function saveHolisticMappings() {
+            // Save status filter
+            const activeChips = [...document.querySelectorAll('#seoStatusFilterChips [data-status][data-active="true"]')];
+            if (activeChips.length > 0) {
+                localStorage.setItem('seoIntelAllowedStatuses', JSON.stringify(activeChips.map(b => b.dataset.status.toLowerCase())));
+            }
+
+            // Save source mappings
             const mappings = {};
             document.querySelectorAll('#holisticMappingBody tbody tr').forEach(tr => {
                 const name = tr.dataset.campaign;
@@ -23041,6 +23084,14 @@
                 if (Object.keys(m).length) mappings[name] = m;
             });
             localStorage.setItem('holisticMappings', JSON.stringify(mappings));
+
+            // Re-process from cached raw items so new status filter applies immediately
+            if (cockpitState.rawSeoItems?.length) {
+                const campaigns = cockpitState.rawSeoItems.map(item => processSeoIntelItem(item)).filter(Boolean);
+                cockpitState.seoIntelCache = campaigns;
+                if (typeof renderSeoIntel === 'function') renderSeoIntel(campaigns);
+            }
+
             closeMappingModal();
             refreshHolisticSummary();
         }
