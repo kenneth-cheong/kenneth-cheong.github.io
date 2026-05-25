@@ -10662,7 +10662,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1386</span>
+                <span id="appVersion">v1.0.1387</span>
             </a>
         </div>
 
@@ -22600,11 +22600,17 @@ Return ONLY a valid JSON array (no markdown, no extra text) of the 12–15 most 
                 if (!match) throw new Error('No JSON array in response');
                 let updates = JSON.parse(match[0]);
                 if (!Array.isArray(updates) || !updates.length) throw new Error('Empty array');
-                // Strip feed URLs — replace /feed or /feed/ endings with ""
-                updates = updates.map(u => ({
-                    ...u,
-                    url: (u.url && /\/feed\/?$/.test(u.url)) ? '' : (u.url || '')
-                }));
+                // Strip non-article URLs (feeds, homepages) — keep only URLs with a real article path
+                updates = updates.map(u => {
+                    let url = u.url || '';
+                    if (url) {
+                        try {
+                            const p = new URL(url);
+                            if (/\/feed\/?$/.test(p.pathname) || p.pathname === '/' || p.pathname === '') url = '';
+                        } catch (e) { url = ''; }
+                    }
+                    return { ...u, url };
+                });
                 cockpitState.algoNewsCache = updates;
                 cockpitState.algoNewsFetchedAt = Date.now();
                 renderAlgorithmNews(updates);
