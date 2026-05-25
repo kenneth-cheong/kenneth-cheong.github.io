@@ -22569,37 +22569,65 @@
                 const name = e.name;
                 const allCritical = e.gscHigh.length + e.ga4Critical.length;
                 const ml = () => _holisticMetricLine(e);
+                const local = [];
 
-                // All-source convergence
+                // Full-funnel crisis — emit single combined insight to avoid duplication
                 if (e.intel?.isBehind && e.paidAtRisk && e.bigDrops.length > 0 && allCritical > 0) {
-                    insights.push({ entity: name, sev: 'critical', icon: 'fa-exclamation-circle', text: `<b>${name}</b>: Full-funnel crisis — SEO behind trajectory, paid at risk, ${e.bigDrops.length} rank drop${e.bigDrops.length>1?'s':''}, and ${allCritical} critical GSC/GA4 issue${allCritical>1?'s':''}. Escalate immediately.${ml()}` });
-                } else if (e.intel?.isBehind && e.bigDrops.length > 0 && allCritical > 0) {
-                    insights.push({ entity: name, sev: 'critical', icon: 'fa-exclamation-circle', text: `<b>${name}</b>: Behind trajectory, ${e.bigDrops.length} keyword${e.bigDrops.length>1?'s':''} dropped 5+ positions, and ${allCritical} critical GSC/GA4 issue${allCritical>1?'s':''}. Prioritise immediately.${ml()}` });
-                } else if (e.paidAtRisk && e.intel?.isBehind) {
-                    insights.push({ entity: name, sev: 'critical', icon: 'fa-dollar-sign', text: `<b>${name}</b>: Both SEO and paid campaigns are underperforming. Cross-channel revenue at risk.${ml()}` });
-                } else if (e.intel?.isBehind && e.bigDrops.length > 0) {
-                    insights.push({ entity: name, sev: 'high', icon: 'fa-arrow-trend-down', text: `<b>${name}</b>: Behind KPI trajectory with ${e.bigDrops.length} keyword${e.bigDrops.length>1?'s':''} dropping 5+ positions.${ml()}` });
-                } else if (e.intel?.isBehind && e.gscHigh.length > 0) {
-                    insights.push({ entity: name, sev: 'high', icon: 'fa-exclamation-triangle', text: `<b>${name}</b>: Behind trajectory with ${e.gscHigh.length} high-impact GSC issue${e.gscHigh.length>1?'s':''} — technical issues likely suppressing rankings.${ml()}` });
-                } else if (e.intel?.isBehind && e.ga4Critical.length > 0) {
-                    insights.push({ entity: name, sev: 'high', icon: 'fa-chart-area', text: `<b>${name}</b>: Behind SEO trajectory and GA4 signals ${e.ga4Critical.length} critical traffic issue${e.ga4Critical.length>1?'s':''}. Organic shortfall likely.${ml()}` });
-                } else if (e.paidAtRisk && e.adsHigh.length > 0) {
-                    insights.push({ entity: name, sev: 'high', icon: 'fa-ad', text: `<b>${name}</b>: Paid campaign underperforming and Google Ads flags ${e.adsHigh.length} high-priority issue${e.adsHigh.length>1?'s':''}.${ml()}` });
-                } else if (e.adsHigh.length > 0 && e.intel?.isBehind) {
-                    insights.push({ entity: name, sev: 'high', icon: 'fa-ad', text: `<b>${name}</b>: Behind SEO trajectory and Google Ads has ${e.adsHigh.length} high-priority issue${e.adsHigh.length>1?'s':''}. Combined paid + organic underperformance.${ml()}` });
-                } else if (e.ga4Critical.length > 0 && e.bigDrops.length > 0) {
-                    insights.push({ entity: name, sev: 'medium', icon: 'fa-chart-area', text: `<b>${name}</b>: GA4 flags ${e.ga4Critical.length} critical behaviour issue${e.ga4Critical.length>1?'s':''} alongside ${e.bigDrops.length} rank drop${e.bigDrops.length>1?'s':''} — conversion impact likely.${ml()}` });
-                } else if (e.paidAtRisk && !e.intel) {
-                    insights.push({ entity: name, sev: 'medium', icon: 'fa-ad', text: `<b>${name}</b>: Paid campaign at risk with no linked SEO campaign — no organic fallback.${ml()}` });
-                } else if (e.bigDrops.length >= 3 && !e.intel) {
-                    insights.push({ entity: name, sev: 'high', icon: 'fa-chart-line', text: `<b>${name}</b>: ${e.bigDrops.length} large rank drops with no linked SEO campaign.${ml()}` });
-                } else if (e.intel?.isBehind && e.rankGains.length > e.rankDrops.length) {
-                    insights.push({ entity: name, sev: 'medium', icon: 'fa-clock', text: `<b>${name}</b>: Behind trajectory but net-positive rankings — may self-correct. Monitor closely.${ml()}` });
-                } else if (!e.intel?.isBehind && e.bigDrops.length > 0 && e.intel) {
-                    insights.push({ entity: name, sev: 'medium', icon: 'fa-eye', text: `<b>${name}</b>: On trajectory but ${e.bigDrops.length} notable rank drop${e.bigDrops.length>1?'s':''} — watch for momentum shift.${ml()}` });
-                } else if (e.intel && !e.intel.isBehind && !e.paidAtRisk && allCritical === 0 && e.bigDrops.length === 0 && e.adsHigh.length === 0) {
-                    insights.push({ entity: name, sev: 'good', icon: 'fa-check-circle', text: `<b>${name}</b>: All signals healthy — on trajectory, no critical issues, stable rankings${e.paidCamp ? ', paid on track' : ''}.${_holisticMetricLine({...e, paidAtRisk:false, paidWarn:false})}` });
+                    local.push({ entity: name, sev: 'critical', icon: 'fa-exclamation-circle', text: `<b>${name}</b>: Full-funnel crisis — SEO behind trajectory, paid at risk, ${e.bigDrops.length} rank drop${e.bigDrops.length>1?'s':''}, and ${allCritical} critical GSC/GA4 issue${allCritical>1?'s':''}. Escalate immediately.${ml()}` });
+                    insights.push(...local);
+                    return;
                 }
+
+                // SEO trajectory
+                if (e.intel?.isBehind) {
+                    if (e.bigDrops.length > 0 && allCritical > 0) {
+                        local.push({ entity: name, sev: 'critical', icon: 'fa-exclamation-circle', text: `<b>${name}</b>: Behind trajectory with ${e.bigDrops.length} keyword${e.bigDrops.length>1?'s':''} dropping 5+ positions and ${allCritical} critical GSC/GA4 issue${allCritical>1?'s':''}. Prioritise immediately.${ml()}` });
+                    } else if (e.bigDrops.length > 0) {
+                        local.push({ entity: name, sev: 'high', icon: 'fa-arrow-trend-down', text: `<b>${name}</b>: Behind KPI trajectory with ${e.bigDrops.length} keyword${e.bigDrops.length>1?'s':''} dropping 5+ positions.${ml()}` });
+                    } else if (e.rankGains.length > e.rankDrops.length) {
+                        local.push({ entity: name, sev: 'medium', icon: 'fa-clock', text: `<b>${name}</b>: Behind trajectory but net-positive rankings — may self-correct. Monitor closely.${ml()}` });
+                    } else {
+                        local.push({ entity: name, sev: 'high', icon: 'fa-crosshairs', text: `<b>${name}</b>: Behind SEO KPI trajectory.${ml()}` });
+                    }
+                } else if (e.intel && !e.intel.isBehind && e.bigDrops.length > 0) {
+                    local.push({ entity: name, sev: 'medium', icon: 'fa-eye', text: `<b>${name}</b>: On trajectory but ${e.bigDrops.length} notable rank drop${e.bigDrops.length>1?'s':''} — watch for momentum shift.${ml()}` });
+                } else if (e.bigDrops.length >= 3 && !e.intel) {
+                    local.push({ entity: name, sev: 'high', icon: 'fa-chart-line', text: `<b>${name}</b>: ${e.bigDrops.length} large rank drops with no linked SEO campaign.${ml()}` });
+                }
+
+                // GSC issues — independent of trajectory
+                if (e.gscHigh.length > 0) {
+                    local.push({ entity: name, sev: e.intel?.isBehind ? 'high' : 'medium', icon: 'fa-exclamation-triangle', text: `<b>${name}</b>: ${e.gscHigh.length} high-impact GSC issue${e.gscHigh.length>1?'s':''} — technical issues likely suppressing rankings.` });
+                }
+
+                // GA4 issues — independent
+                if (e.ga4Critical.length > 0) {
+                    const context = e.bigDrops.length > 0 ? ` alongside ${e.bigDrops.length} rank drop${e.bigDrops.length>1?'s':''}` : '';
+                    local.push({ entity: name, sev: e.intel?.isBehind ? 'high' : 'medium', icon: 'fa-chart-area', text: `<b>${name}</b>: GA4 flags ${e.ga4Critical.length} critical behaviour issue${e.ga4Critical.length>1?'s':''}${context} — conversion impact likely.` });
+                }
+
+                // Paid performance — independent
+                if (e.paidAtRisk && e.intel?.isBehind) {
+                    local.push({ entity: name, sev: 'critical', icon: 'fa-dollar-sign', text: `<b>${name}</b>: Both SEO and paid campaigns underperforming — cross-channel revenue at risk.` });
+                } else if (e.paidAtRisk && e.adsHigh.length > 0) {
+                    local.push({ entity: name, sev: 'high', icon: 'fa-ad', text: `<b>${name}</b>: Paid campaign at risk with ${e.adsHigh.length} high-priority Ads issue${e.adsHigh.length>1?'s':''}.` });
+                } else if (e.paidAtRisk && !e.intel) {
+                    local.push({ entity: name, sev: 'medium', icon: 'fa-ad', text: `<b>${name}</b>: Paid campaign at risk with no linked SEO campaign — no organic fallback.` });
+                } else if (e.paidAtRisk) {
+                    local.push({ entity: name, sev: 'medium', icon: 'fa-dollar-sign', text: `<b>${name}</b>: Paid campaign underperforming — KPI or budget pacing at risk.` });
+                }
+
+                // Ads issues — independent (only if not already covered above)
+                if (e.adsHigh.length > 0 && !e.paidAtRisk) {
+                    local.push({ entity: name, sev: 'medium', icon: 'fa-ad', text: `<b>${name}</b>: Google Ads flags ${e.adsHigh.length} high-priority issue${e.adsHigh.length>1?'s':''}.` });
+                }
+
+                // All healthy
+                if (local.length === 0 && e.intel && !e.intel.isBehind && !e.paidAtRisk && allCritical === 0 && e.bigDrops.length === 0 && e.adsHigh.length === 0) {
+                    local.push({ entity: name, sev: 'good', icon: 'fa-check-circle', text: `<b>${name}</b>: All signals healthy — on trajectory, no critical issues, stable rankings${e.paidCamp ? ', paid on track' : ''}.${_holisticMetricLine({...e, paidAtRisk:false, paidWarn:false})}` });
+                }
+
+                insights.push(...local);
             });
 
             // Portfolio roll-ups
@@ -22695,6 +22723,15 @@
             document.querySelectorAll('[data-hol-campaign]').forEach(tr => { tr.style.background = ''; tr.style.outline = ''; });
             const panel = document.getElementById('holistic-insights-panel');
             if (panel && _holisticLastSevStyle) panel.innerHTML = buildHolisticInsightsPanel(_holisticLastInsights, _holisticSelected, _holisticLastSevStyle);
+        }
+
+        function scrollToCockpitCard(cardId) {
+            const card = document.getElementById(cardId);
+            if (!card) return;
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            card.style.transition = 'box-shadow 0.3s ease';
+            card.style.boxShadow = '0 0 0 3px #f97316, 0 4px 24px rgba(249,115,22,0.25)';
+            setTimeout(() => { card.style.boxShadow = ''; }, 2000);
         }
 
         function renderHolisticSummary(seoIntel, gscRecs, ga4Recs, adsRecs, paidIntel, movers, badge) {
@@ -22887,19 +22924,23 @@
 
             const moverRange = movers.length > 0 ? (movers.find(m => m.timeframe)?.timeframe || null) : null;
 
-            const fresh = (n, label, detail, dateNote) => n
-                ? `<span style="color:#16a34a;" title="${dateNote || ''}"><i class="fas fa-check-circle"></i> ${label} <span style="color:#64748b;">(${detail}${dateNote ? ' · ' + dateNote : ''})</span></span>`
-                : `<span style="color:#94a3b8;"><i class="fas fa-circle"></i> ${label}</span>`;
+            const isCardLoading = id => !!document.querySelector(`#${id} .fa-spin`);
+            const fresh = (n, label, detail, dateNote, contentId, cardId) => {
+                if (n) return `<span style="color:#16a34a;" title="${dateNote || ''}"><i class="fas fa-check-circle"></i> ${label} <span style="color:#64748b;">(${detail}${dateNote ? ' · ' + dateNote : ''})</span></span>`;
+                if (contentId && isCardLoading(contentId)) return `<span style="color:#6366f1;"><i class="fas fa-spinner fa-spin" style="font-size:0.65rem;"></i> ${label} <span style="font-size:0.68rem;color:#94a3b8;">(loading…)</span></span>`;
+                if (cardId) return `<button onclick="scrollToCockpitCard('${cardId}')" style="background:none;border:none;padding:0;cursor:pointer;font-family:inherit;font-size:inherit;color:#f97316;" title="Not connected — click to set up ${label}"><i class="fas fa-exclamation-circle"></i> ${label} <span style="font-size:0.68rem;color:#94a3b8;">(not connected · click)</span></button>`;
+                return `<span style="color:#94a3b8;"><i class="fas fa-circle"></i> ${label}</span>`;
+            };
 
             el.innerHTML = `
             <div style="padding:6px 14px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:0.68rem;display:flex;gap:12px;flex-wrap:wrap;align-items:center;color:#64748b;">
                 <span style="font-weight:700;color:#475569;">Sources:</span>
-                ${fresh(seoIntel.length,  'SEO Intel',  seoIntel.length + ' campaigns', 'Monday.com campaign timelines')}
-                ${fresh(movers.length,    'SE Ranking', movers.length + ' movers',    moverRange || 'rank change data')}
-                ${fresh(gscRecs.length,   'GSC',        gscRecs.length + ' issues',   'last 7d vs prior 7d')}
-                ${fresh(ga4Recs.length,   'GA4',        ga4Recs.length + ' findings', 'last 28d vs prior 28d')}
-                ${fresh(adsRecs.length,   'G. Ads',     adsRecs.length + ' recs',     'Google Ads recommendations')}
-                ${fresh(paidIntel.length, 'Mon. Paid',  paidIntel.length + ' campaigns', 'Monday.com · budget &amp; KPI pacing')}
+                ${fresh(seoIntel.length,  'SEO Intel',  seoIntel.length + ' campaigns', 'Monday.com campaign timelines', 'cockpit-seo-intel-content',            'card-seo-intel')}
+                ${fresh(movers.length,    'SE Ranking', movers.length + ' movers',    moverRange || 'rank change data',  'cockpit-seranking-content',             'card-seranking')}
+                ${fresh(gscRecs.length,   'GSC',        gscRecs.length + ' issues',   'last 7d vs prior 7d',             'cockpit-gsc-recommendations-content',   'card-gsc')}
+                ${fresh(ga4Recs.length,   'GA4',        ga4Recs.length + ' findings', 'last 28d vs prior 28d',           'cockpit-ga4-recommendations-content',   'card-ga4')}
+                ${fresh(adsRecs.length,   'G. Ads',     adsRecs.length + ' recs',     'Google Ads recommendations',      'cockpit-ads-recommendations-content',   'card-ads')}
+                ${fresh(paidIntel.length, 'Mon. Paid',  paidIntel.length + ' campaigns', 'Monday.com · budget &amp; KPI pacing', 'cockpit-paid-intel-content', 'card-paid-intel')}
                 <span style="color:#94a3b8;margin-left:auto;font-size:0.63rem;">${matrix.length} entities cross-correlated</span>
             </div>
 
