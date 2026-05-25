@@ -19561,6 +19561,7 @@
                         totalFound += propertyRecs.length;
                         badge.textContent = totalFound;
                         renderAdsRecommendations(); // Render progressively
+                        refreshHolisticSummary();
                     }
 
                 } catch (err) {
@@ -21884,6 +21885,7 @@
                 cockpitState.paidIntelCache     = campaigns;
                 cockpitState.paidIntelFetchedAt = Date.now();
                 renderPaidAdsIntel(campaigns);
+                refreshHolisticSummary();
             } catch(e) {
                 console.error('[Paid Intel]', e);
                 el.innerHTML = `<div style="padding:30px;text-align:center;color:#ef4444;">
@@ -22103,22 +22105,25 @@
             const badge = document.getElementById('cockpit-holistic-badge');
             if (!el) return;
 
-            const seoIntel = cockpitState.seoIntelCache        || [];
-            const gscRecs  = cockpitState.gscRecommendations   || [];
-            const movers   = cockpitState.lastMoversData        || [];
-            const ga4Recs  = cockpitState.ga4Recommendations   || [];
+            const seoIntel  = cockpitState.seoIntelCache        || [];
+            const gscRecs   = cockpitState.gscRecommendations   || [];
+            const movers    = cockpitState.lastMoversData        || [];
+            const ga4Recs   = cockpitState.ga4Recommendations   || [];
+            const adsRecs   = cockpitState.adsRecommendations   || [];
+            const paidIntel = cockpitState.paidIntelCache        || [];
 
-            const noData = seoIntel.length === 0 && gscRecs.length === 0 && movers.length === 0 && ga4Recs.length === 0;
+            const noData = seoIntel.length === 0 && gscRecs.length === 0 && movers.length === 0
+                        && ga4Recs.length === 0 && adsRecs.length === 0 && paidIntel.length === 0;
             if (noData) {
                 el.innerHTML = `<div style="text-align:center;padding:30px;color:#94a3b8;">
                     <i class="fas fa-layer-group fa-2x" style="margin-bottom:12px;opacity:0.4;"></i>
-                    <p style="font-size:0.9rem;">Waiting for data sources — refresh SE Ranking, GSC, GA4, and SEO Intel first.</p>
+                    <p style="font-size:0.9rem;">Waiting for data sources to load...</p>
                 </div>`;
                 if (badge) badge.textContent = '—';
                 return;
             }
 
-            renderHolisticSummary(seoIntel, gscRecs, ga4Recs, movers, badge);
+            renderHolisticSummary(seoIntel, gscRecs, ga4Recs, adsRecs, paidIntel, movers, badge);
         }
 
         function _holisticNorm(str) {
@@ -22142,8 +22147,8 @@
             catch { return url.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0]; }
         }
 
-        function buildCrossSourceMatrix(seoIntel, gscRecs, ga4Recs, movers) {
-            // Index: GSC by domain
+        function buildCrossSourceMatrix(seoIntel, gscRecs, ga4Recs, adsRecs, paidIntel, movers) {
+            // Indexes
             const gscByDomain = {};
             gscRecs.forEach(r => {
                 const dom = _extractDomain(r.property);
@@ -22151,7 +22156,6 @@
                 gscByDomain[dom].push(r);
             });
 
-            // Index: GA4 by property display name
             const ga4ByProp = {};
             ga4Recs.forEach(r => {
                 const key = (r.property || '').trim();
@@ -22159,7 +22163,14 @@
                 ga4ByProp[key].push(r);
             });
 
-            // Index: SE Ranking by site name
+            // Google Ads: index by account name
+            const adsByAccount = {};
+            adsRecs.forEach(r => {
+                const key = (r.account || 'Unknown').trim();
+                if (!adsByAccount[key]) adsByAccount[key] = [];
+                adsByAccount[key].push(r);
+            });
+
             const serBySite = {};
             movers.forEach(m => {
                 if (!serBySite[m.siteName]) serBySite[m.siteName] = [];
@@ -22169,60 +22180,63 @@
             const serSiteNames = Object.keys(serBySite);
             const gscDomains   = Object.keys(gscByDomain);
             const ga4Props     = Object.keys(ga4ByProp);
+            const adsAccounts  = Object.keys(adsByAccount);
 
-            // Build entity map — SEO Intel is the master list
+            // Paid Intel: keyed by campaign name directly
+            const paidByName = {};
+            paidIntel.forEach(c => { paidByName[c.name] = c; });
+            const paidNames = Object.keys(paidByName);
+
+            // Build entity map — SEO Intel as master
             const entities = {};
 
             seoIntel.forEach(c => {
-                entities[c.name] = { name: c.name, seoIntel: c, serSite: null, gscDomain: null, ga4Prop: null };
+                entities[c.name] = { name: c.name, seoIntel: c, serSite: null, gscDomain: null, ga4Prop: null, adsAccount: null, paidName: null };
             });
 
-            // Merge SE Ranking sites
-            serSiteNames.forEach(site => {
-                const matched = Object.keys(entities).find(k => _holisticMatchScore(k, site) >= 0.35);
-                if (matched) { entities[matched].serSite = site; }
-                else { entities[site] = entities[site] || { name: site, seoIntel: null, serSite: site, gscDomain: null, ga4Prop: null }; }
-            });
+            const mergeKey = (keys, threshold, field, entities) => {
+                keys.forEach(key => {
+                    const matched = Object.keys(entities).find(k => _holisticMatchScore(k, key) >= threshold);
+                    if (matched) { if (!entities[matched][field]) entities[matched][field] = key; }
+                    else {
+                        const stub = { name: key, seoIntel: null, serSite: null, gscDomain: null, ga4Prop: null, adsAccount: null, paidName: null };
+                        stub[field] = key;
+                        entities[key] = entities[key] || stub;
+                    }
+                });
+            };
 
-            // Merge GSC domains
-            gscDomains.forEach(dom => {
-                const matched = Object.keys(entities).find(k => _holisticMatchScore(k, dom) >= 0.25);
-                if (matched) { entities[matched].gscDomain = dom; }
-                else { entities[dom] = entities[dom] || { name: dom, seoIntel: null, serSite: null, gscDomain: dom, ga4Prop: null }; }
-            });
+            mergeKey(serSiteNames, 0.35, 'serSite',   entities);
+            mergeKey(gscDomains,   0.25, 'gscDomain', entities);
+            mergeKey(ga4Props,     0.25, 'ga4Prop',   entities);
+            mergeKey(adsAccounts,  0.25, 'adsAccount', entities);
+            mergeKey(paidNames,    0.30, 'paidName',  entities);
 
-            // Merge GA4 properties
-            ga4Props.forEach(prop => {
-                const matched = Object.keys(entities).find(k => _holisticMatchScore(k, prop) >= 0.25);
-                if (matched) { entities[matched].ga4Prop = prop; }
-                else { entities[prop] = entities[prop] || { name: prop, seoIntel: null, serSite: null, gscDomain: null, ga4Prop: prop }; }
-            });
-
-            // Second-pass fuzzy fill for unmatched fields
+            // Second-pass fuzzy fill
+            const fills = [
+                { keys: serSiteNames, field: 'serSite',   thr: 0.3  },
+                { keys: gscDomains,   field: 'gscDomain', thr: 0.25 },
+                { keys: ga4Props,     field: 'ga4Prop',   thr: 0.25 },
+                { keys: adsAccounts,  field: 'adsAccount', thr: 0.25 },
+                { keys: paidNames,    field: 'paidName',  thr: 0.3  },
+            ];
             Object.values(entities).forEach(e => {
-                if (!e.serSite) {
+                fills.forEach(({ keys, field, thr }) => {
+                    if (e[field]) return;
                     let best = null, bestScore = 0;
-                    serSiteNames.forEach(s => { const sc = _holisticMatchScore(e.name, s); if (sc > bestScore) { bestScore = sc; best = s; } });
-                    if (bestScore >= 0.3) e.serSite = best;
-                }
-                if (!e.gscDomain) {
-                    let best = null, bestScore = 0;
-                    gscDomains.forEach(d => { const sc = _holisticMatchScore(e.name, d); if (sc > bestScore) { bestScore = sc; best = d; } });
-                    if (bestScore >= 0.25) e.gscDomain = best;
-                }
-                if (!e.ga4Prop) {
-                    let best = null, bestScore = 0;
-                    ga4Props.forEach(p => { const sc = _holisticMatchScore(e.name, p); if (sc > bestScore) { bestScore = sc; best = p; } });
-                    if (bestScore >= 0.25) e.ga4Prop = best;
-                }
+                    keys.forEach(k => { const sc = _holisticMatchScore(e.name, k); if (sc > bestScore) { bestScore = sc; best = k; } });
+                    if (bestScore >= thr) e[field] = best;
+                });
             });
 
-            // Enrich each entity
+            // Enrich
             return Object.values(entities).map(e => {
-                const intel   = e.seoIntel;
-                const serData = e.serSite    ? serBySite[e.serSite]       || [] : [];
-                const gscData = e.gscDomain  ? gscByDomain[e.gscDomain]   || [] : [];
-                const ga4Data = e.ga4Prop    ? ga4ByProp[e.ga4Prop]        || [] : [];
+                const intel      = e.seoIntel;
+                const serData    = e.serSite    ? serBySite[e.serSite]       || [] : [];
+                const gscData    = e.gscDomain  ? gscByDomain[e.gscDomain]   || [] : [];
+                const ga4Data    = e.ga4Prop    ? ga4ByProp[e.ga4Prop]        || [] : [];
+                const adsData    = e.adsAccount ? adsByAccount[e.adsAccount]  || [] : [];
+                const paidCamp   = e.paidName   ? paidByName[e.paidName]      || null : null;
 
                 const rankDrops   = serData.filter(m => m.change < 0);
                 const rankGains   = serData.filter(m => m.change > 0);
@@ -22232,15 +22246,21 @@
                 const ga4Critical = ga4Data.filter(r => r.priority === 'Critical');
                 const ga4High     = ga4Data.filter(r => r.priority === 'High');
                 const ga4Med      = ga4Data.filter(r => r.priority === 'Medium');
+                const adsHigh     = adsData.filter(r => r.impact === 'HIGH');
+                const adsMed      = adsData.filter(r => r.impact !== 'HIGH');
+                const paidAtRisk  = paidCamp && (paidCamp.kpiStatus === 'behind' || paidCamp.budgetStatus === 'overspend');
+                const paidWarn    = paidCamp && !paidAtRisk && paidCamp.budgetStatus === 'underspend';
 
-                // Composite risk score 0–100
                 let risk = 0;
-                if (intel?.isBehind)          risk += 30;
-                if (bigDrops.length > 0)       risk += Math.min(20, bigDrops.length * 7);
-                if (gscHigh.length > 0)        risk += Math.min(20, gscHigh.length * 8);
-                if (ga4Critical.length > 0)    risk += Math.min(15, ga4Critical.length * 8);
-                if (ga4High.length > 0)        risk += Math.min(10, ga4High.length * 5);
-                if (rankDrops.length > rankGains.length) risk += 10;
+                if (intel?.isBehind)          risk += 25;
+                if (bigDrops.length > 0)       risk += Math.min(18, bigDrops.length * 6);
+                if (gscHigh.length > 0)        risk += Math.min(15, gscHigh.length * 7);
+                if (ga4Critical.length > 0)    risk += Math.min(12, ga4Critical.length * 6);
+                if (ga4High.length > 0)        risk += Math.min(8,  ga4High.length * 4);
+                if (adsHigh.length > 0)        risk += Math.min(12, adsHigh.length * 6);
+                if (paidAtRisk)                risk += 15;
+                if (paidWarn)                  risk += 5;
+                if (rankDrops.length > rankGains.length) risk += 8;
                 risk = Math.min(100, risk);
 
                 let health = Math.max(0, 100 - risk);
@@ -22250,12 +22270,15 @@
                 return {
                     name: e.name, intel,
                     serSite: e.serSite, gscDomain: e.gscDomain, ga4Prop: e.ga4Prop,
+                    adsAccount: e.adsAccount, paidCamp, paidAtRisk, paidWarn,
                     serMovers: serData, rankDrops, rankGains, bigDrops,
                     gscRecs: gscData, gscHigh, gscMed,
                     ga4Recs: ga4Data, ga4Critical, ga4High, ga4Med,
+                    adsRecs: adsData, adsHigh, adsMed,
                     risk, health,
                     topGscIssue: gscHigh[0]?.title || gscMed[0]?.title || null,
                     topGa4Issue: ga4Critical[0]?.title || ga4High[0]?.title || null,
+                    topAdsIssue: adsHigh[0]?.title || adsMed[0]?.title || null,
                 };
             }).sort((a, b) => b.risk - a.risk);
         }
@@ -22267,64 +22290,77 @@
                 const name = e.name;
                 const allCritical = e.gscHigh.length + e.ga4Critical.length;
 
-                // All-four convergence
-                if (e.intel?.isBehind && e.bigDrops.length > 0 && e.gscHigh.length > 0 && e.ga4Critical.length > 0) {
-                    insights.push({ sev: 'critical', icon: 'fa-exclamation-circle', text: `<b>${name}</b>: Behind trajectory, rank drops, ${e.gscHigh.length} GSC critical + ${e.ga4Critical.length} GA4 critical — all four signals converge. Escalate immediately.` });
-                // Three-way
+                // All-source convergence (SEO + Paid both at risk)
+                if (e.intel?.isBehind && e.paidAtRisk && e.bigDrops.length > 0 && allCritical > 0) {
+                    insights.push({ sev: 'critical', icon: 'fa-exclamation-circle', text: `<b>${name}</b>: SEO behind trajectory, paid campaign at risk, rank drops, and ${allCritical} critical GSC/GA4 issue${allCritical > 1 ? 's' : ''} — full-funnel crisis. Escalate immediately.` });
                 } else if (e.intel?.isBehind && e.bigDrops.length > 0 && allCritical > 0) {
-                    insights.push({ sev: 'critical', icon: 'fa-exclamation-circle', text: `<b>${name}</b>: Behind trajectory, ${e.bigDrops.length} rank drop${e.bigDrops.length > 1 ? 's' : ''}, and ${allCritical} critical issue${allCritical > 1 ? 's' : ''} across GSC/GA4. Prioritise immediately.` });
+                    insights.push({ sev: 'critical', icon: 'fa-exclamation-circle', text: `<b>${name}</b>: Behind trajectory, ${e.bigDrops.length} rank drop${e.bigDrops.length > 1 ? 's' : ''}, and ${allCritical} critical GSC/GA4 issue${allCritical > 1 ? 's' : ''} — prioritise immediately.` });
+                } else if (e.paidAtRisk && e.intel?.isBehind) {
+                    insights.push({ sev: 'critical', icon: 'fa-dollar-sign', text: `<b>${name}</b>: Both SEO and paid campaigns are underperforming. Cross-channel revenue at risk — review strategy alignment.` });
                 } else if (e.intel?.isBehind && e.bigDrops.length > 0) {
-                    insights.push({ sev: 'high', icon: 'fa-arrow-trend-down', text: `<b>${name}</b> is behind KPI trajectory with ${e.bigDrops.length} keyword${e.bigDrops.length > 1 ? 's' : ''} dropping 5+ positions. Investigate content freshness and competitor movements.` });
+                    insights.push({ sev: 'high', icon: 'fa-arrow-trend-down', text: `<b>${name}</b> is behind KPI trajectory with ${e.bigDrops.length} keyword${e.bigDrops.length > 1 ? 's' : ''} dropping 5+ positions.` });
                 } else if (e.intel?.isBehind && e.gscHigh.length > 0) {
-                    insights.push({ sev: 'high', icon: 'fa-exclamation-triangle', text: `<b>${name}</b> is behind trajectory and has ${e.gscHigh.length} high-impact GSC issue${e.gscHigh.length > 1 ? 's' : ''} — technical problems may be suppressing rankings.` });
+                    insights.push({ sev: 'high', icon: 'fa-exclamation-triangle', text: `<b>${name}</b> is behind trajectory and has ${e.gscHigh.length} high-impact GSC issue${e.gscHigh.length > 1 ? 's' : ''} — technical issues may be suppressing rankings.` });
                 } else if (e.intel?.isBehind && e.ga4Critical.length > 0) {
-                    insights.push({ sev: 'high', icon: 'fa-chart-area', text: `<b>${name}</b> is behind trajectory and GA4 shows ${e.ga4Critical.length} critical traffic signal${e.ga4Critical.length > 1 ? 's' : ''} — "${e.topGa4Issue}". Organic traffic may be contributing to KPI shortfall.` });
-                } else if (e.ga4Critical.length > 0 && e.bigDrops.length > 0 && !e.intel?.isBehind) {
-                    insights.push({ sev: 'medium', icon: 'fa-chart-area', text: `<b>${name}</b>: GA4 flags ${e.ga4Critical.length} critical behaviour issue${e.ga4Critical.length > 1 ? 's' : ''} AND ${e.bigDrops.length} rank drop${e.bigDrops.length > 1 ? 's' : ''} — conversion impact likely. Review landing pages.` });
+                    insights.push({ sev: 'high', icon: 'fa-chart-area', text: `<b>${name}</b> is behind SEO trajectory and GA4 shows ${e.ga4Critical.length} critical traffic signal${e.ga4Critical.length > 1 ? 's' : ''} — "${e.topGa4Issue}". Organic traffic shortfall likely.` });
+                } else if (e.paidAtRisk && e.adsHigh.length > 0) {
+                    insights.push({ sev: 'high', icon: 'fa-ad', text: `<b>${name}</b>: Paid campaign is ${e.paidCamp?.kpiStatus === 'behind' ? 'behind KPI' : 'overspending'} and Google Ads flags ${e.adsHigh.length} high-priority issue${e.adsHigh.length > 1 ? 's' : ''} — "${e.topAdsIssue}".` });
+                } else if (e.adsHigh.length > 0 && e.intel?.isBehind) {
+                    insights.push({ sev: 'high', icon: 'fa-ad', text: `<b>${name}</b>: Behind SEO trajectory and Google Ads has ${e.adsHigh.length} high-priority issue${e.adsHigh.length > 1 ? 's' : ''}. Combined paid + organic underperformance.` });
+                } else if (e.ga4Critical.length > 0 && e.bigDrops.length > 0) {
+                    insights.push({ sev: 'medium', icon: 'fa-chart-area', text: `<b>${name}</b>: GA4 flags ${e.ga4Critical.length} critical behaviour issue${e.ga4Critical.length > 1 ? 's' : ''} AND ${e.bigDrops.length} rank drop${e.bigDrops.length > 1 ? 's' : ''} — landing page conversion impact likely.` });
+                } else if (e.paidAtRisk && !e.intel) {
+                    insights.push({ sev: 'medium', icon: 'fa-ad', text: `<b>${name}</b>: Paid campaign is at risk (${e.paidCamp?.kpiStatus === 'behind' ? 'behind KPI' : 'over budget'}) with no linked SEO campaign to support organic fallback.` });
                 } else if (e.bigDrops.length >= 3 && !e.intel) {
-                    insights.push({ sev: 'high', icon: 'fa-chart-line', text: `<b>${name}</b> shows ${e.bigDrops.length} large rank drops with no linked campaign. Check if this site needs active management.` });
-                } else if (e.gscHigh.length >= 2 && !e.intel) {
-                    insights.push({ sev: 'medium', icon: 'fa-search', text: `<b>${name}</b> has ${e.gscHigh.length} high-priority GSC issues but no active SEO campaign recorded.` });
+                    insights.push({ sev: 'high', icon: 'fa-chart-line', text: `<b>${name}</b>: ${e.bigDrops.length} large rank drops with no linked SEO campaign — check if active management is needed.` });
                 } else if (e.intel?.isBehind && e.rankGains.length > e.rankDrops.length) {
-                    insights.push({ sev: 'medium', icon: 'fa-clock', text: `<b>${name}</b> is behind trajectory but rankings are net-positive this period. May self-correct — monitor closely.` });
+                    insights.push({ sev: 'medium', icon: 'fa-clock', text: `<b>${name}</b> is behind trajectory but rankings are net-positive — may self-correct. Monitor.` });
                 } else if (!e.intel?.isBehind && e.bigDrops.length > 0 && e.intel) {
                     insights.push({ sev: 'medium', icon: 'fa-eye', text: `<b>${name}</b> is on trajectory but has ${e.bigDrops.length} notable rank drop${e.bigDrops.length > 1 ? 's' : ''} — watch for momentum shift.` });
-                } else if (e.intel && !e.intel.isBehind && allCritical === 0 && e.bigDrops.length === 0) {
-                    insights.push({ sev: 'good', icon: 'fa-check-circle', text: `<b>${name}</b> is on trajectory with no critical issues across GSC, GA4, or SE Ranking.` });
+                } else if (e.intel && !e.intel.isBehind && !e.paidAtRisk && allCritical === 0 && e.bigDrops.length === 0 && e.adsHigh.length === 0) {
+                    insights.push({ sev: 'good', icon: 'fa-check-circle', text: `<b>${name}</b>: All signals healthy — on trajectory, no critical GSC/GA4 issues, stable rankings${e.paidCamp ? ', paid campaign on track' : ''}.` });
                 }
             });
 
-            // Surface biggest single rank drop
+            // Portfolio-level roll-ups
             const allDrops = matrix.flatMap(e => e.bigDrops.map(d => ({ ...d, entity: e.name })));
             allDrops.sort((a, b) => a.change - b.change);
             if (allDrops.length > 0) {
-                const worst = allDrops[0];
-                insights.unshift({ sev: 'high', icon: 'fa-arrow-down', text: `Biggest single drop: <b>"${worst.keyword}"</b> on <b>${worst.entity}</b> fell ${Math.abs(worst.change)} positions to rank ${worst.newRank}.` });
+                const w = allDrops[0];
+                insights.unshift({ sev: 'high', icon: 'fa-arrow-down', text: `Biggest single drop: <b>"${w.keyword}"</b> on <b>${w.entity}</b> fell ${Math.abs(w.change)} positions to rank ${w.newRank}.` });
             }
 
-            // Surface top GA4 critical issue across portfolio
             const allGa4Crit = matrix.flatMap(e => e.ga4Critical.map(r => ({ ...r, entity: e.name })));
             if (allGa4Crit.length > 0) {
-                insights.unshift({ sev: 'high', icon: 'fa-chart-area', text: `GA4 portfolio-wide: <b>${allGa4Crit.length} critical behaviour signal${allGa4Crit.length > 1 ? 's' : ''}</b> across ${new Set(allGa4Crit.map(r => r.entity)).size} propert${new Set(allGa4Crit.map(r => r.entity)).size > 1 ? 'ies' : 'y'} — review user flow and conversion paths.` });
+                const props = new Set(allGa4Crit.map(r => r.entity)).size;
+                insights.unshift({ sev: 'high', icon: 'fa-chart-area', text: `GA4 portfolio: <b>${allGa4Crit.length} critical signal${allGa4Crit.length > 1 ? 's' : ''}</b> across ${props} propert${props > 1 ? 'ies' : 'y'} — review conversion paths and user flow.` });
+            }
+
+            const totalAdsHigh = matrix.reduce((s, e) => s + e.adsHigh.length, 0);
+            if (totalAdsHigh > 0) {
+                const accs = new Set(matrix.filter(e => e.adsHigh.length > 0).map(e => e.adsAccount || e.name)).size;
+                insights.unshift({ sev: 'high', icon: 'fa-ad', text: `Google Ads portfolio: <b>${totalAdsHigh} high-priority issue${totalAdsHigh > 1 ? 's' : ''}</b> across ${accs} account${accs > 1 ? 's' : ''} — wasteful spend or quality score issues detected.` });
             }
 
             return insights;
         }
 
-        function renderHolisticSummary(seoIntel, gscRecs, ga4Recs, movers, badge) {
+        function renderHolisticSummary(seoIntel, gscRecs, ga4Recs, adsRecs, paidIntel, movers, badge) {
             const el = document.getElementById('cockpit-holistic-content');
             if (!el) return;
 
-            const matrix   = buildCrossSourceMatrix(seoIntel, gscRecs, ga4Recs, movers);
+            const matrix   = buildCrossSourceMatrix(seoIntel, gscRecs, ga4Recs, adsRecs, paidIntel, movers);
             const insights = generateHolisticInsights(matrix);
 
-            const totalCampaigns = matrix.filter(e => e.intel).length;
-            const behind         = matrix.filter(e => e.intel?.isBehind).length;
-            const totalGscHigh   = matrix.reduce((s, e) => s + e.gscHigh.length, 0);
-            const totalGa4Crit   = matrix.reduce((s, e) => s + e.ga4Critical.length, 0);
-            const totalBigDrops  = matrix.reduce((s, e) => s + e.bigDrops.length, 0);
-            const avgHealth      = matrix.length ? Math.round(matrix.reduce((s, e) => s + e.health, 0) / matrix.length) : null;
-            const priorityCount  = matrix.filter(e => e.risk >= 35).length;
+            const totalCampaigns   = matrix.filter(e => e.intel).length;
+            const behind           = matrix.filter(e => e.intel?.isBehind).length;
+            const totalGscHigh     = matrix.reduce((s, e) => s + e.gscHigh.length, 0);
+            const totalGa4Crit     = matrix.reduce((s, e) => s + e.ga4Critical.length, 0);
+            const totalAdsHigh     = matrix.reduce((s, e) => s + e.adsHigh.length, 0);
+            const totalPaidAtRisk  = matrix.filter(e => e.paidAtRisk).length;
+            const totalBigDrops    = matrix.reduce((s, e) => s + e.bigDrops.length, 0);
+            const avgHealth        = matrix.length ? Math.round(matrix.reduce((s, e) => s + e.health, 0) / matrix.length) : null;
+            const priorityCount    = matrix.filter(e => e.risk >= 35).length;
 
             if (badge) badge.textContent = `${priorityCount} alert${priorityCount !== 1 ? 's' : ''}`;
 
@@ -22332,106 +22368,127 @@
             const sevStyle    = { critical: ['#dc2626','#fef2f2','#fecaca'], high: ['#f97316','#fff7ed','#fed7aa'], medium: ['#d97706','#fffbeb','#fde68a'], good: ['#16a34a','#f0fdf4','#bbf7d0'] };
 
             const tile = (icon, iconColor, bg, val, label, subLabel) => `
-                <div style="flex:1;min-width:120px;background:${bg};border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;">
-                    <div style="display:flex;align-items:center;gap:7px;color:${iconColor};font-size:0.9rem;font-weight:700;">
+                <div style="flex:1;min-width:110px;background:${bg};border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:3px;">
+                    <div style="display:flex;align-items:center;gap:6px;color:${iconColor};font-size:0.85rem;font-weight:700;">
                         <i class="fas ${icon}"></i>
-                        <span style="font-size:1.5rem;line-height:1;">${val}</span>
+                        <span style="font-size:1.4rem;line-height:1;">${val}</span>
                     </div>
-                    <div style="font-size:0.72rem;font-weight:700;color:#1e293b;">${label}</div>
-                    ${subLabel ? `<div style="font-size:0.68rem;color:#64748b;">${subLabel}</div>` : ''}
+                    <div style="font-size:0.7rem;font-weight:700;color:#1e293b;">${label}</div>
+                    ${subLabel ? `<div style="font-size:0.65rem;color:#64748b;">${subLabel}</div>` : ''}
                 </div>`;
 
-            const topItems = matrix.filter(e => e.risk > 0).slice(0, 15);
+            const bk = (txt, bg, color, border, title='') =>
+                `<span${title ? ` title="${title}"` : ''} style="font-size:0.62rem;padding:2px 6px;border-radius:7px;font-weight:700;background:${bg};color:${color};border:1px solid ${border};white-space:nowrap;">${txt}</span>`;
+            const dash = `<span style="font-size:0.62rem;color:#94a3b8;">—</span>`;
+
+            const topItems = matrix.filter(e => e.risk > 0).slice(0, 20);
 
             const tableRows = topItems.map(e => {
                 const trajBadge = e.intel
-                    ? (e.intel.isBehind
-                        ? `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">Behind</span>`
-                        : `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;">On Track</span>`)
-                    : `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#f8fafc;color:#94a3b8;border:1px solid #e2e8f0;">No Intel</span>`;
+                    ? (e.intel.isBehind ? bk('Behind','#fef2f2','#dc2626','#fecaca') : bk('On Track','#f0fdf4','#16a34a','#bbf7d0'))
+                    : bk('No Intel','#f8fafc','#94a3b8','#e2e8f0');
 
                 const serBadge = e.serSite
-                    ? (e.bigDrops.length > 0
-                        ? `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#fff7ed;color:#f97316;border:1px solid #fed7aa;">${e.bigDrops.length} drop${e.bigDrops.length > 1 ? 's' : ''}</span>`
-                        : (e.rankGains.length > 0
-                            ? `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;">${e.rankGains.length} gain${e.rankGains.length > 1 ? 's' : ''}</span>`
-                            : `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#f8fafc;color:#64748b;border:1px solid #e2e8f0;">Stable</span>`))
-                    : `<span style="font-size:0.65rem;color:#94a3b8;">—</span>`;
+                    ? (e.bigDrops.length > 0 ? bk(`${e.bigDrops.length} drop${e.bigDrops.length>1?'s':''}`, '#fff7ed','#f97316','#fed7aa')
+                        : e.rankGains.length > 0 ? bk(`${e.rankGains.length} gain${e.rankGains.length>1?'s':''}`, '#f0fdf4','#16a34a','#bbf7d0')
+                        : bk('Stable','#f8fafc','#64748b','#e2e8f0'))
+                    : dash;
 
                 const gscBadge = e.gscDomain
-                    ? (e.gscHigh.length > 0
-                        ? `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">${e.gscHigh.length} critical</span>`
-                        : (e.gscMed.length > 0
-                            ? `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#fffbeb;color:#d97706;border:1px solid #fde68a;">${e.gscMed.length} medium</span>`
-                            : `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;">Clean</span>`))
-                    : `<span style="font-size:0.65rem;color:#94a3b8;">—</span>`;
+                    ? (e.gscHigh.length > 0 ? bk(`${e.gscHigh.length} critical`,'#fef2f2','#dc2626','#fecaca')
+                        : e.gscMed.length > 0 ? bk(`${e.gscMed.length} medium`,'#fffbeb','#d97706','#fde68a')
+                        : bk('Clean','#f0fdf4','#16a34a','#bbf7d0'))
+                    : dash;
 
                 const ga4Badge = e.ga4Prop
-                    ? (e.ga4Critical.length > 0
-                        ? `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;" title="${e.topGa4Issue || ''}">${e.ga4Critical.length} critical</span>`
-                        : (e.ga4High.length > 0
-                            ? `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#fff7ed;color:#f97316;border:1px solid #fed7aa;" title="${e.topGa4Issue || ''}">${e.ga4High.length} high</span>`
-                            : (e.ga4Med.length > 0
-                                ? `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#fffbeb;color:#d97706;border:1px solid #fde68a;">${e.ga4Med.length} medium</span>`
-                                : `<span style="font-size:0.65rem;padding:2px 7px;border-radius:8px;font-weight:700;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;">Clean</span>`)))
-                    : `<span style="font-size:0.65rem;color:#94a3b8;">—</span>`;
+                    ? (e.ga4Critical.length > 0 ? bk(`${e.ga4Critical.length} critical`,'#fef2f2','#dc2626','#fecaca', e.topGa4Issue||'')
+                        : e.ga4High.length > 0 ? bk(`${e.ga4High.length} high`,'#fff7ed','#f97316','#fed7aa', e.topGa4Issue||'')
+                        : e.ga4Med.length > 0 ? bk(`${e.ga4Med.length} medium`,'#fffbeb','#d97706','#fde68a')
+                        : bk('Clean','#f0fdf4','#16a34a','#bbf7d0'))
+                    : dash;
+
+                const adsBadge = e.adsAccount
+                    ? (e.adsHigh.length > 0 ? bk(`${e.adsHigh.length} high`,'#fef2f2','#ea4335','#fecaca', e.topAdsIssue||'')
+                        : e.adsMed.length > 0 ? bk(`${e.adsMed.length} med`,'#fffbeb','#d97706','#fde68a')
+                        : bk('Clean','#f0fdf4','#16a34a','#bbf7d0'))
+                    : dash;
+
+                const paidBadge = e.paidCamp
+                    ? (e.paidAtRisk
+                        ? bk(e.paidCamp.kpiStatus==='behind'?'KPI Behind':'Overspend','#fef2f2','#dc2626','#fecaca')
+                        : e.paidWarn ? bk('Underspend','#fffbeb','#d97706','#fde68a')
+                        : bk('On Track','#f0fdf4','#16a34a','#bbf7d0'))
+                    : dash;
 
                 const scoreColor = e.risk >= 60 ? '#dc2626' : e.risk >= 30 ? '#d97706' : '#16a34a';
                 const scoreBg    = e.risk >= 60 ? '#fef2f2' : e.risk >= 30 ? '#fffbeb' : '#f0fdf4';
-                const pctBar     = `<div style="position:relative;height:5px;background:#f1f5f9;border-radius:3px;width:50px;display:inline-block;vertical-align:middle;margin-left:4px;">
+                const pctBar     = `<div style="position:relative;height:4px;background:#f1f5f9;border-radius:3px;width:44px;display:inline-block;vertical-align:middle;margin-left:4px;">
                     <div style="position:absolute;top:0;left:0;height:100%;width:${e.risk}%;background:${scoreColor};border-radius:3px;"></div></div>`;
 
-                const topAction = e.intel?.isBehind
-                    ? (e.ga4Critical.length ? 'Fix GA4 behaviour + content' : e.gscHigh.length ? 'Fix GSC issues & content' : 'Review content + links')
-                    : (e.ga4Critical.length ? 'Investigate GA4 signals' : e.bigDrops.length ? 'Monitor rank drops' : e.gscHigh.length ? 'Address GSC findings' : 'Maintain');
+                const topAction = e.intel?.isBehind && e.paidAtRisk ? 'Full-funnel review'
+                    : e.ga4Critical.length && e.intel?.isBehind ? 'Fix GA4 + content'
+                    : e.adsHigh.length && e.intel?.isBehind ? 'Fix Ads + SEO'
+                    : e.intel?.isBehind ? (e.gscHigh.length ? 'Fix GSC + content' : 'Review content & links')
+                    : e.paidAtRisk ? 'Review paid campaign'
+                    : e.adsHigh.length ? 'Fix Ads issues'
+                    : e.ga4Critical.length ? 'Investigate GA4'
+                    : e.bigDrops.length ? 'Monitor rank drops'
+                    : e.gscHigh.length ? 'Fix GSC issues'
+                    : 'Maintain';
 
-                return `<tr style="border-bottom:1px solid #f1f5f9;transition:background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
-                    <td style="padding:10px 12px;font-weight:600;font-size:0.82rem;color:#1e293b;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${e.name}">${e.name}</td>
-                    <td style="padding:10px 12px;text-align:center;">${trajBadge}</td>
-                    <td style="padding:10px 12px;text-align:center;">${serBadge}</td>
-                    <td style="padding:10px 12px;text-align:center;">${gscBadge}</td>
-                    <td style="padding:10px 12px;text-align:center;">${ga4Badge}</td>
-                    <td style="padding:10px 12px;text-align:center;">
-                        <span style="font-size:0.75rem;font-weight:700;color:${scoreColor};background:${scoreBg};padding:2px 7px;border-radius:8px;">${e.risk}</span>
+                return `<tr style="border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                    <td style="padding:8px 10px;font-weight:600;font-size:0.8rem;color:#1e293b;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${e.name}">${e.name}</td>
+                    <td style="padding:8px 10px;text-align:center;">${trajBadge}</td>
+                    <td style="padding:8px 10px;text-align:center;">${serBadge}</td>
+                    <td style="padding:8px 10px;text-align:center;">${gscBadge}</td>
+                    <td style="padding:8px 10px;text-align:center;">${ga4Badge}</td>
+                    <td style="padding:8px 10px;text-align:center;">${adsBadge}</td>
+                    <td style="padding:8px 10px;text-align:center;">${paidBadge}</td>
+                    <td style="padding:8px 10px;text-align:center;">
+                        <span style="font-size:0.72rem;font-weight:700;color:${scoreColor};background:${scoreBg};padding:2px 6px;border-radius:7px;">${e.risk}</span>
                         ${pctBar}
                     </td>
-                    <td style="padding:10px 12px;font-size:0.75rem;color:#475569;">${topAction}</td>
+                    <td style="padding:8px 10px;font-size:0.72rem;color:#475569;white-space:nowrap;">${topAction}</td>
                 </tr>`;
             }).join('');
 
             const insightHtml = insights.slice(0, 10).map(i => {
                 const [c, bg, br] = sevStyle[i.sev] || sevStyle.medium;
                 return `<div style="display:flex;gap:10px;padding:10px 12px;background:${bg};border:1px solid ${br};border-left:4px solid ${c};border-radius:8px;">
-                    <i class="fas ${i.icon}" style="color:${c};margin-top:2px;flex-shrink:0;font-size:0.85rem;"></i>
-                    <div style="font-size:0.82rem;color:#1e293b;line-height:1.5;">${i.text}</div>
+                    <i class="fas ${i.icon}" style="color:${c};margin-top:2px;flex-shrink:0;font-size:0.82rem;"></i>
+                    <div style="font-size:0.8rem;color:#1e293b;line-height:1.5;">${i.text}</div>
                 </div>`;
             }).join('');
 
-            const fresh = (hasData, label, count) => hasData
-                ? `<span style="color:#16a34a;"><i class="fas fa-check-circle"></i> ${label} (${count})</span>`
-                : `<span style="color:#94a3b8;"><i class="fas fa-circle"></i> ${label} (no data)</span>`;
+            const fresh = (n, label, detail) => n
+                ? `<span style="color:#16a34a;"><i class="fas fa-check-circle"></i> ${label} <span style="color:#64748b;">(${detail})</span></span>`
+                : `<span style="color:#94a3b8;"><i class="fas fa-circle"></i> ${label}</span>`;
 
             el.innerHTML = `
-            <div style="padding:6px 14px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:0.69rem;display:flex;gap:14px;flex-wrap:wrap;align-items:center;color:#64748b;">
-                <span style="font-weight:700;color:#475569;">Data sources:</span>
-                ${fresh(movers.length,   'SE Ranking', movers.length + ' movers')}
-                ${fresh(gscRecs.length,  'GSC',        gscRecs.length + ' recs')}
-                ${fresh(ga4Recs.length,  'GA4',        ga4Recs.length + ' findings')}
-                ${fresh(seoIntel.length, 'SEO Intel',  seoIntel.length + ' campaigns')}
-                <span style="color:#94a3b8;margin-left:auto;font-size:0.65rem;">Cross-correlated ${matrix.length} entities</span>
+            <div style="padding:6px 14px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:0.68rem;display:flex;gap:12px;flex-wrap:wrap;align-items:center;color:#64748b;">
+                <span style="font-weight:700;color:#475569;">Sources:</span>
+                ${fresh(movers.length,    'SE Ranking', movers.length + ' movers')}
+                ${fresh(gscRecs.length,   'GSC',        gscRecs.length + ' recs')}
+                ${fresh(ga4Recs.length,   'GA4',        ga4Recs.length + ' findings')}
+                ${fresh(adsRecs.length,   'G. Ads',     adsRecs.length + ' recs')}
+                ${fresh(paidIntel.length, 'Mon. Paid',  paidIntel.length + ' campaigns')}
+                ${fresh(seoIntel.length,  'SEO Intel',  seoIntel.length + ' campaigns')}
+                <span style="color:#94a3b8;margin-left:auto;font-size:0.63rem;">${matrix.length} entities cross-correlated</span>
             </div>
 
-            <div style="display:flex;gap:10px;padding:14px;flex-wrap:wrap;">
-                ${tile('fa-crosshairs',       '#dc2626', '#fef2f2', behind,         'Campaigns Behind',       `of ${totalCampaigns} tracked`)}
-                ${tile('fa-arrow-trend-down', '#f97316', '#fff7ed', totalBigDrops,  'Significant Rank Drops', 'keywords ≥5 positions')}
-                ${tile('fa-search',           '#dc2626', '#fef2f2', totalGscHigh,   'GSC Critical Issues',    'across all properties')}
-                ${tile('fa-chart-area',       '#8b5cf6', '#f5f3ff', totalGa4Crit,   'GA4 Critical Signals',   'behaviour & traffic alerts')}
-                ${avgHealth !== null ? tile('fa-heartbeat', healthColor, healthColor + '18', avgHealth + '%', 'Avg Portfolio Health', 'composite score') : ''}
+            <div style="display:flex;gap:8px;padding:12px 14px;flex-wrap:wrap;">
+                ${tile('fa-crosshairs',       '#dc2626', '#fef2f2', behind,          'SEO Behind',         `of ${totalCampaigns} campaigns`)}
+                ${tile('fa-arrow-trend-down', '#f97316', '#fff7ed', totalBigDrops,   'Rank Drops',         '≥5 positions')}
+                ${tile('fa-search',           '#dc2626', '#fef2f2', totalGscHigh,    'GSC Critical',       'across properties')}
+                ${tile('fa-chart-area',       '#8b5cf6', '#f5f3ff', totalGa4Crit,    'GA4 Critical',       'behaviour alerts')}
+                ${tile('fab fa-google',       '#ea4335', '#fff8f0', totalAdsHigh,    'Ads High Issues',    'across accounts')}
+                ${tile('fas fa-dollar-sign',  '#dc2626', '#fef2f2', totalPaidAtRisk, 'Paid at Risk',       'KPI behind/overspend')}
+                ${avgHealth !== null ? tile('fa-heartbeat', healthColor, healthColor + '18', avgHealth + '%', 'Portfolio Health', 'composite score') : ''}
             </div>
 
             ${insights.length ? `
             <div style="padding:0 14px 10px;">
-                <div style="font-size:0.75rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                <div style="font-size:0.72rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
                     <i class="fas fa-lightbulb" style="color:#f59e0b;"></i> Cross-Source Insights
                 </div>
                 <div style="display:flex;flex-direction:column;gap:6px;">${insightHtml}</div>
@@ -22439,21 +22496,23 @@
 
             ${topItems.length ? `
             <div style="padding:0 14px 14px;">
-                <div style="font-size:0.75rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                <div style="font-size:0.72rem;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
                     <i class="fas fa-table" style="color:#6366f1;"></i> Priority Matrix
-                    <span style="font-weight:400;color:#94a3b8;text-transform:none;font-size:0.7rem;">(sorted by risk score)</span>
+                    <span style="font-weight:400;color:#94a3b8;text-transform:none;font-size:0.68rem;">(top ${topItems.length}, sorted by risk)</span>
                 </div>
                 <div style="overflow-x:auto;border-radius:10px;border:1px solid #e2e8f0;">
-                    <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+                    <table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
                         <thead>
                             <tr style="background:#f8fafc;">
-                                <th style="padding:9px 12px;text-align:left;font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Campaign / Site</th>
-                                <th style="padding:9px 12px;text-align:center;font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Trajectory</th>
-                                <th style="padding:9px 12px;text-align:center;font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">SE Ranking</th>
-                                <th style="padding:9px 12px;text-align:center;font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">GSC</th>
-                                <th style="padding:9px 12px;text-align:center;font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">GA4</th>
-                                <th style="padding:9px 12px;text-align:center;font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Risk</th>
-                                <th style="padding:9px 12px;text-align:left;font-size:0.68rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Top Action</th>
+                                <th style="padding:8px 10px;text-align:left;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Campaign / Site</th>
+                                <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;" title="SEO Campaign Intel trajectory">SEO Traj.</th>
+                                <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;" title="SE Ranking movers">SE Rank</th>
+                                <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;" title="Google Search Console">GSC</th>
+                                <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;" title="Google Analytics 4">GA4</th>
+                                <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#ea4335;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;" title="Google Ads recommendations">G. Ads</th>
+                                <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;" title="Monday.com Paid Campaign Intel">Paid</th>
+                                <th style="padding:8px 10px;text-align:center;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Risk</th>
+                                <th style="padding:8px 10px;text-align:left;font-size:0.62rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Top Action</th>
                             </tr>
                         </thead>
                         <tbody>${tableRows}</tbody>
