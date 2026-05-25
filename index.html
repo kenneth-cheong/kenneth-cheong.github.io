@@ -10532,6 +10532,92 @@
         body.advanced-mode .page-break {
             display: none !important;
         }
+
+        /* ── Keyword Analysis UX ── */
+        .kw-workflow-banner {
+            background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
+            border: 1px solid #bfdbfe;
+            border-radius: 12px;
+            padding: 14px 20px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .kw-workflow-steps {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            flex: 1;
+        }
+        .kw-step { display: flex; align-items: center; gap: 7px; }
+        .kw-step-num {
+            width: 22px; height: 22px; border-radius: 50%;
+            background: #cbd5e1; color: #64748b;
+            font-size: 11px; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; transition: background 0.2s, color 0.2s;
+        }
+        .kw-step.active .kw-step-num { background: #004c9d; color: white; }
+        .kw-step.done   .kw-step-num { background: #10b981; color: white; }
+        .kw-step-label { font-size: 12px; color: #94a3b8; font-weight: 500; white-space: nowrap; }
+        .kw-step.active .kw-step-label { color: #004c9d; font-weight: 700; }
+        .kw-step.done   .kw-step-label { color: #10b981; font-weight: 600; }
+        .kw-step-arrow { color: #cbd5e1; font-size: 14px; line-height: 1; padding: 0 2px; }
+        .kw-banner-dismiss {
+            background: none; border: none; color: #94a3b8;
+            font-size: 20px; cursor: pointer; padding: 2px 6px;
+            border-radius: 4px; line-height: 1; flex-shrink: 0;
+        }
+        .kw-banner-dismiss:hover { color: #475569; background: rgba(0,0,0,0.05); }
+        .kw-research-section { margin-top: 14px; }
+        .kw-research-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 0 8px;
+            border-top: 2px solid #e2e8f0; margin-top: 4px;
+        }
+        .kw-research-title { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.07em; }
+        .kw-load-all-btn {
+            font-size: 11px; font-weight: 600; color: #004c9d;
+            background: #eff6ff; border: 1px solid #bfdbfe;
+            border-radius: 6px; padding: 5px 11px; cursor: pointer; transition: all 0.15s;
+        }
+        .kw-load-all-btn:hover { background: #dbeafe; border-color: #93c5fd; }
+        .kw-tool-desc {
+            display: block; font-size: 11px; font-weight: 400;
+            color: #94a3b8; margin-top: 2px;
+        }
+        .kw-empty-msg {
+            padding: 22px 16px; text-align: center; color: #94a3b8;
+            font-size: 12px; border: 1px dashed #e2e8f0;
+            border-radius: 8px; margin: 6px 0; line-height: 1.5;
+        }
+        .kw-empty-msg i { display: block; font-size: 20px; margin-bottom: 7px; color: #cbd5e1; }
+        .kw-primary-btn {
+            display: flex !important; align-items: center !important; justify-content: center !important;
+            gap: 8px; width: 100%; padding: 14px 20px !important;
+            font-size: 1rem !important; font-weight: 700 !important;
+            background: linear-gradient(135deg, #004c9d 0%, #1a6fd4 100%) !important;
+            border-radius: 10px !important;
+            box-shadow: 0 4px 14px rgba(0,76,157,0.35) !important;
+            transition: all 0.2s !important;
+        }
+        .kw-primary-btn:hover { transform: translateY(-1px) !important; box-shadow: 0 6px 18px rgba(0,76,157,0.45) !important; }
+        .kw-primary-btn:active { transform: translateY(0) !important; }
+        .kw-secondary-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+        .kw-hint-text { font-size: 11px; color: #94a3b8; margin-top: 3px; display: block; }
+        .kw-count-ok   { color: #10b981 !important; }
+        .kw-count-warn { color: #f59e0b !important; }
+        .kw-count-over { color: #ef4444 !important; }
+        .kw-map-next {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+            padding: 10px 14px; background: #f0fdf4; border: 1px solid #bbf7d0;
+            border-radius: 8px; margin-top: 12px;
+        }
+        .kw-map-next-label { font-size: 11px; color: #16a34a; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+        .kw-empty-row td { padding: 0 !important; border: none !important; background: transparent !important; }
     </style>
 </head>
 
@@ -10662,7 +10748,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1395</span>
+                <span id="appVersion">v1.0.1397</span>
             </a>
         </div>
 
@@ -12169,7 +12255,34 @@
             </div>
 
             <div id="seoTime2RankSection">
-                <!-- Input Form for User Data -->
+
+                <!-- ── Workflow Guide Banner ── -->
+                <div class="kw-workflow-banner" id="kwWorkflowBanner">
+                    <div class="kw-workflow-steps">
+                        <div class="kw-step active" id="kwStep1">
+                            <span class="kw-step-num">1</span>
+                            <span class="kw-step-label">Set Target</span>
+                        </div>
+                        <span class="kw-step-arrow">›</span>
+                        <div class="kw-step" id="kwStep2">
+                            <span class="kw-step-num">2</span>
+                            <span class="kw-step-label">Discover Keywords</span>
+                        </div>
+                        <span class="kw-step-arrow">›</span>
+                        <div class="kw-step" id="kwStep3">
+                            <span class="kw-step-num">3</span>
+                            <span class="kw-step-label">Add to List &amp; Run Analysis</span>
+                        </div>
+                        <span class="kw-step-arrow">›</span>
+                        <div class="kw-step" id="kwStep4">
+                            <span class="kw-step-num">4</span>
+                            <span class="kw-step-label">Map to Pages</span>
+                        </div>
+                    </div>
+                    <button class="kw-banner-dismiss" onclick="dismissKwWorkflowBanner()" title="Dismiss">×</button>
+                </div>
+
+                <!-- ── Left column: form + research tools ── -->
                 <div class="column50">
                 <div class="sem-step-card">
                     <div class="sem-card-title"><i class="fab fa-google"></i> Search Engine Optimisation</div>
@@ -12177,16 +12290,17 @@
                         <div class="sem-input-item">
                             <label for="domain">Domain / URL:</label>
                             <input type="url" id="domain" name="domain"
-                                placeholder="Site Audit: https://www.abc.com | Page Audit: www.abc.com"
+                                placeholder="Full site: www.abc.com  |  Single page: https://www.abc.com/page"
                                 onmouseover="showTooltip(event, 'E.g.<br>https:\/\/www.example.com will target one webpage<br>www.example.com will target the entire website')"
-                                onmouseout="hideTooltip()">
+                                onmouseout="hideTooltip()"
+                                oninput="updateKwWorkflowStep()">
                             <span class="error" id="domainError"></span>
                         </div>
 
                         <div class="sem-input-group" style="margin-top: 15px;">
                             <div class="sem-input-item">
                                 <label for="location">Targeted Location (required):</label>
-                                <select id="location" name="location" required>
+                                <select id="location" name="location" required onchange="updateKwWorkflowStep()">
                                     <option value="Singapore">Singapore</option>
                                     <option value="None">Global</option>
                                     <option value="Australia">Australia</option>
@@ -12241,144 +12355,152 @@
                             </div>
                         </div>
 
-                        <div class="sem-input-item" style="margin-top: 5px;">
-                            <label for="keywords">Keyword(s) of Interest (comma or newline separated):</label>
-                            <textarea id="keywords" name="keywords" required placeholder="keyword1, keyword2"
+                        <div class="sem-input-item" style="margin-top: 12px;">
+                            <label for="keywords">Target Keywords <span style="font-weight:400;color:#94a3b8;font-size:0.88em;">(1–20 recommended · comma or newline separated)</span></label>
+                            <textarea id="keywords" name="keywords" required
+                                placeholder="e.g. keyword one&#10;keyword two&#10;keyword three"
                                 oninput="updateKeywordCount()" style="min-height: 120px;"></textarea>
-                            <div
-                                style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
-                                <span id="keywordCount"
-                                    style="font-size: 0.85em; color: #004c9d; font-weight: 600;"></span>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+                                <span id="keywordCount" style="font-size: 0.82em; font-weight: 600;"></span>
                                 <span class="error" id="keywordsError"></span>
                             </div>
+                            <span class="kw-hint-text">Use the Discover Keywords tools below to find relevant terms, then tick the ones you want</span>
                         </div>
 
-                        <div style="display: flex; gap: 15px; margin-top: 25px; flex-wrap: wrap;">
-                            <button type="button" id="keyword-research-analysis-button" class="config-btn-highlight"
-                                style="margin: 0;" onclick="validateAndSubmit(event)">Get Time To Rank</button>
-                            <button type="button" id="mapKeywordsBtn" class="config-btn-highlight"
-                                style="background: #34a853; margin: 0;" onclick="mapKeywords()">Map
-                                Keywords</button>
-                            <button type="button" class="config-btn-highlight" style="background: #666; margin: 0;"
-                                onclick="openTimeToRankQueriesModal()" id="loadTimeToRankQueriesBtn">Load
-                                Previous</button>
+                        <!-- Primary CTA -->
+                        <div style="margin-top: 20px;">
+                            <button type="button" id="keyword-research-analysis-button"
+                                class="config-btn-highlight kw-primary-btn"
+                                onclick="runKeywordAnalysisWithPrep(event)">
+                                <i class="fas fa-chart-line"></i> Run Analysis
+                            </button>
+                        </div>
+
+                        <!-- Secondary actions -->
+                        <div class="kw-secondary-actions">
+                            <button type="button" class="config-btn-highlight"
+                                style="background:#64748b; margin:0; font-size:0.82em; padding:8px 14px;"
+                                onclick="openTimeToRankQueriesModal()" id="loadTimeToRankQueriesBtn">
+                                <i class="fas fa-history"></i> Load Previous
+                            </button>
                             <button type="button" onclick="initKeywordAnalysisTour()" class="config-btn-highlight"
-                                style="background: transparent; border: 2px solid #34a853; color: #34a853; margin: 0; box-shadow: none; padding: 11px 22px; cursor: pointer; transition: all 0.2s ease-in-out;"
-                                onmouseover="this.style.background='#34a853'; this.style.color='white'; this.style.boxShadow='0 4px 12px rgba(52, 168, 83, 0.3)';"
-                                onmouseout="this.style.background='transparent'; this.style.color='#34a853'; this.style.boxShadow='none';">
+                                style="background:transparent; border:2px solid #94a3b8; color:#64748b; margin:0; box-shadow:none; font-size:0.82em; padding:7px 14px; cursor:pointer; transition:all 0.2s;"
+                                onmouseover="this.style.background='#64748b'; this.style.color='white';"
+                                onmouseout="this.style.background='transparent'; this.style.color='#64748b';">
                                 <i class="fas fa-question-circle"></i> Help
+                            </button>
+                        </div>
+
+                        <!-- Map Keywords — optional next step -->
+                        <div class="kw-map-next">
+                            <span class="kw-map-next-label"><i class="fas fa-arrow-right" style="margin-right:4px;"></i> Optional next step</span>
+                            <button type="button" id="mapKeywordsBtn" class="config-btn-highlight"
+                                style="background:#34a853; margin:0; font-size:0.82em; padding:8px 16px;"
+                                onclick="mapKeywords()">
+                                <i class="fas fa-map-marker-alt"></i> Map Keywords to Pages
                             </button>
                         </div>
                     </form>
                 </div>
 
-                <!-- Column 50 content continues... -->
+                <!-- ── Discover Keywords section ── -->
+                <div class="kw-research-section">
+                    <div class="kw-research-header">
+                        <span class="kw-research-title"><i class="fas fa-search" style="margin-right:5px;"></i>Step 2 — Discover Keywords</span>
+                        <button class="kw-load-all-btn" onclick="loadAllKeywordData()">
+                            <i class="fas fa-bolt"></i> Load All
+                        </button>
+                    </div>
 
+                    <div id="rankingError"></div>
+                    <table id="keywordTable" style="display:none;"><tr><th>Keyword</th><th>Search Volume</th><th>Competition</th><th>Rank</th></tr></table>
+                    <table id="top100Table" style="display:none;"><tr><th>Keyword</th><th>Search Volume</th><th>Competition</th><th>Rank</th></tr></table>
 
-                <div id="rankingError"></div>
-                <table id="keywordTable" style="display: none;">
-                    <tr>
-                        <th>Keyword</th>
-                        <th>Search Volume</th>
-                        <th>Competition</th>
-                        <th>Rank</th>
-                    </tr>
-                </table>
-
-                <table id="top100Table" style="display: none;">
-                    <tr>
-                        <th>Keyword</th>
-                        <th>Search Volume</th>
-                        <th>Competition</th>
-                        <th>Rank</th>
-                    </tr>
-                </table>
-                <div class="collapsible-wrapper">
-                    <button class="collapsible-plus" id="expandSimilarKeywords"><i
-                            class="fas fa-plus-square"></i></button>
-                    <button class="collapsible90" id="keyword_suggestions" onclick="similarKeywords(event)">Keyword
-                        Suggestions (Similar Keywords / SERPs)
-                    </button>
-                </div>
-                <div class="content" id="keywordSuggestions">
-                    <div id="keywordListContainer">
-                        <div class="table-container" style="max-height: 400px; overflow-y: auto; overflow-x: hidden;">
-                            <table id="keywordListTable" class="uniform-kw-table fixed-layout">
-                                <thead id="keywordHeaderRow">
-                                    <tr>
-                                        <th class="col-kw" onclick="sortKeywordSuggestions(0)"
-                                            title="Click on the keyword to see it's SERPs.">Keyword</th>
-                                        <th class="col-vol" onclick="sortKeywordSuggestions(1)">Search Vol</th>
-                                        <th class="col-comp" onclick="sortKeywordSuggestions(2)">Difficulty</th>
-                                        <th class="col-cpc" onclick="sortKeywordSuggestions(3)">CPC</th>
-                                        <th class="col-choose">Choose</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="keywordList"></tbody>
-                            </table>
-                        </div>
-                        <div id="keywordSuggestionsExport" style="display:none">
-                            <button type="button"
-                                onclick="exportSelectedKeywordSuggestionsToCSV(document.getElementById('keywordHeaderRow'), document.getElementById('keywordList'))">Export
-                                selected as
-                                .csv</button>
-                            <button type="button"
-                                onclick="exportKeywordSuggestionsToCSV(document.getElementById('keywordHeaderRow'), document.getElementById('keywordList'))">Export
-                                all as
-                                .csv</button>
+                    <!-- Keyword Suggestions -->
+                    <div class="collapsible-wrapper">
+                        <button class="collapsible-plus" id="expandSimilarKeywords"><i class="fas fa-plus-square"></i></button>
+                        <button class="collapsible90" id="keyword_suggestions" onclick="similarKeywords(event)">
+                            Keyword Suggestions
+                            <span class="kw-tool-desc">Find related search terms · click any keyword to view live SERPs</span>
+                        </button>
+                    </div>
+                    <div class="content" id="keywordSuggestions">
+                        <div id="keywordListContainer">
+                            <div class="table-container" style="max-height: 400px; overflow-y: auto; overflow-x: hidden;">
+                                <table id="keywordListTable" class="uniform-kw-table fixed-layout">
+                                    <thead id="keywordHeaderRow">
+                                        <tr>
+                                            <th class="col-kw" onclick="sortKeywordSuggestions(0)" title="Click on the keyword to see it's SERPs.">Keyword</th>
+                                            <th class="col-vol" onclick="sortKeywordSuggestions(1)">Search Vol</th>
+                                            <th class="col-comp" onclick="sortKeywordSuggestions(2)">Difficulty</th>
+                                            <th class="col-cpc" onclick="sortKeywordSuggestions(3)">CPC</th>
+                                            <th class="col-choose">Choose</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="keywordList">
+                                        <tr class="kw-empty-row"><td colspan="5"><div class="kw-empty-msg"><i class="fas fa-lightbulb"></i>Enter keywords &amp; location above, then click <strong>Keyword Suggestions</strong> to discover related terms</div></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="keywordSuggestionsExport" style="display:none">
+                                <button type="button" onclick="exportSelectedKeywordSuggestionsToCSV(document.getElementById('keywordHeaderRow'), document.getElementById('keywordList'))">Export selected as .csv</button>
+                                <button type="button" onclick="exportKeywordSuggestionsToCSV(document.getElementById('keywordHeaderRow'), document.getElementById('keywordList'))">Export all as .csv</button>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="collapsible-wrapper">
-                    <button class="collapsible-plus" id="expandRankingKeywords"><i
-                            class="fas fa-plus-square"></i></button>
-                    <button class="collapsible90" id="ranking_keywords" onclick="rankingKeywords(event)">Ranking
-                        Keywords</button>
-                </div>
-                <div class="content" id="rankingKeywords">
-                    <div id="rankedKeywordsCount"></div>
-                    <div id="keywordListContainer">
-                        <div class="table-container" style="max-height: 400px; overflow-y: auto; overflow-x: hidden;">
-                            <table id="rankedKeywordListTable" class="uniform-kw-table fixed-layout">
-                                <thead id="rankedKeywordHeaderRow">
-                                    <tr>
-                                        <th class="col-kw" onclick="sortRankedKeywords(0)">Keyword</th>
-                                        <th class="col-vol" onclick="sortRankedKeywords(1)">Search Vol</th>
-                                        <th class="col-rank" onclick="sortRankedKeywords(2)">Rank</th>
-                                        <th class="col-comp" onclick="sortRankedKeywords(3)">Difficulty</th>
-                                        <th class="col-choose">Choose</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="rankedKeywordList"></tbody>
-                            </table>
-                        </div>
-                        <div id="rankingKeywordsExport" style="display:none">
-                            <button type="button"
-                                onclick="exportSelectedRankedKeywordsToCSV(document.getElementById('rankedKeywordHeaderRow'), document.getElementById('rankedKeywordList'))">Export
-                                selected as
-                                .csv</button>
-                            <button type="button"
-                                onclick="exportRankedKeywordsToCSV(document.getElementById('rankedKeywordHeaderRow'), document.getElementById('rankedKeywordList'))">Export
-                                all as
-                                .csv</button>
+                    <!-- Ranking Keywords -->
+                    <div class="collapsible-wrapper">
+                        <button class="collapsible-plus" id="expandRankingKeywords"><i class="fas fa-plus-square"></i></button>
+                        <button class="collapsible90" id="ranking_keywords" onclick="rankingKeywords(event)">
+                            Ranking Keywords
+                            <span class="kw-tool-desc">Keywords your domain already ranks for in the top 100</span>
+                        </button>
+                    </div>
+                    <div class="content" id="rankingKeywords">
+                        <div id="rankedKeywordsCount"></div>
+                        <div id="keywordListContainer">
+                            <div class="table-container" style="max-height: 400px; overflow-y: auto; overflow-x: hidden;">
+                                <table id="rankedKeywordListTable" class="uniform-kw-table fixed-layout">
+                                    <thead id="rankedKeywordHeaderRow">
+                                        <tr>
+                                            <th class="col-kw" onclick="sortRankedKeywords(0)">Keyword</th>
+                                            <th class="col-vol" onclick="sortRankedKeywords(1)">Search Vol</th>
+                                            <th class="col-rank" onclick="sortRankedKeywords(2)">Rank</th>
+                                            <th class="col-comp" onclick="sortRankedKeywords(3)">Difficulty</th>
+                                            <th class="col-choose">Choose</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="rankedKeywordList">
+                                        <tr class="kw-empty-row"><td colspan="5"><div class="kw-empty-msg"><i class="fas fa-chart-bar"></i>Enter your domain &amp; location above, then click <strong>Ranking Keywords</strong> to see what you already rank for</div></td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div id="rankingKeywordsExport" style="display:none">
+                                <button type="button" onclick="exportSelectedRankedKeywordsToCSV(document.getElementById('rankedKeywordHeaderRow'), document.getElementById('rankedKeywordList'))">Export selected as .csv</button>
+                                <button type="button" onclick="exportRankedKeywordsToCSV(document.getElementById('rankedKeywordHeaderRow'), document.getElementById('rankedKeywordList'))">Export all as .csv</button>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="collapsible-wrapper">
-                    <button class="collapsible-plus" id="expandWebpageKeywords"><i
-                            class="fas fa-plus-square"></i></button>
-                    <button class="collapsible90" id="keywords_for_site" onclick="getWebpageKeywords(event)">Keywords
-                        Based
-                        on Webpage Content</button>
-                </div>
-                <div class="content" id="siteKeywords" style="padding:10px">
-                </div>
-            </div>
 
-            <div class="column50">
-                <div class="sem-step-card" style="display:none;" id="serp-section"></div>
-            </div>
+                    <!-- Keywords from Webpage Content -->
+                    <div class="collapsible-wrapper">
+                        <button class="collapsible-plus" id="expandWebpageKeywords"><i class="fas fa-plus-square"></i></button>
+                        <button class="collapsible90" id="keywords_for_site" onclick="getWebpageKeywords(event)">
+                            Keywords from Webpage Content
+                            <span class="kw-tool-desc">AI-extracted keywords based on your domain's actual page content</span>
+                        </button>
+                    </div>
+                    <div class="content" id="siteKeywords" style="padding:10px">
+                        <div class="kw-empty-msg"><i class="fas fa-file-alt"></i>Enter your domain above, then click <strong>Keywords from Webpage Content</strong> to extract relevant terms</div>
+                    </div>
+                </div>
+                </div>
+
+                <!-- ── Right column: SERP detail panel ── -->
+                <div class="column50">
+                    <div class="sem-step-card" style="display:none;" id="serp-section"></div>
+                </div>
             </div>
 
 
@@ -36426,9 +36548,54 @@ Output ONLY the finished ${contentTypeLabel} — no meta-commentary, no explanat
 
         function updateKeywordCount() {
             const keywordsTextArea = document.getElementById('keywords');
-            const keywords = keywordsTextArea.value.split(/[\n,]+/).map(k => k.trim()).filter(Boolean); // Split by comma or newline, trim whitespace, remove empty strings
+            const keywords = keywordsTextArea.value.split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
             const keywordCountSpan = document.getElementById('keywordCount');
-            keywordCountSpan.textContent = `${keywords.length} keyword(s) selected`;
+            const count = keywords.length;
+            if (count === 0) { keywordCountSpan.textContent = ''; keywordCountSpan.className = ''; return; }
+            let cls = 'kw-count-ok', suffix = '';
+            if (count > 20)      { cls = 'kw-count-over'; suffix = ' — consider splitting into batches'; }
+            else if (count > 15) { cls = 'kw-count-warn'; suffix = ' (approaching limit)'; }
+            keywordCountSpan.className = cls;
+            keywordCountSpan.textContent = `${count} keyword${count !== 1 ? 's' : ''}${suffix}`;
+            updateKwWorkflowStep();
+        }
+
+        function updateKwWorkflowStep() {
+            const domain   = document.getElementById('domain')?.value?.trim();
+            const keywords = document.getElementById('keywords')?.value?.trim();
+            const s1 = document.getElementById('kwStep1');
+            const s2 = document.getElementById('kwStep2');
+            const s3 = document.getElementById('kwStep3');
+            const s4 = document.getElementById('kwStep4');
+            if (!s1) return;
+            const hasDomain   = !!domain;
+            const hasKeywords = !!keywords;
+            s1.className = 'kw-step ' + (hasDomain ? 'done' : 'active');
+            s2.className = 'kw-step ' + (!hasDomain ? '' : !hasKeywords ? 'active' : 'done');
+            s3.className = 'kw-step ' + (hasKeywords ? 'active' : '');
+            s4.className = 'kw-step';
+        }
+
+        function dismissKwWorkflowBanner() {
+            const banner = document.getElementById('kwWorkflowBanner');
+            if (banner) banner.style.display = 'none';
+            try { localStorage.setItem('kwWorkflowBannerDismissed', '1'); } catch(e) {}
+        }
+
+        function loadAllKeywordData() {
+            forceOpenCollapsible('expandSimilarKeywords');
+            forceOpenCollapsible('expandRankingKeywords');
+            forceOpenCollapsible('expandWebpageKeywords');
+            similarKeywords();
+            rankingKeywords();
+            getWebpageKeywords();
+        }
+
+        function runKeywordAnalysisWithPrep(event) {
+            // Mark step 3 active on the banner
+            const s3 = document.getElementById('kwStep3');
+            if (s3) s3.className = 'kw-step active';
+            validateAndSubmit(event);
         }
 
         function updateKeywordsField() {
@@ -68431,6 +68598,14 @@ Move-In</h3>
             if (d && !d.value) d.value = new Date().toISOString().split('T')[0];
             faPopulateHistory();
             faRenderLog();
+
+            // Restore dismissed state of keyword workflow banner
+            try {
+                if (localStorage.getItem('kwWorkflowBannerDismissed')) {
+                    const banner = document.getElementById('kwWorkflowBanner');
+                    if (banner) banner.style.display = 'none';
+                }
+            } catch(e) {}
         });
     </script>
 
@@ -68762,9 +68937,12 @@ Move-In</h3>
 
             function getCurrentUser() {
                 try {
-                    const u = JSON.parse(localStorage.getItem('googleUser') || 'null');
+                    const u = JSON.parse(localStorage.getItem('googleUser') || 'null') || window.googleUser;
                     return { userName: u?.name || 'Unknown', userEmail: u?.email || 'unknown' };
-                } catch (e) { return { userName: 'Unknown', userEmail: 'unknown' }; }
+                } catch (e) {
+                    const u = window.googleUser;
+                    return { userName: u?.name || 'Unknown', userEmail: u?.email || 'unknown' };
+                }
             }
 
             function getLogs() {
@@ -68854,6 +69032,11 @@ Move-In</h3>
                     else if (body?.query && body.query.trim().startsWith('mutation')) action = 'mutation';
                     else if (body?.query) action = 'query';
                 } catch (e) {}
+
+                // Skip internal log/team housekeeping calls — they're not user tool usage
+                if (['save_tool_log', 'fetch_tool_logs', 'fetch_teams'].includes(action)) {
+                    return _origFetch.apply(this, arguments);
+                }
 
                 const t0   = Date.now();
                 const reqId = url + '-' + t0 + '-' + Math.random().toString(36).slice(2,5);
@@ -69162,7 +69345,8 @@ Move-In</h3>
             const userMap = {};
             logs.forEach(l => {
                 if (!l.userEmail) return;
-                if (!userMap[l.userEmail]) userMap[l.userEmail] = { name: l.userName||l.userEmail, email: l.userEmail, events: 0, errors: 0, tools: {}, lastTs: '' };
+                const _displayName = (l.userName && l.userName !== 'Unknown') ? l.userName : (l.userEmail && l.userEmail !== 'unknown' ? l.userEmail : 'Unknown');
+                if (!userMap[l.userEmail]) userMap[l.userEmail] = { name: _displayName, email: l.userEmail, events: 0, errors: 0, tools: {}, lastTs: '' };
                 userMap[l.userEmail].events++;
                 if (l.type === 'error') userMap[l.userEmail].errors++;
                 if (l.tool) { const k = toolActionLabel(l); userMap[l.userEmail].tools[k] = (userMap[l.userEmail].tools[k]||0) + 1; }
@@ -69244,7 +69428,7 @@ Move-In</h3>
                             return `<tr style="${i%2?'background:#f8fafc;':''}border-bottom:1px solid #f1f5f9;">
                                 <td style="padding:10px 16px;">
                                     <div style="font-weight:600;color:#1e293b;">${escHtml(u.name)}</div>
-                                    <div style="font-size:11px;color:#94a3b8;">${escHtml(u.email)}</div>
+                                    ${u.name !== u.email ? `<div style="font-size:11px;color:#94a3b8;">${escHtml(u.email)}</div>` : ''}
                                 </td>
                                 <td style="padding:10px 16px;color:#64748b;">${team !== '—' ? `<span style="padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:#ede9fe;color:#5b21b6;">${escHtml(team)}</span>` : '—'}</td>
                                 <td style="padding:10px 16px;text-align:center;font-weight:600;color:#2563eb;">${u.events}</td>
