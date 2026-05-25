@@ -10662,7 +10662,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1377</span>
+                <span id="appVersion">v1.0.1378</span>
             </a>
         </div>
 
@@ -11325,6 +11325,22 @@
                         style="padding:7px 14px;font-size:13px;color:#ef4444;border-color:#fca5a5;margin-bottom:6px;margin-left:6px;">
                         <i class="fas fa-trash"></i> Clear
                     </button>
+                </div>
+
+                <!-- Global date range filter (shared across all sub-views) -->
+                <div style="display:flex;gap:10px;align-items:center;margin-bottom:20px;flex-wrap:wrap;padding:12px 16px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;">
+                    <i class="fas fa-calendar-alt" style="color:#64748b;font-size:14px;"></i>
+                    <label for="logsDateFrom" style="font-size:13px;color:#475569;font-weight:600;white-space:nowrap;">From</label>
+                    <input type="date" id="logsDateFrom" onchange="onLogsDateChange()"
+                        style="padding:7px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;background:white;outline:none;">
+                    <label for="logsDateTo" style="font-size:13px;color:#475569;font-weight:600;white-space:nowrap;">To</label>
+                    <input type="date" id="logsDateTo" onchange="onLogsDateChange()"
+                        style="padding:7px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;background:white;outline:none;">
+                    <button onclick="clearLogsDateRange()" id="logsDateClear"
+                        style="display:none;padding:7px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;color:#64748b;background:white;cursor:pointer;">
+                        <i class="fas fa-times"></i> Clear
+                    </button>
+                    <span id="logsDateRangeLabel" style="font-size:12px;color:#94a3b8;margin-left:4px;"></span>
                 </div>
 
                 <!-- Sub-view containers (filled by JS) -->
@@ -68108,6 +68124,18 @@ Move-In</h3>
                 'googleapis.com':            { tool: 'Google APIs',                    category: 'Others' },
             };
 
+            // Tools that are generic API proxies — enrich their action with the last clicked feature name
+            const GENERIC_PROXY_TOOLS = new Set(['Monday.com', 'Synology NAS', 'Google Chat Admin']);
+
+            // Returns a display key combining tool + action for richer labelling
+            function toolActionLabel(l) {
+                const a = (l.action || '').trim();
+                const skip = new Set(['fetch', 'query', 'mutation', 'invoked', '']);
+                if (!a || skip.has(a.toLowerCase())) return l.tool || '';
+                const pretty = a.replace(/_/g, ' ').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).substring(0, 50);
+                return (l.tool || '') + ' — ' + pretty;
+            }
+
             // ── Shared context trackers for cross-promise error attribution
             window._activeFetches   = new Map(); // reqId → { tool, category, endpoint, action, startTs }
             window._lastClickedTool = null;       // { tool, category, action, ts }
@@ -68232,12 +68260,19 @@ Move-In</h3>
                 const trackMeta = meta || { tool: endpoint, category: 'API' };
                 window._activeFetches.set(reqId, { ...trackMeta, endpoint, action, startTs: t0 });
 
+                // For generic proxy tools, enrich action with the last-clicked feature name
+                function resolvedAction() {
+                    if (!GENERIC_PROXY_TOOLS.has(meta.tool)) return action;
+                    const last = window._lastClickedTool;
+                    if (last && (Date.now() - last.ts) < 30000 && last.tool && last.tool !== meta.tool) return last.tool;
+                    return action;
+                }
                 try {
                     const resp = await _origFetch.apply(this, arguments);
                     window._activeFetches.delete(reqId);
                     if (meta) {
                         addLog({ ts: new Date().toISOString(), type: resp.ok ? 'api' : 'error',
-                            tool: meta.tool, category: meta.category, action,
+                            tool: meta.tool, category: meta.category, action: resolvedAction(),
                             status: resp.ok ? 'success' : 'error',
                             details: `HTTP ${resp.status}${resp.ok ? '' : ' ' + resp.statusText}`,
                             duration: Date.now() - t0 });
@@ -68247,7 +68282,7 @@ Move-In</h3>
                     window._activeFetches.delete(reqId);
                     if (meta) {
                         addLog({ ts: new Date().toISOString(), type: 'error',
-                            tool: meta.tool, category: meta.category, action,
+                            tool: meta.tool, category: meta.category, action: resolvedAction(),
                             status: 'error', details: err.message, duration: Date.now() - t0 });
                     }
                     throw err;
@@ -68416,6 +68451,31 @@ Move-In</h3>
             renderLogsPanel();
         }
 
+        function onLogsDateChange() {
+            const from = document.getElementById('logsDateFrom')?.value || '';
+            const to   = document.getElementById('logsDateTo')?.value   || '';
+            const btn  = document.getElementById('logsDateClear');
+            const lbl  = document.getElementById('logsDateRangeLabel');
+            if (btn) btn.style.display = (from || to) ? 'inline-block' : 'none';
+            if (lbl) lbl.textContent = (from && to) ? `${from} → ${to}` : (from ? `From ${from}` : (to ? `Until ${to}` : ''));
+            renderLogsPanel();
+        }
+
+        function clearLogsDateRange() {
+            const f = document.getElementById('logsDateFrom');
+            const t = document.getElementById('logsDateTo');
+            if (f) f.value = '';
+            if (t) t.value = '';
+            onLogsDateChange();
+        }
+
+        function getLogsDateRange() {
+            return {
+                from: document.getElementById('logsDateFrom')?.value || '',
+                to:   document.getElementById('logsDateTo')?.value   || '',
+            };
+        }
+
         function renderLogsPanel() {
             // Update data-source badge
             const badge = document.getElementById('logsDataSourceBadge');
@@ -68436,14 +68496,20 @@ Move-In</h3>
         function renderLogsOverview() {
             const el = document.getElementById('logsViewOverview');
             if (!el) return;
-            const logs = getEffectiveLogs();
+            const { from: dateFrom, to: dateTo } = getLogsDateRange();
+            const logs = getEffectiveLogs().filter(l => {
+                const day = (l.ts || '').slice(0, 10);
+                if (dateFrom && day < dateFrom) return false;
+                if (dateTo   && day > dateTo)   return false;
+                return true;
+            });
 
             const total      = logs.length;
             const errors     = logs.filter(l => l.type === 'error').length;
             const errRate    = total ? Math.round(errors / total * 100) : 0;
             const uniqueUsers = new Set(logs.map(l => l.userEmail).filter(e => e && e !== 'unknown')).size;
             const toolCounts = {};
-            logs.forEach(l => { if (l.tool && l.type !== 'error') toolCounts[l.tool] = (toolCounts[l.tool] || 0) + 1; });
+            logs.forEach(l => { if (l.tool && l.type !== 'error') { const k = toolActionLabel(l); toolCounts[k] = (toolCounts[k] || 0) + 1; } });
             const topTool    = Object.entries(toolCounts).sort((a,b) => b[1]-a[1])[0];
 
             const userMap = {};
@@ -68452,7 +68518,7 @@ Move-In</h3>
                 if (!userMap[l.userEmail]) userMap[l.userEmail] = { name: l.userName||l.userEmail, email: l.userEmail, events: 0, errors: 0, tools: {}, lastTs: '' };
                 userMap[l.userEmail].events++;
                 if (l.type === 'error') userMap[l.userEmail].errors++;
-                if (l.tool) userMap[l.userEmail].tools[l.tool] = (userMap[l.userEmail].tools[l.tool]||0) + 1;
+                if (l.tool) { const k = toolActionLabel(l); userMap[l.userEmail].tools[k] = (userMap[l.userEmail].tools[k]||0) + 1; }
                 if (!userMap[l.userEmail].lastTs || l.ts > userMap[l.userEmail].lastTs) userMap[l.userEmail].lastTs = l.ts;
             });
 
@@ -68466,7 +68532,7 @@ Move-In</h3>
                 if (!teamMap[bucket]) teamMap[bucket] = { name: bucket, definedMembers: 0, events: 0, errors: 0, tools: {}, activeUsers: new Set(), lastTs: '' };
                 teamMap[bucket].events++;
                 if (l.type === 'error') teamMap[bucket].errors++;
-                if (l.tool) teamMap[bucket].tools[l.tool] = (teamMap[bucket].tools[l.tool]||0) + 1;
+                if (l.tool) { const k = toolActionLabel(l); teamMap[bucket].tools[k] = (teamMap[bucket].tools[k]||0) + 1; }
                 teamMap[bucket].activeUsers.add(l.userEmail);
                 if (!teamMap[bucket].lastTs || l.ts > teamMap[bucket].lastTs) teamMap[bucket].lastTs = l.ts;
             });
@@ -68587,23 +68653,6 @@ Move-In</h3>
                             <option value="team">Group by Team</option>
                             <option value="tool">Group by Tool</option>
                         </select>
-                    </div>
-                    <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;">
-                        <div style="display:flex;align-items:center;gap:8px;">
-                            <label style="font-size:13px;color:#475569;font-weight:600;white-space:nowrap;">From</label>
-                            <input type="date" id="logsDateFrom" onchange="renderLogsEventLog()"
-                                style="${inputStyle}cursor:default;">
-                        </div>
-                        <div style="display:flex;align-items:center;gap:8px;">
-                            <label style="font-size:13px;color:#475569;font-weight:600;white-space:nowrap;">To</label>
-                            <input type="date" id="logsDateTo" onchange="renderLogsEventLog()"
-                                style="${inputStyle}cursor:default;">
-                        </div>
-                        <button onclick="document.getElementById('logsDateFrom').value='';document.getElementById('logsDateTo').value='';renderLogsEventLog();"
-                            id="logsDateClear"
-                            style="display:none;padding:7px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;color:#64748b;background:white;cursor:pointer;">
-                            <i class="fas fa-times"></i> Clear dates
-                        </button>
                         <span id="logsMatchCount" style="font-size:12px;color:#94a3b8;margin-left:auto;"></span>
                     </div>
                     <div id="logsTableContainer"></div>`;
@@ -68617,10 +68666,6 @@ Move-In</h3>
             const search     = (document.getElementById('logsSearchInput')?.value || '').toLowerCase();
             const dateFrom   = document.getElementById('logsDateFrom')?.value    || '';  // YYYY-MM-DD
             const dateTo     = document.getElementById('logsDateTo')?.value      || '';  // YYYY-MM-DD
-
-            // Show/hide clear button
-            const clearBtn = document.getElementById('logsDateClear');
-            if (clearBtn) clearBtn.style.display = (dateFrom || dateTo) ? 'inline-block' : 'none';
 
             let rows = allLogs.filter(l => {
                 if (typeFilter !== 'all' && l.type !== typeFilter) return false;
