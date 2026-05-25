@@ -10787,7 +10787,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1423</span>
+                <span id="appVersion">v1.0.1425</span>
             </a>
         </div>
 
@@ -29770,7 +29770,7 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
         }
 
         async function mondayApiCall(query, variables = null) {
-            const userKey = document.getElementById('adminMondayApiKey').value.trim();
+            const userKey = document.getElementById('adminMondayApiKey')?.value.trim() || localStorage.getItem('mondayUserApiKey') || '';
             const payload = {
                 action: 'get_monday_data',
                 query: query,
@@ -29818,6 +29818,9 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
 
                 renderMondayBoardsList();
                 adminLog(`✅ Found ${adminMondayBoards.length} boards. (Filtered out ${filteredCount} subitem boards)`);
+                // Persist custom API key so the user doesn't need to re-enter it after a page reload
+                const enteredKey = document.getElementById('adminMondayApiKey')?.value.trim();
+                if (enteredKey) localStorage.setItem('mondayUserApiKey', enteredKey);
             } catch (err) {
                 adminLog(`❌ Error fetching Monday boards: ${err.message}`, 'error');
             }
@@ -30229,10 +30232,15 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                     if (typeof refreshGa4Recommendations === 'function') refreshGa4Recommendations();
                     if (typeof refreshAdsRecommendations === 'function') refreshAdsRecommendations();
                 } else {
-                    console.log("Cached Google token expired.");
+                    console.log("Cached Google token expired — attempting silent refresh.");
                     localStorage.removeItem('googleAccessToken');
                     localStorage.removeItem('googleUserEmail');
                     localStorage.removeItem('googleAuthTime');
+                    // Try to silently reacquire token using the existing browser Google session.
+                    // If the user's session is still active this succeeds without any popup.
+                    // If it fails the callback simply won't receive an access_token and the user
+                    // will be prompted to reconnect manually when they visit the relevant card.
+                    setTimeout(() => { if (tokenClient) tokenClient.requestAccessToken({ prompt: '' }); }, 500);
                 }
             }
         }
@@ -30240,6 +30248,12 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
         // Ensure restore happens after GSI script is ready
         window.addEventListener('load', () => {
             setTimeout(restoreGoogleAuth, 1000);
+            // Restore Monday.com API key if user previously saved one
+            const savedMondayKey = localStorage.getItem('mondayUserApiKey');
+            if (savedMondayKey) {
+                const el = document.getElementById('adminMondayApiKey');
+                if (el) el.value = savedMondayKey;
+            }
         });
 
         async function fetchGscProperties() {
