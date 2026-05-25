@@ -10662,7 +10662,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1394</span>
+                <span id="appVersion">v1.0.1395</span>
             </a>
         </div>
 
@@ -22634,6 +22634,11 @@ Return ONLY a valid JSON array (no markdown, no extra text) of the 20–25 most 
                 cockpitState.algoNewsCache = updates;
                 cockpitState.algoNewsFetchedAt = Date.now();
                 renderAlgorithmNews(updates);
+                // Background URL validation — re-render silently once done
+                validateNewsUrlsWithDFS(updates).then(validated => {
+                    cockpitState.algoNewsCache = validated;
+                    renderAlgorithmNews(validated);
+                }).catch(() => {});
             } catch (e) {
                 console.error('Algorithm news error:', e);
                 const errHtml = `<div style="padding:20px;text-align:center;color:#ef4444;">
@@ -22788,6 +22793,56 @@ Return ONLY a valid JSON array (no markdown, no extra text) of the 20–25 most 
             });
             html += '</div>';
             targetEl.innerHTML = html;
+        }
+
+        // ── SEO News: DataForSEO background URL validation ────────────────────────
+        async function validateNewsUrlsWithDFS(updates) {
+            const ENDPOINT = 'https://ak9qsl9wgi.execute-api.ap-southeast-1.amazonaws.com/dataforseoCrawler';
+            const urlItems = updates.filter(u => u.url);
+            if (!urlItems.length) return updates;
+
+            // Initiate all crawls in parallel
+            const pending = (await Promise.all(urlItems.map(async u => {
+                try {
+                    const r = await fetch(ENDPOINT, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'initiate', url: u.url, max_pages: 1, max_depth: 1 })
+                    });
+                    const d = await r.json();
+                    const b = typeof d.body === 'string' ? JSON.parse(d.body) : (d.body || d);
+                    const taskId = b.tasks?.[0]?.id;
+                    return taskId ? { url: u.url, taskId } : null;
+                } catch { return null; }
+            }))).filter(Boolean);
+
+            // Poll until all resolved (max 15 × 2s)
+            const results = {}; // url → true (valid) | false (invalid)
+            for (let attempt = 0; attempt < 15 && pending.length; attempt++) {
+                await new Promise(r => setTimeout(r, 2000));
+                const resolved = new Set();
+                await Promise.all(pending.map(async ({ url, taskId }) => {
+                    try {
+                        const r = await fetch(ENDPOINT, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ action: 'get_results', task_id: taskId, limit: 1 })
+                        });
+                        const d = await r.json();
+                        const b = typeof d.body === 'string' ? JSON.parse(d.body) : (d.body || d);
+                        const item = b.tasks?.[0]?.result?.[0]?.items?.[0];
+                        if (item) {
+                            results[url] = item.status_code === 200 && !item.checks?.is_4xx_code && !item.checks?.is_broken;
+                            resolved.add(url);
+                        }
+                    } catch { resolved.add(url); results[url] = true; }
+                }));
+                pending.splice(0, pending.length, ...pending.filter(p => !resolved.has(p.url)));
+            }
+
+            // Strip URLs confirmed as 4xx/broken; give benefit of doubt to unresolved ones
+            return updates.map(u => ({
+                ...u,
+                url: u.url && results[u.url] === false ? '' : (u.url || '')
+            }));
         }
 
         // ── SEO News: filter panel ────────────────────────────────────────────────
