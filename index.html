@@ -21183,6 +21183,8 @@
 
         // ── SEO Campaign Trajectory Tracker ──────────────────────────────────────
         async function mondayCockpitQuery(query) {
+            // Tag this fetch so the log interceptor labels it as a Cockpit call
+            window._lastClickedTool = { tool: 'Cockpit', category: 'Admin', action: 'Cockpit', ts: Date.now() };
             // Lambda has the Monday API key in its env vars — just send the query
             const resp = await fetch(MONDAY_LAMBDA_URL, {
                 method: 'POST',
@@ -68827,7 +68829,8 @@ Move-In</h3>
             renderLogsPanel();        // show empty cloud state / loading badge right away
 
             const PAGE_SIZE = 500;
-            let before = null;        // cursor: fetch logs older than this ts
+            let before    = null;     // cursor: fetch logs with ts < before
+            const seenIds = new Set(); // dedup guard: stops if Lambda ignores 'before'
 
             try {
                 while (true) {
@@ -68844,11 +68847,17 @@ Move-In</h3>
                     const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : raw;
                     const page = data.logs || [];
 
-                    _cloudLogs = _cloudLogs.concat(page);
+                    // Deduplicate — if all entries are already known, the Lambda isn't
+                    // paginating (old deployment without 'before' support), so stop.
+                    const newItems = page.filter(l => !seenIds.has(l.id || l.ts + (l.userEmail || '')));
+                    if (!newItems.length) break;
+                    newItems.forEach(l => seenIds.add(l.id || l.ts + (l.userEmail || '')));
+
+                    _cloudLogs = _cloudLogs.concat(newItems);
                     renderLogsPanel(); // progressive render after each batch
 
-                    if (!data.has_more || page.length < PAGE_SIZE) break;
-                    before = page[page.length - 1].ts; // oldest ts in this page → next cursor
+                    if (page.length < PAGE_SIZE) break; // last page
+                    before = page[page.length - 1].ts;  // oldest ts → next cursor
                 }
             } catch (e) {
                 console.warn('Could not fetch logs from cloud:', e.message);
