@@ -2489,7 +2489,6 @@
                                                 ...on StatusValue{label}
                                                 ...on DateValue{date}
                                                 ...on TimelineValue{from to}
-                                                ...on PersonsValue{persons_and_teams{id kind}}
                                             }
                                         } 
                                     } 
@@ -2556,7 +2555,6 @@
                                 daysOverdue: diffDays,
                                 people: assigned?.text ? assigned.text.split(/, | & | and /).map(p => p.trim()) : ['Unassigned'],
                                 peopleColumnId: assigned?.id || '',
-                                personIds: assigned?.persons_and_teams || [],
                                 csManagers: masterData.csm,
                                 masterStatus: masterData.status,
                                 masterCsmStatus: masterData.csmStatus,
@@ -4100,15 +4098,19 @@
             for (let i = 0; i < items.length; i += BATCH) {
                 await Promise.all(items.slice(i, i + BATCH).map(async item => {
                     try {
+                        const existingIds = item.people
+                            .filter(name => name !== 'Unassigned')
+                            .map(name => state.mondayUsers.find(u => u.name === name)?.id)
+                            .filter(Boolean)
+                            .map(id => parseInt(id));
+
                         let finalIds;
                         if (mode === 'replace') {
                             finalIds = newUserIds;
                         } else if (mode === 'add') {
-                            const existing = (item.personIds || []).map(p => parseInt(p.id));
-                            finalIds = [...new Set([...existing, ...newUserIds])];
+                            finalIds = [...new Set([...existingIds, ...newUserIds])];
                         } else {
-                            const existing = (item.personIds || []).map(p => parseInt(p.id));
-                            finalIds = existing.filter(id => !newUserIds.includes(id));
+                            finalIds = existingIds.filter(id => !newUserIds.includes(id));
                         }
 
                         const value = JSON.stringify({ personsAndTeams: finalIds.map(id => ({ id, kind: 'person' })) });
@@ -4118,7 +4120,6 @@
                         );
 
                         // Update local state
-                        item.personIds = finalIds.map(id => ({ id: String(id), kind: 'person' }));
                         const newNames = finalIds.map(id => state.mondayUsers.find(u => parseInt(u.id) === id)?.name).filter(Boolean);
                         item.people = newNames.length ? newNames : ['Unassigned'];
                     } catch(e) { failed++; }
