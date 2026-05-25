@@ -10787,7 +10787,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1438</span>
+                <span id="appVersion">v1.0.1440</span>
             </a>
         </div>
 
@@ -22355,18 +22355,32 @@
 
         function _holisticNorm(str) {
             return (str || '').toLowerCase()
-                .replace(/https?:\/\/\S*/g, '')   // remove full URLs (not just protocol)
+                .replace(/https?:\/\/\S*/g, '')   // remove full URLs
                 .replace(/\bwww\.\S*/g, '')        // remove bare www.domain patterns
+                .replace(/sc-domain:/g, '')        // strip GSC sc-domain: prefix, keep domain text
                 .replace(/[^a-z0-9\s]/g, ' ')
                 .replace(/\s+/g, ' ')
                 .trim();
         }
 
+        // Words that appear in many names and signal nothing about identity
+        const _HOLISTIC_STOP = new Set([
+            'com','net','org','gov','edu','pte','ltd','inc','llc','co',
+            'domain','the','and','for','www',
+            'seo','sem','sma',           // service-type suffixes in Monday names
+        ]);
+
         function _holisticMatchScore(a, b) {
-            const wa = _holisticNorm(a).split(/\s+/).filter(w => w.length > 2);
-            const wb = _holisticNorm(b).split(/\s+/).filter(w => w.length > 2);
+            const tokens = s => _holisticNorm(s).split(/\s+/).filter(w => w.length > 2 && !_HOLISTIC_STOP.has(w));
+            const wa = tokens(a), wb = tokens(b);
             if (!wa.length || !wb.length) return 0;
-            const hits = wa.filter(w => wb.some(bw => bw.includes(w) || w.includes(bw))).length;
+            // Only allow substring containment when the shorter word is ≥5 chars,
+            // preventing short words like "asia" (4) matching inside "asiarecs".
+            const hits = wa.filter(w => wb.some(bw =>
+                bw === w ||
+                (w.length >= 5 && bw.includes(w)) ||
+                (bw.length >= 5 && w.includes(bw))
+            )).length;
             return hits / Math.max(wa.length, wb.length);
         }
 
@@ -67326,6 +67340,7 @@ Move-In</h3>
             </div>
             <div style="padding:14px 24px;border-top:1px solid #e2e8f0;display:flex;gap:10px;justify-content:flex-end;background:#f8fafc;border-radius:0 0 14px 14px;">
                 <button onclick="autoDetectMappings()" style="padding:7px 16px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;cursor:pointer;font-size:0.83rem;color:#475569;font-weight:500;"><i class="fas fa-magic"></i> Auto-detect</button>
+                <button onclick="if(confirm('Clear all saved mappings and re-run auto-detect?')){localStorage.removeItem('holisticMappings');openMappingModal();}" style="padding:7px 16px;border:1px solid #fca5a5;border-radius:7px;background:#fff;cursor:pointer;font-size:0.83rem;color:#dc2626;font-weight:500;"><i class="fas fa-trash"></i> Clear All</button>
                 <button onclick="closeMappingModal()" style="padding:7px 16px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;cursor:pointer;font-size:0.83rem;color:#475569;font-weight:500;">Cancel</button>
                 <button onclick="saveHolisticMappings()" style="padding:7px 18px;border:none;border-radius:7px;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;cursor:pointer;font-size:0.83rem;font-weight:700;"><i class="fas fa-save"></i> Save Mappings</button>
             </div>
