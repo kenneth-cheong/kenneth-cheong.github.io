@@ -7,7 +7,9 @@
     <title>Campaign Auditor | Overdue Crawler</title>
     <link rel="icon" href="/MO_Logo2.png" sizes="32x32">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js"></script>
     <style>
         :root {
             --bg: #0f172a;
@@ -1865,6 +1867,10 @@
         <div class="brand"><span class="logo-icon">🔍</span>
             <h1>Campaign Auditor</h1>
         </div>
+        <button id="tour-launch-btn" onclick="openTourMenu()" title="Take a guided tour"
+            style="background: rgba(56, 189, 248, 0.1); color: var(--primary); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; padding: 8px 14px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+            <i class="fas fa-graduation-cap"></i> Tour Guide
+        </button>
     </header>
     <div id="settings-backdrop" class="settings-backdrop" onclick="toggleSettings()"></div>
     <div class="main-wrapper">
@@ -4647,6 +4653,797 @@ ${JSON.stringify(contextData)}`;
         </div>
         <div class="summary-modal-body" id="summary-modal-body"></div>
     </div>
+
+    <!-- ===================== TOUR GUIDE SYSTEM ===================== -->
+    <style>
+        .driver-popover {
+            background: rgba(30, 41, 59, 0.98) !important;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(56, 189, 248, 0.3) !important;
+            border-radius: 12px !important;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5) !important;
+            color: #f8fafc !important;
+            max-width: 380px !important;
+        }
+        .driver-popover-title {
+            color: #38bdf8 !important;
+            font-weight: 700 !important;
+            font-size: 15px !important;
+        }
+        .driver-popover-description {
+            color: #f8fafc !important;
+            line-height: 1.6 !important;
+            font-size: 13px !important;
+        }
+        .driver-popover-footer button {
+            background: #38bdf8 !important;
+            color: #0f172a !important;
+            border: none !important;
+            padding: 6px 14px !important;
+            border-radius: 6px !important;
+            font-weight: 600 !important;
+            font-size: 12px !important;
+            text-shadow: none !important;
+        }
+        .driver-popover-footer button:hover {
+            background: #0ea5e9 !important;
+        }
+        .driver-popover-prev-btn {
+            background: transparent !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            color: #f8fafc !important;
+        }
+        .driver-popover-close-btn {
+            color: #94a3b8 !important;
+            font-size: 18px !important;
+        }
+        .driver-popover-close-btn:hover {
+            color: #f8fafc !important;
+        }
+        .driver-popover-progress-text {
+            color: #94a3b8 !important;
+            font-size: 11px !important;
+        }
+        .driver-popover-arrow-side-bottom.driver-popover-arrow {
+            border-bottom-color: rgba(30, 41, 59, 0.98) !important;
+        }
+        .driver-popover-arrow-side-top.driver-popover-arrow {
+            border-top-color: rgba(30, 41, 59, 0.98) !important;
+        }
+        .driver-popover-arrow-side-left.driver-popover-arrow {
+            border-left-color: rgba(30, 41, 59, 0.98) !important;
+        }
+        .driver-popover-arrow-side-right.driver-popover-arrow {
+            border-right-color: rgba(30, 41, 59, 0.98) !important;
+        }
+        #tour-launch-btn:hover {
+            background: rgba(56, 189, 248, 0.2) !important;
+            border-color: var(--primary) !important;
+        }
+        .tour-menu-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 9999;
+            display: none;
+        }
+        .tour-menu-backdrop.show { display: block; }
+        .tour-menu {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(30, 41, 59, 0.98);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 16px;
+            padding: 28px;
+            z-index: 10000;
+            min-width: 360px;
+            max-width: 90vw;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+            display: none;
+        }
+        .tour-menu.show { display: block; }
+        .tour-menu h3 {
+            color: #38bdf8;
+            margin-bottom: 8px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .tour-menu p {
+            color: var(--muted);
+            font-size: 12px;
+            margin-bottom: 20px;
+        }
+        .tour-option {
+            background: rgba(56, 189, 248, 0.05);
+            border: 1px solid rgba(56, 189, 248, 0.15);
+            border-radius: 10px;
+            padding: 14px 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 8px;
+            text-align: left;
+            width: 100%;
+            color: var(--text);
+        }
+        .tour-option:hover {
+            background: rgba(56, 189, 248, 0.15);
+            border-color: var(--primary);
+            transform: translateX(4px);
+        }
+        .tour-option-icon {
+            font-size: 18px;
+            color: var(--primary);
+            width: 24px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+        .tour-option-content {
+            flex: 1;
+        }
+        .tour-option-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 2px;
+        }
+        .tour-option-desc {
+            font-size: 11px;
+            color: var(--muted);
+        }
+        .tour-menu-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: none;
+            border: none;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px;
+        }
+        .tour-menu-close:hover { color: var(--text); }
+    </style>
+
+    <!-- Tour Menu Modal -->
+    <div id="tour-menu-backdrop" class="tour-menu-backdrop" onclick="closeTourMenu()"></div>
+    <div id="tour-menu" class="tour-menu">
+        <button class="tour-menu-close" onclick="closeTourMenu()"><i class="fas fa-times"></i></button>
+        <h3><i class="fas fa-graduation-cap"></i> Guided Tours</h3>
+        <p>Choose a tour to learn about the Campaign Auditor's features. Each tour explains key terms and walks you through the interface.</p>
+
+        <button class="tour-option" onclick="startTour('main')">
+            <div class="tour-option-icon"><i class="fas fa-route"></i></div>
+            <div class="tour-option-content">
+                <div class="tour-option-title">Complete Tour</div>
+                <div class="tour-option-desc">Full walkthrough with 35+ steps covering every feature & term</div>
+            </div>
+        </button>
+
+        <button class="tour-option" onclick="startTour('quick')">
+            <div class="tour-option-icon"><i class="fas fa-bolt"></i></div>
+            <div class="tour-option-content">
+                <div class="tour-option-title">Quick Tour</div>
+                <div class="tour-option-desc">Essential features only (6 steps, ~2 minutes)</div>
+            </div>
+        </button>
+
+        <button class="tour-option" onclick="startTour('glossary')">
+            <div class="tour-option-icon"><i class="fas fa-book"></i></div>
+            <div class="tour-option-content">
+                <div class="tour-option-title">Terms & Definitions</div>
+                <div class="tour-option-desc">Learn what Overdue, Soon, Priority Score, etc. mean</div>
+            </div>
+        </button>
+
+        <button class="tour-option" onclick="startTour('filtering')">
+            <div class="tour-option-icon"><i class="fas fa-filter"></i></div>
+            <div class="tour-option-content">
+                <div class="tour-option-title">Filtering & Sorting</div>
+                <div class="tour-option-desc">Search, filter by person/status, sort options</div>
+            </div>
+        </button>
+
+        <button class="tour-option" onclick="startTour('views')">
+            <div class="tour-option-icon"><i class="fas fa-eye"></i></div>
+            <div class="tour-option-content">
+                <div class="tour-option-title">View Modes</div>
+                <div class="tour-option-desc">Manager, Auditor, and Timeliness views explained</div>
+            </div>
+        </button>
+
+        <button class="tour-option" onclick="startTour('chat')">
+            <div class="tour-option-icon"><i class="fas fa-robot"></i></div>
+            <div class="tour-option-content">
+                <div class="tour-option-title">AI Chat Assistant</div>
+                <div class="tour-option-desc">How to use the AI analyst for campaign insights</div>
+            </div>
+        </button>
+    </div>
+
+    <script>
+        // ===================== TOUR GUIDE LOGIC =====================
+        function openTourMenu() {
+            document.getElementById('tour-menu').classList.add('show');
+            document.getElementById('tour-menu-backdrop').classList.add('show');
+        }
+
+        function closeTourMenu() {
+            document.getElementById('tour-menu').classList.remove('show');
+            document.getElementById('tour-menu-backdrop').classList.remove('show');
+        }
+
+        // Helper to safely get the driver constructor across UMD/IIFE builds
+        function getDriver() {
+            // Driver.js v1.3.x IIFE build exposes constructor at window.driver.js
+            if (window.driver && typeof window.driver.js === 'function') return window.driver.js;
+            if (window.driver && typeof window.driver.driver === 'function') return window.driver.driver;
+            if (typeof window.driver === 'function') return window.driver;
+            return null;
+        }
+
+        // Helper to check if an element exists & is visible
+        function elementVisible(selector) {
+            const el = document.querySelector(selector);
+            if (!el) return false;
+            const style = window.getComputedStyle(el);
+            return style.display !== 'none' && style.visibility !== 'hidden';
+        }
+
+        // Filter steps based on which elements are currently visible
+        function filterAvailableSteps(steps) {
+            return steps.filter(s => !s.element || elementVisible(s.element));
+        }
+
+        function startTour(tourName) {
+            closeTourMenu();
+            const driverFn = getDriver();
+            if (!driverFn) {
+                alert('Tour library failed to load. Please refresh the page.');
+                return;
+            }
+
+            const tourSteps = tourName === 'main' ? getMainTourSteps()
+                : tourName === 'quick' ? getQuickTourSteps()
+                : tourName === 'glossary' ? getGlossarySteps()
+                : tourName === 'filtering' ? getFilteringSteps()
+                : tourName === 'views' ? getViewsSteps()
+                : tourName === 'chat' ? getChatSteps()
+                : [];
+
+            const available = filterAvailableSteps(tourSteps);
+            if (available.length === 0) {
+                alert('No tour steps available for the current view. Try connecting and running an audit first!');
+                return;
+            }
+
+            const drv = driverFn({
+                showProgress: true,
+                showButtons: ['next', 'previous', 'close'],
+                progressText: '{{current}} of {{total}}',
+                nextBtnText: 'Next →',
+                prevBtnText: '← Previous',
+                doneBtnText: 'Finish ✓',
+                allowClose: true,
+                overlayOpacity: 0.65,
+                steps: available
+            });
+            drv.drive();
+        }
+
+        // ----- TOUR STEP DEFINITIONS -----
+
+        function getGlossarySteps() {
+            return [
+                {
+                    popover: {
+                        title: '📚 Campaign Auditor - Key Terms',
+                        description: `Welcome to the glossary! Let's go through every important term you'll encounter in this tool.`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '🚨 Overdue',
+                        description: `<strong>Definition:</strong> A campaign where the deadline date is <em>today or in the past</em>.<br><br>
+                        <strong>Example:</strong> If today is May 25 and a campaign was due May 20, it is <strong>5 days overdue</strong>.<br><br>
+                        <strong>Visual indicator:</strong> <span style="color:#ef4444;font-weight:700">Red</span> badge`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '⚠️ Soon',
+                        description: `<strong>Definition:</strong> A campaign with a deadline in the <em>next 1-7 days</em>.<br><br>
+                        <strong>Example:</strong> If today is May 25, campaigns due May 26 through May 31 are "Soon".<br><br>
+                        <strong>Visual indicator:</strong> <span style="color:#f59e0b;font-weight:700">Yellow/Orange</span> badge<br><br>
+                        These are this week's priorities.`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '📅 2 Weeks',
+                        description: `<strong>Definition:</strong> A campaign with a deadline <em>8-14 days from today</em>.<br><br>
+                        <strong>Example:</strong> If today is May 25, campaigns due June 2 through June 8 are "2 Weeks".<br><br>
+                        <strong>Visual indicator:</strong> <span style="color:#38bdf8;font-weight:700">Blue</span> badge<br><br>
+                        These give you planning time but should still be monitored.`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '⏰ Days Overdue',
+                        description: `<strong>Definition:</strong> A number representing how late (or early) a campaign is.<br><br>
+                        <strong>Calculation:</strong> Today's Date - Deadline Date<br><br>
+                        <strong>How to read it:</strong><br>
+                        • <span style="color:#ef4444">Positive (e.g., +5)</span> = 5 days LATE<br>
+                        • <span style="color:#10b981">Negative (e.g., -3)</span> = Due in 3 days<br>
+                        • <span style="color:#94a3b8">Zero (0)</span> = Due TODAY`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '🎯 Priority Score',
+                        description: `<strong>Definition:</strong> An auto-calculated urgency ranking for each campaign.<br><br>
+                        <strong>What boosts the score:</strong><br>
+                        • Days overdue (more = higher score)<br>
+                        • Status keywords: "stuck", "at risk", "blocked", "critical", "delayed"<br>
+                        • Tech summary urgency markers: "urgent", "blocked", "escalat", "behind"<br><br>
+                        <strong>Tiers:</strong> Critical (100+), High (50+), Medium (20+), Low`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '👥 CS Manager (CSM)',
+                        description: `<strong>Definition:</strong> Customer Success Manager - the person responsible for the campaign's success.<br><br>
+                        <strong>Source:</strong> Pulled from the Master Board (ID: 2845615047) by matching campaign names.<br><br>
+                        <strong>Note:</strong> Different from the "Person" assigned to individual tasks. CS Manager owns the overall campaign relationship.`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '📋 CSM Status',
+                        description: `<strong>Definition:</strong> The overall workflow stage of a campaign from the CS Manager's perspective.<br><br>
+                        <strong>Examples:</strong> "In Progress", "Planning", "On Hold", "Awaiting Client"<br><br>
+                        <strong>How it differs from Task Status:</strong><br>
+                        • CSM Status = Whole campaign stage<br>
+                        • Task Status = Individual item completion`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '🗂️ Master Board',
+                        description: `<strong>Definition:</strong> The central reference board (ID: <code>2845615047</code>) containing campaign metadata.<br><br>
+                        <strong>What it provides:</strong><br>
+                        • CS Manager assignments<br>
+                        • CSM Status labels<br>
+                        • Tech Summaries (notes & blockers)<br>
+                        • Timeline information<br><br>
+                        Campaign names are matched between your audited boards and the Master Board to enrich data.`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '📝 Tech Summary',
+                        description: `<strong>Definition:</strong> A text field on the Master Board containing technical notes about a campaign.<br><br>
+                        <strong>What it typically includes:</strong><br>
+                        • Implementation status<br>
+                        • Known blockers<br>
+                        • Client requirements<br>
+                        • Recent changes<br><br>
+                        The tool scans these summaries for urgency keywords to boost the Priority Score.`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '📊 Completion Delta',
+                        description: `<strong>Definition:</strong> The difference between when a campaign was completed and its original deadline. Used in the Timeliness view.<br><br>
+                        <strong>Calculation:</strong> Completion Date - Deadline Date<br><br>
+                        <strong>How to read it:</strong><br>
+                        • <span style="color:#10b981">Negative (-3 days)</span> = Finished 3 days EARLY ✓<br>
+                        • <span style="color:#ef4444">Positive (+5 days)</span> = Finished 5 days LATE ✗<br>
+                        • <span style="color:#94a3b8">Zero (0)</span> = Finished exactly on time`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '🎯 My Focus',
+                        description: `<strong>Definition:</strong> A personal filter mode that shows ONLY campaigns where you are listed as a Person or CS Manager.<br><br>
+                        <strong>How to use:</strong><br>
+                        1. Select your name from the "Select Me..." dropdown<br>
+                        2. Click the "My Focus" button<br>
+                        3. View your campaigns sorted by Priority Score<br><br>
+                        Perfect for daily standup prep!`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '🎉 Glossary Complete!',
+                        description: `You now know all the key terms. Try the <strong>Complete Tour</strong> to see these concepts in action, or jump right in and start using the tool!<br><br>
+                        You can always reopen this glossary by clicking <strong>Tour Guide</strong> in the header.`,
+                    }
+                }
+            ];
+        }
+
+        function getMainTourSteps() {
+            return [
+                {
+                    element: 'header',
+                    popover: {
+                        title: '👋 Welcome to Campaign Auditor',
+                        description: 'This tool audits Monday.com campaigns, tracking deadlines, assignments, and priorities. Let\'s walk through every feature!',
+                    }
+                },
+                {
+                    popover: {
+                        title: '📚 Key Terms First',
+                        description: `Quick reference for terms you'll encounter:<br><br>
+                        • <span style="color:#ef4444">Overdue</span> = Deadline has passed<br>
+                        • <span style="color:#f59e0b">Soon</span> = Due in 1-7 days<br>
+                        • <span style="color:#38bdf8">2 Weeks</span> = Due in 8-14 days<br>
+                        • <strong>Master Board</strong> = Central reference (ID 2845615047)<br>
+                        • <strong>CS Manager</strong> = Customer Success Manager<br><br>
+                        We'll explain each in detail as we go!`,
+                    }
+                },
+                {
+                    element: '#step-auth',
+                    popover: {
+                        title: '🔑 Step 1: Connect',
+                        description: 'Enter your Monday.com API v2 token to authenticate.',
+                    }
+                },
+                {
+                    element: '#api-key',
+                    popover: {
+                        title: '🔐 API Token',
+                        description: 'Paste your Monday.com API v2 token here (starts with "ey..."). Find it in your Monday.com developer settings.',
+                    }
+                },
+                {
+                    element: '.help-trigger-link',
+                    popover: {
+                        title: '❓ Need Help?',
+                        description: 'Click for a step-by-step visual guide to get your API token.',
+                    }
+                },
+                {
+                    element: '#step-folders',
+                    popover: {
+                        title: '📁 Step 2: Select Folders',
+                        description: 'Choose which Monday.com folders contain the campaign boards you want to audit.',
+                    }
+                },
+                {
+                    element: '#folder-list',
+                    popover: {
+                        title: '📂 Folder Grid',
+                        description: 'Each folder shows its board count and workspace. Common campaign folders are pre-selected.',
+                    }
+                },
+                {
+                    element: '#crawl-btn',
+                    popover: {
+                        title: '🚀 Start Audit',
+                        description: 'Click to scan all campaigns. The tool fetches data from up to 20 boards concurrently for speed.',
+                    }
+                },
+                {
+                    element: '.stat-grid',
+                    popover: {
+                        title: '📈 Quick Stats',
+                        description: `Shows campaign metrics:<br><br>
+                        • <span style="color:#ef4444">Overdue</span> = Deadline today or past<br>
+                        • <span style="color:#f59e0b">Soon</span> = Due in 1-7 days<br>
+                        • <span style="color:#38bdf8">2 Weeks</span> = Due in 8-14 days<br><br>
+                        Click any card to filter.`,
+                    }
+                },
+                {
+                    element: '[data-status="overdue"]',
+                    popover: {
+                        title: '🚨 Overdue Card',
+                        description: `<strong>Overdue</strong> = Deadline date is today or earlier.<br><br>
+                        <strong>Example:</strong> A campaign due May 20, viewed May 25 → 5 days overdue.`,
+                    }
+                },
+                {
+                    element: '[data-status="soon"]',
+                    popover: {
+                        title: '⚠️ Soon Card',
+                        description: `<strong>Soon</strong> = Due in the next 1-7 days.<br><br>
+                        <strong>Example:</strong> If today is May 25, campaigns due May 26-31 appear here.`,
+                    }
+                },
+                {
+                    element: '[data-status="2w"]',
+                    popover: {
+                        title: '📅 2 Weeks Card',
+                        description: `<strong>2 Weeks</strong> = Due in 8-14 days from today.<br><br>
+                        <strong>Example:</strong> If today is May 25, campaigns due June 2-8 appear here.`,
+                    }
+                },
+                {
+                    element: '#filter-text',
+                    popover: {
+                        title: '🔍 Search',
+                        description: 'Search across campaign names and board names. Case-insensitive, instant filtering.',
+                    }
+                },
+                {
+                    element: '#filter-csm-input',
+                    popover: {
+                        title: '👥 CS/PM Filter',
+                        description: `<strong>CS/PM</strong> = Customer Success Manager / Project Manager.<br><br>
+                        Filters by people assigned in Monday.com's "Person" column. Multi-select dropdown.`,
+                    }
+                },
+                {
+                    element: '#filter-csm-status-input',
+                    popover: {
+                        title: '📋 CSM Status Filter',
+                        description: `<strong>CSM Status</strong> = Overall campaign workflow stage from the master board (e.g., "In Progress", "Planning").<br><br>
+                        Different from individual task status.`,
+                    }
+                },
+                {
+                    element: '#campaign-sort',
+                    popover: {
+                        title: '⬇️ Sort Campaigns',
+                        description: `Sort by:<br>
+                        • Name (A-Z / Z-A)<br>
+                        • Most Overdue First<br>
+                        • Most Tasks First<br>
+                        • Highest Priority First<br><br>
+                        <strong>Priority Score</strong> = auto-calculated from overdue days + risky keywords.`,
+                    }
+                },
+                {
+                    element: '#user-selector',
+                    popover: {
+                        title: '👤 Select Yourself',
+                        description: 'Choose your name from Monday users. Required to enable My Focus mode.',
+                    }
+                },
+                {
+                    element: '#my-focus-btn',
+                    popover: {
+                        title: '🎯 My Focus',
+                        description: 'Shows ONLY campaigns assigned to you, auto-sorted by priority. Perfect for daily standups!',
+                    }
+                },
+                {
+                    element: '.view-toggle-container',
+                    popover: {
+                        title: '👁️ View Modes',
+                        description: 'Three views: By Staff (manager cards), All Campaigns (table), Timeliness (completion analytics).',
+                    }
+                },
+                {
+                    element: '#view-timeliness',
+                    popover: {
+                        title: '📊 Timeliness',
+                        description: `<strong>Completion Delta</strong> = Finish Date - Deadline.<br><br>
+                        • <span style="color:#10b981">Negative</span> = Early ✓<br>
+                        • <span style="color:#ef4444">Positive</span> = Late ✗<br><br>
+                        Tracks team estimation accuracy over time.`,
+                    }
+                },
+                {
+                    element: '.chat-toggle-btn',
+                    popover: {
+                        title: '🤖 AI Analyst',
+                        description: 'Ask AI questions about visible campaigns. Use ⚡ for quick prompts.',
+                    }
+                },
+                {
+                    popover: {
+                        title: '🎉 Tour Complete!',
+                        description: `<strong>Key Terms Recap:</strong><br>
+                        • <span style="color:#ef4444">Overdue</span>: Past deadline<br>
+                        • <span style="color:#f59e0b">Soon</span>: 1-7 days<br>
+                        • <span style="color:#38bdf8">2 Weeks</span>: 8-14 days<br>
+                        • <strong>Days Overdue</strong>: Today - Deadline<br>
+                        • <strong>Priority Score</strong>: Auto-urgency ranking<br>
+                        • <strong>CS Manager</strong>: From Master Board<br>
+                        • <strong>Completion Delta</strong>: Finish - Deadline<br><br>
+                        Click <strong>Tour Guide</strong> in the header anytime to revisit!`,
+                    }
+                }
+            ];
+        }
+
+        function getQuickTourSteps() {
+            return [
+                {
+                    element: '#tour-launch-btn',
+                    popover: {
+                        title: '⚡ Quick Tour (6 steps)',
+                        description: 'A fast overview of the essentials.',
+                    }
+                },
+                {
+                    element: '#step-auth',
+                    popover: {
+                        title: '1. Connect',
+                        description: 'Paste your Monday.com API v2 token.',
+                    }
+                },
+                {
+                    element: '#step-folders',
+                    popover: {
+                        title: '2. Select Folders',
+                        description: 'Pick the folders containing your campaign boards.',
+                    }
+                },
+                {
+                    element: '#crawl-btn',
+                    popover: {
+                        title: '3. Start Audit',
+                        description: 'Scan all selected boards for upcoming and overdue items.',
+                    }
+                },
+                {
+                    element: '.stat-grid',
+                    popover: {
+                        title: '4. Review Stats',
+                        description: 'Overdue (red) = past deadline. Soon (yellow) = 1-7 days. 2W (blue) = 8-14 days.',
+                    }
+                },
+                {
+                    element: '.view-toggle-container',
+                    popover: {
+                        title: '5. Switch Views',
+                        description: 'By Staff, All Campaigns, or Timeliness analytics.',
+                    }
+                },
+                {
+                    element: '.chat-toggle-btn',
+                    popover: {
+                        title: '6. Ask AI',
+                        description: 'Use the AI Analyst for instant insights on visible campaigns.',
+                    }
+                }
+            ];
+        }
+
+        function getFilteringSteps() {
+            return [
+                {
+                    element: '.stat-grid',
+                    popover: {
+                        title: '🎯 Status Filter Cards',
+                        description: 'Click any card to filter by deadline status. Click again to clear.',
+                    }
+                },
+                {
+                    element: '#filter-text',
+                    popover: {
+                        title: '🔍 Text Search',
+                        description: 'Search across campaign and board names.',
+                    }
+                },
+                {
+                    element: '#filter-csm-input',
+                    popover: {
+                        title: '👥 People Filter',
+                        description: 'Multi-select dropdown to filter by assigned CS/PM.',
+                    }
+                },
+                {
+                    element: '#filter-csm-status-input',
+                    popover: {
+                        title: '📋 CSM Status',
+                        description: 'Filter by workflow stage labels (e.g., "In Progress", "On Hold") from master board.',
+                    }
+                },
+                {
+                    element: '#campaign-sort',
+                    popover: {
+                        title: '⬇️ Sort Options',
+                        description: 'Choose: Name, Most Overdue, Most Tasks, or Highest Priority.',
+                    }
+                }
+            ];
+        }
+
+        function getViewsSteps() {
+            return [
+                {
+                    element: '.view-toggle-container',
+                    popover: {
+                        title: '👁️ Three View Modes',
+                        description: 'Switch between different ways of looking at your data.',
+                    }
+                },
+                {
+                    element: '#view-manager',
+                    popover: {
+                        title: '👥 By Staff View',
+                        description: 'Manager dashboard with cards per team member showing their campaign counts (overdue, soon, 2w).',
+                    }
+                },
+                {
+                    element: '#view-auditor',
+                    popover: {
+                        title: '📋 All Campaigns View',
+                        description: 'Detailed sortable table with all campaigns, expandable rows for updates & tech summaries.',
+                    }
+                },
+                {
+                    element: '#view-timeliness',
+                    popover: {
+                        title: '📊 Timeliness View',
+                        description: `Tracks completion accuracy. <strong>Completion Delta</strong> = Finish Date - Deadline.<br><br>
+                        Negative = Early. Positive = Late. Helps improve estimation over time.`,
+                    }
+                }
+            ];
+        }
+
+        function getChatSteps() {
+            return [
+                {
+                    element: '.chat-toggle-btn',
+                    popover: {
+                        title: '🤖 AI Analyst',
+                        description: 'Click to open the AI-powered chat panel.',
+                    }
+                },
+                {
+                    popover: {
+                        title: '💬 How It Works',
+                        description: 'The AI sees the campaigns currently visible (after filters). Ask anything about overdue items, assignees, status, or summaries.',
+                    }
+                },
+                {
+                    popover: {
+                        title: '⚡ Quick Prompts',
+                        description: 'Click the bolt icon in the chat to use pre-built queries like "Which campaigns are overdue?" or "Who has the most campaigns?"',
+                    }
+                },
+                {
+                    popover: {
+                        title: '🖥️ Fullscreen Mode',
+                        description: 'Click the expand icon for fullscreen chat - great for long AI analysis sessions.',
+                    }
+                }
+            ];
+        }
+
+        // ----- AUTO-START FOR NEW USERS -----
+        (function autoStartTour() {
+            // Wait for DOM and Driver.js
+            const tryStart = () => {
+                if (!getDriver()) {
+                    setTimeout(tryStart, 200);
+                    return;
+                }
+                // Only auto-prompt new users
+                if (!localStorage.getItem('campaign_auditor_tour_seen')) {
+                    setTimeout(() => {
+                        if (confirm('👋 Welcome to Campaign Auditor!\n\nWould you like a quick tour to learn what terms like "Overdue", "Soon", "Priority Score", and "Master Board" mean?')) {
+                            startTour('glossary');
+                        }
+                        localStorage.setItem('campaign_auditor_tour_seen', 'true');
+                    }, 1500);
+                }
+            };
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', tryStart);
+            } else {
+                tryStart();
+            }
+        })();
+    </script>
 </body>
 
 </html>
