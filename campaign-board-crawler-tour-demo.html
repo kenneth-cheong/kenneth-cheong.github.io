@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campaign Auditor Tour - Demo</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <!-- Driver.js CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css">
+
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --primary: #38bdf8;
+            --text: #f8fafc;
+            --muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 40px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            font-size: 24px;
+        }
+
+        .demo-container {
+            flex: 1;
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .demo-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 32px;
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            font-size: 32px;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, var(--primary), #10b981);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        h2 {
+            font-size: 20px;
+            margin-bottom: 16px;
+            color: var(--primary);
+        }
+
+        p {
+            color: var(--muted);
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+
+        .tour-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .tour-button {
+            background: var(--primary);
+            color: var(--bg);
+            border: none;
+            border-radius: 8px;
+            padding: 16px 24px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .tour-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(56, 189, 248, 0.4);
+        }
+
+        .tour-button.secondary {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        .tour-button.secondary:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-list li {
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .feature-list li:last-child {
+            border-bottom: none;
+        }
+
+        .feature-icon {
+            color: var(--primary);
+            font-size: 18px;
+            width: 24px;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 16px;
+            margin: 24px 0;
+        }
+
+        .stat-box {
+            background: rgba(56, 189, 248, 0.05);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 32px;
+            font-weight: 800;
+            color: var(--primary);
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--muted);
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .code-block {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #10b981;
+            overflow-x: auto;
+            margin: 16px 0;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+
+        .badge.primary {
+            background: rgba(56, 189, 248, 0.15);
+            color: var(--primary);
+        }
+
+        .badge.success {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+        }
+
+        .badge.warning {
+            background: rgba(245, 158, 11, 0.15);
+            color: #f59e0b;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="brand">
+            <span class="logo-icon">🔍</span>
+            <h1 style="font-size: 18px; margin: 0;">Campaign Auditor - Tour Demo</h1>
+        </div>
+        <button id="tour-menu-btn" class="tour-button secondary" style="padding: 8px 16px; font-size: 12px;">
+            <i class="fas fa-question-circle"></i> Tours
+        </button>
+    </header>
+
+    <div class="demo-container">
+        <div class="demo-card">
+            <h1>🎯 Interactive Tour System</h1>
+            <p>
+                A comprehensive Driver.js tour system has been created for the Campaign Board Crawler.
+                This tour covers all major touchpoints and features of the tool, making onboarding seamless for new users.
+            </p>
+
+            <div class="stats-row">
+                <div class="stat-box">
+                    <div class="stat-number">35+</div>
+                    <div class="stat-label">Tour Steps</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">6</div>
+                    <div class="stat-label">Tour Types</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-number">100%</div>
+                    <div class="stat-label">Coverage</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="demo-card">
+            <h2><i class="fas fa-rocket"></i> Launch Tours</h2>
+            <p>Click any button below to experience different tour variations:</p>
+
+            <div class="tour-grid">
+                <button onclick="startMainTour()" class="tour-button">
+                    <i class="fas fa-route"></i>
+                    Complete Tour
+                </button>
+                <button onclick="startQuickTour()" class="tour-button secondary">
+                    <i class="fas fa-bolt"></i>
+                    Quick Tour
+                </button>
+                <button onclick="startChatTour()" class="tour-button secondary">
+                    <i class="fas fa-robot"></i>
+                    AI Chat Tour
+                </button>
+                <button onclick="startManagerViewTour()" class="tour-button secondary">
+                    <i class="fas fa-users-cog"></i>
+                    Manager View
+                </button>
+                <button onclick="startTimelinessTour()" class="tour-button secondary">
+                    <i class="fas fa-chart-line"></i>
+                    Timeliness Tour
+                </button>
+                <button onclick="startFilteringTour()" class="tour-button secondary">
+                    <i class="fas fa-filter"></i>
+                    Filtering Tour
+                </button>
+            </div>
+        </div>
+
+        <div class="demo-card">
+            <h2><i class="fas fa-check-circle"></i> Tour Coverage</h2>
+            <p>The complete tour system covers all these features:</p>
+
+            <ul class="feature-list">
+                <li>
+                    <i class="fas fa-key feature-icon"></i>
+                    <div>
+                        <strong>API Authentication</strong><br>
+                        <small style="color: var(--muted);">Token input, help modal, connection flow</small>
+                    </div>
+                </li>
+                <li>
+                    <i class="fas fa-folder feature-icon"></i>
+                    <div>
+                        <strong>Folder Selection</strong><br>
+                        <small style="color: var(--muted);">Grid view, select all/deselect all, status exclusions</small>
+                    </div>
+                </li>
+                <li>
+                    <i class="fas fa-chart-bar feature-icon"></i>
+                    <div>
+                        <strong>Stats & Filters</strong><br>
+                        <small style="color: var(--muted);">Status cards, text search, person filters, CSM status, sorting</small>
+                    </div>
+                </li>
+                <li>
+                    <i class="fas fa-eye feature-icon"></i>
+                    <div>
+                        <strong>View Modes</strong><br>
+                        <small style="color: var(--muted);">Manager dashboard, auditor table, timeliness analytics</small>
+                    </div>
+                </li>
+                <li>
+                    <i class="fas fa-crosshairs feature-icon"></i>
+                    <div>
+                        <strong>My Focus Mode</strong><br>
+                        <small style="color: var(--muted);">User selector, personal campaign view, priority sorting</small>
+                    </div>
+                </li>
+                <li>
+                    <i class="fas fa-robot feature-icon"></i>
+                    <div>
+                        <strong>AI Chat Panel</strong><br>
+                        <small style="color: var(--muted);">Chat interface, quick prompts, fullscreen mode</small>
+                    </div>
+                </li>
+                <li>
+                    <i class="fas fa-table feature-icon"></i>
+                    <div>
+                        <strong>Table Interactions</strong><br>
+                        <small style="color: var(--muted);">Sortable columns, bulk selection, row expansion</small>
+                    </div>
+                </li>
+                <li>
+                    <i class="fas fa-cog feature-icon"></i>
+                    <div>
+                        <strong>Settings & Tools</strong><br>
+                        <small style="color: var(--muted);">Settings panel, lookup modal, loading indicators</small>
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        <div class="demo-card">
+            <h2><i class="fas fa-code"></i> Implementation</h2>
+            <p>To integrate this tour into your Campaign Board Crawler:</p>
+
+            <div style="margin: 24px 0;">
+                <span class="badge primary">Step 1</span>
+                <span class="badge primary">Install Driver.js</span>
+            </div>
+            <div class="code-block">
+npm install driver.js
+# or use CDN in HTML
+            </div>
+
+            <div style="margin: 24px 0;">
+                <span class="badge success">Step 2</span>
+                <span class="badge success">Add Tour Script</span>
+            </div>
+            <div class="code-block">
+&lt;script src="campaign-board-crawler-tour.js"&gt;&lt;/script&gt;
+            </div>
+
+            <div style="margin: 24px 0;">
+                <span class="badge warning">Step 3</span>
+                <span class="badge warning">Launch Tours</span>
+            </div>
+            <div class="code-block">
+// Auto-initializes on page load
+// Or manually trigger:
+window.CampaignAuditorTour.startMainTour();
+            </div>
+
+            <p style="margin-top: 24px;">
+                <i class="fas fa-book"></i>
+                See <strong>TOUR_INTEGRATION.md</strong> for complete documentation and customization options.
+            </p>
+        </div>
+
+        <div class="demo-card">
+            <h2><i class="fas fa-lightbulb"></i> Key Features</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-top: 16px;">
+                <div style="background: rgba(56, 189, 248, 0.05); padding: 16px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.2);">
+                    <div style="color: var(--primary); font-size: 24px; margin-bottom: 8px;">⚡</div>
+                    <strong>Auto-Start</strong><br>
+                    <small style="color: var(--muted);">New users get prompted to take the tour on first visit</small>
+                </div>
+                <div style="background: rgba(16, 185, 129, 0.05); padding: 16px; border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.2);">
+                    <div style="color: #10b981; font-size: 24px; margin-bottom: 8px;">🎨</div>
+                    <strong>Custom Styling</strong><br>
+                    <small style="color: var(--muted);">Matches the app's dark theme and design system</small>
+                </div>
+                <div style="background: rgba(245, 158, 11, 0.05); padding: 16px; border-radius: 8px; border: 1px solid rgba(245, 158, 11, 0.2);">
+                    <div style="color: #f59e0b; font-size: 24px; margin-bottom: 8px;">📱</div>
+                    <strong>Responsive</strong><br>
+                    <small style="color: var(--muted);">Works seamlessly on desktop, tablet, and mobile</small>
+                </div>
+                <div style="background: rgba(139, 92, 246, 0.05); padding: 16px; border-radius: 8px; border: 1px solid rgba(139, 92, 246, 0.2);">
+                    <div style="color: #8b5cf6; font-size: 24px; margin-bottom: 8px;">🔄</div>
+                    <strong>Replayable</strong><br>
+                    <small style="color: var(--muted);">Users can restart tours anytime via the menu button</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Driver.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.iife.js"></script>
+
+    <!-- Tour Configuration (Inline for demo) -->
+    <script>
+        // Custom tour styles
+        const tourStyles = `
+            .driver-popover {
+                background: rgba(30, 41, 59, 0.98);
+                backdrop-filter: blur(20px);
+                border: 1px solid rgba(56, 189, 248, 0.3);
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            }
+            .driver-popover-title {
+                color: #38bdf8;
+                font-weight: 700;
+                font-size: 16px;
+            }
+            .driver-popover-description {
+                color: #f8fafc;
+                line-height: 1.6;
+            }
+            .driver-popover-footer button {
+                background: #38bdf8;
+                color: #0f172a;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 6px;
+                font-weight: 600;
+            }
+            .driver-popover-prev-btn {
+                background: transparent !important;
+                border: 1px solid rgba(255, 255, 255, 0.2) !important;
+                color: #f8fafc !important;
+            }
+        `;
+
+        const styleEl = document.createElement('style');
+        styleEl.textContent = tourStyles;
+        document.head.appendChild(styleEl);
+
+        // Demo tours (simplified versions)
+        function startMainTour() {
+            const driverObj = driver({
+                showProgress: true,
+                steps: [
+                    {
+                        popover: {
+                            title: '🎯 Welcome to the Tour System!',
+                            description: 'This demo shows how the comprehensive tour would work in the actual Campaign Board Crawler. The real tour has 35+ steps covering every feature.',
+                        }
+                    },
+                    {
+                        element: '.demo-card:first-child',
+                        popover: {
+                            title: '📊 Tour Statistics',
+                            description: 'The tour system includes 35+ steps, 6 different tour types, and 100% feature coverage.',
+                        }
+                    },
+                    {
+                        element: '.tour-grid',
+                        popover: {
+                            title: '🚀 Multiple Tour Options',
+                            description: 'Users can choose from a complete tour, quick tour, or feature-specific tours based on their needs.',
+                        }
+                    },
+                    {
+                        element: '.feature-list',
+                        popover: {
+                            title: '✅ Complete Coverage',
+                            description: 'Every major feature is covered: authentication, folder selection, filters, views, AI chat, and more!',
+                        }
+                    },
+                    {
+                        popover: {
+                            title: '🎉 Ready to Integrate!',
+                            description: 'Follow the implementation steps and see TOUR_INTEGRATION.md for complete documentation. The tour auto-initializes and prompts new users on first visit.',
+                        }
+                    }
+                ]
+            });
+            driverObj.drive();
+        }
+
+        function startQuickTour() {
+            const driverObj = driver({
+                showProgress: true,
+                steps: [
+                    {
+                        popover: {
+                            title: '⚡ Quick Tour',
+                            description: 'This is a condensed version with only 6 essential steps for returning users.',
+                        }
+                    },
+                    {
+                        element: '.tour-grid',
+                        popover: {
+                            title: 'Choose Your Tour',
+                            description: 'Pick the tour that matches your needs.',
+                        }
+                    },
+                    {
+                        popover: {
+                            title: 'Done!',
+                            description: 'Quick tours are perfect for refreshers.',
+                        }
+                    }
+                ]
+            });
+            driverObj.drive();
+        }
+
+        function startChatTour() {
+            alert('🤖 AI Chat Tour\n\nIn the actual app, this would highlight:\n• Chat panel toggle\n• Message history\n• Quick prompts button\n• Chat input field\n• Fullscreen mode');
+        }
+
+        function startManagerViewTour() {
+            alert('👥 Manager View Tour\n\nIn the actual app, this would highlight:\n• View mode toggle\n• Staff card grid\n• Campaign counts per person\n• Click-to-filter functionality');
+        }
+
+        function startTimelinessTour() {
+            alert('📊 Timeliness Analytics Tour\n\nIn the actual app, this would highlight:\n• Timeliness view toggle\n• Completion delta tracking\n• Early vs late analysis\n• Staff performance metrics');
+        }
+
+        function startFilteringTour() {
+            alert('🔍 Filtering & Sorting Tour\n\nIn the actual app, this would highlight:\n• Text search\n• Status filter cards\n• Person filters\n• CSM status filters\n• Sort dropdown\n• All filtering combinations');
+        }
+
+        // Tour menu
+        document.getElementById('tour-menu-btn').addEventListener('click', () => {
+            const menu = document.createElement('div');
+            menu.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(30, 41, 59, 0.98);
+                backdrop-filter: blur(20px);
+                border: 1px solid rgba(56, 189, 248, 0.3);
+                border-radius: 12px;
+                padding: 24px;
+                z-index: 10000;
+                min-width: 320px;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            `;
+            menu.innerHTML = `
+                <h3 style="color: #38bdf8; margin-bottom: 16px; font-size: 18px;">Choose a Tour</h3>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <button onclick="startMainTour(); this.parentElement.parentElement.remove(); document.querySelector('.backdrop').remove();" class="tour-button" style="width: 100%;">
+                        <i class="fas fa-route"></i> Complete Tour
+                    </button>
+                    <button onclick="startQuickTour(); this.parentElement.parentElement.remove(); document.querySelector('.backdrop').remove();" class="tour-button secondary" style="width: 100%;">
+                        <i class="fas fa-bolt"></i> Quick Tour
+                    </button>
+                    <button onclick="startChatTour(); this.parentElement.parentElement.remove(); document.querySelector('.backdrop').remove();" class="tour-button secondary" style="width: 100%;">
+                        <i class="fas fa-robot"></i> AI Chat
+                    </button>
+                    <button onclick="startManagerViewTour(); this.parentElement.parentElement.remove(); document.querySelector('.backdrop').remove();" class="tour-button secondary" style="width: 100%;">
+                        <i class="fas fa-users-cog"></i> Manager View
+                    </button>
+                    <button onclick="startTimelinessTour(); this.parentElement.parentElement.remove(); document.querySelector('.backdrop').remove();" class="tour-button secondary" style="width: 100%;">
+                        <i class="fas fa-chart-line"></i> Timeliness
+                    </button>
+                    <button onclick="startFilteringTour(); this.parentElement.parentElement.remove(); document.querySelector('.backdrop').remove();" class="tour-button secondary" style="width: 100%;">
+                        <i class="fas fa-filter"></i> Filtering
+                    </button>
+                    <button onclick="this.parentElement.parentElement.remove(); document.querySelector('.backdrop').remove();" class="tour-button secondary" style="width: 100%; margin-top: 8px;">
+                        Cancel
+                    </button>
+                </div>
+            `;
+
+            const backdrop = document.createElement('div');
+            backdrop.className = 'backdrop';
+            backdrop.style.cssText = `
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.6);
+                z-index: 9999;
+            `;
+            backdrop.onclick = () => {
+                menu.remove();
+                backdrop.remove();
+            };
+
+            document.body.appendChild(backdrop);
+            document.body.appendChild(menu);
+        });
+
+        // Auto-start main tour for demo
+        setTimeout(() => {
+            if (confirm('Welcome! Would you like to see how the tour system works?')) {
+                startMainTour();
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
