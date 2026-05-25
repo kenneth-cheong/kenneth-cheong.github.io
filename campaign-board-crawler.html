@@ -2489,6 +2489,7 @@
                                                 ...on StatusValue{label}
                                                 ...on DateValue{date}
                                                 ...on TimelineValue{from to}
+                                                ...on PersonsValue{persons_and_teams{id kind}}
                                             }
                                         } 
                                     } 
@@ -2554,6 +2555,8 @@
                                 deadlineDisplay: dateDisplay,
                                 daysOverdue: diffDays,
                                 people: assigned?.text ? assigned.text.split(/, | & | and /).map(p => p.trim()) : ['Unassigned'],
+                                peopleColumnId: assigned?.id || '',
+                                personIds: assigned?.persons_and_teams || [],
                                 csManagers: masterData.csm,
                                 masterStatus: masterData.status,
                                 masterCsmStatus: masterData.csmStatus,
@@ -3995,6 +3998,138 @@
             showToast(failed ? `Done with ${failed} failure(s)` : `${items.length} item${items.length !== 1 ? 's' : ''} → "${label}"`);
         }
 
+        // ── Bulk Assignee ────────────────────────────────────────────
+        const _bulkAssignee = { selectedIds: new Set() };
+
+        function showBulkAssigneeDropdown(el) {
+            hideAssigneeDropdown();
+            _bulkAssignee.selectedIds.clear();
+
+            const dropdown = document.createElement('div');
+            dropdown.className = 'status-picker-dropdown';
+            dropdown.id = 'assignee-picker-dropdown';
+            dropdown.style.cssText = 'min-width:240px; max-height:380px; display:flex; flex-direction:column; padding:0;';
+            dropdown.innerHTML = `
+                <div style="padding:10px 12px 8px; border-bottom:1px solid var(--border); flex-shrink:0;">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Change Assignees</div>
+                    <select id="assignee-mode" style="width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px 6px;font-size:11px;margin-bottom:6px;">
+                        <option value="replace">Replace all assignees</option>
+                        <option value="add">Add to existing</option>
+                        <option value="remove">Remove these users</option>
+                    </select>
+                    <input id="assignee-search" placeholder="Search users..." autocomplete="off"
+                        style="width:100%;background:rgba(0,0,0,0.2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:5px 8px;font-size:12px;"
+                        oninput="renderAssigneeList()">
+                </div>
+                <div id="assignee-user-list" style="overflow-y:auto;flex:1;padding:4px;"></div>
+                <div style="padding:8px;border-top:1px solid var(--border);display:flex;gap:6px;flex-shrink:0;">
+                    <button onclick="applyBulkAssignee()"
+                        style="flex:1;background:var(--primary);color:var(--bg);border:none;border-radius:6px;padding:7px;font-size:12px;font-weight:600;cursor:pointer;">
+                        Apply
+                    </button>
+                    <button onclick="hideAssigneeDropdown()"
+                        style="background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:7px 12px;font-size:12px;cursor:pointer;">
+                        Cancel
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(dropdown);
+            const rect = el.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+            if (spaceBelow < 260) {
+                dropdown.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+            } else {
+                dropdown.style.top = (rect.bottom + 4) + 'px';
+            }
+            dropdown.style.left = rect.left + 'px';
+            renderAssigneeList();
+            document.getElementById('assignee-search').focus();
+            setTimeout(() => document.addEventListener('click', onAssigneeOutsideClick, true), 0);
+        }
+
+        function renderAssigneeList() {
+            const query = (document.getElementById('assignee-search')?.value || '').toLowerCase();
+            const users = state.mondayUsers.filter(u => !query || u.name.toLowerCase().includes(query));
+            const el = document.getElementById('assignee-user-list');
+            if (!el) return;
+            el.innerHTML = users.map(u => `
+                <div class="status-picker-option ${_bulkAssignee.selectedIds.has(u.id) ? 'is-current' : ''}"
+                     onclick="toggleAssigneeUser('${u.id}')">
+                    <input type="checkbox" style="accent-color:var(--primary);pointer-events:none;flex-shrink:0;"
+                        ${_bulkAssignee.selectedIds.has(u.id) ? 'checked' : ''}>
+                    <span>${u.name}</span>
+                </div>`).join('') ||
+                '<div style="padding:10px;color:var(--muted);font-size:12px;">No users found</div>';
+        }
+
+        function toggleAssigneeUser(userId) {
+            if (_bulkAssignee.selectedIds.has(userId)) _bulkAssignee.selectedIds.delete(userId);
+            else _bulkAssignee.selectedIds.add(userId);
+            renderAssigneeList();
+        }
+
+        function hideAssigneeDropdown() {
+            const el = document.getElementById('assignee-picker-dropdown');
+            if (el) el.remove();
+            document.removeEventListener('click', onAssigneeOutsideClick, true);
+        }
+
+        function onAssigneeOutsideClick(e) {
+            const el = document.getElementById('assignee-picker-dropdown');
+            if (el && !el.contains(e.target)) hideAssigneeDropdown();
+        }
+
+        async function applyBulkAssignee() {
+            const mode = document.getElementById('assignee-mode')?.value || 'replace';
+            const newUserIds = [..._bulkAssignee.selectedIds].map(id => parseInt(id));
+            hideAssigneeDropdown();
+
+            const items = [...state.selectedItemIds]
+                .map(id => state.auditedItems.find(i => i.id === id))
+                .filter(item => item && item.peopleColumnId);
+
+            if (!items.length) {
+                showToast('No valid items — people column not found.');
+                return;
+            }
+
+            showToast(`Updating assignees for ${items.length} item${items.length !== 1 ? 's' : ''}…`);
+            let failed = 0;
+            const BATCH = 5;
+
+            for (let i = 0; i < items.length; i += BATCH) {
+                await Promise.all(items.slice(i, i + BATCH).map(async item => {
+                    try {
+                        let finalIds;
+                        if (mode === 'replace') {
+                            finalIds = newUserIds;
+                        } else if (mode === 'add') {
+                            const existing = (item.personIds || []).map(p => parseInt(p.id));
+                            finalIds = [...new Set([...existing, ...newUserIds])];
+                        } else {
+                            const existing = (item.personIds || []).map(p => parseInt(p.id));
+                            finalIds = existing.filter(id => !newUserIds.includes(id));
+                        }
+
+                        const value = JSON.stringify({ personsAndTeams: finalIds.map(id => ({ id, kind: 'person' })) });
+                        await monday(
+                            `mutation($b:ID!,$i:ID!,$c:String!,$v:JSON!){ change_column_value(board_id:$b,item_id:$i,column_id:$c,value:$v){ id } }`,
+                            { b: item.bId, i: item.id, c: item.peopleColumnId, v: value }, false
+                        );
+
+                        // Update local state
+                        item.personIds = finalIds.map(id => ({ id: String(id), kind: 'person' }));
+                        const newNames = finalIds.map(id => state.mondayUsers.find(u => parseInt(u.id) === id)?.name).filter(Boolean);
+                        item.people = newNames.length ? newNames : ['Unassigned'];
+                    } catch(e) { failed++; }
+                }));
+            }
+
+            clearSelection();
+            showToast(failed ? `Done with ${failed} failure(s)` : `Assignees updated for ${items.length} item${items.length !== 1 ? 's' : ''}`);
+            updateFilteredUI();
+        }
+
         // ── CSM Status Filter ────────────────────────────────────────
         function toggleCsmStatusDropdown(show) {
             const d = document.getElementById('csm-status-dropdown');
@@ -4507,6 +4642,9 @@ ${JSON.stringify(contextData)}`;
         <span id="bulk-count" style="font-weight:600; font-size:13px;"></span>
         <button class="btn btn-primary" onclick="showBulkStatusDropdown(this)" style="padding:6px 14px; font-size:12px;">
             <i class="fas fa-edit" style="margin-right:6px;"></i>Change Status
+        </button>
+        <button class="btn btn-secondary" onclick="showBulkAssigneeDropdown(this)" style="padding:6px 14px; font-size:12px; border-color: rgba(56,189,248,0.4); color:var(--primary);">
+            <i class="fas fa-user-edit" style="margin-right:6px;"></i>Change Assignee
         </button>
         <button class="btn btn-secondary" onclick="clearSelection()" style="padding:6px 12px; font-size:12px;">
             <i class="fas fa-times" style="margin-right:6px;"></i>Clear
