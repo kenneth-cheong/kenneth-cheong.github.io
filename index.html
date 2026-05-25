@@ -11864,6 +11864,9 @@
                             <i class="fas fa-layer-group" style="-webkit-text-fill-color: #6366f1;"></i> Holistic SEO Intelligence
                         </h3>
                         <div class="cockpit-card-header-actions">
+                            <button onclick="openMappingModal()" class="discovery-btn-run" style="padding: 4px 12px; font-size: 0.8rem; background: #475569; color: #fff; border: none;" title="Explicitly map each campaign to its data sources">
+                                <i class="fas fa-link"></i> Map Sources
+                            </button>
                             <button onclick="refreshHolisticSummary()" class="discovery-btn-run" style="padding: 4px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #6366f1, #a855f7); color: #fff; border: none;">
                                 <i class="fas fa-sync-alt"></i> Refresh
                             </button>
@@ -22302,12 +22305,14 @@
         }
 
         function buildCrossSourceMatrix(seoIntel, gscRecs, ga4Recs, adsRecs, paidIntel, movers) {
-            // Indexes
-            const gscByDomain = {};
+            const explicitMappings = loadHolisticMappings();
+
+            // Index GSC by raw property string (users see & pick the raw property)
+            const gscByProp = {};
             gscRecs.forEach(r => {
-                const dom = _extractDomain(r.property);
-                if (!gscByDomain[dom]) gscByDomain[dom] = [];
-                gscByDomain[dom].push(r);
+                const key = (r.property || '').trim();
+                if (!gscByProp[key]) gscByProp[key] = [];
+                gscByProp[key].push(r);
             });
 
             const ga4ByProp = {};
@@ -22317,7 +22322,6 @@
                 ga4ByProp[key].push(r);
             });
 
-            // Google Ads: index by account name
             const adsByAccount = {};
             adsRecs.forEach(r => {
                 const key = (r.account || 'Unknown').trim();
@@ -22331,48 +22335,63 @@
                 serBySite[m.siteName].push(m);
             });
 
-            const serSiteNames = Object.keys(serBySite);
-            const gscDomains   = Object.keys(gscByDomain);
-            const ga4Props     = Object.keys(ga4ByProp);
-            const adsAccounts  = Object.keys(adsByAccount);
-
-            // Paid Intel: keyed by campaign name directly
             const paidByName = {};
             paidIntel.forEach(c => { paidByName[c.name] = c; });
-            const paidNames = Object.keys(paidByName);
 
-            // Build entity map — SEO Intel as master
+            const serSiteNames = Object.keys(serBySite);
+            const gscProps     = Object.keys(gscByProp);
+            const ga4Props     = Object.keys(ga4ByProp);
+            const adsAccounts  = Object.keys(adsByAccount);
+            const paidNames    = Object.keys(paidByName);
+
+            // Build entity map — explicit mappings win, fuzzy is fallback
             const entities = {};
-
             seoIntel.forEach(c => {
-                entities[c.name] = { name: c.name, seoIntel: c, serSite: null, gscDomain: null, ga4Prop: null, adsAccount: null, paidName: null };
+                const m = explicitMappings[c.name] || {};
+                entities[c.name] = {
+                    name: c.name, seoIntel: c,
+                    serSite:    m.ser  || null,
+                    gscProp:    m.gsc  || null,
+                    ga4Prop:    m.ga4  || null,
+                    adsAccount: m.ads  || null,
+                    paidName:   m.paid || null
+                };
             });
 
-            const mergeKey = (keys, threshold, field, entities) => {
+            // Fuzzy-fill fields not covered by explicit mappings, create stubs for true orphans
+            const stub0 = () => ({ seoIntel: null, serSite: null, gscProp: null, ga4Prop: null, adsAccount: null, paidName: null });
+            const mergeKey = (keys, threshold, field) => {
                 keys.forEach(key => {
-                    const matched = Object.keys(entities).find(k => _holisticMatchScore(k, key) >= threshold);
-                    if (matched) { if (!entities[matched][field]) entities[matched][field] = key; }
-                    else {
-                        const stub = { name: key, seoIntel: null, serSite: null, gscDomain: null, ga4Prop: null, adsAccount: null, paidName: null };
-                        stub[field] = key;
-                        entities[key] = entities[key] || stub;
+                    const alreadyClaimed = Object.values(entities).some(e => e[field] === key);
+                    if (alreadyClaimed) return;
+                    let bestEnt = null, bestScore = 0;
+                    Object.values(entities).forEach(e => {
+                        if (e[field]) return;
+                        const sc = _holisticMatchScore(e.name, key);
+                        if (sc > bestScore) { bestScore = sc; bestEnt = e; }
+                    });
+                    if (bestEnt && bestScore >= threshold) {
+                        bestEnt[field] = key;
+                    } else {
+                        if (!entities[key]) { entities[key] = { name: key, ...stub0() }; }
+                        if (!entities[key][field]) entities[key][field] = key;
                     }
                 });
             };
 
-            mergeKey(serSiteNames, 0.35, 'serSite',   entities);
-            mergeKey(gscDomains,   0.25, 'gscDomain', entities);
-            mergeKey(ga4Props,     0.25, 'ga4Prop',   entities);
-            mergeKey(adsAccounts,  0.25, 'adsAccount', entities);
-            mergeKey(paidNames,    0.30, 'paidName',  entities);
+            mergeKey(serSiteNames, 0.35, 'serSite');
+            mergeKey(gscProps,     0.25, 'gscProp');
+            mergeKey(ga4Props,     0.25, 'ga4Prop');
+            mergeKey(adsAccounts,  0.25, 'adsAccount');
+            mergeKey(paidNames,    0.30, 'paidName');
 
-            // Second-pass fuzzy fill
+            // Second-pass: fill any remaining gaps via fuzzy
             const fills = [
-                { keys: serSiteNames, field: 'serSite',   thr: 0.3  },
-                { keys: gscDomains,   field: 'gscDomain', thr: 0.25 },
-                { keys: ga4Props,     field: 'ga4Prop',   thr: 0.25 },
+                { keys: serSiteNames, field: 'serSite',    thr: 0.3  },
+                { keys: gscProps,     field: 'gscProp',    thr: 0.25 },
+                { keys: ga4Props,     field: 'ga4Prop',    thr: 0.25 },
                 { keys: adsAccounts,  field: 'adsAccount', thr: 0.25 },
-                { keys: paidNames,    field: 'paidName',  thr: 0.3  },
+                { keys: paidNames,    field: 'paidName',   thr: 0.3  },
             ];
             Object.values(entities).forEach(e => {
                 fills.forEach(({ keys, field, thr }) => {
@@ -22386,8 +22405,8 @@
             // Enrich
             return Object.values(entities).map(e => {
                 const intel      = e.seoIntel;
-                const serData    = e.serSite    ? serBySite[e.serSite]       || [] : [];
-                const gscData    = e.gscDomain  ? gscByDomain[e.gscDomain]   || [] : [];
+                const serData    = e.serSite    ? serBySite[e.serSite]      || [] : [];
+                const gscData    = e.gscProp    ? gscByProp[e.gscProp]      || [] : [];
                 const ga4Data    = e.ga4Prop    ? ga4ByProp[e.ga4Prop]        || [] : [];
                 const adsData    = e.adsAccount ? adsByAccount[e.adsAccount]  || [] : [];
                 const paidCamp   = e.paidName   ? paidByName[e.paidName]      || null : null;
@@ -22423,7 +22442,7 @@
 
                 return {
                     name: e.name, intel,
-                    serSite: e.serSite, gscDomain: e.gscDomain, ga4Prop: e.ga4Prop,
+                    serSite: e.serSite, gscProp: e.gscProp, ga4Prop: e.ga4Prop,
                     adsAccount: e.adsAccount, paidCamp, paidAtRisk, paidWarn,
                     serMovers: serData, rankDrops, rankGains, bigDrops,
                     gscRecs: gscData, gscHigh, gscMed,
@@ -22548,7 +22567,7 @@
                         : bk('Stable','#f8fafc','#64748b','#e2e8f0'))
                     : dash;
 
-                const gscBadge = e.gscDomain
+                const gscBadge = e.gscProp
                     ? (e.gscHigh.length > 0 ? bk(`${e.gscHigh.length} critical`,'#fef2f2','#dc2626','#fecaca')
                         : e.gscMed.length > 0 ? bk(`${e.gscMed.length} medium`,'#fffbeb','#d97706','#fde68a')
                         : bk('Clean','#f0fdf4','#16a34a','#bbf7d0'))
@@ -22673,6 +22692,114 @@
                     </table>
                 </div>
             </div>` : ''}`;
+        }
+
+        // ── Holistic Source Mapping ───────────────────────────────────────────────
+
+        function loadHolisticMappings() {
+            try { return JSON.parse(localStorage.getItem('holisticMappings') || '{}'); }
+            catch { return {}; }
+        }
+
+        function closeMappingModal() {
+            document.getElementById('holisticMappingModal').style.display = 'none';
+        }
+
+        function openMappingModal() {
+            const seoIntel = cockpitState.seoIntelCache || [];
+            if (!seoIntel.length) {
+                alert('No SE Ranking campaigns loaded yet. Please load SE Ranking data first.');
+                return;
+            }
+            const mappings  = loadHolisticMappings();
+            const gscProps  = [...new Set((cockpitState.gscRecommendations || []).map(r => r.property).filter(Boolean))].sort();
+            const ga4Props  = [...new Set((cockpitState.ga4Recommendations || []).map(r => r.property).filter(Boolean))].sort();
+            const adsAccts  = [...new Set((cockpitState.adsRecommendations || []).map(r => r.account).filter(Boolean))].sort();
+            const paidNames = (cockpitState.paidIntelCache || []).map(c => c.name).filter(Boolean).sort();
+            const serSites  = [...new Set((cockpitState.lastMoversData || []).map(m => m.siteName).filter(Boolean))].sort();
+
+            const makeSelect = (opts, val, rowIdx, key) => {
+                const esc = s => s.replace(/"/g, '&quot;');
+                const options = ['<option value="">— not mapped —</option>',
+                    ...opts.map(o => `<option value="${esc(o)}"${o === val ? ' selected' : ''}>${o}</option>`)
+                ].join('');
+                return `<select data-row="${rowIdx}" data-key="${key}" style="width:100%;padding:4px 7px;border:1px solid #cbd5e1;border-radius:5px;font-size:0.76rem;background:#fff;color:#1e293b;min-width:120px;">${options}</select>`;
+            };
+
+            const colStyle = 'padding:6px 8px;vertical-align:middle;';
+            const thStyle  = 'padding:8px 10px;text-align:left;font-size:0.76rem;color:#64748b;font-weight:700;white-space:nowrap;background:#f8fafc;position:sticky;top:0;';
+
+            const rows = seoIntel.map((c, i) => {
+                const m   = mappings[c.name] || {};
+                const esc = s => s.replace(/"/g, '&quot;');
+                return `<tr style="border-bottom:1px solid #f1f5f9;" data-campaign="${esc(c.name)}">
+                    <td style="${colStyle}font-size:0.82rem;font-weight:600;color:#1e293b;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(c.name)}">${c.name}</td>
+                    <td style="${colStyle}">${makeSelect(serSites,  m.ser  || '', i, 'ser')}</td>
+                    <td style="${colStyle}">${makeSelect(gscProps,  m.gsc  || '', i, 'gsc')}</td>
+                    <td style="${colStyle}">${makeSelect(ga4Props,  m.ga4  || '', i, 'ga4')}</td>
+                    <td style="${colStyle}">${makeSelect(adsAccts,  m.ads  || '', i, 'ads')}</td>
+                    <td style="${colStyle}">${makeSelect(paidNames, m.paid || '', i, 'paid')}</td>
+                </tr>`;
+            }).join('');
+
+            document.getElementById('holisticMappingBody').innerHTML = `
+                <table style="width:100%;border-collapse:collapse;">
+                    <thead>
+                        <tr>
+                            <th style="${thStyle}">SE Ranking Campaign</th>
+                            <th style="${thStyle}">SE Rank Site</th>
+                            <th style="${thStyle}">GSC Property</th>
+                            <th style="${thStyle}">GA4 Property</th>
+                            <th style="${thStyle}">Google Ads Account</th>
+                            <th style="${thStyle}">Paid Campaign</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                <p style="font-size:0.74rem;color:#94a3b8;margin-top:10px;"><i class="fas fa-info-circle"></i> Unset fields fall back to fuzzy name matching. Click <strong>Auto-detect</strong> to pre-fill best guesses, then adjust as needed.</p>`;
+
+            document.getElementById('holisticMappingModal').style.display = 'block';
+        }
+
+        function saveHolisticMappings() {
+            const mappings = {};
+            document.querySelectorAll('#holisticMappingBody tbody tr').forEach(tr => {
+                const name = tr.dataset.campaign;
+                if (!name) return;
+                const m = {};
+                tr.querySelectorAll('select').forEach(sel => { if (sel.value) m[sel.dataset.key] = sel.value; });
+                if (Object.keys(m).length) mappings[name] = m;
+            });
+            localStorage.setItem('holisticMappings', JSON.stringify(mappings));
+            closeMappingModal();
+            refreshHolisticSummary();
+        }
+
+        function autoDetectMappings() {
+            const seoIntel  = cockpitState.seoIntelCache || [];
+            const gscProps  = [...new Set((cockpitState.gscRecommendations || []).map(r => r.property).filter(Boolean))];
+            const ga4Props  = [...new Set((cockpitState.ga4Recommendations || []).map(r => r.property).filter(Boolean))];
+            const adsAccts  = [...new Set((cockpitState.adsRecommendations || []).map(r => r.account).filter(Boolean))];
+            const paidNames = (cockpitState.paidIntelCache || []).map(c => c.name).filter(Boolean);
+            const serSites  = [...new Set((cockpitState.lastMoversData || []).map(m => m.siteName).filter(Boolean))];
+
+            const bestMatch = (name, opts, thr) => {
+                let best = '', bestScore = 0;
+                opts.forEach(o => { const sc = _holisticMatchScore(name, o); if (sc > bestScore) { bestScore = sc; best = o; } });
+                return bestScore >= thr ? best : '';
+            };
+
+            document.querySelectorAll('#holisticMappingBody tbody tr').forEach((tr, i) => {
+                const name = seoIntel[i]?.name;
+                if (!name) return;
+                const sels = tr.querySelectorAll('select');
+                const pairs = [[serSites, 0.30], [gscProps, 0.18], [ga4Props, 0.18], [adsAccts, 0.18], [paidNames, 0.22]];
+                pairs.forEach(([opts, thr], j) => {
+                    if (!sels[j] || sels[j].value) return;
+                    const match = bestMatch(name, opts, thr);
+                    if (match) sels[j].value = match;
+                });
+            });
         }
 
         // ── SEO News filter state ─────────────────────────────────────────────────
@@ -66546,6 +66673,27 @@ Move-In</h3>
             <span class="loader-subtext" id="loader-sub-text">Please wait while we fetch the latest data.</span>
         </div>
     </div>
+    <!-- Holistic Source Mapping Modal -->
+    <div id="holisticMappingModal" onclick="if(event.target===this)closeMappingModal()" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,0.55);overflow:auto;">
+        <div style="background:#fff;margin:40px auto 60px;border-radius:14px;max-width:960px;width:95%;box-shadow:0 24px 64px rgba(0,0,0,0.3);">
+            <div style="padding:20px 24px;border-bottom:1px solid #e2e8f0;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+                <div>
+                    <h2 style="margin:0;font-size:1.15rem;color:#1e293b;display:flex;align-items:center;gap:8px;"><i class="fas fa-link" style="color:#6366f1;"></i> Source Mappings</h2>
+                    <p style="margin:5px 0 0;font-size:0.8rem;color:#64748b;">Explicitly link each SE Ranking campaign to its data source. Explicit mappings override fuzzy name matching. Use <strong>Auto-detect</strong> to pre-fill best guesses.</p>
+                </div>
+                <button onclick="closeMappingModal()" style="background:none;border:none;font-size:1.5rem;line-height:1;cursor:pointer;color:#94a3b8;padding:0 4px;flex-shrink:0;">&times;</button>
+            </div>
+            <div id="holisticMappingBody" style="padding:20px 24px;max-height:58vh;overflow-y:auto;">
+                <div style="text-align:center;padding:30px;color:#94a3b8;font-size:0.9rem;"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+            </div>
+            <div style="padding:14px 24px;border-top:1px solid #e2e8f0;display:flex;gap:10px;justify-content:flex-end;background:#f8fafc;border-radius:0 0 14px 14px;">
+                <button onclick="autoDetectMappings()" style="padding:7px 16px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;cursor:pointer;font-size:0.83rem;color:#475569;font-weight:500;"><i class="fas fa-magic"></i> Auto-detect</button>
+                <button onclick="closeMappingModal()" style="padding:7px 16px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;cursor:pointer;font-size:0.83rem;color:#475569;font-weight:500;">Cancel</button>
+                <button onclick="saveHolisticMappings()" style="padding:7px 18px;border:none;border-radius:7px;background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;cursor:pointer;font-size:0.83rem;font-weight:700;"><i class="fas fa-save"></i> Save Mappings</button>
+            </div>
+        </div>
+    </div>
+
     <div id="changelogModal" class="changelog-modal" onclick="if(event.target === this) closeChangelog()">
         <div class="changelog-modal-content">
             <div class="changelog-header">
