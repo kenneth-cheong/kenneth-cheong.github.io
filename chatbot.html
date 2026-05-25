@@ -5313,6 +5313,12 @@
                         headers: { 'Authorization': `Bearer ${activeToken}` }
                     });
                     if (res.ok) {
+                        const userInfo = await res.json();
+                        if (userInfo.email && !localStorage.getItem('clientEmail')) {
+                            localStorage.setItem('clientEmail', userInfo.email);
+                            document.getElementById('clientEmail').value = userInfo.email;
+                        }
+                        if (userInfo.email) localStorage.setItem('googleUser', JSON.stringify({ name: userInfo.name, email: userInfo.email, picture: userInfo.picture }));
                         localStorage.setItem(`googleToken_${s}_verified`, Date.now());
                         updateServiceUI(s, true);
                         if (s === 'Workspace') window.gchatAccessToken = activeToken;
@@ -8158,8 +8164,9 @@ CRITICAL CONTACT RULE:
             // Clean OpenAI source citations (e.g., 【82:0†source】)
             const cleanText = text.replace(/【\d+:\d+†source】/g, '').trim();
 
-            // Resolve the label for this user message
-            const resolvedLabel = senderLabel || (sender === 'user' ? (localStorage.getItem('clientEmail') || userId || 'User') : null);
+            // Resolve the label for this user message — prefer Google-authed user
+            const _googleUser = (() => { try { return JSON.parse(localStorage.getItem('googleUser') || 'null'); } catch { return null; } })();
+            const resolvedLabel = senderLabel || (sender === 'user' ? (_googleUser?.email || localStorage.getItem('clientEmail') || userId || 'User') : null);
 
             // Update local history
             if (!isRestoring) {
