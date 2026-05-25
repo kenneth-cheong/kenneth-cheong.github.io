@@ -10748,7 +10748,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1398</span>
+                <span id="appVersion">v1.0.1399</span>
             </a>
         </div>
 
@@ -22686,10 +22686,16 @@
                 const articles = feedsBody.articles || [];
                 if (!articles.length) throw new Error('No articles from RSS feeds');
 
-                if (sidebarEl) sidebarEl.innerHTML = `<div style="text-align:center;padding:30px;color:#64748b;">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <p style="margin-top:10px;font-size:0.85em;">Analysing ${articles.length} articles...</p>
-                </div>`;
+                // Progressive render: show real RSS articles immediately while AI classifies in background
+                const rawItems = articles.slice(0, 25).map(a => ({
+                    title: a.title, url: a.url, source: a.source, date: a.date,
+                    what_happened: a.description || '',
+                    categories: [], immediate_risk: 'Monitor Only',
+                    impact_score: 0, confidence_score: 0, urgency: '', _classifying: true,
+                }));
+                cockpitState.algoNewsCache = rawItems;
+                cockpitState.algoNewsFetchedAt = Date.now();
+                renderAlgorithmNews(rawItems);
 
                 // Step 2: AI classifies real articles — must copy URLs verbatim, never generate new ones
                 const articleList = articles.map((a, i) =>
@@ -22846,8 +22852,15 @@ Return ONLY a valid JSON array (no markdown, no extra text). Each object must ha
                 ? new Date(cockpitState.algoNewsFetchedAt).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })
                 : '';
 
+            const isClassifying = updates.some(u => u._classifying);
             let html = '';
-            if (showFooter) {
+            if (isClassifying) {
+                html += `<div style="padding:6px 14px;background:#eff6ff;border-bottom:1px solid #bfdbfe;font-size:0.72rem;color:#2563eb;display:flex;align-items:center;gap:6px;">
+                    <i class="fas fa-spinner fa-spin" style="font-size:0.65rem;"></i>
+                    AI is classifying articles — scores and actions will appear shortly.
+                </div>`;
+            }
+            if (showFooter && !isClassifying) {
                 html += `<div style="padding:7px 15px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:0.72rem;color:#94a3b8;display:flex;align-items:center;gap:6px;">
                     <i class="fas fa-robot" style="color:#6366f1;"></i>
                     Scanning: SEJ · SEL · Moz · Ahrefs · SER · Google Blog · @searchliaison · @rustybrick · @lilyraynyc · SEMrush Sensor · MozCast
