@@ -22531,6 +22531,8 @@
             // Build one dataset per group; each point = one keyword occurrence
             // Track per-(monthIdx, basket, group) counters for stable jitter seeds
             const cellCounters = {};
+            const kwTrails = {}; // "siteId||kwName" → [{x, y, mi}, …] — for connecting lines
+
             const datasets = allGroups.map(groupName => {
                 const { bg, border } = assignColor(groupName);
                 const pts = filteredPts.filter(p => p.groupName === groupName && monthIndex[p.ym] !== undefined);
@@ -22540,18 +22542,58 @@
                     const cellKey = `${mi}_${yPos}_${groupName}`;
                     if (!cellCounters[cellKey]) cellCounters[cellKey] = 0;
                     const idx  = cellCounters[cellKey]++;
-                    const xOff = (djitter(mi * 1000 + yPos * 100 + idx * 7)  - 0.5) * 0.72;
+                    const xOff = (djitter(mi * 1000 + yPos * 100 + idx * 7)         - 0.5) * 0.72;
                     const yJit = (djitter(mi * 1000 + yPos * 100 + idx * 7 + 99999) - 0.5) * 0.28;
-                    return { x: mi + xOff, y: yPos + yJit, kwName: p.kwName, pos: p.pos, month: p.ym };
+                    const jx = mi + xOff, jy = yPos + yJit;
+                    // Record jittered position for trail lines
+                    const trailKey = p.siteId + '||' + p.kwName;
+                    if (!kwTrails[trailKey]) kwTrails[trailKey] = [];
+                    kwTrails[trailKey].push({ x: jx, y: jy, mi, border });
+                    return { x: jx, y: jy, kwName: p.kwName, pos: p.pos, month: p.ym };
                 });
                 return { label: groupName, data, backgroundColor: bg, borderColor: border,
                     pointStyle: 'crossRot', pointRadius: 3, pointHoverRadius: 5, borderWidth: 1.5,
                     xAxisID: 'x', yAxisID: 'y' };
             });
 
+            // Sort each trail by month and keep only keywords with ≥2 appearances
+            const trailLines = Object.values(kwTrails)
+                .filter(arr => arr.length >= 2)
+                .map(arr => arr.sort((a, b) => a.mi - b.mi));
+
+            // Plugin: draw connecting lines between the same keyword's crosses
+            const kwTrailPlugin = {
+                id: 'kwTrails',
+                afterDraw: chart => {
+                    if (!trailLines.length) return;
+                    const xScale = chart.scales.x;
+                    const yScale = chart.scales.y;
+                    const ctx2   = chart.ctx;
+                    ctx2.save();
+                    ctx2.lineWidth = 0.9;
+                    ctx2.setLineDash([2, 4]);
+                    trailLines.forEach(trail => {
+                        ctx2.beginPath();
+                        ctx2.strokeStyle = trail[0].border.replace(')', ', 0.35)').replace('rgb(', 'rgba(').replace(/^#/, '') === trail[0].border
+                            ? trail[0].border + '59'   // hex: append alpha
+                            : trail[0].border;         // already rgba
+                        // Simpler: just use a neutral translucent colour for all trails
+                        ctx2.strokeStyle = 'rgba(100,116,139,0.25)';
+                        trail.forEach((pt, i) => {
+                            const px = xScale.getPixelForValue(pt.x);
+                            const py = yScale.getPixelForValue(pt.y);
+                            i === 0 ? ctx2.moveTo(px, py) : ctx2.lineTo(px, py);
+                        });
+                        ctx2.stroke();
+                    });
+                    ctx2.restore();
+                },
+            };
+
             cockpitState.seoScatterChart = new Chart(canvas.getContext('2d'), {
                 type: 'scatter',
                 data: { datasets },
+                plugins: [kwTrailPlugin],
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
