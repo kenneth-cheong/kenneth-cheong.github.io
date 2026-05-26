@@ -21946,37 +21946,51 @@
 
 `;
 
-            // ── Scatter plot: KPI Trajectory (replaces basket chart) ──────────
-            const scatterCampaigns = filtered.filter(c => !c.isUntyped);
-            const scatterF = cockpitState.seoIntelScatterFilter;
-            const scatterActive = scatterCampaigns.filter(c => scatterF.size === 0 || scatterF.has(c.id));
-            const scatterBtnLabel = scatterF.size === 0 ? 'All campaigns' : `${scatterF.size} selected`;
-            const scatterDropdownStyle = 'display:none;position:absolute;top:100%;right:0;min-width:260px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:400;margin-top:4px;padding:6px;';
+`;
+
+            // ── Basket scatter plot (replaces bar chart) ──────────────────────
+            const basketF = cockpitState.seoIntelScatterFilter; // holds 'p1'/'p2'/'p3'/'p4' (empty = all)
+            const basketItems = [
+                { key: 'p1', label: 'P1 (1–10)',  color: '#10b981', search: 'p1 page 1 top 10' },
+                { key: 'p2', label: 'P2 (11–20)', color: '#3b82f6', search: 'p2 page 2 11 20' },
+                { key: 'p3', label: 'P3 (21–30)', color: '#f59e0b', search: 'p3 page 3 21 30' },
+                { key: 'p4', label: 'P4 (31–40)', color: '#ef4444', search: 'p4 page 4 31 40' },
+            ];
+            const basketBtnLabel = basketF.size === 0 ? 'All baskets' : basketF.size === 1 ? basketItems.find(b => basketF.has(b.key))?.label : `${basketF.size} baskets`;
+            const scatterDropdownStyle = 'display:none;position:absolute;top:100%;right:0;min-width:200px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:400;margin-top:4px;padding:6px;';
             html += `
-                <!-- KPI Trajectory Scatter Plot -->
+                <!-- Keyword Basket Distribution Scatter -->
                 <div style="padding:12px 16px 10px;border-bottom:1px solid #e2e8f0;background:#fafafa;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                         <span style="font-size:0.78rem;font-weight:700;color:#334155;display:flex;align-items:center;gap:6px;">
-                            <i class="fas fa-braille" style="color:#6366f1;"></i> KPI Trajectory Plot
+                            <i class="fas fa-chart-area" style="color:#6366f1;"></i> Keyword Basket Distribution
                         </span>
                         <div style="display:flex;align-items:center;gap:6px;">
-                            ${scatterF.size > 0 ? `<button onclick="cockpitState.seoIntelScatterFilter.clear();renderSeoIntel(cockpitState.seoIntelCache||[])" style="font-size:0.7rem;background:none;border:none;color:#6366f1;cursor:pointer;font-weight:600;">✕ Clear</button>` : ''}
+                            <select id="basket-months-select"
+                                onchange="cockpitState.basketChartMonths=parseInt(this.value);cockpitState.basketChartData=null;fetchBasketDistribution()"
+                                style="padding:3px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.73rem;background:#fff;color:#334155;cursor:pointer;outline:none;">
+                                <option value="3" ${cockpitState.basketChartMonths===3?'selected':''}>3 mo</option>
+                                <option value="6" ${cockpitState.basketChartMonths===6?'selected':''}>6 mo</option>
+                                <option value="12" ${cockpitState.basketChartMonths===12?'selected':''}>12 mo</option>
+                            </select>
+                            ${basketF.size > 0 ? `<button onclick="cockpitState.seoIntelScatterFilter.clear();renderSeoIntelScatterChart()" style="font-size:0.7rem;background:none;border:none;color:#6366f1;cursor:pointer;font-weight:600;">✕ Clear</button>` : ''}
                             <div style="position:relative;">
                                 <button onclick="toggleSeoIntelDropdown('seo-scatter-dropdown')"
-                                    style="padding:4px 10px;border:1px solid ${scatterF.size > 0 ? '#93c5fd' : '#e2e8f0'};border-radius:6px;background:${scatterF.size > 0 ? '#eff6ff' : '#f8fafc'};font-size:0.78rem;cursor:pointer;color:#1e293b;display:flex;align-items:center;gap:5px;">
-                                    <i class="fas fa-filter" style="font-size:0.6rem;color:${scatterF.size > 0 ? '#3b82f6' : '#94a3b8'};"></i>
-                                    ${scatterBtnLabel}
+                                    style="padding:4px 10px;border:1px solid ${basketF.size > 0 ? '#93c5fd' : '#e2e8f0'};border-radius:6px;background:${basketF.size > 0 ? '#eff6ff' : '#f8fafc'};font-size:0.78rem;cursor:pointer;color:#1e293b;display:flex;align-items:center;gap:5px;">
+                                    <i class="fas fa-filter" style="font-size:0.6rem;color:${basketF.size > 0 ? '#3b82f6' : '#94a3b8'};"></i>
+                                    ${basketBtnLabel}
                                     <i class="fas fa-chevron-down" style="font-size:0.6rem;color:#94a3b8;"></i>
                                 </button>
                                 <div id="seo-scatter-dropdown" class="seo-intel-dropdown" style="${scatterDropdownStyle}">
-                                    <input id="seo-scatter-search" type="text" placeholder="Search campaigns…"
+                                    <input id="seo-scatter-search" type="text" placeholder="Search baskets…"
                                         oninput="filterSeoScatterSearch(this.value)"
                                         style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.78rem;outline:none;margin-bottom:4px;">
-                                    <div id="seo-scatter-list" style="max-height:180px;overflow-y:auto;">
-                                        ${scatterCampaigns.map(c =>
-                                            `<label style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.78rem;color:#334155;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'" data-name="${c.name.replace(/"/g,'&quot;').toLowerCase()}">
-                                                <input type="checkbox" ${scatterF.size === 0 || scatterF.has(c.id) ? 'checked' : ''} data-id="${c.id}" onchange="toggleSeoIntelScatterCampaign('${c.id}')" style="width:14px;height:14px;">
-                                                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${c.name.replace(/"/g,'&quot;')}">${c.name}</span>
+                                    <div id="seo-scatter-list">
+                                        ${basketItems.map(b =>
+                                            `<label style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.78rem;color:#334155;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'" data-name="${b.search}">
+                                                <input type="checkbox" ${basketF.size === 0 || basketF.has(b.key) ? 'checked' : ''} onchange="toggleSeoIntelBasketFilter('${b.key}')" style="width:14px;height:14px;accent-color:${b.color};">
+                                                <span style="width:10px;height:10px;border-radius:50%;background:${b.color};flex-shrink:0;"></span>
+                                                ${b.label}
                                             </label>`
                                         ).join('')}
                                     </div>
@@ -21984,11 +21998,11 @@
                             </div>
                         </div>
                     </div>
-                    <div style="height:170px;position:relative;">
-                        <canvas id="seo-scatter-chart"></canvas>
+                    <div id="seo-scatter-loading" style="display:flex;align-items:center;justify-content:center;height:170px;gap:8px;color:#94a3b8;font-size:0.8rem;">
+                        <i class="fas fa-spinner fa-spin"></i> Loading basket data…
                     </div>
-                    <div style="font-size:0.67rem;color:#94a3b8;text-align:center;margin-top:4px;">
-                        X: Campaign progress % &nbsp;·&nbsp; Y: KPI attainment % &nbsp;·&nbsp; Diagonal = on trajectory
+                    <div id="seo-scatter-wrap" style="display:none;height:170px;position:relative;">
+                        <canvas id="seo-scatter-chart"></canvas>
                     </div>
                 </div>`;
 
@@ -22012,13 +22026,17 @@
 
             el.innerHTML = html;
 
-            // Scatter: render immediately (data already in memory)
-            renderSeoIntelScatterChart(scatterCampaigns, scatterActive);
+            // Basket scatter: use cache or fetch fresh
+            if (cockpitState.basketChartData) {
+                renderSeoIntelScatterChart();
+            } else {
+                fetchBasketDistribution();
+            }
         }
 
         async function fetchBasketDistribution() {
-            const loadEl  = document.getElementById('basket-dist-loading');
-            const wrapEl  = document.getElementById('basket-dist-chart-wrap');
+            const loadEl  = document.getElementById('seo-scatter-loading');
+            const wrapEl  = document.getElementById('seo-scatter-wrap');
             if (!loadEl || !wrapEl) return;
 
             loadEl.style.display  = 'flex';
@@ -22118,13 +22136,11 @@
                 const sortedMonths = Object.keys(monthlyBaskets).sort();
                 cockpitState.basketChartData = { months: sortedMonths, baskets: monthlyBaskets };
 
-                loadEl.style.display = 'none';
-                wrapEl.style.display = 'block';
-                renderBasketChart(sortedMonths, monthlyBaskets);
+                renderSeoIntelScatterChart();
 
             } catch (e) {
                 console.error('[BasketChart] fetch error', e);
-                loadEl.innerHTML = `<span style="font-size:0.78rem;color:#ef4444;"><i class="fas fa-exclamation-triangle"></i> Failed to load basket data.</span>`;
+                if (loadEl) loadEl.innerHTML = `<span style="font-size:0.78rem;color:#ef4444;"><i class="fas fa-exclamation-triangle"></i> Failed to load basket data.</span>`;
             }
         }
 
@@ -22299,18 +22315,17 @@
 
         // ── SEO Scatter Plot helpers ──────────────────────────────────────────────
 
-        function toggleSeoIntelScatterCampaign(id) {
+        function toggleSeoIntelBasketFilter(key) {
             const f = cockpitState.seoIntelScatterFilter;
-            const all = cockpitState.seoIntelCache?.filter(c => !c.isUntyped) || [];
-            // If currently showing all, switching to explicit: select all except this one
+            const allKeys = ['p1','p2','p3','p4'];
             if (f.size === 0) {
-                all.forEach(c => { if (c.id !== id) f.add(c.id); });
+                // Showing all — deselect means show all EXCEPT this one
+                allKeys.forEach(k => { if (k !== key) f.add(k); });
             } else {
-                f.has(id) ? f.delete(id) : f.add(id);
-                // If all are now checked, revert to "all" (empty set)
-                if (f.size === all.length) f.clear();
+                f.has(key) ? f.delete(key) : f.add(key);
+                if (f.size === allKeys.length) f.clear(); // all selected = back to "all"
             }
-            renderSeoIntel(cockpitState.seoIntelCache || []);
+            renderSeoIntelScatterChart();
             const dd = document.getElementById('seo-scatter-dropdown');
             if (dd) dd.style.display = 'block';
         }
@@ -22322,86 +22337,70 @@
             });
         }
 
-        function renderSeoIntelScatterChart(allCampaigns, activeCampaigns) {
-            const canvas = document.getElementById('seo-scatter-chart');
+        function renderSeoIntelScatterChart() {
+            const loadEl  = document.getElementById('seo-scatter-loading');
+            const wrapEl  = document.getElementById('seo-scatter-wrap');
+            const canvas  = document.getElementById('seo-scatter-chart');
             if (!canvas) return;
+
+            const bd = cockpitState.basketChartData;
+            if (!bd) return; // data not yet arrived — fetchBasketDistribution will call us
+
+            if (loadEl) loadEl.style.display = 'none';
+            if (wrapEl) wrapEl.style.display = 'block';
+
             if (cockpitState.seoScatterChart) { cockpitState.seoScatterChart.destroy(); cockpitState.seoScatterChart = null; }
 
-            const campaigns = activeCampaigns || allCampaigns;
+            const { months, baskets } = bd;
+            const f = cockpitState.seoIntelScatterFilter; // Set of active basket keys
 
-            // Build scatter points
-            const behindPts = [], onTrackPts = [], specialPts = [];
-            campaigns.forEach(c => {
-                const x = c.pctProgress;
-                const y = c.isSpecial
-                    ? (c.p1 === 999 ? 100 : 0)
-                    : (c.kpi > 0 ? Math.round(c.p1 / c.kpi * 100) : 0);
-                const pt = { x, y, label: c.name, c };
-                if (c.isSpecial)    specialPts.push(pt);
-                else if (c.isBehind) behindPts.push(pt);
-                else                 onTrackPts.push(pt);
-            });
+            const fmtMonth = ym => {
+                const [y, m] = ym.split('-');
+                return new Date(+y, +m - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+            };
+            const monthLabels = months.map(fmtMonth);
 
-            // Reference diagonal: y = x (on trajectory)
-            const diagData = [{ x: 0, y: 0 }, { x: 100, y: 100 }];
+            const basketDefs = [
+                { key: 'p1', label: 'P1 (1–10)',  bg: 'rgba(16,185,129,0.75)',  border: '#10b981' },
+                { key: 'p2', label: 'P2 (11–20)', bg: 'rgba(59,130,246,0.75)',  border: '#3b82f6' },
+                { key: 'p3', label: 'P3 (21–30)', bg: 'rgba(245,158,11,0.75)',  border: '#f59e0b' },
+                { key: 'p4', label: 'P4 (31–40)', bg: 'rgba(239,68,68,0.75)',   border: '#ef4444' },
+            ];
+
+            const datasets = basketDefs
+                .filter(b => f.size === 0 || f.has(b.key))
+                .map(b => ({
+                    label: b.label,
+                    data: months.map((ym, i) => ({ x: i, y: baskets[ym]?.[b.key] || 0 })),
+                    backgroundColor: b.bg,
+                    borderColor: b.border,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                }));
 
             cockpitState.seoScatterChart = new Chart(canvas.getContext('2d'), {
                 type: 'scatter',
-                data: {
-                    datasets: [
-                        {
-                            label: 'On Trajectory',
-                            data: onTrackPts,
-                            backgroundColor: 'rgba(22,163,74,0.75)',
-                            borderColor: '#16a34a',
-                            pointRadius: 7,
-                            pointHoverRadius: 9,
-                        },
-                        {
-                            label: 'Below Trajectory',
-                            data: behindPts,
-                            backgroundColor: 'rgba(220,38,38,0.75)',
-                            borderColor: '#dc2626',
-                            pointRadius: 7,
-                            pointHoverRadius: 9,
-                        },
-                        {
-                            label: 'Special',
-                            data: specialPts,
-                            backgroundColor: 'rgba(217,119,6,0.75)',
-                            borderColor: '#d97706',
-                            pointRadius: 7,
-                            pointHoverRadius: 9,
-                            pointStyle: 'triangle',
-                        },
-                        {
-                            label: 'On Trajectory Line',
-                            type: 'line',
-                            data: diagData,
-                            borderColor: 'rgba(148,163,184,0.5)',
-                            borderWidth: 1.5,
-                            borderDash: [5, 4],
-                            pointRadius: 0,
-                            fill: false,
-                            tension: 0,
-                        },
-                    ],
-                },
+                data: { datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     animation: { duration: 250 },
                     scales: {
                         x: {
-                            min: 0, max: 105,
-                            title: { display: false },
-                            ticks: { font: { size: 10 }, color: '#94a3b8', callback: v => v + '%' },
+                            type: 'linear',
+                            min: -0.5,
+                            max: months.length - 0.5,
+                            ticks: {
+                                font: { size: 10 }, color: '#94a3b8',
+                                stepSize: 1,
+                                callback: v => monthLabels[Math.round(v)] || '',
+                            },
                             grid: { color: 'rgba(226,232,240,0.6)' },
                         },
                         y: {
-                            min: 0, max: 110,
+                            min: 0,
                             title: { display: false },
-                            ticks: { font: { size: 10 }, color: '#94a3b8', callback: v => v + '%' },
+                            ticks: { font: { size: 10 }, color: '#94a3b8' },
                             grid: { color: 'rgba(226,232,240,0.6)' },
                         },
                     },
@@ -22409,28 +22408,15 @@
                         legend: {
                             display: true,
                             position: 'bottom',
-                            labels: { font: { size: 10 }, boxWidth: 10, padding: 10,
-                                filter: item => item.text !== 'On Trajectory Line' },
+                            labels: { font: { size: 10 }, boxWidth: 10, padding: 10 },
                         },
                         tooltip: {
                             callbacks: {
-                                label: ctx => {
-                                    const pt = ctx.raw;
-                                    if (!pt.c) return `(${pt.x}%, ${pt.y}%)`;
-                                    const c = pt.c;
-                                    const lines = [
-                                        c.name,
-                                        `Progress: ${c.pctProgress}%`,
-                                    ];
-                                    if (c.isSpecial) {
-                                        lines.push(`KPI: ${c.p1 === 999 ? 'Checked ✓' : 'Not checked'}`);
-                                    } else {
-                                        lines.push(`KPI: ${c.p1}/${c.kpi} ${c.resultLabel || 'KWs'} (${pt.y}%)`);
-                                    }
-                                    if (c.csmStatus) lines.push(c.csmStatus);
-                                    return lines;
-                                },
                                 title: () => '',
+                                label: ctx => {
+                                    const ym = months[Math.round(ctx.raw.x)];
+                                    return `${ctx.dataset.label}: ${ctx.raw.y} KWs · ${fmtMonth(ym)}`;
+                                },
                             },
                         },
                     },
