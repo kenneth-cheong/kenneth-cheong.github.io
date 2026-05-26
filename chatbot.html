@@ -2885,29 +2885,33 @@
                         </div>
 
 
-                        <div id="gchatSpacesSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
+                        <div id="gchatSpacesSection" style="margin-top: 0; margin-bottom: 16px;">
                             <div class="filter-field">
                                 <label><span><i class="fab fa-google" style="margin-right:4px; opacity:0.6;"></i> Google Chat Spaces</span> <span class="label-count" id="count-msChatSpaceDropdown"></span></label>
                                 <div class="ms-dropdown" id="msChatSpaceDropdown">
-                                    <div class="ms-trigger" onclick="toggleMsPanel('msChatSpaceDropdown')"><span class="ms-placeholder">Connect Google Chat in Settings...</span></div>
+                                    <div class="ms-trigger" id="msChatSpaceTrigger" data-auth-required="1" style="color:#2563eb;" onclick="gchatAuthOrToggle('msChatSpaceDropdown')">
+                                        <span class="ms-placeholder" id="msChatSpacePlaceholder"><i class="fas fa-plug" style="margin-right:5px;"></i> Connect Google Workspace</span>
+                                    </div>
                                     <div class="ms-panel">
                                         <div class="ms-search"><i class="fas fa-search"></i><input type="text" placeholder="Search spaces..." oninput="filterMsOptions('msChatSpaceDropdown', this.value)"></div>
                                         <div class="ms-bulk-actions"><button onclick="msSelectAll('msChatSpaceDropdown')">✓ All</button><button onclick="msUnselectAll('msChatSpaceDropdown')">✗ None</button></div>
-                                        <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Connect Google Chat first...</div></div>
+                                        <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Loading spaces...</div></div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div id="gdriveSection" style="margin-top: 0; margin-bottom: 16px; display: none;">
+                        <div id="gdriveSection" style="margin-top: 0; margin-bottom: 16px;">
                             <div class="filter-field">
                                 <label><span><i class="fab fa-google-drive" style="margin-right:4px; opacity:0.6;"></i> Google Drive Folders</span> <span class="label-count" id="count-msGDriveFolderDropdown"></span></label>
                                 <div class="ms-dropdown" id="msGDriveFolderDropdown">
-                                    <div class="ms-trigger" onclick="toggleMsPanel('msGDriveFolderDropdown')"><span class="ms-placeholder">Connect Google Workspace in Settings...</span></div>
+                                    <div class="ms-trigger" id="msGDriveTrigger" data-auth-required="1" style="color:#2563eb;" onclick="gchatAuthOrToggle('msGDriveFolderDropdown')">
+                                        <span class="ms-placeholder" id="msGDrivePlaceholder"><i class="fas fa-plug" style="margin-right:5px;"></i> Connect Google Workspace</span>
+                                    </div>
                                     <div class="ms-panel">
                                         <div class="ms-search"><i class="fas fa-search"></i><input type="text" placeholder="Search folders..." oninput="filterMsOptions('msGDriveFolderDropdown', this.value)"></div>
                                         <div class="ms-bulk-actions"><button onclick="msSelectAll('msGDriveFolderDropdown')">✓ All</button><button onclick="msUnselectAll('msGDriveFolderDropdown')">✗ None</button></div>
-                                        <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Connect Google Workspace first...</div></div>
+                                        <div class="ms-options"><div class="ms-loading"><i class="fas fa-spinner fa-spin"></i> Loading folders...</div></div>
                                     </div>
                                 </div>
                             </div>
@@ -4698,6 +4702,8 @@
             const MAX_CHIPS = 3;
 
             if (state.selected.length === 0) {
+                // Don't overwrite the auth-prompt when the user hasn't connected yet
+                if (trigger.dataset.authRequired === '1') return;
                 trigger.innerHTML = '<span class="ms-placeholder">All (no filter)</span>';
                 return;
             }
@@ -5062,34 +5068,50 @@
 
         // ========== GOOGLE CHAT INTEGRATION ==========
 
+        function gchatAuthOrToggle(dropdownId) {
+            if (window.gchatAccessToken) {
+                toggleMsPanel(dropdownId);
+            } else {
+                connectService('Workspace');
+            }
+        }
+
         function updateGchatUI(connected) {
             const connectBtn = document.getElementById('gchatConnectBtn');
             const disconnectBtn = document.getElementById('gchatDisconnectBtn');
             const statusEl = document.getElementById('gchatStatus');
-            const spacesSection = document.getElementById('gchatSpacesSection');
-            const driveSection = document.getElementById('gdriveSection');
             const gmailSection = document.getElementById('gmailSection');
             const serviceStatusPanel = document.getElementById('gworkspaceServiceStatus');
             const marketingSection = document.getElementById('marketingSelectors');
+
+            // Update Chat Spaces trigger state
+            const chatTrigger = document.getElementById('msChatSpaceTrigger');
+            const chatPlaceholder = document.getElementById('msChatSpacePlaceholder');
+            const driveTrigger = document.getElementById('msGDriveTrigger');
+            const drivePlaceholder = document.getElementById('msGDrivePlaceholder');
 
             if (connected) {
                 if (connectBtn) connectBtn.style.display = 'none';
                 if (disconnectBtn) disconnectBtn.style.display = 'flex';
                 if (statusEl) statusEl.innerHTML = '<i class="fas fa-check-circle" style="color:#34a853;"></i> Google Connected';
-                if (spacesSection) spacesSection.style.display = 'block';
-                if (driveSection) driveSection.style.display = 'block';
                 if (gmailSection) gmailSection.style.display = 'block';
                 if (serviceStatusPanel) serviceStatusPanel.style.display = 'flex';
                 if (marketingSection) marketingSection.style.display = 'block';
+                if (chatTrigger) { chatTrigger.style.color = ''; delete chatTrigger.dataset.authRequired; }
+                if (chatPlaceholder) chatPlaceholder.innerHTML = 'All spaces (or select specific)...';
+                if (driveTrigger) { driveTrigger.style.color = ''; delete driveTrigger.dataset.authRequired; }
+                if (drivePlaceholder) drivePlaceholder.innerHTML = 'All folders (or select specific)...';
             } else {
                 if (connectBtn) connectBtn.style.display = 'flex';
                 if (disconnectBtn) disconnectBtn.style.display = 'none';
                 if (statusEl) statusEl.innerHTML = '';
-                if (spacesSection) spacesSection.style.display = 'none';
-                if (driveSection) driveSection.style.display = 'none';
                 if (gmailSection) gmailSection.style.display = 'none';
                 if (serviceStatusPanel) serviceStatusPanel.style.display = 'none';
                 if (marketingSection) marketingSection.style.display = 'none';
+                if (chatTrigger) { chatTrigger.style.color = '#2563eb'; chatTrigger.dataset.authRequired = '1'; }
+                if (chatPlaceholder) chatPlaceholder.innerHTML = '<i class="fas fa-plug" style="margin-right:5px;"></i> Connect Google Workspace';
+                if (driveTrigger) { driveTrigger.style.color = '#2563eb'; driveTrigger.dataset.authRequired = '1'; }
+                if (drivePlaceholder) drivePlaceholder.innerHTML = '<i class="fas fa-plug" style="margin-right:5px;"></i> Connect Google Workspace';
                 // Reset all badges
                 ['Chat', 'Drive', 'Gmail', 'Gsc', 'Ga4', 'Ads'].forEach(s => setServiceBadge(s, null));
             }
