@@ -19646,8 +19646,9 @@
             seoIntelOwnerFilter: new Set(),   // Filter by [SEO]SEO owner
             seoIntelStatusFilter: new Set(),  // Filter by Campaign Status
             seoIntelTypeFilter: new Set(),    // Filter by Campaign Type
-            seoIntelScatterFilter: new Set(), // Selected campaigns in scatter plot (empty = all)
+            seoIntelScatterFilter: new Set(), // Selected site IDs in scatter plot (empty = all)
             seoScatterChart: null,            // Chart.js instance for scatter plot
+            basketSiteData: null,             // Per-site basket data [{id, name, monthly}]
             paidIntelCache: null,        // Cached Paid Ads trajectory results
             paidIntelFetchedAt: 0,       // Timestamp of last fetch
             paidIntelOwnerFilter: new Set(),
@@ -21946,15 +21947,9 @@
 `;
 
             // ── Basket scatter plot (replaces bar chart) ──────────────────────
-            const basketF = cockpitState.seoIntelScatterFilter; // holds 'p1'/'p2'/'p3'/'p4' (empty = all)
-            const basketItems = [
-                { key: 'p1', label: 'P1 (1–10)',  color: '#10b981', search: 'p1 page 1 top 10' },
-                { key: 'p2', label: 'P2 (11–20)', color: '#3b82f6', search: 'p2 page 2 11 20' },
-                { key: 'p3', label: 'P3 (21–30)', color: '#f59e0b', search: 'p3 page 3 21 30' },
-                { key: 'p4', label: 'P4 (31–40)', color: '#ef4444', search: 'p4 page 4 31 40' },
-            ];
-            const basketBtnLabel = basketF.size === 0 ? 'All baskets' : basketF.size === 1 ? basketItems.find(b => basketF.has(b.key))?.label : `${basketF.size} baskets`;
-            const scatterDropdownStyle = 'display:none;position:absolute;top:100%;right:0;min-width:200px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:400;margin-top:4px;padding:6px;';
+            const campaignF = cockpitState.seoIntelScatterFilter; // site IDs (empty = all)
+            const campaignBtnLabel = campaignF.size === 0 ? 'All campaigns' : `${campaignF.size} campaign${campaignF.size > 1 ? 's' : ''}`;
+            const scatterDropdownStyle = 'display:none;position:absolute;top:100%;right:0;min-width:240px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:400;margin-top:4px;padding:6px;';
             html += `
                 <!-- Keyword Basket Distribution Scatter -->
                 <div style="padding:12px 16px 10px;border-bottom:1px solid #e2e8f0;background:#fafafa;">
@@ -21964,32 +21959,26 @@
                         </span>
                         <div style="display:flex;align-items:center;gap:6px;">
                             <select id="basket-months-select"
-                                onchange="cockpitState.basketChartMonths=parseInt(this.value);cockpitState.basketChartData=null;fetchBasketDistribution()"
+                                onchange="cockpitState.basketChartMonths=parseInt(this.value);cockpitState.basketChartData=null;cockpitState.basketSiteData=null;fetchBasketDistribution()"
                                 style="padding:3px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.73rem;background:#fff;color:#334155;cursor:pointer;outline:none;">
                                 <option value="3" ${cockpitState.basketChartMonths===3?'selected':''}>3 mo</option>
                                 <option value="6" ${cockpitState.basketChartMonths===6?'selected':''}>6 mo</option>
                                 <option value="12" ${cockpitState.basketChartMonths===12?'selected':''}>12 mo</option>
                             </select>
-                            ${basketF.size > 0 ? `<button onclick="cockpitState.seoIntelScatterFilter.clear();renderSeoIntelScatterChart()" style="font-size:0.7rem;background:none;border:none;color:#6366f1;cursor:pointer;font-weight:600;">✕ Clear</button>` : ''}
+                            ${campaignF.size > 0 ? `<button onclick="cockpitState.seoIntelScatterFilter.clear();renderSeoIntelScatterChart()" style="font-size:0.7rem;background:none;border:none;color:#6366f1;cursor:pointer;font-weight:600;">✕ Clear</button>` : ''}
                             <div style="position:relative;">
                                 <button onclick="toggleSeoIntelDropdown('seo-scatter-dropdown')"
-                                    style="padding:4px 10px;border:1px solid ${basketF.size > 0 ? '#93c5fd' : '#e2e8f0'};border-radius:6px;background:${basketF.size > 0 ? '#eff6ff' : '#f8fafc'};font-size:0.78rem;cursor:pointer;color:#1e293b;display:flex;align-items:center;gap:5px;">
-                                    <i class="fas fa-filter" style="font-size:0.6rem;color:${basketF.size > 0 ? '#3b82f6' : '#94a3b8'};"></i>
-                                    ${basketBtnLabel}
+                                    style="padding:4px 10px;border:1px solid ${campaignF.size > 0 ? '#93c5fd' : '#e2e8f0'};border-radius:6px;background:${campaignF.size > 0 ? '#eff6ff' : '#f8fafc'};font-size:0.78rem;cursor:pointer;color:#1e293b;display:flex;align-items:center;gap:5px;">
+                                    <i class="fas fa-filter" style="font-size:0.6rem;color:${campaignF.size > 0 ? '#3b82f6' : '#94a3b8'};"></i>
+                                    ${campaignBtnLabel}
                                     <i class="fas fa-chevron-down" style="font-size:0.6rem;color:#94a3b8;"></i>
                                 </button>
                                 <div id="seo-scatter-dropdown" class="seo-intel-dropdown" style="${scatterDropdownStyle}">
-                                    <input id="seo-scatter-search" type="text" placeholder="Search baskets…"
+                                    <input id="seo-scatter-search" type="text" placeholder="Search campaigns…"
                                         oninput="filterSeoScatterSearch(this.value)"
                                         style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.78rem;outline:none;margin-bottom:4px;">
-                                    <div id="seo-scatter-list">
-                                        ${basketItems.map(b =>
-                                            `<label style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.78rem;color:#334155;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'" data-name="${b.search}">
-                                                <input type="checkbox" ${basketF.size === 0 || basketF.has(b.key) ? 'checked' : ''} onchange="toggleSeoIntelBasketFilter('${b.key}')" style="width:14px;height:14px;accent-color:${b.color};">
-                                                <span style="width:10px;height:10px;border-radius:50%;background:${b.color};flex-shrink:0;"></span>
-                                                ${b.label}
-                                            </label>`
-                                        ).join('')}
+                                    <div id="seo-scatter-list" style="max-height:200px;overflow-y:auto;">
+                                        <span style="font-size:0.75rem;color:#94a3b8;padding:6px 8px;display:block;">Loading campaigns…</span>
                                     </div>
                                 </div>
                             </div>
@@ -22061,6 +22050,7 @@
 
                 // YYYY-MM → {p1,p2,p3,p4}
                 const monthlyBaskets = {};
+                const siteBaskets = {};
                 const toYYYYMM = d => (d || '').slice(0, 7);
                 const getBasket = pos => {
                     if (pos >= 1  && pos <= 10) return 'p1';
@@ -22115,15 +22105,23 @@
                             });
                         }
 
-                        // Accumulate into global monthly baskets
+                        // Accumulate into global + per-site monthly baskets
+                        const siteMonthly = {};
                         Object.values(kwMonthPos).forEach(monthMap => {
                             Object.entries(monthMap).forEach(([ym, { pos }]) => {
                                 const basket = getBasket(pos);
                                 if (!basket) return;
                                 if (!monthlyBaskets[ym]) monthlyBaskets[ym] = { p1: 0, p2: 0, p3: 0, p4: 0 };
                                 monthlyBaskets[ym][basket]++;
+                                if (!siteMonthly[ym]) siteMonthly[ym] = { p1: 0, p2: 0, p3: 0, p4: 0 };
+                                siteMonthly[ym][basket]++;
                             });
                         });
+                        siteBaskets[String(site.id)] = {
+                            id: String(site.id),
+                            name: site.name || site.domain || site.site || String(site.id),
+                            monthly: siteMonthly,
+                        };
 
                     } catch (e) {
                         console.warn('[BasketChart] error for site', site.id, e);
@@ -22132,6 +22130,7 @@
 
                 const sortedMonths = Object.keys(monthlyBaskets).sort();
                 cockpitState.basketChartData = { months: sortedMonths, baskets: monthlyBaskets };
+                cockpitState.basketSiteData = Object.values(siteBaskets).sort((a, b) => a.name.localeCompare(b.name));
 
                 renderSeoIntelScatterChart();
 
@@ -22312,15 +22311,14 @@
 
         // ── SEO Scatter Plot helpers ──────────────────────────────────────────────
 
-        function toggleSeoIntelBasketFilter(key) {
+        function toggleSeoIntelCampaignFilter(siteId) {
             const f = cockpitState.seoIntelScatterFilter;
-            const allKeys = ['p1','p2','p3','p4'];
+            const all = cockpitState.basketSiteData || [];
             if (f.size === 0) {
-                // Showing all — deselect means show all EXCEPT this one
-                allKeys.forEach(k => { if (k !== key) f.add(k); });
+                all.forEach(s => { if (s.id !== siteId) f.add(s.id); });
             } else {
-                f.has(key) ? f.delete(key) : f.add(key);
-                if (f.size === allKeys.length) f.clear(); // all selected = back to "all"
+                f.has(siteId) ? f.delete(siteId) : f.add(siteId);
+                if (f.size === all.length) f.clear();
             }
             renderSeoIntelScatterChart();
             const dd = document.getElementById('seo-scatter-dropdown');
@@ -22335,21 +22333,51 @@
         }
 
         function renderSeoIntelScatterChart() {
-            const loadEl  = document.getElementById('seo-scatter-loading');
-            const wrapEl  = document.getElementById('seo-scatter-wrap');
-            const canvas  = document.getElementById('seo-scatter-chart');
+            const loadEl = document.getElementById('seo-scatter-loading');
+            const wrapEl = document.getElementById('seo-scatter-wrap');
+            const canvas = document.getElementById('seo-scatter-chart');
             if (!canvas) return;
 
-            const bd = cockpitState.basketChartData;
-            if (!bd) return; // data not yet arrived — fetchBasketDistribution will call us
+            const bd    = cockpitState.basketChartData;
+            const sites = cockpitState.basketSiteData;
+            if (!bd) return; // still loading — fetchBasketDistribution calls us when done
 
             if (loadEl) loadEl.style.display = 'none';
             if (wrapEl) wrapEl.style.display = 'block';
 
-            if (cockpitState.seoScatterChart) { cockpitState.seoScatterChart.destroy(); cockpitState.seoScatterChart = null; }
+            // Populate campaign dropdown once site data is available
+            const listEl = document.getElementById('seo-scatter-list');
+            const f      = cockpitState.seoIntelScatterFilter;
+            if (listEl && sites?.length) {
+                listEl.innerHTML = sites.map(s =>
+                    `<label style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.78rem;color:#334155;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'" data-name="${(s.name||'').toLowerCase().replace(/"/g,'&quot;')}">
+                        <input type="checkbox" ${f.size === 0 || f.has(s.id) ? 'checked' : ''} onchange="toggleSeoIntelCampaignFilter('${s.id}')" style="width:14px;height:14px;">
+                        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(s.name||'').replace(/"/g,'&quot;')}">${s.name}</span>
+                    </label>`
+                ).join('');
+            }
 
-            const { months, baskets } = bd;
-            const f = cockpitState.seoIntelScatterFilter; // Set of active basket keys
+            // Build aggregate for selected campaigns (or global if none selected)
+            const { months } = bd;
+            let baskets;
+            if (!f.size || !sites?.length) {
+                baskets = bd.baskets;
+            } else {
+                baskets = {};
+                months.forEach(ym => { baskets[ym] = { p1: 0, p2: 0, p3: 0, p4: 0 }; });
+                sites.filter(s => f.has(s.id)).forEach(s => {
+                    months.forEach(ym => {
+                        const mb = s.monthly[ym];
+                        if (!mb) return;
+                        baskets[ym].p1 += mb.p1 || 0;
+                        baskets[ym].p2 += mb.p2 || 0;
+                        baskets[ym].p3 += mb.p3 || 0;
+                        baskets[ym].p4 += mb.p4 || 0;
+                    });
+                });
+            }
+
+            if (cockpitState.seoScatterChart) { cockpitState.seoScatterChart.destroy(); cockpitState.seoScatterChart = null; }
 
             const fmtMonth = ym => {
                 const [y, m] = ym.split('-');
@@ -22358,22 +22386,22 @@
             const monthLabels = months.map(fmtMonth);
 
             const basketDefs = [
-                { key: 'p1', label: 'P1 (1–10)',  bg: 'rgba(16,185,129,0.75)',  border: '#10b981' },
-                { key: 'p2', label: 'P2 (11–20)', bg: 'rgba(59,130,246,0.75)',  border: '#3b82f6' },
-                { key: 'p3', label: 'P3 (21–30)', bg: 'rgba(245,158,11,0.75)',  border: '#f59e0b' },
-                { key: 'p4', label: 'P4 (31–40)', bg: 'rgba(239,68,68,0.75)',   border: '#ef4444' },
+                { key: 'p1', label: 'P1 (1–10)',  bg: 'rgba(16,185,129,0.8)',  border: '#10b981' },
+                { key: 'p2', label: 'P2 (11–20)', bg: 'rgba(59,130,246,0.8)',  border: '#3b82f6' },
+                { key: 'p3', label: 'P3 (21–30)', bg: 'rgba(245,158,11,0.8)',  border: '#f59e0b' },
+                { key: 'p4', label: 'P4 (31–40)', bg: 'rgba(239,68,68,0.8)',   border: '#ef4444' },
             ];
 
-            const datasets = basketDefs
-                .filter(b => f.size === 0 || f.has(b.key))
-                .map(b => ({
-                    label: b.label,
-                    data: months.map((ym, i) => ({ x: i, y: baskets[ym]?.[b.key] || 0 })),
-                    backgroundColor: b.bg,
-                    borderColor: b.border,
-                    pointRadius: 5,
-                    pointHoverRadius: 7,
-                }));
+            const datasets = basketDefs.map(b => ({
+                label: b.label,
+                data: months.map((ym, i) => ({ x: i, y: baskets[ym]?.[b.key] || 0 })),
+                backgroundColor: b.bg,
+                borderColor: b.border,
+                pointStyle: 'crossRot',
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                borderWidth: 2,
+            }));
 
             cockpitState.seoScatterChart = new Chart(canvas.getContext('2d'), {
                 type: 'scatter',
@@ -22396,7 +22424,6 @@
                         },
                         y: {
                             min: 0,
-                            title: { display: false },
                             ticks: { font: { size: 10 }, color: '#94a3b8' },
                             grid: { color: 'rgba(226,232,240,0.6)' },
                         },
@@ -22405,7 +22432,8 @@
                         legend: {
                             display: true,
                             position: 'bottom',
-                            labels: { font: { size: 10 }, boxWidth: 10, padding: 10 },
+                            labels: { font: { size: 10 }, boxWidth: 10, padding: 10,
+                                usePointStyle: true, pointStyle: 'crossRot' },
                         },
                         tooltip: {
                             callbacks: {
