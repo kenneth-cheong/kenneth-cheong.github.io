@@ -21944,37 +21944,17 @@
                     <span style="font-size:0.72rem;color:#94a3b8;align-self:center;margin-left:4px;">${filtered.length} of ${campaigns.length} shown</span>
                 </div>
 
-                <!-- Keyword Basket Distribution Chart -->
-                <div style="padding:12px 16px 10px;border-bottom:1px solid #e2e8f0;background:#fafafa;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                        <span style="font-size:0.78rem;font-weight:700;color:#334155;display:flex;align-items:center;gap:6px;">
-                            <i class="fas fa-chart-area" style="color:#6366f1;"></i> Keyword Basket Distribution
-                        </span>
-                        <select id="basket-months-select"
-                            onchange="cockpitState.basketChartMonths=parseInt(this.value);cockpitState.basketChartData=null;fetchBasketDistribution()"
-                            style="padding:3px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.73rem;background:#fff;color:#334155;cursor:pointer;outline:none;">
-                            <option value="3" ${cockpitState.basketChartMonths===3?'selected':''}>3 Months</option>
-                            <option value="6" ${cockpitState.basketChartMonths===6?'selected':''}>6 Months</option>
-                            <option value="12" ${cockpitState.basketChartMonths===12?'selected':''}>12 Months</option>
-                        </select>
-                    </div>
-                    <div id="basket-dist-loading" style="display:flex;align-items:center;justify-content:center;height:170px;gap:8px;color:#94a3b8;font-size:0.8rem;">
-                        <i class="fas fa-spinner fa-spin"></i> Loading basket data…
-                    </div>
-                    <div id="basket-dist-chart-wrap" style="display:none;height:170px;position:relative;">
-                        <canvas id="basket-dist-chart"></canvas>
-                    </div>
-                </div>`;
+`;
 
-            // ── Scatter plot: KPI Trajectory ──────────────────────────────────
+            // ── Scatter plot: KPI Trajectory (replaces basket chart) ──────────
             const scatterCampaigns = filtered.filter(c => !c.isUntyped);
             const scatterF = cockpitState.seoIntelScatterFilter;
             const scatterActive = scatterCampaigns.filter(c => scatterF.size === 0 || scatterF.has(c.id));
             const scatterBtnLabel = scatterF.size === 0 ? 'All campaigns' : `${scatterF.size} selected`;
             const scatterDropdownStyle = 'display:none;position:absolute;top:100%;right:0;min-width:260px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:400;margin-top:4px;padding:6px;';
             html += `
-                <!-- Scatter: KPI Trajectory Plot -->
-                <div style="padding:12px 16px 10px;border-bottom:1px solid #e2e8f0;background:#fff;">
+                <!-- KPI Trajectory Scatter Plot -->
+                <div style="padding:12px 16px 10px;border-bottom:1px solid #e2e8f0;background:#fafafa;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                         <span style="font-size:0.78rem;font-weight:700;color:#334155;display:flex;align-items:center;gap:6px;">
                             <i class="fas fa-braille" style="color:#6366f1;"></i> KPI Trajectory Plot
@@ -22004,7 +21984,7 @@
                             </div>
                         </div>
                     </div>
-                    <div style="height:240px;position:relative;">
+                    <div style="height:170px;position:relative;">
                         <canvas id="seo-scatter-chart"></canvas>
                     </div>
                     <div style="font-size:0.67rem;color:#94a3b8;text-align:center;margin-top:4px;">
@@ -22034,16 +22014,6 @@
 
             // Scatter: render immediately (data already in memory)
             renderSeoIntelScatterChart(scatterCampaigns, scatterActive);
-
-            // Chart: re-render from cache or fetch fresh
-            if (cockpitState.basketChartData) {
-                const { months, baskets } = cockpitState.basketChartData;
-                document.getElementById('basket-dist-loading').style.display = 'none';
-                document.getElementById('basket-dist-chart-wrap').style.display = 'block';
-                renderBasketChart(months, baskets);
-            } else {
-                fetchBasketDistribution();
-            }
         }
 
         async function fetchBasketDistribution() {
