@@ -22396,10 +22396,13 @@
         function toggleSeoIntelCampaignFilter(siteId) {
             const f = cockpitState.seoIntelScatterFilter;
             const all = cockpitState.basketSiteData || [];
-            f.delete('__none__'); // clear sentinel first
-            if (f.size === 0) {
+            const wasNone = f.has('__none__');
+            f.delete('__none__');
+            if (f.size === 0 && !wasNone) {
+                // Genuinely "all selected" → toggle off: add everyone except this one
                 all.forEach(s => { if (s.id !== siteId) f.add(s.id); });
             } else {
+                // Partial selection or coming from "None" → toggle just this item on/off
                 f.has(siteId) ? f.delete(siteId) : f.add(siteId);
                 if (f.size === all.length) f.clear(); // all checked = same as no filter
                 if (f.size === 0) f.add('__none__'); // last one unchecked = none
@@ -22446,10 +22449,13 @@
         function toggleSeoIntelKeywordFilter(kwName) {
             const f   = cockpitState.seoIntelKeywordFilter;
             const all = [...new Set((cockpitState.basketKeywordPoints || []).map(p => p.kwName))];
+            const wasNone = f.has('__none__');
             f.delete('__none__');
-            if (f.size === 0) {
+            if (f.size === 0 && !wasNone) {
+                // Genuinely "all selected" → toggle off: add everyone except this one
                 all.forEach(k => { if (k !== kwName) f.add(k); });
             } else {
+                // Partial selection or coming from "None" → toggle just this item on/off
                 f.has(kwName) ? f.delete(kwName) : f.add(kwName);
                 if (f.size === all.length) f.clear();
                 if (f.size === 0) f.add('__none__');
