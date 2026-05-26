@@ -22005,6 +22005,12 @@
                     <div id="seo-scatter-wrap" style="display:none;height:210px;position:relative;">
                         <canvas id="seo-scatter-chart"></canvas>
                     </div>
+                    <!-- Resize handle -->
+                    <div id="seo-scatter-resize-handle"
+                        style="height:8px;cursor:ns-resize;display:flex;align-items:center;justify-content:center;margin-top:2px;border-radius:0 0 6px 6px;user-select:none;"
+                        onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
+                        <div style="width:32px;height:3px;background:#cbd5e1;border-radius:2px;pointer-events:none;"></div>
+                    </div>
                 </div>`;
 
             // ── Sort bar ──────────────────────────────────────────────────────────
@@ -22043,6 +22049,7 @@
             }
 
             el.innerHTML = html;
+            initSeoScatterResize();
 
             // Basket scatter: use cache or fetch fresh
             if (cockpitState.basketChartData) {
@@ -22382,6 +22389,32 @@
             const q = query.toLowerCase();
             document.querySelectorAll('#seo-scatter-list label').forEach(lbl => {
                 lbl.style.display = !q || lbl.dataset.name.includes(q) ? '' : 'none';
+            });
+        }
+
+        function initSeoScatterResize() {
+            const handle = document.getElementById('seo-scatter-resize-handle');
+            if (!handle) return;
+            handle.addEventListener('mousedown', e => {
+                e.preventDefault();
+                const startY = e.clientY;
+                const loadEl = document.getElementById('seo-scatter-loading');
+                const wrapEl = document.getElementById('seo-scatter-wrap');
+                const startH = (wrapEl?.offsetHeight || loadEl?.offsetHeight || 210);
+                const onMove = ev => {
+                    const newH = Math.max(120, Math.min(600, startH + ev.clientY - startY));
+                    if (loadEl) loadEl.style.height = newH + 'px';
+                    if (wrapEl) wrapEl.style.height = newH + 'px';
+                    if (cockpitState.seoScatterChart) cockpitState.seoScatterChart.resize();
+                };
+                const onUp = () => {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    handle.style.background = 'transparent';
+                };
+                handle.style.background = '#e2e8f0';
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
             });
         }
 
