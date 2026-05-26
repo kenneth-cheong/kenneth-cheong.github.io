@@ -22208,7 +22208,13 @@
                 }));
 
                 const sortedMonths = Object.keys(monthlyBaskets).sort();
-                cockpitState.basketChartData    = { months: sortedMonths, baskets: monthlyBaskets };
+                // Build full month sequence for the window so months with no data show as empty columns
+                const windowMonths = [];
+                const _wmCur  = new Date(new Date(dateFrom).getFullYear(), new Date(dateFrom).getMonth(), 1);
+                const _wmStop = new Date(new Date(dateTo).getFullYear(),   new Date(dateTo).getMonth(),   1);
+                while (_wmCur <= _wmStop) { windowMonths.push(_wmCur.toISOString().slice(0, 7)); _wmCur.setMonth(_wmCur.getMonth() + 1); }
+
+                cockpitState.basketChartData    = { months: windowMonths, baskets: monthlyBaskets };
                 cockpitState.basketSiteData     = Object.values(siteBaskets).sort((a, b) => a.name.localeCompare(b.name));
                 cockpitState.basketKeywordPoints = allKwPoints;
 
@@ -22220,6 +22226,7 @@
                     return;
                 }
 
+                updateSeoSparklines();
                 renderSeoIntelScatterChart();
 
             } catch (e) {
@@ -22333,7 +22340,10 @@
                     <div style="height:7px;background:#f1f5f9;border-radius:4px;margin-bottom:6px;">
                         <div style="height:100%;width:${c.pctProgress}%;background:#cbd5e1;border-radius:4px;"></div>
                     </div>
-                    <div style="font-size:0.71rem;color:#94a3b8;text-align:right;">${c.pctProgress}% · ${fmtDate(c.startDate)} – ${fmtDate(c.endDate)}</div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.71rem;color:#94a3b8;">
+                        <span id="seo-sparkline-${c.id}" style="display:flex;align-items:center;"></span>
+                        <span>${c.pctProgress}% · ${fmtDate(c.startDate)} – ${fmtDate(c.endDate)}</span>
+                    </div>
                 </div>`;
             }
 
@@ -22389,11 +22399,12 @@
                     <div style="position:absolute;top:0;left:0;height:100%;width:${actualPct.toFixed(1)}%;background:${color};border-radius:4px;"></div>
                     <div title="Expected at this point" style="position:absolute;top:-3px;height:13px;width:2px;background:#94a3b8;border-radius:1px;left:${expectedPct.toFixed(1)}%;"></div>
                 </div>
-                <div style="display:flex;justify-content:space-between;font-size:0.71rem;color:#64748b;">
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.71rem;color:#64748b;">
                     ${c.isSpecial
                         ? `<span><span style="font-weight:700;color:#0f172a;">${c.p1 === 999 ? 'Checked ✓' : 'Not checked'}</span> &nbsp;·&nbsp; <span style="color:#94a3b8;">due at 50% mark · KPI <b style="color:#475569;">999</b></span></span>`
                         : `<span><span style="font-weight:700;color:#0f172a;">${c.p1}</span> ${c.resultLabel} &nbsp;·&nbsp; <span style="color:#94a3b8;">expected <b style="color:#475569;">${c.expected}</b> · KPI <b style="color:#475569;">${c.kpi}</b></span></span>`
                     }
+                    <span id="seo-sparkline-${c.id}" style="display:flex;align-items:center;margin:0 6px;"></span>
                     <span style="color:#94a3b8;">${c.pctProgress}% · ${fmtDate(c.startDate)} – ${fmtDate(c.endDate)}</span>
                 </div>
             </div>`;
@@ -22518,6 +22529,42 @@
             return (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         }
 
+        function buildSeoSparkline(campaignName, color) {
+            const bd    = cockpitState.basketChartData;
+            const sites = cockpitState.basketSiteData;
+            if (!bd || !sites?.length) return '';
+            const { months } = bd;
+            if (!months.length) return '';
+            const norm    = seoIntelNormalizeName(campaignName);
+            const matched = sites.filter(s => { const n = seoIntelNormalizeName(s.name); return norm === n || norm.includes(n) || n.includes(norm); });
+            if (!matched.length) return '';
+            const vals = months.map(ym => matched.reduce((sum, s) => sum + (s.monthly[ym]?.p1 || 0), 0));
+            const max  = Math.max(...vals, 1);
+            const W = 70, H = 20, pad = 2;
+            const step = months.length > 1 ? (W - pad * 2) / (months.length - 1) : 0;
+            const pts = vals.map((v, i) => `${(pad + i * step).toFixed(1)},${(H - pad - (v / max) * (H - pad * 2)).toFixed(1)}`);
+            const lastPt   = pts[pts.length - 1].split(',');
+            const areaPath = `M${pts[0]} ` + pts.slice(1).map(p => `L${p}`).join(' ')
+                + ` L${(pad + (months.length - 1) * step).toFixed(1)},${H} L${pad},${H} Z`;
+            return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="flex-shrink:0;overflow:visible;" title="P1 trend (${months[0]} – ${months[months.length - 1]})">
+                <path d="${areaPath}" fill="${color}" fill-opacity="0.12"/>
+                <polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+                <circle cx="${lastPt[0]}" cy="${lastPt[1]}" r="2.5" fill="${color}"/>
+            </svg>`;
+        }
+
+        function updateSeoSparklines() {
+            (cockpitState.seoIntelCache || []).forEach(c => {
+                const el = document.getElementById('seo-sparkline-' + c.id);
+                if (!el) return;
+                let clr;
+                if (c.isUntyped)      clr = '#94a3b8';
+                else if (c.isSpecial) clr = c.p1 === 999 ? '#16a34a' : (c.pctProgress < 50 ? '#d97706' : '#dc2626');
+                else                  clr = c.isBehind ? '#dc2626' : '#16a34a';
+                el.innerHTML = buildSeoSparkline(c.name, clr);
+            });
+        }
+
         function syncScatterFromRowSelection() {
             const rowSel    = cockpitState.seoIntelRowSelection;
             const sites     = cockpitState.basketSiteData || [];
@@ -22576,6 +22623,7 @@
 
             if (loadEl) loadEl.style.display = 'none';
             if (wrapEl) wrapEl.style.display = 'block';
+            updateSeoSparklines();
 
             // Populate campaign dropdown once site data is available
             const listEl = document.getElementById('seo-scatter-list');
