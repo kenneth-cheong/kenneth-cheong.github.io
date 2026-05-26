@@ -6802,9 +6802,7 @@
                         const spaceId = typeof s === 'object' ? s.id : s;
                         const spaceName = typeof s === 'object' ? s.name : spaceId;
                         const msgs = await fetchGoogleChatMessages(spaceId);
-                        if (msgs.length > 0) {
-                            chatMessages.push({ space_name: spaceName, space_id: spaceId, messages: msgs });
-                        }
+                        chatMessages.push({ space_name: spaceName, space_id: spaceId, messages: msgs });
                     });
                     await Promise.all(chatPromises);
                     console.log(`[GCHAT] Fetched messages from ${chatMessages.length} spaces.`);
@@ -6961,12 +6959,19 @@
 
                     if (chatMessages.length > 0) {
                         const totalMsgs = chatMessages.reduce((s, sp) => s + sp.messages.length, 0);
-                        summaryLines.push(`💬 **Google Chat** — ${chatMessages.length} space${chatMessages.length !== 1 ? 's' : ''}, ${totalMsgs} messages`);
-                        chatMessages.forEach(sp => summaryLines.push(`- ${sp.space_name} (${sp.messages.length} msgs)`));
+                        summaryLines.push(`💬 **Google Chat** — ${chatMessages.length} space${chatMessages.length !== 1 ? 's' : ''}, ${totalMsgs} message${totalMsgs !== 1 ? 's' : ''}`);
+                        chatMessages.forEach(sp => summaryLines.push(`- ${sp.space_name} (${sp.messages.length} msg${sp.messages.length !== 1 ? 's' : ''}${sp.messages.length === 0 ? ' — no recent messages found' : ''})`));
+                    } else if (selectedChatSpaces.length > 0) {
+                        const spaceNames = selectedChatSpaces.map(s => typeof s === 'object' ? s.name : s);
+                        summaryLines.push(`💬 **Google Chat** — ${spaceNames.length} space${spaceNames.length !== 1 ? 's' : ''} selected${window.gchatAccessToken ? ', no messages found' : ' (not connected)'}`);
+                        spaceNames.forEach(n => summaryLines.push(`- ${n}`));
                     }
 
                     if (driveDocuments.length > 0) {
                         summaryLines.push(`📁 **Google Drive** — ${driveDocuments.length} document${driveDocuments.length !== 1 ? 's' : ''} loaded`);
+                    } else if (selectedDriveFolders.length > 0) {
+                        const folderNames = selectedDriveFolders.map(f => typeof f === 'object' ? f.name : f);
+                        summaryLines.push(`📁 **Google Drive** — ${folderNames.length} folder${folderNames.length !== 1 ? 's' : ''} selected${window.gchatAccessToken ? ', no documents found' : ' (not connected)'}`);
                     }
 
                     if (gmailData.length > 0) {
