@@ -19647,6 +19647,7 @@
             seoIntelStatusFilter: new Set(),  // Filter by Campaign Status
             seoIntelTypeFilter: new Set(),    // Filter by Campaign Type
             seoIntelScatterFilter: new Set(), // Selected site IDs in scatter plot (empty = all)
+            seoIntelKeywordFilter: new Set(), // Selected keyword names in scatter plot (empty = all)
             seoIntelRowSelection: new Set(),  // Campaign IDs selected via row click
             seoIntelSort: 'default',          // Sort order for campaign rows
             seoScatterChart: null,            // Chart.js instance for scatter plot
@@ -21832,6 +21833,7 @@
             cockpitState.seoIntelTypeFilter.clear();
             cockpitState.seoIntelRowSelection.clear();
             cockpitState.seoIntelScatterFilter.clear();
+            cockpitState.seoIntelKeywordFilter.clear();
             renderSeoIntel(cockpitState.seoIntelCache || []);
         }
 
@@ -21962,9 +21964,12 @@
 `;
 
             // ── Basket scatter plot (replaces bar chart) ──────────────────────
-            const campaignF = cockpitState.seoIntelScatterFilter; // site IDs (empty = all)
+            const campaignF = cockpitState.seoIntelScatterFilter;
+            const kwF       = cockpitState.seoIntelKeywordFilter;
             const campaignBtnLabel = campaignF.size === 0 ? 'All campaigns' : `${campaignF.size} campaign${campaignF.size > 1 ? 's' : ''}`;
-            const scatterDropdownStyle = 'display:none;position:absolute;top:100%;right:0;min-width:240px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:400;margin-top:4px;padding:6px;';
+            const kwBtnLabel       = kwF.size === 0 ? 'All keywords' : kwF.has('__none__') ? 'No keywords' : `${kwF.size} keyword${kwF.size > 1 ? 's' : ''}`;
+            const scatterDropdownStyle = 'display:none;position:absolute;top:100%;right:0;min-width:260px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:400;margin-top:4px;padding:6px;';
+            const scatterActive = campaignF.size > 0 || kwF.size > 0;
             html += `
                 <!-- Keyword Basket Distribution Scatter -->
                 <div style="padding:12px 16px 10px;border-bottom:1px solid #e2e8f0;background:#fafafa;">
@@ -21980,7 +21985,25 @@
                                 <option value="6" ${cockpitState.basketChartMonths===6?'selected':''}>6 mo</option>
                                 <option value="12" ${cockpitState.basketChartMonths===12?'selected':''}>12 mo</option>
                             </select>
-                            ${campaignF.size > 0 ? `<button onclick="cockpitState.seoIntelScatterFilter.clear();renderSeoIntelScatterChart()" style="font-size:0.7rem;background:none;border:none;color:#6366f1;cursor:pointer;font-weight:600;">✕ Clear</button>` : ''}
+                            ${scatterActive ? `<button onclick="cockpitState.seoIntelScatterFilter.clear();cockpitState.seoIntelKeywordFilter.clear();renderSeoIntelScatterChart()" style="font-size:0.7rem;background:none;border:none;color:#6366f1;cursor:pointer;font-weight:600;">✕ Clear</button>` : ''}
+                            <!-- Keyword filter -->
+                            <div style="position:relative;">
+                                <button onclick="toggleSeoIntelDropdown('seo-kw-dropdown')"
+                                    style="padding:4px 10px;border:1px solid ${kwF.size > 0 ? '#93c5fd' : '#e2e8f0'};border-radius:6px;background:${kwF.size > 0 ? '#eff6ff' : '#f8fafc'};font-size:0.78rem;cursor:pointer;color:#1e293b;display:flex;align-items:center;gap:5px;">
+                                    <i class="fas fa-key" style="font-size:0.6rem;color:${kwF.size > 0 ? '#3b82f6' : '#94a3b8'};"></i>
+                                    ${kwBtnLabel}
+                                    <i class="fas fa-chevron-down" style="font-size:0.6rem;color:#94a3b8;"></i>
+                                </button>
+                                <div id="seo-kw-dropdown" class="seo-intel-dropdown" style="${scatterDropdownStyle}">
+                                    <input id="seo-kw-search" type="text" placeholder="Search keywords…"
+                                        oninput="filterSeoKeywordSearch(this.value)"
+                                        style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.78rem;outline:none;margin-bottom:4px;">
+                                    <div id="seo-kw-list" style="max-height:220px;overflow-y:auto;">
+                                        <span style="font-size:0.75rem;color:#94a3b8;padding:6px 8px;display:block;">Loading keywords…</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Campaign filter -->
                             <div style="position:relative;">
                                 <button onclick="toggleSeoIntelDropdown('seo-scatter-dropdown')"
                                     style="padding:4px 10px;border:1px solid ${campaignF.size > 0 ? '#93c5fd' : '#e2e8f0'};border-radius:6px;background:${campaignF.size > 0 ? '#eff6ff' : '#f8fafc'};font-size:0.78rem;cursor:pointer;color:#1e293b;display:flex;align-items:center;gap:5px;">
@@ -22418,6 +22441,45 @@
             });
         }
 
+        function toggleSeoIntelKeywordFilter(kwName) {
+            const f   = cockpitState.seoIntelKeywordFilter;
+            const all = [...new Set((cockpitState.basketKeywordPoints || []).map(p => p.kwName))];
+            f.delete('__none__');
+            if (f.size === 0) {
+                all.forEach(k => { if (k !== kwName) f.add(k); });
+            } else {
+                f.has(kwName) ? f.delete(kwName) : f.add(kwName);
+                if (f.size === all.length) f.clear();
+                if (f.size === 0) f.add('__none__');
+            }
+            renderSeoIntelScatterChart();
+            const dd = document.getElementById('seo-kw-dropdown');
+            if (dd) dd.style.display = 'block';
+        }
+
+        function filterSeoKeywordSearch(query) {
+            const q = query.toLowerCase();
+            document.querySelectorAll('#seo-kw-list label').forEach(lbl => {
+                lbl.style.display = !q || (lbl.dataset.name || '').includes(q) ? '' : 'none';
+            });
+        }
+
+        function selectAllSeoKeywords() {
+            cockpitState.seoIntelKeywordFilter.clear();
+            renderSeoIntelScatterChart();
+            const dd = document.getElementById('seo-kw-dropdown');
+            if (dd) dd.style.display = 'block';
+        }
+
+        function deselectAllSeoKeywords() {
+            const f = cockpitState.seoIntelKeywordFilter;
+            f.clear();
+            f.add('__none__');
+            renderSeoIntelScatterChart();
+            const dd = document.getElementById('seo-kw-dropdown');
+            if (dd) dd.style.display = 'block';
+        }
+
         function selectAllSeoScatterCampaigns() {
             cockpitState.seoIntelScatterFilter.clear();
             cockpitState.seoIntelRowSelection.clear();
@@ -22516,12 +22578,39 @@
             }
 
             const { months } = bd;
+            const kwF = cockpitState.seoIntelKeywordFilter;
 
-            // Filter individual keyword points by campaign selection
+            // Filter individual keyword points by campaign selection, then keyword selection
             const allKwPts = cockpitState.basketKeywordPoints || [];
-            const filteredPts = f.has('__none__') ? [] :
+            const campaignFiltered = f.has('__none__') ? [] :
                 (!f.size || !sites?.length) ? allKwPts :
                 allKwPts.filter(p => f.has(p.siteId));
+
+            const filteredPts = kwF.has('__none__') ? [] :
+                (kwF.size === 0) ? campaignFiltered :
+                campaignFiltered.filter(p => kwF.has(p.kwName));
+
+            // Populate keyword dropdown
+            const kwListEl = document.getElementById('seo-kw-list');
+            if (kwListEl) {
+                const uniqueKws = [...new Set(campaignFiltered.map(p => p.kwName))].sort((a, b) => a.localeCompare(b));
+                const isNone    = kwF.has('__none__');
+                const btnStyle  = 'flex:1;padding:3px 0;border:1px solid #e2e8f0;border-radius:5px;font-size:0.72rem;background:#f8fafc;cursor:pointer;color:#334155;font-weight:600;';
+                kwListEl.innerHTML =
+                    `<div style="display:flex;gap:5px;padding:2px 8px 6px;border-bottom:1px solid #f1f5f9;margin-bottom:4px;">
+                        <button onclick="selectAllSeoKeywords()" style="${btnStyle}" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='#f8fafc'">All</button>
+                        <button onclick="deselectAllSeoKeywords()" style="${btnStyle}" onmouseover="this.style.background='#fff1f2'" onmouseout="this.style.background='#f8fafc'">None</button>
+                    </div>
+                    <div style="padding:2px 8px 4px;font-size:0.7rem;color:#94a3b8;">${uniqueKws.length} keyword${uniqueKws.length !== 1 ? 's' : ''}</div>` +
+                    uniqueKws.map(kw => {
+                        const safeKw = kw.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+                        const checked = !isNone && (kwF.size === 0 || kwF.has(kw));
+                        return `<label style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:0.78rem;color:#334155;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'" data-name="${safeKw.toLowerCase()}">
+                            <input type="checkbox" ${checked ? 'checked' : ''} data-kw="${safeKw}" onchange="toggleSeoIntelKeywordFilter(this.dataset.kw)" style="width:14px;height:14px;flex-shrink:0;">
+                            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${safeKw}">${kw}</span>
+                        </label>`;
+                    }).join('');
+            }
 
             if (cockpitState.seoScatterChart) { cockpitState.seoScatterChart.destroy(); cockpitState.seoScatterChart = null; }
 
