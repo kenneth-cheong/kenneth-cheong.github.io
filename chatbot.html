@@ -6853,7 +6853,7 @@
                     const syncBtn = document.getElementById('internalSyncBtn');
                     const topBtn = document.getElementById('topSyncBtn');
                     const badge = document.getElementById('syncRequiredBadge');
-                    
+
                     if (syncBtn) {
                         syncBtn.disabled = false;
                         syncBtn.innerHTML = '<i class="fas fa-bolt"></i> Load Data';
@@ -6863,6 +6863,13 @@
                         topBtn.innerHTML = '<i class="fas fa-sync"></i> Load Selected Data';
                     }
                     if (badge) badge.style.display = 'none';
+
+                    // Record the synced state so the un-synced-filter warning stays silent
+                    window.lastSyncedInternalState = {
+                        boards: msState.msBoardDropdown.selected.map(b => typeof b === 'object' ? b.id : b),
+                        items: msState.msItemDropdown.selected.map(i => typeof i === 'object' ? i.id : i),
+                        staff: [...msState.msStaffDropdown.selected]
+                    };
                     return;
 
                 // Step 2: Upload to OpenAI with Unique Filename
