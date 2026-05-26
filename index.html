@@ -22212,6 +22212,14 @@
                 cockpitState.basketSiteData     = Object.values(siteBaskets).sort((a, b) => a.name.localeCompare(b.name));
                 cockpitState.basketKeywordPoints = allKwPoints;
 
+                if (!sortedMonths.length) {
+                    if (loadEl) {
+                        loadEl.style.display = 'flex';
+                        loadEl.innerHTML = `<span style="font-size:0.78rem;color:#94a3b8;display:flex;align-items:center;gap:6px;"><i class="fas fa-calendar-times"></i> No ranking data found for the last ${months} months.</span>`;
+                    }
+                    return;
+                }
+
                 renderSeoIntelScatterChart();
 
             } catch (e) {
@@ -22620,6 +22628,16 @@
                             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${safeKw}">${kw}</span>
                         </label>`;
                     }).join('');
+            }
+
+            if (!filteredPts.length && months.length > 0) {
+                if (cockpitState.seoScatterChart) { cockpitState.seoScatterChart.destroy(); cockpitState.seoScatterChart = null; }
+                if (wrapEl) wrapEl.style.display = 'none';
+                if (loadEl) {
+                    loadEl.style.display = 'flex';
+                    loadEl.innerHTML = `<span style="font-size:0.78rem;color:#94a3b8;display:flex;align-items:center;gap:6px;"><i class="fas fa-search"></i> No keyword data for the selected filters in this period.</span>`;
+                }
+                return;
             }
 
             if (cockpitState.seoScatterChart) { cockpitState.seoScatterChart.destroy(); cockpitState.seoScatterChart = null; }
@@ -27590,7 +27608,7 @@ Return ONLY a valid JSON array (no markdown, no extra text). Each object must ha
             });
             listArea.style.display = 'block';
 
-            // 6. Generate 5 strategy-tailored prompts using strategy context if available
+            // 6. Generate 10 strategy-tailored prompts using strategy context if available
             const si = window._strategyInputs;
             const contextLines = [
                 si?.clientProfile   ? `Business: ${si.clientProfile}`       : null,
@@ -27601,13 +27619,13 @@ Return ONLY a valid JSON array (no markdown, no extra text). Each object must ha
 
             const aiPrompt = `${contextLines}
 
-Generate exactly 5 realistic search queries a potential customer would type into an AI assistant (ChatGPT, Perplexity, Google Gemini) when looking for the products or services described above. These should be high-intent discovery questions where appearing in the AI's answer would drive qualified leads.
+Generate exactly 10 realistic search queries a potential customer would type into an AI assistant (ChatGPT, Perplexity, Google Gemini) when looking for the products or services described above. These should be high-intent discovery questions where appearing in the AI's answer would drive qualified leads.
 
 Rules:
 - Natural, conversational questions (not just keyword lists)
 - Mix of informational and transactional intent
 - Language must fully match the keywords / market context
-- Return ONLY a JSON array of exactly 5 strings — no explanation, no markdown`;
+- Return ONLY a JSON array of exactly 10 strings — no explanation, no markdown`;
 
             let prompts = [];
             try {
@@ -27622,24 +27640,27 @@ Rules:
                 const jsonMatch = content.match(/\[.*\]/s);
                 prompts = JSON.parse(jsonMatch ? jsonMatch[0] : content);
                 if (!Array.isArray(prompts)) throw new Error('Not an array');
-                prompts = prompts.slice(0, 5);
+                prompts = prompts.slice(0, 10);
             } catch (e) {
                 console.warn('autoRunGeoDiscovery: prompt generation failed', e);
                 return;
             }
 
-            // 7. Render prompts as pre-checked checkboxes (all 5 selected by default)
+            // 7. Render 10 prompts — first 5 auto-checked, remaining 5 unchecked
             const promptList = document.getElementById('discPromptsChecklist');
             const promptArea = document.getElementById('discPromptArea');
             if (!promptList || !promptArea) return;
 
             promptList.innerHTML = '';
-            prompts.forEach(p => {
-                promptList.appendChild(_buildDiscPromptItem(p, true));
+            prompts.forEach((p, i) => {
+                promptList.appendChild(_buildDiscPromptItem(p, i < 5));
             });
             promptArea.style.display = 'block';
 
             if (typeof setTaskStatus === 'function') setTaskStatus('geo', 'done');
+
+            // 8. Auto-proceed to Check AI Mentions with the 5 pre-checked prompts
+            verifyDiscoveryMentions();
         }
 
         function updateDiscLanguageBasedOnLocation() {
