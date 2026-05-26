@@ -19651,6 +19651,7 @@
             seoIntelSort: 'default',          // Sort order for campaign rows
             seoScatterChart: null,            // Chart.js instance for scatter plot
             basketSiteData: null,             // Per-site basket data [{id, name, monthly}]
+            basketKeywordPoints: null,        // Individual keyword points [{siteId,kwName,pos,groupName,basket,ym}]
             paidIntelCache: null,        // Cached Paid Ads trajectory results
             paidIntelFetchedAt: 0,       // Timestamp of last fetch
             paidIntelOwnerFilter: new Set(),
@@ -21973,7 +21974,7 @@
                         </span>
                         <div style="display:flex;align-items:center;gap:6px;">
                             <select id="basket-months-select"
-                                onchange="cockpitState.basketChartMonths=parseInt(this.value);cockpitState.basketChartData=null;cockpitState.basketSiteData=null;fetchBasketDistribution()"
+                                onchange="cockpitState.basketChartMonths=parseInt(this.value);cockpitState.basketChartData=null;cockpitState.basketSiteData=null;cockpitState.basketKeywordPoints=null;fetchBasketDistribution()"
                                 style="padding:3px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.73rem;background:#fff;color:#334155;cursor:pointer;outline:none;">
                                 <option value="3" ${cockpitState.basketChartMonths===3?'selected':''}>3 mo</option>
                                 <option value="6" ${cockpitState.basketChartMonths===6?'selected':''}>6 mo</option>
@@ -22081,7 +22082,8 @@
 
                 // YYYY-MM → {p1,p2,p3,p4}
                 const monthlyBaskets = {};
-                const siteBaskets = {};
+                const siteBaskets    = {};
+                const allKwPoints    = []; // individual keyword data points for scatter
                 const toYYYYMM = d => (d || '').slice(0, 7);
                 const getBasket = pos => {
                     if (pos >= 1  && pos <= 10) return 'p1';
@@ -22093,14 +22095,24 @@
 
                 await Promise.all(sites.map(async site => {
                     try {
-                        let posData = await fetch(SER_URL, {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ action: 'get_positions', siteId: site.id, date_from: dateFrom, date_to: dateTo, with_landing_pages: 0 })
-                        }).then(r => r.json());
+                        // Fetch positions + groups in parallel
+                        const [posRaw, grpRaw] = await Promise.all([
+                            fetch(SER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ action: 'get_positions', siteId: site.id, date_from: dateFrom, date_to: dateTo, with_landing_pages: 0 }) }).then(r => r.json()),
+                            fetch(SER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ action: 'get_groups', siteId: site.id }) }).then(r => r.json()),
+                        ]);
+
+                        let posData = posRaw;
                         if (posData.body && typeof posData.body === 'string') posData = JSON.parse(posData.body);
                         const positions = (posData && posData.data) ? posData.data : (Array.isArray(posData) ? posData : (typeof posData === 'object' ? posData : []));
 
-                        // kwId → {YYYY-MM → {pos, date}}  (keeps latest date per month)
+                        let grpData = grpRaw;
+                        if (grpData.body && typeof grpData.body === 'string') grpData = JSON.parse(grpData.body);
+                        const groupMap = {};
+                        (Array.isArray(grpData) ? grpData : []).forEach(g => { groupMap[String(g.id)] = g.name || 'General'; });
+
+                        // kwId → {YYYY-MM → {pos, date, name, groupName}}  (keeps latest per month)
                         const kwMonthPos = {};
 
                         if (Array.isArray(positions)) {
@@ -22108,14 +22120,16 @@
                                 if (!Array.isArray(engineEntry.keywords)) return;
                                 engineEntry.keywords.forEach(kwPos => {
                                     if (!Array.isArray(kwPos.positions)) return;
-                                    const kwId = String(kwPos.id);
+                                    const kwId     = String(kwPos.id);
+                                    const kwName   = kwPos.name || '';
+                                    const groupName = groupMap[String(kwPos.group_id)] || 'General';
                                     if (!kwMonthPos[kwId]) kwMonthPos[kwId] = {};
                                     kwPos.positions.forEach(p => {
-                                        const d  = (p.date || '').split('T')[0];
-                                        const ym = toYYYYMM(d);
+                                        const d   = (p.date || '').split('T')[0];
+                                        const ym  = toYYYYMM(d);
                                         const pos = p.pos !== undefined ? p.pos : (p.rank || 0);
                                         if (ym && pos > 0 && (!kwMonthPos[kwId][ym] || d > kwMonthPos[kwId][ym].date)) {
-                                            kwMonthPos[kwId][ym] = { pos, date: d };
+                                            kwMonthPos[kwId][ym] = { pos, date: d, name: kwName, groupName };
                                         }
                                     });
                                 });
@@ -22129,28 +22143,30 @@
                                     if (pos > 0) {
                                         if (!kwMonthPos[kwId]) kwMonthPos[kwId] = {};
                                         if (!kwMonthPos[kwId][ym] || date > kwMonthPos[kwId][ym].date) {
-                                            kwMonthPos[kwId][ym] = { pos, date };
+                                            kwMonthPos[kwId][ym] = { pos, date, name: entry.name || '', groupName: groupMap[String(entry.group_id)] || 'General' };
                                         }
                                     }
                                 });
                             });
                         }
 
-                        // Accumulate into global + per-site monthly baskets
+                        // Accumulate into global + per-site monthly baskets + individual points
                         const siteMonthly = {};
+                        const siteId = String(site.id);
                         Object.values(kwMonthPos).forEach(monthMap => {
-                            Object.entries(monthMap).forEach(([ym, { pos }]) => {
+                            Object.entries(monthMap).forEach(([ym, { pos, name, groupName }]) => {
                                 const basket = getBasket(pos);
                                 if (!basket) return;
                                 if (!monthlyBaskets[ym]) monthlyBaskets[ym] = { p1: 0, p2: 0, p3: 0, p4: 0 };
                                 monthlyBaskets[ym][basket]++;
                                 if (!siteMonthly[ym]) siteMonthly[ym] = { p1: 0, p2: 0, p3: 0, p4: 0 };
                                 siteMonthly[ym][basket]++;
+                                allKwPoints.push({ siteId, kwName: name, pos, groupName, basket, ym });
                             });
                         });
-                        siteBaskets[String(site.id)] = {
-                            id: String(site.id),
-                            name: site.name || site.domain || site.site || String(site.id),
+                        siteBaskets[siteId] = {
+                            id: siteId,
+                            name: site.title || site.name || site.domain || siteId,
                             monthly: siteMonthly,
                         };
 
@@ -22160,8 +22176,9 @@
                 }));
 
                 const sortedMonths = Object.keys(monthlyBaskets).sort();
-                cockpitState.basketChartData = { months: sortedMonths, baskets: monthlyBaskets };
-                cockpitState.basketSiteData = Object.values(siteBaskets).sort((a, b) => a.name.localeCompare(b.name));
+                cockpitState.basketChartData    = { months: sortedMonths, baskets: monthlyBaskets };
+                cockpitState.basketSiteData     = Object.values(siteBaskets).sort((a, b) => a.name.localeCompare(b.name));
+                cockpitState.basketKeywordPoints = allKwPoints;
 
                 renderSeoIntelScatterChart();
 
@@ -22465,28 +22482,13 @@
                     ).join('');
             }
 
-            // Build aggregate for selected campaigns (or global if none selected)
             const { months } = bd;
-            let baskets;
-            if (f.has('__none__')) {
-                baskets = {};
-                months.forEach(ym => { baskets[ym] = { p1: 0, p2: 0, p3: 0, p4: 0 }; });
-            } else if (!f.size || !sites?.length) {
-                baskets = bd.baskets;
-            } else {
-                baskets = {};
-                months.forEach(ym => { baskets[ym] = { p1: 0, p2: 0, p3: 0, p4: 0 }; });
-                sites.filter(s => f.has(s.id)).forEach(s => {
-                    months.forEach(ym => {
-                        const mb = s.monthly[ym];
-                        if (!mb) return;
-                        baskets[ym].p1 += mb.p1 || 0;
-                        baskets[ym].p2 += mb.p2 || 0;
-                        baskets[ym].p3 += mb.p3 || 0;
-                        baskets[ym].p4 += mb.p4 || 0;
-                    });
-                });
-            }
+
+            // Filter individual keyword points by campaign selection
+            const allKwPts = cockpitState.basketKeywordPoints || [];
+            const filteredPts = f.has('__none__') ? [] :
+                (!f.size || !sites?.length) ? allKwPts :
+                allKwPts.filter(p => f.has(p.siteId));
 
             if (cockpitState.seoScatterChart) { cockpitState.seoScatterChart.destroy(); cockpitState.seoScatterChart = null; }
 
@@ -22495,47 +22497,56 @@
                 return new Date(+y, +m - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
             };
             const monthLabels = months.map(fmtMonth);
+            const monthIndex  = Object.fromEntries(months.map((ym, i) => [ym, i]));
 
-            // Y-axis basket rows: P1=4 (top) → P4=1 (bottom)
-            const basketDefs = [
-                { key: 'p1', label: 'P1 (1–10)',  yPos: 4, bg: 'rgba(16,185,129,0.75)',  border: '#10b981' },
-                { key: 'p2', label: 'P2 (11–20)', yPos: 3, bg: 'rgba(59,130,246,0.75)',  border: '#3b82f6' },
-                { key: 'p3', label: 'P3 (21–30)', yPos: 2, bg: 'rgba(245,158,11,0.75)',  border: '#f59e0b' },
-                { key: 'p4', label: 'P4 (31–40)', yPos: 1, bg: 'rgba(239,68,68,0.75)',   border: '#ef4444' },
-            ];
+            // Y-axis basket rows
+            const basketYPos  = { p1: 4, p2: 3, p3: 2, p4: 1 };
 
             // Deterministic jitter so positions don't shuffle on re-render
             const djitter = (seed) => { const x = Math.sin(seed * 9301 + 49297) * 233280; return x - Math.floor(x); };
 
-            // One cross per keyword, spread evenly across the month column
-            // Cap at MAX_CROSSES per cell to avoid rendering tens of thousands of points
-            const MAX_CROSSES = 60;
-            const datasets = basketDefs.map(b => {
-                const points = [];
-                months.forEach((ym, mi) => {
-                    const count = baskets[ym]?.[b.key] || 0;
-                    if (!count) return;
-                    const display = Math.min(count, MAX_CROSSES);
-                    const xSpread = 0.72; // total X spread within a month column
-                    for (let i = 0; i < display; i++) {
-                        // Evenly space + tiny Y jitter so crosses don't all stack on one line
-                        const xOff = display === 1 ? 0 : (i / (display - 1) - 0.5) * xSpread;
-                        const yJit = (djitter(mi * 400 + b.yPos * 40 + i) - 0.5) * 0.28;
-                        points.push({ x: mi + xOff, y: b.yPos + yJit, count, month: ym, capped: count > MAX_CROSSES });
-                    }
+            // Group colour palette — General = green, others cycle through distinct colours
+            const GROUP_PALETTE = [
+                { bg: 'rgba(99,102,241,0.75)',  border: '#6366f1' }, // indigo
+                { bg: 'rgba(245,158,11,0.75)',  border: '#f59e0b' }, // amber
+                { bg: 'rgba(239,68,68,0.75)',   border: '#ef4444' }, // red
+                { bg: 'rgba(168,85,247,0.75)',  border: '#a855f7' }, // purple
+                { bg: 'rgba(236,72,153,0.75)',  border: '#ec4899' }, // pink
+                { bg: 'rgba(20,184,166,0.75)',  border: '#14b8a6' }, // teal
+                { bg: 'rgba(251,146,60,0.75)',  border: '#fb923c' }, // orange
+                { bg: 'rgba(59,130,246,0.75)',  border: '#3b82f6' }, // blue
+            ];
+            const groupColorMap = {};
+            let paletteIdx = 0;
+            const assignColor = name => {
+                if (name === 'General') return { bg: 'rgba(16,185,129,0.75)', border: '#10b981' };
+                if (!groupColorMap[name]) groupColorMap[name] = GROUP_PALETTE[paletteIdx++ % GROUP_PALETTE.length];
+                return groupColorMap[name];
+            };
+
+            // Collect all unique group names (General first, then sorted)
+            const allGroups = [...new Set(filteredPts.map(p => p.groupName))].sort((a, b) =>
+                a === 'General' ? -1 : b === 'General' ? 1 : a.localeCompare(b));
+
+            // Build one dataset per group; each point = one keyword occurrence
+            // Track per-(monthIdx, basket, group) counters for stable jitter seeds
+            const cellCounters = {};
+            const datasets = allGroups.map(groupName => {
+                const { bg, border } = assignColor(groupName);
+                const pts = filteredPts.filter(p => p.groupName === groupName && monthIndex[p.ym] !== undefined);
+                const data = pts.map(p => {
+                    const mi   = monthIndex[p.ym];
+                    const yPos = basketYPos[p.basket] || 1;
+                    const cellKey = `${mi}_${yPos}_${groupName}`;
+                    if (!cellCounters[cellKey]) cellCounters[cellKey] = 0;
+                    const idx  = cellCounters[cellKey]++;
+                    const xOff = (djitter(mi * 1000 + yPos * 100 + idx * 7)  - 0.5) * 0.72;
+                    const yJit = (djitter(mi * 1000 + yPos * 100 + idx * 7 + 99999) - 0.5) * 0.28;
+                    return { x: mi + xOff, y: yPos + yJit, kwName: p.kwName, pos: p.pos, month: p.ym };
                 });
-                return {
-                    label: b.label,
-                    data: points,
-                    backgroundColor: b.bg,
-                    borderColor: b.border,
-                    pointStyle: 'crossRot',
-                    pointRadius: 3,
-                    pointHoverRadius: 5,
-                    borderWidth: 1.5,
-                    xAxisID: 'x',
-                    yAxisID: 'y',
-                };
+                return { label: groupName, data, backgroundColor: bg, borderColor: border,
+                    pointStyle: 'crossRot', pointRadius: 3, pointHoverRadius: 5, borderWidth: 1.5,
+                    xAxisID: 'x', yAxisID: 'y' };
             });
 
             cockpitState.seoScatterChart = new Chart(canvas.getContext('2d'), {
@@ -22612,10 +22623,9 @@
                             callbacks: {
                                 title: () => '',
                                 label: ctx => {
-                                    const { count, month, capped } = ctx.raw;
-                                    if (!count) return null;
-                                    const suffix = capped ? ` (showing ${MAX_CROSSES} of ${count})` : ` (${count} total)`;
-                                    return `${ctx.dataset.label} · ${fmtMonth(month)}${suffix}`;
+                                    const { kwName, pos, month } = ctx.raw;
+                                    const group = ctx.dataset.label;
+                                    return `${kwName || '(unknown)'} · #${pos} · ${fmtMonth(month)}  [${group}]`;
                                 },
                             },
                         },
