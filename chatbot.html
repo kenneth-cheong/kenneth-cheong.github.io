@@ -6894,6 +6894,39 @@
                         items: msState.msItemDropdown.selected.map(i => typeof i === 'object' ? i.id : i),
                         staff: [...msState.msStaffDropdown.selected]
                     };
+
+                    // Build and post a chat summary so the user knows what was loaded
+                    const summaryLines = [];
+
+                    if (hasBoardSelection) {
+                        summaryLines.push(`📋 **Campaign Boards (${campaignBoardDrilldowns.length})**`);
+                        campaignBoardDrilldowns.forEach(b => {
+                            summaryLines.push(`- [${b.board_name}](${b.board_url}) — ${b.total_items} items`);
+                        });
+                    } else {
+                        const itemNames = selectedItems.map(i => typeof i === 'object' ? i.name : i);
+                        summaryLines.push(`📌 **Summary Board** — ${items.length} campaign${items.length !== 1 ? 's' : ''} matched`);
+                        if (itemNames.length > 0) summaryLines.push(`  Filtered by: ${itemNames.join(', ')}`);
+                    }
+
+                    if (selectedStaff.length > 0) summaryLines.push(`👤 **Staff filter:** ${selectedStaff.join(', ')}`);
+                    if (hasDynamicFilters) summaryLines.push(`⚡ **Advanced filters** applied`);
+
+                    if (chatMessages.length > 0) {
+                        const totalMsgs = chatMessages.reduce((s, sp) => s + sp.messages.length, 0);
+                        summaryLines.push(`💬 **Google Chat** — ${chatMessages.length} space${chatMessages.length !== 1 ? 's' : ''}, ${totalMsgs} messages`);
+                        chatMessages.forEach(sp => summaryLines.push(`- ${sp.space_name} (${sp.messages.length} msgs)`));
+                    }
+
+                    if (driveDocuments.length > 0) {
+                        summaryLines.push(`📁 **Google Drive** — ${driveDocuments.length} document${driveDocuments.length !== 1 ? 's' : ''} loaded`);
+                    }
+
+                    if (gmailData.length > 0) {
+                        summaryLines.push(`📧 **Gmail** — ${gmailData.length} thread${gmailData.length !== 1 ? 's' : ''} loaded`);
+                    }
+
+                    addMessage('bot', `✅ **Data loaded successfully!** You can now ask me anything about the context below.\n\n${summaryLines.join('\n')}`);
                     return;
 
                 // Step 2: Upload to OpenAI with Unique Filename
