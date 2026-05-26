@@ -22132,7 +22132,7 @@
                             fetch(SER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ action: 'get_positions', siteId: site.id, date_from: dateFrom, date_to: dateTo, with_landing_pages: 0 }) }).then(r => r.json()),
                             fetch(SER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ action: 'get_groups', siteId: site.id }) }).then(r => r.json()),
+                                body: JSON.stringify({ action: 'get_groups', siteId: site.id }) }).then(r => r.json()).catch(() => []),
                         ]);
 
                         let posData = posRaw;
@@ -22563,6 +22563,8 @@
             const bd    = cockpitState.basketChartData;
             const sites = cockpitState.basketSiteData;
             if (!bd) return; // still loading — fetchBasketDistribution calls us when done
+            // If positions were loaded but keyword points are missing (old cache), re-fetch
+            if (cockpitState.basketKeywordPoints === null && bd) { fetchBasketDistribution(); return; }
 
             if (loadEl) loadEl.style.display = 'none';
             if (wrapEl) wrapEl.style.display = 'block';
