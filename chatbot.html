@@ -6254,20 +6254,34 @@
          * Fetch lightweight data from an individual campaign board (columns + first 100 items).
          */
         async function fetchCampaignBoardData(boardId) {
+            // Check 30-min board-level cache before hitting the API
+            const BOARD_CACHE_TTL = 30 * 60 * 1000;
+            const cacheKey = `boardDataCache_${boardId}`;
+            try {
+                const cached = localStorage.getItem(cacheKey);
+                if (cached) {
+                    const { data, ts } = JSON.parse(cached);
+                    if (data && Date.now() - ts < BOARD_CACHE_TTL) {
+                        console.log(`[DRILL-DOWN] Board ${boardId}: using cache (${Math.round((Date.now()-ts)/60000)}m old)`);
+                        return data;
+                    }
+                }
+            } catch (_) {}
+
             try {
                 let allItems = [];
                 let cursor = null;
                 let boardName = "";
                 let boardColumns = [];
                 let pages = 0;
-                const MAX_PAGES = 10; // 1000 items per board
+                const MAX_PAGES = 10; // up to 5000 items at 500/page
 
                 while (pages < MAX_PAGES) {
                     let query;
                     if (!cursor) {
-                        query = `{ boards(ids: [${boardId}]) { name columns { id title type } items_page (limit: 100) { cursor items { id name column_values { text column { id title } } updates (limit: 2) { text_body created_at creator { name } } } } } }`;
+                        query = `{ boards(ids: [${boardId}]) { name columns { id title type } items_page (limit: 500) { cursor items { id name column_values { text column { id title } } updates (limit: 2) { text_body created_at creator { name } } } } } }`;
                     } else {
-                        query = `{ next_items_page (cursor: "${cursor}", limit: 100) { cursor items { id name column_values { text column { id title } } updates (limit: 2) { text_body created_at creator { name } } } } }`;
+                        query = `{ next_items_page (cursor: "${cursor}", limit: 500) { cursor items { id name column_values { text column { id title } } updates (limit: 2) { text_body created_at creator { name } } } } }`;
                     }
 
                     const res = await fetch(MONDAY_LAMBDA_URL, {
@@ -6319,7 +6333,7 @@
 
                 if (allItems.length === 0) return null;
 
-                return {
+                const result = {
                     board_id: boardId,
                     board_name: boardName,
                     board_url: `https://mediaone-business-group-pte-ltd.monday.com/boards/${boardId}`,
@@ -6327,6 +6341,13 @@
                     total_items: allItems.length,
                     items: allItems
                 };
+
+                // Save to board-level cache
+                try {
+                    localStorage.setItem(cacheKey, JSON.stringify({ data: result, ts: Date.now() }));
+                } catch (_) {} // ignore if storage is full
+
+                return result;
             } catch (e) {
                 console.error(`[DRILL-DOWN] Failed to fetch board ${boardId}:`, e);
                 return null;
@@ -6515,6 +6536,10 @@
         function clearInternalCache() {
             if (confirm("This will clear all cached campaign data and require a fresh sync from Monday.com. Proceed?")) {
                 localStorage.removeItem('internal_campaign_cache');
+                // Also clear all per-board caches
+                Object.keys(localStorage)
+                    .filter(k => k.startsWith('boardDataCache_'))
+                    .forEach(k => localStorage.removeItem(k));
                 window.allPrefetchedItems = [];
                 window.allPrefetchedColumns = [];
                 const hint = document.getElementById('internalFilterHint');
@@ -6749,8 +6774,20 @@
                 const campaignBoardDrilldowns = [];
                 if (selectedBoards.length > 0) {
                     const drillDownLimit = Math.min(selectedBoards.length, 15);
-                    showToast(`Fetching data from ${drillDownLimit} selected boards...`, 'loading', 5000);
-                    updateSyncStatus(`Loading ${drillDownLimit} campaign boards...`, true);
+                    const BOARD_CACHE_TTL = 30 * 60 * 1000;
+                    const cachedCount = selectedBoards.slice(0, drillDownLimit).filter(b => {
+                        try {
+                            const c = localStorage.getItem(`boardDataCache_${typeof b === 'object' ? b.id : b}`);
+                            if (!c) return false;
+                            return Date.now() - JSON.parse(c).ts < BOARD_CACHE_TTL;
+                        } catch (_) { return false; }
+                    }).length;
+                    const freshCount = drillDownLimit - cachedCount;
+                    const statusMsg = cachedCount > 0
+                        ? `Loading ${freshCount} board${freshCount !== 1 ? 's' : ''} from Monday, ${cachedCount} from cache...`
+                        : `Loading ${drillDownLimit} campaign board${drillDownLimit !== 1 ? 's' : ''} from Monday...`;
+                    showToast(statusMsg, 'loading', 5000);
+                    updateSyncStatus(statusMsg, true);
 
                     const drillPromises = selectedBoards.slice(0, drillDownLimit).map(async (b) => {
                         const boardId = typeof b === 'object' ? b.id : b;
@@ -6758,7 +6795,7 @@
                         if (data) campaignBoardDrilldowns.push(data);
                     });
                     await Promise.all(drillPromises);
-                    console.log(`[DRILL-DOWN] Fetched ${campaignBoardDrilldowns.length} user-selected boards.`);
+                    console.log(`[DRILL-DOWN] Loaded ${campaignBoardDrilldowns.length} boards (${cachedCount} from cache, ${freshCount} fresh).`);
                 }
 
                 // ---- Fetch Google Chat messages from selected spaces ----
@@ -6907,7 +6944,16 @@
                     const summaryLines = [];
 
                     if (hasBoardSelection) {
-                        summaryLines.push(`📋 **Campaign Boards (${campaignBoardDrilldowns.length})**`);
+                        const BOARD_CACHE_TTL = 30 * 60 * 1000;
+                        const cachedBoards = campaignBoardDrilldowns.filter(b => {
+                            try {
+                                const c = localStorage.getItem(`boardDataCache_${b.board_id}`);
+                                if (!c) return false;
+                                return Date.now() - JSON.parse(c).ts < BOARD_CACHE_TTL;
+                            } catch (_) { return false; }
+                        }).length;
+                        const cacheNote = cachedBoards > 0 ? ` _(${cachedBoards} from cache)_` : '';
+                        summaryLines.push(`📋 **Campaign Boards (${campaignBoardDrilldowns.length})**${cacheNote}`);
                         campaignBoardDrilldowns.forEach(b => {
                             summaryLines.push(`- [${b.board_name}](${b.board_url}) — ${b.total_items} items`);
                         });
