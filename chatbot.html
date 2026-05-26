@@ -4491,9 +4491,11 @@
         window.dynamicFilters = {}; // Maps filterId to filter state {"id1": {colId, operator, values: []}}
 
         // Close dropdowns when clicking outside
+        // Use composedPath() so re-rendered innerHTML doesn't cause a false "outside" hit
         document.addEventListener('click', (e) => {
+            const path = e.composedPath ? e.composedPath() : [];
             document.querySelectorAll('.ms-dropdown').forEach(dd => {
-                if (!dd.contains(e.target)) {
+                if (!path.includes(dd) && !dd.contains(e.target)) {
                     dd.querySelector('.ms-panel')?.classList.remove('open');
                     dd.querySelector('.ms-trigger')?.classList.remove('focused');
                 }
