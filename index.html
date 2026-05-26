@@ -19643,9 +19643,11 @@
             seoIntelCache: null,       // Cached SEO trajectory results
             seoIntelFetchedAt: 0,      // Timestamp of last fetch
             seoIntelBoardId: localStorage.getItem('seoIntelBoardId') || '2845615047',
-            seoIntelOwnerFilter: new Set(),  // Filter by [SEO]SEO owner
-            seoIntelStatusFilter: new Set(), // Filter by Campaign Status
-            seoIntelTypeFilter: new Set(),   // Filter by Campaign Type
+            seoIntelOwnerFilter: new Set(),   // Filter by [SEO]SEO owner
+            seoIntelStatusFilter: new Set(),  // Filter by Campaign Status
+            seoIntelTypeFilter: new Set(),    // Filter by Campaign Type
+            seoIntelScatterFilter: new Set(), // Selected campaigns in scatter plot (empty = all)
+            seoScatterChart: null,            // Chart.js instance for scatter plot
             paidIntelCache: null,        // Cached Paid Ads trajectory results
             paidIntelFetchedAt: 0,       // Timestamp of last fetch
             paidIntelOwnerFilter: new Set(),
@@ -21591,8 +21593,9 @@
         // Column IDs confirmed from live board inspection (board 2845615047)
         const SEO_INTEL_COLS = {
             projectType:    'tags',              // tags — "seo", "sem", …
-            campaignStatus: 'status',            // SEO Campaign Status
-            campaignType:   'status',            // SEO Campaign Type — same column (Standard | Cluster | Special | Lived (PM) | Guarantee (SEO) | …)
+            csmStatus:      'status0',           // [CSM] Campaign Status — used to filter out expired/abandoned/terminated
+            campaignStatus: 'status',            // SEO Campaign Status / Type (Standard | Cluster | Special | Lived (PM) | …)
+            campaignType:   'status',            // SEO Campaign Type — same column
             kpiKws:         'numbers3',          // SEO [Reg] KPI KWs  (Standard)
             p1Kws:          'numbers98',         // SEO [Reg] P1 KWs   (Standard)
             clusterKpi:     'numeric_mksrz985',  // SEO [Cluster] KPI  (Cluster)
@@ -21601,6 +21604,9 @@
             summary:        'long_text_mm3cc8x2', // Campaign Summary (long text)
             timeline:       'timeline5'          // [SEO] SEO Timeline
         };
+
+        // [CSM] Campaign Status values that mean a campaign is no longer active
+        const CSM_DEAD_STATUSES = ['expired', 'abandoned', 'terminated'];
 
         function getSeoIntelAllowedStatuses() {
             try {
@@ -21616,6 +21622,11 @@
 
             // [BD]Project Type text is "seo" or "seo, sem" etc.
             if (!txt(SEO_INTEL_COLS.projectType).toLowerCase().split(/[\s,]+/).includes('seo')) return null;
+
+            // [CSM] Campaign Status cross-check — exclude expired, abandoned, terminated
+            const csmStatusText = txt(SEO_INTEL_COLS.csmStatus);
+            const csmStatusLower = csmStatusText.toLowerCase();
+            if (CSM_DEAD_STATUSES.some(s => csmStatusLower.includes(s))) return null;
 
             // SEO Campaign Status — user-configurable filter (saved in localStorage)
             const csmStatus = txt(SEO_INTEL_COLS.campaignStatus).toLowerCase();
@@ -21655,6 +21666,7 @@
                     daysRemaining: Math.max(0, Math.round((end - today) / 86400000)),
                     startDate: tlParts[0].trim(), endDate: tlParts[1].trim(),
                     seoOwner:       txt('people6') || '—',
+                    csmStatus:      csmStatusText,
                     campaignStatus: txt(SEO_INTEL_COLS.campaignStatus),
                     campaignType:   txt(SEO_INTEL_COLS.campaignType),
                     summary:        txt(SEO_INTEL_COLS.summary),
@@ -21703,6 +21715,7 @@
                 startDate: tlParts[0].trim(), endDate: tlParts[1].trim(),
                 isBehind, isSpecial,
                 seoOwner:       txt('people6') || '—',
+                csmStatus:      csmStatusText,
                 campaignStatus: txt(SEO_INTEL_COLS.campaignStatus),
                 campaignType:   txt(SEO_INTEL_COLS.campaignType),
                 summary:        txt(SEO_INTEL_COLS.summary),
@@ -21953,6 +21966,52 @@
                     </div>
                 </div>`;
 
+            // ── Scatter plot: KPI Trajectory ──────────────────────────────────
+            const scatterCampaigns = filtered.filter(c => !c.isUntyped);
+            const scatterF = cockpitState.seoIntelScatterFilter;
+            const scatterActive = scatterCampaigns.filter(c => scatterF.size === 0 || scatterF.has(c.id));
+            const scatterBtnLabel = scatterF.size === 0 ? 'All campaigns' : `${scatterF.size} selected`;
+            const scatterDropdownStyle = 'display:none;position:absolute;top:100%;right:0;min-width:260px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:400;margin-top:4px;padding:6px;';
+            html += `
+                <!-- Scatter: KPI Trajectory Plot -->
+                <div style="padding:12px 16px 10px;border-bottom:1px solid #e2e8f0;background:#fff;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <span style="font-size:0.78rem;font-weight:700;color:#334155;display:flex;align-items:center;gap:6px;">
+                            <i class="fas fa-braille" style="color:#6366f1;"></i> KPI Trajectory Plot
+                        </span>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            ${scatterF.size > 0 ? `<button onclick="cockpitState.seoIntelScatterFilter.clear();renderSeoIntel(cockpitState.seoIntelCache||[])" style="font-size:0.7rem;background:none;border:none;color:#6366f1;cursor:pointer;font-weight:600;">✕ Clear</button>` : ''}
+                            <div style="position:relative;">
+                                <button onclick="toggleSeoIntelDropdown('seo-scatter-dropdown')"
+                                    style="padding:4px 10px;border:1px solid ${scatterF.size > 0 ? '#93c5fd' : '#e2e8f0'};border-radius:6px;background:${scatterF.size > 0 ? '#eff6ff' : '#f8fafc'};font-size:0.78rem;cursor:pointer;color:#1e293b;display:flex;align-items:center;gap:5px;">
+                                    <i class="fas fa-filter" style="font-size:0.6rem;color:${scatterF.size > 0 ? '#3b82f6' : '#94a3b8'};"></i>
+                                    ${scatterBtnLabel}
+                                    <i class="fas fa-chevron-down" style="font-size:0.6rem;color:#94a3b8;"></i>
+                                </button>
+                                <div id="seo-scatter-dropdown" class="seo-intel-dropdown" style="${scatterDropdownStyle}">
+                                    <input id="seo-scatter-search" type="text" placeholder="Search campaigns…"
+                                        oninput="filterSeoScatterSearch(this.value)"
+                                        style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.78rem;outline:none;margin-bottom:4px;">
+                                    <div id="seo-scatter-list" style="max-height:180px;overflow-y:auto;">
+                                        ${scatterCampaigns.map(c =>
+                                            `<label style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.78rem;color:#334155;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'" data-name="${c.name.replace(/"/g,'&quot;').toLowerCase()}">
+                                                <input type="checkbox" ${scatterF.size === 0 || scatterF.has(c.id) ? 'checked' : ''} data-id="${c.id}" onchange="toggleSeoIntelScatterCampaign('${c.id}')" style="width:14px;height:14px;">
+                                                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${c.name.replace(/"/g,'&quot;')}">${c.name}</span>
+                                            </label>`
+                                        ).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="height:240px;position:relative;">
+                        <canvas id="seo-scatter-chart"></canvas>
+                    </div>
+                    <div style="font-size:0.67rem;color:#94a3b8;text-align:center;margin-top:4px;">
+                        X: Campaign progress % &nbsp;·&nbsp; Y: KPI attainment % &nbsp;·&nbsp; Diagonal = on trajectory
+                    </div>
+                </div>`;
+
             if (behind.length) {
                 html += `<div style="padding:8px 14px;font-size:0.78rem;font-weight:700;color:#dc2626;background:#fef2f2;border-bottom:1px solid #fecaca;display:flex;align-items:center;gap:6px;">
                     <i class="fas fa-exclamation-triangle"></i> Below Trajectory — ${behind.length} campaign${behind.length > 1 ? 's' : ''}
@@ -21972,6 +22031,9 @@
             }
 
             el.innerHTML = html;
+
+            // Scatter: render immediately (data already in memory)
+            renderSeoIntelScatterChart(scatterCampaigns, scatterActive);
 
             // Chart: re-render from cache or fetch fresh
             if (cockpitState.basketChartData) {
@@ -22181,8 +22243,9 @@
 
             // Untyped: no KPI configured — show name, status, owner, duration only
             if (c.isUntyped) {
-                const csl = (c.campaignStatus || '').toLowerCase();
-                const csColor = csl.includes('guarantee') ? '#d97706' : csl.includes('live') ? '#16a34a' : csl.includes('renewed') ? '#2563eb' : '#64748b';
+                const csmStatusDisplay = c.csmStatus || c.campaignStatus || '';
+                const csmLower = csmStatusDisplay.toLowerCase();
+                const csColor = csmLower.includes('guarantee') ? '#d97706' : (csmLower.includes('live') || csmLower.includes('lit')) ? '#16a34a' : csmLower.includes('renewed') ? '#2563eb' : '#64748b';
                 return `
                 <div style="padding:12px 16px;border-bottom:1px solid #f1f5f9;">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px;">
@@ -22191,7 +22254,7 @@
                     </div>
                     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:7px;align-items:center;">
                         ${c.seoOwner !== '—' ? `<span style="font-size:0.72rem;color:#475569;display:flex;align-items:center;gap:3px;"><i class="fas fa-user-circle" style="color:#6366f1;font-size:0.7rem;"></i>${c.seoOwner}</span>` : ''}
-                        <span style="font-size:0.68rem;padding:2px 6px;border-radius:8px;font-weight:600;background:${csColor}18;color:${csColor};border:1px solid ${csColor}30;">${c.campaignStatus}</span>
+                        ${csmStatusDisplay ? `<span style="font-size:0.68rem;padding:2px 6px;border-radius:8px;font-weight:600;background:${csColor}18;color:${csColor};border:1px solid ${csColor}30;">${csmStatusDisplay}</span>` : ''}
                         <span style="font-size:0.68rem;padding:2px 6px;border-radius:8px;font-weight:600;background:#f1f5f9;color:#94a3b8;font-style:italic;">No KPI type</span>
                         ${summaryPill}
                     </div>
@@ -22225,9 +22288,14 @@
                     ? `<span style="font-size:0.68rem;padding:2px 7px;border-radius:10px;font-weight:700;background:${bgBadge};color:${color};border:1px solid ${border};white-space:nowrap;">${c.pctBehind}% behind</span>`
                     : `<span style="font-size:0.68rem;padding:2px 7px;border-radius:10px;font-weight:700;background:${bgBadge};color:${color};border:1px solid ${border};white-space:nowrap;">+${Math.abs(c.delta)} ahead</span>`;
             }
-            // Campaign status colour
-            const csl = (c.campaignStatus || '').toLowerCase();
-            const csColor = csl.includes('guarantee') ? '#d97706' : csl.includes('live') ? '#16a34a' : csl.includes('renewed') ? '#2563eb' : '#64748b';
+            // [CSM] Campaign Status colour
+            const csmStatusDisplay = c.csmStatus || c.campaignStatus || '';
+            const csmLower = csmStatusDisplay.toLowerCase();
+            const csColor = csmLower.includes('guarantee') ? '#d97706' : (csmLower.includes('live') || csmLower.includes('lit')) ? '#16a34a' : csmLower.includes('renewed') ? '#2563eb' : csmLower.includes('pending') ? '#9333ea' : '#64748b';
+            // Derived type badge — only show for non-standard types
+            const campTypeLower = (c.campaignType || '').toLowerCase();
+            const typeLabel = c.isSpecial ? 'Special' : campTypeLower.includes('cluster') ? 'Cluster' : campTypeLower.includes('internal kpi') ? 'Internal KPI' : null;
+            const typeBadge = typeLabel ? `<span style="font-size:0.68rem;padding:2px 6px;border-radius:8px;font-weight:600;background:#eef2ff;color:#6366f1;">${typeLabel}</span>` : '';
             return `
             <div style="padding:12px 16px;border-bottom:1px solid #f1f5f9;">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px;">
@@ -22237,11 +22305,11 @@
                         <span style="font-size:0.68rem;color:#94a3b8;white-space:nowrap;">${c.daysRemaining}d left</span>
                     </div>
                 </div>
-                <!-- Meta row: owner · status · type · summary -->
+                <!-- Meta row: owner · [CSM] status · type · summary -->
                 <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:7px;align-items:center;">
                     ${c.seoOwner !== '—' ? `<span style="font-size:0.72rem;color:#475569;display:flex;align-items:center;gap:3px;"><i class="fas fa-user-circle" style="color:#6366f1;font-size:0.7rem;"></i>${c.seoOwner}</span>` : ''}
-                    <span style="font-size:0.68rem;padding:2px 6px;border-radius:8px;font-weight:600;background:${csColor}18;color:${csColor};border:1px solid ${csColor}30;">${c.campaignStatus}</span>
-                    <span style="font-size:0.68rem;padding:2px 6px;border-radius:8px;font-weight:600;background:#eef2ff;color:#6366f1;">Type: ${c.campaignType}</span>
+                    ${csmStatusDisplay ? `<span style="font-size:0.68rem;padding:2px 6px;border-radius:8px;font-weight:600;background:${csColor}18;color:${csColor};border:1px solid ${csColor}30;">${csmStatusDisplay}</span>` : ''}
+                    ${typeBadge}
                     ${summaryPill}
                 </div>
                 ${c.summary ? `<div id="seo-summary-${c.id}" style="display:none;margin-bottom:8px;padding:10px 12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;font-size:0.78rem;color:#334155;line-height:1.6;white-space:pre-wrap;">${c.summary.replace(/</g,'&lt;')}</div>` : ''}
@@ -22257,6 +22325,147 @@
                     <span style="color:#94a3b8;">${c.pctProgress}% · ${fmtDate(c.startDate)} – ${fmtDate(c.endDate)}</span>
                 </div>
             </div>`;
+        }
+
+        // ── SEO Scatter Plot helpers ──────────────────────────────────────────────
+
+        function toggleSeoIntelScatterCampaign(id) {
+            const f = cockpitState.seoIntelScatterFilter;
+            const all = cockpitState.seoIntelCache?.filter(c => !c.isUntyped) || [];
+            // If currently showing all, switching to explicit: select all except this one
+            if (f.size === 0) {
+                all.forEach(c => { if (c.id !== id) f.add(c.id); });
+            } else {
+                f.has(id) ? f.delete(id) : f.add(id);
+                // If all are now checked, revert to "all" (empty set)
+                if (f.size === all.length) f.clear();
+            }
+            renderSeoIntel(cockpitState.seoIntelCache || []);
+            const dd = document.getElementById('seo-scatter-dropdown');
+            if (dd) dd.style.display = 'block';
+        }
+
+        function filterSeoScatterSearch(query) {
+            const q = query.toLowerCase();
+            document.querySelectorAll('#seo-scatter-list label').forEach(lbl => {
+                lbl.style.display = !q || lbl.dataset.name.includes(q) ? '' : 'none';
+            });
+        }
+
+        function renderSeoIntelScatterChart(allCampaigns, activeCampaigns) {
+            const canvas = document.getElementById('seo-scatter-chart');
+            if (!canvas) return;
+            if (cockpitState.seoScatterChart) { cockpitState.seoScatterChart.destroy(); cockpitState.seoScatterChart = null; }
+
+            const campaigns = activeCampaigns || allCampaigns;
+
+            // Build scatter points
+            const behindPts = [], onTrackPts = [], specialPts = [];
+            campaigns.forEach(c => {
+                const x = c.pctProgress;
+                const y = c.isSpecial
+                    ? (c.p1 === 999 ? 100 : 0)
+                    : (c.kpi > 0 ? Math.round(c.p1 / c.kpi * 100) : 0);
+                const pt = { x, y, label: c.name, c };
+                if (c.isSpecial)    specialPts.push(pt);
+                else if (c.isBehind) behindPts.push(pt);
+                else                 onTrackPts.push(pt);
+            });
+
+            // Reference diagonal: y = x (on trajectory)
+            const diagData = [{ x: 0, y: 0 }, { x: 100, y: 100 }];
+
+            cockpitState.seoScatterChart = new Chart(canvas.getContext('2d'), {
+                type: 'scatter',
+                data: {
+                    datasets: [
+                        {
+                            label: 'On Trajectory',
+                            data: onTrackPts,
+                            backgroundColor: 'rgba(22,163,74,0.75)',
+                            borderColor: '#16a34a',
+                            pointRadius: 7,
+                            pointHoverRadius: 9,
+                        },
+                        {
+                            label: 'Below Trajectory',
+                            data: behindPts,
+                            backgroundColor: 'rgba(220,38,38,0.75)',
+                            borderColor: '#dc2626',
+                            pointRadius: 7,
+                            pointHoverRadius: 9,
+                        },
+                        {
+                            label: 'Special',
+                            data: specialPts,
+                            backgroundColor: 'rgba(217,119,6,0.75)',
+                            borderColor: '#d97706',
+                            pointRadius: 7,
+                            pointHoverRadius: 9,
+                            pointStyle: 'triangle',
+                        },
+                        {
+                            label: 'On Trajectory Line',
+                            type: 'line',
+                            data: diagData,
+                            borderColor: 'rgba(148,163,184,0.5)',
+                            borderWidth: 1.5,
+                            borderDash: [5, 4],
+                            pointRadius: 0,
+                            fill: false,
+                            tension: 0,
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: { duration: 250 },
+                    scales: {
+                        x: {
+                            min: 0, max: 105,
+                            title: { display: false },
+                            ticks: { font: { size: 10 }, color: '#94a3b8', callback: v => v + '%' },
+                            grid: { color: 'rgba(226,232,240,0.6)' },
+                        },
+                        y: {
+                            min: 0, max: 110,
+                            title: { display: false },
+                            ticks: { font: { size: 10 }, color: '#94a3b8', callback: v => v + '%' },
+                            grid: { color: 'rgba(226,232,240,0.6)' },
+                        },
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'bottom',
+                            labels: { font: { size: 10 }, boxWidth: 10, padding: 10,
+                                filter: item => item.text !== 'On Trajectory Line' },
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => {
+                                    const pt = ctx.raw;
+                                    if (!pt.c) return `(${pt.x}%, ${pt.y}%)`;
+                                    const c = pt.c;
+                                    const lines = [
+                                        c.name,
+                                        `Progress: ${c.pctProgress}%`,
+                                    ];
+                                    if (c.isSpecial) {
+                                        lines.push(`KPI: ${c.p1 === 999 ? 'Checked ✓' : 'Not checked'}`);
+                                    } else {
+                                        lines.push(`KPI: ${c.p1}/${c.kpi} ${c.resultLabel || 'KWs'} (${pt.y}%)`);
+                                    }
+                                    if (c.csmStatus) lines.push(c.csmStatus);
+                                    return lines;
+                                },
+                                title: () => '',
+                            },
+                        },
+                    },
+                },
+            });
         }
 
         // ── Paid Ads Campaign Intelligence ───────────────────────────────────────
