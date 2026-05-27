@@ -4369,7 +4369,14 @@
 
         function saveSettings() {
             const mondayKey = document.getElementById('mondayApiKey').value.trim();
-            localStorage.setItem('clientEmail', document.getElementById('clientEmail').value.trim());
+            const newEmail = document.getElementById('clientEmail').value.trim();
+            localStorage.setItem('clientEmail', newEmail);
+
+            // Re-derive userId from email so history syncs across devices
+            if (newEmail && newEmail.includes('@')) {
+                userId = 'user_' + newEmail.replace(/[^a-zA-Z0-9]/g, '_');
+                localStorage.setItem('chatbot_userId', userId);
+            }
             localStorage.setItem('privateMemoryMode', document.getElementById('privateMemoryMode').checked);
             localStorage.setItem('vectorStoreId', document.getElementById('vectorStoreId').value.trim());
             const contextUrls = document.getElementById('contextUrls').value.trim();
