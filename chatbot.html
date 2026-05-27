@@ -834,6 +834,61 @@
         }
 
         /* Tablet adjustments */
+        .header-desktop-btns {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        /* Mobile nav dropdown (three-dot menu) */
+        .mobile-nav-btn {
+            display: none;
+        }
+
+        .mobile-nav-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: var(--primary-navy);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 300;
+            min-width: 180px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+            border-radius: 0 0 12px 12px;
+            overflow: hidden;
+        }
+
+        .mobile-nav-dropdown.active {
+            display: block;
+        }
+
+        .mobile-nav-dropdown button {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 14px 20px;
+            background: none;
+            border: none;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            color: #fff;
+            font-size: 0.9rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            text-align: left;
+            transition: background 0.15s;
+        }
+
+        .mobile-nav-dropdown button:last-child {
+            border-bottom: none;
+        }
+
+        .mobile-nav-dropdown button:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
         @media (max-width: 768px) {
             .settings-sidebar {
                 width: 300px;
@@ -847,6 +902,14 @@
 
             .unified-status-bar {
                 display: none;
+            }
+
+            .header-desktop-btns {
+                display: none;
+            }
+
+            .mobile-nav-btn {
+                display: flex;
             }
 
             header h1 {
@@ -2630,19 +2693,33 @@
                         <span id="syncText">No Context</span>
                     </div>
                 </div>
-                <button class="btn btn-outline btn-brain" onclick="openLearningModal()"
-                    title="View what the AI has learned from your interactions">
-                    <i class="fas fa-brain"></i> Memory
+                <!-- Desktop nav buttons -->
+                <div class="header-desktop-btns">
+                    <button class="btn btn-outline btn-brain" onclick="openLearningModal()"
+                        title="View what the AI has learned from your interactions">
+                        <i class="fas fa-brain"></i> Memory
+                    </button>
+                    <button class="btn btn-outline" onclick="toggleHistory()">
+                        <i class="fas fa-history"></i> History
+                    </button>
+                    <button class="btn btn-outline" onclick="toggleSettings()">
+                        <i class="fas fa-cog"></i> Settings
+                    </button>
+                    <button class="btn btn-outline" id="tourBtn" onclick="startTour()" title="Take a guided tour of the chatbot">
+                        <i class="fas fa-map-signs"></i> Tour
+                    </button>
+                </div>
+                <!-- Mobile three-dot menu -->
+                <button class="btn btn-outline mobile-nav-btn" id="mobileNavBtn" onclick="toggleMobileNav(event)">
+                    <i class="fas fa-ellipsis-v"></i>
                 </button>
-                <button class="btn btn-outline" onclick="toggleHistory()">
-                    <i class="fas fa-history"></i> History
-                </button>
-                <button class="btn btn-outline" onclick="toggleSettings()">
-                    <i class="fas fa-cog"></i> Settings
-                </button>
-                <button class="btn btn-outline" id="tourBtn" onclick="startTour()" title="Take a guided tour of the chatbot">
-                    <i class="fas fa-map-signs"></i> Tour
-                </button>
+                <!-- Mobile dropdown -->
+                <div class="mobile-nav-dropdown" id="mobileNavDropdown">
+                    <button onclick="openLearningModal(); closeMobileNav()"><i class="fas fa-brain"></i> Memory</button>
+                    <button onclick="toggleHistory(); closeMobileNav()"><i class="fas fa-history"></i> History</button>
+                    <button onclick="toggleSettings(); closeMobileNav()"><i class="fas fa-cog"></i> Settings</button>
+                    <button onclick="startTour(); closeMobileNav()" id="tourBtnMobile"><i class="fas fa-map-signs"></i> Tour</button>
+                </div>
             </div>
         </header>
 
@@ -3326,6 +3403,23 @@
             localStorage.setItem('chatbot_userId', userId);
         }
         console.log(`[PERSISTENCE] Active User ID: ${userId}`);
+
+        function toggleMobileNav(e) {
+            e.stopPropagation();
+            document.getElementById('mobileNavDropdown').classList.toggle('active');
+        }
+
+        function closeMobileNav() {
+            document.getElementById('mobileNavDropdown').classList.remove('active');
+        }
+
+        document.addEventListener('click', function(e) {
+            const btn = document.getElementById('mobileNavBtn');
+            const dropdown = document.getElementById('mobileNavDropdown');
+            if (dropdown && btn && !btn.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.classList.remove('active');
+            }
+        });
 
         function toggleHistory() {
             const sidebar = document.getElementById('historySidebar');
