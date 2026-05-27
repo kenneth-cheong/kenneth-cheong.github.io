@@ -599,6 +599,7 @@ def claude_chat_with_tools(body):
     system     = body.get('system', '')
     messages   = list(body.get('messages', []))   # mutable copy for the loop
     max_tokens = int(body.get('max_tokens', 4096))
+    thinking   = body.get('thinking')  # e.g. {"type": "enabled", "budget_tokens": 8000}
 
     if not messages:
         return {"statusCode": 400, "body": json.dumps({"error": "No messages provided"})}
@@ -765,6 +766,8 @@ def claude_chat_with_tools(body):
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
     }
+    if thinking:
+        anthropic_headers["anthropic-beta"] = "interleaved-thinking-2025-05-14"
 
     tool_call_log = []   # human-readable summary for the UI
     MAX_TOOL_ROUNDS = 8  # safety cap to prevent infinite loops
@@ -781,6 +784,8 @@ def claude_chat_with_tools(body):
                 payload["system"] = system
             if tools:
                 payload["tools"] = tools
+            if thinking:
+                payload["thinking"] = thinking
 
             # ── Data size logging ──────────────────────────────────────────────
             sys_size = len(system) if system else 0
@@ -819,11 +824,16 @@ def claude_chat_with_tools(body):
                     block["text"] for block in content_blocks
                     if block.get("type") == "text" and block.get("text", "").strip()
                 )
+                thinking_text = "\n\n".join(
+                    block["thinking"] for block in content_blocks
+                    if block.get("type") == "thinking" and block.get("thinking", "").strip()
+                ) or None
                 summary = "\n".join(tool_call_log) if tool_call_log else None
                 return {
                     "statusCode": 200,
                     "body": json.dumps({
                         "reply": final_text,
+                        "thinking": thinking_text,
                         "tool_calls_summary": summary,
                         "rounds": round_num,
                         "memory_updates": [t for t in tool_call_log if t.startswith("MEM_SAVE:")],

@@ -2913,6 +2913,16 @@
                         <label>Monday.com API Key (Personal)</label>
                         <input type="password" id="mondayApiKey" placeholder="Paste your API key here...">
                     </div>
+                    <div class="form-group" style="margin-top: 12px; display: flex; align-items: center; justify-content: space-between; background: #f1f5f9; padding: 10px; border-radius: 10px;">
+                        <div>
+                            <div style="font-size: 0.8rem; font-weight: 700; color: #1e293b;">Show Thinking Process</div>
+                            <div style="font-size: 0.65rem; color: #64748b;">Display Claude's reasoning before each answer (uses Sonnet)</div>
+                        </div>
+                        <label class="switch" style="width: 40px; height: 20px;">
+                            <input type="checkbox" id="showThinking">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -2970,11 +2980,11 @@
                     <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
                 </div>
                 <div class="collapsible-content">
-                    <div class="form-group">
+                    <div class="form-group" style="display:none;">
                         <label>Google Cloud Client ID</label>
                         <input type="text" id="googleClientId"
                             placeholder="1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com"
-                            style="font-size: 0.75rem;">
+                            style="font-size: 0.75rem;" readonly>
                     </div>
                     <div id="gworkspaceServiceStatus"
                         style="margin-top: 10px; display: flex; flex-direction: column; gap: 12px;">
@@ -3521,6 +3531,24 @@
         var PERSISTENCE_API_URL = 'https://t9pw69cg8d.execute-api.ap-southeast-1.amazonaws.com/chatbotPersistence';
         let currentConversationId = localStorage.getItem('chatbot_conversationId') || null;
         let chatHistory = JSON.parse(localStorage.getItem('chatbot_history') || '[]');
+
+        // Google Client ID — fetched from Lambda env var on load
+        let _googleClientId = localStorage.getItem('googleClientId') || '';
+        async function fetchGoogleClientId() {
+            try {
+                const res = await fetch(PERSISTENCE_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'get_config' })
+                }).then(r => r.json()).then(r => typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r));
+                if (res.googleClientId) {
+                    _googleClientId = res.googleClientId;
+                    localStorage.setItem('googleClientId', _googleClientId);
+                    const el = document.getElementById('googleClientId');
+                    if (el) el.value = _googleClientId;
+                }
+            } catch(e) { /* use cached value */ }
+        }
 
         // User Identity — always email-derived, never random
         let userId = null;
@@ -4300,6 +4328,7 @@
             if (_storedEmail.toLowerCase().startsWith('[object')) localStorage.removeItem('clientEmail');
             document.getElementById('clientEmail').value = localStorage.getItem('clientEmail') || "";
             document.getElementById('privateMemoryMode').checked = localStorage.getItem('privateMemoryMode') === 'true';
+            document.getElementById('showThinking').checked = localStorage.getItem('showThinking') === 'true';
             const vsId = localStorage.getItem('vectorStoreId') || "";
             document.getElementById('vectorStoreId').value = vsId;
             localStorage.setItem('vectorStoreId', vsId);
@@ -4494,6 +4523,7 @@
             const newEmail = document.getElementById('clientEmail').value.trim();
             setUserIdFromEmail(newEmail);
             localStorage.setItem('privateMemoryMode', document.getElementById('privateMemoryMode').checked);
+            localStorage.setItem('showThinking', document.getElementById('showThinking').checked);
             localStorage.setItem('vectorStoreId', document.getElementById('vectorStoreId').value.trim());
             const contextUrls = document.getElementById('contextUrls').value.trim();
             const autoSync = document.getElementById('autoSync').checked;
@@ -5525,11 +5555,12 @@
         };
 
         function connectService(service) {
-            const clientId = document.getElementById('googleClientId').value.trim();
+            const clientId = _googleClientId || document.getElementById('googleClientId').value.trim();
             if (!clientId) {
-                showToast('Enter your Google Cloud Client ID first', 'error');
+                showToast('Google Client ID not configured', 'error');
                 return;
             }
+            _googleClientId = clientId;
             localStorage.setItem('googleClientId', clientId);
 
             if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
@@ -5597,7 +5628,7 @@
 
         async function tryRefreshToken(service) {
             const refreshToken = localStorage.getItem(`googleRefresh_${service}`);
-            const clientId = localStorage.getItem('googleClientId') || '';
+            const clientId = _googleClientId || localStorage.getItem('googleClientId') || '';
             if (!refreshToken || !clientId) return false;
             try {
                 const res = await fetch(MONDAY_LAMBDA_URL, {
@@ -8535,6 +8566,7 @@ CRITICAL CONTACT RULE:
                     history[history.length - 1].content = currentContent;
                 }
 
+                const _showThinking = localStorage.getItem('showThinking') === 'true';
                 const res = await fetch(MONDAY_LAMBDA_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -8542,8 +8574,9 @@ CRITICAL CONTACT RULE:
                         action: 'claude_chat_with_tools',
                         system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
                         messages: history,
-                        model: 'claude-haiku-4-5', // Test if Sonnet 404 is an access issue
-                        max_tokens: 4096,
+                        model: _showThinking ? 'claude-sonnet-4-5' : 'claude-haiku-4-5',
+                        max_tokens: _showThinking ? 16000 : 4096,
+                        thinking: _showThinking ? { type: "enabled", budget_tokens: 8000 } : undefined,
                         monday_api_key: localStorage.getItem('mondayApiKey'),
                         google_access_token: localStorage.getItem('googleToken_Workspace'),
                         google_tokens: {
@@ -8596,6 +8629,7 @@ CRITICAL CONTACT RULE:
 
                 const reply = data.reply || '';
                 const toolLog = data.tool_calls_summary || null;
+                const thinkingText = data.thinking || null;
 
                 // Handle Automated Memory Updates
                 if (data.memory_updates && data.memory_updates.length > 0) {
@@ -8617,7 +8651,7 @@ CRITICAL CONTACT RULE:
                     showToast('AI memory updated automatically', 'info');
                 }
 
-                addMessage("bot", reply, toolLog);
+                addMessage("bot", reply, toolLog, null, false, null, thinkingText);
 
             } catch (error) {
                 console.error("Claude Error:", error);
@@ -8634,7 +8668,7 @@ CRITICAL CONTACT RULE:
             return palette[Math.abs(hash) % palette.length];
         }
 
-        function addMessage(sender, text, toolLog = null, attachment = null, isRestoring = false, senderLabel = null) {
+        function addMessage(sender, text, toolLog = null, attachment = null, isRestoring = false, senderLabel = null, thinkingText = null) {
             const list = document.getElementById('messageList');
             const msg = document.createElement('div');
             msg.className = `message ${sender}`;
@@ -8724,6 +8758,13 @@ CRITICAL CONTACT RULE:
                    </details>`
                 : '';
 
+            const thinkingHtml = thinkingText
+                ? `<details class="tool-log thinking-log">
+                    <summary class="tool-log-label"><i class="fas fa-brain"></i> Thinking process</summary>
+                    <div class="tool-log-content" style="white-space:pre-wrap; font-family:inherit;">${escapeHtml(thinkingText)}</div>
+                   </details>`
+                : '';
+
             if (sender === 'user' && resolvedLabel) {
                 const displayName = resolvedLabel.includes('@') ? resolvedLabel.split('@')[0] : resolvedLabel.replace('user_', '');
                 const color = getUserColor(resolvedLabel);
@@ -8735,7 +8776,7 @@ CRITICAL CONTACT RULE:
             }
 
             msg.innerHTML = `
-                <div class="msg-content">${htmlContent}${attachmentHtml}${toolHtml}</div>
+                <div class="msg-content">${thinkingHtml}${htmlContent}${attachmentHtml}${toolHtml}</div>
                 <span class="time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
             `;
             list.appendChild(msg);
@@ -8874,6 +8915,7 @@ CRITICAL CONTACT RULE:
         // Auto-check connection status for all Google accounts on DOM ready
         window.addEventListener('DOMContentLoaded', () => {
             checkAllGoogleServices();
+            fetchGoogleClientId();
         });
     </script>
 

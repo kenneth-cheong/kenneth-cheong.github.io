@@ -55,6 +55,11 @@ def lambda_handler(event, context):
         if not action:
             return response(400, {"error": "Missing action"}, headers)
 
+        if action == 'get_config':
+            return response(200, {
+                "googleClientId": os.environ.get('GOOGLE_CLIENT_ID', '')
+            }, headers)
+
         db = get_db()
 
         if action == 'save_conversation':

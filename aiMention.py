@@ -192,30 +192,39 @@ Provide a detailed, modern, and helpful response with active links."""
 
 def query_gemini(model, prompt, location):
     """Google Gemini API handler."""
-    # Default everything to gemini-3.1-flash-lite-preview as requested
-    m_target = "gemini-3.1-flash-lite-preview"
-    
+    m_target = "gemini-2.0-flash-lite"
+
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{m_target}:generateContent?key={GOOGLE_API_KEY}"
     headers = {"Content-Type": "application/json"}
-    
+
     # Enhanced prompt for citations
     full_prompt = f"User Location: {location}\n\n{prompt}\n\nPlease include relevant citations and URLs in your response."
-    
+
     payload = {
         "contents": [{
             "parts": [{"text": full_prompt}]
         }]
     }
-    
-    try:
-        response = requests.post(url, json=payload, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-        if 'candidates' in data and len(data['candidates']) > 0:
-            return {"text": data['candidates'][0]['content']['parts'][0]['text']}
-        return {"error": f"Gemini returned an empty result. Response: {json.dumps(data)}"}
-    except requests.exceptions.RequestException as e:
-        return {"error": f"Gemini API Error: {str(e)}"}
+
+    for attempt in range(4):
+        try:
+            response = requests.post(url, json=payload, headers=headers)
+            if response.status_code == 429:
+                wait = 5 * (2 ** attempt)  # 5s, 10s, 20s, 40s
+                time.sleep(wait)
+                continue
+            response.raise_for_status()
+            data = response.json()
+            if 'candidates' in data and len(data['candidates']) > 0:
+                return {"text": data['candidates'][0]['content']['parts'][0]['text']}
+            return {"error": f"Gemini returned an empty result. Response: {json.dumps(data)}"}
+        except requests.exceptions.RequestException as e:
+            safe_msg = re.sub(r'key=[A-Za-z0-9_\-]+', 'key=REDACTED', str(e))
+            if attempt < 3:
+                time.sleep(5 * (2 ** attempt))
+                continue
+            return {"error": f"Gemini API Error: {safe_msg}"}
+    return {"error": "Gemini API Error: rate limit exceeded after retries"}
 
 def query_claude(model, prompt, location):
     """Anthropic Claude API handler."""
