@@ -15168,6 +15168,10 @@
                     <!-- Step 2: Audience & Context -->
                     <div class="sem-step-card">
                         <div class="sem-card-title"><i class="fas fa-users"></i> Audience & Brand Context</div>
+                        <div class="sem-input-item" style="margin-bottom:14px;">
+                            <label for="brand_name"><i class="fas fa-building"></i> Brand Name <span class="req">*</span></label>
+                            <input type="text" id="brand_name" name="brand_name" placeholder="e.g. Designworx">
+                        </div>
                         <div class="sem-input-group">
                             <div class="sem-input-item">
                                 <label for="subgroups"><i class="fas fa-user-friends"></i> Target
@@ -15191,6 +15195,7 @@
                                 (URLs):</label>
                             <textarea id="generator_brand_guide_urls"
                                 placeholder="Enter URLs separated by commas or newlines"></textarea>
+                            <small style="color:#64748b; margin-top:5px; display:block;"><i class="fas fa-info-circle"></i> Leave blank and the AI will research the brand automatically from the name above.</small>
                         </div>
                     </div>
 
@@ -15247,13 +15252,26 @@
 
                         <div class="sem-input-group">
                             <div class="sem-input-item">
-                                <label for="word_count"><i class="fas fa-sort-amount-up"></i> Word
-                                    Count:</label>
+                                <label for="word_count"><i class="fas fa-sort-amount-up"></i> Word Count:</label>
                                 <input type="text" id="word_count" name="word_count" placeholder="e.g. 100 words">
                             </div>
                             <div class="sem-input-item">
                                 <label for="usp"><i class="fas fa-star"></i> USP:</label>
                                 <input type="text" id="usp" name="usp" placeholder="e.g. Available 24/7">
+                            </div>
+                            <div class="sem-input-item">
+                                <label for="emojis"><i class="fas fa-smile"></i> Include Emojis:</label>
+                                <select id="emojis" name="emojis">
+                                    <option value="no">No</option>
+                                    <option value="yes">Yes</option>
+                                </select>
+                            </div>
+                            <div class="sem-input-item">
+                                <label for="hashtags"><i class="fas fa-hashtag"></i> Include Hashtags:</label>
+                                <select id="hashtags" name="hashtags">
+                                    <option value="no">No</option>
+                                    <option value="yes">Yes</option>
+                                </select>
                             </div>
                         </div>
 
@@ -15282,7 +15300,15 @@
                             </div>
                         </div>
 
-                        <div style="display: flex; gap: 15px; margin-top: 25px; flex-wrap: wrap;">
+                        <div style="display: flex; gap: 15px; margin-top: 25px; flex-wrap: wrap; align-items: flex-end;">
+                            <div style="display:flex; flex-direction:column; gap:4px;">
+                                <label for="variations_count" style="font-size:0.82rem; font-weight:600; color:#475569;"><i class="fas fa-layer-group"></i> Variations</label>
+                                <select id="variations_count" name="variations_count" style="padding:10px 14px; border:1px solid #d1d5db; border-radius:8px; font-size:0.9rem; color:#1e293b; background:#fff;">
+                                    <option value="1">1 — Single</option>
+                                    <option value="3">3 — Variations</option>
+                                    <option value="5">5 — Variations</option>
+                                </select>
+                            </div>
                             <button type="submit" id="generate-button" class="config-btn-highlight"
                                 style="margin: 0; min-width: 250px;">
                                 <i class="fas fa-magic"></i> Generate Professional Content
@@ -15304,10 +15330,16 @@
                         Generated Content:</div>
                     <div id="content-output-text" style="line-height: 1.6; color: #1e293b; white-space: pre-wrap;">
                     </div>
-                    <button onclick="copyGeneratedContent(event)"
-                        style="position: absolute; top: 15px; right: 15px; background: #f1f5f9; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8em; color: #475569; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
-                        <i class="fas fa-copy"></i> Copy
-                    </button>
+                    <div style="position: absolute; top: 15px; right: 15px; display: flex; gap: 8px;">
+                        <button onclick="copyGeneratedContent(event)"
+                            style="background: #f1f5f9; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8em; color: #475569; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                        <button type="button" onclick="document.getElementById('content-form').dispatchEvent(new Event('submit', {bubbles:true, cancelable:true}))"
+                            style="background: #e8f5e9; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8em; color: #1b5e20; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                            <i class="fas fa-redo"></i> Regenerate
+                        </button>
+                    </div>
                 </div>
             </div>
             </div><!-- /contentGeneratorSection -->
@@ -37336,12 +37368,28 @@ ${selectedText}
         const generatedContentDiv = document.getElementById('generated-content');
         const generateButton = document.getElementById('generate-button');
 
+        // Platform-adaptive placeholders
+        document.getElementById('content-type').addEventListener('change', function () {
+            const hints = {
+                'instagram-caption': { topic: 'What is the post about? (visual-led, punchy)', wordCount: 'e.g. 80–120 words' },
+                'linkedin-post':     { topic: 'What insight or story does this share?',        wordCount: 'e.g. 150–250 words' },
+                'facebook-post':     { topic: 'What is the post about? (conversational)',      wordCount: 'e.g. 100–180 words' },
+                'blog-post':         { topic: 'What topic does this article cover?',           wordCount: 'e.g. 600–1200 words' },
+            };
+            const h = hints[this.value] || hints['instagram-caption'];
+            const topicField = document.getElementById('post-info');
+            const wordCountField = document.getElementById('word_count');
+            if (topicField) topicField.placeholder = h.topic;
+            if (wordCountField) wordCountField.placeholder = h.wordCount;
+        });
+
         form.addEventListener('submit', async (event) => {
             event.preventDefault();
 
             // Disable the button and change text
             generateButton.disabled = true;
-            generateButton.textContent = 'Generating Content...';
+            const _vc = parseInt(document.getElementById('variations_count')?.value || '1') || 1;
+            generateButton.textContent = _vc > 1 ? `Generating ${_vc} Variations...` : 'Generating Content...';
             document.getElementById("smm").style.backgroundColor = "#004c9d";
             updateCollapsibleState('smm', 'running');
             updateCollapsibleState('contentGeneratorButton', 'running');
@@ -37402,25 +37450,27 @@ ${selectedText}
                 );
 
                 // Collect all form fields (including strategy fields not previously sent)
-                const contentType    = getVal('content-type', 'instagram-caption');
-                const postRole       = getVal('post-role', '');
-                const strategyFit    = getVal('strategy-fit', '');
-                const coreMessage    = getVal('core-message', '');
-                const postInfo       = getVal('post-info', '');
-                const subgroups      = getVal('subgroups', '');
-                const painpoints     = getVal('painpoints', '');
-                const audienceGoal   = getVal('audience_goal', '');
-                const productService = getVal('product_service', '');
-                const desiredAction  = getVal('desired_action', '');
-                const wordCount      = getVal('word_count', '');
-                const tone           = getVal('tone', '');
-                const usp            = getVal('usp', '');
-                const pov            = getVal('brand-pov', '');
-                const emojis         = getVal('emojis', 'no');
-                const hashtags       = getVal('hashtags', 'no');
-                const language       = getVal('language', 'english');
-                const constraints    = getVal('constraints', '');
-                const sampleText     = getVal('sample-text', '');
+                const contentType     = getVal('content-type', 'instagram-caption');
+                const variationsCount = Math.min(parseInt(getVal('variations_count', '1')) || 1, 5);
+                const postRole        = getVal('post-role', '');
+                const strategyFit     = getVal('strategy-fit', '');
+                const coreMessage     = getVal('core-message', '');
+                const postInfo        = getVal('post-info', '');
+                const brandName       = getVal('brand_name', '');
+                const subgroups       = getVal('subgroups', '');
+                const painpoints      = getVal('painpoints', '');
+                const audienceGoal    = getVal('audience_goal', '');
+                const productService  = getVal('product_service', '');
+                const desiredAction   = getVal('desired_action', '');
+                const wordCount       = getVal('word_count', '');
+                const tone            = getVal('tone', '');
+                const usp             = getVal('usp', '');
+                const pov             = getVal('brand-pov', '');
+                const emojis          = getVal('emojis', 'no');
+                const hashtags        = getVal('hashtags', 'no');
+                const language        = getVal('language', 'english');
+                const constraints     = getVal('constraints', '');
+                const sampleText      = getVal('sample-text', '');
 
                 const contentTypeLabels = {
                     'blog-post':         'blog post',
@@ -37441,7 +37491,7 @@ ${selectedText}
 STRATEGY
 ${line('Post Role', postRole)}${line('Strategy Context', strategyFit)}${line('Core Message', coreMessage)}
 AUDIENCE
-${line('Target Sub-Groups', subgroups)}${line('Pain Points', painpoints)}${line('Audience Goals', audienceGoal)}
+${line('Brand Name', brandName)}${line('Target Sub-Groups', subgroups)}${line('Pain Points', painpoints)}${line('Audience Goals', audienceGoal)}
 CONTENT BRIEF
 ${line('Product / Service', productService)}${line('Core Topic', postInfo)}${line('Desired CTA', desiredAction)}${line('USP', usp)}${line('Constraints / Mandatories', constraints)}
 BRAND & FORMAT
@@ -37457,19 +37507,34 @@ WRITING RULES — apply every rule without exception:
 
 Output ONLY the finished ${contentTypeLabel} — no meta-commentary, no explanations, no labels. Ready to publish.`;
 
-                const resp = await fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
+                const fetchVariation = (i) => fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'generate', model: 'claude', prompt, settings: { temperature: 0.75 } })
+                    body: JSON.stringify({ action: 'generate', model: 'claude', prompt, settings: { temperature: 0.7 + i * 0.05 } })
+                }).then(r => r.json()).then(result => {
+                    const respBody = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body || result);
+                    return respBody.result || respBody.text || respBody.content || '';
                 });
 
-                const result = await resp.json();
-                const respBody = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body || result);
-                const content  = respBody.result || respBody.text || respBody.content || '';
+                const variations = await Promise.all(
+                    Array.from({ length: variationsCount }, (_, i) => fetchVariation(i))
+                );
+                const content = variations.filter(Boolean);
+
+                const renderCaption = (text) =>
+                    contentType === 'blog-post' ? formatMarkdownToHTML(text) : text.replace(/\n/g, '<br>');
 
                 const outputText = document.getElementById('content-output-text');
-                if (content) {
-                    outputText.innerHTML = contentType === 'blog-post' ? formatMarkdownToHTML(content) : content.replace(/\n/g, '<br>');
+                if (content.length > 0) {
+                    if (content.length === 1) {
+                        outputText.innerHTML = renderCaption(content[0]);
+                    } else {
+                        outputText.innerHTML = content.map((c, i) => `
+                            <div style="margin-bottom:24px; padding-bottom:24px; ${i < content.length - 1 ? 'border-bottom:1px solid #e0e6ed;' : ''}">
+                                <div style="font-size:0.72em; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:1px; margin-bottom:10px;">Variation ${i + 1}</div>
+                                <div>${renderCaption(c)}</div>
+                            </div>`).join('');
+                    }
                     generatedContentDiv.style.display = 'block';
                     updateCollapsibleState('smm', 'success');
                     updateCollapsibleState('contentGeneratorButton', 'success');
