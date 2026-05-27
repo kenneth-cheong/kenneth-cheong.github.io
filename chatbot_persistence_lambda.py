@@ -114,14 +114,26 @@ def handle_save_conversation(db, data, headers):
 
 def handle_fetch_conversations(db, data, headers):
     user_id = data.get('userId', 'global_user')
+    fetch_all = data.get('fetchAll', False) or user_id == 'ALL_USERS'
+
     try:
-        # Return only metadata for the list
+        query = {} if fetch_all else {"userId": user_id}
         cursor = db.conversations.find(
-            {"userId": user_id},
-            {"conversationId": 1, "title": 1, "lastUpdated": 1, "mode": 1}
-        ).sort("lastUpdated", -1)
-        
-        conversations = list(cursor)
+            query,
+            {"conversationId": 1, "userId": 1, "title": 1, "lastUpdated": 1, "mode": 1}
+        ).sort("lastUpdated", -1).limit(300)
+
+        conversations = []
+        for c in cursor:
+            conversations.append({
+                "conversationId": c.get("conversationId"),
+                "userId": c.get("userId", ""),
+                "userLabel": c.get("userId", "").replace("user_", ""),
+                "title": c.get("title", "Untitled"),
+                "updatedAt": c.get("lastUpdated"),
+                "mode": c.get("mode")
+            })
+
         return response(200, {"conversations": conversations}, headers)
     except Exception as e:
         return response(500, {"error": str(e)}, headers)
@@ -129,14 +141,17 @@ def handle_fetch_conversations(db, data, headers):
 def handle_get_conversation(db, data, headers):
     user_id = data.get('userId', 'global_user')
     conv_id = data.get('conversationId')
-    
+    fetch_all = data.get('fetchAll', False)
+
     if not conv_id:
         return response(400, {"error": "Missing conversationId"}, headers)
-        
-    conv = db.conversations.find_one({"conversationId": conv_id, "userId": user_id})
+
+    # When viewing another user's conversation (fetchAll mode), search by ID only
+    query = {"conversationId": conv_id} if fetch_all else {"conversationId": conv_id, "userId": user_id}
+    conv = db.conversations.find_one(query)
     if not conv:
         return response(404, {"error": "Conversation not found"}, headers)
-        
+
     return response(200, {"conversation": conv}, headers)
 
 def handle_delete_conversation(db, data, headers):
