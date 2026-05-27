@@ -840,6 +840,92 @@
             align-items: center;
         }
 
+        /* Email prompt modal */
+        .email-prompt-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(8px);
+            z-index: 9000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .email-prompt-overlay.active {
+            display: flex;
+        }
+
+        .email-prompt-modal {
+            background: #fff;
+            border-radius: 20px;
+            padding: 36px 32px;
+            max-width: 420px;
+            width: 100%;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            text-align: center;
+        }
+
+        .email-prompt-modal .ep-icon {
+            font-size: 2.5rem;
+            color: var(--accent-orange);
+        }
+
+        .email-prompt-modal h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.4rem;
+            color: var(--primary-navy);
+            margin: 0;
+        }
+
+        .email-prompt-modal p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        .email-prompt-modal input[type="email"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .email-prompt-modal input[type="email"]:focus {
+            border-color: var(--accent-orange);
+        }
+
+        .email-prompt-modal .ep-error {
+            color: #ef4444;
+            font-size: 0.85rem;
+            display: none;
+            width: 100%;
+            text-align: left;
+        }
+
+        .email-prompt-modal button {
+            width: 100%;
+            padding: 14px;
+            background: var(--accent-gradient);
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+        }
+
         /* Mobile nav dropdown (three-dot menu) */
         .mobile-nav-btn {
             display: none;
@@ -3435,19 +3521,55 @@
         var PERSISTENCE_API_URL = 'https://t9pw69cg8d.execute-api.ap-southeast-1.amazonaws.com/chatbotPersistence';
         let currentConversationId = localStorage.getItem('chatbot_conversationId') || null;
         let chatHistory = JSON.parse(localStorage.getItem('chatbot_history') || '[]');
-        // User Identity for Persistence
-        let userId = localStorage.getItem('chatbot_userId');
-        if (!userId) {
-            const clientEmail = localStorage.getItem('clientEmail');
-            if (clientEmail && clientEmail.includes('@')) {
-                // Use email-based ID for better cross-device persistence
-                userId = 'user_' + clientEmail.replace(/[^a-zA-Z0-9]/g, '_');
-            } else {
-                userId = 'user_' + Math.random().toString(36).substr(2, 9);
-            }
+
+        // User Identity — always email-derived, never random
+        let userId = null;
+
+        function setUserIdFromEmail(email) {
+            email = (email || '').trim();
+            if (!email.includes('@')) return false;
+            userId = 'user_' + email.replace(/[^a-zA-Z0-9]/g, '_');
             localStorage.setItem('chatbot_userId', userId);
+            localStorage.setItem('clientEmail', email);
+            const el = document.getElementById('clientEmail');
+            if (el) el.value = email;
+            console.log(`[PERSISTENCE] User ID set: ${userId}`);
+            return true;
         }
-        console.log(`[PERSISTENCE] Active User ID: ${userId}`);
+
+        // Resolve email: clientEmail → googleUser (from index.html login) → prompt
+        (function initUserId() {
+            let email = localStorage.getItem('clientEmail');
+            if (!email || !email.includes('@')) {
+                try {
+                    const gu = JSON.parse(localStorage.getItem('googleUser') || 'null');
+                    if (gu && gu.email && gu.email.includes('@')) email = gu.email;
+                } catch(e) {}
+            }
+            if (email && email.includes('@')) {
+                setUserIdFromEmail(email);
+            } else {
+                // No email found — show prompt once DOM is ready
+                window.addEventListener('DOMContentLoaded', function() {
+                    document.getElementById('emailPromptOverlay').classList.add('active');
+                });
+            }
+        })();
+
+        function submitEmailPrompt() {
+            const input = document.getElementById('emailPromptInput');
+            const error = document.getElementById('emailPromptError');
+            const email = input.value.trim();
+            if (!email || !email.includes('@')) {
+                error.style.display = 'block';
+                input.focus();
+                return;
+            }
+            error.style.display = 'none';
+            setUserIdFromEmail(email);
+            document.getElementById('emailPromptOverlay').classList.remove('active');
+            fetchHistory();
+        }
 
         function toggleMobileNav(e) {
             e.stopPropagation();
@@ -4370,13 +4492,7 @@
         function saveSettings() {
             const mondayKey = document.getElementById('mondayApiKey').value.trim();
             const newEmail = document.getElementById('clientEmail').value.trim();
-            localStorage.setItem('clientEmail', newEmail);
-
-            // Re-derive userId from email so history syncs across devices
-            if (newEmail && newEmail.includes('@')) {
-                userId = 'user_' + newEmail.replace(/[^a-zA-Z0-9]/g, '_');
-                localStorage.setItem('chatbot_userId', userId);
-            }
+            setUserIdFromEmail(newEmail);
             localStorage.setItem('privateMemoryMode', document.getElementById('privateMemoryMode').checked);
             localStorage.setItem('vectorStoreId', document.getElementById('vectorStoreId').value.trim());
             const contextUrls = document.getElementById('contextUrls').value.trim();
@@ -5588,10 +5704,7 @@
                     });
                     if (res.ok) {
                         const userInfo = await res.json();
-                        if (userInfo.email && !localStorage.getItem('clientEmail')) {
-                            localStorage.setItem('clientEmail', userInfo.email);
-                            document.getElementById('clientEmail').value = userInfo.email;
-                        }
+                        if (userInfo.email) setUserIdFromEmail(userInfo.email);
                         if (userInfo.email) localStorage.setItem('googleUser', JSON.stringify({ name: userInfo.name, email: userInfo.email, picture: userInfo.picture }));
                         localStorage.setItem(`googleToken_${s}_verified`, Date.now());
                         updateServiceUI(s, true);
@@ -8840,6 +8953,19 @@ CRITICAL CONTACT RULE:
             });
         }
     </script>
+
+    <!-- Email prompt — shown when no email is found in any storage source -->
+    <div id="emailPromptOverlay" class="email-prompt-overlay">
+        <div class="email-prompt-modal">
+            <i class="fas fa-robot ep-icon"></i>
+            <h2>Welcome to Super Chatbot</h2>
+            <p>Enter your email to load your conversation history and settings across all your devices.</p>
+            <input type="email" id="emailPromptInput" placeholder="you@example.com" autocomplete="email"
+                onkeydown="if(event.key==='Enter') submitEmailPrompt()">
+            <div class="ep-error" id="emailPromptError">Please enter a valid email address.</div>
+            <button onclick="submitEmailPrompt()"><i class="fas fa-arrow-right"></i> Continue</button>
+        </div>
+    </div>
 
     <!-- Quick Prompts Modal -->
     <div id="promptsModalOverlay" class="prompts-modal-overlay" onclick="closePromptsModal()">
