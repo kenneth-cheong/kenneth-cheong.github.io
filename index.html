@@ -10571,6 +10571,11 @@
         body.advanced-mode .tool-card-wrapper > .strat-collapsible {
             display: none !important;
         }
+        /* In non-advanced mode, tool-card content is always fully expanded.
+           The wrapper's own display:none handles inactive sections. */
+        body:not(.advanced-mode) .tool-card-wrapper > .content {
+            display: block !important;
+        }
         /* Injected card header — always visible, matches the selector card label */
         .tool-card-injected-header {
             display: flex;
@@ -10915,7 +10920,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1532</span>
+                <span id="appVersion">v1.0.1533</span>
             </a>
         </div>
 
@@ -69370,7 +69375,9 @@ Move-In</h3>
         }
 
         function exitBasicSectionOrder() {
-            BASIC_SECTION_ORDER.forEach(id => {
+            // Restore in reverse so each section's recorded nextSibling is already
+            // back in its parent before we try to insertBefore it.
+            [...BASIC_SECTION_ORDER].reverse().forEach(id => {
                 const el = document.getElementById(id);
                 const origin = _basicSectionOrigins[id];
                 if (!el || !origin) return;
@@ -71017,20 +71024,9 @@ Move-In</h3>
             const comp = document.getElementById('competitorsSection');
             if (comp && comp.parentElement !== seoContent) seoContent.appendChild(comp);
 
-            // 2. Wrap the bare Page Technical & Domain Analysis toggle+panel in a div
-            const toggleBtn  = document.getElementById('siteAnalysisToggle');
-            const togglePane = document.getElementById('siteAnalysisContent');
-            if (toggleBtn && togglePane && !document.getElementById('pageTechDomainSection')) {
-                const wrapper = document.createElement('div');
-                wrapper.id = 'pageTechDomainSection';
-                toggleBtn.parentNode.insertBefore(wrapper, toggleBtn);
-                wrapper.appendChild(toggleBtn);
-                wrapper.appendChild(togglePane);
-            }
-
             // 3. Reorder sections in logical workflow sequence
             const order = [
-                'pageTechDomainSection',    // Understand current site
+                'siteAnalysisSection',      // Understand current site
                 'technicalSeoSection',       // Fix technical issues
                 'keywordAnalysisSection',    // Research keywords
                 'competitorsSection',        // Competitive landscape
