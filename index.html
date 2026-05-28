@@ -22949,47 +22949,6 @@
                 .filter(arr => arr.length >= 2)
                 .map(arr => arr.sort((a, b) => a.mi - b.mi));
 
-            // ── Target pacing centerline (hover-only) ────────────────────────────
-            // Solid line through the expected P1 count at each month-end, mapped to
-            // the same hidden count→Y scale used by the band. Invisible points with
-            // a generous hit radius so hovering anywhere near the line surfaces the
-            // monthly target value in a tooltip.
-            const allowPacing = kpiCampaigns.length > 0 && maxTotalKPI > 0;
-            if (allowPacing) {
-                const pacingData = months.map((ym, mi) => {
-                    const { expectedP1, totalKPI } = monthlyExpected[mi];
-                    if (totalKPI === 0) return null;
-                    return {
-                        x: mi,
-                        y: yvalForCount(expectedP1),
-                        target: Math.round(expectedP1 * 10) / 10,
-                        targetWhole: Math.round(expectedP1),
-                        month: ym,
-                    };
-                }).filter(Boolean);
-                if (pacingData.length >= 2) {
-                    datasets.push({
-                        label: 'Target pacing',
-                        data: pacingData,
-                        showLine: true,
-                        borderColor: 'rgba(79,70,229,0.95)',
-                        backgroundColor: 'rgba(79,70,229,0.95)',
-                        borderWidth: 2.5,
-                        pointRadius: 0,
-                        pointHoverRadius: 6,
-                        pointHitRadius: 25,
-                        pointHoverBackgroundColor: '#4f46e5',
-                        pointHoverBorderColor: '#fff',
-                        pointHoverBorderWidth: 2,
-                        tension: 0,
-                        xAxisID: 'x',
-                        yAxisID: 'y',
-                        order: -1,
-                        _isPacing: true,
-                    });
-                }
-            }
-
             // Plugin: draw connecting lines between the same keyword's crosses
             const kwTrailPlugin = {
                 id: 'kwTrails',
@@ -23101,14 +23060,15 @@
 
                     const pyForCount = count => yBottom - (Math.max(0, Math.min(maxTotalKPI, count)) / maxTotalKPI) * chartH;
 
-                    // Compute per-month bound pixel positions from pre-computed month-end values
-                    const upperPts = [], lowerPts = [];
+                    // Compute per-month bound + centerline pixel positions from pre-computed month-end values
+                    const upperPts = [], lowerPts = [], centerPts = [];
                     months.forEach((ym, mi) => {
                         const { expectedP1, totalKPI } = monthlyExpected[mi];
-                        if (totalKPI === 0) { upperPts.push(null); lowerPts.push(null); return; }
+                        if (totalKPI === 0) { upperPts.push(null); lowerPts.push(null); centerPts.push(null); return; }
                         const px = xScale.getPixelForValue(mi);
                         upperPts.push({ px, py: pyForCount(expectedP1 + tol * totalKPI) });
                         lowerPts.push({ px, py: pyForCount(expectedP1 - tol * totalKPI) });
+                        centerPts.push({ px, py: pyForCount(expectedP1), target: expectedP1 });
                     });
 
                     const hasPoints = upperPts.some(Boolean) && lowerPts.some(Boolean);
@@ -23177,6 +23137,49 @@
                     };
                     if (lastUpper) drawPill(`+${tolPct}% KPI`, lastUpper.px, lastUpper.py);
                     if (lastLower) drawPill(`−${tolPct}% KPI`, lastLower.px, lastLower.py);
+
+                    // Solid pacing centerline + per-month target value pills
+                    ctx2.lineWidth = 2.5;
+                    ctx2.strokeStyle = 'rgba(79,70,229,0.95)';
+                    ctx2.beginPath();
+                    let firstC = true;
+                    centerPts.forEach(pt => { if (!pt) return; firstC ? ctx2.moveTo(pt.px, pt.py) : ctx2.lineTo(pt.px, pt.py); firstC = false; });
+                    ctx2.stroke();
+
+                    // Always-on target value pills at each month (skip pre-campaign months where target < 0.5)
+                    ctx2.font = 'bold 10px system-ui,sans-serif';
+                    centerPts.forEach(pt => {
+                        if (!pt || pt.target < 0.5) return;
+                        const text = String(Math.round(pt.target));
+                        const tw = ctx2.measureText(text).width;
+                        const pillW = Math.max(18, tw + 8);
+                        const pillH = 14;
+                        const pillX = pt.px - pillW / 2;
+                        const pillY = pt.py - pillH / 2;
+                        const r = 7;
+                        // White halo so the number reads against the band fill / dots
+                        ctx2.fillStyle = '#fff';
+                        ctx2.beginPath();
+                        ctx2.arc(pt.px, pt.py, pillH / 2 + 1.5, 0, Math.PI * 2);
+                        ctx2.fill();
+                        ctx2.fillStyle = 'rgba(79,70,229,0.95)';
+                        ctx2.beginPath();
+                        ctx2.moveTo(pillX + r, pillY);
+                        ctx2.lineTo(pillX + pillW - r, pillY);
+                        ctx2.quadraticCurveTo(pillX + pillW, pillY, pillX + pillW, pillY + r);
+                        ctx2.lineTo(pillX + pillW, pillY + pillH - r);
+                        ctx2.quadraticCurveTo(pillX + pillW, pillY + pillH, pillX + pillW - r, pillY + pillH);
+                        ctx2.lineTo(pillX + r, pillY + pillH);
+                        ctx2.quadraticCurveTo(pillX, pillY + pillH, pillX, pillY + pillH - r);
+                        ctx2.lineTo(pillX, pillY + r);
+                        ctx2.quadraticCurveTo(pillX, pillY, pillX + r, pillY);
+                        ctx2.closePath();
+                        ctx2.fill();
+                        ctx2.fillStyle = '#fff';
+                        ctx2.textAlign = 'center';
+                        ctx2.textBaseline = 'middle';
+                        ctx2.fillText(text, pt.px, pt.py + 0.5);
+                    });
 
                     ctx2.restore();
                 },
@@ -23361,21 +23364,13 @@
                         legend: {
                             display: true,
                             position: 'bottom',
-                            labels: {
-                                font: { size: 10 }, boxWidth: 10, padding: 10,
-                                usePointStyle: true, pointStyle: 'crossRot',
-                                // Exclude the pacing line — it's surfaced in the top legend strip instead
-                                filter: item => item.text !== 'Target pacing',
-                            },
+                            labels: { font: { size: 10 }, boxWidth: 10, padding: 10,
+                                usePointStyle: true, pointStyle: 'crossRot' },
                         },
                         tooltip: {
                             callbacks: {
                                 title: () => '',
                                 label: ctx => {
-                                    if (ctx.dataset._isPacing) {
-                                        const t = ctx.raw.targetWhole;
-                                        return `Target: ${t} P1 keyword${t !== 1 ? 's' : ''} by end of ${fmtMonth(ctx.raw.month)}`;
-                                    }
                                     const { kwName, pos, month } = ctx.raw;
                                     const group = ctx.dataset.label;
                                     return `${kwName || '(unknown)'} · #${pos} · ${fmtMonth(month)}  [${group}]`;
