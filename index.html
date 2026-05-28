@@ -10915,7 +10915,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1518</span>
+                <span id="appVersion">v1.0.1519</span>
             </a>
         </div>
 
@@ -71644,15 +71644,17 @@ Move-In</h3>
             });
 
             const countEl = el.querySelector('#ovFilterCount');
-            const total0  = getEffectiveLogs().length;
-            if (countEl) countEl.textContent = logs.length < total0 ? `${logs.length} of ${total0} events` : `${total0} events`;
+            const allRuns0 = getEffectiveLogs().filter(l => l.type === 'usage');
+            const visRuns  = logs.filter(l => l.type === 'usage');
+            if (countEl) countEl.textContent = visRuns.length < allRuns0.length ? `${visRuns.length} of ${allRuns0.length} runs` : `${allRuns0.length} runs`;
 
-            const total      = logs.length;
+            // Count only button-click events (type='usage') — chained API calls are not counted
+            const runs       = logs.filter(l => l.type === 'usage');
+            const total      = runs.length;
             const errors     = logs.filter(l => l.type === 'error').length;
-            const errRate    = total ? Math.round(errors / total * 100) : 0;
-            const uniqueUsers = new Set(logs.map(l => l.userEmail).filter(e => e && e !== 'unknown')).size;
+            const uniqueUsers = new Set(runs.map(l => l.userEmail).filter(e => e && e !== 'unknown')).size;
             const toolCounts = {};
-            logs.forEach(l => { if (l.tool && l.type !== 'error') { const k = toolActionLabel(l); toolCounts[k] = (toolCounts[k] || 0) + 1; } });
+            runs.forEach(l => { if (l.tool) { const k = toolActionLabel(l); toolCounts[k] = (toolCounts[k] || 0) + 1; } });
             const topTool    = Object.entries(toolCounts).sort((a,b) => b[1]-a[1])[0];
 
             const userMap = {};
@@ -71660,9 +71662,9 @@ Move-In</h3>
                 if (!l.userEmail) return;
                 const _displayName = (l.userName && l.userName !== 'Unknown') ? l.userName : (l.userEmail && l.userEmail !== 'unknown' ? l.userEmail : 'Unknown');
                 if (!userMap[l.userEmail]) userMap[l.userEmail] = { name: _displayName, email: l.userEmail, events: 0, errors: 0, tools: {}, lastTs: '' };
-                userMap[l.userEmail].events++;
+                if (l.type === 'usage') userMap[l.userEmail].events++;
                 if (l.type === 'error') userMap[l.userEmail].errors++;
-                if (l.tool) { const k = toolActionLabel(l); userMap[l.userEmail].tools[k] = (userMap[l.userEmail].tools[k]||0) + 1; }
+                if (l.type === 'usage' && l.tool) { const k = toolActionLabel(l); userMap[l.userEmail].tools[k] = (userMap[l.userEmail].tools[k]||0) + 1; }
                 if (!userMap[l.userEmail].lastTs || l.ts > userMap[l.userEmail].lastTs) userMap[l.userEmail].lastTs = l.ts;
             });
 
@@ -71674,16 +71676,16 @@ Move-In</h3>
                 const team   = getTeamForEmail(l.userEmail);
                 const bucket = team === '—' ? 'Unassigned' : team;
                 if (!teamMap[bucket]) teamMap[bucket] = { name: bucket, definedMembers: 0, events: 0, errors: 0, tools: {}, activeUsers: new Set(), lastTs: '' };
-                teamMap[bucket].events++;
+                if (l.type === 'usage') teamMap[bucket].events++;
                 if (l.type === 'error') teamMap[bucket].errors++;
-                if (l.tool) { const k = toolActionLabel(l); teamMap[bucket].tools[k] = (teamMap[bucket].tools[k]||0) + 1; }
+                if (l.type === 'usage' && l.tool) { const k = toolActionLabel(l); teamMap[bucket].tools[k] = (teamMap[bucket].tools[k]||0) + 1; }
                 teamMap[bucket].activeUsers.add(l.userEmail);
                 if (!teamMap[bucket].lastTs || l.ts > teamMap[bucket].lastTs) teamMap[bucket].lastTs = l.ts;
             });
 
             const statCards = [
-                { label: 'Total Events',  value: total,                    icon: 'fa-database',              color: '#2563eb' },
-                { label: 'Errors',        value: `${errors} (${errRate}%)`, icon: 'fa-exclamation-triangle', color: errors > 0 ? '#ef4444' : '#10b981' },
+                { label: 'Tool Runs',    value: total,   icon: 'fa-database',              color: '#2563eb' },
+                { label: 'Errors',        value: errors,                    icon: 'fa-exclamation-triangle',  color: errors > 0 ? '#ef4444' : '#10b981' },
                 { label: 'Active Users',  value: uniqueUsers,              icon: 'fa-users',                  color: '#8b5cf6' },
                 { label: 'Most Used',     value: topTool ? `${topTool[0]} (${topTool[1]}×)` : '—', icon: 'fa-star', color: '#f59e0b' },
             ].map(c => `
@@ -71708,7 +71710,7 @@ Move-In</h3>
                     </div>
                     <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">
                         <thead><tr style="background:#f1f5f9;border-bottom:2px solid #cbd5e1;">
-                            ${[{label:'Team'},{label:'Active / Defined',align:'center'},{label:'Events',align:'center'},{label:'Errors',align:'center'},{label:'Top Tool'},{label:'Last Active'}].map(TH).join('')}
+                            ${[{label:'Team'},{label:'Active / Defined',align:'center'},{label:'Runs',align:'center'},{label:'Errors',align:'center'},{label:'Top Tool'},{label:'Last Active'}].map(TH).join('')}
                         </tr></thead>
                         <tbody>${teamRows.map((t,i) => {
                             const top = Object.entries(t.tools).sort((a,b)=>b[1]-a[1])[0];
@@ -71733,7 +71735,7 @@ Move-In</h3>
                     </div>
                     <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">
                         <thead><tr style="background:#f1f5f9;border-bottom:2px solid #cbd5e1;">
-                            ${[{label:'User'},{label:'Team'},{label:'Events',align:'center'},{label:'Errors',align:'center'},{label:'Top Tool'},{label:'Last Active'}].map(TH).join('')}
+                            ${[{label:'User'},{label:'Team'},{label:'Runs',align:'center'},{label:'Errors',align:'center'},{label:'Top Tool'},{label:'Last Active'}].map(TH).join('')}
                         </tr></thead>
                         <tbody>${userRows.map((u,i) => {
                             const top  = Object.entries(u.tools).sort((a,b)=>b[1]-a[1])[0];
