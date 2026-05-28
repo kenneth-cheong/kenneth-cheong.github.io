@@ -10920,7 +10920,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1544</span>
+                <span id="appVersion">v1.0.1545</span>
             </a>
         </div>
 
@@ -50267,18 +50267,24 @@ Return compact valid JSON only. No prose.
 
                 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-                // ── Collect keyword metrics from the live DOM tables ──
+                // ── Collect keyword metrics for the selected/recommended strategy only ──
+                const exportStrategy = window._selectedStrategy || strategies.find(s => s.recommended) || strategies[0];
                 const kwMetrics = [];
-                const seenKws = new Set();
-                document.querySelectorAll('.strategy-kw-row').forEach(row => {
-                    const cells = row.querySelectorAll('td');
-                    if (cells.length < 4) return;
-                    const kw = cells[0].textContent.trim();
-                    if (!kw || seenKws.has(kw.toLowerCase())) return;
-                    seenKws.add(kw.toLowerCase());
-                    const getVal = el => el.querySelector('i') ? '—' : (el.textContent.trim() || '—');
-                    kwMetrics.push({ kw, vol: getVal(cells[1]), kd: getVal(cells[2]), rank: getVal(cells[3]) });
-                });
+                if (exportStrategy?.target_keywords) {
+                    const rawKws = Array.isArray(exportStrategy.target_keywords)
+                        ? exportStrategy.target_keywords
+                        : String(exportStrategy.target_keywords).split(/,\s*|\n/);
+                    const getVal = el => el ? (el.querySelector('i') ? '—' : (el.textContent.trim() || '—')) : '—';
+                    rawKws.map(k => k.trim()).filter(Boolean).forEach(kw => {
+                        const row = document.querySelector(`.strategy-kw-row[data-keyword="${kw.toLowerCase().replace(/"/g, '')}"]`);
+                        kwMetrics.push({
+                            kw,
+                            vol:  getVal(row?.querySelector('.v-val')),
+                            kd:   getVal(row?.querySelector('.d-val')),
+                            rank: getVal(row?.querySelector('.r-val')),
+                        });
+                    });
+                }
 
                 // ── Priority counts ──
                 const highC = recs.filter(r => r.priority === 'High').length;
