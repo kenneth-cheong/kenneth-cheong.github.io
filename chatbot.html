@@ -4140,11 +4140,23 @@
 
                 const result = await response.json();
                 const data = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body || result);
+
+                // Surface server-side errors that would otherwise silently produce 0 results
+                if (data.error) {
+                    throw new Error(`API error: ${data.error}`);
+                }
+
                 const convs = data.conversations || [];
-                console.log(`[PERSISTENCE] Loaded ${convs.length} items`);
+                console.log(`[PERSISTENCE] Loaded ${convs.length} items`, convs.length === 0 ? { rawResult: result, parsedData: data } : '');
 
                 if (convs.length === 0) {
-                    list.innerHTML = '<div style="padding: 32px; text-align: center; color: var(--text-muted);">No previous chats found</div>';
+                    list.innerHTML = `<div style="padding: 32px; text-align: center; color: var(--text-muted);">
+                        <i class="fas fa-comments" style="font-size:1.5rem; opacity:0.3; display:block; margin-bottom:8px;"></i>
+                        No previous chats found
+                        <br><button onclick="fetchHistory()" style="margin-top:12px; background:none; border:1px solid #cbd5e1; border-radius:8px; padding:6px 14px; font-size:0.78rem; color:#64748b; cursor:pointer; font-family:inherit;">
+                            <i class="fas fa-rotate-right"></i> Retry
+                        </button>
+                    </div>`;
                     return;
                 }
 
