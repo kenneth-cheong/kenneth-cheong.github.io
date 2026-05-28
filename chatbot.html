@@ -3887,9 +3887,11 @@
                     localStorage.setItem('chatbot_conversationId', currentConversationId);
                 }
                 updateCloudStatus('synced', 'Cloud Synced');
+                return true;
             } catch (error) {
                 console.error(`[PERSISTENCE SAVE ERROR]`, error);
                 updateCloudStatus('error', `Sync Failed`);
+                return false;
             }
         }
 
@@ -4828,10 +4830,11 @@
                 showToast('Nothing to share — start a conversation first.', 'warning');
                 return;
             }
-            // Ensure conversation is persisted first
-            await saveConversation();
-            if (!currentConversationId) {
-                showToast('Could not save conversation. Try again.', 'error');
+            const saving = showToast('Saving conversation…', 'loading', 0);
+            const saved = await saveConversation();
+            saving.remove();
+            if (!saved || !currentConversationId) {
+                showToast('Save failed — check your connection and try again.', 'error');
                 return;
             }
             const url = `${location.origin}${location.pathname}?share=${currentConversationId}`;
@@ -4839,7 +4842,6 @@
                 await navigator.clipboard.writeText(url);
                 showToast('Share link copied to clipboard!', 'success');
             } catch {
-                // Fallback for browsers that block clipboard without user gesture
                 prompt('Copy this link to share the conversation:', url);
             }
         }
@@ -4884,13 +4886,13 @@
         }
 
         // ---- Load shared conversation from URL param ----
-        (async function checkSharedConversation() {
+        window.addEventListener('load', async function checkSharedConversation() {
             const params = new URLSearchParams(location.search);
             const shareId = params.get('share');
             if (!shareId) return;
 
+            console.log('[SHARE] Loading shared conversation:', shareId);
             document.getElementById('shareBanner').style.display = 'flex';
-            // Disable input area
             const inputArea = document.getElementById('inputArea');
             if (inputArea) {
                 inputArea.style.pointerEvents = 'none';
@@ -4904,20 +4906,28 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'get_conversation', data: { conversationId: shareId, fetchAll: true } })
                 });
+                console.log('[SHARE] HTTP status:', res.status);
                 const result = await res.json();
+                console.log('[SHARE] Raw response:', result);
                 const data = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body || result);
+                console.log('[SHARE] Parsed data:', data);
                 const conv = data.conversation;
-                if (!conv) { showToast('Shared conversation not found.', 'error'); return; }
+                if (!conv) {
+                    showToast(`Shared conversation not found. (ID: ${shareId.substring(0,8)}…)`, 'error');
+                    return;
+                }
 
                 chatHistory = conv.messages || [];
                 const list = document.getElementById('messageList');
                 list.innerHTML = '';
                 chatHistory.forEach(m => addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, null, true, m.userLabel));
                 if (conv.title) document.getElementById('headerTitle').textContent = conv.title;
+                console.log('[SHARE] Loaded', chatHistory.length, 'messages');
             } catch (e) {
-                showToast('Failed to load shared conversation.', 'error');
+                console.error('[SHARE] Error:', e);
+                showToast('Failed to load shared conversation: ' + e.message, 'error');
             }
-        })();
+        });
 
         // ---- SE Ranking Integration ----
         window.allSERankingSites = [];
