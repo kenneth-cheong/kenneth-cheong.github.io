@@ -840,6 +840,34 @@
             align-items: center;
         }
 
+        /* ── Print / PDF export ────────────────────────────────────── */
+        @media print {
+            header, .controls, .sidebar, #inputArea, .mobile-nav-dropdown,
+            .toast-container, .modal-overlay, #historyPanel, #settingsPanel,
+            .share-banner, .header-desktop-btns, .mobile-nav-btn,
+            #unifiedStatusBar { display: none !important; }
+            body, .app-container, #chatArea { background: #fff !important; box-shadow: none !important; }
+            #messageList { height: auto !important; overflow: visible !important; padding: 20px !important; }
+            .message.user .message-bubble { background: #f3f4f6 !important; color: #111 !important; }
+            .message.bot .message-bubble { background: #fff !important; color: #111 !important; border: 1px solid #e5e7eb !important; }
+            .message-meta { color: #6b7280 !important; }
+            a { color: #1d4ed8 !important; }
+        }
+
+        /* ── Shared conversation banner ────────────────────────────── */
+        .share-banner {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: #fff;
+            text-align: center;
+            padding: 10px 16px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
         /* Email prompt modal */
         .email-prompt-overlay {
             display: none;
@@ -2992,6 +3020,12 @@
                     <button class="btn btn-outline" id="tourBtn" onclick="startTour()" title="Take a guided tour of the chatbot">
                         <i class="fas fa-map-signs"></i> Tour
                     </button>
+                    <button class="btn btn-outline" onclick="shareConversation()" title="Copy shareable link to clipboard">
+                        <i class="fas fa-share-nodes"></i> Share
+                    </button>
+                    <button class="btn btn-outline" onclick="exportToPdf()" title="Export conversation to PDF">
+                        <i class="fas fa-file-pdf"></i> PDF
+                    </button>
                 </div>
                 <!-- Mobile three-dot menu -->
                 <button class="btn btn-outline mobile-nav-btn" id="mobileNavBtn" onclick="toggleMobileNav(event)">
@@ -2999,12 +3033,18 @@
                 </button>
             </div>
         </header>
+        <!-- Shared conversation banner (shown when viewing via ?share= URL) -->
+        <div class="share-banner" id="shareBanner" style="display:none;">
+            <i class="fas fa-lock-open"></i> You are viewing a shared read-only conversation.
+        </div>
         <!-- Mobile dropdown — sibling of header so overflow:hidden on app-container doesn't clip it -->
         <div class="mobile-nav-dropdown" id="mobileNavDropdown">
             <button onclick="openLearningModal(); closeMobileNav()"><i class="fas fa-brain"></i> Memory</button>
             <button onclick="toggleHistory(); closeMobileNav()"><i class="fas fa-history"></i> History</button>
             <button onclick="toggleSettings(); closeMobileNav()"><i class="fas fa-cog"></i> Settings</button>
             <button onclick="startTour(); closeMobileNav()" id="tourBtnMobile"><i class="fas fa-map-signs"></i> Tour</button>
+            <button onclick="shareConversation(); closeMobileNav()"><i class="fas fa-share-nodes"></i> Share</button>
+            <button onclick="exportToPdf(); closeMobileNav()"><i class="fas fa-file-pdf"></i> Export PDF</button>
         </div>
 
         <aside class="history-sidebar" id="historySidebar">
@@ -4781,6 +4821,103 @@
             if (duration > 0) setTimeout(remove, duration);
             return { remove };
         }
+
+        // ---- Share & PDF Export ----
+        async function shareConversation() {
+            if (!chatHistory.length) {
+                showToast('Nothing to share — start a conversation first.', 'warning');
+                return;
+            }
+            // Ensure conversation is persisted first
+            await saveConversation();
+            if (!currentConversationId) {
+                showToast('Could not save conversation. Try again.', 'error');
+                return;
+            }
+            const url = `${location.origin}${location.pathname}?share=${currentConversationId}`;
+            try {
+                await navigator.clipboard.writeText(url);
+                showToast('Share link copied to clipboard!', 'success');
+            } catch {
+                // Fallback for browsers that block clipboard without user gesture
+                prompt('Copy this link to share the conversation:', url);
+            }
+        }
+
+        function exportToPdf() {
+            if (!chatHistory.length) {
+                showToast('Nothing to export — start a conversation first.', 'warning');
+                return;
+            }
+            const title = document.getElementById('headerTitle')?.textContent || 'Conversation';
+            const win = window.open('', '_blank');
+            const rows = chatHistory.map(m => {
+                const isUser = m.role === 'user';
+                const label = isUser ? (m.userLabel || 'You') : 'Assistant';
+                const ts = m.timestamp ? new Date(m.timestamp).toLocaleString() : '';
+                const content = (m.content || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+                return `<div class="msg ${isUser ? 'user' : 'bot'}">
+                    <div class="meta"><strong>${label}</strong>${ts ? ' &mdash; ' + ts : ''}</div>
+                    <div class="bubble">${content}</div>
+                </div>`;
+            }).join('');
+            win.document.write(`<!DOCTYPE html><html><head>
+                <meta charset="utf-8">
+                <title>${title}</title>
+                <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 32px; color: #111; background: #fff; }
+                    h1 { font-size: 1.25rem; color: #374151; border-bottom: 2px solid #f3f4f6; padding-bottom: 12px; margin-bottom: 24px; }
+                    .msg { margin-bottom: 20px; max-width: 85%; }
+                    .msg.user { margin-left: auto; }
+                    .meta { font-size: 0.72rem; color: #6b7280; margin-bottom: 4px; }
+                    .bubble { padding: 12px 16px; border-radius: 12px; font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+                    .user .bubble { background: #fef3c7; border: 1px solid #fcd34d; }
+                    .bot .bubble { background: #f9fafb; border: 1px solid #e5e7eb; }
+                    @media print { body { padding: 16px; } }
+                </style>
+            </head><body>
+                <h1><strong>${title}</strong> &mdash; Exported ${new Date().toLocaleDateString()}</h1>
+                ${rows}
+                <script>window.onload = function(){ window.print(); }<\/script>
+            </body></html>`);
+            win.document.close();
+        }
+
+        // ---- Load shared conversation from URL param ----
+        (async function checkSharedConversation() {
+            const params = new URLSearchParams(location.search);
+            const shareId = params.get('share');
+            if (!shareId) return;
+
+            document.getElementById('shareBanner').style.display = 'flex';
+            // Disable input area
+            const inputArea = document.getElementById('inputArea');
+            if (inputArea) {
+                inputArea.style.pointerEvents = 'none';
+                inputArea.style.opacity = '0.4';
+                inputArea.title = 'Read-only — this is a shared conversation';
+            }
+
+            try {
+                const res = await fetch(PERSISTENCE_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'get_conversation', data: { conversationId: shareId, fetchAll: true } })
+                });
+                const result = await res.json();
+                const data = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body || result);
+                const conv = data.conversation;
+                if (!conv) { showToast('Shared conversation not found.', 'error'); return; }
+
+                chatHistory = conv.messages || [];
+                const list = document.getElementById('messageList');
+                list.innerHTML = '';
+                chatHistory.forEach(m => addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, null, true, m.userLabel));
+                if (conv.title) document.getElementById('headerTitle').textContent = conv.title;
+            } catch (e) {
+                showToast('Failed to load shared conversation.', 'error');
+            }
+        })();
 
         // ---- SE Ranking Integration ----
         window.allSERankingSites = [];
