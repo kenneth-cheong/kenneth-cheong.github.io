@@ -10915,7 +10915,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1511</span>
+                <span id="appVersion">v1.0.1512</span>
             </a>
         </div>
 
@@ -69303,6 +69303,48 @@ Move-In</h3>
             });
         }
 
+        function showModeUpgradePrompt(categoryName) {
+            let container = document.querySelector('.toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.className = 'toast-container';
+                document.body.appendChild(container);
+            }
+
+            // Remove any existing upgrade prompt so repeated clicks don't stack
+            const existing = container.querySelector('.toast-mode-upgrade');
+            if (existing) existing.remove();
+
+            const toast = document.createElement('div');
+            toast.className = 'toast-message info toast-mode-upgrade';
+            toast.style.cssText = 'max-width:360px; line-height:1.5;';
+            toast.innerHTML = `
+                <i class="fas fa-lock" style="margin-right:6px;"></i>
+                <span><strong>${categoryName}</strong> tools are available in Intermediate &amp; Advanced mode.</span>
+                <div style="display:flex;gap:8px;margin-top:10px;">
+                    <button onclick="setUserMode('Intermediate');this.closest('.toast-mode-upgrade').remove();"
+                        style="flex:1;padding:6px 10px;border:none;border-radius:8px;background:#3b82f6;color:#fff;font-size:0.82rem;font-weight:600;cursor:pointer;">
+                        Intermediate
+                    </button>
+                    <button onclick="setUserMode('Advanced');this.closest('.toast-mode-upgrade').remove();"
+                        style="flex:1;padding:6px 10px;border:none;border-radius:8px;background:#1e40af;color:#fff;font-size:0.82rem;font-weight:600;cursor:pointer;">
+                        Advanced
+                    </button>
+                    <button onclick="this.closest('.toast-mode-upgrade').remove();"
+                        style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;background:transparent;color:#64748b;font-size:0.82rem;cursor:pointer;">
+                        ✕
+                    </button>
+                </div>`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.classList.add('toast-fade-out');
+                    setTimeout(() => toast.remove(), 300);
+                }
+            }, 8000);
+        }
+
         function applyBasicModeNav() {
             CATEGORY_NAV_CONFIG.forEach(({ navId, cardCategory }) => {
                 const navItem = document.getElementById(navId);
@@ -69319,7 +69361,7 @@ Move-In</h3>
                     link.onclick = (e) => { e.preventDefault(); toggleBasicCatCards(cardCategory, navItem); };
                 } else {
                     navItem.classList.add('nav-toggle-disabled');
-                    link.onclick = (e) => e.preventDefault();
+                    link.onclick = (e) => { e.preventDefault(); showModeUpgradePrompt(cardCategory); };
                 }
             });
         }
