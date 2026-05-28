@@ -22152,6 +22152,9 @@
                         <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:#475569;">
                             <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.4);flex-shrink:0;"></span>Below Trajectory
                         </span>
+                        <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:#475569;" title="Expected P1 keyword count at month-end (hover the line for monthly targets)">
+                            <span style="display:inline-block;width:18px;height:0;border-top:2.5px solid rgba(79,70,229,0.95);flex-shrink:0;"></span>Target pacing
+                        </span>
                         <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:#475569;" title="Expected P1 trajectory ±${tolPctNow}% of total KPI">
                             <span style="display:inline-block;width:18px;height:0;border-top:2px dashed rgba(79,70,229,0.9);flex-shrink:0;"></span>±${tolPctNow}% KPI band
                         </span>
@@ -22946,6 +22949,47 @@
                 .filter(arr => arr.length >= 2)
                 .map(arr => arr.sort((a, b) => a.mi - b.mi));
 
+            // ── Target pacing centerline (hover-only) ────────────────────────────
+            // Solid line through the expected P1 count at each month-end, mapped to
+            // the same hidden count→Y scale used by the band. Invisible points with
+            // a generous hit radius so hovering anywhere near the line surfaces the
+            // monthly target value in a tooltip.
+            const allowPacing = kpiCampaigns.length > 0 && maxTotalKPI > 0;
+            if (allowPacing) {
+                const pacingData = months.map((ym, mi) => {
+                    const { expectedP1, totalKPI } = monthlyExpected[mi];
+                    if (totalKPI === 0) return null;
+                    return {
+                        x: mi,
+                        y: yvalForCount(expectedP1),
+                        target: Math.round(expectedP1 * 10) / 10,
+                        targetWhole: Math.round(expectedP1),
+                        month: ym,
+                    };
+                }).filter(Boolean);
+                if (pacingData.length >= 2) {
+                    datasets.push({
+                        label: 'Target pacing',
+                        data: pacingData,
+                        showLine: true,
+                        borderColor: 'rgba(79,70,229,0.95)',
+                        backgroundColor: 'rgba(79,70,229,0.95)',
+                        borderWidth: 2.5,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        pointHitRadius: 25,
+                        pointHoverBackgroundColor: '#4f46e5',
+                        pointHoverBorderColor: '#fff',
+                        pointHoverBorderWidth: 2,
+                        tension: 0,
+                        xAxisID: 'x',
+                        yAxisID: 'y',
+                        order: -1,
+                        _isPacing: true,
+                    });
+                }
+            }
+
             // Plugin: draw connecting lines between the same keyword's crosses
             const kwTrailPlugin = {
                 id: 'kwTrails',
@@ -22990,6 +23034,28 @@
             // Fallback: if fuzzy matching yielded nothing, use all KPI campaigns so the band is still meaningful
             if (!kpiCampaigns.length) kpiCampaigns = _allKpiC;
 
+            // Pre-compute per-month expected P1 count at MONTH-END so a 6-KPI / 6-month campaign
+            // shows targets of 1, 2, 3, 4, 5, 6 (matching the natural pacing milestone).
+            let maxTotalKPI = 0;
+            const monthlyExpected = months.map(ym => {
+                const [y, mo] = ym.split('-').map(Number);
+                const monthEnd = new Date(y, mo, 0, 23, 59, 59).getTime();
+                let expectedP1 = 0, totalKPI = 0;
+                kpiCampaigns.forEach(c => {
+                    const start = new Date(c.startDate).getTime();
+                    const end   = new Date(c.endDate).getTime();
+                    if (monthEnd < start || monthEnd > end || end <= start) return;
+                    expectedP1 += c.kpi * ((monthEnd - start) / (end - start));
+                    totalKPI   += c.kpi;
+                });
+                if (totalKPI > maxTotalKPI) maxTotalKPI = totalKPI;
+                return { expectedP1, totalKPI };
+            });
+            // Map a P1 count to a chart Y-value (basket axis 0.5..4.5) using the same scale
+            // the band/centerline share. Used so the pacing line can be a real dataset (hover-able).
+            const yvalForCount = count =>
+                0.5 + (Math.max(0, Math.min(maxTotalKPI, count)) / Math.max(1, maxTotalKPI)) * 4;
+
             const kpiMonthPlugin = {
                 id: 'kpiMonthBg',
                 beforeDraw: chart => {
@@ -23000,18 +23066,8 @@
                     const yBottom = yScale.getPixelForValue(0.5);
                     ctx2.save();
                     months.forEach((ym, mi) => {
-                        const [y, mo] = ym.split('-').map(Number);
-                        const monthMid = new Date(y, mo - 1, 15).getTime();
-                        // Sum expected P1 (trajectory) and total KPI across all campaigns active this month
-                        let expectedP1 = 0, totalKPI = 0;
-                        kpiCampaigns.forEach(c => {
-                            const start = new Date(c.startDate).getTime();
-                            const end   = new Date(c.endDate).getTime();
-                            if (monthMid < start || monthMid > end || end <= start) return;
-                            expectedP1 += c.kpi * ((monthMid - start) / (end - start));
-                            totalKPI   += c.kpi;
-                        });
-                        if (expectedP1 === 0) return; // no campaigns active → no colour
+                        const { expectedP1, totalKPI } = monthlyExpected[mi];
+                        if (expectedP1 === 0) return; // no campaigns active at month-end → no colour
                         // Count actual P1 keywords in this month from visible points
                         const actualP1 = filteredPts.filter(p => p.ym === ym && p.basket === 'p1').length;
                         const x1 = xScale.getPixelForValue(mi - 0.5);
@@ -23033,7 +23089,7 @@
             const trajectoryBandPlugin = {
                 id: 'trajectoryBand',
                 beforeDraw: chart => {
-                    if (!kpiCampaigns.length) return;
+                    if (!kpiCampaigns.length || !maxTotalKPI) return;
                     const xScale  = chart.scales.x;
                     const yScale  = chart.scales.y;
                     const ctx2    = chart.ctx;
@@ -23043,37 +23099,12 @@
                     const tol     = cockpitState.basketTolerancePct ?? 0.20;
                     const tolPct  = Math.round(tol * 100);
 
-                    // Determine the peak totalKPI across all months for normalisation
-                    let maxTotalKPI = 0;
-                    months.forEach(ym => {
-                        const [y, mo] = ym.split('-').map(Number);
-                        const monthMid = new Date(y, mo - 1, 15).getTime();
-                        let tKPI = 0;
-                        kpiCampaigns.forEach(c => {
-                            const start = new Date(c.startDate).getTime();
-                            const end   = new Date(c.endDate).getTime();
-                            if (monthMid < start || monthMid > end || end <= start) return;
-                            tKPI += c.kpi;
-                        });
-                        if (tKPI > maxTotalKPI) maxTotalKPI = tKPI;
-                    });
-                    if (!maxTotalKPI) return;
-
                     const pyForCount = count => yBottom - (Math.max(0, Math.min(maxTotalKPI, count)) / maxTotalKPI) * chartH;
 
-                    // Compute per-month bound pixel positions
+                    // Compute per-month bound pixel positions from pre-computed month-end values
                     const upperPts = [], lowerPts = [];
                     months.forEach((ym, mi) => {
-                        const [y, mo] = ym.split('-').map(Number);
-                        const monthMid = new Date(y, mo - 1, 15).getTime();
-                        let expectedP1 = 0, totalKPI = 0;
-                        kpiCampaigns.forEach(c => {
-                            const start = new Date(c.startDate).getTime();
-                            const end   = new Date(c.endDate).getTime();
-                            if (monthMid < start || monthMid > end || end <= start) return;
-                            expectedP1 += c.kpi * ((monthMid - start) / (end - start));
-                            totalKPI   += c.kpi;
-                        });
+                        const { expectedP1, totalKPI } = monthlyExpected[mi];
                         if (totalKPI === 0) { upperPts.push(null); lowerPts.push(null); return; }
                         const px = xScale.getPixelForValue(mi);
                         upperPts.push({ px, py: pyForCount(expectedP1 + tol * totalKPI) });
@@ -23330,13 +23361,21 @@
                         legend: {
                             display: true,
                             position: 'bottom',
-                            labels: { font: { size: 10 }, boxWidth: 10, padding: 10,
-                                usePointStyle: true, pointStyle: 'crossRot' },
+                            labels: {
+                                font: { size: 10 }, boxWidth: 10, padding: 10,
+                                usePointStyle: true, pointStyle: 'crossRot',
+                                // Exclude the pacing line — it's surfaced in the top legend strip instead
+                                filter: item => item.text !== 'Target pacing',
+                            },
                         },
                         tooltip: {
                             callbacks: {
                                 title: () => '',
                                 label: ctx => {
+                                    if (ctx.dataset._isPacing) {
+                                        const t = ctx.raw.targetWhole;
+                                        return `Target: ${t} P1 keyword${t !== 1 ? 's' : ''} by end of ${fmtMonth(ctx.raw.month)}`;
+                                    }
                                     const { kwName, pos, month } = ctx.raw;
                                     const group = ctx.dataset.label;
                                     return `${kwName || '(unknown)'} · #${pos} · ${fmtMonth(month)}  [${group}]`;
