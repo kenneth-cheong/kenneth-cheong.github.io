@@ -3051,7 +3051,7 @@
         </header>
         <!-- Shared conversation banner (shown when viewing via ?share= URL) -->
         <div class="share-banner" id="shareBanner" style="display:none;">
-            <i class="fas fa-lock-open"></i> You are viewing a shared read-only conversation.
+            <i class="fas fa-code-fork"></i> Shared conversation — your replies will be saved as your own copy.
         </div>
         <!-- Mobile dropdown — sibling of header so overflow:hidden on app-container doesn't clip it -->
         <div class="mobile-nav-dropdown" id="mobileNavDropdown">
@@ -4910,13 +4910,6 @@
             if (!shareId) return;
 
             console.log('[SHARE] Loading shared conversation:', shareId);
-            document.getElementById('shareBanner').style.display = 'flex';
-            const inputArea = document.getElementById('inputArea');
-            if (inputArea) {
-                inputArea.style.pointerEvents = 'none';
-                inputArea.style.opacity = '0.4';
-                inputArea.title = 'Read-only — this is a shared conversation';
-            }
 
             try {
                 const shareUserId = params.get('u') || null;
@@ -4931,21 +4924,27 @@
                 });
                 console.log('[SHARE] HTTP status:', res.status);
                 const result = await res.json();
-                console.log('[SHARE] Raw response:', result);
                 const data = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body || result);
-                console.log('[SHARE] Parsed data:', data);
                 const conv = data.conversation;
                 if (!conv) {
                     showToast(`Shared conversation not found. (ID: ${shareId.substring(0,8)}…)`, 'error');
                     return;
                 }
 
+                // Load messages into history but fork by clearing the conversation ID —
+                // the next saveConversation() will create a new conversation for this user
                 chatHistory = conv.messages || [];
+                currentConversationId = null;
+                localStorage.removeItem('chatbot_conversationId');
+
                 const list = document.getElementById('messageList');
                 list.innerHTML = '';
                 chatHistory.forEach(m => addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, null, true, m.userLabel));
                 if (conv.title) document.getElementById('headerTitle').textContent = conv.title;
-                console.log('[SHARE] Loaded', chatHistory.length, 'messages');
+
+                // Show banner after successful load
+                document.getElementById('shareBanner').style.display = 'flex';
+                console.log('[SHARE] Forked', chatHistory.length, 'messages into new conversation');
             } catch (e) {
                 console.error('[SHARE] Error:', e);
                 showToast('Failed to load shared conversation: ' + e.message, 'error');
