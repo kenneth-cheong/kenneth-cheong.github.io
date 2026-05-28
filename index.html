@@ -19676,6 +19676,7 @@
             seoIntelNameFilter: new Set(),    // Filter campaign rows by name (multi-select; empty = all)
             seoIntelScatterFilter: new Set(), // Selected site IDs in scatter plot (empty = all)
             seoIntelKeywordFilter: new Set(), // Selected keyword names in scatter plot (empty = all)
+            seoIntelGroupFilter: new Set(),   // Selected keyword group names in scatter plot (empty = all)
             seoIntelRowSelection: new Set(),  // Campaign IDs selected via row click
             seoIntelSort: 'default',          // Sort order for campaign rows
             seoScatterChart: null,            // Chart.js instance for scatter plot
@@ -21895,6 +21896,7 @@
             cockpitState.seoIntelRowSelection.clear();
             cockpitState.seoIntelScatterFilter.clear();
             cockpitState.seoIntelKeywordFilter.clear();
+            cockpitState.seoIntelGroupFilter.clear();
             renderSeoIntel(cockpitState.seoIntelCache || []);
         }
 
@@ -22062,11 +22064,13 @@
             // ── Basket scatter plot (replaces bar chart) ──────────────────────
             const campaignF = cockpitState.seoIntelScatterFilter;
             const kwF       = cockpitState.seoIntelKeywordFilter;
+            const groupF    = cockpitState.seoIntelGroupFilter;
             const campaignBtnLabel = campaignF.size === 0 ? 'All campaigns' : `${campaignF.size} campaign${campaignF.size > 1 ? 's' : ''}`;
             const kwBtnLabel       = kwF.size === 0 ? 'All keywords' : kwF.has('__none__') ? 'No keywords' : `${kwF.size} keyword${kwF.size > 1 ? 's' : ''}`;
+            const groupBtnLabel    = groupF.size === 0 ? 'All groups' : groupF.has('__none__') ? 'No groups' : `${groupF.size} group${groupF.size > 1 ? 's' : ''}`;
             const scatterDropdownStyle = 'display:none;position:absolute;top:100%;right:0;min-width:300px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:400;margin-top:4px;padding:8px;';
-            const scatterActive = campaignF.size > 0 || kwF.size > 0;
-            const totalFilters  = (campaignF.size > 0 ? 1 : 0) + (kwF.size > 0 ? 1 : 0);
+            const scatterActive = campaignF.size > 0 || kwF.size > 0 || groupF.size > 0;
+            const totalFilters  = (campaignF.size > 0 ? 1 : 0) + (kwF.size > 0 ? 1 : 0) + (groupF.size > 0 ? 1 : 0);
             const tolPctNow     = Math.round((cockpitState.basketTolerancePct ?? 0.20) * 100);
             html += `
                 <!-- Keyword Basket Distribution Scatter -->
@@ -22090,7 +22094,7 @@
                                 <option value="0.20" ${tolPctNow===20?'selected':''}>±20%</option>
                                 <option value="0.30" ${tolPctNow===30?'selected':''}>±30%</option>
                             </select>
-                            ${scatterActive ? `<button onclick="cockpitState.seoIntelScatterFilter.clear();cockpitState.seoIntelKeywordFilter.clear();renderSeoIntelScatterChart()" style="font-size:0.7rem;background:none;border:none;color:#6366f1;cursor:pointer;font-weight:600;">✕ Clear</button>` : ''}
+                            ${scatterActive ? `<button onclick="cockpitState.seoIntelScatterFilter.clear();cockpitState.seoIntelKeywordFilter.clear();cockpitState.seoIntelGroupFilter.clear();renderSeoIntelScatterChart()" style="font-size:0.7rem;background:none;border:none;color:#6366f1;cursor:pointer;font-weight:600;">✕ Clear</button>` : ''}
                             <!-- Combined Filters dropdown -->
                             <div style="position:relative;">
                                 <button onclick="toggleSeoIntelDropdown('seo-filters-dropdown')"
@@ -22110,6 +22114,17 @@
                                         style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.78rem;outline:none;margin-bottom:4px;">
                                     <div id="seo-kw-list" style="max-height:180px;overflow-y:auto;">
                                         <span style="font-size:0.75rem;color:#94a3b8;padding:6px 8px;display:block;">Loading keywords…</span>
+                                    </div>
+                                    <!-- Keyword Groups section -->
+                                    <div style="border-top:1px solid #f1f5f9;margin-top:8px;padding-top:8px;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;padding-left:4px;padding-right:4px;display:flex;align-items:center;justify-content:space-between;">
+                                        <span><i class="fas fa-layer-group" style="font-size:0.6rem;color:#94a3b8;margin-right:4px;"></i>Keyword Groups</span>
+                                        <span style="font-weight:500;color:#94a3b8;text-transform:none;letter-spacing:0;">${groupBtnLabel}</span>
+                                    </div>
+                                    <input id="seo-group-search" type="text" placeholder="Search groups…"
+                                        oninput="filterSeoGroupSearch(this.value)"
+                                        style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.78rem;outline:none;margin:4px 0;">
+                                    <div id="seo-group-list" style="max-height:140px;overflow-y:auto;">
+                                        <span style="font-size:0.75rem;color:#94a3b8;padding:6px 8px;display:block;">Loading groups…</span>
                                     </div>
                                     <!-- Campaigns section -->
                                     <div style="border-top:1px solid #f1f5f9;margin-top:8px;padding-top:8px;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;padding-left:4px;padding-right:4px;display:flex;align-items:center;justify-content:space-between;">
@@ -22625,6 +22640,46 @@
             if (dd) dd.style.display = 'block';
         }
 
+        function toggleSeoIntelGroupFilter(groupName) {
+            const f   = cockpitState.seoIntelGroupFilter;
+            const all = [...new Set((cockpitState.basketKeywordPoints || []).map(p => p.groupName).filter(Boolean))];
+            const wasNone = f.has('__none__');
+            f.delete('__none__');
+            if (f.size === 0 && !wasNone) {
+                all.forEach(g => { if (g !== groupName) f.add(g); });
+            } else {
+                f.has(groupName) ? f.delete(groupName) : f.add(groupName);
+                if (f.size === all.length) f.clear();
+                if (f.size === 0) f.add('__none__');
+            }
+            renderSeoIntelScatterChart();
+            const dd = document.getElementById('seo-filters-dropdown');
+            if (dd) dd.style.display = 'block';
+        }
+
+        function selectAllSeoGroups() {
+            cockpitState.seoIntelGroupFilter.clear();
+            renderSeoIntelScatterChart();
+            const dd = document.getElementById('seo-filters-dropdown');
+            if (dd) dd.style.display = 'block';
+        }
+
+        function deselectAllSeoGroups() {
+            const f = cockpitState.seoIntelGroupFilter;
+            f.clear();
+            f.add('__none__');
+            renderSeoIntelScatterChart();
+            const dd = document.getElementById('seo-filters-dropdown');
+            if (dd) dd.style.display = 'block';
+        }
+
+        function filterSeoGroupSearch(query) {
+            const q = (query || '').toLowerCase();
+            document.querySelectorAll('#seo-group-list label').forEach(lbl => {
+                lbl.style.display = !q || (lbl.dataset.name || '').includes(q) ? 'flex' : 'none';
+            });
+        }
+
         function selectAllSeoScatterCampaigns() {
             cockpitState.seoIntelScatterFilter.clear();
             cockpitState.seoIntelRowSelection.clear();
@@ -22742,22 +22797,52 @@
             }
 
             const { months } = bd;
-            const kwF = cockpitState.seoIntelKeywordFilter;
+            const kwF    = cockpitState.seoIntelKeywordFilter;
+            const groupF = cockpitState.seoIntelGroupFilter;
 
-            // Filter individual keyword points by campaign selection, then keyword selection
+            // Filter individual keyword points by campaign → group → keyword
             const allKwPts = cockpitState.basketKeywordPoints || [];
             const campaignFiltered = f.has('__none__') ? [] :
                 (!f.size || !sites?.length) ? allKwPts :
                 allKwPts.filter(p => f.has(p.siteId));
 
+            const groupFiltered = groupF.has('__none__') ? [] :
+                (groupF.size === 0) ? campaignFiltered :
+                campaignFiltered.filter(p => groupF.has(p.groupName));
+
             const filteredPts = kwF.has('__none__') ? [] :
-                (kwF.size === 0) ? campaignFiltered :
-                campaignFiltered.filter(p => kwF.has(p.kwName));
+                (kwF.size === 0) ? groupFiltered :
+                groupFiltered.filter(p => kwF.has(p.kwName));
+
+            // Populate group dropdown
+            const groupListEl = document.getElementById('seo-group-list');
+            if (groupListEl) {
+                const uniqueGroups = [...new Set(campaignFiltered.map(p => p.groupName).filter(Boolean))]
+                    .sort((a, b) => a === 'General' ? -1 : b === 'General' ? 1 : a.localeCompare(b));
+                const gNone     = groupF.has('__none__');
+                const gBtnStyle = 'flex:1;padding:3px 0;border:1px solid #e2e8f0;border-radius:5px;font-size:0.72rem;background:#f8fafc;cursor:pointer;color:#334155;font-weight:600;';
+                groupListEl.innerHTML =
+                    `<div style="display:flex;gap:5px;padding:2px 8px 6px;border-bottom:1px solid #f1f5f9;margin-bottom:4px;">
+                        <button onclick="selectAllSeoGroups()" style="${gBtnStyle}" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='#f8fafc'">All</button>
+                        <button onclick="deselectAllSeoGroups()" style="${gBtnStyle}" onmouseover="this.style.background='#fff1f2'" onmouseout="this.style.background='#f8fafc'">None</button>
+                    </div>
+                    <div style="padding:2px 8px 4px;font-size:0.7rem;color:#94a3b8;">${uniqueGroups.length} group${uniqueGroups.length !== 1 ? 's' : ''}</div>` +
+                    uniqueGroups.map(g => {
+                        const safeG = g.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+                        const checked = !gNone && (groupF.size === 0 || groupF.has(g));
+                        return `<label style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:0.78rem;color:#334155;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'" data-name="${safeG.toLowerCase()}">
+                            <input type="checkbox" ${checked ? 'checked' : ''} data-grp="${safeG}" onchange="toggleSeoIntelGroupFilter(this.dataset.grp)" style="width:14px;height:14px;flex-shrink:0;">
+                            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${safeG}">${g}</span>
+                        </label>`;
+                    }).join('');
+                const groupSearchEl = document.getElementById('seo-group-search');
+                if (groupSearchEl?.value) filterSeoGroupSearch(groupSearchEl.value);
+            }
 
             // Populate keyword dropdown
             const kwListEl = document.getElementById('seo-kw-list');
             if (kwListEl) {
-                const uniqueKws = [...new Set(campaignFiltered.map(p => p.kwName))].sort((a, b) => a.localeCompare(b));
+                const uniqueKws = [...new Set(groupFiltered.map(p => p.kwName))].sort((a, b) => a.localeCompare(b));
                 const isNone    = kwF.has('__none__');
                 const btnStyle  = 'flex:1;padding:3px 0;border:1px solid #e2e8f0;border-radius:5px;font-size:0.72rem;background:#f8fafc;cursor:pointer;color:#334155;font-weight:600;';
                 kwListEl.innerHTML =
