@@ -10920,7 +10920,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1542</span>
+                <span id="appVersion">v1.0.1543</span>
             </a>
         </div>
 
@@ -12827,19 +12827,27 @@
                                 <div id="hidden-strategies-list" style="display: flex; gap: 8px; flex-wrap: wrap;"></div>
                             </div>
 
-                            <div class="premium-table-wrapper"
-                                style="overflow-x: auto; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); background: white;">
-                                <table class="strategy-grid" id="strategy-comparison-grid"
-                                    style="width: 100%; border-collapse: collapse;">
-                                    <thead>
-                                        <tr id="strat-grid-headers">
-                                            <th
-                                                style="background: #f8fafc; text-align: left; padding: 15px; border-bottom: 2px solid #e2e8f0; color: #475569;">
-                                                Strategic Feature</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="strat-grid-body"></tbody>
-                                </table>
+                            <div style="position: relative;">
+                                <div class="premium-table-wrapper" id="strat-grid-scroll-wrapper"
+                                    style="overflow-x: auto; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); background: white;">
+                                    <table class="strategy-grid" id="strategy-comparison-grid"
+                                        style="width: 100%; border-collapse: collapse;">
+                                        <thead>
+                                            <tr id="strat-grid-headers">
+                                                <th
+                                                    style="background: #f8fafc; text-align: left; padding: 12px 10px; border-bottom: 2px solid #e2e8f0; color: #475569;">
+                                                    Feature</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="strat-grid-body"></tbody>
+                                    </table>
+                                </div>
+                                <!-- Scroll-right hint overlay -->
+                                <div id="strat-grid-scroll-hint" style="position:absolute;right:0;top:0;bottom:0;width:72px;pointer-events:none;background:linear-gradient(to right,transparent,rgba(255,255,255,0.97));border-radius:0 15px 15px 0;display:flex;align-items:center;justify-content:flex-end;padding-right:10px;transition:opacity 0.25s;">
+                                    <div style="background:rgba(99,102,241,0.12);border:1.5px solid rgba(99,102,241,0.3);border-radius:20px;padding:5px 9px;display:flex;align-items:center;gap:4px;font-size:0.65rem;font-weight:700;color:#6366f1;white-space:nowrap;box-shadow:0 2px 6px rgba(99,102,241,0.15);">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </div>
+                                </div>
                             </div>
 
                             <div id="recommended-strategy-area" style="margin-top: 40px;">
@@ -48774,7 +48782,7 @@ Return compact valid JSON only. No prose.
             };
 
             // Clear existing
-            headers.innerHTML = '<th style="background: #f8fafc !important; text-align: left !important; padding: 15px !important; border-bottom: 2px solid #e2e8f0 !important; color: #475569 !important; font-weight: 700 !important;">Keyword Strategy Component</th>';
+            headers.innerHTML = '<th style="background: #f8fafc !important; text-align: left !important; padding: 12px 10px !important; border-bottom: 2px solid #e2e8f0 !important; color: #475569 !important; font-weight: 700 !important; width: 130px !important; min-width: 130px !important;">Feature</th>';
             body.innerHTML = '';
 
             visibleStrategies.forEach((s, idx) => {
@@ -48803,7 +48811,7 @@ Return compact valid JSON only. No prose.
             ];
 
             rows.forEach(row => {
-                let html = `<tr><td style="font-weight: 700 !important; background: #f8fafc !important; padding: 15px !important; border-bottom: 1px solid #e2e8f0 !important; color: #475569 !important; width: 200px !important; text-align: left !important; border-right: 1px solid #e2e8f0 !important;">${row.label}</td>`;
+                let html = `<tr><td style="font-weight: 700 !important; background: #f8fafc !important; padding: 12px 10px !important; border-bottom: 1px solid #e2e8f0 !important; color: #475569 !important; width: 130px !important; min-width: 130px !important; max-width: 130px !important; text-align: left !important; border-right: 1px solid #e2e8f0 !important; font-size: 0.78rem !important; line-height: 1.4 !important;">${row.label}</td>`;
                 visibleStrategies.forEach(s => {
                     const rawVal = s[row.key];
                     const val = row.format ? row.format(rawVal) : rawVal;
@@ -48812,6 +48820,21 @@ Return compact valid JSON only. No prose.
                 html += '</tr>';
                 body.innerHTML += html;
             });
+
+            // ── Scroll-right indicator ──
+            const scrollWrapper = document.getElementById('strat-grid-scroll-wrapper');
+            const scrollHint    = document.getElementById('strat-grid-scroll-hint');
+            if (scrollWrapper && scrollHint) {
+                const updateHint = () => {
+                    const canScrollMore = scrollWrapper.scrollLeft < scrollWrapper.scrollWidth - scrollWrapper.clientWidth - 4;
+                    scrollHint.style.opacity = canScrollMore ? '1' : '0';
+                };
+                scrollWrapper.removeEventListener('scroll', scrollWrapper._scrollHintHandler);
+                scrollWrapper._scrollHintHandler = updateHint;
+                scrollWrapper.addEventListener('scroll', updateHint);
+                // Run once after paint so scrollWidth is accurate
+                requestAnimationFrame(updateHint);
+            }
         }
 
         function toggleStrategyVisibility(name) {
@@ -50597,8 +50620,8 @@ Return compact valid JSON only. No prose.
                         const prioBadge = isInsight ? '' : `<span style="background:${s.badge};color:#fff;font-size:8px;font-weight:700;padding:2px 7px;border-radius:20px;text-transform:uppercase;letter-spacing:0.05em;margin-left:6px;">${s.label}</span>`;
                         const typeBadge = `<span style="font-size:8px;font-weight:600;padding:2px 7px;border-radius:20px;background:${s.badge}20;color:${s.badge};text-transform:uppercase;letter-spacing:0.04em;margin-left:4px;">${isInsight ? 'Insight' : 'Recommendation'}</span>`;
                         return `<div data-pdf-card style="background:${s.bg};border:1px solid ${s.border};border-left:4px solid ${s.badge};border-radius:8px;padding:12px 14px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;">
-                            <div style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:${s.badge}18;color:${s.badge};display:flex;align-items:center;justify-content:center;font-size:12px;">
-                                <i class="fas fa-${esc(item.icon||'lightbulb')}"></i>
+                            <div style="flex-shrink:0;width:28px;height:28px;border-radius:7px;background:${s.badge}18;color:${s.badge};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;line-height:1;">
+                                ${isInsight ? '★' : '↑'}
                             </div>
                             <div style="flex:1;">
                                 <div style="display:flex;align-items:center;flex-wrap:wrap;gap:3px;margin-bottom:5px;">
@@ -50627,7 +50650,7 @@ Return compact valid JSON only. No prose.
                         const accent = isFail ? '#ef4444' : '#f59e0b';
                         const badge  = isCritical ? 'Critical' : 'High Impact';
                         return `<div data-pdf-card style="display:flex;gap:12px;padding:12px 14px;background:${bg};border-radius:10px;border:1px solid ${border};border-left:4px solid ${accent};margin-bottom:8px;">
-                            <div style="flex-shrink:0;margin-top:2px;color:${accent};font-size:13px;"><i class="fas ${isFail ? 'fa-times-circle' : 'fa-exclamation-circle'}"></i></div>
+                            <div style="flex-shrink:0;margin-top:2px;color:${accent};font-size:14px;font-weight:900;line-height:1;">${isFail ? '✕' : '!'}</div>
                             <div>
                                 <div style="font-size:11.5px;font-weight:800;color:#1e293b;margin-bottom:3px;display:flex;align-items:center;gap:6px;">
                                     ${esc(issue.label)}
@@ -50806,7 +50829,9 @@ Return compact valid JSON only. No prose.
 
                 // ── Off-screen render ──
                 const printDiv = document.createElement('div');
-                printDiv.style.cssText = 'position:absolute;left:-9999px;top:0;width:794px;background:white;';
+                // position:fixed keeps the element out of document flow and avoids
+                // body overflow-x:clip clipping content at the negative-x offset.
+                printDiv.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;background:white;';
                 printDiv.innerHTML = fullHTML;
                 document.body.appendChild(printDiv);
                 await new Promise(r => setTimeout(r, 400));
@@ -50844,19 +50869,33 @@ Return compact valid JSON only. No prose.
                 }
 
                 const fullHeight = printDiv.scrollHeight;
-                const canvas = await html2canvas(printDiv, {
-                    scale: CANVAS_SCALE,
-                    useCORS: true,
-                    logging: false,
-                    backgroundColor: '#ffffff',
-                    width: 794,
-                    height: fullHeight,
-                    windowWidth: 794,
-                    windowHeight: fullHeight,
-                    scrollX: 0,
-                    scrollY: 0,
-                });
-                document.body.removeChild(printDiv);
+
+                // Temporarily disable overflow clipping on html/body so the off-screen
+                // printDiv (at left:-9999px) is not clipped during canvas capture.
+                const htmlEl = document.documentElement;
+                const savedHtmlOFX = htmlEl.style.overflowX;
+                const savedBodyOFX = document.body.style.overflowX;
+                htmlEl.style.overflowX = 'visible';
+                document.body.style.overflowX = 'visible';
+                let canvas;
+                try {
+                    canvas = await html2canvas(printDiv, {
+                        scale: CANVAS_SCALE,
+                        useCORS: true,
+                        logging: false,
+                        backgroundColor: '#ffffff',
+                        width: 794,
+                        height: fullHeight,
+                        windowWidth: 794,
+                        windowHeight: fullHeight,
+                        scrollX: 0,
+                        scrollY: 0,
+                    });
+                } finally {
+                    htmlEl.style.overflowX = savedHtmlOFX;
+                    document.body.style.overflowX = savedBodyOFX;
+                    if (document.body.contains(printDiv)) document.body.removeChild(printDiv);
+                }
 
                 // ── PDF setup ──
                 const { jsPDF } = window.jspdf;
