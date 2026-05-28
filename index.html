@@ -10920,7 +10920,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1550</span>
+                <span id="appVersion">v1.0.1551</span>
             </a>
         </div>
 
@@ -71898,19 +71898,18 @@ Move-In</h3>
             const el = document.getElementById('logsViewEventlog');
             if (!el) return;
 
-            if (!el.querySelector('#logsSearchInput')) {
-                const teams = getTeams();
+            const teamsNow = getTeams();
+            const teamSig  = teamsNow.map(t => t.name).join(',');
+            if (!el.querySelector('#logsTypeFilter') || el.dataset.teamSig !== teamSig) {
                 const teamOpts = ['<option value="all">All Teams</option>', '<option value="—">Unassigned</option>']
-                    .concat(teams.map(t => `<option value="${escHtml(t.name)}">${escHtml(t.name)}</option>`)).join('');
+                    .concat(teamsNow.map(t => `<option value="${escHtml(t.name)}">${escHtml(t.name)}</option>`)).join('');
                 const inputStyle = 'padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;background:white;cursor:pointer;outline:none;';
+                const prevType   = el.querySelector('#logsTypeFilter')?.value    || 'all';
+                const prevCat    = el.querySelector('#logsCategoryFilter')?.value || 'all';
+                const prevTeam   = el.querySelector('#logsTeamFilter')?.value    || 'all';
+                const prevGroup  = el.querySelector('#logsGroupBy')?.value       || 'tool';
                 el.innerHTML = `
                     <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
-                        <div style="position:relative;flex:1;min-width:200px;">
-                            <i class="fas fa-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:13px;"></i>
-                            <input type="text" id="logsSearchInput" placeholder="Search tool, user, action, details…"
-                                oninput="renderLogsEventLog()"
-                                style="width:100%;padding:8px 10px 8px 32px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;color:#1e293b;box-sizing:border-box;outline:none;">
-                        </div>
                         <select id="logsTypeFilter" onchange="renderLogsEventLog()" style="${inputStyle}">
                             <option value="all">All Events</option>
                             <option value="usage">Usage Only</option>
@@ -71929,26 +71928,29 @@ Move-In</h3>
                         </select>
                         <select id="logsTeamFilter" onchange="renderLogsEventLog()" style="${inputStyle}">${teamOpts}</select>
                         <select id="logsGroupBy" onchange="renderLogsEventLog()" style="${inputStyle}">
-                            <option value="none">No Grouping</option>
+                            <option value="tool">Group by Tool</option>
                             <option value="user">Group by User</option>
                             <option value="team">Group by Team</option>
-                            <option value="tool">Group by Tool</option>
                         </select>
                         <span id="logsMatchCount" style="font-size:12px;color:#94a3b8;margin-left:auto;"></span>
                     </div>
                     <div id="logsTableContainer"></div>`;
+                el.dataset.teamSig = teamSig;
+                const tf = el.querySelector('#logsTypeFilter');    if (tf) tf.value = prevType;
+                const cf = el.querySelector('#logsCategoryFilter'); if (cf) cf.value = prevCat;
+                const xf = el.querySelector('#logsTeamFilter');    if (xf) xf.value = prevTeam;
+                const gf = el.querySelector('#logsGroupBy');       if (gf) gf.value = prevGroup;
             }
 
             const allLogs    = getEffectiveLogs();
-            const typeFilter = document.getElementById('logsTypeFilter')?.value  || 'all';
+            const typeFilter = document.getElementById('logsTypeFilter')?.value     || 'all';
             const catFilter  = document.getElementById('logsCategoryFilter')?.value || 'all';
-            const teamFilter = document.getElementById('logsTeamFilter')?.value  || 'all';
-            const groupBy    = document.getElementById('logsGroupBy')?.value     || 'none';
-            const search     = (document.getElementById('logsSearchInput')?.value || '').toLowerCase();
-            const dateFrom   = document.getElementById('logsDateFrom')?.value    || '';  // YYYY-MM-DD
-            const dateTo     = document.getElementById('logsDateTo')?.value      || '';  // YYYY-MM-DD
+            const teamFilter = document.getElementById('logsTeamFilter')?.value     || 'all';
+            const groupBy    = document.getElementById('logsGroupBy')?.value        || 'tool';
+            const dateFrom   = document.getElementById('logsDateFrom')?.value       || '';
+            const dateTo     = document.getElementById('logsDateTo')?.value         || '';
 
-            let rows = allLogs.filter(l => {
+            const filtered = allLogs.filter(l => {
                 if (typeFilter !== 'all' && l.type !== typeFilter) return false;
                 if (catFilter  !== 'all' && l.category !== catFilter) return false;
                 if (teamFilter !== 'all') {
@@ -71956,119 +71958,112 @@ Move-In</h3>
                     if (teamFilter === '—' && t !== '—') return false;
                     if (teamFilter !== '—' && t !== teamFilter) return false;
                 }
-                if (search && ![l.tool, l.action, l.details, l.category, l.userName, l.userEmail].some(s => (s||'').toLowerCase().includes(search))) return false;
-                // Date range: l.ts is ISO "YYYY-MM-DDTHH:mm:ss…", slice to YYYY-MM-DD for comparison
                 const day = (l.ts || '').slice(0, 10);
                 if (dateFrom && day < dateFrom) return false;
                 if (dateTo   && day > dateTo)   return false;
                 return true;
             });
 
-            // Sort
-            rows.sort((a, b) => {
-                let av, bv;
-                if (logsSort.col === 'ts')       { av = a.ts||'';             bv = b.ts||''; }
-                else if (logsSort.col === 'user') { av = (a.userName||'').toLowerCase(); bv = (b.userName||'').toLowerCase(); }
-                else if (logsSort.col === 'tool') { av = (a.tool||'').toLowerCase();     bv = (b.tool||'').toLowerCase(); }
-                else if (logsSort.col === 'cat')  { av = (a.category||'').toLowerCase(); bv = (b.category||'').toLowerCase(); }
-                else if (logsSort.col === 'type') { av = (a.type||'').toLowerCase();     bv = (b.type||'').toLowerCase(); }
-                else if (logsSort.col === 'status'){ av = (a.status||'').toLowerCase(); bv = (b.status||'').toLowerCase(); }
-                else if (logsSort.col === 'dur')  { av = a.duration ?? -1;   bv = b.duration ?? -1; }
-                else if (logsSort.col === 'team') { av = getTeamForEmail(a.userEmail).toLowerCase(); bv = getTeamForEmail(b.userEmail).toLowerCase(); }
-                else { av = ''; bv = ''; }
-                const cmp = typeof av === 'number' ? av - bv : av.localeCompare(bv);
-                return logsSort.dir === 'asc' ? cmp : -cmp;
-            });
-            // No row cap — all matching entries are rendered
-
-            // Update match count
-            const countEl = document.getElementById('logsMatchCount');
-            if (countEl) countEl.textContent = rows.length ? `${rows.length} result${rows.length !== 1 ? 's' : ''}` : '';
-
-            const TYPE_BADGE = {
-                usage: '<span style="padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:#dbeafe;color:#1e40af;">Usage</span>',
-                api:   '<span style="padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:#d1fae5;color:#065f46;">API</span>',
-                error: '<span style="padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:#fee2e2;color:#991b1b;">Error</span>',
-            };
-            const STATUS_BADGE = {
-                success: '<span style="color:#10b981;font-weight:600;">✓ Success</span>',
-                invoked: '<span style="color:#2563eb;font-weight:600;">→ Invoked</span>',
-                error:   '<span style="color:#ef4444;font-weight:600;">✕ Error</span>',
-            };
-
-            const TH_BG  = 'background-color:#f1f5f9;';
-            const TH_BASE = `${TH_BG}white-space:nowrap;`;
-            function thCell(label, col, align) {
-                const active = logsSort.col === col;
-                const arrow  = active ? (logsSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
-                const color  = active ? 'color:#1e293b;' : 'color:#475569;';
-                const weight = active ? 'font-weight:800;' : 'font-weight:700;';
-                const ta     = align === 'right' ? 'text-align:right;' : 'text-align:left;';
-                return `<th onclick="sortLogsBy('${col}')" style="${TH_BASE}${ta}${color}${weight}padding:12px 16px;cursor:pointer;user-select:none;">${label}${arrow}</th>`;
-            }
-            const thead = `<thead><tr style="border-bottom:2px solid #cbd5e1;">
-                ${thCell('Time','ts')}
-                ${thCell('User','user')}
-                ${thCell('Tool','tool')}
-                ${thCell('Category','cat')}
-                ${thCell('Type','type')}
-                ${thCell('Status','status')}
-                <th style="${TH_BASE}padding:12px 16px;color:#475569;font-weight:700;white-space:normal;">Action / Details</th>
-                ${thCell('Duration','dur','right')}
-            </tr></thead>`;
-
-            function makeRow(l, i) {
-                const t       = new Date(l.ts);
-                const time    = t.toLocaleDateString() + ' ' + t.toLocaleTimeString();
-                const details = [l.action, l.details].filter(Boolean).join(' — ');
-                const dur     = l.duration != null ? `${l.duration}ms` : '—';
-                const bg      = l.type === 'error' ? 'background:#fff5f5;' : (i%2 ? 'background:#f8fafc;' : '');
-                const team    = getTeamForEmail(l.userEmail);
-                const teamBadge = team !== '—' ? ` <span style="padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600;background:#ede9fe;color:#5b21b6;">${escHtml(team)}</span>` : '';
-                return `<tr style="${bg}border-bottom:1px solid #f1f5f9;">
-                    <td style="padding:10px 16px;color:#475569;font-size:12px;white-space:nowrap;">${time}</td>
-                    <td style="padding:10px 16px;">
-                        <div style="font-weight:600;color:#1e293b;">${escHtml(l.userName||'Unknown')}</div>
-                        <div style="font-size:11px;color:#64748b;margin-top:2px;">${escHtml(l.userEmail||'')}${teamBadge}</div>
-                    </td>
-                    <td style="padding:10px 16px;font-weight:600;color:#1e293b;">${escHtml(l.tool)}</td>
-                    <td style="padding:10px 16px;color:#475569;">${escHtml(l.category||'')}</td>
-                    <td style="padding:10px 16px;">${TYPE_BADGE[l.type]||l.type}</td>
-                    <td style="padding:10px 16px;">${STATUS_BADGE[l.status]||l.status}</td>
-                    <td style="padding:10px 16px;color:#475569;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(details)}">${escHtml(details)}</td>
-                    <td style="padding:10px 16px;color:#475569;text-align:right;font-size:12px;">${dur}</td>
-                </tr>`;
-            }
-
             const container = document.getElementById('logsTableContainer');
             if (!container) return;
 
-            if (!rows.length) {
+            const countEl = document.getElementById('logsMatchCount');
+            if (countEl) countEl.textContent = filtered.length ? `${filtered.length} event${filtered.length !== 1 ? 's' : ''}` : '';
+
+            if (!filtered.length) {
                 container.innerHTML = '<div class="premium-table-wrapper" style="padding:40px;text-align:center;color:#94a3b8;">No matching log entries.</div>';
                 return;
             }
 
-            if (groupBy === 'none') {
-                container.innerHTML = `<div class="premium-table-wrapper" style="padding:0;overflow:hidden;"><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">${thead}<tbody>${rows.map(makeRow).join('')}</tbody></table></div></div>`;
-                return;
-            }
+            const TH = (label, align) => `<th style="background-color:#f1f5f9;padding:10px 16px;text-align:${align||'left'};color:#475569;font-weight:700;white-space:nowrap;">${label}</th>`;
 
-            function groupKey(l)   { return groupBy === 'user' ? (l.userEmail||'unknown') : groupBy === 'team' ? getTeamForEmail(l.userEmail) : (l.tool||'Unknown'); }
-            function groupLabel(l) {
-                if (groupBy === 'user') return `${escHtml(l.userName||'Unknown')} <span style="font-weight:400;color:#94a3b8;font-size:12px;">(${escHtml(l.userEmail||'')})</span>`;
-                if (groupBy === 'team') { const t = getTeamForEmail(l.userEmail); return `<span style="padding:2px 10px;border-radius:12px;background:#ede9fe;color:#5b21b6;">${escHtml(t)}</span>`; }
-                return escHtml(l.tool||'Unknown');
+            if (groupBy === 'tool') {
+                const toolMap = {};
+                filtered.forEach(l => {
+                    const k = toolActionLabel(l) || l.tool || 'Unknown';
+                    if (!toolMap[k]) toolMap[k] = { tool: k, category: l.category || '', runs: 0, errors: 0, lastTs: '' };
+                    if (l.type === 'usage') toolMap[k].runs++;
+                    if (l.type === 'error') toolMap[k].errors++;
+                    if (!toolMap[k].lastTs || l.ts > toolMap[k].lastTs) toolMap[k].lastTs = l.ts;
+                });
+                const trows = Object.values(toolMap).sort((a, b) => b.runs - a.runs);
+                container.innerHTML = `<div class="premium-table-wrapper" style="padding:0;overflow:hidden;">
+                    <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">
+                        <thead><tr style="border-bottom:2px solid #cbd5e1;">${TH('Tool')}${TH('Category')}${TH('Runs','center')}${TH('Errors','center')}${TH('Last Used')}</tr></thead>
+                        <tbody>${trows.map((r, i) => `<tr style="${i%2?'background:#f8fafc;':''}border-bottom:1px solid #f1f5f9;">
+                            <td style="padding:10px 16px;font-weight:600;color:#1e293b;">${escHtml(r.tool)}</td>
+                            <td style="padding:10px 16px;color:#475569;">${escHtml(r.category)}</td>
+                            <td style="padding:10px 16px;text-align:center;font-weight:600;color:#2563eb;">${r.runs}</td>
+                            <td style="padding:10px 16px;text-align:center;font-weight:600;color:${r.errors>0?'#ef4444':'#10b981'};">${r.errors}</td>
+                            <td style="padding:10px 16px;color:#94a3b8;font-size:12px;">${r.lastTs ? new Date(r.lastTs).toLocaleString() : '—'}</td>
+                        </tr>`).join('')}</tbody>
+                    </table></div>
+                </div>`;
+
+            } else if (groupBy === 'user') {
+                const userMap = {};
+                filtered.forEach(l => {
+                    if (!l.userEmail) return;
+                    const name = (l.userName && l.userName !== 'Unknown') ? l.userName : l.userEmail;
+                    if (!userMap[l.userEmail]) userMap[l.userEmail] = { name, email: l.userEmail, runs: 0, errors: 0, tools: {}, lastTs: '' };
+                    if (l.type === 'usage') { userMap[l.userEmail].runs++; if (l.tool) { const k = toolActionLabel(l); userMap[l.userEmail].tools[k] = (userMap[l.userEmail].tools[k]||0)+1; } }
+                    if (l.type === 'error') userMap[l.userEmail].errors++;
+                    if (!userMap[l.userEmail].lastTs || l.ts > userMap[l.userEmail].lastTs) userMap[l.userEmail].lastTs = l.ts;
+                });
+                const urows = Object.values(userMap).sort((a, b) => b.runs - a.runs);
+                container.innerHTML = `<div class="premium-table-wrapper" style="padding:0;overflow:hidden;">
+                    <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">
+                        <thead><tr style="border-bottom:2px solid #cbd5e1;">${TH('User')}${TH('Team')}${TH('Runs','center')}${TH('Errors','center')}${TH('Top Tool')}${TH('Last Active')}</tr></thead>
+                        <tbody>${urows.map((u, i) => {
+                            const top  = Object.entries(u.tools).sort((a,b)=>b[1]-a[1])[0];
+                            const team = getTeamForEmail(u.email);
+                            return `<tr style="${i%2?'background:#f8fafc;':''}border-bottom:1px solid #f1f5f9;">
+                                <td style="padding:10px 16px;">
+                                    <div style="font-weight:600;color:#1e293b;">${escHtml(u.name)}</div>
+                                    ${u.name !== u.email ? `<div style="font-size:11px;color:#94a3b8;">${escHtml(u.email)}</div>` : ''}
+                                </td>
+                                <td style="padding:10px 16px;color:#64748b;">${team !== '—' ? `<span style="padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:#ede9fe;color:#5b21b6;">${escHtml(team)}</span>` : '—'}</td>
+                                <td style="padding:10px 16px;text-align:center;font-weight:600;color:#2563eb;">${u.runs}</td>
+                                <td style="padding:10px 16px;text-align:center;font-weight:600;color:${u.errors>0?'#ef4444':'#10b981'};">${u.errors}</td>
+                                <td style="padding:10px 16px;color:#475569;">${top ? escHtml(top[0])+` (${top[1]}×)` : '—'}</td>
+                                <td style="padding:10px 16px;color:#94a3b8;font-size:12px;">${u.lastTs ? new Date(u.lastTs).toLocaleString() : '—'}</td>
+                            </tr>`;
+                        }).join('')}</tbody>
+                    </table></div>
+                </div>`;
+
+            } else { // team
+                const teamMap = {};
+                teamsNow.forEach(t => { teamMap[t.name] = { name: t.name, runs: 0, errors: 0, tools: {}, activeUsers: new Set(), lastTs: '' }; });
+                teamMap['Unassigned'] = { name: 'Unassigned', runs: 0, errors: 0, tools: {}, activeUsers: new Set(), lastTs: '' };
+                filtered.forEach(l => {
+                    if (!l.userEmail) return;
+                    const team   = getTeamForEmail(l.userEmail);
+                    const bucket = team === '—' ? 'Unassigned' : team;
+                    if (!teamMap[bucket]) teamMap[bucket] = { name: bucket, runs: 0, errors: 0, tools: {}, activeUsers: new Set(), lastTs: '' };
+                    if (l.type === 'usage') { teamMap[bucket].runs++; if (l.tool) { const k = toolActionLabel(l); teamMap[bucket].tools[k] = (teamMap[bucket].tools[k]||0)+1; } }
+                    if (l.type === 'error') teamMap[bucket].errors++;
+                    teamMap[bucket].activeUsers.add(l.userEmail);
+                    if (!teamMap[bucket].lastTs || l.ts > teamMap[bucket].lastTs) teamMap[bucket].lastTs = l.ts;
+                });
+                const trows = Object.values(teamMap).filter(t => t.runs > 0 || t.errors > 0).sort((a, b) => b.runs - a.runs);
+                container.innerHTML = `<div class="premium-table-wrapper" style="padding:0;overflow:hidden;">
+                    <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">
+                        <thead><tr style="border-bottom:2px solid #cbd5e1;">${TH('Team')}${TH('Active Users','center')}${TH('Runs','center')}${TH('Errors','center')}${TH('Top Tool')}${TH('Last Active')}</tr></thead>
+                        <tbody>${trows.map((t, i) => {
+                            const top = Object.entries(t.tools).sort((a,b)=>b[1]-a[1])[0];
+                            return `<tr style="${i%2?'background:#f8fafc;':''}border-bottom:1px solid #f1f5f9;">
+                                <td style="padding:10px 16px;font-weight:600;color:#1e293b;">${escHtml(t.name)}</td>
+                                <td style="padding:10px 16px;text-align:center;color:#64748b;">${t.activeUsers.size}</td>
+                                <td style="padding:10px 16px;text-align:center;font-weight:600;color:#2563eb;">${t.runs}</td>
+                                <td style="padding:10px 16px;text-align:center;font-weight:600;color:${t.errors>0?'#ef4444':'#10b981'};">${t.errors}</td>
+                                <td style="padding:10px 16px;color:#475569;">${top ? escHtml(top[0])+` (${top[1]}×)` : '—'}</td>
+                                <td style="padding:10px 16px;color:#94a3b8;font-size:12px;">${t.lastTs ? new Date(t.lastTs).toLocaleString() : '—'}</td>
+                            </tr>`;
+                        }).join('')}</tbody>
+                    </table></div>
+                </div>`;
             }
-            const groups = {};
-            rows.forEach(l => { const k = groupKey(l); if (!groups[k]) groups[k] = { label: groupLabel(l), items: [] }; groups[k].items.push(l); });
-            container.innerHTML = Object.values(groups).map(g => `
-                <div class="premium-table-wrapper" style="padding:0;overflow:hidden;margin-bottom:16px;">
-                    <div style="padding:12px 20px;background:#f8fafc;border-bottom:2px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;">
-                        <span style="font-weight:700;color:#1e293b;font-size:14px;">${g.label}</span>
-                        <span style="font-size:12px;color:#64748b;">${g.items.length} event${g.items.length!==1?'s':''}</span>
-                    </div>
-                    <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">${thead}<tbody>${g.items.map(makeRow).join('')}</tbody></table></div>
-                </div>`).join('');
         }
 
         // ── Teams Manager sub-view
