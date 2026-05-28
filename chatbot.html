@@ -3127,16 +3127,6 @@
                         </label>
                         <input type="password" id="mondayApiKey" placeholder="Paste your API key here...">
                     </div>
-                    <div class="form-group" style="margin-top: 12px; display: flex; align-items: center; justify-content: space-between; background: #f1f5f9; padding: 10px; border-radius: 10px;">
-                        <div>
-                            <div style="font-size: 0.8rem; font-weight: 700; color: #1e293b;">Show Thinking Process</div>
-                            <div style="font-size: 0.65rem; color: #64748b;">Display Claude's reasoning before each answer (uses Sonnet)</div>
-                        </div>
-                        <label class="switch" style="width: 40px; height: 20px;">
-                            <input type="checkbox" id="showThinking">
-                            <span class="slider round"></span>
-                        </label>
-                    </div>
                 </div>
             </div>
 
@@ -4544,7 +4534,6 @@
             if (_storedEmail.toLowerCase().startsWith('[object')) localStorage.removeItem('clientEmail');
             document.getElementById('clientEmail').value = localStorage.getItem('clientEmail') || "";
             document.getElementById('privateMemoryMode').checked = localStorage.getItem('privateMemoryMode') === 'true';
-            document.getElementById('showThinking').checked = localStorage.getItem('showThinking') === 'true';
             const vsId = localStorage.getItem('vectorStoreId') || "";
             document.getElementById('vectorStoreId').value = vsId;
             localStorage.setItem('vectorStoreId', vsId);
@@ -4739,7 +4728,6 @@
             const newEmail = document.getElementById('clientEmail').value.trim();
             setUserIdFromEmail(newEmail);
             localStorage.setItem('privateMemoryMode', document.getElementById('privateMemoryMode').checked);
-            localStorage.setItem('showThinking', document.getElementById('showThinking').checked);
             localStorage.setItem('vectorStoreId', document.getElementById('vectorStoreId').value.trim());
             const contextUrls = document.getElementById('contextUrls').value.trim();
             const autoSync = document.getElementById('autoSync').checked;
@@ -8893,7 +8881,6 @@ CRITICAL CONTACT RULE:
                     history[history.length - 1].content = currentContent;
                 }
 
-                const _showThinking = localStorage.getItem('showThinking') === 'true';
                 const res = await fetch(MONDAY_LAMBDA_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -8901,9 +8888,8 @@ CRITICAL CONTACT RULE:
                         action: 'claude_chat_with_tools',
                         system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
                         messages: history,
-                        model: _showThinking ? 'claude-sonnet-4-5' : 'claude-haiku-4-5',
-                        max_tokens: _showThinking ? 16000 : 4096,
-                        thinking: _showThinking ? { type: "enabled", budget_tokens: 8000 } : undefined,
+                        model: 'claude-haiku-4-5',
+                        max_tokens: 4096,
                         monday_api_key: localStorage.getItem('mondayApiKey'),
                         google_access_token: localStorage.getItem('googleToken_Workspace'),
                         google_tokens: {

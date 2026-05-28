@@ -2107,22 +2107,22 @@
             
             try {
                 const data = await apiCall('invoke_lambda', { functionName });
-                
+
                 if (data.functionError) {
                     status.innerHTML = `<span class="badge badge-danger">Failed: ${data.functionError}</span>`;
                 } else {
                     status.innerHTML = `<span class="badge badge-success">Success (Status: ${data.statusCode})</span>`;
                 }
-                
+
                 logsPre.textContent = data.logs || 'No logs returned.';
-                
+
                 try {
                     const parsedPayload = JSON.parse(data.payload);
                     payloadPre.textContent = JSON.stringify(parsedPayload, null, 2);
                 } catch (e) {
                     payloadPre.textContent = data.payload || 'No response payload.';
                 }
-                
+
                 showToast('Task executed successfully!', 'success');
             } catch (err) {
                 status.innerHTML = `<span class="badge badge-danger">Error: ${err.message}</span>`;
