@@ -2288,31 +2288,46 @@
                     throw new Error("No boards found. If you have boards, please check your API permissions.");
                 }
 
-                // Step 2: Collect unique folder IDs and batch-fetch their names
+                // Step 2: Collect unique folder IDs and batch-fetch their names + parent
                 const folderIds = [...new Set(allBoards.map(b => b.board_folder_id).filter(Boolean))];
-                const folderNames = {};
+                const folderMeta = {}; // id -> { name, parentId, parentName }
                 if (folderIds.length > 0) {
                     try {
-                        const fdata = await monday(`query($ids:[ID!]){ folders(ids:$ids){ id name } }`, { ids: folderIds }, "Resolving folder names...");
-                        (fdata.folders || []).forEach(f => folderNames[f.id] = f.name);
+                        const fdata = await monday(`query($ids:[ID!]){ folders(ids:$ids){ id name parent { id name } } }`, { ids: folderIds }, "Resolving folder names...");
+                        (fdata.folders || []).forEach(f => {
+                            folderMeta[f.id] = { name: f.name, parentId: f.parent?.id, parentName: f.parent?.name };
+                        });
                     } catch (err) {
                         console.warn("Could not fetch folder names, falling back to workspace grouping", err);
                     }
                 }
 
-                // Step 3: Build folder groups
+                // Step 3: Build folder groups — also bubble boards up to parent folders
                 const folderMap = {};
                 allBoards.forEach(b => {
                     if (['sub_items_board', 'document', 'custom_object'].includes(b.type)) return;
 
-                    // Use board_folder_id with resolved name; fall back to workspace grouping
                     const wsName = b.workspace?.name || 'Main';
-                    const f = b.board_folder_id
-                        ? { id: b.board_folder_id, name: folderNames[b.board_folder_id] || `Folder ${b.board_folder_id}` }
-                        : { id: 'ws-' + (b.workspace?.id || 'root'), name: wsName };
 
-                    if (!folderMap[f.id]) folderMap[f.id] = { id: f.id, name: f.name, boards: [], ws: wsName };
-                    folderMap[f.id].boards.push(b);
+                    if (b.board_folder_id) {
+                        const meta = folderMeta[b.board_folder_id] || {};
+                        const fName = meta.name || `Folder ${b.board_folder_id}`;
+
+                        // Direct folder
+                        if (!folderMap[b.board_folder_id]) folderMap[b.board_folder_id] = { id: b.board_folder_id, name: fName, boards: [], ws: wsName };
+                        folderMap[b.board_folder_id].boards.push(b);
+
+                        // Parent folder (if any) — so parent folders appear even when boards live in sub-folders
+                        if (meta.parentId) {
+                            const pid = meta.parentId, pName = meta.parentName || `Folder ${meta.parentId}`;
+                            if (!folderMap[pid]) folderMap[pid] = { id: pid, name: pName, boards: [], ws: wsName };
+                            if (!folderMap[pid].boards.find(x => x.id === b.id)) folderMap[pid].boards.push(b);
+                        }
+                    } else {
+                        const wsKey = 'ws-' + (b.workspace?.id || 'root');
+                        if (!folderMap[wsKey]) folderMap[wsKey] = { id: wsKey, name: wsName, boards: [], ws: wsName };
+                        folderMap[wsKey].boards.push(b);
+                    }
                 });
 
                 state.folders = Object.values(folderMap).sort((a, b) => a.name.localeCompare(b.name));
