@@ -1270,6 +1270,69 @@
             color: white;
         }
 
+        /* Connector / campaign prompt cards */
+        .connector-prompt-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 12px;
+            padding: 12px 16px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+        }
+
+        .connector-prompt-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .connector-prompt-text {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .connector-prompt-text strong {
+            font-size: 0.85rem;
+            color: #1e293b;
+        }
+
+        .connector-prompt-text span {
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+
+        .connector-prompt-btn {
+            flex-shrink: 0;
+            padding: 7px 14px;
+            border-radius: 8px;
+            border: none;
+            background: var(--primary-navy);
+            color: #fff;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.15s, transform 0.15s;
+            font-family: inherit;
+        }
+
+        .connector-prompt-btn:hover {
+            background: #1a3a5f;
+            transform: translateY(-1px);
+        }
+
         /* Board Management UI */
         .board-item {
             display: flex;
@@ -4622,6 +4685,56 @@
                 `;
             }
             list.appendChild(msg);
+        }
+
+        const _connectorCfg = {
+            monday:     { label: 'Monday.com',              icon: 'fas fa-th',          color: '#FF3D57', section: 'authSection' },
+            gsc:        { label: 'Google Search Console',   icon: 'fab fa-google',      color: '#4285F4', section: 'googleChatSection' },
+            ga4:        { label: 'Google Analytics 4',      icon: 'fab fa-google',      color: '#34A853', section: 'googleChatSection' },
+            google_ads: { label: 'Google Ads',              icon: 'fab fa-google',      color: '#FBBC04', section: 'googleChatSection' },
+            meta:       { label: 'Meta Ads',                icon: 'fab fa-facebook',    color: '#1877F2', section: 'metaSection' },
+            linkedin:   { label: 'LinkedIn Ads',            icon: 'fab fa-linkedin',    color: '#0A66C2', section: 'linkedinSection' },
+            tiktok:     { label: 'TikTok Ads',              icon: 'fab fa-tiktok',      color: '#000000', section: 'tiktokSection' },
+            seranking:  { label: 'SE Ranking',              icon: 'fas fa-chart-line',  color: '#6366F1', section: 'serankingSection' },
+        };
+
+        function buildConnectorCard(connector) {
+            const c = _connectorCfg[connector] || { label: connector, icon: 'fas fa-plug', color: '#6366F1', section: 'authSection' };
+            return `<div class="connector-prompt-card">
+                <div class="connector-prompt-icon" style="background:${c.color}22;color:${c.color}"><i class="${c.icon}"></i></div>
+                <div class="connector-prompt-text"><strong>${c.label}</strong><span>Not connected — connect to unlock this data</span></div>
+                <button class="connector-prompt-btn" onclick="openSettingsToSection('${c.section}')"><i class="fas fa-plug"></i> Connect</button>
+            </div>`;
+        }
+
+        function buildCampaignCard() {
+            return `<div class="connector-prompt-card">
+                <div class="connector-prompt-icon" style="background:#6366f122;color:#6366f1"><i class="fas fa-th-large"></i></div>
+                <div class="connector-prompt-text"><strong>Campaign Board</strong><span>No board selected — pick one to get campaign-specific data</span></div>
+                <button class="connector-prompt-btn" onclick="focusCampaignSelector()"><i class="fas fa-filter"></i> Select Board</button>
+            </div>`;
+        }
+
+        function openSettingsToSection(sectionId) {
+            const sidebar = document.getElementById('settingsSidebar');
+            if (!sidebar.classList.contains('active')) toggleSettings();
+            setTimeout(() => {
+                const section = document.getElementById(sectionId);
+                if (!section) return;
+                if (!section.classList.contains('active')) section.classList.add('active');
+                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                section.style.outline = '2px solid #6366f1';
+                section.style.borderRadius = '8px';
+                setTimeout(() => { section.style.outline = ''; section.style.borderRadius = ''; }, 1600);
+            }, 320);
+        }
+
+        function focusCampaignSelector() {
+            const dropdown = document.getElementById('msBoardDropdown');
+            if (!dropdown) return;
+            dropdown.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const trigger = dropdown.querySelector('.ms-trigger');
+            if (trigger) setTimeout(() => trigger.click(), 350);
         }
 
         function toggleSettings() {
@@ -8786,7 +8899,7 @@ CRITICAL CONTACT RULE:
                 // Clone to avoid modifying the UI
                 const clone = contentDiv.cloneNode(true);
                 // Remove tool logs and UI elements from history content
-                clone.querySelectorAll('.tool-log, .contact-agent-container, .attachment-msg-preview').forEach(el => el.remove());
+                clone.querySelectorAll('.tool-log, .contact-agent-container, .connector-prompt-card, .attachment-msg-preview').forEach(el => el.remove());
 
                 const content = clone.innerText.trim();
                 if (!content) return;
@@ -8901,12 +9014,37 @@ CRITICAL CONTACT RULE:
             ${JSON.stringify(learnedInsights.map(i => `[${i.tag}][Team: ${i.team || 'Everyone'}] ${i.text}`))}
 
             CURRENT CONTEXT:
+            - Monday.com: ${localStorage.getItem('mondayApiKey') ? 'Connected' : 'Not connected'}
+            - Campaign boards loaded: ${(window.activeBoards || []).length} board(s) | Selected in focus filter: ${(() => { try { return (msState.msBoardDropdown.selected || []).length; } catch { return 0; } })()} board(s)
             - GSC Site(s): ${gscSites.length ? gscSites.join(', ') : 'None selected'}
             - GA4 Property/ies: ${ga4Props.length ? ga4Props.join(', ') : 'None selected'}
             - Google Ads Account(s): ${adsAccs.length ? adsAccs.join(', ') : 'None selected'}
             - Meta Ad Account(s): ${(() => { try { const m = JSON.parse(localStorage.getItem('selectedMetaAccount') || '[]'); return m.length ? m.map(s=>s.label||s.value).join(', ') : 'None selected'; } catch { return 'None selected'; } })()}
+            - Meta Ads token: ${localStorage.getItem('meta_access_token') ? 'Connected' : 'Not connected'}
+            - LinkedIn Ads token: ${localStorage.getItem('linkedin_access_token') ? 'Connected' : 'Not connected'}
+            - TikTok Ads token: ${localStorage.getItem('tiktok_access_token') ? 'Connected' : 'Not connected'}
+            - SE Ranking campaigns: ${(() => { try { return (window.allSERankingSites || []).length ? (window.allSERankingSites.map(s => s.name || s.id).join(', ')) : 'None configured'; } catch { return 'None configured'; } })()}
 
-            Always format results as Markdown tables. If a marketing property is not selected, ask the user to subscribe one in the settings.
+            Always format results as Markdown tables.
+
+            CONNECTOR PROMPTS — read carefully:
+            When a user's question would meaningfully benefit from a connector listed as "Not connected" or "None selected" above, append one of the markers below at the end of your response. The client renders them as clickable setup cards.
+            Rules:
+            - Only emit a marker if the connector is explicitly "Not connected" / "None selected" in CURRENT CONTEXT above.
+            - Never emit a marker for an already-connected service.
+            - Emit at most 2 markers per response.
+            - Always answer as best you can first — markers are supplemental, not a replacement.
+            - For campaign boards: emit [ACTION: SELECT_CAMPAIGN] only when boards ARE loaded (> 0) but none are selected in the focus filter AND the question is clearly about a specific campaign.
+            Available markers:
+            [ACTION: SETUP_CONNECTOR:monday] — Monday.com not connected
+            [ACTION: SETUP_CONNECTOR:gsc] — Search Console not selected
+            [ACTION: SETUP_CONNECTOR:ga4] — Google Analytics not selected
+            [ACTION: SETUP_CONNECTOR:google_ads] — Google Ads not selected
+            [ACTION: SETUP_CONNECTOR:meta] — Meta Ads not connected
+            [ACTION: SETUP_CONNECTOR:linkedin] — LinkedIn Ads not connected
+            [ACTION: SETUP_CONNECTOR:tiktok] — TikTok Ads not connected
+            [ACTION: SETUP_CONNECTOR:seranking] — SE Ranking not configured
+            [ACTION: SELECT_CAMPAIGN] — boards loaded but none selected in focus filter
 
             PRIVACY & GMAIL POLICY:
             - You have access to tools that can search Gmail and Workspace.
@@ -9162,6 +9300,12 @@ CRITICAL CONTACT RULE:
                         </button>
                     </div>
                 `);
+            }
+
+            // Handle [ACTION: SETUP_CONNECTOR:xxx] and [ACTION: SELECT_CAMPAIGN] markers
+            if (sender === 'bot') {
+                htmlContent = htmlContent.replace(/\[ACTION: SETUP_CONNECTOR:(\w+)\]/g, (_, connector) => buildConnectorCard(connector));
+                htmlContent = htmlContent.replace(/\[ACTION: SELECT_CAMPAIGN\]/g, buildCampaignCard());
             }
 
             let attachmentHtml = '';
