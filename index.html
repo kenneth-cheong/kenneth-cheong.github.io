@@ -19656,6 +19656,7 @@
             basketChart: null,        // Chart.js instance for keyword basket distribution
             basketChartData: null,    // Cached monthly basket counts
             basketChartMonths: 6,     // How many months of history to fetch
+            basketTolerancePct: parseFloat(localStorage.getItem('basketTolerancePct')) || 0.20, // ±tolerance for trajectory band (fraction of KPI)
             gscRecommendations: [], // Grouped GSC insights
             gscSearchQuery: '', // Filter for GSC properties
             selectedGscDomains: new Set(), // Filter by domain
@@ -21994,8 +21995,10 @@
             const kwF       = cockpitState.seoIntelKeywordFilter;
             const campaignBtnLabel = campaignF.size === 0 ? 'All campaigns' : `${campaignF.size} campaign${campaignF.size > 1 ? 's' : ''}`;
             const kwBtnLabel       = kwF.size === 0 ? 'All keywords' : kwF.has('__none__') ? 'No keywords' : `${kwF.size} keyword${kwF.size > 1 ? 's' : ''}`;
-            const scatterDropdownStyle = 'display:none;position:absolute;top:100%;right:0;min-width:260px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:400;margin-top:4px;padding:6px;';
+            const scatterDropdownStyle = 'display:none;position:absolute;top:100%;right:0;min-width:300px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:400;margin-top:4px;padding:8px;';
             const scatterActive = campaignF.size > 0 || kwF.size > 0;
+            const totalFilters  = (campaignF.size > 0 ? 1 : 0) + (kwF.size > 0 ? 1 : 0);
+            const tolPctNow     = Math.round((cockpitState.basketTolerancePct ?? 0.20) * 100);
             html += `
                 <!-- Keyword Basket Distribution Scatter -->
                 <div style="padding:12px 16px 10px;border-bottom:1px solid #e2e8f0;background:#fafafa;position:sticky;top:0;z-index:20;">
@@ -22011,37 +22014,43 @@
                                 <option value="6" ${cockpitState.basketChartMonths===6?'selected':''}>6 mo</option>
                                 <option value="12" ${cockpitState.basketChartMonths===12?'selected':''}>12 mo</option>
                             </select>
+                            <select id="basket-tolerance-select" title="Trajectory band tolerance (± fraction of KPI)"
+                                onchange="cockpitState.basketTolerancePct=parseFloat(this.value);localStorage.setItem('basketTolerancePct',this.value);renderSeoIntelScatterChart()"
+                                style="padding:3px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.73rem;background:#fff;color:#334155;cursor:pointer;outline:none;">
+                                <option value="0.10" ${tolPctNow===10?'selected':''}>±10%</option>
+                                <option value="0.20" ${tolPctNow===20?'selected':''}>±20%</option>
+                                <option value="0.30" ${tolPctNow===30?'selected':''}>±30%</option>
+                            </select>
                             ${scatterActive ? `<button onclick="cockpitState.seoIntelScatterFilter.clear();cockpitState.seoIntelKeywordFilter.clear();renderSeoIntelScatterChart()" style="font-size:0.7rem;background:none;border:none;color:#6366f1;cursor:pointer;font-weight:600;">✕ Clear</button>` : ''}
-                            <!-- Keyword filter -->
+                            <!-- Combined Filters dropdown -->
                             <div style="position:relative;">
-                                <button onclick="toggleSeoIntelDropdown('seo-kw-dropdown')"
-                                    style="padding:4px 10px;border:1px solid ${kwF.size > 0 ? '#93c5fd' : '#e2e8f0'};border-radius:6px;background:${kwF.size > 0 ? '#eff6ff' : '#f8fafc'};font-size:0.78rem;cursor:pointer;color:#1e293b;display:flex;align-items:center;gap:5px;">
-                                    <i class="fas fa-key" style="font-size:0.6rem;color:${kwF.size > 0 ? '#3b82f6' : '#94a3b8'};"></i>
-                                    ${kwBtnLabel}
+                                <button onclick="toggleSeoIntelDropdown('seo-filters-dropdown')"
+                                    style="padding:4px 10px;border:1px solid ${totalFilters > 0 ? '#93c5fd' : '#e2e8f0'};border-radius:6px;background:${totalFilters > 0 ? '#eff6ff' : '#f8fafc'};font-size:0.78rem;cursor:pointer;color:#1e293b;display:flex;align-items:center;gap:5px;">
+                                    <i class="fas fa-filter" style="font-size:0.6rem;color:${totalFilters > 0 ? '#3b82f6' : '#94a3b8'};"></i>
+                                    Filters${totalFilters > 0 ? ` <span style="background:#3b82f6;color:#fff;border-radius:9px;padding:0 6px;font-size:0.65rem;font-weight:700;">${totalFilters}</span>` : ''}
                                     <i class="fas fa-chevron-down" style="font-size:0.6rem;color:#94a3b8;"></i>
                                 </button>
-                                <div id="seo-kw-dropdown" class="seo-intel-dropdown" style="${scatterDropdownStyle}">
+                                <div id="seo-filters-dropdown" class="seo-intel-dropdown" style="${scatterDropdownStyle}">
+                                    <!-- Keywords section -->
+                                    <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;padding:2px 4px 4px;display:flex;align-items:center;justify-content:space-between;">
+                                        <span><i class="fas fa-key" style="font-size:0.6rem;color:#94a3b8;margin-right:4px;"></i>Keywords</span>
+                                        <span style="font-weight:500;color:#94a3b8;text-transform:none;letter-spacing:0;">${kwBtnLabel}</span>
+                                    </div>
                                     <input id="seo-kw-search" type="text" placeholder="Search keywords…"
                                         oninput="filterSeoKeywordSearch(this.value)"
                                         style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.78rem;outline:none;margin-bottom:4px;">
-                                    <div id="seo-kw-list" style="max-height:220px;overflow-y:auto;">
+                                    <div id="seo-kw-list" style="max-height:180px;overflow-y:auto;">
                                         <span style="font-size:0.75rem;color:#94a3b8;padding:6px 8px;display:block;">Loading keywords…</span>
                                     </div>
-                                </div>
-                            </div>
-                            <!-- Campaign filter -->
-                            <div style="position:relative;">
-                                <button onclick="toggleSeoIntelDropdown('seo-scatter-dropdown')"
-                                    style="padding:4px 10px;border:1px solid ${campaignF.size > 0 ? '#93c5fd' : '#e2e8f0'};border-radius:6px;background:${campaignF.size > 0 ? '#eff6ff' : '#f8fafc'};font-size:0.78rem;cursor:pointer;color:#1e293b;display:flex;align-items:center;gap:5px;">
-                                    <i class="fas fa-filter" style="font-size:0.6rem;color:${campaignF.size > 0 ? '#3b82f6' : '#94a3b8'};"></i>
-                                    ${campaignBtnLabel}
-                                    <i class="fas fa-chevron-down" style="font-size:0.6rem;color:#94a3b8;"></i>
-                                </button>
-                                <div id="seo-scatter-dropdown" class="seo-intel-dropdown" style="${scatterDropdownStyle}">
+                                    <!-- Campaigns section -->
+                                    <div style="border-top:1px solid #f1f5f9;margin-top:8px;padding-top:8px;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;padding-left:4px;padding-right:4px;display:flex;align-items:center;justify-content:space-between;">
+                                        <span><i class="fas fa-bullseye" style="font-size:0.6rem;color:#94a3b8;margin-right:4px;"></i>Campaigns</span>
+                                        <span style="font-weight:500;color:#94a3b8;text-transform:none;letter-spacing:0;">${campaignBtnLabel}</span>
+                                    </div>
                                     <input id="seo-scatter-search" type="text" placeholder="Search campaigns…"
                                         oninput="filterSeoScatterSearch(this.value)"
-                                        style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.78rem;outline:none;margin-bottom:4px;">
-                                    <div id="seo-scatter-list" style="max-height:200px;overflow-y:auto;">
+                                        style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.78rem;outline:none;margin:4px 0;">
+                                    <div id="seo-scatter-list" style="max-height:160px;overflow-y:auto;">
                                         <span style="font-size:0.75rem;color:#94a3b8;padding:6px 8px;display:block;">Loading campaigns…</span>
                                     </div>
                                 </div>
@@ -22049,7 +22058,7 @@
                         </div>
                     </div>
                     <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
-                        <span style="font-size:0.68rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Background:</span>
+                        <span style="font-size:0.68rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Legend:</span>
                         <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:#475569;">
                             <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(16,185,129,0.35);border:1px solid rgba(16,185,129,0.5);flex-shrink:0;"></span>Hit KPI
                         </span>
@@ -22058,6 +22067,12 @@
                         </span>
                         <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:#475569;">
                             <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.4);flex-shrink:0;"></span>Below Trajectory
+                        </span>
+                        <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:#475569;" title="Expected P1 trajectory ±${tolPctNow}% of total KPI">
+                            <span style="display:inline-block;width:18px;height:0;border-top:1.5px dashed rgba(99,102,241,0.7);flex-shrink:0;"></span>±${tolPctNow}% KPI band
+                        </span>
+                        <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:#475569;">
+                            <span style="display:inline-block;width:0;height:14px;border-left:1.25px dashed rgba(15,23,42,0.65);flex-shrink:0;"></span>Today
                         </span>
                     </div>
                     <div id="seo-scatter-loading" style="display:flex;align-items:center;justify-content:center;height:210px;gap:8px;color:#94a3b8;font-size:0.8rem;">
@@ -22069,11 +22084,9 @@
                     <div id="seo-scatter-campaigns" style="display:none;padding:4px 10px;font-size:0.7rem;color:#64748b;line-height:1.5;border-top:1px solid #f1f5f9;background:#fafbfc;"></div>
                     <!-- Resize handle -->
                     <div id="seo-scatter-resize-handle" title="Drag to resize chart"
-                        style="height:18px;cursor:ns-resize;display:flex;align-items:center;justify-content:center;gap:5px;background:#f1f5f9;border-top:1px solid #e2e8f0;border-radius:0 0 6px 6px;user-select:none;margin-top:2px;"
-                        onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">
-                        <i class="fas fa-grip-lines" style="font-size:0.65rem;color:#94a3b8;pointer-events:none;"></i>
-                        <span style="font-size:0.65rem;color:#94a3b8;pointer-events:none;letter-spacing:0.02em;">drag to resize</span>
-                        <i class="fas fa-grip-lines" style="font-size:0.65rem;color:#94a3b8;pointer-events:none;"></i>
+                        style="height:12px;cursor:ns-resize;display:flex;align-items:center;justify-content:center;background:#f8fafc;border-top:1px solid #e2e8f0;border-radius:0 0 6px 6px;user-select:none;margin-top:2px;"
+                        onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f8fafc'">
+                        <i class="fas fa-grip-lines" style="font-size:0.6rem;color:#cbd5e1;pointer-events:none;"></i>
                     </div>
                 </div>`;
 
@@ -22464,7 +22477,7 @@
             }
             cockpitState.seoIntelRowSelection.clear(); // manual dropdown overrides row selection
             renderSeoIntelScatterChart();
-            const dd = document.getElementById('seo-scatter-dropdown');
+            const dd = document.getElementById('seo-filters-dropdown');
             if (dd) dd.style.display = 'block';
         }
 
@@ -22516,7 +22529,7 @@
                 if (f.size === 0) f.add('__none__');
             }
             renderSeoIntelScatterChart();
-            const dd = document.getElementById('seo-kw-dropdown');
+            const dd = document.getElementById('seo-filters-dropdown');
             if (dd) dd.style.display = 'block';
         }
 
@@ -22530,7 +22543,7 @@
         function selectAllSeoKeywords() {
             cockpitState.seoIntelKeywordFilter.clear();
             renderSeoIntelScatterChart();
-            const dd = document.getElementById('seo-kw-dropdown');
+            const dd = document.getElementById('seo-filters-dropdown');
             if (dd) dd.style.display = 'block';
         }
 
@@ -22539,7 +22552,7 @@
             f.clear();
             f.add('__none__');
             renderSeoIntelScatterChart();
-            const dd = document.getElementById('seo-kw-dropdown');
+            const dd = document.getElementById('seo-filters-dropdown');
             if (dd) dd.style.display = 'block';
         }
 
@@ -22547,7 +22560,7 @@
             cockpitState.seoIntelScatterFilter.clear();
             cockpitState.seoIntelRowSelection.clear();
             renderSeoIntelScatterChart();
-            const dd = document.getElementById('seo-scatter-dropdown');
+            const dd = document.getElementById('seo-filters-dropdown');
             if (dd) dd.style.display = 'block';
         }
 
@@ -22557,7 +22570,7 @@
             f.add('__none__');
             cockpitState.seoIntelRowSelection.clear();
             renderSeoIntelScatterChart();
-            const dd = document.getElementById('seo-scatter-dropdown');
+            const dd = document.getElementById('seo-filters-dropdown');
             if (dd) dd.style.display = 'block';
         }
 
@@ -22847,12 +22860,182 @@
                         const actualP1 = filteredPts.filter(p => p.ym === ym && p.basket === 'p1').length;
                         const x1 = xScale.getPixelForValue(mi - 0.5);
                         const x2 = xScale.getPixelForValue(mi + 0.5);
-                        // Green = hit KPI, Yellow = at/above trajectory, Red = below trajectory
+                        // Green = hit KPI, Yellow = within tolerance band, Red = below lower bound
+                        const tol = cockpitState.basketTolerancePct ?? 0.20;
+                        const lowerBound = expectedP1 - tol * totalKPI;
                         if (actualP1 >= totalKPI)       ctx2.fillStyle = 'rgba(16,185,129,0.12)';
-                        else if (actualP1 >= expectedP1) ctx2.fillStyle = 'rgba(234,179,8,0.12)';
+                        else if (actualP1 >= lowerBound) ctx2.fillStyle = 'rgba(234,179,8,0.12)';
                         else                             ctx2.fillStyle = 'rgba(239,68,68,0.09)';
                         ctx2.fillRect(x1, yTop, x2 - x1, yBottom - yTop);
                     });
+                    ctx2.restore();
+                },
+            };
+
+            // Plugin: draw upper/lower trajectory band (±tolerance of KPI) as diagonal lines
+            // Y axis maps [0, maxTotalKPI] → [yBottom, yTop] so lines rise left-to-right
+            const trajectoryBandPlugin = {
+                id: 'trajectoryBand',
+                beforeDraw: chart => {
+                    if (!kpiCampaigns.length) return;
+                    const xScale  = chart.scales.x;
+                    const yScale  = chart.scales.y;
+                    const ctx2    = chart.ctx;
+                    const yTop    = yScale.getPixelForValue(4.5);
+                    const yBottom = yScale.getPixelForValue(0.5);
+                    const chartH  = yBottom - yTop;
+                    const tol     = cockpitState.basketTolerancePct ?? 0.20;
+                    const tolPct  = Math.round(tol * 100);
+
+                    // Determine the peak totalKPI across all months for normalisation
+                    let maxTotalKPI = 0;
+                    months.forEach(ym => {
+                        const [y, mo] = ym.split('-').map(Number);
+                        const monthMid = new Date(y, mo - 1, 15).getTime();
+                        let tKPI = 0;
+                        kpiCampaigns.forEach(c => {
+                            const start = new Date(c.startDate).getTime();
+                            const end   = new Date(c.endDate).getTime();
+                            if (monthMid < start || monthMid > end || end <= start) return;
+                            tKPI += c.kpi;
+                        });
+                        if (tKPI > maxTotalKPI) maxTotalKPI = tKPI;
+                    });
+                    if (!maxTotalKPI) return;
+
+                    const pyForCount = count => yBottom - (Math.max(0, Math.min(maxTotalKPI, count)) / maxTotalKPI) * chartH;
+
+                    // Compute per-month bound pixel positions
+                    const upperPts = [], lowerPts = [];
+                    months.forEach((ym, mi) => {
+                        const [y, mo] = ym.split('-').map(Number);
+                        const monthMid = new Date(y, mo - 1, 15).getTime();
+                        let expectedP1 = 0, totalKPI = 0;
+                        kpiCampaigns.forEach(c => {
+                            const start = new Date(c.startDate).getTime();
+                            const end   = new Date(c.endDate).getTime();
+                            if (monthMid < start || monthMid > end || end <= start) return;
+                            expectedP1 += c.kpi * ((monthMid - start) / (end - start));
+                            totalKPI   += c.kpi;
+                        });
+                        if (totalKPI === 0) { upperPts.push(null); lowerPts.push(null); return; }
+                        const px = xScale.getPixelForValue(mi);
+                        upperPts.push({ px, py: pyForCount(expectedP1 + tol * totalKPI) });
+                        lowerPts.push({ px, py: pyForCount(expectedP1 - tol * totalKPI) });
+                    });
+
+                    const hasPoints = upperPts.some(Boolean) && lowerPts.some(Boolean);
+                    if (!hasPoints) return;
+
+                    ctx2.save();
+
+                    // Filled band between upper and lower
+                    ctx2.beginPath();
+                    let first = true;
+                    upperPts.forEach(pt => { if (!pt) return; first ? ctx2.moveTo(pt.px, pt.py) : ctx2.lineTo(pt.px, pt.py); first = false; });
+                    [...lowerPts].reverse().forEach(pt => { if (!pt) return; ctx2.lineTo(pt.px, pt.py); });
+                    ctx2.closePath();
+                    ctx2.fillStyle = 'rgba(99,102,241,0.07)';
+                    ctx2.fill();
+
+                    ctx2.lineWidth = 1.5;
+                    ctx2.setLineDash([5, 4]);
+
+                    // Upper bound line (indigo)
+                    ctx2.strokeStyle = 'rgba(99,102,241,0.55)';
+                    ctx2.beginPath();
+                    first = true;
+                    upperPts.forEach(pt => { if (!pt) return; first ? ctx2.moveTo(pt.px, pt.py) : ctx2.lineTo(pt.px, pt.py); first = false; });
+                    ctx2.stroke();
+
+                    // Lower bound line (indigo)
+                    ctx2.beginPath();
+                    first = true;
+                    lowerPts.forEach(pt => { if (!pt) return; first ? ctx2.moveTo(pt.px, pt.py) : ctx2.lineTo(pt.px, pt.py); first = false; });
+                    ctx2.stroke();
+
+                    // End-of-line labels (right side) — anchored to last non-null bound point
+                    ctx2.setLineDash([]);
+                    ctx2.font = 'bold 9px system-ui,sans-serif';
+                    ctx2.textBaseline = 'middle';
+                    ctx2.fillStyle = 'rgba(67,56,202,0.85)';
+                    const lastUpper = [...upperPts].reverse().find(Boolean);
+                    const lastLower = [...lowerPts].reverse().find(Boolean);
+                    const labelGap = 6;
+                    const chartRight = chart.chartArea.right;
+                    if (lastUpper) {
+                        const text = `+${tolPct}% KPI`;
+                        const tx = Math.min(chartRight - ctx2.measureText(text).width - 2, lastUpper.px + labelGap);
+                        ctx2.textAlign = 'left';
+                        ctx2.fillText(text, tx, lastUpper.py);
+                    }
+                    if (lastLower) {
+                        const text = `−${tolPct}% KPI`;
+                        const tx = Math.min(chartRight - ctx2.measureText(text).width - 2, lastLower.px + labelGap);
+                        ctx2.textAlign = 'left';
+                        ctx2.fillText(text, tx, lastLower.py);
+                    }
+
+                    ctx2.restore();
+                },
+            };
+
+            // Plugin: vertical "today" marker so current position on the trajectory is obvious
+            const todayMarkerPlugin = {
+                id: 'todayMarker',
+                afterDatasetsDraw: chart => {
+                    const xScale = chart.scales.x;
+                    const yScale = chart.scales.y;
+                    const ctx2   = chart.ctx;
+                    const now    = new Date();
+                    // Convert today to a fractional month index based on the months array
+                    const curYm  = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                    const mi     = monthIndex[curYm];
+                    if (mi === undefined) return; // current month outside window
+                    // Fractional offset within the current month (−0.5..+0.5 of the column)
+                    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+                    const frac = (now.getDate() - 1) / Math.max(1, daysInMonth - 1); // 0..1
+                    const xVal = mi - 0.5 + frac; // align day 1 with column start, last day with column end
+                    const px = xScale.getPixelForValue(xVal);
+                    const yTop    = yScale.getPixelForValue(4.5);
+                    const yBottom = yScale.getPixelForValue(0.5);
+                    ctx2.save();
+                    ctx2.strokeStyle = 'rgba(15,23,42,0.55)';
+                    ctx2.lineWidth = 1.25;
+                    ctx2.setLineDash([3, 3]);
+                    ctx2.beginPath();
+                    ctx2.moveTo(px, yTop);
+                    ctx2.lineTo(px, yBottom);
+                    ctx2.stroke();
+                    // "Today" pill at top
+                    ctx2.setLineDash([]);
+                    ctx2.font = 'bold 9px system-ui,sans-serif';
+                    const label = 'Today';
+                    const padX = 5, padY = 2;
+                    const tw = ctx2.measureText(label).width;
+                    const pillW = tw + padX * 2;
+                    const pillH = 14;
+                    let pillX = px - pillW / 2;
+                    pillX = Math.max(chart.chartArea.left + 1, Math.min(chart.chartArea.right - pillW - 1, pillX));
+                    const pillY = yTop + 2;
+                    ctx2.fillStyle = 'rgba(15,23,42,0.85)';
+                    ctx2.beginPath();
+                    const r = 3;
+                    ctx2.moveTo(pillX + r, pillY);
+                    ctx2.lineTo(pillX + pillW - r, pillY);
+                    ctx2.quadraticCurveTo(pillX + pillW, pillY, pillX + pillW, pillY + r);
+                    ctx2.lineTo(pillX + pillW, pillY + pillH - r);
+                    ctx2.quadraticCurveTo(pillX + pillW, pillY + pillH, pillX + pillW - r, pillY + pillH);
+                    ctx2.lineTo(pillX + r, pillY + pillH);
+                    ctx2.quadraticCurveTo(pillX, pillY + pillH, pillX, pillY + pillH - r);
+                    ctx2.lineTo(pillX, pillY + r);
+                    ctx2.quadraticCurveTo(pillX, pillY, pillX + r, pillY);
+                    ctx2.closePath();
+                    ctx2.fill();
+                    ctx2.fillStyle = '#fff';
+                    ctx2.textAlign = 'center';
+                    ctx2.textBaseline = 'middle';
+                    ctx2.fillText(label, pillX + pillW / 2, pillY + pillH / 2 + 0.5);
                     ctx2.restore();
                 },
             };
@@ -22911,7 +23094,7 @@
             cockpitState.seoScatterChart = new Chart(canvas.getContext('2d'), {
                 type: 'scatter',
                 data: { datasets },
-                plugins: [kpiMonthPlugin, kwTrailPlugin, basketCountPlugin],
+                plugins: [kpiMonthPlugin, trajectoryBandPlugin, kwTrailPlugin, basketCountPlugin, todayMarkerPlugin],
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
