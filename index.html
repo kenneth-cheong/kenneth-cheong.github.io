@@ -22001,7 +22001,7 @@
             const tolPctNow     = Math.round((cockpitState.basketTolerancePct ?? 0.20) * 100);
             html += `
                 <!-- Keyword Basket Distribution Scatter -->
-                <div style="padding:12px 16px 10px;border-bottom:1px solid #e2e8f0;background:#fafafa;position:sticky;top:0;z-index:20;">
+                <div style="padding:12px 16px 10px;border-bottom:1px solid #e2e8f0;background:#fafafa;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                         <span style="font-size:0.78rem;font-weight:700;color:#334155;display:flex;align-items:center;gap:6px;">
                             <i class="fas fa-chart-area" style="color:#6366f1;"></i> Keyword Basket Distribution
@@ -22069,7 +22069,7 @@
                             <span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:rgba(239,68,68,0.25);border:1px solid rgba(239,68,68,0.4);flex-shrink:0;"></span>Below Trajectory
                         </span>
                         <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:#475569;" title="Expected P1 trajectory ±${tolPctNow}% of total KPI">
-                            <span style="display:inline-block;width:18px;height:0;border-top:1.5px dashed rgba(99,102,241,0.7);flex-shrink:0;"></span>±${tolPctNow}% KPI band
+                            <span style="display:inline-block;width:18px;height:0;border-top:2px dashed rgba(79,70,229,0.9);flex-shrink:0;"></span>±${tolPctNow}% KPI band
                         </span>
                         <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:#475569;">
                             <span style="display:inline-block;width:0;height:14px;border-left:1.25px dashed rgba(15,23,42,0.65);flex-shrink:0;"></span>Today
@@ -22827,12 +22827,14 @@
                 .map(s => _normName(s.name));
             const _allKpiC = (cockpitState.seoIntelCache || [])
                 .filter(c => c.kpi > 0 && !c.isSpecial && !c.isUntyped && c.startDate && c.endDate);
-            const kpiCampaigns = _visibleSiteNorms.length
+            let kpiCampaigns = _visibleSiteNorms.length
                 ? _allKpiC.filter(c => {
                     const cn = _normName(c.name);
                     return _visibleSiteNorms.some(sn => sn === cn || sn.includes(cn) || cn.includes(sn));
                   })
                 : _allKpiC;
+            // Fallback: if fuzzy matching yielded nothing, use all KPI campaigns so the band is still meaningful
+            if (!kpiCampaigns.length) kpiCampaigns = _allKpiC;
 
             const kpiMonthPlugin = {
                 id: 'kpiMonthBg',
@@ -22935,14 +22937,14 @@
                     upperPts.forEach(pt => { if (!pt) return; first ? ctx2.moveTo(pt.px, pt.py) : ctx2.lineTo(pt.px, pt.py); first = false; });
                     [...lowerPts].reverse().forEach(pt => { if (!pt) return; ctx2.lineTo(pt.px, pt.py); });
                     ctx2.closePath();
-                    ctx2.fillStyle = 'rgba(99,102,241,0.07)';
+                    ctx2.fillStyle = 'rgba(99,102,241,0.12)';
                     ctx2.fill();
 
-                    ctx2.lineWidth = 1.5;
-                    ctx2.setLineDash([5, 4]);
+                    ctx2.lineWidth = 2;
+                    ctx2.setLineDash([6, 4]);
 
                     // Upper bound line (indigo)
-                    ctx2.strokeStyle = 'rgba(99,102,241,0.55)';
+                    ctx2.strokeStyle = 'rgba(79,70,229,0.9)';
                     ctx2.beginPath();
                     first = true;
                     upperPts.forEach(pt => { if (!pt) return; first ? ctx2.moveTo(pt.px, pt.py) : ctx2.lineTo(pt.px, pt.py); first = false; });
@@ -22954,27 +22956,42 @@
                     lowerPts.forEach(pt => { if (!pt) return; first ? ctx2.moveTo(pt.px, pt.py) : ctx2.lineTo(pt.px, pt.py); first = false; });
                     ctx2.stroke();
 
-                    // End-of-line labels (right side) — anchored to last non-null bound point
+                    // End-of-line label pills (right side) — anchored to last non-null bound point
                     ctx2.setLineDash([]);
-                    ctx2.font = 'bold 9px system-ui,sans-serif';
+                    ctx2.font = 'bold 10px system-ui,sans-serif';
                     ctx2.textBaseline = 'middle';
-                    ctx2.fillStyle = 'rgba(67,56,202,0.85)';
                     const lastUpper = [...upperPts].reverse().find(Boolean);
                     const lastLower = [...lowerPts].reverse().find(Boolean);
                     const labelGap = 6;
                     const chartRight = chart.chartArea.right;
-                    if (lastUpper) {
-                        const text = `+${tolPct}% KPI`;
-                        const tx = Math.min(chartRight - ctx2.measureText(text).width - 2, lastUpper.px + labelGap);
-                        ctx2.textAlign = 'left';
-                        ctx2.fillText(text, tx, lastUpper.py);
-                    }
-                    if (lastLower) {
-                        const text = `−${tolPct}% KPI`;
-                        const tx = Math.min(chartRight - ctx2.measureText(text).width - 2, lastLower.px + labelGap);
-                        ctx2.textAlign = 'left';
-                        ctx2.fillText(text, tx, lastLower.py);
-                    }
+                    const drawPill = (text, px, py) => {
+                        const padX = 5, padY = 2;
+                        const tw = ctx2.measureText(text).width;
+                        const pillW = tw + padX * 2;
+                        const pillH = 16;
+                        let pillX = px + labelGap;
+                        if (pillX + pillW > chartRight) pillX = chartRight - pillW - 1;
+                        const pillY = py - pillH / 2;
+                        const r = 4;
+                        ctx2.fillStyle = 'rgba(79,70,229,0.95)';
+                        ctx2.beginPath();
+                        ctx2.moveTo(pillX + r, pillY);
+                        ctx2.lineTo(pillX + pillW - r, pillY);
+                        ctx2.quadraticCurveTo(pillX + pillW, pillY, pillX + pillW, pillY + r);
+                        ctx2.lineTo(pillX + pillW, pillY + pillH - r);
+                        ctx2.quadraticCurveTo(pillX + pillW, pillY + pillH, pillX + pillW - r, pillY + pillH);
+                        ctx2.lineTo(pillX + r, pillY + pillH);
+                        ctx2.quadraticCurveTo(pillX, pillY + pillH, pillX, pillY + pillH - r);
+                        ctx2.lineTo(pillX, pillY + r);
+                        ctx2.quadraticCurveTo(pillX, pillY, pillX + r, pillY);
+                        ctx2.closePath();
+                        ctx2.fill();
+                        ctx2.fillStyle = '#fff';
+                        ctx2.textAlign = 'center';
+                        ctx2.fillText(text, pillX + pillW / 2, py + 0.5);
+                    };
+                    if (lastUpper) drawPill(`+${tolPct}% KPI`, lastUpper.px, lastUpper.py);
+                    if (lastLower) drawPill(`−${tolPct}% KPI`, lastLower.px, lastLower.py);
 
                     ctx2.restore();
                 },
