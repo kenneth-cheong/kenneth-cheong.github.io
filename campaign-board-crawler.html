@@ -2317,30 +2317,55 @@
                     }
                 }
 
-                // Step 2.5: For any boards whose folder IDs still aren't in folderMeta,
-                // query folder info through the board object itself. Board guests can access
-                // board.folder even when workspace-level folder queries are blocked.
-                const unresolvedBoardIds = [...new Set(
-                    allBoards.filter(b => b.board_folder_id && !folderMeta[b.board_folder_id]).map(b => b.id)
-                )].slice(0, 200);
-                if (unresolvedBoardIds.length > 0) {
+                // Step 2.5: Resolve any folder IDs still missing from folderMeta.
+                // folders(workspace_ids) only returns top-level folders; sub-folder IDs need
+                // a direct folders(ids) lookup. Falls back to board.folder if that fails.
+                const unresolvedFolderIds = [...new Set(
+                    allBoards.map(b => b.board_folder_id).filter(id => id && !folderMeta[id])
+                )];
+                if (unresolvedFolderIds.length > 0) {
+                    // Attempt 1: direct folders(ids) — works for admins and workspace members
                     try {
-                        for (let i = 0; i < unresolvedBoardIds.length; i += 50) {
-                            const batch = unresolvedBoardIds.slice(i, i + 50);
-                            const bfData = await monday(
-                                `query($ids:[ID!]){ boards(ids:$ids){ id folder { id name parent { id name } } } }`,
+                        for (let i = 0; i < unresolvedFolderIds.length; i += 100) {
+                            const batch = unresolvedFolderIds.slice(i, i + 100);
+                            const fdata = await monday(
+                                `query($ids:[ID!]){ folders(ids:$ids){ id name parent { id name } } }`,
                                 { ids: batch }, "Resolving folder names (extended)..."
                             );
-                            (bfData.boards || []).forEach(b => {
-                                if (b.folder) {
-                                    if (!folderMeta[b.folder.id])
-                                        folderMeta[b.folder.id] = { name: b.folder.name, parentId: b.folder.parent?.id, parentName: b.folder.parent?.name };
-                                    if (b.folder.parent && !folderMeta[b.folder.parent.id])
-                                        folderMeta[b.folder.parent.id] = { name: b.folder.parent.name };
-                                }
+                            (fdata.folders || []).forEach(f => {
+                                folderMeta[f.id] = { name: f.name, parentId: f.parent?.id, parentName: f.parent?.name };
+                                if (f.parent && !folderMeta[f.parent.id])
+                                    folderMeta[f.parent.id] = { name: f.parent.name };
                             });
                         }
-                    } catch(e) { console.warn("board.folder sub-query failed", e); }
+                    } catch(e) { console.warn("folders(ids) extended lookup failed", e); }
+
+                    // Attempt 2: board.folder sub-query — fallback for limited-permission accounts
+                    const stillUnresolved = [...new Set(
+                        allBoards.map(b => b.board_folder_id).filter(id => id && !folderMeta[id])
+                    )];
+                    if (stillUnresolved.length > 0) {
+                        const boardIds = [...new Set(
+                            allBoards.filter(b => stillUnresolved.includes(b.board_folder_id)).map(b => b.id)
+                        )].slice(0, 200);
+                        try {
+                            for (let i = 0; i < boardIds.length; i += 50) {
+                                const batch = boardIds.slice(i, i + 50);
+                                const bfData = await monday(
+                                    `query($ids:[ID!]){ boards(ids:$ids){ id folder { id name parent { id name } } } }`,
+                                    { ids: batch }, "Resolving folder names (extended)..."
+                                );
+                                (bfData.boards || []).forEach(b => {
+                                    if (b.folder) {
+                                        if (!folderMeta[b.folder.id])
+                                            folderMeta[b.folder.id] = { name: b.folder.name, parentId: b.folder.parent?.id, parentName: b.folder.parent?.name };
+                                        if (b.folder.parent && !folderMeta[b.folder.parent.id])
+                                            folderMeta[b.folder.parent.id] = { name: b.folder.parent.name };
+                                    }
+                                });
+                            }
+                        } catch(e) { console.warn("board.folder sub-query failed", e); }
+                    }
                 }
 
                 // Step 3: Build folder groups — also bubble boards up to parent folders
