@@ -550,21 +550,26 @@ def run_gsc_performance(site_url, tool_input, token):
 def run_ga4_report(property_id, tool_input, token):
     url = f"https://analyticsdata.googleapis.com/v1beta/{property_id}:runReport"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    
-    # Strip internal fields
-    payload = {k: v for k, v in tool_input.items() if k not in ['propertyId', 'action']}
-    
-    # Basic GA4 report structure if missing
+
+    # Strip internal fields and GA4-specific keys handled separately
+    payload = {k: v for k, v in tool_input.items() if k not in ['propertyId', 'action', 'metrics', 'dimensions', 'startDate', 'endDate']}
+
+    # Build dateRanges from startDate/endDate or default to last 30 days
     if 'dateRanges' not in payload:
-        payload['dateRanges'] = [{"startDate": "30daysAgo", "endDate": "today"}]
-    if 'metrics' not in payload and 'metrics' in tool_input:
-        # tool_input metrics is array of strings, GA4 wants array of objects
-        payload['metrics'] = [{"name": m} for m in tool_input['metrics']]
-    elif 'metrics' not in payload:
+        start = tool_input.get('startDate', '30daysAgo')
+        end = tool_input.get('endDate', 'today')
+        payload['dateRanges'] = [{"startDate": start, "endDate": end}]
+
+    # GA4 API requires metrics/dimensions as array of objects {name: ...}, not plain strings
+    raw_metrics = tool_input.get('metrics')
+    if raw_metrics:
+        payload['metrics'] = [{"name": m} if isinstance(m, str) else m for m in raw_metrics]
+    else:
         payload['metrics'] = [{"name": "sessions"}, {"name": "activeUsers"}]
-        
-    if 'dimensions' not in payload and 'dimensions' in tool_input:
-        payload['dimensions'] = [{"name": d} for d in tool_input['dimensions']]
+
+    raw_dims = tool_input.get('dimensions')
+    if raw_dims:
+        payload['dimensions'] = [{"name": d} if isinstance(d, str) else d for d in raw_dims]
         
     try:
         print(f"[GA4] Querying {property_id} with payload: {payload}")
