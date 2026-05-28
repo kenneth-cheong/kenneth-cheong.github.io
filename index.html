@@ -10915,7 +10915,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1530</span>
+                <span id="appVersion">v1.0.1531</span>
             </a>
         </div>
 
@@ -22596,6 +22596,21 @@
             syncScatterFromRowSelection();
         }
 
+        function scrollToSeoIntelCampaign(siteName) {
+            const norm = seoIntelNormalizeName(siteName);
+            const match = (cockpitState.seoIntelCache || []).find(c => {
+                const cn = seoIntelNormalizeName(c.name);
+                return cn === norm || cn.includes(norm) || norm.includes(cn);
+            });
+            if (!match) return;
+            const rowEl = document.getElementById('seo-row-' + match.id);
+            if (!rowEl) return;
+            rowEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            const prev = rowEl.style.background;
+            rowEl.style.background = '#eef2ff';
+            setTimeout(() => { rowEl.style.background = prev; }, 1500);
+        }
+
         function renderSeoIntelScatterChart() {
             const loadEl = document.getElementById('seo-scatter-loading');
             const wrapEl = document.getElementById('seo-scatter-wrap');
@@ -22870,9 +22885,10 @@
                     campaignsEl.style.display = 'block';
                     campaignsEl.innerHTML =
                         `<span style="font-weight:600;color:#475569;">Campaigns: </span>` +
-                        visibleNames.map(n =>
-                            `<span style="display:inline-block;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:1px 6px;margin:1px 2px;white-space:nowrap;">${n.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>`
-                        ).join('');
+                        visibleNames.map(n => {
+                            const safe = n.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+                            return `<span data-site-name="${safe}" onclick="scrollToSeoIntelCampaign(this.dataset.siteName)" style="display:inline-block;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:1px 6px;margin:1px 2px;white-space:nowrap;cursor:pointer;" onmouseover="this.style.background='#e0e7ff';this.style.borderColor='#a5b4fc'" onmouseout="this.style.background='#f1f5f9';this.style.borderColor='#e2e8f0'">${safe}</span>`;
+                        }).join('');
                 } else {
                     campaignsEl.style.display = 'none';
                 }
