@@ -753,6 +753,73 @@ def claude_chat_with_tools(body):
             }
         },
         {
+            "name": "dataforseo_serp",
+            "description": "Get Google organic SERP results for a keyword. Returns the top-ranking pages, their URLs, titles, descriptions, and positions.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "keyword": {"type": "string", "description": "The search keyword to get SERP results for."},
+                    "location_name": {"type": "string", "description": "Location name, e.g. 'Singapore', 'United States', 'United Kingdom'."},
+                    "language_name": {"type": "string", "description": "Language name, e.g. 'English'."},
+                    "depth": {"type": "integer", "description": "Number of results to return (default 10, max 100).", "default": 10}
+                },
+                "required": ["keyword"]
+            }
+        },
+        {
+            "name": "dataforseo_search_volume",
+            "description": "Get Google Ads search volume, competition level, and CPC for a list of keywords.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "keywords": {"type": "array", "items": {"type": "string"}, "description": "List of keywords to get search volume for (max 1000)."},
+                    "location_name": {"type": "string", "description": "Location name, e.g. 'Singapore', 'United States'."},
+                    "language_name": {"type": "string", "description": "Language name, e.g. 'English'."}
+                },
+                "required": ["keywords"]
+            }
+        },
+        {
+            "name": "dataforseo_backlinks_summary",
+            "description": "Get a backlink summary for a domain or URL: total backlinks, referring domains, domain rank, and broken pages.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "target": {"type": "string", "description": "Domain or URL to get backlinks for, e.g. 'example.com' or 'https://example.com/page'."},
+                    "include_subdomains": {"type": "boolean", "description": "Whether to include subdomains (default true).", "default": true}
+                },
+                "required": ["target"]
+            }
+        },
+        {
+            "name": "dataforseo_domain_rank_overview",
+            "description": "Get a domain's organic traffic rank overview: estimated traffic, number of keywords ranking, and authority score.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "target": {"type": "string", "description": "Domain to analyse, e.g. 'example.com'."},
+                    "location_name": {"type": "string", "description": "Location name, e.g. 'Singapore', 'United States'."},
+                    "language_name": {"type": "string", "description": "Language name, e.g. 'English'."}
+                },
+                "required": ["target"]
+            }
+        },
+        {
+            "name": "dataforseo_ranked_keywords",
+            "description": "Get keywords a domain currently ranks for organically in Google, including positions, search volume, and URLs.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "target": {"type": "string", "description": "Domain to get ranked keywords for, e.g. 'example.com'."},
+                    "location_name": {"type": "string", "description": "Location name, e.g. 'Singapore', 'United States'."},
+                    "language_name": {"type": "string", "description": "Language name, e.g. 'English'."},
+                    "limit": {"type": "integer", "description": "Max number of keywords to return (default 100, max 1000).", "default": 100},
+                    "filters": {"type": "array", "description": "Optional filters, e.g. [[\"ranked_serp_element.serp_item.rank_group\",\"<\",\"11\"]] for top-10 keywords.", "items": {}}
+                },
+                "required": ["target"]
+            }
+        },
+        {
             "name": "save_memory_note",
             "description": "STRICT MANDATE. Use this tool whenever you learn a new preference, fact, or logic about the user or their projects to remember for future sessions.",
             "input_schema": {
@@ -1093,6 +1160,96 @@ def claude_chat_with_tools(body):
                                 "is_error":    True
                             })
 
+                    elif tool_name == "dataforseo_serp":
+                        keyword = tool_input.get("keyword", "")
+                        loc = tool_input.get("location_name", "Singapore")
+                        lang = tool_input.get("language_name", "English")
+                        depth = tool_input.get("depth", 10)
+                        df_headers = {"Authorization": DATAFORSEO_API_KEY, "Content-Type": "application/json"}
+                        try:
+                            res = requests.post(
+                                "https://api.dataforseo.com/v3/serp/google/organic/live/regular",
+                                headers=df_headers,
+                                json=[{"keyword": keyword, "location_name": loc, "language_name": lang, "depth": depth, "se_type": "regular"}],
+                                timeout=30
+                            )
+                            tool_results.append({"type": "tool_result", "tool_use_id": tool_id, "content": res.text})
+                            tool_call_log.append(f"Fetched SERP results for: {keyword} ({loc})")
+                        except Exception as e:
+                            tool_results.append({"type": "tool_result", "tool_use_id": tool_id, "content": json.dumps({"error": str(e)}), "is_error": True})
+
+                    elif tool_name == "dataforseo_search_volume":
+                        keywords = tool_input.get("keywords", [])
+                        loc = tool_input.get("location_name", "Singapore")
+                        lang = tool_input.get("language_name", "English")
+                        df_headers = {"Authorization": DATAFORSEO_API_KEY, "Content-Type": "application/json"}
+                        try:
+                            res = requests.post(
+                                "https://api.dataforseo.com/v3/keywords_data/google_ads/search_volume/live",
+                                headers=df_headers,
+                                json=[{"keywords": keywords, "location_name": loc, "language_name": lang}],
+                                timeout=30
+                            )
+                            tool_results.append({"type": "tool_result", "tool_use_id": tool_id, "content": res.text})
+                            tool_call_log.append(f"Got search volume for {len(keywords)} keywords ({loc})")
+                        except Exception as e:
+                            tool_results.append({"type": "tool_result", "tool_use_id": tool_id, "content": json.dumps({"error": str(e)}), "is_error": True})
+
+                    elif tool_name == "dataforseo_backlinks_summary":
+                        target = tool_input.get("target", "")
+                        include_subdomains = tool_input.get("include_subdomains", True)
+                        df_headers = {"Authorization": DATAFORSEO_API_KEY, "Content-Type": "application/json"}
+                        try:
+                            res = requests.post(
+                                "https://api.dataforseo.com/v3/backlinks/summary/live",
+                                headers=df_headers,
+                                json=[{"target": target, "include_subdomains": include_subdomains}],
+                                timeout=30
+                            )
+                            tool_results.append({"type": "tool_result", "tool_use_id": tool_id, "content": res.text})
+                            tool_call_log.append(f"Fetched backlinks summary for: {target}")
+                        except Exception as e:
+                            tool_results.append({"type": "tool_result", "tool_use_id": tool_id, "content": json.dumps({"error": str(e)}), "is_error": True})
+
+                    elif tool_name == "dataforseo_domain_rank_overview":
+                        target = tool_input.get("target", "")
+                        loc = tool_input.get("location_name", "Singapore")
+                        lang = tool_input.get("language_name", "English")
+                        df_headers = {"Authorization": DATAFORSEO_API_KEY, "Content-Type": "application/json"}
+                        try:
+                            res = requests.post(
+                                "https://api.dataforseo.com/v3/dataforseo_labs/google/domain_rank_overview/live",
+                                headers=df_headers,
+                                json=[{"target": target, "location_name": loc, "language_name": lang}],
+                                timeout=30
+                            )
+                            tool_results.append({"type": "tool_result", "tool_use_id": tool_id, "content": res.text})
+                            tool_call_log.append(f"Fetched domain rank overview for: {target}")
+                        except Exception as e:
+                            tool_results.append({"type": "tool_result", "tool_use_id": tool_id, "content": json.dumps({"error": str(e)}), "is_error": True})
+
+                    elif tool_name == "dataforseo_ranked_keywords":
+                        target = tool_input.get("target", "")
+                        loc = tool_input.get("location_name", "Singapore")
+                        lang = tool_input.get("language_name", "English")
+                        limit = tool_input.get("limit", 100)
+                        filters = tool_input.get("filters")
+                        df_headers = {"Authorization": DATAFORSEO_API_KEY, "Content-Type": "application/json"}
+                        payload_item = {"target": target, "location_name": loc, "language_name": lang, "limit": limit}
+                        if filters:
+                            payload_item["filters"] = filters
+                        try:
+                            res = requests.post(
+                                "https://api.dataforseo.com/v3/dataforseo_labs/google/ranked_keywords/live",
+                                headers=df_headers,
+                                json=[payload_item],
+                                timeout=30
+                            )
+                            tool_results.append({"type": "tool_result", "tool_use_id": tool_id, "content": res.text})
+                            tool_call_log.append(f"Fetched ranked keywords for: {target} ({loc})")
+                        except Exception as e:
+                            tool_results.append({"type": "tool_result", "tool_use_id": tool_id, "content": json.dumps({"error": str(e)}), "is_error": True})
+
                     elif tool_name == "save_memory_note":
                         text = tool_input.get("text", "")
                         tag = tool_input.get("tag", "General")
@@ -1354,6 +1511,13 @@ def lambda_handler(event, context):
                     query["ts"] = {"$lt": before}
                 logs = list(db.tool_logs.find(query, {"_id": 0, "savedAt": 0, "orgId": 0}).sort("ts", -1).limit(limit))
                 result = {"statusCode": 200, "body": json.dumps({"logs": logs, "has_more": len(logs) == limit}, cls=JSONEncoder)}
+        elif action == 'clear_tool_logs':
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                deleted = db.tool_logs.delete_many({"orgId": "digimetrics"})
+                result = {"statusCode": 200, "body": json.dumps({"success": True, "deleted": deleted.deleted_count}, cls=JSONEncoder)}
         elif action == 'get_monday_data':
             params = body.get('data', body)
             query = params.get('query') or body.get('query')
