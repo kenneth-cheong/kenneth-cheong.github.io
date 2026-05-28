@@ -4843,7 +4843,9 @@
                 showToast('Save failed — check your connection and try again.', 'error');
                 return;
             }
-            const url = `${location.origin}${location.pathname}?share=${currentConversationId}`;
+            // Include userId in URL so the fetch can use the exact userId filter (avoids unreliable fetchAll scan)
+            const uidParam = userId ? `&u=${encodeURIComponent(userId)}` : '';
+            const url = `${location.origin}${location.pathname}?share=${currentConversationId}${uidParam}`;
             try {
                 await navigator.clipboard.writeText(url);
                 showToast('Share link copied to clipboard!', 'success');
@@ -4907,10 +4909,15 @@
             }
 
             try {
+                const shareUserId = params.get('u') || null;
+                const fetchPayload = shareUserId
+                    ? { conversationId: shareId, userId: shareUserId }
+                    : { conversationId: shareId, fetchAll: true };
+                console.log('[SHARE] Fetch payload:', fetchPayload);
                 const res = await fetch(PERSISTENCE_API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'get_conversation', data: { conversationId: shareId, fetchAll: true } })
+                    body: JSON.stringify({ action: 'get_conversation', data: fetchPayload })
                 });
                 console.log('[SHARE] HTTP status:', res.status);
                 const result = await res.json();
