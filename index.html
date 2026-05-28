@@ -10915,7 +10915,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1510</span>
+                <span id="appVersion">v1.0.1511</span>
             </a>
         </div>
 
@@ -15222,7 +15222,6 @@
                                     <option value="instagram-caption">Instagram Caption</option>
                                     <option value="facebook-post">Facebook Post</option>
                                     <option value="linkedin-post">LinkedIn Post</option>
-                                    <option value="blog-post">Blog / Long-form ↗</option>
                                 </select>
                             </div>
                         </div>
@@ -15300,13 +15299,6 @@
                             </div>
                         </div>
 
-                        <div id="blog-redirect-notice" style="display:none; background:#eff6ff; border:1px solid #bfdbfe; border-left:4px solid #3b82f6; border-radius:8px; padding:16px 20px; margin-top:20px;">
-                            <div style="font-weight:700; color:#1e40af; margin-bottom:6px;"><i class="fas fa-info-circle"></i> Use the AI Content Optimiser for blog &amp; long-form content</div>
-                            <div style="font-size:0.88rem; color:#1e3a8a; margin-bottom:14px;">The Caption Generator is optimised for short social posts. For blogs and long-form articles, the AI Content Optimiser gives you competitor analysis, structured outlines, keyword integration, and full article generation.</div>
-                            <button type="button" onclick="openAiContentOptimiser(event)" class="config-btn-highlight" style="margin:0; font-size:0.88rem; padding:9px 18px;">
-                                <i class="fas fa-magic"></i> Go to AI Content Optimiser
-                            </button>
-                        </div>
 
                         <div id="caption-generate-row" style="display: flex; gap: 15px; margin-top: 25px; flex-wrap: wrap; align-items: flex-end;">
                             <div style="display:flex; flex-direction:column; gap:4px;">
@@ -37346,18 +37338,12 @@ ${selectedText}
                 'instagram-caption': { topic: 'What is the post about? (visual-led, punchy)', wordCount: 'e.g. 80–120 words' },
                 'linkedin-post':     { topic: 'What insight or story does this share?',        wordCount: 'e.g. 150–250 words' },
                 'facebook-post':     { topic: 'What is the post about? (conversational)',      wordCount: 'e.g. 100–180 words' },
-                'blog-post':         { topic: 'What topic does this article cover?',           wordCount: 'e.g. 600–1200 words' },
             };
             const h = hints[value] || hints['instagram-caption'];
             const topicField     = document.getElementById('post-info');
             const wordCountField = document.getElementById('word_count');
-            const notice         = document.getElementById('blog-redirect-notice');
-            const generateRow    = document.getElementById('caption-generate-row');
             if (topicField)     topicField.placeholder     = h.topic;
             if (wordCountField) wordCountField.placeholder = h.wordCount;
-            const isBlog = value === 'blog-post';
-            if (notice)      notice.style.display      = isBlog ? 'block' : 'none';
-            if (generateRow) generateRow.style.display  = isBlog ? 'none'  : 'flex';
         }
         document.getElementById('content-type').addEventListener('change', function () {
             applyContentTypeState(this.value);
@@ -37453,7 +37439,6 @@ ${selectedText}
                 const sampleText      = getVal('sample-text', '');
 
                 const contentTypeLabels = {
-                    'blog-post':         'blog post',
                     'instagram-caption': 'Instagram caption',
                     'facebook-post':     'Facebook post',
                     'linkedin-post':     'LinkedIn post',
@@ -37524,8 +37509,7 @@ Output ONLY the finished ${contentTypeLabel} — no meta-commentary, no explanat
                 );
                 const content = variations.filter(Boolean);
 
-                const renderCaption = (text) =>
-                    contentType === 'blog-post' ? formatMarkdownToHTML(text) : text.replace(/\n/g, '<br>');
+                const renderCaption = (text) => text.replace(/\n/g, '<br>');
 
                 const outputText = document.getElementById('content-output-text');
                 if (content.length > 0) {
@@ -50917,8 +50901,7 @@ Return compact valid JSON only. No prose.
             const contentType = document.getElementById('content-type').value;
             const btn = event.currentTarget;
 
-            // If blog post, copy HTML source; otherwise copy plain text
-            let textToCopy = (contentType === 'blog-post') ? outputText.innerHTML : outputText.innerText;
+            let textToCopy = outputText.innerText;
 
             try {
                 await navigator.clipboard.writeText(textToCopy);
