@@ -10915,7 +10915,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1509</span>
+                <span id="appVersion">v1.0.1510</span>
             </a>
         </div>
 
@@ -15315,6 +15315,8 @@
                                     <option value="1">1 — Single</option>
                                     <option value="3">3 — Variations</option>
                                     <option value="5">5 — Variations</option>
+                                    <option value="7">7 — Variations</option>
+                                    <option value="10">10 — Variations</option>
                                 </select>
                             </div>
                             <button type="submit" id="generate-button" class="config-btn-highlight"
@@ -22266,7 +22268,6 @@
                     return;
                 }
 
-                updateSeoSparklines();
                 renderSeoIntelScatterChart();
 
             } catch (e) {
@@ -22381,7 +22382,6 @@
                         <div style="height:100%;width:${c.pctProgress}%;background:#cbd5e1;border-radius:4px;"></div>
                     </div>
                     <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.71rem;color:#94a3b8;">
-                        <span id="seo-sparkline-${c.id}" style="display:flex;align-items:center;"></span>
                         <span>${c.pctProgress}% · ${fmtDate(c.startDate)} – ${fmtDate(c.endDate)}</span>
                     </div>
                 </div>`;
@@ -22444,7 +22444,6 @@
                         ? `<span><span style="font-weight:700;color:#0f172a;">${c.p1 === 999 ? 'Checked ✓' : 'Not checked'}</span> &nbsp;·&nbsp; <span style="color:#94a3b8;">due at 50% mark · KPI <b style="color:#475569;">999</b></span></span>`
                         : `<span><span style="font-weight:700;color:#0f172a;">${c.p1}</span> ${c.resultLabel} &nbsp;·&nbsp; <span style="color:#94a3b8;">expected <b style="color:#475569;">${c.expected}</b> · KPI <b style="color:#475569;">${c.kpi}</b></span></span>`
                     }
-                    <span id="seo-sparkline-${c.id}" style="display:flex;align-items:center;margin:0 6px;"></span>
                     <span style="color:#94a3b8;">${c.pctProgress}% · ${fmtDate(c.startDate)} – ${fmtDate(c.endDate)}</span>
                 </div>
             </div>`;
@@ -22569,42 +22568,6 @@
             return (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         }
 
-        function buildSeoSparkline(campaignName, color) {
-            const bd    = cockpitState.basketChartData;
-            const sites = cockpitState.basketSiteData;
-            if (!bd || !sites?.length) return '';
-            const { months } = bd;
-            if (!months.length) return '';
-            const norm    = seoIntelNormalizeName(campaignName);
-            const matched = sites.filter(s => { const n = seoIntelNormalizeName(s.name); return norm === n || norm.includes(n) || n.includes(norm); });
-            if (!matched.length) return '';
-            const vals = months.map(ym => matched.reduce((sum, s) => sum + (s.monthly[ym]?.p1 || 0), 0));
-            const max  = Math.max(...vals, 1);
-            const W = 70, H = 20, pad = 2;
-            const step = months.length > 1 ? (W - pad * 2) / (months.length - 1) : 0;
-            const pts = vals.map((v, i) => `${(pad + i * step).toFixed(1)},${(H - pad - (v / max) * (H - pad * 2)).toFixed(1)}`);
-            const lastPt   = pts[pts.length - 1].split(',');
-            const areaPath = `M${pts[0]} ` + pts.slice(1).map(p => `L${p}`).join(' ')
-                + ` L${(pad + (months.length - 1) * step).toFixed(1)},${H} L${pad},${H} Z`;
-            return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="flex-shrink:0;overflow:visible;" title="P1 trend (${months[0]} – ${months[months.length - 1]})">
-                <path d="${areaPath}" fill="${color}" fill-opacity="0.12"/>
-                <polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
-                <circle cx="${lastPt[0]}" cy="${lastPt[1]}" r="2.5" fill="${color}"/>
-            </svg>`;
-        }
-
-        function updateSeoSparklines() {
-            (cockpitState.seoIntelCache || []).forEach(c => {
-                const el = document.getElementById('seo-sparkline-' + c.id);
-                if (!el) return;
-                let clr;
-                if (c.isUntyped)      clr = '#94a3b8';
-                else if (c.isSpecial) clr = c.p1 === 999 ? '#16a34a' : (c.pctProgress < 50 ? '#d97706' : '#dc2626');
-                else                  clr = c.isBehind ? '#dc2626' : '#16a34a';
-                el.innerHTML = buildSeoSparkline(c.name, clr);
-            });
-        }
-
         function syncScatterFromRowSelection() {
             const rowSel    = cockpitState.seoIntelRowSelection;
             const sites     = cockpitState.basketSiteData || [];
@@ -22663,7 +22626,6 @@
 
             if (loadEl) loadEl.style.display = 'none';
             if (wrapEl) wrapEl.style.display = 'block';
-            updateSeoSparklines();
 
             // Populate campaign dropdown once site data is available
             const listEl = document.getElementById('seo-scatter-list');
@@ -37469,7 +37431,7 @@ ${selectedText}
 
                 // Collect all form fields (including strategy fields not previously sent)
                 const contentType     = getVal('content-type', 'instagram-caption');
-                const variationsCount = Math.min(parseInt(getVal('variations_count', '1')) || 1, 5);
+                const variationsCount = Math.min(parseInt(getVal('variations_count', '1')) || 1, 10);
                 const postRole        = getVal('post-role', '');
                 const strategyFit     = getVal('strategy-fit', '');
                 const coreMessage     = getVal('core-message', '');
@@ -37525,14 +37487,37 @@ WRITING RULES — apply every rule without exception:
 
 Output ONLY the finished ${contentTypeLabel} — no meta-commentary, no explanations, no labels. Ready to publish.`;
 
-                const fetchVariation = (i) => fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'generate', model: 'claude', prompt, settings: { temperature: 0.7 + i * 0.05 } })
-                }).then(r => r.json()).then(result => {
-                    const respBody = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body || result);
-                    return respBody.result || respBody.text || respBody.content || '';
-                });
+                const CREATIVE_ANGLES = [
+                    { name: 'Atmospheric Opening',         instruction: 'Lead with a cinematic, sensory scene that immerses the reader in a mood before any product or brand mention. Appeal to sight, texture, sound, or scent.' },
+                    { name: 'Provocative Question',        instruction: 'Open with a sharp, scroll-stopping question that challenges a common assumption or voices an unspoken desire the audience hasn\'t yet articulated.' },
+                    { name: 'Contrarian Take',             instruction: 'Start with a statement that reframes conventional wisdom on this topic — something unexpected, counterintuitive, or quietly rebellious that earns the reader\'s curiosity.' },
+                    { name: 'Micro-Story',                 instruction: 'Open with a tiny, hyper-specific story (2–3 lines) — a single moment, a gesture, a detail — that feels like a real scene the reader could have lived.' },
+                    { name: 'Bold Declaration',            instruction: 'Open with a confident, unhedged statement. No qualifiers, no warm-up. Claim the room from the very first word.' },
+                    { name: 'Cultural Hook',               instruction: 'Connect this content to a larger cultural movement, collective mood, or societal shift the audience is already living — name the thing they feel but haven\'t said out loud.' },
+                    { name: 'Insider Angle',               instruction: 'Write as if sharing something most people don\'t know — a process secret, a craft-level insight, a behind-the-scenes truth. Give the reader a feeling of privileged access.' },
+                    { name: 'Aspiration & Transformation', instruction: 'Lead with the desired future state: describe what life looks, feels, or sounds like after the transformation. Begin at the destination, not the journey.' },
+                    { name: 'Community & Belonging',       instruction: 'Address the reader as a member of a specific tribe or movement that holds particular values. Write to make them feel seen, chosen, and part of something meaningful.' },
+                    { name: 'Minimalist / Haiku Energy',   instruction: 'Three sentences maximum. Each line lands with weight. Heavy rhythm, deliberate white space, every single word earns its place — restraint is the technique.' },
+                ];
+
+                const variationAngles = variationsCount > 1
+                    ? Array.from({ length: variationsCount }, (_, i) => CREATIVE_ANGLES[i % CREATIVE_ANGLES.length])
+                    : [];
+
+                const fetchVariation = (i) => {
+                    let fullPrompt = prompt;
+                    if (variationAngles[i]) {
+                        fullPrompt += `\n\nCREATIVE APPROACH FOR THIS VARIATION — ${variationAngles[i].name.toUpperCase()}: ${variationAngles[i].instruction}`;
+                    }
+                    return fetch(OPTIMISER_ENDPOINTS.CONTENT_AI, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'generate', model: 'claude', prompt: fullPrompt, settings: { temperature: 0.75 + i * 0.02 } })
+                    }).then(r => r.json()).then(result => {
+                        const respBody = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body || result);
+                        return respBody.result || respBody.text || respBody.content || '';
+                    });
+                };
 
                 const variations = await Promise.all(
                     Array.from({ length: variationsCount }, (_, i) => fetchVariation(i))
@@ -37549,7 +37534,7 @@ Output ONLY the finished ${contentTypeLabel} — no meta-commentary, no explanat
                     } else {
                         outputText.innerHTML = content.map((c, i) => `
                             <div style="margin-bottom:24px; padding-bottom:24px; ${i < content.length - 1 ? 'border-bottom:1px solid #e0e6ed;' : ''}">
-                                <div style="font-size:0.72em; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:1px; margin-bottom:10px;">Variation ${i + 1}</div>
+                                <div style="font-size:0.72em; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:1px; margin-bottom:10px;">Variation ${i + 1}${variationAngles[i] ? ` <span style="font-weight:400; color:#cbd5e1; text-transform:none; letter-spacing:0;">· ${variationAngles[i].name}</span>` : ''}</div>
                                 <div>${renderCaption(c)}</div>
                             </div>`).join('');
                     }
@@ -70992,6 +70977,7 @@ Move-In</h3>
                 'auditLandingPage':          { tool: 'Landing Page Audit',             category: 'Others' },
                 'personaGenerator':          { tool: 'Persona Generator',              category: 'Others' },
                 'mediaPlanGenerator':        { tool: 'Media Plan',                     category: 'Others' },
+                'generateFunnel':            { tool: 'Media Plan',                     category: 'Others' },
                 // Admin
                 '/monday':                   { tool: 'Monday.com',                     category: 'Admin' },
                 'seRanking':                 { tool: 'Rank Checker',                   category: 'SEO' },
@@ -71000,6 +70986,14 @@ Move-In</h3>
                 'googleChatAdd':             { tool: 'Google Chat Admin',              category: 'Admin' },
                 'googleapis.com/oauth':      { tool: 'Google Auth',                    category: 'Admin' },
                 'googleapis.com':            { tool: 'Google APIs',                    category: 'Others' },
+                // Keyword volume/difficulty (Mangools)
+                'mangoolsKeywords':          { tool: 'Keyword Analysis',               category: 'SEO' },
+                // Keyword Mapping drag-drop grouping
+                'dragDrop':                  { tool: 'Keyword Mapping',                category: 'SEO' },
+                // Generic /new proxy hosts — keyed by unique host ID
+                'b8cyd5ed90':               { tool: 'Rank Checker',                   category: 'SEO' },  // Ahrefs proxy
+                'a7hptjtc8e':               { tool: 'Page Technical & Domain Analysis', category: 'SEO' }, // Moz proxy
+                '9px7sjbyyb':               { tool: 'Page Technical & Domain Analysis', category: 'SEO' }, // DataForSEO /new
             };
 
             // ── Shared context trackers for cross-promise error attribution
