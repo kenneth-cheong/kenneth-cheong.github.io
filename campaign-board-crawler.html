@@ -2288,17 +2288,31 @@
                     throw new Error("No boards found. If you have boards, please check your API permissions.");
                 }
 
-                // Step 2: Collect unique folder IDs and batch-fetch their names + parent
-                const folderIds = [...new Set(allBoards.map(b => b.board_folder_id).filter(Boolean))];
+                // Step 2: Build folder metadata from workspace folder trees.
+                // Using workspaces { folders } is more permissive than folders(ids:$ids) —
+                // the latter only returns folders the token can query by ID, causing unresolved
+                // "Folder XXXXXXX" names and missing parent entries for users with limited access.
                 const folderMeta = {}; // id -> { name, parentId, parentName }
-                if (folderIds.length > 0) {
-                    try {
-                        const fdata = await monday(`query($ids:[ID!]){ folders(ids:$ids){ id name parent { id name } } }`, { ids: folderIds }, "Resolving folder names...");
-                        (fdata.folders || []).forEach(f => {
+                try {
+                    const wsData = await monday(
+                        `query { workspaces(limit:50) { folders(limit:500) { id name parent { id name } } } }`,
+                        {}, "Resolving folder names..."
+                    );
+                    (wsData.workspaces || []).forEach(ws => {
+                        (ws.folders || []).forEach(f => {
                             folderMeta[f.id] = { name: f.name, parentId: f.parent?.id, parentName: f.parent?.name };
                         });
-                    } catch (err) {
-                        console.warn("Could not fetch folder names, falling back to workspace grouping", err);
+                    });
+                } catch (err) {
+                    console.warn("Workspace folder fetch failed, falling back to IDs query", err);
+                    const folderIds = [...new Set(allBoards.map(b => b.board_folder_id).filter(Boolean))];
+                    if (folderIds.length > 0) {
+                        try {
+                            const fdata = await monday(`query($ids:[ID!]){ folders(ids:$ids){ id name parent { id name } } }`, { ids: folderIds });
+                            (fdata.folders || []).forEach(f => {
+                                folderMeta[f.id] = { name: f.name, parentId: f.parent?.id, parentName: f.parent?.name };
+                            });
+                        } catch(e) { console.warn("ID-based folder resolution also failed", e); }
                     }
                 }
 
