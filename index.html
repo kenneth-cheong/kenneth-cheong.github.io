@@ -10915,7 +10915,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1523</span>
+                <span id="appVersion">v1.0.1524</span>
             </a>
         </div>
 
@@ -22062,6 +22062,7 @@
                     <div id="seo-scatter-wrap" style="display:none;height:210px;position:relative;">
                         <canvas id="seo-scatter-chart"></canvas>
                     </div>
+                    <div id="seo-scatter-campaigns" style="display:none;padding:4px 10px;font-size:0.7rem;color:#64748b;line-height:1.5;border-top:1px solid #f1f5f9;background:#fafbfc;"></div>
                     <!-- Resize handle -->
                     <div id="seo-scatter-resize-handle" title="Drag to resize chart"
                         style="height:18px;cursor:ns-resize;display:flex;align-items:center;justify-content:center;gap:5px;background:#f1f5f9;border-top:1px solid #e2e8f0;border-radius:0 0 6px 6px;user-select:none;margin-top:2px;"
@@ -22679,6 +22680,8 @@
             if (!filteredPts.length && months.length > 0) {
                 if (cockpitState.seoScatterChart) { cockpitState.seoScatterChart.destroy(); cockpitState.seoScatterChart = null; }
                 if (wrapEl) wrapEl.style.display = 'none';
+                const _ce = document.getElementById('seo-scatter-campaigns');
+                if (_ce) _ce.style.display = 'none';
                 if (loadEl) {
                     loadEl.style.display = 'flex';
                     loadEl.innerHTML = `<span style="font-size:0.78rem;color:#94a3b8;display:flex;align-items:center;gap:6px;"><i class="fas fa-search"></i> No keyword data for the selected filters in this period.</span>`;
@@ -22783,7 +22786,7 @@
                 },
             };
 
-            // Plugin: green/red column background based on KPI hit per month
+            // Plugin: green/yellow/red column background based on trajectory vs KPI
             const kpiCampaigns = (cockpitState.seoIntelCache || [])
                 .filter(c => c.kpi > 0 && !c.isSpecial && !c.isUntyped && c.startDate && c.endDate);
 
@@ -22799,26 +22802,46 @@
                     months.forEach((ym, mi) => {
                         const [y, mo] = ym.split('-').map(Number);
                         const monthMid = new Date(y, mo - 1, 15).getTime();
-                        // Sum expected P1 across all campaigns active this month
-                        let expectedP1 = 0;
+                        // Sum expected P1 (trajectory) and total KPI across all campaigns active this month
+                        let expectedP1 = 0, totalKPI = 0;
                         kpiCampaigns.forEach(c => {
                             const start = new Date(c.startDate).getTime();
                             const end   = new Date(c.endDate).getTime();
                             if (monthMid < start || monthMid > end || end <= start) return;
                             expectedP1 += c.kpi * ((monthMid - start) / (end - start));
+                            totalKPI   += c.kpi;
                         });
                         if (expectedP1 === 0) return; // no campaigns active → no colour
                         // Count actual P1 keywords in this month from visible points
                         const actualP1 = filteredPts.filter(p => p.ym === ym && p.basket === 'p1').length;
-                        const hit = actualP1 >= expectedP1;
                         const x1 = xScale.getPixelForValue(mi - 0.5);
                         const x2 = xScale.getPixelForValue(mi + 0.5);
-                        ctx2.fillStyle = hit ? 'rgba(16,185,129,0.09)' : 'rgba(239,68,68,0.09)';
+                        // Green = hit KPI, Yellow = at/above trajectory, Red = below trajectory
+                        if (actualP1 >= totalKPI)       ctx2.fillStyle = 'rgba(16,185,129,0.12)';
+                        else if (actualP1 >= expectedP1) ctx2.fillStyle = 'rgba(234,179,8,0.12)';
+                        else                             ctx2.fillStyle = 'rgba(239,68,68,0.09)';
                         ctx2.fillRect(x1, yTop, x2 - x1, yBottom - yTop);
                     });
                     ctx2.restore();
                 },
             };
+
+            // Populate "displaying campaigns" strip
+            const campaignsEl = document.getElementById('seo-scatter-campaigns');
+            if (campaignsEl && sites?.length) {
+                const visibleIds   = new Set(filteredPts.map(p => p.siteId));
+                const visibleNames = sites.filter(s => visibleIds.has(s.id)).map(s => s.name);
+                if (visibleNames.length) {
+                    campaignsEl.style.display = 'block';
+                    campaignsEl.innerHTML =
+                        `<span style="font-weight:600;color:#475569;">Campaigns: </span>` +
+                        visibleNames.map(n =>
+                            `<span style="display:inline-block;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:4px;padding:1px 6px;margin:1px 2px;white-space:nowrap;">${n.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>`
+                        ).join('');
+                } else {
+                    campaignsEl.style.display = 'none';
+                }
+            }
 
             cockpitState.seoScatterChart = new Chart(canvas.getContext('2d'), {
                 type: 'scatter',
@@ -71233,13 +71256,22 @@ Move-In</h3>
                 return { tool: btn.textContent.replace(/\s+/g,' ').trim().substring(0,40) || 'Unknown', category: 'Other' };
             }
 
+            // Regex of onclick function names that represent actual tool invocations
+            const TOOL_FN_RE = /^(run|generate|fetch|analyse|analyze|audit|autoDetect|autoFill|checkRanks|checkContent|checkBacklinks|getCompetitors|getIntersection|getWebpage|googleCrawler|semAnalyse|handleQuick|handleSelection|aiContinue|aiGenerate|aiPick)/i;
+
             document.addEventListener('click', function(e) {
-                const btn = e.target.closest('.discovery-btn-run, .btn-gradient, .btn-sidebar, [id^="btnRun"]');
+                // Tier 1: CSS-class marked buttons (original)
+                let btn = e.target.closest('.discovery-btn-run, .btn-gradient, .btn-sidebar, [id^="btnRun"]');
+                // Tier 2: plain <button> elements whose onclick looks like a tool action
+                if (!btn) {
+                    const b = e.target.closest('button');
+                    if (b && TOOL_FN_RE.test(b.getAttribute('onclick') || '')) btn = b;
+                }
                 if (!btn) return;
                 if (btn.closest('#adminPanelLogs')) return;
+                if (btn.tagName === 'A' && btn.getAttribute('target') === '_blank') return;
                 const txt = btn.textContent.replace(/\s+/g,' ').trim();
                 if (SKIP_TEXTS.has(txt)) return;
-                if (btn.tagName === 'A' && btn.getAttribute('target') === '_blank') return;
                 const meta = toolFromButton(btn);
                 window._lastClickedTool = { tool: meta.tool, category: meta.category, action: txt.substring(0,60), ts: Date.now() };
                 addLog({ ts: new Date().toISOString(), type: 'usage',
