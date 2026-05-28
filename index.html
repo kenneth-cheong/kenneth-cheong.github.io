@@ -10915,7 +10915,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1527</span>
+                <span id="appVersion">v1.0.1528</span>
             </a>
         </div>
 
@@ -11620,8 +11620,7 @@
             <div class="discovery-platform-list"
                 style="grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 15px; width: 100%;">
                 <!-- Campaign Board Crawler Card (spans 2 columns) -->
-                <div class="geo-card cockpit-card collapsed" id="card-campaign-crawler"
-                    style="grid-column: span 2;">
+                <div class="geo-card cockpit-card collapsed" id="card-campaign-crawler">
                     <div class="geo-card-header" style="justify-content: space-between; align-items: center; flex-shrink: 0;">
                         <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
                             <img src="https://monday.com/favicon.ico" alt="Monday.com" style="height: 20px;">
@@ -11637,28 +11636,6 @@
                         style="flex: none; width: 143%; height: 430px; border: none; transform: scale(0.7); transform-origin: top left;"
                         loading="lazy">
                     </iframe>
-                </div>
-
-                <!-- Meta Ads Card (New) -->
-                <div class="geo-card cockpit-card collapsed" id="card-meta">
-                    <div class="geo-card-header" style="justify-content: space-between; align-items: center;">
-                        <h3 style="margin: 0; font-size: 1.1em; color: #1877f2; display: flex; align-items: center; gap: 10px;">
-                            <i class="fab fa-facebook"></i> Meta Ads Overview
-                        </h3>
-                        <div class="cockpit-card-header-actions">
-                            <button onclick="fetchCockpitMetaAds()" class="discovery-btn-run" style="padding: 4px 12px; font-size: 0.8rem; background: #1877f2; color: #fff; border: none;">
-                                <i class="fas fa-sync-alt"></i> Refresh
-                            </button>
-                            <span id="cockpit-meta-count" class="badge-action" style="font-size: 14px; padding: 5px 10px; background: rgba(24, 119, 242, 0.1); color: #1877f2;">-</span>
-                            <button class="expand-card-btn" onclick="expandCockpitCard(this.closest('.geo-card'))" title="Expand"><i class="fas fa-expand-alt"></i></button>
-                        </div>
-                    </div>
-                    <div id="cockpit-meta-content" style="flex: 1; overflow-y: auto;">
-                        <div style="text-align: center; color: #64748b; padding: 40px;">
-                            <i class="fas fa-spinner fa-spin fa-2x"></i>
-                            <p style="margin-top: 15px;">Loading Meta Ads...</p>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- SE Ranking Card -->
@@ -11770,10 +11747,6 @@
                                 style="padding: 4px 12px; font-size: 0.8rem; background: #1877F2; color: #fff; border: none;">
                                 <i class="fas fa-sync-alt"></i> Refresh
                             </button>
-                            <select id="cockpitMetaAccountSelector" onchange="selectMetaAdAccount(this.value)"
-                                style="padding: 4px 8px; font-size: 0.8rem; border-radius: 4px; border: 1px solid #1877F2; color: #1877F2; background: #fff; outline: none; cursor: pointer; max-width: 150px; display: none;">
-                                <option value="">-- Select Account --</option>
-                            </select>
                             <span id="cockpit-meta-ads-rec-count" class="badge-action"
                                 style="font-size: 14px; padding: 5px 10px; background: rgba(24, 119, 242, 0.1); color: #1877F2;">-</span>
                             <button class="expand-card-btn" onclick="expandCockpitCard(this.closest('.geo-card'))"
@@ -11785,6 +11758,12 @@
                                 <i class="fas fa-compress-alt"></i>
                             </button>
                         </div>
+                    </div>
+                    <div id="cockpit-meta-ads-account-bar" style="display: none; padding: 8px 15px 0; flex-shrink: 0;">
+                        <select id="cockpitMetaAccountSelector" onchange="selectMetaAdAccount(this.value)"
+                            style="width: 100%; padding: 4px 8px; font-size: 0.8rem; border-radius: 4px; border: 1px solid #1877F2; color: #1877F2; background: #fff; outline: none; cursor: pointer;">
+                            <option value="">-- Select Account --</option>
+                        </select>
                     </div>
                     <div id="cockpit-meta-ads-recommendations-content" style="flex: 1; overflow-y: auto; padding: 15px;">
                         <div style="text-align: center; color: #64748b; padding: 40px;">
@@ -22838,6 +22817,38 @@
                 },
             };
 
+            // Plugin: draw keyword counts per (month, basket) cell
+            const cellCounts = {};
+            filteredPts.forEach(p => {
+                const mi = monthIndex[p.ym];
+                if (mi === undefined) return;
+                const yPos = basketYPos[p.basket];
+                if (!yPos) return;
+                const key = `${mi}_${yPos}`;
+                cellCounts[key] = (cellCounts[key] || 0) + 1;
+            });
+
+            const basketCountPlugin = {
+                id: 'basketCounts',
+                afterDraw: chart => {
+                    const xScale = chart.scales.x;
+                    const yScale = chart.scales.y;
+                    const ctx2   = chart.ctx;
+                    ctx2.save();
+                    ctx2.font = 'bold 9px system-ui,sans-serif';
+                    ctx2.fillStyle = 'rgba(51,65,85,0.55)';
+                    ctx2.textAlign = 'center';
+                    ctx2.textBaseline = 'bottom';
+                    Object.entries(cellCounts).forEach(([key, count]) => {
+                        const [mi, yPos] = key.split('_').map(Number);
+                        const px = xScale.getPixelForValue(mi);
+                        const py = yScale.getPixelForValue(yPos - 0.38);
+                        ctx2.fillText(String(count), px, py);
+                    });
+                    ctx2.restore();
+                },
+            };
+
             // Populate "displaying campaigns" strip
             const campaignsEl = document.getElementById('seo-scatter-campaigns');
             if (campaignsEl && sites?.length) {
@@ -22858,7 +22869,7 @@
             cockpitState.seoScatterChart = new Chart(canvas.getContext('2d'), {
                 type: 'scatter',
                 data: { datasets },
-                plugins: [kpiMonthPlugin, kwTrailPlugin],
+                plugins: [kpiMonthPlugin, kwTrailPlugin, basketCountPlugin],
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
@@ -25229,10 +25240,11 @@ Return ONLY a valid JSON array (no markdown, no extra text). Each object must ha
             document.getElementById('metaAdAccountList').innerHTML = '<option value="">-- Choose an Ad Account --</option>';
             
             const selCockpit = document.getElementById('cockpitMetaAccountSelector');
+            const selCockpitBar = document.getElementById('cockpit-meta-ads-account-bar');
             if (selCockpit) {
-                selCockpit.style.display = 'none';
                 selCockpit.innerHTML = '<option value="">-- Select Account --</option>';
             }
+            if (selCockpitBar) selCockpitBar.style.display = 'none';
 
             document.getElementById('metaAdsToolsArea').style.opacity = '0.4';
             document.getElementById('metaAdsToolsArea').style.pointerEvents = 'none';
@@ -25263,7 +25275,8 @@ Return ONLY a valid JSON array (no markdown, no extra text). Each object must ha
                 });
                 
                 document.getElementById('metaAdsAccountSelector').style.display = 'block';
-                if (selCockpit) selCockpit.style.display = 'inline-block';
+                const selCockpitBar = document.getElementById('cockpit-meta-ads-account-bar');
+                if (selCockpitBar) selCockpitBar.style.display = 'block';
                 
                 document.getElementById('metaAdsAuthStatus').innerHTML =
                     document.getElementById('metaAdsAuthStatus').innerHTML.replace(/ — <i.*<\/i> Fetching ad accounts…/, '');
