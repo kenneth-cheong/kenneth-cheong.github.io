@@ -10915,7 +10915,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1520</span>
+                <span id="appVersion">v1.0.1521</span>
             </a>
         </div>
 
@@ -47932,20 +47932,20 @@ Return ONLY a valid JSON object (no markdown, no explanation):
                                 
                                 // Populating Domain Metrics (use base domain)
                                 const domainInp = document.getElementById('domain');
+                                let baseDomainForMetrics = null;
                                 if (domainInp) {
-                                    const baseDomain = getBaseDomain(targetUrl);
-                                    domainInp.value = baseDomain;
-                                    ensureSiteAnalysisExpanded();
-                                    fetchDomainMetrics(baseDomain, (ok) => setTaskStatus('domain', ok ? 'done' : 'error'));
+                                    baseDomainForMetrics = getBaseDomain(targetUrl);
+                                    domainInp.value = baseDomainForMetrics;
+                                    fetchDomainMetrics(baseDomainForMetrics, (ok) => setTaskStatus('domain', ok ? 'done' : 'error'));
                                 }
-                                
+
                                 // Set Audit parameters
                                 urlInp.value = targetUrl;
                                 if (maxP) maxP.value = '50';
-                                
+
                                 const maxD = document.getElementById('maxDepthInput');
                                 if (maxD) maxD.value = '4';
-                                
+
                                 // Start the audit
                                 subBtn.click();
                                 setTaskStatus('domain', 'running');
@@ -47963,13 +47963,17 @@ Return ONLY a valid JSON object (no markdown, no explanation):
                                 if (compTarget && targetUrl) {
                                     compTarget.value = getBaseDomain(targetUrl);
                                 }
-                                
+
                                 // Expand sections for visibility
                                 // Competitors Identifier is now under SEO, so open seo + competitionBtn
                                 forceOpenCollapsible('seo');
                                 forceOpenCollapsible('competitionBtn');
                                 // Also keep Others expanded in case user has other tools open there
                                 forceOpenCollapsible('othersMainBtn');
+
+                                // Re-expand site analysis AFTER openTechnicalSeo (which calls
+                                // deactivateAllButtons and collapses all collapsibles including siteAnalysisToggle)
+                                ensureSiteAnalysisExpanded();
                             }
                         } catch (e) {
                             console.warn("Auto-Technical SEO/Competitor prep failed:", e);
