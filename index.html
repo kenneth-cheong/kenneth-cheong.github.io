@@ -464,7 +464,7 @@
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             cursor: pointer;
             position: relative;
-            overflow: hidden;
+            overflow: visible;
             display: flex;
             flex-direction: column;
             background: #fff;
@@ -10915,7 +10915,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1526</span>
+                <span id="appVersion">v1.0.1527</span>
             </a>
         </div>
 
@@ -22787,8 +22787,20 @@
             };
 
             // Plugin: green/yellow/red column background based on trajectory vs KPI
-            const kpiCampaigns = (cockpitState.seoIntelCache || [])
+            // Only include campaigns whose Monday.com name fuzzy-matches a visible SE Ranking site,
+            // so the expected trajectory isn't inflated by campaigns not shown in the scatter.
+            const _normName = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const _visibleSiteNorms = (sites || [])
+                .filter(s => new Set(filteredPts.map(p => p.siteId)).has(s.id))
+                .map(s => _normName(s.name));
+            const _allKpiC = (cockpitState.seoIntelCache || [])
                 .filter(c => c.kpi > 0 && !c.isSpecial && !c.isUntyped && c.startDate && c.endDate);
+            const kpiCampaigns = _visibleSiteNorms.length
+                ? _allKpiC.filter(c => {
+                    const cn = _normName(c.name);
+                    return _visibleSiteNorms.some(sn => sn === cn || sn.includes(cn) || cn.includes(sn));
+                  })
+                : _allKpiC;
 
             const kpiMonthPlugin = {
                 id: 'kpiMonthBg',
