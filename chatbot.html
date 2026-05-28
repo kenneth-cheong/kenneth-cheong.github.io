@@ -970,6 +970,62 @@
             cursor: pointer;
         }
 
+        /* Desktop header overflow menu */
+        .header-overflow-wrap {
+            position: relative;
+        }
+
+        .header-overflow-dropdown {
+            display: none;
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            background: var(--primary-navy);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            min-width: 180px;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+            overflow: hidden;
+            z-index: 250;
+        }
+
+        .header-overflow-dropdown.active {
+            display: block;
+        }
+
+        .header-overflow-dropdown button {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            padding: 12px 18px;
+            background: none;
+            border: none;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            color: #fff;
+            font-size: 0.85rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            text-align: left;
+            transition: background 0.15s;
+        }
+
+        .header-overflow-dropdown button:last-child {
+            border-bottom: none;
+        }
+
+        .header-overflow-dropdown button:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        /* Hide desktop overflow trigger on mobile (mobile uses its own dropdown) */
+        @media (max-width: 900px) {
+            .header-overflow-wrap {
+                display: none;
+            }
+        }
+
         /* Mobile nav dropdown (three-dot menu) */
         .mobile-nav-btn {
             display: none;
@@ -1921,6 +1977,15 @@
             color: rgba(255, 255, 255, 0.7);
             white-space: nowrap;
             min-width: 100px;
+            max-width: 220px;
+            overflow: hidden;
+        }
+
+        .status-segment.sync span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
         }
 
         .status-segment.cloud {
@@ -3007,7 +3072,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.65rem; font-weight:600; color:rgba(255,255,255,0.35); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px;">v1.0.1559</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1559</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3033,15 +3098,23 @@
                     <button class="btn btn-outline" onclick="toggleSettings()">
                         <i class="fas fa-cog"></i> Settings
                     </button>
-                    <button class="btn btn-outline" id="tourBtn" onclick="startTour()" title="Take a guided tour of the chatbot">
-                        <i class="fas fa-map-signs"></i> Tour
-                    </button>
-                    <button class="btn btn-outline" onclick="shareConversation()" title="Copy shareable link to clipboard">
-                        <i class="fas fa-share-nodes"></i> Share
-                    </button>
-                    <button class="btn btn-outline" onclick="exportToPdf()" title="Export conversation to PDF">
-                        <i class="fas fa-file-pdf"></i> PDF
-                    </button>
+                    <div class="header-overflow-wrap">
+                        <button class="btn btn-outline" id="tourBtn" onclick="toggleOverflowMenu(event)"
+                            title="Tour, Share, PDF and more">
+                            <i class="fas fa-ellipsis-h"></i> More
+                        </button>
+                        <div class="header-overflow-dropdown" id="headerOverflowDropdown">
+                            <button onclick="startTour(); closeOverflowMenu()">
+                                <i class="fas fa-map-signs"></i> Tour
+                            </button>
+                            <button onclick="shareConversation(); closeOverflowMenu()">
+                                <i class="fas fa-share-nodes"></i> Share
+                            </button>
+                            <button onclick="exportToPdf(); closeOverflowMenu()">
+                                <i class="fas fa-file-pdf"></i> Export PDF
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <!-- Mobile three-dot menu -->
                 <button class="btn btn-outline mobile-nav-btn" id="mobileNavBtn" onclick="toggleMobileNav(event)">
@@ -3839,11 +3912,25 @@
             document.getElementById('mobileNavDropdown').classList.remove('active');
         }
 
+        function toggleOverflowMenu(e) {
+            e.stopPropagation();
+            document.getElementById('headerOverflowDropdown').classList.toggle('active');
+        }
+
+        function closeOverflowMenu() {
+            document.getElementById('headerOverflowDropdown').classList.remove('active');
+        }
+
         document.addEventListener('click', function(e) {
             const btn = document.getElementById('mobileNavBtn');
             const dropdown = document.getElementById('mobileNavDropdown');
             if (dropdown && btn && !btn.contains(e.target) && !dropdown.contains(e.target)) {
                 dropdown.classList.remove('active');
+            }
+            const overflowBtn = document.getElementById('tourBtn');
+            const overflowDropdown = document.getElementById('headerOverflowDropdown');
+            if (overflowDropdown && overflowBtn && !overflowBtn.contains(e.target) && !overflowDropdown.contains(e.target)) {
+                overflowDropdown.classList.remove('active');
             }
         });
 
@@ -10458,7 +10545,7 @@ CRITICAL CONTACT RULE:
                         element: '#tourBtn',
                         popover: {
                             title: '🗺️ You\'re all set!',
-                            description: 'Relaunch this tour any time via the <b>Tour</b> button. Start by connecting your tools in Settings, then sync a board and ask a question. Happy chatting!',
+                            description: 'Relaunch this tour any time via the <b>More</b> menu → <b>Tour</b>. Start by connecting your tools in Settings, then sync a board and ask a question. Happy chatting!',
                             side: 'bottom',
                             align: 'end'
                         },
