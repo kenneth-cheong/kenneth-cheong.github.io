@@ -2303,7 +2303,7 @@
                 // Step 3: Build folder groups
                 const folderMap = {};
                 allBoards.forEach(b => {
-                    if (b.type !== 'board' && b.type !== 'public') return;
+                    if (b.type !== 'board') return;
 
                     // Use board_folder_id with resolved name; fall back to workspace grouping
                     const wsName = b.workspace?.name || 'Main';
@@ -2424,7 +2424,7 @@
         function renderStatusExclusionsPanel() {
             const html = state.allStatusLabels.length > 0 ? `
                 <label style="display: block; margin-bottom: 12px; font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--muted);">Exclude these statuses from audit:</label>
-                <div class="folder-grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); max-height: 400px; gap: 8px;">
+                <div class="folder-grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); max-height: 400px; overflow-y: auto; gap: 8px;">
                     ${state.allStatusLabels.map(l => `
                         <div class="folder-item ${state.excludedStatusLabels.has(l) ? 'selected' : ''}" onclick="toggleStatusExclusion('${l.replace(/'/g, "\\'")}')" style="padding: 8px 12px; background: rgba(255,255,255,0.03);">
                             <input type="checkbox" ${state.excludedStatusLabels.has(l) ? 'checked' : ''} style="accent-color:var(--primary)">
@@ -2448,7 +2448,7 @@
 
         async function startAudit() {
             const queue = [];
-            state.selectedFolderIds.forEach(fid => { const f = state.folders.find(x => x.id === fid); f.boards.forEach(b => { if (!queue.find(q => q.id === b.id)) queue.push({ ...b, folderName: f.name }); }); });
+            state.selectedFolderIds.forEach(fid => { const f = state.folders.find(x => x.id === fid); f.boards.forEach(b => { if (b.name.toLowerCase().includes('template')) return; if (!queue.find(q => q.id === b.id)) queue.push({ ...b, folderName: f.name }); }); });
             document.getElementById('step-folders').style.display = 'none';
             document.getElementById('step-results').style.display = 'flex';
 
@@ -2956,7 +2956,7 @@
             const boardsToQuery = [];
             state.selectedFolderIds.forEach(fid => {
                 const f = state.folders.find(x => x.id === fid);
-                if (f) f.boards.forEach(b => boardsToQuery.push({ id: b.id, name: b.name }));
+                if (f) f.boards.forEach(b => { if (!b.name.toLowerCase().includes('template')) boardsToQuery.push({ id: b.id, name: b.name }); });
             });
             state.timeliness.progress = { done: 0, total: boardsToQuery.length };
             renderTimelinessView();
