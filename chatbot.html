@@ -3007,7 +3007,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.65rem; font-weight:600; color:rgba(255,255,255,0.35); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px;">v1.0.1549</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.65rem; font-weight:600; color:rgba(255,255,255,0.35); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px;">v1.0.1550</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3769,6 +3769,34 @@
         }
 
         // Resolve email: clientEmail → googleUser (from index.html login) → prompt
+        function handleGoogleCredential(response) {
+            try {
+                const payload = JSON.parse(atob(response.credential.split('.')[1]));
+                const email = payload.email;
+                if (!email) return;
+                const googleUser = { email, name: payload.name || email, picture: payload.picture || '' };
+                localStorage.setItem('googleUser', JSON.stringify(googleUser));
+                setUserIdFromEmail(email);
+                document.getElementById('emailPromptOverlay').classList.remove('active');
+                fetchHistory();
+            } catch(e) {
+                console.error('[GOOGLE AUTH] Failed to decode credential:', e);
+            }
+        }
+
+        function initGoogleSignIn() {
+            const clientId = _googleClientId || '1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com';
+            if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
+                setTimeout(initGoogleSignIn, 300);
+                return;
+            }
+            google.accounts.id.initialize({ client_id: clientId, callback: handleGoogleCredential });
+            google.accounts.id.renderButton(
+                document.getElementById('googleSignInBtn'),
+                { theme: 'outline', size: 'large', width: 300, text: 'signin_with' }
+            );
+        }
+
         (function initUserId() {
             let email = localStorage.getItem('clientEmail');
             if (!email || !email.includes('@')) {
@@ -3780,9 +3808,9 @@
             if (email && email.includes('@')) {
                 setUserIdFromEmail(email);
             } else {
-                // No email found — show prompt once DOM is ready
                 window.addEventListener('DOMContentLoaded', function() {
                     document.getElementById('emailPromptOverlay').classList.add('active');
+                    initGoogleSignIn();
                 });
             }
         })();
@@ -9322,16 +9350,13 @@ CRITICAL CONTACT RULE:
         }
     </script>
 
-    <!-- Email prompt — shown when no email is found in any storage source -->
+    <!-- Auth prompt — shown when no Google session is found -->
     <div id="emailPromptOverlay" class="email-prompt-overlay">
         <div class="email-prompt-modal">
             <i class="fas fa-robot ep-icon"></i>
             <h2>Welcome to Super Chatbot</h2>
-            <p>Enter your email to load your conversation history and settings across all your devices.</p>
-            <input type="email" id="emailPromptInput" placeholder="you@example.com" autocomplete="email"
-                onkeydown="if(event.key==='Enter') submitEmailPrompt()">
-            <div class="ep-error" id="emailPromptError">Please enter a valid email address.</div>
-            <button onclick="submitEmailPrompt()"><i class="fas fa-arrow-right"></i> Continue</button>
+            <p>Sign in with your Google account to load your conversation history and settings across all your devices.</p>
+            <div id="googleSignInBtn" style="margin-top:8px;"></div>
         </div>
     </div>
 
