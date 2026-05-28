@@ -19673,6 +19673,7 @@
             seoIntelOwnerFilter: new Set(),   // Filter by [SEO]SEO owner
             seoIntelStatusFilter: new Set(),  // Filter by Campaign Status
             seoIntelTypeFilter: new Set(),    // Filter by Campaign Type
+            seoIntelNameFilter: new Set(),    // Filter campaign rows by name (multi-select; empty = all)
             seoIntelScatterFilter: new Set(), // Selected site IDs in scatter plot (empty = all)
             seoIntelKeywordFilter: new Set(), // Selected keyword names in scatter plot (empty = all)
             seoIntelRowSelection: new Set(),  // Campaign IDs selected via row click
@@ -21854,10 +21855,43 @@
             if (dd) dd.style.display = 'block';
         }
 
+        function toggleSeoIntelNameFilter(name) {
+            const f = cockpitState.seoIntelNameFilter;
+            f.delete('__none__');
+            f.has(name) ? f.delete(name) : f.add(name);
+            renderSeoIntel(cockpitState.seoIntelCache || []);
+            const dd = document.getElementById('seo-intel-name-dropdown');
+            if (dd) dd.style.display = 'block';
+        }
+
+        function selectAllSeoIntelNames() {
+            cockpitState.seoIntelNameFilter.clear();
+            renderSeoIntel(cockpitState.seoIntelCache || []);
+            const dd = document.getElementById('seo-intel-name-dropdown');
+            if (dd) dd.style.display = 'block';
+        }
+
+        function deselectAllSeoIntelNames() {
+            const f = cockpitState.seoIntelNameFilter;
+            f.clear();
+            f.add('__none__');
+            renderSeoIntel(cockpitState.seoIntelCache || []);
+            const dd = document.getElementById('seo-intel-name-dropdown');
+            if (dd) dd.style.display = 'block';
+        }
+
+        function filterSeoIntelNameSearch(query) {
+            const q = (query || '').toLowerCase();
+            document.querySelectorAll('#seo-intel-name-list label').forEach(lbl => {
+                lbl.style.display = !q || (lbl.dataset.name || '').includes(q) ? 'flex' : 'none';
+            });
+        }
+
         function clearSeoIntelFilters() {
             cockpitState.seoIntelOwnerFilter.clear();
             cockpitState.seoIntelStatusFilter.clear();
             cockpitState.seoIntelTypeFilter.clear();
+            cockpitState.seoIntelNameFilter.clear();
             cockpitState.seoIntelRowSelection.clear();
             cockpitState.seoIntelScatterFilter.clear();
             cockpitState.seoIntelKeywordFilter.clear();
@@ -21896,10 +21930,13 @@
             const ownerF  = cockpitState.seoIntelOwnerFilter;
             const statusF = cockpitState.seoIntelStatusFilter;
             const typeF   = cockpitState.seoIntelTypeFilter;
+            const nameF   = cockpitState.seoIntelNameFilter;
+            const nameNone = nameF.has('__none__');
             const filtered = campaigns.filter(c =>
                 (ownerF.size === 0  || ownerF.has(c.seoOwner))  &&
                 (statusF.size === 0 || statusF.has(c.csmStatus)) &&
-                (typeF.size === 0   || typeF.has(c.campaignType))
+                (typeF.size === 0   || typeF.has(c.campaignType)) &&
+                (nameNone ? false : (nameF.size === 0 || nameF.has(c.name)))
             );
 
             // Build filter options
@@ -21925,11 +21962,13 @@
                 ? new Date(cockpitState.seoIntelFetchedAt).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })
                 : '';
 
-            const filterActive = ownerF.size > 0 || statusF.size > 0 || typeF.size > 0;
+            const filterActive = ownerF.size > 0 || statusF.size > 0 || typeF.size > 0 || nameF.size > 0;
 
             const ownerBtnLabel  = ownerF.size === 0 ? 'All SEO' : ownerF.size === 1 ? [...ownerF][0].split(' ')[0] : `${ownerF.size} owners`;
             const statusBtnLabel = statusF.size === 0 ? 'All Statuses' : statusF.size === 1 ? [...statusF][0] : `${statusF.size} statuses`;
             const typeBtnLabel   = typeF.size === 0 ? 'All Types' : typeF.size === 1 ? [...typeF][0] : `${typeF.size} types`;
+            const nameBtnLabel   = nameNone ? 'No campaigns' : nameF.size === 0 ? 'All Campaigns' : nameF.size === 1 ? [...nameF][0] : `${nameF.size} campaigns`;
+            const allNames       = [...new Set(campaigns.map(c => c.name).filter(Boolean))].sort((a,b) => a.localeCompare(b));
 
             const dropdownStyle = 'display:none;position:absolute;top:100%;left:0;min-width:210px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:400;margin-top:4px;max-height:220px;overflow-y:auto;padding:6px;';
             const checkItem = (label, checked, onclick) =>
@@ -21984,6 +22023,36 @@
                         </button>
                         <div id="seo-intel-type-dropdown" class="seo-intel-dropdown" style="${dropdownStyle}">
                             ${allTypes.map(t => checkItem(t, typeF.has(t), 'toggleSeoIntelTypeFilter')).join('')}
+                        </div>
+                    </div>
+                    <!-- Campaign name filter (with search + All/None) -->
+                    <div style="position:relative;">
+                        <button onclick="toggleSeoIntelDropdown('seo-intel-name-dropdown')"
+                            style="padding:4px 10px;border:1px solid ${(nameF.size > 0) ? '#93c5fd' : '#e2e8f0'};border-radius:6px;background:${(nameF.size > 0) ? '#eff6ff' : '#f8fafc'};font-size:0.78rem;cursor:pointer;color:#1e293b;display:flex;align-items:center;gap:5px;">
+                            <i class="fas fa-bullseye" style="font-size:0.6rem;color:${(nameF.size > 0) ? '#3b82f6' : '#94a3b8'};"></i>
+                            ${nameBtnLabel}
+                            <i class="fas fa-chevron-down" style="font-size:0.6rem;color:#94a3b8;"></i>
+                        </button>
+                        <div id="seo-intel-name-dropdown" class="seo-intel-dropdown"
+                            style="display:none;position:absolute;top:100%;left:0;min-width:260px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:400;margin-top:4px;padding:6px;">
+                            <div style="display:flex;gap:5px;padding:2px 4px 6px;border-bottom:1px solid #f1f5f9;margin-bottom:4px;">
+                                <button onclick="selectAllSeoIntelNames()" style="flex:1;padding:3px 0;border:1px solid #e2e8f0;border-radius:5px;font-size:0.72rem;background:#f8fafc;cursor:pointer;color:#334155;font-weight:600;" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='#f8fafc'">All</button>
+                                <button onclick="deselectAllSeoIntelNames()" style="flex:1;padding:3px 0;border:1px solid #e2e8f0;border-radius:5px;font-size:0.72rem;background:#f8fafc;cursor:pointer;color:#334155;font-weight:600;" onmouseover="this.style.background='#fff1f2'" onmouseout="this.style.background='#f8fafc'">None</button>
+                            </div>
+                            <input id="seo-intel-name-search" type="text" placeholder="Search campaigns…"
+                                oninput="filterSeoIntelNameSearch(this.value)"
+                                style="width:100%;box-sizing:border-box;padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.78rem;outline:none;margin-bottom:4px;">
+                            <div style="padding:2px 8px 4px;font-size:0.7rem;color:#94a3b8;">${allNames.length} campaign${allNames.length !== 1 ? 's' : ''}</div>
+                            <div id="seo-intel-name-list" style="max-height:220px;overflow-y:auto;">
+                                ${allNames.map(n => {
+                                    const safe = n.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+                                    const checked = !nameNone && (nameF.size === 0 || nameF.has(n));
+                                    return `<label style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:6px;cursor:pointer;font-size:0.78rem;color:#334155;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'" data-name="${safe.toLowerCase()}">
+                                        <input type="checkbox" ${checked ? 'checked' : ''} data-val="${safe}" onchange="toggleSeoIntelNameFilter(this.dataset.val)" style="width:14px;height:14px;flex-shrink:0;">
+                                        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${safe}">${n}</span>
+                                    </label>`;
+                                }).join('')}
+                            </div>
                         </div>
                     </div>
                     <span style="font-size:0.72rem;color:#94a3b8;align-self:center;margin-left:4px;">${filtered.length} of ${campaigns.length} shown</span>
