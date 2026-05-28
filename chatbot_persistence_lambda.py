@@ -130,11 +130,12 @@ def handle_fetch_conversations(db, data, headers):
 
         conversations = []
         for c in cursor:
+            uid = c.get("userId") or ""
             conversations.append({
                 "conversationId": c.get("conversationId"),
-                "userId": c.get("userId", ""),
-                "userLabel": c.get("userId", "").replace("user_", ""),
-                "title": c.get("title", "Untitled"),
+                "userId": uid,
+                "userLabel": uid.replace("user_", ""),
+                "title": c.get("title") or "Untitled",
                 "updatedAt": c.get("lastUpdated"),
                 "mode": c.get("mode")
             })
