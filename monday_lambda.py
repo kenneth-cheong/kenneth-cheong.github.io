@@ -786,7 +786,7 @@ def claude_chat_with_tools(body):
                 "type": "object",
                 "properties": {
                     "target": {"type": "string", "description": "Domain or URL to get backlinks for, e.g. 'example.com' or 'https://example.com/page'."},
-                    "include_subdomains": {"type": "boolean", "description": "Whether to include subdomains (default true).", "default": true}
+                    "include_subdomains": {"type": "boolean", "description": "Whether to include subdomains (default True).", "default": True}
                 },
                 "required": ["target"]
             }

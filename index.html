@@ -10920,7 +10920,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1553</span>
+                <span id="appVersion">v1.0.1554</span>
             </a>
         </div>
 
@@ -71224,11 +71224,7 @@ Move-In</h3>
             function addLog(entry) {
                 const user = getCurrentUser();
                 const full = { ...entry, ...user, id: Date.now() + '-' + Math.random().toString(36).slice(2, 7) };
-                // Save locally
-                const logs = getLogs();
-                logs.push(full);
-                saveLogs(logs);
-                // Push to cloud (fire-and-forget — never blocks or throws)
+                // Push to cloud only (fire-and-forget — never blocks or throws)
                 try {
                     _origFetch(MONDAY_LAMBDA_URL, {
                         method: 'POST',
@@ -71469,37 +71465,11 @@ Move-In</h3>
 
             _cloudLogsFetching = false;
             renderLogsPanel();
-            syncLocalLogsToCloud(); // upload any local-only logs (fire-and-forget)
             return _cloudLogs;
         }
 
-        // Upload local logs not yet in cloud (old entries or failed saves).
-        // Runs after each full cloud fetch; terminates naturally when nothing is missing.
-        async function syncLocalLogsToCloud() {
-            if (!Array.isArray(_cloudLogs)) return;
-            const local = window._toolLogger ? window._toolLogger.getLogs() : [];
-            if (!local.length) return;
-            const cloudFp = new Set(_cloudLogs.map(l => l.id || (l.ts + (l.userEmail || ''))));
-            const missing = local.filter(l => !cloudFp.has(l.id || (l.ts + (l.userEmail || ''))));
-            if (!missing.length) return;
-            for (const log of missing) {
-                try {
-                    await fetch(MONDAY_LAMBDA_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'save_tool_log', log }),
-                    });
-                } catch (e) {}
-            }
-            // Re-fetch so the newly synced entries appear in the view.
-            // The second sync call will find nothing missing and stop.
-            _cloudLogs = null;
-            fetchLogsFromCloud();
-        }
-
         function getEffectiveLogs() {
-            // Prefer cloud (all users); fall back to local (current user only)
-            return _cloudLogs !== null ? _cloudLogs : (window._toolLogger ? window._toolLogger.getLogs() : []);
+            return _cloudLogs !== null ? _cloudLogs : [];
         }
 
         // ── Team management (localStorage cache + cloud sync via Monday Lambda)
