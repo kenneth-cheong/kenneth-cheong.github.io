@@ -10920,7 +10920,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1571</span>
+                <span id="appVersion">v1.0.1572</span>
             </a>
         </div>
 
@@ -21955,8 +21955,10 @@
                 if (s === 'progressDesc') return [...arr].sort((a,b) => b.pctProgress - a.pctProgress);
                 return isBehind ? [...arr].sort((a,b) => b.pctBehind - a.pctBehind) : [...arr].sort((a,b) => a.pctBehind - b.pctBehind);
             };
-            const behind  = applyRowSort(filtered.filter(c => c.isBehind), true);
-            const onTrack = applyRowSort(filtered.filter(c => !c.isBehind), false);
+            const behind    = applyRowSort(filtered.filter(c => c.isBehind), true);
+            const isHit     = c => c.isSpecial ? c.p1 === 999 : (c.kpi > 0 && c.p1 >= c.kpi);
+            const hitTarget = applyRowSort(filtered.filter(c => !c.isBehind && isHit(c)), false);
+            const onTrack   = applyRowSort(filtered.filter(c => !c.isBehind && !isHit(c)), false);
             if (countEl) countEl.textContent = `${behind.length}/${filtered.length}`;
 
             const fetchedAt = cockpitState.seoIntelFetchedAt
@@ -22204,6 +22206,19 @@
                 if (behindOpen) {
                     html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));border-bottom:1px solid #fecaca;">`;
                     behind.forEach(c => { html += renderSeoIntelRow(c); });
+                    html += `</div>`;
+                }
+            }
+
+            if (hitTarget.length) {
+                const hitOpen = cockpitState.seoIntelHitOpen !== false;
+                html += `<div onclick="cockpitState.seoIntelHitOpen=!cockpitState.seoIntelHitOpen;renderSeoIntel(cockpitState.seoIntelCache||[])" style="padding:8px 14px;font-size:0.78rem;font-weight:700;color:#0d9488;background:#f0fdfa;border-bottom:1px solid #99f6e4;display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;">
+                    <i class="fas fa-trophy"></i> Hit Target — ${hitTarget.length} campaign${hitTarget.length > 1 ? 's' : ''}
+                    <i class="fas fa-chevron-${hitOpen ? 'up' : 'down'}" style="margin-left:auto;font-size:0.7rem;opacity:0.6;"></i>
+                </div>`;
+                if (hitOpen) {
+                    html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));border-bottom:1px solid #99f6e4;">`;
+                    hitTarget.forEach(c => { html += renderSeoIntelRow(c); });
                     html += `</div>`;
                 }
             }
