@@ -10966,7 +10966,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1587</span>
+                <span id="appVersion">v1.0.1588</span>
             </a>
         </div>
 
@@ -37474,16 +37474,25 @@ ${selectedText}
             if (_panel) _panel.style.display = 'none';
 
             try {
-                const response = await fetch(DATA_FOR_SEO_ENDPOINT, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'initiate',
-                        url: url,
-                        max_pages: maxPages,
-                        max_depth: maxDepth
-                    })
-                });
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+                let response;
+                try {
+                    response = await fetch(DATA_FOR_SEO_ENDPOINT, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'initiate',
+                            url: url,
+                            max_pages: maxPages,
+                            max_depth: maxDepth
+                        }),
+                        signal: controller.signal
+                    });
+                } finally {
+                    clearTimeout(timeoutId);
+                }
 
                 const data = await response.json();
                 console.log(data);
@@ -37509,14 +37518,23 @@ ${selectedText}
             } catch (error) {
                 console.error("Initiate error:", error);
                 updateCollapsibleState('crawlerButton', 'error');
-                alert("Error initiating DataForSEO crawl: " + error.message);
+                const msg = error.name === 'AbortError' ? 'Request timed out (30s). Try again.' : error.message;
+                alert("Error initiating DataForSEO crawl: " + msg);
                 btn.innerHTML = originalBtnHtml;
                 btn.disabled = false;
             }
         }
 
         function pollDataForSEOResults(taskId) {
+            let pollAttempts = 0;
+            const MAX_POLL_ATTEMPTS = 60; // 5 min at 5s intervals
             dataForSeoPollingInterval = setInterval(async () => {
+                pollAttempts++;
+                if (pollAttempts > MAX_POLL_ATTEMPTS) {
+                    stopDataForSEOCrawl();
+                    alert('Crawl timed out — partial results shown. Try with fewer pages.');
+                    return;
+                }
                 try {
                     const response = await fetch(DATA_FOR_SEO_ENDPOINT, {
                         method: 'POST',
