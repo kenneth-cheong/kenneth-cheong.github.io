@@ -2858,11 +2858,11 @@
 
         /* Technical Summary Grid and Cards */
         .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 15px;
-            margin-top: 20px;
-            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 0;
+            margin-bottom: 10px;
         }
 
         .summary-card {
@@ -10920,7 +10920,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1579</span>
+                <span id="appVersion">v1.0.1580</span>
             </a>
         </div>
 
@@ -13050,25 +13050,33 @@
                         <div id="dataForSeoCost" style="display: none; width: 100%; margin-top: 15px;"></div>
                     </div>
 
-                    <div style="margin: 20px 0 10px 0;">
-                        <a href="https://docs.dataforseo.com/v3/on_page/pages/" target="_blank"
-                            style="color: #004c9d; text-decoration: underline; font-weight: 600; font-size: 0.9em;">
-                            <i class="fas fa-info-circle" style="margin-right: 5px;"></i> Click here to see what
-                            each card means in the report
-                        </a>
-                    </div>
-                    <div id="auditSummary"></div>
+                    <!-- Side-by-side: cards (left) + crawler table (right) -->
+                    <div id="auditAndTableLayout" style="display: flex; gap: 0; align-items: flex-start; margin-top: 20px;">
 
-                    <!-- AI Recommendations from Technical SEO crawl -->
-                    <div id="techSeoRecommendations" style="display:none; margin-top: 28px;">
-                        <div style="font-size: 1rem; font-weight: 700; color: #1e293b; margin-bottom: 14px;">
-                            <i class="fas fa-robot" style="color: #6366f1; margin-right: 8px;"></i>AI-Generated Recommendations
+                        <!-- Left: filter cards panel -->
+                        <div id="auditSummaryPanel" style="display: none; flex-shrink: 0; width: 220px; margin-right: 18px;">
+                            <div style="margin-bottom: 10px;">
+                                <a href="https://docs.dataforseo.com/v3/on_page/pages/" target="_blank"
+                                    style="color: #004c9d; text-decoration: underline; font-weight: 600; font-size: 0.85em;">
+                                    <i class="fas fa-info-circle" style="margin-right: 5px;"></i> What each card means
+                                </a>
+                            </div>
+                            <div id="auditSummary"></div>
                         </div>
-                        <div id="techSeoRecsLoading" style="display:none; padding: 18px 0; text-align: center; color: #6366f1; font-size: 0.85rem; font-weight: 600;">
-                            <i class="fas fa-circle-notch fa-spin" style="margin-right: 8px;"></i> Analysing audit findings and generating recommendations...
+
+                        <!-- Right: table + collapsibles -->
+                        <div id="auditTablePanel" style="flex: 1; min-width: 0;">
+
+                        <!-- AI Recommendations from Technical SEO crawl -->
+                        <div id="techSeoRecommendations" style="display:none; margin-top: 0; margin-bottom: 20px;">
+                            <div style="font-size: 1rem; font-weight: 700; color: #1e293b; margin-bottom: 14px;">
+                                <i class="fas fa-robot" style="color: #6366f1; margin-right: 8px;"></i>AI-Generated Recommendations
+                            </div>
+                            <div id="techSeoRecsLoading" style="display:none; padding: 18px 0; text-align: center; color: #6366f1; font-size: 0.85rem; font-weight: 600;">
+                                <i class="fas fa-circle-notch fa-spin" style="margin-right: 8px;"></i> Analysing audit findings and generating recommendations...
+                            </div>
+                            <div id="techSeoRecsContainer" style="display: flex; flex-direction: column; gap: 10px;"></div>
                         </div>
-                        <div id="techSeoRecsContainer" style="display: flex; flex-direction: column; gap: 10px;"></div>
-                    </div>
 
                     <button class="collapsible" id="gtButton"><i class="fas fa-plus-square"></i>GTmetrix
                         Results</button>
@@ -13194,6 +13202,8 @@
                     </div>
                     <button id="downloadResultsBtn" onclick="downloadResultsAsXlsx()">Download results as
                         xlsx</button>
+                        </div><!-- /auditTablePanel -->
+                    </div><!-- /auditAndTableLayout -->
                 </div>
             </div>
             <div id="schemaGeneratorSection">
@@ -37102,7 +37112,20 @@ ${selectedText}
         }
 
         submitBtn.addEventListener('click', () => {
-            const url = document.getElementById('urlInput').value;
+            const url = document.getElementById('urlInput').value.trim();
+
+            // Validate URL — must include a protocol
+            try {
+                const parsed = new URL(url);
+                if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+                    alert('Please enter a full URL starting with https:// or http://');
+                    return;
+                }
+            } catch (_) {
+                alert('Please enter a valid URL (e.g. https://example.com), not just a domain name.');
+                return;
+            }
+
             const maxPages = document.getElementById('maxPagesInput').value;
 
             submitBtn.innerHTML = 'Analysing...';
@@ -37254,6 +37277,8 @@ ${selectedText}
             dataForSeoActiveFilter = null;
             updateColumnSelectorUI();
             document.getElementById('auditSummary').innerHTML = '<div class="summary-grid"></div>';
+            const _panel = document.getElementById('auditSummaryPanel');
+            if (_panel) _panel.style.display = 'none';
 
             try {
                 const response = await fetch(DATA_FOR_SEO_ENDPOINT, {
@@ -37457,6 +37482,17 @@ ${selectedText}
             });
             summaryHtml += '</div>';
             container.innerHTML = summaryHtml;
+
+            // Show/hide the side panel depending on whether any cards rendered
+            const panel = document.getElementById('auditSummaryPanel');
+            if (panel) {
+                const hasCards = DATA_FOR_SEO_CHECK_KEYS.some(key => {
+                    const count = counts[key];
+                    const isPositive = DATA_FOR_SEO_POSITIVE_KEYS.includes(key);
+                    return (isPositive ? (totalPages - count) : count) > 0;
+                });
+                panel.style.display = hasCards ? 'block' : 'none';
+            }
         }
 
         function setCrawlerFilter(key) {
