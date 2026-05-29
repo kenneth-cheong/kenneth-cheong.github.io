@@ -10966,7 +10966,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1595</span>
+                <span id="appVersion">v1.0.1596</span>
             </a>
         </div>
 
@@ -14210,23 +14210,89 @@
                 <!-- Path 3: Content Checker Flow -->
                 <div id="contentCheckerFlow" class="flow-panel">
                     <button onclick="switchOptimiserFlow('reset')"><i class="fas fa-arrow-left"></i> Change Method</button>
+
+                    <!-- Compliance & Guidelines -->
                     <div class="sem-step-card" style="margin-top: 20px;">
-                        <div class="sem-card-title"><i class="fas fa-microscope"></i> Content Analysis Scope</div>
-                        <div class="sem-input-item">
-                            <label for="brand_guide_urls">Brand Guide / Guidelines PDFs (public URLs):</label>
-                            <textarea id="brand_guide_urls" placeholder="e.g., https://example.com/brand-guide.pdf"></textarea>
+                        <div class="sem-card-title"><i class="fas fa-shield-halved"></i> AI Compliance &amp; Guidelines</div>
+                        <div id="complianceRecommenderWrapper-Checker"
+                            style="background: #f8f9fa; border-radius: 8px; border: 1px solid #e1e4e8; padding: 15px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                                <p style="font-size: 13px; color: #666; margin: 0;">Scan for relevant regulations or guidelines based on your content topic:</p>
+                                <button id="btnScanCompliance-Checker" class="btn-gradient"
+                                    style="background: #34a853; padding: 10px 16px; font-size: 12px; margin: 0; white-space: nowrap; width: auto; border-radius: 8px;"
+                                    onclick="scanForCompliance('checker')">
+                                    <i class="fas fa-search"></i> Scan Guidelines
+                                </button>
+                            </div>
+                            <div id="complianceGuidelinesList-Checker"
+                                style="display: flex; flex-wrap: wrap; gap: 10px; margin: 15px 0;">
+                                <div style="font-size: 12px; color: #999; width: 100%; font-style: italic;">No guidelines scanned yet.</div>
+                            </div>
+                            <div class="sem-input-item">
+                                <label for="customCompliance-Checker">Custom Instructions / Compliance:</label>
+                                <textarea id="customCompliance-Checker"
+                                    placeholder="e.g., Must mention risk warnings at the end"
+                                    style="min-height: 60px;"></textarea>
+                            </div>
                         </div>
-                        <div class="sem-input-item" style="margin-top: 15px;">
-                            <label for="content_check_other_urls">Any other website/guidelines URLs: </label>
-                            <textarea id="content_check_other_urls" placeholder="https://regulations.com/"></textarea>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
+                            <div class="ref-section" style="margin: 0; border: none; padding: 0;">
+                                <div class="ref-label"><i class="fas fa-file-pdf"></i> Reference Documents (PDF/DOCX)</div>
+                                <div class="compliance-dropzone"
+                                    onclick="document.getElementById('complianceFileUpload-Checker').click()">
+                                    <i class="fas fa-cloud-upload-alt"
+                                        style="font-size: 1.5em; color: #999; margin-bottom: 5px; display: block;"></i>
+                                    <span style="font-size: 0.9em;">Click to upload</span>
+                                    <input type="file" id="complianceFileUpload-Checker" style="display: none;"
+                                        accept=".pdf,.doc,.docx" multiple onchange="handleCheckerComplianceFiles(this)">
+                                </div>
+                                <div id="complianceFileList-Checker" style="margin-top: 10px; font-size: 0.85em;"></div>
+                            </div>
+                            <div class="ref-section" style="margin: 0; border: none; padding: 0;">
+                                <div class="ref-label"><i class="fas fa-link"></i> Reference URLs</div>
+                                <textarea id="referenceUrls-Checker" placeholder="Enter one URL per line"
+                                    style="min-height: 80px; width: 100%; box-sizing: border-box;"></textarea>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- Content to Validate -->
                     <div class="sem-step-card">
                         <div class="sem-card-title"><i class="fas fa-keyboard"></i> Content to Validate</div>
-                        <div class="sem-input-item">
-                            <label for="content_to_check">Content to Check<span class="req">*</span></label>
-                            <textarea id="content_to_check" style="min-height: 250px;" placeholder="Paste your content here..."></textarea>
+
+                        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                            <button id="checkerInputTabPaste" onclick="switchCheckerInputTab('paste')"
+                                style="padding: 8px 18px; border-radius: 8px; border: 2px solid #1a73e8; background: #1a73e8; color: #fff; font-weight: 600; cursor: pointer; font-size: 0.9em;">
+                                <i class="fas fa-paste"></i> Paste Text
+                            </button>
+                            <button id="checkerInputTabUpload" onclick="switchCheckerInputTab('upload')"
+                                style="padding: 8px 18px; border-radius: 8px; border: 2px solid #1a73e8; background: #fff; color: #1a73e8; font-weight: 600; cursor: pointer; font-size: 0.9em;">
+                                <i class="fas fa-file-upload"></i> Upload File
+                            </button>
                         </div>
+
+                        <div id="checkerPastePanel">
+                            <div class="sem-input-item">
+                                <label for="content_to_check">Content to Check<span class="req">*</span></label>
+                                <textarea id="content_to_check" style="min-height: 250px;" placeholder="Paste your content here..."></textarea>
+                            </div>
+                        </div>
+
+                        <div id="checkerUploadPanel" style="display:none;">
+                            <div class="compliance-dropzone" id="checkerContentDropzone"
+                                onclick="document.getElementById('checkerContentFileInput').click()"
+                                ondragover="event.preventDefault(); this.style.background='#e8f0fe';"
+                                ondragleave="this.style.background='';"
+                                ondrop="handleCheckerContentDrop(event)">
+                                <i class="fas fa-file-alt" style="font-size: 2em; color: #999; margin-bottom: 8px; display: block;"></i>
+                                <span style="font-size: 0.95em; color: #555;">Click or drag &amp; drop a file to check</span>
+                                <span style="font-size: 0.8em; color: #999; display: block; margin-top: 4px;">Supports .txt, .pdf, .doc, .docx</span>
+                                <input type="file" id="checkerContentFileInput" style="display:none;"
+                                    accept=".txt,.pdf,.doc,.docx" onchange="handleCheckerContentFile(this)">
+                            </div>
+                            <div id="checkerContentFileName" style="margin-top: 8px; font-size: 0.85em; color: #1a73e8;"></div>
+                        </div>
+
                         <div class="sem-input-item" style="margin-top: 15px;">
                             <label for="content_check_instructions">Additional Analysis Instructions: </label>
                             <textarea id="content_check_instructions" placeholder="e.g. Do not use the word 'cheap'"></textarea>
@@ -43024,158 +43090,123 @@ Output ONLY the finished ${contentTypeLabel} — no meta-commentary, no explanat
         }
 
         async function checkContent() {
-            const brandGuideUrlsText = document.getElementById('brand_guide_urls').value || "";
-            const otherUrlsText = document.getElementById('content_check_other_urls').value || "";
-            const instructions = document.getElementById('content_check_instructions').value || "";
-            const content = document.getElementById('content_to_check').value;
+            // Collect compliance data from the checker flow
+            const complianceText = getSelectedCompliance('checker');
+            const refUrlsText = (document.getElementById('referenceUrls-Checker')?.value || "");
+            const brandGuideUrlsText = document.getElementById('brand_guide_urls')?.value || "";
+            const otherUrlsText = document.getElementById('content_check_other_urls')?.value || "";
+
+            // Build instructions: merge legacy instructions field + compliance selections
+            const baseInstructions = document.getElementById('content_check_instructions')?.value || "";
+            const instructions = [baseInstructions, complianceText ? `Compliance requirements: ${complianceText}` : ''].filter(Boolean).join('\n\n');
+
+            // Resolve content — paste tab or uploaded file (txt already read into textarea; pdf/docx handled below)
+            const uploadPanel = document.getElementById('checkerUploadPanel');
+            const usingUpload = uploadPanel && uploadPanel.style.display !== 'none';
+            let content = document.getElementById('content_to_check')?.value || "";
+
+            // If upload mode and a non-txt file is selected, parse it via pdfParser first
+            let uploadedFileContent = "";
+            if (usingUpload) {
+                const fileInput = document.getElementById('checkerContentFileInput');
+                const file = fileInput && fileInput.files[0];
+                if (file && file.type !== 'text/plain') {
+                    // We'll handle this as a data-URL upload below — for now just use any text already extracted
+                }
+            }
+
             document.getElementById("openFeedbackModalBtn").style.display = "none";
             document.getElementById("copy-check-results-button").style.display = "none";
-
             document.getElementById("contentCheckBtn").innerText = "Checking...";
             document.getElementById("checkContentResults").innerHTML = "";
-            // **Check if the content field is blank**
+
             if (!content || content.trim() === "") {
-                alert("Please enter content to check.");
-                document.getElementById("contentCheckBtn").innerText = "Check Content"; // Reset button text
+                alert("Please enter or upload content to check.");
+                document.getElementById("contentCheckBtn").innerText = "Check Content";
                 return;
             }
 
+            // Build URL lists: brand guides (pdf parser) + reference URLs + legacy other URLs (content parser)
+            const brandGuideUrls = brandGuideUrlsText.split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
+            const refUrls = refUrlsText.split(/\n+/).map(s => s.trim()).filter(Boolean);
+            const otherUrls = [...otherUrlsText.split(/[,\n]+/).map(s => s.trim()).filter(Boolean), ...refUrls];
 
-            // Split URLs by commas or newlines, and trim whitespace
-            const brandGuideUrls = brandGuideUrlsText.split(/[, \n]+/).filter(url => url.trim() !== "");  //filter is important to remove empty strings
-            const otherUrls = otherUrlsText.split(/[, \n]+/).filter(url => url.trim() !== ""); //filter is important to remove empty strings
-
-            const allUrls = [...brandGuideUrls, ...otherUrls];  // Combine the arrays
-
+            const allUrls = [...brandGuideUrls, ...otherUrls];
             if (allUrls.length === 0) {
-                console.warn("No URLs provided.");
-                alert("Please enter at least one URL."); // Optional: provide user feedback
-                document.getElementById("contentCheckBtn").innerText = "Check Content"; // Reset button text
+                alert("Please enter at least one reference URL or upload a reference document.");
+                document.getElementById("contentCheckBtn").innerText = "Check Content";
                 return;
             }
 
-            // API endpoints
             const pdfParserApiUrl = "https://i3oxhgicub.execute-api.ap-southeast-1.amazonaws.com/pdfParser";
             const checkContentApiUrl = "https://mmyvj7yj11.execute-api.ap-southeast-1.amazonaws.com/checkContent";
-            const contentParsingApiUrl = "https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing"; // Added content parsing API URL
+            const contentParsingApiUrl = "https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing";
 
             try {
-                // Create an array of promises for the brand guide URLs API calls
                 const brandGuideFetchPromises = brandGuideUrls.map(async url => {
                     try {
                         const response = await fetch(pdfParserApiUrl, {
                             method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ url: url })
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url })
                         });
-
-                        if (!response.ok) {
-                            const errorText = await response.text();
-                            console.error(`Error fetching URL ${url}: ${response.status} - ${errorText}`);
-                            alert("The brand guide(s) failed to load successfully.");
-                            throw new Error(`Failed to fetch ${url}: ${response.status} - ${errorText}`);
-                        }
-
-                        const data = await response.json();
-                        return data;
+                        if (!response.ok) throw new Error(`${response.status}`);
+                        return await response.json();
                     } catch (error) {
-                        console.error(`Error processing URL ${url}:`, error);
-                        alert("The brand guide(s) failed to load successfully.");
-                        return { url: url, error: error.message };
+                        console.error(`Error processing brand guide URL ${url}:`, error);
+                        alert("One or more brand guides failed to load.");
+                        return { url, error: error.message };
                     }
                 });
 
-                // Create an array of promises for the other URLs API calls to contentParsing endpoint
                 const otherUrlsFetchPromises = otherUrls.map(async url => {
                     try {
                         const response = await fetch(contentParsingApiUrl, {
                             method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ url: url })
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url })
                         });
-
-                        if (!response.ok) {
-                            const errorText = await response.text();
-                            console.error(`Error fetching URL ${url}: ${response.status} - ${errorText}`);
-                            alert("The URL(s) failed to load successfully.");
-                            throw new Error(`Failed to fetch ${url}: ${response.status} - ${errorText}`);
-                        }
-
-                        const data = await response.json();
-                        return data;
+                        if (!response.ok) throw new Error(`${response.status}`);
+                        return await response.json();
                     } catch (error) {
                         console.error(`Error processing URL ${url}:`, error);
-                        alert("The URL(s) failed to load successfully.");
-                        return { url: url, error: error.message };
+                        alert("One or more reference URLs failed to load.");
+                        return { url, error: error.message };
                     }
                 });
 
-
-                // Use Promise.all to wait for all API calls to complete
                 const brandGuideResults = await Promise.all(brandGuideFetchPromises);
                 const otherUrlsResults = await Promise.all(otherUrlsFetchPromises);
 
-                // Combine the responses from pdfParser API calls
-                let combinedResponseFromBrandGuide = {};
-                brandGuideResults.forEach((result, index) => {
-                    combinedResponseFromBrandGuide[brandGuideUrls[index]] = result;  // Use the URL as the key for each response.  Important that allUrls[index] is used instead of result.url because result might be an error object without a .url field.
+                const combinedResponseFromBrandGuide = {};
+                brandGuideResults.forEach((result, i) => { combinedResponseFromBrandGuide[brandGuideUrls[i]] = result; });
+
+                const combinedResponseFromOtherSources = {};
+                otherUrlsResults.forEach((result, i) => {
+                    combinedResponseFromOtherSources[otherUrls[i]] = (result && result.body) ? result.body : (result?.error || "No content");
                 });
 
-                // Combine the responses from contentParsing API calls, extracting 'body'
-                let combinedResponseFromOtherSources = {};
-                otherUrlsResults.forEach((result, index) => {
-                    if (result && result.body) {
-                        combinedResponseFromOtherSources[otherUrls[index]] = result.body;
-                    } else {
-                        // Handle the case where 'body' is missing or result is an error object
-                        combinedResponseFromOtherSources[otherUrls[index]] = result && result.error ? result.error : "No content"; //Store the error message in the combined response, so the user sees the error message on the UI
-                        console.warn(`No 'body' found in the response from ${otherUrls[index]}`);
-                    }
+                const checkContentResponse = await fetch(checkContentApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        brand_guide: combinedResponseFromBrandGuide,
+                        instructions,
+                        content,
+                        other_sources: combinedResponseFromOtherSources
+                    })
                 });
 
-                console.log("Combined Responses from brandGuideParser:", combinedResponseFromBrandGuide);
-                console.log("Combined Responses from otherSources:", combinedResponseFromOtherSources);
+                if (!checkContentResponse.ok) throw new Error(`checkContent API: ${checkContentResponse.status}`);
 
-
-                // Now, send the combined response to the checkContent API
-                try {
-                    const checkContentResponse = await fetch(checkContentApiUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            "brand_guide": combinedResponseFromBrandGuide,
-                            "instructions": instructions,
-                            "content": content,
-                            "other_sources": combinedResponseFromOtherSources  // Changed to the combined other sources response
-                        })
-                    });
-
-                    if (!checkContentResponse.ok) {
-                        const errorText = await checkContentResponse.text();
-                        console.error(`Error calling checkContent API: ${checkContentResponse.status} - ${errorText}`);
-                        throw new Error(`Failed to call checkContent API: ${checkContentResponse.status} - ${errorText}`);
-                    }
-
-                    const checkContentData = await checkContentResponse.json();
-                    console.log("Response from checkContent API:", checkContentData);
-                    // Display the response body to the user (e.g., in a div)
-                    displayCheckContentResults(checkContentData['body']); // Implement this function to show the results
-                } catch (checkContentError) {
-                    console.error("Error calling checkContent API:", checkContentError);
-                    alert("Error occurred while calling the checkContent API. See console for details.");
-                }
+                const checkContentData = await checkContentResponse.json();
+                displayCheckContentResults(checkContentData['body']);
 
             } catch (error) {
-                console.error("An error occurred during the API calls:", error);
-                alert("An error occurred while checking the content. See console for details."); // Provide user feedback
+                console.error("Error during content check:", error);
+                alert("An error occurred while checking the content. See console for details.");
             }
-            document.getElementById("contentCheckBtn").innerText = "Check Content"
+            document.getElementById("contentCheckBtn").innerText = "Check Content";
         }
 
         function displayCheckContentResults(data) {
@@ -52000,14 +52031,16 @@ Return compact valid JSON only. No prose.
 
         async function scanForCompliance(flowType = 'new') {
             const isNew = flowType === 'new';
-            const topicId = isNew ? 'newArticleTopic' : 'primaryKeyword';
-            const listId = isNew ? 'complianceGuidelinesList' : 'complianceGuidelinesList-Optimise';
-            const btnId = isNew ? 'btnScanCompliance' : 'btnScanCompliance-Optimise';
+            const isChecker = flowType === 'checker';
+            const topicId = isNew ? 'newArticleTopic' : (isChecker ? 'content_to_check' : 'primaryKeyword');
+            const listId = isNew ? 'complianceGuidelinesList' : (isChecker ? 'complianceGuidelinesList-Checker' : 'complianceGuidelinesList-Optimise');
+            const btnId = isNew ? 'btnScanCompliance' : (isChecker ? 'btnScanCompliance-Checker' : 'btnScanCompliance-Optimise');
 
-            let topic = document.getElementById(topicId).value.trim();
+            let topic = (document.getElementById(topicId)?.value || '').trim();
+            if (isChecker && !topic) topic = (document.getElementById('content_check_instructions')?.value || '').trim();
 
             // Fallback for optimise flow: try title if keyword is empty
-            if (!isNew && !topic) {
+            if (!isNew && !isChecker && !topic) {
                 topic = document.getElementById('editorTitle').value.trim();
             }
 
@@ -52072,20 +52105,69 @@ Return compact valid JSON only. No prose.
         }
 
         function getSelectedCompliance(flowType = 'new') {
+            const isChecker = flowType === 'checker';
             const isNew = flowType === 'new';
-            const listId = isNew ? 'complianceGuidelinesList' : 'complianceGuidelinesList-Optimise';
-            const customId = isNew ? 'customCompliance' : 'customCompliance-Optimise';
+            const listId = isNew ? 'complianceGuidelinesList' : (isChecker ? 'complianceGuidelinesList-Checker' : 'complianceGuidelinesList-Optimise');
+            const customId = isNew ? 'customCompliance' : (isChecker ? 'customCompliance-Checker' : 'customCompliance-Optimise');
 
             const container = document.getElementById(listId);
-            const checkboxes = container.querySelectorAll('input[type="checkbox"]:checked');
+            const checkboxes = container ? container.querySelectorAll('input[type="checkbox"]:checked') : [];
             let complianceText = Array.from(checkboxes).map(cb => cb.value).join(', ');
 
-            const customValue = document.getElementById(customId).value.trim();
+            const customEl = document.getElementById(customId);
+            const customValue = customEl ? customEl.value.trim() : '';
             if (customValue) {
                 complianceText += (complianceText ? '; ' : '') + customValue;
             }
 
             return complianceText;
+        }
+
+        function switchCheckerInputTab(tab) {
+            const pastePanel = document.getElementById('checkerPastePanel');
+            const uploadPanel = document.getElementById('checkerUploadPanel');
+            const pasteBtn = document.getElementById('checkerInputTabPaste');
+            const uploadBtn = document.getElementById('checkerInputTabUpload');
+            const isPaste = tab === 'paste';
+            pastePanel.style.display = isPaste ? '' : 'none';
+            uploadPanel.style.display = isPaste ? 'none' : '';
+            pasteBtn.style.background = isPaste ? '#1a73e8' : '#fff';
+            pasteBtn.style.color = isPaste ? '#fff' : '#1a73e8';
+            uploadBtn.style.background = isPaste ? '#fff' : '#1a73e8';
+            uploadBtn.style.color = isPaste ? '#1a73e8' : '#fff';
+        }
+
+        function handleCheckerContentFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const nameEl = document.getElementById('checkerContentFileName');
+            nameEl.textContent = `Selected: ${file.name}`;
+            if (file.type === 'text/plain') {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    document.getElementById('content_to_check').value = e.target.result;
+                    switchCheckerInputTab('paste');
+                };
+                reader.readAsText(file);
+            }
+            // PDF/DOCX will be read server-side via the existing pdfParser endpoint when checkContent runs
+        }
+
+        function handleCheckerContentDrop(event) {
+            event.preventDefault();
+            document.getElementById('checkerContentDropzone').style.background = '';
+            const file = event.dataTransfer.files[0];
+            if (!file) return;
+            const input = document.getElementById('checkerContentFileInput');
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            input.files = dt.files;
+            handleCheckerContentFile(input);
+        }
+
+        function handleCheckerComplianceFiles(input) {
+            const listEl = document.getElementById('complianceFileList-Checker');
+            listEl.innerHTML = Array.from(input.files).map(f => `<div style="margin-bottom:4px;"><i class="fas fa-file" style="color:#1a73e8;"></i> ${f.name}</div>`).join('');
         }
 
         function switchOptimiserFlow(type) {
