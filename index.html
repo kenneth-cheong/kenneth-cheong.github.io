@@ -10966,7 +10966,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1592</span>
+                <span id="appVersion">v1.0.1593</span>
             </a>
         </div>
 
@@ -12340,7 +12340,7 @@
     </div>
     <div class="basic-selector-card active" onclick="toggleAdvancedSection('aiContentOptimiserSection', this)">
         <div class="card-icon" style="background:#f3e8ff;color:#7c3aed"><i class="fas fa-robot"></i></div>
-        <div class="card-info"><h4>AI Content Optimiser</h4><p>Competitor content comparison & recommendations</p></div>
+        <div class="card-info"><h4>AI Content Optimiser</h4><p>New articles, existing content optimisation & content checker</p></div>
         <span class="card-pill-tag" data-cat="SEO">SEO</span>
     </div>
 
@@ -14207,6 +14207,49 @@
                     </div>
                 </div>
 
+                <!-- Path 3: Content Checker Flow -->
+                <div id="contentCheckerFlow" class="flow-panel">
+                    <button onclick="switchOptimiserFlow('reset')"><i class="fas fa-arrow-left"></i> Change Method</button>
+                    <div class="sem-step-card" style="margin-top: 20px;">
+                        <div class="sem-card-title"><i class="fas fa-microscope"></i> Content Analysis Scope</div>
+                        <div class="sem-input-item">
+                            <label for="brand_guide_urls">Brand Guide / Guidelines PDFs (public URLs):</label>
+                            <textarea id="brand_guide_urls" placeholder="e.g., https://example.com/brand-guide.pdf"></textarea>
+                        </div>
+                        <div class="sem-input-item" style="margin-top: 15px;">
+                            <label for="content_check_other_urls">Any other website/guidelines URLs: </label>
+                            <textarea id="content_check_other_urls" placeholder="https://regulations.com/"></textarea>
+                        </div>
+                    </div>
+                    <div class="sem-step-card">
+                        <div class="sem-card-title"><i class="fas fa-keyboard"></i> Content to Validate</div>
+                        <div class="sem-input-item">
+                            <label for="content_to_check">Content to Check<span class="req">*</span></label>
+                            <textarea id="content_to_check" style="min-height: 250px;" placeholder="Paste your content here..."></textarea>
+                        </div>
+                        <div class="sem-input-item" style="margin-top: 15px;">
+                            <label for="content_check_instructions">Additional Analysis Instructions: </label>
+                            <textarea id="content_check_instructions" placeholder="e.g. Do not use the word 'cheap'"></textarea>
+                        </div>
+                        <div style="display: flex; gap: 15px; margin-top: 25px; flex-wrap: wrap;">
+                            <button id="contentCheckBtn" class="config-btn-highlight" style="margin: 0;" onclick="checkContent()">Check Content</button>
+                            <button type="button" onclick="initContentCheckerTour()" class="config-btn-highlight"
+                                style="background: transparent; border: 2px solid #34a853; color: #34a853; margin: 0; box-shadow: none; padding: 11px 22px; cursor: pointer; transition: all 0.2s ease-in-out;"
+                                onmouseover="this.style.background='#34a853'; this.style.color='white'; this.style.boxShadow='0 4px 12px rgba(52, 168, 83, 0.3)';"
+                                onmouseout="this.style.background='transparent'; this.style.color='#34a853'; this.style.boxShadow='none';">
+                                <i class="fas fa-question-circle"></i> Help
+                            </button>
+                        </div>
+                    </div>
+                    <div id="checkContentResults"></div>
+                    <div style="display: flex; align-items: center;">
+                        <button type="button" id="copy-check-results-button" class="tooltip" style="display:none" onclick="copyCheckContentResults(event)">
+                            <i class="fa fa-copy"></i>
+                            <span>Click to copy the check results to your clipboard.</span>
+                        </button>
+                        <button id="openFeedbackModalBtn" style="display:none; margin-left: 10px;">Feedback</button>
+                    </div>
+                </div>
 
                 <div class="optimiser-layout" style="display: none;">
                     <!-- Main Editor Column -->
@@ -18298,50 +18341,6 @@
                         style="display:none; width: auto; background: #6366f1;" onclick="copyPersonaResults(event)">
                         <i class="fas fa-copy"></i> Copy All to Clipboard
                     </button>
-                </div>
-
-                <!-- Path 3: Content Checker Flow -->
-                <div id="contentCheckerFlow" class="flow-panel">
-                    <button onclick="switchOptimiserFlow('reset')"><i class="fas fa-arrow-left"></i> Change Method</button>
-                    <div class="sem-step-card" style="margin-top: 20px;">
-                        <div class="sem-card-title"><i class="fas fa-microscope"></i> Content Analysis Scope</div>
-                        <div class="sem-input-item">
-                            <label for="brand_guide_urls">Brand Guide / Guidelines PDFs (public URLs):</label>
-                            <textarea id="brand_guide_urls" placeholder="e.g., https://example.com/brand-guide.pdf"></textarea>
-                        </div>
-                        <div class="sem-input-item" style="margin-top: 15px;">
-                            <label for="content_check_other_urls">Any other website/guidelines URLs: </label>
-                            <textarea id="content_check_other_urls" placeholder="https://regulations.com/"></textarea>
-                        </div>
-                    </div>
-                    <div class="sem-step-card">
-                        <div class="sem-card-title"><i class="fas fa-keyboard"></i> Content to Validate</div>
-                        <div class="sem-input-item">
-                            <label for="content_to_check">Content to Check<span class="req">*</span></label>
-                            <textarea id="content_to_check" style="min-height: 250px;" placeholder="Paste your content here..."></textarea>
-                        </div>
-                        <div class="sem-input-item" style="margin-top: 15px;">
-                            <label for="content_check_instructions">Additional Analysis Instructions: </label>
-                            <textarea id="content_check_instructions" placeholder="e.g. Do not use the word 'cheap'"></textarea>
-                        </div>
-                        <div style="display: flex; gap: 15px; margin-top: 25px; flex-wrap: wrap;">
-                            <button id="contentCheckBtn" class="config-btn-highlight" style="margin: 0;" onclick="checkContent()">Check Content</button>
-                            <button type="button" onclick="initContentCheckerTour()" class="config-btn-highlight"
-                                style="background: transparent; border: 2px solid #34a853; color: #34a853; margin: 0; box-shadow: none; padding: 11px 22px; cursor: pointer; transition: all 0.2s ease-in-out;"
-                                onmouseover="this.style.background='#34a853'; this.style.color='white'; this.style.boxShadow='0 4px 12px rgba(52, 168, 83, 0.3)';"
-                                onmouseout="this.style.background='transparent'; this.style.color='#34a853'; this.style.boxShadow='none';">
-                                <i class="fas fa-question-circle"></i> Help
-                            </button>
-                        </div>
-                    </div>
-                    <div id="checkContentResults"></div>
-                    <div style="display: flex; align-items: center;">
-                        <button type="button" id="copy-check-results-button" class="tooltip" style="display:none" onclick="copyCheckContentResults(event)">
-                            <i class="fa fa-copy"></i>
-                            <span>Click to copy the check results to your clipboard.</span>
-                        </button>
-                        <button id="openFeedbackModalBtn" style="display:none; margin-left: 10px;">Feedback</button>
-                    </div>
                 </div>
 
             </div>
