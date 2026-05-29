@@ -10966,7 +10966,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1583</span>
+                <span id="appVersion">v1.0.1584</span>
             </a>
         </div>
 
@@ -13110,7 +13110,7 @@
                     <div id="auditAndTableLayout" style="display: flex; gap: 0; align-items: flex-start; margin-top: 20px;">
 
                         <!-- Left: filter cards panel -->
-                        <div id="auditSummaryPanel" style="display: none; flex-shrink: 0; width: 220px; margin-right: 18px;">
+                        <div id="auditSummaryPanel" style="display: none; flex-shrink: 0; width: 220px; margin-right: 18px; max-height: 600px; overflow-y: auto; position: sticky; top: 10px;">
                             <div style="margin-bottom: 10px;">
                                 <a href="https://docs.dataforseo.com/v3/on_page/pages/" target="_blank"
                                     style="color: #004c9d; text-decoration: underline; font-weight: 600; font-size: 0.85em;">
@@ -13120,19 +13120,57 @@
                             <div id="auditSummary"></div>
                         </div>
 
-                        <!-- Right: table + collapsibles -->
-                        <div id="auditTablePanel" style="flex: 1; min-width: 0;">
+                        <!-- Right: crawler table only -->
+                        <div id="auditTablePanel" style="flex: 1; min-width: 0; overflow-x: auto;">
 
-                        <!-- AI Recommendations from Technical SEO crawl -->
-                        <div id="techSeoRecommendations" style="display:none; margin-top: 0; margin-bottom: 20px;">
-                            <div style="font-size: 1rem; font-weight: 700; color: #1e293b; margin-bottom: 14px;">
-                                <i class="fas fa-robot" style="color: #6366f1; margin-right: 8px;"></i>AI-Generated Recommendations
+                            <!-- Column Selector (moved here from crawlerSection) -->
+                            <div id="columnSelector" class="column-selector-container" style="display:none;">
+                                <div class="column-selector-header">
+                                    <strong><i class="fas fa-columns"></i> Display Columns</strong>
+                                </div>
+                                <div class="column-selector-actions">
+                                    <input type="text" class="column-search-input"
+                                        placeholder="Search columns... (spaces and _ are interchangeable)"
+                                        onkeyup="filterColumnList(this.value)">
+                                    <button class="config-btn-highlight column-selector-btn"
+                                        onclick="toggleAllColumns(true)">Select All</button>
+                                    <button class="config-btn-highlight column-selector-btn" style="background: #666;"
+                                        onclick="toggleAllColumns(false)">Deselect All</button>
+                                </div>
+                                <div id="columnCheckboxList" class="column-checkbox-list"></div>
                             </div>
-                            <div id="techSeoRecsLoading" style="display:none; padding: 18px 0; text-align: center; color: #6366f1; font-size: 0.85rem; font-weight: 600;">
-                                <i class="fas fa-circle-notch fa-spin" style="margin-right: 8px;"></i> Analysing audit findings and generating recommendations...
+
+                            <div id="crawlerReport" style="display:none;">
+                                <div class="doc-link-banner">
+                                    <i class="fas fa-info-circle"></i>
+                                    <span>
+                                        <a href="https://docs.dataforseo.com/v3/on_page/pages/" target="_blank"
+                                            rel="noopener noreferrer">
+                                            Click here to see what each column means in the report
+                                        </a>
+                                    </span>
+                                </div>
+                                <div class="crawler-table-wrap">
+                                    <table class="crawler-data-table">
+                                        <thead id="crawlerTableHeader"></thead>
+                                        <tbody id="crawlerTableBody"></tbody>
+                                    </table>
+                                </div>
                             </div>
-                            <div id="techSeoRecsContainer" style="display: flex; flex-direction: column; gap: 10px;"></div>
+
+                        </div><!-- /auditTablePanel -->
+                    </div><!-- /auditAndTableLayout -->
+
+                    <!-- Below cards+table: AI Recommendations, GTmetrix, Page Analysis -->
+                    <div id="techSeoRecommendations" style="display:none; margin-top: 28px;">
+                        <div style="font-size: 1rem; font-weight: 700; color: #1e293b; margin-bottom: 14px;">
+                            <i class="fas fa-robot" style="color: #6366f1; margin-right: 8px;"></i>AI-Generated Recommendations
                         </div>
+                        <div id="techSeoRecsLoading" style="display:none; padding: 18px 0; text-align: center; color: #6366f1; font-size: 0.85rem; font-weight: 600;">
+                            <i class="fas fa-circle-notch fa-spin" style="margin-right: 8px;"></i> Analysing audit findings and generating recommendations...
+                        </div>
+                        <div id="techSeoRecsContainer" style="display: flex; flex-direction: column; gap: 10px;"></div>
+                    </div>
 
                     <button class="collapsible" id="gtButton"><i class="fas fa-plus-square"></i>GTmetrix
                         Results</button>
@@ -13214,52 +13252,11 @@
                         </div>
                     </div>
 
-                    <button class="collapsible" id="crawlerButton"><i class="fas fa-plus-square"></i>Crawler
-                        Report</button>
-                    <div class="content" id="crawlerSection">
-                        <!-- Column Selector -->
-                        <div id="columnSelector" class="column-selector-container" style="display:none;">
-                            <div class="column-selector-header">
-                                <strong><i class="fas fa-columns"></i> Display Columns</strong>
-                            </div>
-                            <div class="column-selector-actions">
-                                <input type="text" class="column-search-input"
-                                    placeholder="Search columns... (spaces and _ are interchangeable)"
-                                    onkeyup="filterColumnList(this.value)">
-                                <button class="config-btn-highlight column-selector-btn"
-                                    onclick="toggleAllColumns(true)">Select All</button>
-                                <button class="config-btn-highlight column-selector-btn" style="background: #666;"
-                                    onclick="toggleAllColumns(false)">Deselect All</button>
-                            </div>
-                            <div id="columnCheckboxList" class="column-checkbox-list">
-                            </div>
-                        </div>
+                    <!-- hidden shell kept so JS that references crawlerSection/crawlerButton doesn't break -->
+                    <div id="crawlerSection" style="display:none;"></div>
 
-                        <div id="crawlerReport" style="display:none;">
-                            <div class="doc-link-banner">
-                                <i class="fas fa-info-circle"></i>
-                                <span>
-                                    <a href="https://docs.dataforseo.com/v3/on_page/pages/" target="_blank"
-                                        rel="noopener noreferrer">
-                                        Click here to see what each column means in the report
-                                    </a>
-                                </span>
-                            </div>
-                            <div class="crawler-table-wrap">
-                                <table class="crawler-data-table">
-                                    <thead id="crawlerTableHeader">
-                                        <!-- Headers will be generated dynamically -->
-                                    </thead>
-                                    <tbody id="crawlerTableBody">
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
                     <button id="downloadResultsBtn" onclick="downloadResultsAsXlsx()">Download results as
                         xlsx</button>
-                        </div><!-- /auditTablePanel -->
-                    </div><!-- /auditAndTableLayout -->
                 </div>
             </div>
             <div id="schemaGeneratorSection">
