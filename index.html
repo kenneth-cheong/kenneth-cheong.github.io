@@ -10920,7 +10920,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1576</span>
+                <span id="appVersion">v1.0.1577</span>
             </a>
         </div>
 
@@ -21969,6 +21969,20 @@
                 if (s === 'progressDesc') return [...arr].sort((a,b) => b.pctProgress - a.pctProgress);
                 return isBehind ? [...arr].sort((a,b) => b.pctBehind - a.pctBehind) : [...arr].sort((a,b) => a.pctBehind - b.pctBehind);
             };
+            // If SE Ranking site data is loaded, flag campaigns with no fuzzy match as unclassified
+            const serSites = cockpitState.basketSiteData || [];
+            if (serSites.length) {
+                const siteNorms = serSites.map(s => seoIntelNormalizeName(s.siteName || s.name));
+                filtered.forEach(c => {
+                    if (c.isUnclassified) return;
+                    const campNorm = seoIntelNormalizeName(c.name);
+                    const matched = siteNorms.some(sn => sn === campNorm || sn.includes(campNorm) || campNorm.includes(sn));
+                    if (!matched) {
+                        c.isUnclassified = true;
+                        c.unclassifiedReason = 'No SE Ranking site';
+                    }
+                });
+            }
             const classified   = filtered.filter(c => !c.isUnclassified);
             const unclassified = filtered.filter(c => c.isUnclassified);
             const behind    = applyRowSort(classified.filter(c => c.isBehind), true);
