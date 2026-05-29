@@ -10966,7 +10966,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1584</span>
+                <span id="appVersion">v1.0.1585</span>
             </a>
         </div>
 
@@ -12333,11 +12333,6 @@
         <div class="card-info"><h4>Media Plan</h4><p>Multi-channel media strategy & budget allocation</p></div>
         <span class="card-pill-tag" data-cat="Others">Others</span>
     </div>
-    <div class="basic-selector-card active" onclick="toggleAdvancedSection('contentCheckerSection', this)">
-        <div class="card-icon" style="background:#d1fae5;color:#059669"><i class="fas fa-spell-check"></i></div>
-        <div class="card-info"><h4>Content Check</h4><p>Audit content quality, readability & SEO alignment</p></div>
-        <span class="card-pill-tag" data-cat="Others">Others</span>
-    </div>
     <div class="basic-selector-card active" onclick="toggleAdvancedSection('landingPageAuditSection', this)">
         <div class="card-icon" style="background:#e0e7ff;color:#4338ca"><i class="fas fa-clipboard-check"></i></div>
         <div class="card-info"><h4>Landing Page Audit</h4><p>Evaluate pages for conversion rate optimisation</p></div>
@@ -13531,10 +13526,16 @@
                             <button id="runAnchorAuditBtn" class="config-btn-highlight" style="margin:0;"
                                 onclick="runAnchorTextAudit()">Run Audit</button>
                         </div>
-                        <div id="anchorAuditLoading" style="display:none; margin-top:15px; text-align:center;">
-                            <i class="fas fa-spinner fa-spin" style="font-size:2em; color:#004c9d;"></i>
-                            <p style="margin-top:10px; color:#666;">Scanning sitemaps and crawling pages. This may take
-                                a few minutes...</p>
+                        <div id="anchorAuditLoading" style="display:none; margin-top:20px;">
+                            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:20px;">
+                                <div id="anchorPhaseLabel" style="font-size:13px; font-weight:600; color:#1e293b; margin-bottom:10px;">
+                                    <i class="fas fa-spinner fa-spin" style="color:#004c9d;"></i> <span id="anchorPhaseLabelText">Starting audit...</span>
+                                </div>
+                                <div style="background:#e2e8f0; border-radius:999px; height:8px; overflow:hidden;">
+                                    <div id="anchorProgressBar" style="height:100%; width:0%; background:linear-gradient(90deg,#004c9d,#34a853); border-radius:999px; transition:width 0.4s ease;"></div>
+                                </div>
+                                <div id="anchorProgressDetail" style="font-size:12px; color:#64748b; margin-top:8px;"></div>
+                            </div>
                         </div>
                     </div>
 
@@ -18580,60 +18581,6 @@
                     <div class="funnel-content" style="background-color: #b2cfe7; width:60%;">
                         <p id="retention-details">N.A.</p>
                     </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="contentCheckerSection" style="display:none;">
-            <div class="page-break"></div>
-            <button class="collapsible" id="contentcheck"><i class="fas fa-plus-square"></i><i
-                    class="fas fa-book-open"></i>Content Checker</button>
-            <div class="content" id="content_check_content">
-                <div class="sem-step-card">
-                    <div class="sem-card-title"><i class="fas fa-microscope"></i> Content Analysis Scope
-                    </div>
-                    <div class="sem-input-item">
-                        <label for="brand_guide_urls">Brand Guide / Guidelines PDFs (public URLs):</label>
-                        <textarea id="brand_guide_urls"
-                            placeholder="e.g., https://example.com/brand-guide.pdf"></textarea>
-                    </div>
-                    <div class="sem-input-item" style="margin-top: 15px;">
-                        <label for="content_check_other_urls">Any other website/guidelines URLs: </label>
-                        <textarea id="content_check_other_urls" placeholder="https://regulations.com/"></textarea>
-                    </div>
-                </div>
-
-                <div class="sem-step-card">
-                    <div class="sem-card-title"><i class="fas fa-keyboard"></i> Content to Validate</div>
-                    <div class="sem-input-item">
-                        <label for="content_to_check">Content to Check<span class="req">*</span></label>
-                        <textarea id="content_to_check" style="min-height: 250px;"
-                            placeholder="Paste your content here..."></textarea>
-                    </div>
-                    <div class="sem-input-item" style="margin-top: 15px;">
-                        <label for="content_check_instructions">Additional Analysis Instructions: </label>
-                        <textarea id="content_check_instructions"
-                            placeholder="e.g. Do not use the word 'cheap'"></textarea>
-                    </div>
-                    <div style="display: flex; gap: 15px; margin-top: 25px; flex-wrap: wrap;">
-                        <button id="contentCheckBtn" class="config-btn-highlight" style="margin: 0;"
-                            onclick="checkContent()">Check Content</button>
-                        <button type="button" onclick="initContentCheckerTour()" class="config-btn-highlight"
-                            style="background: transparent; border: 2px solid #34a853; color: #34a853; margin: 0; box-shadow: none; padding: 11px 22px; cursor: pointer; transition: all 0.2s ease-in-out;"
-                            onmouseover="this.style.background='#34a853'; this.style.color='white'; this.style.boxShadow='0 4px 12px rgba(52, 168, 83, 0.3)';"
-                            onmouseout="this.style.background='transparent'; this.style.color='#34a853'; this.style.boxShadow='none';">
-                            <i class="fas fa-question-circle"></i> Help
-                        </button>
-                    </div>
-                </div>
-                <div id="checkContentResults"></div>
-                <div style="display: flex; align-items: center;">
-                    <button type="button" id="copy-check-results-button" class="tooltip" style="display:none"
-                        onclick="copyCheckContentResults(event)">
-                        <i class="fa fa-copy"></i>
-                        <span>Click to copy the check results to your clipboard.</span>
-                    </button>
-                    <button id="openFeedbackModalBtn" style="display:none; margin-left: 10px;">Feedback</button>
                 </div>
             </div>
         </div>
@@ -43041,8 +42988,6 @@ Output ONLY the finished ${contentTypeLabel} — no meta-commentary, no explanat
 
             document.getElementById("contentCheckBtn").innerText = "Checking...";
             document.getElementById("checkContentResults").innerHTML = "";
-            document.getElementById("contentcheck").style.backgroundColor = "#004c9d";
-
             // **Check if the content field is blank**
             if (!content || content.trim() === "") {
                 alert("Please enter content to check.");
@@ -43176,7 +43121,6 @@ Output ONLY the finished ${contentTypeLabel} — no meta-commentary, no explanat
                     console.log("Response from checkContent API:", checkContentData);
                     // Display the response body to the user (e.g., in a div)
                     displayCheckContentResults(checkContentData['body']); // Implement this function to show the results
-                    document.getElementById("contentcheck").style.backgroundColor = "#10b981";
                 } catch (checkContentError) {
                     console.error("Error calling checkContent API:", checkContentError);
                     alert("Error occurred while calling the checkContent API. See console for details.");
@@ -46326,7 +46270,6 @@ Return ONLY valid JSON in this exact format:
                 'competitors_content',
                 'persona_content',
                 'mediaplan',
-                'content_check_content',
                 'landingPageAudit',
                 'onPageResults',
                 'imageRecommendations',
@@ -46380,7 +46323,6 @@ Return ONLY valid JSON in this exact format:
                 'competitors_content',
                 'persona_content',
                 'mediaplan',
-                'content_check_content',
                 'landingPageAudit'
             ];
 
@@ -69919,7 +69861,7 @@ Move-In</h3>
                 // SMM tool wrappers not included in basic mode
                 'socialMediaStrategy', 'pillarFrameworkSection', 'contentGeneratorSection', 'smmReplySection',
                 // Others tool wrappers not included in basic mode
-                'contentCheckerSection', 'aiContentOptimiserSection',
+                'aiContentOptimiserSection',
                 // Section separator lines (float loose in basic mode)
                 'seoSectionHr', 'smmSectionHr', 'semSectionHr', 'geoSectionHr'
             ];
@@ -69960,7 +69902,7 @@ Move-In</h3>
                 // GEO
                 'discoveryAuditBtn', 'discoveryKeywordsBtn',
                 // Others
-                'competitionBtn', 'persona', 'mediaPlanBtn', 'contentcheck', 'landingPageAuditBtn'
+                'competitionBtn', 'persona', 'mediaPlanBtn', 'landingPageAuditBtn'
             ];
 
             if (isBasic) {
@@ -70017,7 +69959,6 @@ Move-In</h3>
                     competitors: 'competitors_content',
                     persona: 'persona_content',
                     mediaPlan: 'mediaplan',
-                    contentChecker: 'content_check_content',
                     landingPageAudit: 'landingPageAudit',
                     aiContentOptimiser: 'aiContentOptimiser'
                 };
@@ -70435,7 +70376,6 @@ Move-In</h3>
                 competitors: { content: 'competitors_content', btn: 'competitionBtn' },
                 persona: { content: 'persona_content', btn: 'persona' },
                 mediaPlan: { content: 'mediaplan', btn: 'mediaPlanBtn' },
-                contentChecker: { content: 'content_check_content', btn: 'contentcheck' },
                 landingPageAudit: { content: 'landingPageAudit', btn: 'landingPageAuditBtn' },
                 aiContentOptimiser: { content: 'aiContentOptimiser', btn: 'aiContentOptimiserBtn' }
             };
@@ -70542,7 +70482,6 @@ Move-In</h3>
                 'gscIntegrationSection':    { icon: 'fab fa-google',          title: 'Google Search Console' },
                 'personaSection':           { icon: 'fas fa-user-check',      title: 'Persona Generator' },
                 'mediaPlanSection':         { icon: 'fas fa-bullseye',        title: 'Media Plan' },
-                'contentCheckerSection':    { icon: 'fas fa-spell-check',     title: 'Content Check' },
                 'landingPageAuditSection':  { icon: 'fas fa-clipboard-check', title: 'Landing Page Audit' },
                 'aiContentOptimiserSection':{ icon: 'fas fa-robot',           title: 'AI Content Optimiser' }
             };
