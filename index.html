@@ -10966,7 +10966,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1593</span>
+                <span id="appVersion">v1.0.1594</span>
             </a>
         </div>
 
@@ -23043,12 +23043,20 @@
             const f      = cockpitState.seoIntelScatterFilter;
             if (listEl && sites?.length) {
                 const isNone = f.has('__none__');
+                // Only show SE Ranking sites that have a matching Monday.com SEO campaign
+                const _norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const _campNorms = (cockpitState.seoIntelCache || []).map(c => _norm(c.name));
+                const seoSites = sites.filter(s => {
+                    const sn = _norm(s.siteName || s.name);
+                    return _campNorms.some(cn => cn === sn || cn.includes(sn) || sn.includes(cn));
+                });
+                const displaySites = seoSites.length ? seoSites : sites;
                 listEl.innerHTML =
                     `<div style="display:flex;gap:5px;padding:2px 8px 6px;border-bottom:1px solid #f1f5f9;margin-bottom:4px;">
                         <button onclick="selectAllSeoScatterCampaigns()" style="flex:1;padding:3px 0;border:1px solid #e2e8f0;border-radius:5px;font-size:0.72rem;background:#f8fafc;cursor:pointer;color:#334155;font-weight:600;" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='#f8fafc'">All</button>
                         <button onclick="deselectAllSeoScatterCampaigns()" style="flex:1;padding:3px 0;border:1px solid #e2e8f0;border-radius:5px;font-size:0.72rem;background:#f8fafc;cursor:pointer;color:#334155;font-weight:600;" onmouseover="this.style.background='#fff1f2'" onmouseout="this.style.background='#f8fafc'">None</button>
                     </div>` +
-                    sites.map(s =>
+                    displaySites.map(s =>
                         `<label style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.78rem;color:#334155;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'" data-name="${(s.name||'').toLowerCase().replace(/"/g,'&quot;')}">
                             <input type="checkbox" ${!isNone && (f.size === 0 || f.has(s.id)) ? 'checked' : ''} onchange="toggleSeoIntelCampaignFilter('${s.id}')" style="width:14px;height:14px;">
                             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(s.name||'').replace(/"/g,'&quot;')}">${s.name}</span>
@@ -69260,7 +69268,7 @@ Move-In</h3>
                 const startData = await anchorApiCall({ action: 'start', target_url: targetUrl, target_keyword: targetKeyword, site_domain: siteDomain });
                 if (startData.error) throw new Error(startData.error);
 
-                const { task_id, page_audit, page_summary } = startData;
+                const { task_id, page_audit, page_summary, sitemap_urls } = startData;
                 anchorAuditPageData = page_audit || [];
 
                 // Show page audit results immediately
@@ -69275,22 +69283,29 @@ Move-In</h3>
                 renderAnchorAuditTables('page');
                 document.getElementById('anchorAuditResults').style.display = 'block';
 
-                // ── Phase 2: poll crawl progress ──────────────────────────────────────
-                anchorSetPhase('Discovering blog posts…', 10, 'DataForSEO crawling the site');
-                let crawlDone = false;
-                for (let i = 0; i < 80 && !crawlDone; i++) {
-                    await new Promise(r => setTimeout(r, 4000));
-                    const poll = await anchorApiCall({ action: 'poll', task_id });
-                    if (poll.error) break;
-                    anchorSetPhase('Discovering blog posts…', Math.min(10 + Math.round(poll.pct * 0.4), 50), `${poll.pages_crawled} pages crawled (${poll.pct}%)`);
-                    if (poll.done) crawlDone = true;
-                }
+                let blogUrls = [];
 
-                // ── Phase 3: fetch all blog URLs ──────────────────────────────────────
-                anchorSetPhase('Fetching blog post list…', 55, '');
-                const urlData = await anchorApiCall({ action: 'get_blog_urls', task_id, site_domain: siteDomain });
-                if (urlData.error) throw new Error(urlData.error);
-                const blogUrls = urlData.blog_urls || [];
+                if (sitemap_urls && sitemap_urls.length > 0) {
+                    // ── Sitemap path: URLs already returned, skip poll/get_blog_urls ──
+                    blogUrls = sitemap_urls;
+                    anchorSetPhase('Blog posts found via sitemap', 55, `${blogUrls.length} posts discovered`);
+                } else {
+                    // ── DataForSEO path: poll then fetch URLs ─────────────────────────
+                    anchorSetPhase('Discovering blog posts…', 10, 'DataForSEO crawling the site');
+                    let crawlDone = false;
+                    for (let i = 0; i < 80 && !crawlDone; i++) {
+                        await new Promise(r => setTimeout(r, 4000));
+                        const poll = await anchorApiCall({ action: 'poll', task_id });
+                        if (poll.error) break;
+                        anchorSetPhase('Discovering blog posts…', Math.min(10 + Math.round(poll.pct * 0.4), 50), `${poll.pages_crawled} pages crawled (${poll.pct}%)`);
+                        if (poll.done) crawlDone = true;
+                    }
+
+                    anchorSetPhase('Fetching blog post list…', 55, '');
+                    const urlData = await anchorApiCall({ action: 'get_blog_urls', task_id, site_domain: siteDomain });
+                    if (urlData.error) throw new Error(urlData.error);
+                    blogUrls = urlData.blog_urls || [];
+                }
 
                 if (blogUrls.length === 0) {
                     anchorSetPhase('Complete — no blog posts found', 100, '');
