@@ -10966,7 +10966,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1591</span>
+                <span id="appVersion">v1.0.1592</span>
             </a>
         </div>
 
@@ -13120,19 +13120,22 @@
 
                             <!-- Column Selector (moved here from crawlerSection) -->
                             <div id="columnSelector" class="column-selector-container" style="display:none;">
-                                <div class="column-selector-header">
+                                <div class="column-selector-header" onclick="toggleColumnSelector()" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; user-select:none;">
                                     <strong><i class="fas fa-columns"></i> Display Columns</strong>
+                                    <i id="columnSelectorCaret" class="fas fa-chevron-down" style="font-size:12px; color:#666; transition:transform 0.2s;"></i>
                                 </div>
-                                <div class="column-selector-actions">
-                                    <input type="text" class="column-search-input"
-                                        placeholder="Search columns... (spaces and _ are interchangeable)"
-                                        onkeyup="filterColumnList(this.value)">
-                                    <button class="config-btn-highlight column-selector-btn"
-                                        onclick="toggleAllColumns(true)">Select All</button>
-                                    <button class="config-btn-highlight column-selector-btn" style="background: #666;"
-                                        onclick="toggleAllColumns(false)">Deselect All</button>
+                                <div id="columnSelectorBody" style="display:none;">
+                                    <div class="column-selector-actions">
+                                        <input type="text" class="column-search-input"
+                                            placeholder="Search columns... (spaces and _ are interchangeable)"
+                                            onkeyup="filterColumnList(this.value)">
+                                        <button class="config-btn-highlight column-selector-btn"
+                                            onclick="toggleAllColumns(true)">Select All</button>
+                                        <button class="config-btn-highlight column-selector-btn" style="background: #666;"
+                                            onclick="toggleAllColumns(false)">Deselect All</button>
+                                    </div>
+                                    <div id="columnCheckboxList" class="column-checkbox-list"></div>
                                 </div>
-                                <div id="columnCheckboxList" class="column-checkbox-list"></div>
                             </div>
 
                             <div id="crawlerReport" style="display:none;">
@@ -37719,6 +37722,15 @@ ${selectedText}
             }
             updateTechnicalSummaryUI();
             rebuildCrawlerTable();
+        }
+
+        function toggleColumnSelector() {
+            const body = document.getElementById('columnSelectorBody');
+            const caret = document.getElementById('columnSelectorCaret');
+            if (!body) return;
+            const open = body.style.display !== 'none';
+            body.style.display = open ? 'none' : 'block';
+            if (caret) caret.style.transform = open ? '' : 'rotate(180deg)';
         }
 
         function updateColumnSelectorUI() {
