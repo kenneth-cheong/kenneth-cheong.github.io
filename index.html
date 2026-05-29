@@ -10920,7 +10920,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1580</span>
+                <span id="appVersion">v1.0.1581</span>
             </a>
         </div>
 
@@ -19664,7 +19664,9 @@
             moversChart: null, // Global reference for SE Ranking Movers bar/scatter chart
             trendChart: null,  // Global reference for trend line chart
             moversView: 'table', // 'graph', 'table', or 'trend'
-            moversTimeframe: 7, // Default to 7 days
+            moversTimeframe: 7, // Default to 7 days; -1 means custom range
+            moversCustomDateFrom: null,
+            moversCustomDateTo: null,
             lastMoversData: [], // Store results for tab switching without re-fetch
             moversTimeSeries: {}, // siteName → { date → avgRank } for trend chart
             selectedMoversCampaigns: new Set(), // Campaign multi-select filter
@@ -19717,8 +19719,31 @@
             fetchGlobalSERankingMovers();
         }
 
-        function updateMoversTimeframe(days) {
-            cockpitState.moversTimeframe = parseInt(days);
+        function updateMoversTimeframe(val) {
+            if (val === 'custom') {
+                cockpitState.moversTimeframe = -1;
+                // Show the custom date inputs without re-fetching yet
+                const customRow = document.getElementById('movers-custom-date-row');
+                if (customRow) customRow.style.display = 'flex';
+            } else {
+                cockpitState.moversTimeframe = parseInt(val);
+                cockpitState.moversCustomDateFrom = null;
+                cockpitState.moversCustomDateTo = null;
+                const customRow = document.getElementById('movers-custom-date-row');
+                if (customRow) customRow.style.display = 'none';
+                fetchGlobalSERankingMovers();
+            }
+        }
+        function applyMoversCustomDate() {
+            const from = document.getElementById('movers-date-from').value;
+            const to = document.getElementById('movers-date-to').value;
+            if (!from || !to) return;
+            if (new Date(from) > new Date(to)) {
+                alert('Start date must be before end date.');
+                return;
+            }
+            cockpitState.moversCustomDateFrom = from;
+            cockpitState.moversCustomDateTo = to;
             fetchGlobalSERankingMovers();
         }
         async function refreshMetaAdsRecommendations() {
@@ -20907,9 +20932,15 @@
                 // 2. Fetch keywords and positions for each site concurrently
                 const fetchPromises = sites.map(async (site) => {
                     try {
-                        const dateTo = new Date().toISOString().split('T')[0];
-                        const days = cockpitState.moversTimeframe || 7;
-                        const dateFrom = new Date(new Date().setDate(new Date().getDate() - days)).toISOString().split('T')[0];
+                        let dateTo, dateFrom;
+                        if (cockpitState.moversTimeframe === -1 && cockpitState.moversCustomDateFrom && cockpitState.moversCustomDateTo) {
+                            dateFrom = cockpitState.moversCustomDateFrom;
+                            dateTo = cockpitState.moversCustomDateTo;
+                        } else {
+                            dateTo = new Date().toISOString().split('T')[0];
+                            const days = cockpitState.moversTimeframe || 7;
+                            dateFrom = new Date(new Date().setDate(new Date().getDate() - days)).toISOString().split('T')[0];
+                        }
 
                         const [kwRes, posRes] = await Promise.all([
                             fetch('https://u2u2ptqaxd.execute-api.ap-southeast-1.amazonaws.com/seRanking', {
@@ -21139,18 +21170,25 @@
                                 <span style="color:#10b981;font-weight:700;">${upCount}↑</span>&nbsp;<span style="color:#f43f5e;font-weight:700;">${downCount}↓</span>
                             </span>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                             <label style="font-size: 0.75rem; color: #64748b; font-weight: 500;">Period:</label>
                             <select onchange="updateMoversTimeframe(this.value)" style="padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; font-size: 0.8rem; background: #f8fafc; color: #1e293b; cursor: pointer; outline: none; transition: all 0.2s;">
-                                <option value="7" ${cockpitState.moversTimeframe === 7 ? 'selected' : ''}>7 Days</option>
                                 <option value="1" ${cockpitState.moversTimeframe === 1 ? 'selected' : ''}>1 Day</option>
                                 <option value="3" ${cockpitState.moversTimeframe === 3 ? 'selected' : ''}>3 Days</option>
+                                <option value="7" ${cockpitState.moversTimeframe === 7 ? 'selected' : ''}>7 Days</option>
                                 <option value="30" ${cockpitState.moversTimeframe === 30 ? 'selected' : ''}>30 Days</option>
                                 <option value="60" ${cockpitState.moversTimeframe === 60 ? 'selected' : ''}>60 Days</option>
                                 <option value="90" ${cockpitState.moversTimeframe === 90 ? 'selected' : ''}>90 Days</option>
                                 <option value="180" ${cockpitState.moversTimeframe === 180 ? 'selected' : ''}>180 Days</option>
                                 <option value="365" ${cockpitState.moversTimeframe === 365 ? 'selected' : ''}>365 Days</option>
+                                <option value="custom" ${cockpitState.moversTimeframe === -1 ? 'selected' : ''}>Custom…</option>
                             </select>
+                            <div id="movers-custom-date-row" style="display:${cockpitState.moversTimeframe === -1 ? 'flex' : 'none'}; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                <input type="date" id="movers-date-from" value="${cockpitState.moversCustomDateFrom || ''}" style="padding: 3px 6px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.78rem; background: #f8fafc; color: #1e293b; outline: none;">
+                                <span style="font-size: 0.75rem; color: #94a3b8;">to</span>
+                                <input type="date" id="movers-date-to" value="${cockpitState.moversCustomDateTo || ''}" style="padding: 3px 6px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.78rem; background: #f8fafc; color: #1e293b; outline: none;">
+                                <button onclick="applyMoversCustomDate()" style="padding: 3px 10px; border: none; border-radius: 6px; background: #6366f1; color: #fff; font-size: 0.78rem; font-weight: 600; cursor: pointer;">Apply</button>
+                            </div>
                         </div>
                     </div>
 
