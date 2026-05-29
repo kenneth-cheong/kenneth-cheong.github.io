@@ -10920,7 +10920,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1577</span>
+                <span id="appVersion">v1.0.1578</span>
             </a>
         </div>
 
@@ -22879,17 +22879,35 @@
 
         function scrollToSeoIntelCampaign(siteName) {
             const norm = seoIntelNormalizeName(siteName);
-            const match = (cockpitState.seoIntelCache || []).find(c => {
+            const cache = cockpitState.seoIntelCache || [];
+            const match = cache.find(c => {
                 const cn = seoIntelNormalizeName(c.name);
                 return cn === norm || cn.includes(norm) || norm.includes(cn);
             });
             if (!match) return;
-            const rowEl = document.getElementById('seo-row-' + match.id);
-            if (!rowEl) return;
-            rowEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            const prev = rowEl.style.background;
-            rowEl.style.background = '#eef2ff';
-            setTimeout(() => { rowEl.style.background = prev; }, 1500);
+
+            // Determine which section this campaign belongs to and ensure it's open
+            const isHit = match.isSpecial ? match.p1 === 999 : (match.kpi > 0 && match.p1 >= match.kpi);
+            if (match.isUnclassified) {
+                cockpitState.seoIntelUnclassifiedOpen = true;
+            } else if (match.isBehind) {
+                cockpitState.seoIntelBehindOpen = true;
+            } else if (isHit) {
+                cockpitState.seoIntelHitOpen = true;
+            } else {
+                cockpitState.seoIntelOnTrackOpen = true;
+            }
+
+            // Re-render to ensure the row is in the DOM, then scroll
+            renderSeoIntel(cache);
+            requestAnimationFrame(() => {
+                const rowEl = document.getElementById('seo-row-' + match.id);
+                if (!rowEl) return;
+                rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                rowEl.style.transition = 'background 0.2s';
+                rowEl.style.background = '#eef2ff';
+                setTimeout(() => { rowEl.style.background = cockpitState.seoIntelRowSelection.has(match.id) ? '#eef2ff' : 'transparent'; }, 1500);
+            });
         }
 
         function renderSeoIntelScatterChart() {
