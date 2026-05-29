@@ -10920,7 +10920,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1578</span>
+                <span id="appVersion">v1.0.1579</span>
             </a>
         </div>
 
@@ -18606,10 +18606,16 @@
                                 <label
                                     style="font-size: 13px; color: #1967d2; font-weight: bold; display: block; margin-bottom: 8px;">Select
                                     Property:</label>
-                                <select id="gscSiteList" onchange="updateSelectedProperty()"
-                                    style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #c2d7fa; font-family: inherit; font-size: 14px; background: #fff;">
-                                    <option value="">-- Loading properties... --</option>
-                                </select>
+                                <div id="gscSiteListWrapper" style="position: relative;">
+                                    <input type="text" id="gscSiteSearch" placeholder="-- Choose a property --" autocomplete="off"
+                                        style="width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #c2d7fa; font-family: inherit; font-size: 14px; background: #fff; box-sizing: border-box; cursor: pointer;"
+                                        onclick="toggleGscDropdown()" oninput="filterGscOptions()" />
+                                    <div id="gscSiteDropdown"
+                                        style="display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: 240px; overflow-y: auto; background: #fff; border: 1px solid #c2d7fa; border-top: none; border-radius: 0 0 4px 4px; z-index: 999; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                                    </div>
+                                </div>
+                                <!-- hidden select kept for compatibility -->
+                                <select id="gscSiteList" style="display: none;"></select>
                             </div>
                             <button id="btnRunGscAudit" onclick="runGscAudit()"
                                 style="padding: 10px 20px; border-radius: 4px; border: none; background: #1a73e8; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; height: 42px;">
@@ -32129,6 +32135,9 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                             option.textContent = site.siteUrl;
                             selectEl.appendChild(option);
                         });
+                        // Reset search input
+                        const searchInput = document.getElementById('gscSiteSearch');
+                        if (searchInput) { searchInput.value = ''; searchInput.placeholder = '-- Choose a property --'; }
                         selectorDiv.style.display = 'block';
                         document.getElementById('gscTabsSection').style.display = 'block';
                         statusEl.innerHTML = '<i class="fas fa-check-circle" style="color: #34a853;"></i> Connected. Please select a property below.';
@@ -32147,6 +32156,51 @@ ${selectedTopics ? "PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + selected
                 statusEl.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: #ea4335;"></i> Error fetching properties: ' + err.message;
             }
         }
+
+        function toggleGscDropdown() {
+            const dropdown = document.getElementById('gscSiteDropdown');
+            const isOpen = dropdown.style.display === 'block';
+            if (isOpen) {
+                dropdown.style.display = 'none';
+            } else {
+                filterGscOptions();
+                dropdown.style.display = 'block';
+            }
+        }
+
+        function filterGscOptions() {
+            const query = document.getElementById('gscSiteSearch').value.toLowerCase();
+            const dropdown = document.getElementById('gscSiteDropdown');
+            dropdown.innerHTML = '';
+            const matches = gscPropertyList.filter(p => p.siteUrl.toLowerCase().includes(query));
+            if (matches.length === 0) {
+                dropdown.innerHTML = '<div style="padding: 10px; color: #666; font-size: 13px;">No properties found</div>';
+            } else {
+                matches.forEach(p => {
+                    const item = document.createElement('div');
+                    item.textContent = p.siteUrl;
+                    item.style.cssText = 'padding: 10px 12px; font-size: 14px; cursor: pointer; border-bottom: 1px solid #f0f4ff;';
+                    item.onmouseover = () => item.style.background = '#e8f0fe';
+                    item.onmouseout = () => item.style.background = '';
+                    item.onclick = () => {
+                        document.getElementById('gscSiteSearch').value = p.siteUrl;
+                        document.getElementById('gscSiteList').value = p.siteUrl;
+                        dropdown.style.display = 'none';
+                        updateSelectedProperty();
+                    };
+                    dropdown.appendChild(item);
+                });
+            }
+            dropdown.style.display = 'block';
+        }
+
+        document.addEventListener('click', function(e) {
+            const wrapper = document.getElementById('gscSiteListWrapper');
+            if (wrapper && !wrapper.contains(e.target)) {
+                const dropdown = document.getElementById('gscSiteDropdown');
+                if (dropdown) dropdown.style.display = 'none';
+            }
+        });
 
         function updateSelectedProperty() {
             selectedGscProperty = document.getElementById('gscSiteList').value;
