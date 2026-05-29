@@ -10920,7 +10920,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1559</span>
+                <span id="appVersion">v1.0.1570</span>
             </a>
         </div>
 
@@ -19671,7 +19671,7 @@
             seoIntelFetchedAt: 0,      // Timestamp of last fetch
             seoIntelBoardId: localStorage.getItem('seoIntelBoardId') || '2845615047',
             seoIntelOwnerFilter: new Set(),   // Filter by [SEO]SEO owner
-            seoIntelStatusFilter: new Set(),  // Filter by Campaign Status
+            seoIntelStatusFilter: new Set(['expired','abandoned','terminated','on hold','completed']),  // Excluded statuses (case-insensitive keys)
             seoIntelTypeFilter: new Set(),    // Filter by Campaign Type
             seoIntelNameFilter: new Set(),    // Filter campaign rows by name (multi-select; empty = all)
             seoIntelScatterFilter: new Set(), // Selected site IDs in scatter plot (empty = all)
@@ -21657,14 +21657,8 @@
             // [BD]Project Type text is "seo" or "seo, sem" etc.
             if (!txt(SEO_INTEL_COLS.projectType).toLowerCase().split(/[\s,]+/).includes('seo')) return null;
 
-            // [CSM] Campaign Status cross-check — exclude expired, abandoned, terminated
             const csmStatusText = txt(SEO_INTEL_COLS.csmStatus);
-            const csmStatusLower = csmStatusText.toLowerCase();
-            if (CSM_DEAD_STATUSES.some(s => csmStatusLower.includes(s))) return null;
-
-            // SEO Campaign Status — user-configurable filter (saved in localStorage)
             const csmStatus = txt(SEO_INTEL_COLS.campaignStatus).toLowerCase();
-            if (!getSeoIntelAllowedStatuses().some(s => csmStatus.includes(s))) return null;
 
             // SEO Campaign Type — delivery statuses default to Standard; explicit type labels override
             const campTypeRaw = csmStatus;
@@ -21840,9 +21834,11 @@
             if (dd) dd.style.display = 'block';
         }
 
-        function toggleSeoIntelStatusFilter(status) {
+        function toggleSeoIntelStatusFilter(status, checked) {
             const f = cockpitState.seoIntelStatusFilter;
-            f.has(status) ? f.delete(status) : f.add(status);
+            const key = status.toLowerCase();
+            // checked = visible (not excluded); unchecked = excluded
+            checked ? f.delete(key) : f.add(key);
             renderSeoIntel(cockpitState.seoIntelCache || []);
             const dd = document.getElementById('seo-intel-status-dropdown');
             if (dd) dd.style.display = 'block';
@@ -21860,6 +21856,7 @@
             const f = cockpitState.seoIntelNameFilter;
             f.delete('__none__');
             f.has(name) ? f.delete(name) : f.add(name);
+            syncScatterFromNameFilter();
             renderSeoIntel(cockpitState.seoIntelCache || []);
             const dd = document.getElementById('seo-intel-name-dropdown');
             if (dd) dd.style.display = 'block';
@@ -21867,6 +21864,7 @@
 
         function selectAllSeoIntelNames() {
             cockpitState.seoIntelNameFilter.clear();
+            syncScatterFromNameFilter();
             renderSeoIntel(cockpitState.seoIntelCache || []);
             const dd = document.getElementById('seo-intel-name-dropdown');
             if (dd) dd.style.display = 'block';
@@ -21876,6 +21874,7 @@
             const f = cockpitState.seoIntelNameFilter;
             f.clear();
             f.add('__none__');
+            syncScatterFromNameFilter();
             renderSeoIntel(cockpitState.seoIntelCache || []);
             const dd = document.getElementById('seo-intel-name-dropdown');
             if (dd) dd.style.display = 'block';
@@ -21890,7 +21889,7 @@
 
         function clearSeoIntelFilters() {
             cockpitState.seoIntelOwnerFilter.clear();
-            cockpitState.seoIntelStatusFilter.clear();
+            cockpitState.seoIntelStatusFilter = new Set(['expired','abandoned','terminated','on hold','completed']);
             cockpitState.seoIntelTypeFilter.clear();
             cockpitState.seoIntelNameFilter.clear();
             cockpitState.seoIntelRowSelection.clear();
@@ -21936,7 +21935,7 @@
             const nameNone = nameF.has('__none__');
             const filtered = campaigns.filter(c =>
                 (ownerF.size === 0  || ownerF.has(c.seoOwner))  &&
-                (statusF.size === 0 || statusF.has(c.csmStatus)) &&
+                !statusF.has((c.csmStatus || '').toLowerCase()) &&
                 (typeF.size === 0   || typeF.has(c.campaignType)) &&
                 (nameNone ? false : (nameF.size === 0 || nameF.has(c.name)))
             );
@@ -21964,10 +21963,12 @@
                 ? new Date(cockpitState.seoIntelFetchedAt).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })
                 : '';
 
-            const filterActive = ownerF.size > 0 || statusF.size > 0 || typeF.size > 0 || nameF.size > 0;
+            const SEO_STATUS_DEFAULTS = new Set(['expired','abandoned','terminated','on hold','completed']);
+            const statusModified = statusF.size !== SEO_STATUS_DEFAULTS.size || [...statusF].some(s => !SEO_STATUS_DEFAULTS.has(s));
+            const filterActive = ownerF.size > 0 || statusModified || typeF.size > 0 || nameF.size > 0;
 
             const ownerBtnLabel  = ownerF.size === 0 ? 'All SEO' : ownerF.size === 1 ? [...ownerF][0].split(' ')[0] : `${ownerF.size} owners`;
-            const statusBtnLabel = statusF.size === 0 ? 'All Statuses' : statusF.size === 1 ? [...statusF][0] : `${statusF.size} statuses`;
+            const statusBtnLabel = !statusModified ? 'All Statuses' : `${statusF.size} hidden`;
             const typeBtnLabel   = typeF.size === 0 ? 'All Types' : typeF.size === 1 ? [...typeF][0] : `${typeF.size} types`;
             const nameBtnLabel   = nameNone ? 'No campaigns' : nameF.size === 0 ? 'All Campaigns' : nameF.size === 1 ? [...nameF][0] : `${nameF.size} campaigns`;
             const allNames       = [...new Set(campaigns.map(c => c.name).filter(Boolean))].sort((a,b) => a.localeCompare(b));
@@ -22006,13 +22007,13 @@
                     <!-- Status filter -->
                     <div style="position:relative;">
                         <button onclick="toggleSeoIntelDropdown('seo-intel-status-dropdown')"
-                            style="padding:4px 10px;border:1px solid ${statusF.size > 0 ? '#93c5fd' : '#e2e8f0'};border-radius:6px;background:${statusF.size > 0 ? '#eff6ff' : '#f8fafc'};font-size:0.78rem;cursor:pointer;color:#1e293b;display:flex;align-items:center;gap:5px;">
-                            <i class="fas fa-circle" style="font-size:0.5rem;color:${statusF.size > 0 ? '#3b82f6' : '#94a3b8'};"></i>
+                            style="padding:4px 10px;border:1px solid ${statusModified ? '#93c5fd' : '#e2e8f0'};border-radius:6px;background:${statusModified ? '#eff6ff' : '#f8fafc'};font-size:0.78rem;cursor:pointer;color:#1e293b;display:flex;align-items:center;gap:5px;">
+                            <i class="fas fa-circle" style="font-size:0.5rem;color:${statusModified ? '#3b82f6' : '#94a3b8'};"></i>
                             ${statusBtnLabel}
                             <i class="fas fa-chevron-down" style="font-size:0.6rem;color:#94a3b8;"></i>
                         </button>
                         <div id="seo-intel-status-dropdown" class="seo-intel-dropdown" style="${dropdownStyle}">
-                            ${allStatuses.map(s => checkItem(s, statusF.has(s), 'toggleSeoIntelStatusFilter')).join('')}
+                            ${allStatuses.map(s => checkItem(s, !statusF.has(s.toLowerCase()), 'toggleSeoIntelStatusFilter')).join('')}
                         </div>
                     </div>
                     <!-- Type filter -->
@@ -22195,24 +22196,41 @@
                 </div>`;
 
             if (behind.length) {
-                html += `<div style="padding:8px 14px;font-size:0.78rem;font-weight:700;color:#dc2626;background:#fef2f2;border-bottom:1px solid #fecaca;display:flex;align-items:center;gap:6px;">
+                const behindOpen = cockpitState.seoIntelBehindOpen !== false;
+                html += `<div onclick="cockpitState.seoIntelBehindOpen=!cockpitState.seoIntelBehindOpen;renderSeoIntel(cockpitState.seoIntelCache||[])" style="padding:8px 14px;font-size:0.78rem;font-weight:700;color:#dc2626;background:#fef2f2;border-bottom:1px solid #fecaca;display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;">
                     <i class="fas fa-exclamation-triangle"></i> Below Trajectory — ${behind.length} campaign${behind.length > 1 ? 's' : ''}
+                    <i class="fas fa-chevron-${behindOpen ? 'up' : 'down'}" style="margin-left:auto;font-size:0.7rem;opacity:0.6;"></i>
                 </div>`;
-                behind.forEach(c => { html += renderSeoIntelRow(c); });
+                if (behindOpen) {
+                    html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));border-bottom:1px solid #fecaca;">`;
+                    behind.forEach(c => { html += renderSeoIntelRow(c); });
+                    html += `</div>`;
+                }
             }
 
             if (onTrack.length) {
-                html += `<div style="padding:8px 14px;font-size:0.78rem;font-weight:700;color:#16a34a;background:#f0fdf4;border-bottom:1px solid #bbf7d0;display:flex;align-items:center;gap:6px;">
+                const onTrackOpen = cockpitState.seoIntelOnTrackOpen !== false;
+                html += `<div onclick="cockpitState.seoIntelOnTrackOpen=!cockpitState.seoIntelOnTrackOpen;renderSeoIntel(cockpitState.seoIntelCache||[])" style="padding:8px 14px;font-size:0.78rem;font-weight:700;color:#16a34a;background:#f0fdf4;border-bottom:1px solid #bbf7d0;display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;">
                     <i class="fas fa-check-circle"></i> On Track — ${onTrack.length} campaign${onTrack.length > 1 ? 's' : ''}
+                    <i class="fas fa-chevron-${onTrackOpen ? 'up' : 'down'}" style="margin-left:auto;font-size:0.7rem;opacity:0.6;"></i>
                 </div>`;
-                onTrack.forEach(c => { html += renderSeoIntelRow(c); });
+                if (onTrackOpen) {
+                    html += `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));">`;
+                    onTrack.forEach(c => { html += renderSeoIntelRow(c); });
+                    html += `</div>`;
+                }
             }
 
             if (!filtered.length) {
                 html += `<div style="padding:20px;text-align:center;color:#94a3b8;font-size:0.85rem;">No campaigns match the current filters.</div>`;
             }
 
+            const filtersWasOpen = document.getElementById('seo-filters-dropdown')?.style.display === 'block';
             el.innerHTML = html;
+            if (filtersWasOpen) {
+                const dd = document.getElementById('seo-filters-dropdown');
+                if (dd) dd.style.display = 'block';
+            }
             initSeoScatterResize();
 
             // Basket scatter: use cache or fetch fresh
@@ -22703,6 +22721,31 @@
 
         function seoIntelNormalizeName(s) {
             return (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        }
+
+        function syncScatterFromNameFilter() {
+            const nameF     = cockpitState.seoIntelNameFilter;
+            const sites     = cockpitState.basketSiteData || [];
+            const campaigns = cockpitState.seoIntelCache  || [];
+            const f         = cockpitState.seoIntelScatterFilter;
+            f.clear();
+            if (nameF.size === 0) return; // no filter — show all
+            if (nameF.has('__none__')) { f.add('__none__'); renderSeoIntelScatterChart(); return; }
+            const selectedNorms = [...nameF].map(n => seoIntelNormalizeName(n));
+            const matched = new Set();
+            sites.forEach(site => {
+                const siteNorm = seoIntelNormalizeName(site.name);
+                if (selectedNorms.some(norm => norm === siteNorm || norm.includes(siteNorm) || siteNorm.includes(norm))) {
+                    matched.add(site.id);
+                }
+            });
+            if (matched.size === 0) {
+                f.add('__none__');
+            } else {
+                matched.forEach(id => f.add(id));
+                if (f.size === sites.length) f.clear();
+            }
+            renderSeoIntelScatterChart();
         }
 
         function syncScatterFromRowSelection() {
