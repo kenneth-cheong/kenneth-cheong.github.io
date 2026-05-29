@@ -10920,7 +10920,7 @@
 
         <div class="nav-item" id="versionNavItem" title="App version (auto-incremented on every push)">
             <a href="#" onclick="event.preventDefault()" style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.45); padding: 0 12px; cursor: default; font-weight: 600; letter-spacing: 0.5px;">
-                <span id="appVersion">v1.0.1570</span>
+                <span id="appVersion">v1.0.1571</span>
             </a>
         </div>
 
@@ -19671,7 +19671,7 @@
             seoIntelFetchedAt: 0,      // Timestamp of last fetch
             seoIntelBoardId: localStorage.getItem('seoIntelBoardId') || '2845615047',
             seoIntelOwnerFilter: new Set(),   // Filter by [SEO]SEO owner
-            seoIntelStatusFilter: new Set(['expired','abandoned','terminated','on hold','completed']),  // Excluded statuses (case-insensitive keys)
+            seoIntelStatusFilter: new Set(['expired','abandoned','terminated','on hold','completed','[psg] expired']),  // Excluded statuses (case-insensitive keys)
             seoIntelTypeFilter: new Set(),    // Filter by Campaign Type
             seoIntelNameFilter: new Set(),    // Filter campaign rows by name (multi-select; empty = all)
             seoIntelScatterFilter: new Set(), // Selected site IDs in scatter plot (empty = all)
@@ -21889,7 +21889,7 @@
 
         function clearSeoIntelFilters() {
             cockpitState.seoIntelOwnerFilter.clear();
-            cockpitState.seoIntelStatusFilter = new Set(['expired','abandoned','terminated','on hold','completed']);
+            cockpitState.seoIntelStatusFilter = new Set(['expired','abandoned','terminated','on hold','completed','[psg] expired']);
             cockpitState.seoIntelTypeFilter.clear();
             cockpitState.seoIntelNameFilter.clear();
             cockpitState.seoIntelRowSelection.clear();
@@ -21963,7 +21963,7 @@
                 ? new Date(cockpitState.seoIntelFetchedAt).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })
                 : '';
 
-            const SEO_STATUS_DEFAULTS = new Set(['expired','abandoned','terminated','on hold','completed']);
+            const SEO_STATUS_DEFAULTS = new Set(['expired','abandoned','terminated','on hold','completed','[psg] expired']);
             const statusModified = statusF.size !== SEO_STATUS_DEFAULTS.size || [...statusF].some(s => !SEO_STATUS_DEFAULTS.has(s));
             const filterActive = ownerF.size > 0 || statusModified || typeF.size > 0 || nameF.size > 0;
 
@@ -22129,7 +22129,7 @@
                                     </div>
                                     <!-- Campaigns section -->
                                     <div style="border-top:1px solid #f1f5f9;margin-top:8px;padding-top:8px;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;padding-left:4px;padding-right:4px;display:flex;align-items:center;justify-content:space-between;">
-                                        <span><i class="fas fa-bullseye" style="font-size:0.6rem;color:#94a3b8;margin-right:4px;"></i>Campaigns</span>
+                                        <span><i class="fas fa-bullseye" style="font-size:0.6rem;color:#94a3b8;margin-right:4px;"></i>SE Ranking Campaigns</span>
                                         <span style="font-weight:500;color:#94a3b8;text-transform:none;letter-spacing:0;">${campaignBtnLabel}</span>
                                     </div>
                                     <input id="seo-scatter-search" type="text" placeholder="Search campaigns…"
@@ -22301,29 +22301,61 @@
                         const groupMap = {};
                         (Array.isArray(grpData) ? grpData : []).forEach(g => { groupMap[String(g.id)] = g.name || 'General'; });
 
-                        // kwId → {YYYY-MM → {pos, date, name, groupName}}  (keeps latest per month)
-                        const kwMonthPos = {};
+                        const siteName = site.title || site.name || site.domain || String(site.id);
+                        const siteId   = String(site.id);
+
+                        // kwId+engineId → {YYYY-MM → {pos, date, name, groupName}} (keeps latest per month)
+                        // Process per engine so we get one siteBaskets entry per site+engine combo
+                        const processEngine = (engineId, engineLabel, kwPosList) => {
+                            const compositeId = `${siteId}_${engineId}`;
+                            const kwMonthPos = {};
+                            kwPosList.forEach(kwPos => {
+                                if (!Array.isArray(kwPos.positions)) return;
+                                const kwId      = String(kwPos.id);
+                                const kwName    = kwPos.name || '';
+                                const groupName = groupMap[String(kwPos.group_id)] || 'General';
+                                if (!kwMonthPos[kwId]) kwMonthPos[kwId] = {};
+                                kwPos.positions.forEach(p => {
+                                    const d   = (p.date || '').split('T')[0];
+                                    const ym  = toYYYYMM(d);
+                                    const pos = p.pos !== undefined ? p.pos : (p.rank || 0);
+                                    if (ym && pos > 0 && (!kwMonthPos[kwId][ym] || d > kwMonthPos[kwId][ym].date)) {
+                                        kwMonthPos[kwId][ym] = { pos, date: d, name: kwName, groupName };
+                                    }
+                                });
+                            });
+                            const engMonthly = {};
+                            Object.values(kwMonthPos).forEach(monthMap => {
+                                Object.entries(monthMap).forEach(([ym, { pos, name, groupName }]) => {
+                                    const basket = getBasket(pos);
+                                    if (!basket) return;
+                                    if (!monthlyBaskets[ym]) monthlyBaskets[ym] = { p1: 0, p2: 0, p3: 0, p4: 0 };
+                                    monthlyBaskets[ym][basket]++;
+                                    if (!engMonthly[ym]) engMonthly[ym] = { p1: 0, p2: 0, p3: 0, p4: 0 };
+                                    engMonthly[ym][basket]++;
+                                    allKwPoints.push({ siteId: compositeId, kwName: name, pos, groupName, basket, ym });
+                                });
+                            });
+                            if (Object.keys(engMonthly).length > 0) {
+                                siteBaskets[compositeId] = {
+                                    id: compositeId,
+                                    name: `${siteName} — ${engineLabel}`,
+                                    siteName,
+                                    monthly: engMonthly,
+                                };
+                            }
+                        };
 
                         if (Array.isArray(positions)) {
                             positions.forEach(engineEntry => {
                                 if (!Array.isArray(engineEntry.keywords)) return;
-                                engineEntry.keywords.forEach(kwPos => {
-                                    if (!Array.isArray(kwPos.positions)) return;
-                                    const kwId     = String(kwPos.id);
-                                    const kwName   = kwPos.name || '';
-                                    const groupName = groupMap[String(kwPos.group_id)] || 'General';
-                                    if (!kwMonthPos[kwId]) kwMonthPos[kwId] = {};
-                                    kwPos.positions.forEach(p => {
-                                        const d   = (p.date || '').split('T')[0];
-                                        const ym  = toYYYYMM(d);
-                                        const pos = p.pos !== undefined ? p.pos : (p.rank || 0);
-                                        if (ym && pos > 0 && (!kwMonthPos[kwId][ym] || d > kwMonthPos[kwId][ym].date)) {
-                                            kwMonthPos[kwId][ym] = { pos, date: d, name: kwName, groupName };
-                                        }
-                                    });
-                                });
+                                const engineId    = String(engineEntry.id || 'default');
+                                const engineLabel = engineEntry.name || engineEntry.title || engineId;
+                                processEngine(engineId, engineLabel, engineEntry.keywords);
                             });
                         } else if (typeof positions === 'object') {
+                            // Date-keyed fallback — no engine info available, use single entry
+                            const kwMonthPos = {};
                             Object.entries(positions).forEach(([date, kwMap]) => {
                                 const ym = toYYYYMM(date);
                                 if (!ym) return;
@@ -22337,27 +22369,22 @@
                                     }
                                 });
                             });
-                        }
-
-                        // Accumulate into global + per-site monthly baskets + individual points
-                        const siteMonthly = {};
-                        const siteId = String(site.id);
-                        Object.values(kwMonthPos).forEach(monthMap => {
-                            Object.entries(monthMap).forEach(([ym, { pos, name, groupName }]) => {
-                                const basket = getBasket(pos);
-                                if (!basket) return;
-                                if (!monthlyBaskets[ym]) monthlyBaskets[ym] = { p1: 0, p2: 0, p3: 0, p4: 0 };
-                                monthlyBaskets[ym][basket]++;
-                                if (!siteMonthly[ym]) siteMonthly[ym] = { p1: 0, p2: 0, p3: 0, p4: 0 };
-                                siteMonthly[ym][basket]++;
-                                allKwPoints.push({ siteId, kwName: name, pos, groupName, basket, ym });
+                            const fallbackMonthly = {};
+                            Object.values(kwMonthPos).forEach(monthMap => {
+                                Object.entries(monthMap).forEach(([ym, { pos, name, groupName }]) => {
+                                    const basket = getBasket(pos);
+                                    if (!basket) return;
+                                    if (!monthlyBaskets[ym]) monthlyBaskets[ym] = { p1: 0, p2: 0, p3: 0, p4: 0 };
+                                    monthlyBaskets[ym][basket]++;
+                                    if (!fallbackMonthly[ym]) fallbackMonthly[ym] = { p1: 0, p2: 0, p3: 0, p4: 0 };
+                                    fallbackMonthly[ym][basket]++;
+                                    allKwPoints.push({ siteId, kwName: name, pos, groupName, basket, ym });
+                                });
                             });
-                        });
-                        siteBaskets[siteId] = {
-                            id: siteId,
-                            name: site.title || site.name || site.domain || siteId,
-                            monthly: siteMonthly,
-                        };
+                            if (Object.keys(fallbackMonthly).length > 0) {
+                                siteBaskets[siteId] = { id: siteId, name: siteName, siteName, monthly: fallbackMonthly };
+                            }
+                        }
 
                     } catch (e) {
                         console.warn('[BasketChart] error for site', site.id, e);
@@ -22734,7 +22761,7 @@
             const selectedNorms = [...nameF].map(n => seoIntelNormalizeName(n));
             const matched = new Set();
             sites.forEach(site => {
-                const siteNorm = seoIntelNormalizeName(site.name);
+                const siteNorm = seoIntelNormalizeName(site.siteName || site.name);
                 if (selectedNorms.some(norm => norm === siteNorm || norm.includes(siteNorm) || siteNorm.includes(norm))) {
                     matched.add(site.id);
                 }
@@ -22759,7 +22786,7 @@
             const selectedNorms     = selectedCampaigns.map(c => seoIntelNormalizeName(c.name));
             const matched = new Set();
             sites.forEach(site => {
-                const siteNorm = seoIntelNormalizeName(site.name);
+                const siteNorm = seoIntelNormalizeName(site.siteName || site.name);
                 if (selectedNorms.some(norm => norm === siteNorm || norm.includes(siteNorm) || siteNorm.includes(norm))) {
                     matched.add(site.id);
                 }
