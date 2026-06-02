@@ -1143,6 +1143,53 @@
         .priority-badge.high { background: rgba(249,115,22,0.15); color: #f97316; border: 1px solid rgba(249,115,22,0.25); }
         .priority-badge.medium { background: rgba(245,158,11,0.12); color: var(--warning); border: 1px solid rgba(245,158,11,0.2); }
 
+        /* --- Today / What to work on view --- */
+        .today-wrap { padding: 4px 4px 40px; max-width: 1120px; margin: 0 auto; }
+        .today-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin: 4px 4px 22px; }
+        .today-title { font-size: 18px; font-weight: 800; display: flex; align-items: center; gap: 10px; color: var(--text); }
+        .today-title i { color: var(--primary); }
+        .today-subtitle { font-size: 12px; color: var(--muted); margin-top: 5px; }
+        .today-summary-stats { display: flex; gap: 10px; }
+        .today-sum { font-size: 11px; color: var(--muted); background: var(--glass); border: 1px solid var(--border); border-radius: 8px; padding: 8px 13px; white-space: nowrap; }
+        .today-sum b { font-size: 16px; margin-right: 5px; }
+        .today-sum.overdue b { color: var(--danger); }
+        .today-sum.soon b { color: var(--warning); }
+        .today-sum.v2w b { color: var(--primary); }
+
+        .today-section { margin-bottom: 22px; }
+        .today-section-head { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 4px; margin-bottom: 10px; border-bottom: 1px solid var(--border); }
+        .today-section-head.overdue { color: var(--danger); }
+        .today-section-head.soon { color: var(--warning); }
+        .today-section-head.v2w { color: var(--primary); }
+        .today-section-count { background: rgba(255,255,255,0.08); color: var(--text); border-radius: 20px; padding: 1px 9px; font-size: 11px; }
+        .today-section-sub { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--muted); font-size: 11px; margin-left: auto; }
+        .today-list { display: flex; flex-direction: column; gap: 8px; }
+
+        .today-card { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; transition: all .15s; }
+        .today-card:hover { border-color: rgba(56,189,248,0.4); background: var(--surface-hover); }
+        .today-card-rank { flex-shrink: 0; display: flex; align-items: center; }
+        .today-card-rank .priority-dot.low-dim { background: var(--muted); opacity: 0.35; }
+        .today-card-main { flex: 1; min-width: 0; }
+        .today-card-title { font-size: 14px; }
+        .today-card-meta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 5px; font-size: 11px; color: var(--muted); }
+        .today-card-meta i { margin-right: 4px; opacity: 0.8; }
+        .today-csm { color: var(--success); }
+        .today-card-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+        .today-chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+        .today-reason { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 20px; white-space: nowrap; }
+        .today-reason.overdue { background: rgba(239,68,68,0.15); color: var(--danger); }
+        .today-reason.soon { background: rgba(245,158,11,0.15); color: var(--warning); }
+        .today-reason.v2w { background: rgba(56,189,248,0.15); color: var(--primary); }
+        .today-reason.risk { background: rgba(249,115,22,0.15); color: #f97316; }
+        .today-deadline { font-family: monospace; font-size: 11px; color: var(--muted); min-width: 88px; text-align: right; }
+        .today-empty { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 14px; }
+        .today-empty i { font-size: 32px; color: var(--success); display: block; margin-bottom: 12px; }
+
+        @media (max-width: 720px) {
+            .today-card { flex-wrap: wrap; }
+            .today-card-right { width: 100%; justify-content: flex-start; }
+        }
+
         .staff-card.is-me {
             border-color: rgba(16, 185, 129, 0.5) !important;
             background: rgba(16, 185, 129, 0.04) !important;
@@ -2013,6 +2060,9 @@
                         </button>
 
                         <div class="view-toggle-container">
+                            <div class="view-toggle-btn" id="view-today" onclick="setViewMode('today')">
+                                <i class="fas fa-bullseye"></i> Today
+                            </div>
                             <div class="view-toggle-btn" id="view-manager" onclick="setViewMode('manager')">
                                 <i class="fas fa-users-cog"></i> By Staff
                             </div>
@@ -2038,6 +2088,7 @@
 
                 <div id="results-scroll-area"
                     style="flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; position: relative;">
+                    <div id="today-container" style="display: none;"></div>
                     <div id="timeliness-container" style="display: none;"></div>
                     <div id="manager-grid-container" style="display: none;"></div>
                     <div id="auditor-table-container" class="table-container"
@@ -2170,7 +2221,11 @@
             completionLabels: new Set(['Done', 'Completed', 'Signed Off', 'Launched', 'Live', 'Approved'])
         };
 
-        window.onload = () => { if (state.apiKey) { document.getElementById('api-key').value = state.apiKey; connectMonday(); } };
+        window.onload = () => {
+            const hashView = location.hash.replace(/^#view=/, '');
+            if (hashView && ['today','manager','auditor','timeliness'].includes(hashView)) state.viewMode = hashView;
+            if (state.apiKey) { document.getElementById('api-key').value = state.apiKey; connectMonday(); }
+        };
 
         async function monday(query, variables = {}, toastMsg = "Connecting to Monday...") {
             if (toastMsg !== false) showToast(toastMsg);
@@ -2821,6 +2876,118 @@
             if (state.selectedStaffNames.has(name)) state.selectedStaffNames.delete(name);
             else state.selectedStaffNames.add(name);
             updateFilteredUI();
+        }
+
+        function todayEsc(s) {
+            return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        // Short "why is this on my list" reasons used by the Today view
+        function getTodayRiskChip(item) {
+            const statusRisk = ['stuck', 'at risk', 'blocked', 'critical', 'delayed', 'urgent'];
+            const statusText = ((item.itemStatus || '') + ' ' + (item.masterStatus || '')).toLowerCase();
+            if (statusRisk.some(k => statusText.includes(k))) {
+                return `<span class="today-reason risk"><i class="fas fa-flag"></i> ${todayEsc(item.itemStatus || 'At risk')}</span>`;
+            }
+            const summaryRisk = ['blocked', 'urgent', 'critical', 'delayed', 'issue', 'problem', 'waiting on', 'escalat', 'stall', 'behind'];
+            if (summaryRisk.some(k => (item.masterTechSummary || '').toLowerCase().includes(k))) {
+                return `<span class="today-reason risk" title="${todayEsc(item.masterTechSummary)}"><i class="fas fa-flag"></i> Flagged</span>`;
+            }
+            return '';
+        }
+
+        function renderTodayCard(i, scopedToUser) {
+            const pScore = calcPriority(i);
+            const pTier = getPriorityTier(pScore);
+
+            let reason;
+            if (i.daysOverdue > 0) reason = `<span class="today-reason overdue"><i class="fas fa-triangle-exclamation"></i> Overdue ${i.daysOverdue}d</span>`;
+            else if (i.daysOverdue === 0) reason = `<span class="today-reason soon"><i class="fas fa-bolt"></i> Due today</span>`;
+            else reason = `<span class="today-reason ${i.status === 'soon' ? 'soon' : 'v2w'}"><i class="fas fa-clock"></i> Due in ${-i.daysOverdue}d</span>`;
+
+            const riskChip = getTodayRiskChip(i);
+            const itemUrl = `https://${state.slug}.monday.com/boards/${i.bId}/pulses/${i.id}`;
+
+            return `
+            <div class="today-card">
+                <div class="today-card-rank">
+                    <span class="priority-dot ${pScore >= 20 ? pTier.cls : 'low-dim'}" title="Priority: ${pScore >= 20 ? pTier.label : 'Low'} (score ${pScore})"></span>
+                </div>
+                <div class="today-card-main">
+                    <a href="${itemUrl}" target="_blank" class="item-link today-card-title">${todayEsc(i.name)} <i class="fas fa-external-link-alt" style="font-size:0.75em"></i></a>
+                    <div class="today-card-meta">
+                        <span class="today-board"><i class="fas fa-layer-group"></i>${todayEsc(i.bName)}</span>
+                        ${!scopedToUser ? `<span class="today-assignee"><i class="far fa-user"></i>${todayEsc((i.people || []).join(', '))}</span>` : ''}
+                        ${(i.csManagers && i.csManagers.length) ? `<span class="today-csm"><i class="fas fa-user-shield"></i>${todayEsc(i.csManagers.join(', '))}</span>` : ''}
+                    </div>
+                </div>
+                <div class="today-card-right">
+                    <div class="today-chips">${reason}${riskChip}</div>
+                    <div class="today-deadline">${todayEsc(i.deadlineDisplay)}</div>
+                    ${i.itemStatus ? `<span class="status-tag" style="cursor:pointer; background:rgba(255,255,255,0.05); color:var(--text); border:1px solid var(--border); font-size:10px; padding:3px 8px; border-radius:6px;" title="Click to change status" onclick="event.stopPropagation(); showStatusDropdown('${i.id}','${i.bId}','${i.statusColumnId}',this)">${todayEsc(i.itemStatus)}</span>` : ''}
+                    ${pScore >= 20 ? `<span class="priority-badge ${pTier.cls}">${pTier.label}</span>` : ''}
+                </div>
+            </div>`;
+        }
+
+        function renderTodayView(filtered) {
+            const container = document.getElementById('today-container');
+            if (!container) return;
+
+            // Scope: everyone by default; selecting yourself narrows to your tasks
+            const scopedToUser = !!state.currentUser;
+            let items = filtered.slice();
+            if (scopedToUser) items = items.filter(i => (i.people || []).some(p => p === state.currentUser));
+
+            const buckets = {
+                overdue: items.filter(i => i.status === 'overdue'),
+                soon: items.filter(i => i.status === 'soon'),
+                '2w': items.filter(i => i.status === '2w')
+            };
+            const byPriority = (a, b) => (calcPriority(b) - calcPriority(a)) || (b.daysOverdue - a.daysOverdue);
+            Object.values(buckets).forEach(arr => arr.sort(byPriority));
+
+            const overdueN = buckets.overdue.length, soonN = buckets.soon.length, v2wN = buckets['2w'].length;
+            const total = overdueN + soonN + v2wN;
+
+            let html = '<div class="today-wrap">';
+            html += `
+                <div class="today-header">
+                    <div>
+                        <div class="today-title"><i class="fas fa-bullseye"></i> What to work on ${scopedToUser ? '&mdash; ' + todayEsc(state.currentUser) : 'today'}</div>
+                        <div class="today-subtitle">${scopedToUser ? 'Your prioritised worklist, most urgent first.' : 'Team worklist &mdash; pick yourself in &ldquo;Select Me&hellip;&rdquo; to focus on just your tasks.'}</div>
+                    </div>
+                    <div class="today-summary-stats">
+                        <div class="today-sum overdue"><b>${overdueN}</b> overdue</div>
+                        <div class="today-sum soon"><b>${soonN}</b> this week</div>
+                        <div class="today-sum v2w"><b>${v2wN}</b> coming up</div>
+                    </div>
+                </div>`;
+
+            if (total === 0) {
+                html += `<div class="today-empty"><i class="fas fa-mug-hot"></i>Nothing pressing right now. ${scopedToUser ? 'You are all caught up!' : 'No open items match the current filters.'}</div>`;
+            } else {
+                const sections = [
+                    { key: 'overdue', label: 'Overdue', icon: 'fa-circle-exclamation', cls: 'overdue', sub: 'Do these first' },
+                    { key: 'soon', label: 'Due This Week', icon: 'fa-clock', cls: 'soon', sub: 'Next 7 days' },
+                    { key: '2w', label: 'Coming Up', icon: 'fa-calendar-day', cls: 'v2w', sub: 'Within 2 weeks' }
+                ];
+                sections.forEach(sec => {
+                    const arr = buckets[sec.key];
+                    if (!arr.length) return;
+                    html += `
+                        <div class="today-section">
+                            <div class="today-section-head ${sec.cls}">
+                                <i class="fas ${sec.icon}"></i> ${sec.label}
+                                <span class="today-section-count">${arr.length}</span>
+                                <span class="today-section-sub">${sec.sub}</span>
+                            </div>
+                            <div class="today-list">${arr.map(i => renderTodayCard(i, scopedToUser)).join('')}</div>
+                        </div>`;
+                });
+            }
+            html += '</div>';
+            container.innerHTML = html;
         }
 
         function renderManagerView(filtered) {
@@ -3584,20 +3751,30 @@
             const gridContainer = document.getElementById('manager-grid-container');
             const auditorTable = document.getElementById('auditor-table-container');
             const timelinessContainer = document.getElementById('timeliness-container');
-            if (state.viewMode === 'timeliness') {
+            const todayContainer = document.getElementById('today-container');
+            if (state.viewMode === 'today') {
+                gridContainer.style.display = 'none';
+                if (auditorTable) auditorTable.style.display = 'none';
+                if (timelinessContainer) timelinessContainer.style.display = 'none';
+                if (todayContainer) todayContainer.style.display = 'block';
+                renderTodayView(filtered);
+            } else if (state.viewMode === 'timeliness') {
                 gridContainer.style.display = 'none';
                 if (auditorTable) auditorTable.style.display = 'none';
                 if (timelinessContainer) timelinessContainer.style.display = 'block';
+                if (todayContainer) todayContainer.style.display = 'none';
                 renderTimelinessView();
             } else if (state.viewMode === 'manager') {
                 gridContainer.style.display = 'block';
                 if (auditorTable) auditorTable.style.display = 'block';
                 if (timelinessContainer) timelinessContainer.style.display = 'none';
+                if (todayContainer) todayContainer.style.display = 'none';
                 renderManagerView(filtered);
             } else {
                 gridContainer.style.display = 'none';
                 if (auditorTable) auditorTable.style.display = 'block';
                 if (timelinessContainer) timelinessContainer.style.display = 'none';
+                if (todayContainer) todayContainer.style.display = 'none';
                 renderAuditorView(filtered);
             }
         }
