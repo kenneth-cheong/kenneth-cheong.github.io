@@ -3209,7 +3209,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1625</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1626</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3708,6 +3708,23 @@
                                 <input type="text" placeholder="Search campaigns..." id="serankingSearchInput" oninput="filterSERankingSites()">
                             </div>
                             <div class="multi-select-options" id="serankingOptionsList"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WorkDuo AI Visibility -->
+            <div class="collapsible-section" id="workduoSection">
+                <div class="collapsible-header" onclick="this.closest('.collapsible-section').classList.toggle('active')">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-navy);"><i class="fas fa-robot" style="margin-right: 8px; opacity: 0.5;"></i> WorkDuo AI Visibility</span>
+                    <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
+                </div>
+                <div class="collapsible-content">
+                    <div style="display:flex; align-items:center; gap:8px; background:#f5f3ff; border:1px solid #ddd6fe; border-radius:10px; padding:10px 12px;">
+                        <i class="fas fa-circle-check" style="color:#7c3aed; font-size:0.85rem;"></i>
+                        <div>
+                            <div style="font-size:0.75rem; font-weight:700; color:#5b21b6;">Always Connected</div>
+                            <div style="font-size:0.65rem; color:#7c3aed; margin-top:1px;">Server-side credentials configured. Ask Claude about AI visibility for any client.</div>
                         </div>
                     </div>
                 </div>
@@ -4861,6 +4878,7 @@
             linkedin:   { label: 'LinkedIn Ads',            icon: 'fab fa-linkedin',    color: '#0A66C2', section: 'linkedinSection' },
             tiktok:     { label: 'TikTok Ads',              icon: 'fab fa-tiktok',      color: '#000000', section: 'tiktokSection' },
             seranking:  { label: 'SE Ranking',              icon: 'fas fa-chart-line',  color: '#6366F1', section: 'serankingSection' },
+            workduo:    { label: 'WorkDuo AI Visibility',   icon: 'fas fa-robot',       color: '#7c3aed', section: 'workduoSection' },
         };
 
         function buildConnectorCard(connector) {
@@ -9130,6 +9148,7 @@ CRITICAL CONTACT RULE:
             19. dataforseo_backlinks_summary: Fetch live backlink stats (total links, referring domains, domain rank) for any domain or URL. Use whenever the user asks about backlinks or link building.
             20. dataforseo_domain_rank_overview: Fetch a domain's estimated organic traffic, number of ranking keywords, and authority score. Use for domain analysis requests.
             21. dataforseo_ranked_keywords: Fetch keywords a domain currently ranks for in Google, with positions and search volume. Use whenever asked what a domain ranks for or its organic keyword footprint.
+            22. get_workduo_report: Fetch AI visibility data from WorkDuo — how visible a brand/client is in AI-generated answers across topics. ALWAYS use this when the user asks about AI visibility, AI search presence, LLM visibility, or WorkDuo. First call action='list_projects' to find the project and entity IDs, then call action='get_visibility' with those IDs.
 
             ════════════════════════════════════════════════
             PERFORMANCE INSIGHTS FRAMEWORK
@@ -9198,6 +9217,7 @@ CRITICAL CONTACT RULE:
             - LinkedIn Ads token: ${localStorage.getItem('linkedin_access_token') ? 'Connected' : 'Not connected'}
             - TikTok Ads token: ${localStorage.getItem('tiktok_access_token') ? 'Connected' : 'Not connected'}
             - SE Ranking campaigns: ${(() => { try { return (window.allSERankingSites || []).length ? (window.allSERankingSites.map(s => s.name || s.id).join(', ')) : 'None configured'; } catch { return 'None configured'; } })()}
+            - WorkDuo AI Visibility: Connected (server-side credentials configured)
 
             Always format results as Markdown tables.
 
