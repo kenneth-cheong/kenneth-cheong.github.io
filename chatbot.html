@@ -3135,7 +3135,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1603</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1604</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3241,6 +3241,32 @@
                     <button class="btn btn-outline" onclick="toggleSettings()"
                         style="padding: 5px 10px; border-color: #e2e8f0; color: var(--primary-navy);">
                         <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- My Team Setting -->
+            <div style="background: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 12px; padding: 14px 16px; margin-bottom: 4px;">
+                <div style="font-size: 0.75rem; font-weight: 700; color: #4338ca; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                    <i class="fas fa-users"></i> My Team
+                </div>
+                <div style="font-size: 0.7rem; color: #6366f1; margin-bottom: 10px;">The chatbot will apply only your team's learned insights.</div>
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <button onclick="setUserTeam('Everyone')" id="teamBtn-Everyone" class="team-btn-opt active-team"
+                        style="padding: 5px 12px; border-radius: 8px; border: 1px solid #c7d2fe; font-size: 0.72rem; font-weight: 700; cursor: pointer; background: #e0e7ff; color: #3730a3; transition: all 0.15s;">
+                        Everyone
+                    </button>
+                    <button onclick="setUserTeam('SEO')" id="teamBtn-SEO" class="team-btn-opt"
+                        style="padding: 5px 12px; border-radius: 8px; border: 1px solid #bbf7d0; font-size: 0.72rem; font-weight: 700; cursor: pointer; background: #f0fdf4; color: #166534; transition: all 0.15s;">
+                        SEO
+                    </button>
+                    <button onclick="setUserTeam('SEM')" id="teamBtn-SEM" class="team-btn-opt"
+                        style="padding: 5px 12px; border-radius: 8px; border: 1px solid #fef08a; font-size: 0.72rem; font-weight: 700; cursor: pointer; background: #fefce8; color: #854d0e; transition: all 0.15s;">
+                        SEM
+                    </button>
+                    <button onclick="setUserTeam('SMM')" id="teamBtn-SMM" class="team-btn-opt"
+                        style="padding: 5px 12px; border-radius: 8px; border: 1px solid #fbcfe8; font-size: 0.72rem; font-weight: 700; cursor: pointer; background: #fdf2f8; color: #9d174d; transition: all 0.15s;">
+                        SMM
                     </button>
                 </div>
             </div>
@@ -9023,7 +9049,8 @@ CRITICAL CONTACT RULE:
             - If multiple campaigns are loaded, fetch all of them and combine the results.
 
             LEARNED MEMORIES (Context):
-            ${JSON.stringify(learnedInsights.map(i => `[${i.tag}][Team: ${i.team || 'Everyone'}] ${i.text}`))}
+            ${(() => { const ut = localStorage.getItem('userTeam') || ''; const relevant = learnedInsights.filter(i => !ut || ut === 'Everyone' || !i.team || i.team === 'Everyone' || i.team === ut); return JSON.stringify(relevant.map(i => `[${i.tag}][Team: ${i.team || 'Everyone'}] ${i.text}`)); })()}
+            ${localStorage.getItem('userTeam') && localStorage.getItem('userTeam') !== 'Everyone' ? `USER'S TEAM: ${localStorage.getItem('userTeam')} — Only apply team-specific memories relevant to this team.` : ''}
 
             CURRENT CONTEXT:
             - Monday.com: ${localStorage.getItem('mondayApiKey') ? 'Connected' : 'Not connected'}
@@ -9720,20 +9747,9 @@ CRITICAL CONTACT RULE:
                             placeholder="Add something to AI memory (e.g., 'User prefers dark mode' or 'Project X deadline is June 30')..."
                             style="width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 0.85rem; resize: none; min-height: 40px; font-family: inherit;"></textarea>
                         <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-                            <select id="quickAddTag"
-                                style="padding: 4px 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.75rem; background: #fff; color: #64748b; font-weight: 600;">
-                                <option value="Preference">Preference</option>
-                                <option value="Project Logic">Project Logic</option>
-                                <option value="Fact">Fact</option>
-                                <option value="General">General</option>
-                            </select>
-                            <select id="quickAddTeam"
-                                style="padding: 4px 10px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.75rem; background: #fff; color: #64748b; font-weight: 600;">
-                                <option value="Everyone">Everyone</option>
-                                <option value="SEO">SEO</option>
-                                <option value="SEM">SEM</option>
-                                <option value="SMM">SMM</option>
-                            </select>
+                            <span id="quickAddClassifyBadge" style="font-size: 0.7rem; color: #6366f1; display: flex; align-items: center; gap: 4px; background: #eef2ff; padding: 4px 10px; border-radius: 8px; border: 1px solid #c7d2fe; font-weight: 600;">
+                                <i class="fas fa-wand-magic-sparkles"></i> AI will auto-classify tag &amp; team
+                            </span>
                             <span style="font-size: 0.7rem; color: #94a3b8; display: flex; align-items: center;">
                                 <i class="fas fa-info-circle" style="margin-right: 4px;"></i> The AI also learns
                                 automatically from your chats.
@@ -10061,10 +10077,34 @@ CRITICAL CONTACT RULE:
             }
         }
 
-        function quickAddInsight() {
+        async function classifyInsight(text) {
+            try {
+                const res = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'claude_chat_with_tools',
+                        system: [{ type: "text", text: 'You are a classifier for an AI memory system. Respond with only valid JSON — no markdown, no explanation, no extra text.\nReturn exactly: {"tag": "Preference"|"Project Logic"|"Fact"|"General", "team": "SEO"|"SEM"|"SMM"|"Everyone"}\nGuidelines:\n- tag "Preference": user habits, likes/dislikes, ways of working\n- tag "Project Logic": rules, campaign structures, client-specific logic\n- tag "Fact": specific data, dates, numbers, names\n- tag "General": anything else\n- team "SEO": organic search, rankings, backlinks, content\n- team "SEM": paid search, Google Ads, PPC, bidding\n- team "SMM": social media, Meta, LinkedIn, TikTok, content\n- team "Everyone": applies broadly or is unclear' }],
+                        messages: [{ role: 'user', content: `Classify this memory note: "${text}"` }],
+                        model: 'claude-haiku-4-5',
+                        max_tokens: 60
+                    })
+                });
+                const raw = await res.json();
+                const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+                const reply = (data.reply || '').trim();
+                const match = reply.match(/\{[^}]+\}/);
+                if (match) return JSON.parse(match[0]);
+            } catch (e) {
+                console.warn('[Classify] AI classification failed:', e);
+            }
+            return null;
+        }
+
+        async function quickAddInsight() {
             const input = document.getElementById('quickAddInput');
-            const tagSelect = document.getElementById('quickAddTag');
-            const teamSelect = document.getElementById('quickAddTeam');
+            const addBtn = document.querySelector('[onclick="quickAddInsight()"]');
+            const badge = document.getElementById('quickAddClassifyBadge');
             const text = input.value.trim();
 
             if (!text) {
@@ -10072,13 +10112,24 @@ CRITICAL CONTACT RULE:
                 return;
             }
 
-            const tag = tagSelect.value;
-            const team = teamSelect ? teamSelect.value : 'Everyone';
+            // Show classifying state
+            if (addBtn) { addBtn.disabled = true; addBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Classifying…'; }
+            if (badge) badge.innerHTML = '<i class="fas fa-spinner fa-spin"></i> AI classifying…';
+
+            let tag = 'General';
+            let team = 'Everyone';
+
+            const classification = await classifyInsight(text);
+            if (classification) {
+                tag = classification.tag || tag;
+                team = classification.team || team;
+            }
+
             const currentUser = (localStorage.getItem('clientEmail') || "System").split('@')[0];
             learnedInsights.unshift({
-                tag: tag,
-                team: team,
-                text: text,
+                tag,
+                team,
+                text,
                 date: new Date().toLocaleDateString(),
                 source: "Manual",
                 user: currentUser,
@@ -10088,13 +10139,38 @@ CRITICAL CONTACT RULE:
             localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
             input.value = "";
             renderInsights();
-            pushInsightsToCloud(); // Sync new note
-            showToast('New memory saved', 'success');
+            pushInsightsToCloud();
+            showToast(`Saved — Tag: ${tag} · Team: ${team}`, 'success');
+
+            if (addBtn) { addBtn.disabled = false; addBtn.innerHTML = '<i class="fas fa-plus"></i> Add'; }
+            if (badge) badge.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> AI will auto-classify tag &amp; team';
         }
 
         function addSampleInsight() {
             quickAddInsight(); // Re-use the new logic
         }
+
+        function setUserTeam(team) {
+            localStorage.setItem('userTeam', team);
+            document.querySelectorAll('.team-btn-opt').forEach(btn => {
+                const isActive = btn.id === `teamBtn-${team}`;
+                btn.style.opacity = isActive ? '1' : '0.55';
+                btn.style.fontWeight = isActive ? '800' : '600';
+                btn.style.boxShadow = isActive ? '0 0 0 2px currentColor' : 'none';
+            });
+            showToast(`Team set to: ${team}`, 'info');
+        }
+
+        function initTeamButtons() {
+            const saved = localStorage.getItem('userTeam') || 'Everyone';
+            document.querySelectorAll('.team-btn-opt').forEach(btn => {
+                const isActive = btn.id === `teamBtn-${saved}`;
+                btn.style.opacity = isActive ? '1' : '0.55';
+                btn.style.fontWeight = isActive ? '800' : '600';
+                btn.style.boxShadow = isActive ? '0 0 0 2px currentColor' : 'none';
+            });
+        }
+        setTimeout(initTeamButtons, 300);
 
         // ── Quick Prompts ─────────────────────────────────────────────────────────
         let customPrompts = JSON.parse(localStorage.getItem('chatbot_custom_prompts') || '[]');
