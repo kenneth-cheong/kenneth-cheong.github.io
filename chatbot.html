@@ -3088,6 +3088,42 @@
         .insight-team-select.team-smm      { background: #fce7f3; color: #9d174d; border-color: #fbcfe8; }
         .insight-team-select.team-everyone { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
 
+        .insight-teams { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+        .insight-team-chip {
+            padding: 2px 7px 2px 8px;
+            border-radius: 20px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            display: inline-flex; align-items: center; gap: 3px;
+            transition: filter 0.15s;
+        }
+        .insight-team-chip:hover { filter: brightness(0.92); }
+        .insight-team-chip.team-seo      { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+        .insight-team-chip.team-sem      { background: #fef9c3; color: #854d0e; border-color: #fef08a; }
+        .insight-team-chip.team-smm      { background: #fce7f3; color: #9d174d; border-color: #fbcfe8; }
+        .insight-team-chip.team-everyone { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
+        .insight-team-add {
+            padding: 2px 7px; border-radius: 20px; font-size: 0.65rem; font-weight: 700;
+            border: 1px dashed #cbd5e1; background: transparent; color: #94a3b8;
+            cursor: pointer; line-height: 1;
+        }
+        .insight-team-add:hover { border-color: #6366f1; color: #6366f1; background: #eef2ff; }
+        .team-dropdown {
+            position: absolute; background: white; border: 1px solid #e2e8f0;
+            border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            z-index: 999; padding: 4px; min-width: 100px;
+        }
+        .team-dropdown button {
+            display: block; width: 100%; text-align: left; padding: 5px 10px;
+            border: none; background: none; cursor: pointer; font-size: 0.75rem;
+            font-weight: 600; border-radius: 5px; color: #334155;
+        }
+        .team-dropdown button:hover { background: #f1f5f9; }
+
         .empty-insights {
             padding: 60px 40px;
             text-align: center;
@@ -3135,7 +3171,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1604</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1605</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -8986,7 +9022,7 @@ CRITICAL CONTACT RULE:
             10. get_gsc_performance: For Google Search Console (clicks, impressions).
             11. get_ga4_report: For Google Analytics (sessions, users, conversions).
             12. get_ads_report: For Google Ads performance (cost, CPC, ROAS).
-            13. save_memory_note: STRICT MANDATE. Use this whenever you learn a new preference, fact, or logic about the user or their projects. Always include a "team" field set to one of: "SEO", "SEM", "SMM", or "Everyone" (default to "Everyone" if the memory applies broadly).
+            13. save_memory_note: STRICT MANDATE. Use this whenever you learn a new preference, fact, or logic about the user or their projects. Always include a "tag" field (one of: "Preference", "Strategy", "Fact", "Process", "Constraint") and a "teams" array (one or more of: "SEO", "SEM", "SMM", "Everyone" — use multiple if the memory applies to multiple teams, use ["Everyone"] if broad).
             14. get_seranking_report: Fetch keyword rankings and positions for a specific SE Ranking campaign. You MUST use this tool when the user asks about SEO keywords, rankings, or SE Ranking data.
             15. get_meta_ads_report: Fetch Meta (Facebook/Instagram) Ads performance data — spend, impressions, clicks, CTR, CPM, CPC, ROAS, results, and cost per result. Use this whenever the user asks about Meta Ads, Facebook Ads, Instagram Ads, or paid social performance. The ad_account_id values are in the synced context under 'meta_ad_account_ids'.
             16. get_linkedin_ads_report: Fetch LinkedIn Ads performance data — spend, impressions, clicks, CTR, CPM, CPC, conversions, and cost per conversion. Use this whenever the user asks about LinkedIn Ads or B2B paid social performance. The account_id values are in the synced context under 'linkedin_ad_account_ids'. Use the linkedin_access_token from synced context for API calls.
@@ -9049,7 +9085,7 @@ CRITICAL CONTACT RULE:
             - If multiple campaigns are loaded, fetch all of them and combine the results.
 
             LEARNED MEMORIES (Context):
-            ${(() => { const ut = localStorage.getItem('userTeam') || ''; const relevant = learnedInsights.filter(i => !ut || ut === 'Everyone' || !i.team || i.team === 'Everyone' || i.team === ut); return JSON.stringify(relevant.map(i => `[${i.tag}][Team: ${i.team || 'Everyone'}] ${i.text}`)); })()}
+            ${(() => { const ut = localStorage.getItem('userTeam') || ''; const relevant = learnedInsights.filter(i => { const teams = i.teams || (i.team ? [i.team] : ['Everyone']); return !ut || ut === 'Everyone' || teams.includes('Everyone') || teams.includes(ut); }); return JSON.stringify(relevant.map(i => { const teams = i.teams || (i.team ? [i.team] : ['Everyone']); return `[${i.tag}][Teams: ${teams.join('+')}] ${i.text}`; })); })()}
             ${localStorage.getItem('userTeam') && localStorage.getItem('userTeam') !== 'Everyone' ? `USER'S TEAM: ${localStorage.getItem('userTeam')} — Only apply team-specific memories relevant to this team.` : ''}
 
             CURRENT CONTEXT:
@@ -9265,6 +9301,9 @@ CRITICAL CONTACT RULE:
                             insight.source = "AI Learned";
                             insight.user = currentUser;
                             insight.id = Date.now() + Math.random();
+                            // Normalise teams field (AI may return team string or teams array)
+                            if (!insight.teams) insight.teams = insight.team ? [insight.team] : ['Everyone'];
+                            delete insight.team;
                             learnedInsights.unshift(insight);
                         } catch (e) { console.error("Memory parsing error", e); }
                     });
@@ -9774,9 +9813,10 @@ CRITICAL CONTACT RULE:
                     style="padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.75rem; font-family: inherit; background: #fff; color: #475569; font-weight: 600; cursor: pointer;">
                     <option value="">All Tags</option>
                     <option value="Preference">Preference</option>
-                    <option value="Project Logic">Project Logic</option>
+                    <option value="Strategy">Strategy</option>
                     <option value="Fact">Fact</option>
-                    <option value="General">General</option>
+                    <option value="Process">Process</option>
+                    <option value="Constraint">Constraint</option>
                 </select>
                 <select id="insightFilterTeam" onchange="renderInsights()"
                     style="padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.75rem; font-family: inherit; background: #fff; color: #475569; font-weight: 600; cursor: pointer;">
@@ -9815,6 +9855,12 @@ CRITICAL CONTACT RULE:
 
     <script>
         let learnedInsights = JSON.parse(localStorage.getItem('chatBotInsights')) || [];
+        // Migrate legacy single-team string to teams array
+        let _migrated = false;
+        learnedInsights.forEach(i => {
+            if (!i.teams) { i.teams = i.team ? [i.team] : ['Everyone']; delete i.team; _migrated = true; }
+        });
+        if (_migrated) localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
         // Initial cloud pull
         setTimeout(pullInsightsFromCloud, 1000);
 
@@ -9914,7 +9960,10 @@ CRITICAL CONTACT RULE:
             let filtered = learnedInsights.filter(ins => {
                 if (search && !(ins.text || '').toLowerCase().includes(search)) return false;
                 if (filterTag && ins.tag !== filterTag) return false;
-                if (filterTeam && (ins.team || '') !== filterTeam) return false;
+                if (filterTeam) {
+                    const t = ins.teams || (ins.team ? [ins.team] : ['Everyone']);
+                    if (!t.includes(filterTeam)) return false;
+                }
                 if (filterSource) {
                     const src = (ins.source || 'Manual');
                     if (filterSource === 'Manual' && src !== 'Manual') return false;
@@ -9962,15 +10011,16 @@ CRITICAL CONTACT RULE:
                 <div class="insight-card" id="insight-${insight.id}">
                     <div class="insight-meta">
                         <select class="insight-tag-select" onchange="saveInsightTag('${insight.id}', this.value)" title="Change tag">
-                            ${['Preference','Project Logic','Fact','General'].map(t =>
+                            ${['Preference','Strategy','Fact','Process','Constraint'].map(t =>
                                 `<option value="${t}"${insight.tag === t ? ' selected' : ''}>${t}</option>`
                             ).join('')}
                         </select>
-                        <select class="insight-team-select team-${(insight.team||'everyone').toLowerCase()}" onchange="saveInsightTeam('${insight.id}', this.value, this)" title="Change team">
-                            ${['Everyone','SEO','SEM','SMM'].map(t =>
-                                `<option value="${t}"${(insight.team||'Everyone') === t ? ' selected' : ''}>${t}</option>`
+                        <div class="insight-teams" id="teams-${insight.id}" style="position:relative;">
+                            ${(insight.teams || (insight.team ? [insight.team] : ['Everyone'])).map(t =>
+                                `<span class="insight-team-chip team-${t.toLowerCase()}" onclick="removeTeamFromInsight('${insight.id}','${t}')" title="Click to remove">${t} ×</span>`
                             ).join('')}
-                        </select>
+                            <button class="insight-team-add" onclick="showAddTeamDropdown('${insight.id}', this)" title="Add team">+</button>
+                        </div>
                         <span class="insight-date">${insight.date}</span>
                         <div style="margin-left: auto; display: flex; align-items: center; gap: 6px;">
                             <span class="insight-source" style="font-weight:700; color: #64748b; text-transform: uppercase; font-size: 0.6rem;">${insight.source || 'Manual'}</span>
@@ -10048,14 +10098,51 @@ CRITICAL CONTACT RULE:
             showToast('Memory updated successfully', 'success');
         }
 
-        function saveInsightTeam(id, newTeam, selectEl) {
+        function removeTeamFromInsight(id, team) {
             const insight = learnedInsights.find(i => i.id == id);
-            if (!insight || insight.team === newTeam) return;
-            insight.team = newTeam;
-            selectEl.className = `insight-team-select team-${newTeam.toLowerCase()}`;
+            if (!insight) return;
+            const teams = insight.teams || (insight.team ? [insight.team] : ['Everyone']);
+            const updated = teams.filter(t => t !== team);
+            insight.teams = updated.length ? updated : ['Everyone'];
+            delete insight.team;
             localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
             pushInsightsToCloud();
-            showToast('Team updated', 'info');
+            renderInsights();
+        }
+
+        function showAddTeamDropdown(id, btn) {
+            document.querySelectorAll('.team-dropdown').forEach(d => d.remove());
+            const insight = learnedInsights.find(i => i.id == id);
+            if (!insight) return;
+            const current = insight.teams || (insight.team ? [insight.team] : ['Everyone']);
+            const available = ['Everyone','SEO','SEM','SMM'].filter(t => !current.includes(t));
+            if (!available.length) { showToast('All teams already assigned', 'info'); return; }
+            const dropdown = document.createElement('div');
+            dropdown.className = 'team-dropdown';
+            available.forEach(t => {
+                const b = document.createElement('button');
+                b.textContent = t;
+                b.onclick = () => { addTeamToInsight(id, t); dropdown.remove(); };
+                dropdown.appendChild(b);
+            });
+            btn.parentElement.style.position = 'relative';
+            btn.parentElement.appendChild(dropdown);
+            setTimeout(() => document.addEventListener('click', function h(e) {
+                if (!dropdown.contains(e.target)) { dropdown.remove(); document.removeEventListener('click', h); }
+            }), 50);
+        }
+
+        function addTeamToInsight(id, team) {
+            const insight = learnedInsights.find(i => i.id == id);
+            if (!insight) return;
+            let teams = insight.teams || (insight.team ? [insight.team] : ['Everyone']);
+            if (teams.includes('Everyone') && team !== 'Everyone') teams = teams.filter(t => t !== 'Everyone');
+            if (!teams.includes(team)) teams.push(team);
+            insight.teams = teams;
+            delete insight.team;
+            localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
+            pushInsightsToCloud();
+            renderInsights();
         }
 
         function saveInsightTag(id, newTag) {
@@ -10084,7 +10171,7 @@ CRITICAL CONTACT RULE:
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action: 'claude_chat_with_tools',
-                        system: [{ type: "text", text: 'You are a classifier for an AI memory system. Respond with only valid JSON — no markdown, no explanation, no extra text.\nReturn exactly: {"tag": "Preference"|"Project Logic"|"Fact"|"General", "team": "SEO"|"SEM"|"SMM"|"Everyone"}\nGuidelines:\n- tag "Preference": user habits, likes/dislikes, ways of working\n- tag "Project Logic": rules, campaign structures, client-specific logic\n- tag "Fact": specific data, dates, numbers, names\n- tag "General": anything else\n- team "SEO": organic search, rankings, backlinks, content\n- team "SEM": paid search, Google Ads, PPC, bidding\n- team "SMM": social media, Meta, LinkedIn, TikTok, content\n- team "Everyone": applies broadly or is unclear' }],
+                        system: [{ type: "text", text: 'You are a classifier for an AI memory system. Respond with only valid JSON — no markdown, no explanation, no extra text.\nReturn exactly: {"tag": "Preference"|"Strategy"|"Fact"|"Process"|"Constraint", "teams": ["SEO"|"SEM"|"SMM"|"Everyone"]}\n"teams" is an ARRAY — include multiple if the note applies to more than one team. Use ["Everyone"] if it applies broadly.\nTag guidelines:\n- "Preference": user or client habits, likes/dislikes, tone/style preferences\n- "Strategy": campaign logic, account structure decisions, strategic direction\n- "Fact": specific data points, numbers, dates, names, URLs\n- "Process": workflows, SOPs, recurring steps, how things are done\n- "Constraint": platform limits, client rules, restrictions, hard requirements\nTeam guidelines:\n- "SEO": organic search, rankings, backlinks, technical SEO, content\n- "SEM": paid search, Google Ads, PPC, bidding, keywords\n- "SMM": social media, Meta, LinkedIn, TikTok, organic social\n- "Everyone": applies broadly across teams or is unclear' }],
                         messages: [{ role: 'user', content: `Classify this memory note: "${text}"` }],
                         model: 'claude-haiku-4-5',
                         max_tokens: 60
@@ -10116,19 +10203,19 @@ CRITICAL CONTACT RULE:
             if (addBtn) { addBtn.disabled = true; addBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Classifying…'; }
             if (badge) badge.innerHTML = '<i class="fas fa-spinner fa-spin"></i> AI classifying…';
 
-            let tag = 'General';
-            let team = 'Everyone';
+            let tag = 'Fact';
+            let teams = ['Everyone'];
 
             const classification = await classifyInsight(text);
             if (classification) {
                 tag = classification.tag || tag;
-                team = classification.team || team;
+                teams = Array.isArray(classification.teams) ? classification.teams : (classification.team ? [classification.team] : teams);
             }
 
             const currentUser = (localStorage.getItem('clientEmail') || "System").split('@')[0];
             learnedInsights.unshift({
                 tag,
-                team,
+                teams,
                 text,
                 date: new Date().toLocaleDateString(),
                 source: "Manual",
@@ -10140,7 +10227,7 @@ CRITICAL CONTACT RULE:
             input.value = "";
             renderInsights();
             pushInsightsToCloud();
-            showToast(`Saved — Tag: ${tag} · Team: ${team}`, 'success');
+            showToast(`Saved — Tag: ${tag} · Team: ${teams.join(', ')}`, 'success');
 
             if (addBtn) { addBtn.disabled = false; addBtn.innerHTML = '<i class="fas fa-plus"></i> Add'; }
             if (badge) badge.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> AI will auto-classify tag &amp; team';
