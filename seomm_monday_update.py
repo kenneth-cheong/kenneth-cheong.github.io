@@ -17,6 +17,7 @@ from google.oauth2 import service_account
 import re
 import time
 import math
+import os
 
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
@@ -27,7 +28,7 @@ pd.set_option('display.max_rows', None)
 #get today's date in required api format
 today_date = datetime.today().strftime('%Y-%m-%d')
 
-monday_api_key = "eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjE2MTMyMzY2NywidWlkIjoyNzA4NzA3NywiaWFkIjoiMjAyMi0wNS0xOVQwNzo0Mjo1NS4wMDBaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6NDk4MzM0NiwicmduIjoidXNlMSJ9.9-t-toyfO0RkHNHzBpHOfUwmJcfBKEaBCucIRAn6U_8"
+monday_api_key = os.environ["MONDAY_API_KEY"]
 apiUrl = "https://api.monday.com/v2"
 headers = {"Authorization" : monday_api_key,
            'API-Version' : '2025-04'}
@@ -596,7 +597,7 @@ for index, row in df_new_psg.iterrows():
     psg_p1_kws_list.append(row['p1_kws'])
     psg_p2_kws_list.append(row['p2_kws'])
     
-monday_api_key = "eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjE2MTMyMzY2NywidWlkIjoyNzA4NzA3NywiaWFkIjoiMjAyMi0wNS0xOVQwNzo0Mjo1NS4wMDBaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6NDk4MzM0NiwicmduIjoidXNlMSJ9.9-t-toyfO0RkHNHzBpHOfUwmJcfBKEaBCucIRAn6U_8"
+monday_api_key = os.environ["MONDAY_API_KEY"]
 apiUrl = "https://api.monday.com/v2"
 headers = {"Authorization" : monday_api_key,
            'API-Version' : '2025-04'}
@@ -840,7 +841,7 @@ r = requests.post(url=apiUrl, json=data, headers=headers) # make request
 print(r.json())
     
 #Anderco
-monday_api_key = "eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjE2MTMyMzY2NywidWlkIjoyNzA4NzA3NywiaWFkIjoiMjAyMi0wNS0xOVQwNzo0Mjo1NS4wMDBaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6NDk4MzM0NiwicmduIjoidXNlMSJ9.9-t-toyfO0RkHNHzBpHOfUwmJcfBKEaBCucIRAn6U_8"
+monday_api_key = os.environ["MONDAY_API_KEY"]
 apiUrl = "https://api.monday.com/v2"
 headers = {"Authorization" : monday_api_key,
            'API-Version' : '2025-04'}
@@ -1006,7 +1007,7 @@ for site_engine in r.json():
             df_legend_p2.at[counter,'site_engine'] = site_engine_dict[str(site_engine['site_engine_id'])]
         counter+=1  
 
-monday_api_key = "eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjE2MTMyMzY2NywidWlkIjoyNzA4NzA3NywiaWFkIjoiMjAyMi0wNS0xOVQwNzo0Mjo1NS4wMDBaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6NDk4MzM0NiwicmduIjoidXNlMSJ9.9-t-toyfO0RkHNHzBpHOfUwmJcfBKEaBCucIRAn6U_8"
+monday_api_key = os.environ["MONDAY_API_KEY"]
 apiUrl = "https://api.monday.com/v2"
 headers = {"Authorization" : monday_api_key,
            'API-Version' : '2025-04'}        
@@ -1342,7 +1343,7 @@ else:
     print(r.json(), end='\r')
 
 
-monday_api_key = "eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjE2MTMyMzY2NywidWlkIjoyNzA4NzA3NywiaWFkIjoiMjAyMi0wNS0xOVQwNzo0Mjo1NS4wMDBaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6NDk4MzM0NiwicmduIjoidXNlMSJ9.9-t-toyfO0RkHNHzBpHOfUwmJcfBKEaBCucIRAn6U_8"
+monday_api_key = os.environ["MONDAY_API_KEY"]
 apiUrl = "https://api.monday.com/v2"
 headers = {"Authorization" : monday_api_key,
            'API-Version' : '2025-04'}

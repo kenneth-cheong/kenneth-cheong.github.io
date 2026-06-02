@@ -87,7 +87,7 @@ def run_analysis(event):
     pacific = timezone("Asia/Singapore")
     local_datetime = pacific.localize(datetime.today())
 
-    uri = "mongodb+srv://kenneth:S8942769z@digimetrics.gns7b.mongodb.net/?retryWrites=true&w=majority&appName=digimetrics"
+    uri = os.environ["MONGODB_URI"]
     client_db = MongoClient(uri)
     database = client_db["keywords"]
     collection = database["search_vol"]

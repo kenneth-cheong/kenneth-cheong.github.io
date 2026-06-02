@@ -28,7 +28,7 @@ try:
     timezone = pytz.timezone("Singapore")
     today_date = date.today()
 
-    monday_api_key = "eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjE2MTMyMzY2NywidWlkIjoyNzA4NzA3NywiaWFkIjoiMjAyMi0wNS0xOVQwNzo0Mjo1NS4wMDBaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6NDk4MzM0NiwicmduIjoidXNlMSJ9.9-t-toyfO0RkHNHzBpHOfUwmJcfBKEaBCucIRAn6U_8"
+    monday_api_key = os.environ["MONDAY_API_KEY"]
 
     apiUrl = "https://api.monday.com/v2"
     headers = {"Authorization" : monday_api_key,
