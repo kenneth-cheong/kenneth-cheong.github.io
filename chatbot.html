@@ -11,6 +11,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <!-- Document Extraction Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
@@ -570,6 +572,11 @@
             box-shadow: 0 4px 15px rgba(234, 88, 12, 0.2);
             padding: 12px 20px;
         }
+
+        .mermaid-diagram { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin:10px 0; overflow-x:auto; text-align:center; }
+        .mermaid-diagram svg { min-width:360px; max-width:100%; height:auto; }
+        .chart-container { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin:10px 0; position:relative; height:320px; }
+        .message.bot.has-visual { max-width: min(95%, 680px); }
 
         .message.bot {
             align-self: flex-start;
@@ -3193,7 +3200,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1631</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1632</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -9370,6 +9377,15 @@ CRITICAL CONTACT RULE:
 
             Always format results as Markdown tables.
 
+            DIAGRAMS & CHARTS — you can render visuals directly in chat:
+            • Flowcharts, sequence diagrams, Gantt, entity diagrams → use a \`\`\`mermaid code block
+            • Data charts (bar, line, pie, doughnut) → use a \`\`\`chartjs code block containing valid Chart.js v4 JSON config
+            When the user asks for a chart, diagram, or visual representation of data, ALWAYS generate one.
+            Chart.js example format:
+            \`\`\`chartjs
+            {"type":"bar","data":{"labels":["Jan","Feb"],"datasets":[{"label":"Spend","data":[1200,1800],"backgroundColor":["#6366f1","#8b5cf6"]}]},"options":{"responsive":true,"plugins":{"legend":{"position":"top"}}}}
+            \`\`\`
+
             CONNECTOR PROMPTS — read carefully:
             When a user's question would meaningfully benefit from a connector listed as "Not connected" or "None selected" above, append one of the markers below at the end of your response. The client renders them as clickable setup cards.
             Rules:
@@ -9749,10 +9765,66 @@ CRITICAL CONTACT RULE:
                 <span class="time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
             `;
             list.appendChild(msg);
+            renderChartsInElement(msg);
             setTimeout(() => {
                 list.scrollTop = list.scrollHeight;
             }, 50);
         }
+
+        // ── Diagram & Chart Rendering ─────────────────────────────────────────
+        if (typeof mermaid !== 'undefined') {
+            mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
+        }
+
+        let _chartCounter = 0;
+
+        async function renderChartsInElement(el) {
+            let hasVisual = false;
+            const msgEl = el.closest('.message');
+
+            // Mermaid diagrams
+            const mermaidBlocks = el.querySelectorAll('code.language-mermaid');
+            for (const code of mermaidBlocks) {
+                const src = code.textContent.trim();
+                const wrapper = document.createElement('div');
+                wrapper.className = 'mermaid-diagram';
+                try {
+                    const id = `mermaid-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                    const { svg } = await mermaid.render(id, src);
+                    wrapper.innerHTML = svg;
+                    hasVisual = true;
+                } catch(e) {
+                    wrapper.innerHTML = `<div style="color:#ef4444; font-size:0.75rem; padding:8px;">Diagram error: ${e.message}</div><pre style="font-size:0.7rem; opacity:0.6;">${src}</pre>`;
+                }
+                code.closest('pre')?.replaceWith(wrapper);
+            }
+
+            // Chart.js charts
+            el.querySelectorAll('code.language-chartjs').forEach((code) => {
+                try {
+                    const config = JSON.parse(code.textContent.trim());
+                    // Ensure responsive + no aspect ratio lock so container controls height
+                    if (!config.options) config.options = {};
+                    config.options.responsive = true;
+                    config.options.maintainAspectRatio = false;
+                    const container = document.createElement('div');
+                    container.className = 'chart-container';
+                    const cvs = document.createElement('canvas');
+                    cvs.style.width = '100%';
+                    cvs.style.height = '100%';
+                    container.appendChild(cvs);
+                    code.closest('pre')?.replaceWith(container);
+                    // Defer so container is in DOM and has dimensions
+                    requestAnimationFrame(() => new Chart(cvs, config));
+                    hasVisual = true;
+                } catch(e) {
+                    console.warn('[Chart.js] Parse error:', e.message);
+                }
+            });
+
+            if (hasVisual && msgEl) msgEl.classList.add('has-visual');
+        }
+        // ─────────────────────────────────────────────────────────────────────
 
         function escapeHtml(s) {
             return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
