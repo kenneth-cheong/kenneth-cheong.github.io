@@ -3193,7 +3193,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1628</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1629</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3699,16 +3699,31 @@
 
             <!-- WorkDuo AI Visibility -->
             <div class="collapsible-section" id="workduoSection">
-                <div class="collapsible-header" onclick="this.closest('.collapsible-section').classList.toggle('active')">
+                <div class="collapsible-header" onclick="this.closest('.collapsible-section').classList.toggle('active'); fetchWorkDuoProjects();">
                     <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-navy);"><i class="fas fa-robot" style="margin-right: 8px; opacity: 0.5;"></i> WorkDuo AI Visibility</span>
                     <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
                 </div>
                 <div class="collapsible-content">
-                    <div style="display:flex; align-items:center; gap:8px; background:#f5f3ff; border:1px solid #ddd6fe; border-radius:10px; padding:10px 12px;">
-                        <i class="fas fa-circle-check" style="color:#7c3aed; font-size:0.85rem;"></i>
-                        <div>
-                            <div style="font-size:0.75rem; font-weight:700; color:#5b21b6;">Always Connected</div>
-                            <div style="font-size:0.65rem; color:#7c3aed; margin-top:1px;">Server-side credentials configured. Ask Claude about AI visibility for any client.</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <span style="font-size:0.7rem; color:#64748b;">Select projects to pre-load into context</span>
+                        <div style="display:flex; gap:4px;">
+                            <button class="btn-sidebar" onclick="selectAllWorkDuo()" style="font-size:0.65rem; padding:2px 8px;">All</button>
+                            <button class="btn-sidebar" onclick="clearAllWorkDuo()" style="font-size:0.65rem; padding:2px 8px;">None</button>
+                        </div>
+                    </div>
+                    <div class="multi-select-container" id="workduoMultiSelect">
+                        <div class="multi-select-trigger" onclick="toggleWorkDuoDropdown()">
+                            <span id="workduoSelectedCount">Select Projects</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="multi-select-dropdown" id="workduoDropdown">
+                            <div class="multi-select-search">
+                                <i class="fas fa-search"></i>
+                                <input type="text" placeholder="Search projects..." id="workduoSearchInput" oninput="filterWorkDuoProjects()">
+                            </div>
+                            <div class="multi-select-options" id="workduoOptionsList">
+                                <div style="padding:10px; font-size:0.7rem; color:#94a3b8; text-align:center;">Open to load projects</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -5472,6 +5487,120 @@
         }
 
 
+
+        // ── WorkDuo Project Selector ──────────────────────────────────────────
+        window.allWorkDuoProjects = [];
+        window.selectedWorkDuoProjectIds = JSON.parse(localStorage.getItem('selectedWorkDuoProjectIds') || '[]');
+        let _workduoFetched = false;
+
+        function toggleWorkDuoDropdown() {
+            document.getElementById('workduoDropdown').classList.toggle('active');
+        }
+        document.addEventListener('click', (e) => {
+            const c = document.getElementById('workduoMultiSelect');
+            const d = document.getElementById('workduoDropdown');
+            if (c && !c.contains(e.target)) d && d.classList.remove('active');
+        });
+
+        async function fetchWorkDuoProjects() {
+            if (_workduoFetched) return;
+            const list = document.getElementById('workduoOptionsList');
+            if (!list) return;
+
+            // Cache: 1hr TTL
+            try {
+                const cached = JSON.parse(localStorage.getItem('workduo_projects_cache') || 'null');
+                if (cached && cached.projects && Date.now() - cached.ts < 3600000) {
+                    window.allWorkDuoProjects = cached.projects;
+                    _workduoFetched = true;
+                    renderWorkDuoProjects();
+                    updateWorkDuoCount();
+                    return;
+                }
+            } catch(e) {}
+
+            list.innerHTML = '<div style="padding:10px; font-size:0.7rem; color:#94a3b8; text-align:center;">⏳ Loading projects...</div>';
+
+            try {
+                const res2 = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'get_workduo_projects' })
+                });
+                const raw = await res2.json();
+                const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+                if (data.projects) {
+                    window.allWorkDuoProjects = data.projects;
+                    _workduoFetched = true;
+                    try { localStorage.setItem('workduo_projects_cache', JSON.stringify({ projects: data.projects, ts: Date.now() })); } catch(e) {}
+                    renderWorkDuoProjects();
+                    updateWorkDuoCount();
+                } else {
+                    list.innerHTML = '<div style="padding:10px; font-size:0.7rem; color:#ef4444; text-align:center;">Could not load projects</div>';
+                }
+            } catch(e) {
+                list.innerHTML = `<div style="padding:10px; font-size:0.7rem; color:#ef4444; text-align:center;">Error: ${e.message}</div>`;
+            }
+        }
+
+        function filterWorkDuoProjects() {
+            renderWorkDuoProjects(document.getElementById('workduoSearchInput')?.value.toLowerCase() || '');
+        }
+
+        function renderWorkDuoProjects(filter = '') {
+            const list = document.getElementById('workduoOptionsList');
+            if (!list) return;
+            const filtered = window.allWorkDuoProjects.filter(p =>
+                (p.name || '').toLowerCase().includes(filter) || (p.id || '').toLowerCase().includes(filter)
+            );
+            if (!filtered.length) { list.innerHTML = '<div style="padding:10px; font-size:0.7rem; color:#94a3b8; text-align:center;">No matches</div>'; return; }
+            list.innerHTML = filtered.map(p => {
+                const id = String(p.id);
+                const checked = window.selectedWorkDuoProjectIds.includes(id);
+                const entityId = p.entity?.id || '';
+                return `<div class="multi-select-option" onclick="toggleWorkDuoProject('${id}', event)">
+                    <input type="checkbox" id="wduo_${id}" ${checked ? 'checked' : ''} onclick="event.stopPropagation(); toggleWorkDuoProject('${id}')">
+                    <div class="multi-select-option-text">
+                        <span style="font-weight:700; color:#1e293b;">${p.name || id}</span>
+                        <span style="font-size:0.65rem; color:#64748b;">${entityId ? `Entity: ${entityId}` : ''}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function toggleWorkDuoProject(id, event) {
+            id = String(id);
+            const idx = window.selectedWorkDuoProjectIds.indexOf(id);
+            if (idx > -1) window.selectedWorkDuoProjectIds.splice(idx, 1);
+            else window.selectedWorkDuoProjectIds.push(id);
+            localStorage.setItem('selectedWorkDuoProjectIds', JSON.stringify(window.selectedWorkDuoProjectIds));
+            updateWorkDuoCount();
+            const cb = document.getElementById(`wduo_${id}`);
+            if (cb) cb.checked = (idx === -1);
+        }
+
+        function selectAllWorkDuo() {
+            fetchWorkDuoProjects().then(() => {
+                window.selectedWorkDuoProjectIds = window.allWorkDuoProjects.map(p => String(p.id));
+                localStorage.setItem('selectedWorkDuoProjectIds', JSON.stringify(window.selectedWorkDuoProjectIds));
+                updateWorkDuoCount();
+                renderWorkDuoProjects(document.getElementById('workduoSearchInput')?.value.toLowerCase() || '');
+            });
+        }
+
+        function clearAllWorkDuo() {
+            window.selectedWorkDuoProjectIds = [];
+            localStorage.setItem('selectedWorkDuoProjectIds', JSON.stringify([]));
+            updateWorkDuoCount();
+            renderWorkDuoProjects(document.getElementById('workduoSearchInput')?.value.toLowerCase() || '');
+        }
+
+        function updateWorkDuoCount() {
+            const el = document.getElementById('workduoSelectedCount');
+            if (!el) return;
+            const n = window.selectedWorkDuoProjectIds.length;
+            el.textContent = n === 0 ? 'Select Projects' : `${n} Project${n !== 1 ? 's' : ''} Selected`;
+        }
+        // ─────────────────────────────────────────────────────────────────────
 
         async function fetchSeRankingViaLambda(action, siteId, extraData = {}) {
             try {
@@ -9201,7 +9330,7 @@ CRITICAL CONTACT RULE:
             - LinkedIn Ads token: ${localStorage.getItem('linkedin_access_token') ? 'Connected' : 'Not connected'}
             - TikTok Ads token: ${localStorage.getItem('tiktok_access_token') ? 'Connected' : 'Not connected'}
             - SE Ranking campaigns: ${(() => { try { return (window.allSERankingSites || []).length ? (window.allSERankingSites.map(s => s.name || s.id).join(', ')) : 'None configured'; } catch { return 'None configured'; } })()}
-            - WorkDuo AI Visibility: Connected (server-side credentials configured)
+            - WorkDuo AI Visibility: Connected — ${(() => { const ids = JSON.parse(localStorage.getItem('selectedWorkDuoProjectIds') || '[]'); const projs = (window.allWorkDuoProjects || []).filter(p => ids.includes(String(p.id))); return projs.length ? `${projs.length} project(s) selected: ${projs.map(p => `${p.name} (id:${p.id}, entity:${p.entity?.id||'?'})`).join(', ')}` : 'no projects pre-selected (Claude will call list_projects first)'; })()}
 
             Always format results as Markdown tables.
 
