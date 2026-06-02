@@ -3144,6 +3144,24 @@
         }
         .team-dropdown button:hover { background: #f1f5f9; }
 
+        .context-warning-banner {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-left: 4px solid #f97316;
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 0.78rem;
+            color: #7c2d12;
+            margin: 0 0 8px;
+            line-height: 1.5;
+        }
+        .context-warning-banner i { margin-top: 2px; flex-shrink: 0; color: #ea580c; }
+        .context-warning-banner strong { display: block; margin-bottom: 2px; }
+        .context-warning-banner .cwb-tip { margin-top: 5px; font-size: 0.7rem; opacity: 0.75; }
+
         .empty-insights {
             padding: 60px 40px;
             text-align: center;
@@ -3191,7 +3209,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1611</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1612</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -9166,6 +9184,8 @@ CRITICAL CONTACT RULE:
                     contextObj = null;
                 }
 
+                const _ctxWarnings = [];
+
                 if (contextObj) {
                     const hasBoardSelection = contextObj.selected_campaign_boards && contextObj.selected_campaign_boards.length > 0;
                     const totalItems = (contextObj.campaigns ? contextObj.campaigns.length : 0) +
@@ -9190,6 +9210,12 @@ CRITICAL CONTACT RULE:
                             });
                         }
 
+                        if (totalItems > 150) {
+                            _ctxWarnings.push(`${totalItems} items exceeded limits — only board names sent to AI (no item details). Use the monday_graphql tool or narrow your board selection for specifics.`);
+                        } else if (totalItems > 100) {
+                            _ctxWarnings.push(`${totalItems} items compacted — item details reduced to names & URLs only.`);
+                        }
+
                         // If focusing on boards, completely remove summary board data
                         if (hasBoardSelection) {
                             delete contextObj.campaigns;
@@ -9208,12 +9234,14 @@ CRITICAL CONTACT RULE:
                     }
                 }
 
-                // Hard limit at 60k characters (~15k tokens) to ensure room for multiple turns 
+                // Hard limit at 60k characters (~15k tokens) to ensure room for multiple turns
                 // in a 50k TPM limit environment.
                 let contextStr = JSON.stringify(contextObj || syncedContext);
                 if (contextStr.length > 60000) {
                     contextStr = contextStr.substring(0, 60000) + "... [Hard Truncated]";
+                    _ctxWarnings.push(`Context hard-truncated at 60k characters — some board data was cut off entirely. Select fewer boards to avoid this.`);
                 }
+                if (_ctxWarnings.length > 0) addContextWarningToChat(_ctxWarnings);
 
                 // Inject SE Ranking campaigns prominently before full context
                 const selectedSiteIds = JSON.parse(localStorage.getItem('selectedSERankingSiteIds') || '[]');
@@ -9362,6 +9390,20 @@ CRITICAL CONTACT RULE:
                 _chatAbortController = null;
                 showTyping(false);
             }
+        }
+
+        function addContextWarningToChat(lines) {
+            const list = document.getElementById('messageList');
+            if (!list) return;
+            const el = document.createElement('div');
+            el.className = 'context-warning-banner';
+            el.innerHTML = `<i class="fas fa-triangle-exclamation"></i><div>
+                <strong>Board data reduced to fit context limits</strong>
+                ${lines.map(l => `<div>• ${l}</div>`).join('')}
+                <div class="cwb-tip">Tip: Select fewer boards or apply campaign/staff filters for more complete answers.</div>
+            </div>`;
+            list.appendChild(el);
+            list.scrollTop = list.scrollHeight;
         }
 
         function getUserColor(label) {
