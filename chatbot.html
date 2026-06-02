@@ -3191,7 +3191,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1609</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1610</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -7673,7 +7673,15 @@
                     }
                 }
 
-                if (selectedItemIds.length > 0) {
+                // Skip summary board fetch entirely when campaign boards are already selected —
+                // their data is discarded anyway (combinedContext.campaigns only set when !hasBoardSelection).
+                const _boardsPreSelected = (msState.msBoardDropdown?.selected || []).length > 0;
+                const _skipSummaryFetch = _boardsPreSelected && selectedItemIds.length === 0 && selectedStaff.length === 0 && !hasDynamicFilters;
+
+                if (_skipSummaryFetch) {
+                    updateSyncStatus('Campaign boards selected — skipping repository fetch...', true);
+                    showToast('Loading campaign boards directly (repository fetch skipped)', 'info', 2500);
+                } else if (selectedItemIds.length > 0) {
                     // Optimized Targeted Fetch by ID - Batched into groups of 100
                     updateSyncStatus(`Fetching ${selectedItemIds.length} targeted campaigns...`, true);
                     const BATCH_SIZE = 100;
@@ -7806,7 +7814,7 @@
                     });
                 }
 
-                updateSyncStatus(`Found ${items.length} matching campaigns...`, true);
+                if (!_skipSummaryFetch) updateSyncStatus(`Found ${items.length} matching campaigns...`, true);
 
                 // ---- Fetch data from user-selected campaign boards ----
                 const selectedBoards = msState.msBoardDropdown.selected;
