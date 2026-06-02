@@ -4923,6 +4923,21 @@
                                 <button class="btn btn-ghost btn-sm" onclick="addBlock('infographic')" data-tooltip="Add SVG Infographic">
                                     <i data-lucide="layers" size="14"></i> <span>Graphic</span>
                                 </button>
+                                <button class="btn btn-ghost btn-sm" onclick="addBlock('kpi_cards')" data-tooltip="Add KPI Cards">
+                                    <i data-lucide="gauge" size="14"></i> <span>KPIs</span>
+                                </button>
+                                <button class="btn btn-ghost btn-sm" onclick="addBlock('table')" data-tooltip="Add Table">
+                                    <i data-lucide="table" size="14"></i> <span>Table</span>
+                                </button>
+                                <button class="btn btn-ghost btn-sm" onclick="addBlock('team')" data-tooltip="Add Team">
+                                    <i data-lucide="users" size="14"></i> <span>Team</span>
+                                </button>
+                                <button class="btn btn-ghost btn-sm" onclick="addBlock('timeline')" data-tooltip="Add Timeline">
+                                    <i data-lucide="git-commit" size="14"></i> <span>Timeline</span>
+                                </button>
+                                <button class="btn btn-ghost btn-sm" onclick="triggerImageUpload()" data-tooltip="Upload Image">
+                                    <i data-lucide="image" size="14"></i> <span>Image</span>
+                                </button>
                             </div>
                             <div class="divider"></div>
                             <div class="toolbar-group">
@@ -5469,7 +5484,7 @@
                             actions.innerHTML = `
                                 <button onclick="deleteBlock('${block.id}')" title="Delete"><i data-lucide="trash-2" size="12"></i></button>
                                 <button onclick="duplicateBlock('${block.id}')" title="Duplicate"><i data-lucide="copy" size="12"></i></button>
-                                ${['chart', 'diagram'].includes(block.type) ? `<button onclick="TenderAI.Utils.editBlockCode('${block.id}')" title="Edit Code"><i data-lucide="code" size="12"></i></button>` : ''}
+                                ${['chart', 'diagram', 'infographic'].includes(block.type) ? `<button onclick="TenderAI.Utils.editBlockCode('${block.id}')" title="Edit Code"><i data-lucide="code" size="12"></i></button>` : ''}
                             `;
                             
                             blockWrapper.appendChild(actions);
@@ -5531,15 +5546,18 @@
                                 }
                                 break;
                             case 'team':
-                                el.innerHTML = `<div class="team-grid">${(block.content.members || []).map(m => `
+                                el.innerHTML = `<div class="team-grid">${(block.content.members || []).map(m => {
+                                    const name = (m && m.name) ? m.name : 'TBD';
+                                    const role = (m && m.role) ? m.role : '';
+                                    return `
                                     <div class="team-card">
-                                        <div class="team-avatar">${m.name[0]}</div>
+                                        <div class="team-avatar">${(name[0] || '?').toUpperCase()}</div>
                                         <div class="team-info">
-                                            <strong>${m.name}</strong>
-                                            <span>${m.role}</span>
+                                            <strong>${name}</strong>
+                                            <span>${role}</span>
                                         </div>
-                                    </div>
-                                `).join('')}</div>`;
+                                    </div>`;
+                                }).join('')}</div>`;
                                 break;
                             case 'timeline':
                                 el.innerHTML = `<div class="slide-timeline">
@@ -5561,43 +5579,179 @@
                                     `).join('')}
                                 </ul>`;
                                 break;
+                            case 'image':
+                                el.innerHTML = block.content.src
+                                    ? `<img src="${block.content.src}" alt="${block.content.alt || ''}" style="max-width:100%; height:auto; border-radius:12px; display:block; margin:0 auto;">`
+                                    : `<div class="alert alert-warning">No image set</div>`;
+                                break;
+                            case 'infographic':
+                                el.innerHTML = block.content.svg || block.content.html ||
+                                    `<div class="alert alert-warning">Empty infographic. Use the code button to add SVG/HTML.</div>`;
+                                break;
                         }
                     }
                 },
 
                 // --- ADAPTERS MODULE ---
                 Adapters: {
-                    toPptx: async (block, pptSlide) => {
+                    // Estimated vertical space (inches) a block consumes, INCLUDING its trailing
+                    // gap. Must stay in sync with the per-type heights in toPptx below — it is used
+                    // purely for pagination decisions (when to start a continuation slide).
+                    estimateHeight: (block) => {
+                        if (!block || !block.content) return 0;
+                        const c = block.content;
                         switch (block.type) {
-                            case 'title':
-                                pptSlide.addText(block.content.text.toUpperCase(), {
-                                    x: 0.5, y: 0.5, w: '90%', h: 1,
-                                    fontSize: 32, fontFace: 'Outfit', color: '1E3A8A', bold: true
-                                });
-                                break;
-                            case 'rich_text':
-                                pptSlide.addText(TenderAI.Utils.stripHtml(block.content.html), {
-                                    x: 0.5, y: 1.5, w: '90%', h: 4,
-                                    fontSize: 18, fontFace: 'Inter', color: '475569'
-                                });
-                                break;
-                            case 'table':
-                                pptSlide.addTable(block.content.rows, {
-                                    x: 0.5, y: 1.5, w: 12,
-                                    fontSize: 12, border: { type: 'solid', color: 'E2E8F0' }
-                                });
-                                break;
+                            case 'title': return 1.0;
+                            case 'rich_text': {
+                                const n = TenderAI.Utils.htmlToBullets(c.html || '').length;
+                                return Math.max(0.5, Math.min(4.2, n * 0.38)) + 0.2;
+                            }
+                            case 'kpi_cards': return 1.7 + 0.3;
+                            case 'team': return 1.4 + 0.3;
+                            case 'timeline': return Math.max(0.5, Math.min(4.5, (c.steps || []).length * 0.45)) + 0.2;
+                            case 'proof_points': return Math.max(0.5, Math.min(4.5, (c.points || []).length * 0.45)) + 0.2;
+                            case 'table': {
+                                const rowCount = (c.rows || []).length + ((c.headers || []).length ? 1 : 0);
+                                return Math.max(0.5, Math.min(4.8, rowCount * 0.42)) + 0.3;
+                            }
                             case 'chart':
                             case 'diagram':
-                            case 'infographic':
-                                // For complex visual blocks, we capture as image
-                                const blockEl = document.querySelector(`[data-block-id="${block.id}"]`);
+                            case 'infographic': return 3.6 + 0.3;
+                        }
+                        return 0;
+                    },
+
+                    // Renders one block into the PPTX slide starting at vertical cursor `y` (inches)
+                    // and returns the next available y so blocks flow instead of overlapping.
+                    // LAYOUT_WIDE canvas = 13.33" x 7.5"; usable width below uses a 0.5" margin.
+                    toPptx: async (block, pptSlide, y, theme, stage) => {
+                        if (!block || !block.content) return y;
+
+                        const isDark = theme === 'dark';
+                        const titleColor = isDark ? 'FFFFFF' : '1E3A8A';
+                        const textColor = isDark ? 'CBD5E1' : '475569';
+                        const cardFill = isDark ? '1E293B' : 'F1F5F9';
+                        const M = 0.5;      // left margin
+                        const W = 12.33;    // usable width
+
+                        switch (block.type) {
+                            case 'title': {
+                                const txt = (block.content.text || '').toString().toUpperCase();
+                                pptSlide.addText(txt, {
+                                    x: M, y, w: W, h: 0.9,
+                                    fontSize: 30, fontFace: 'Outfit', color: titleColor, bold: true, valign: 'middle'
+                                });
+                                return y + 1.0;
+                            }
+                            case 'rich_text': {
+                                const bullets = TenderAI.Utils.htmlToBullets(block.content.html || '');
+                                const h = Math.max(0.5, Math.min(4.2, bullets.length * 0.38));
+                                pptSlide.addText(bullets, {
+                                    x: M, y, w: W, h,
+                                    fontSize: 15, fontFace: 'Inter', color: textColor, valign: 'top'
+                                });
+                                return y + h + 0.2;
+                            }
+                            case 'kpi_cards': {
+                                const items = (block.content.items || []).slice(0, 4);
+                                const n = items.length || 1;
+                                const gap = 0.25;
+                                const cardW = (W - gap * (n - 1)) / n;
+                                const cardH = 1.7;
+                                items.forEach((item, i) => {
+                                    const x = M + i * (cardW + gap);
+                                    pptSlide.addShape('roundRect', {
+                                        x, y, w: cardW, h: cardH,
+                                        fill: { color: cardFill }, line: { color: 'E2E8F0', width: 1 }, rectRadius: 0.08
+                                    });
+                                    pptSlide.addText([
+                                        { text: (item.value || '').toString(), options: { fontSize: 26, bold: true, color: 'F97316', fontFace: 'Outfit', breakLine: true } },
+                                        { text: (item.label || '').toString(), options: { fontSize: 12, bold: true, color: titleColor, fontFace: 'Inter', breakLine: true } },
+                                        { text: (item.subtext || '').toString(), options: { fontSize: 9, color: textColor, fontFace: 'Inter' } }
+                                    ], { x, y, w: cardW, h: cardH, align: 'center', valign: 'middle' });
+                                });
+                                return y + cardH + 0.3;
+                            }
+                            case 'team': {
+                                const members = (block.content.members || []).slice(0, 4);
+                                const n = members.length || 1;
+                                const gap = 0.25;
+                                const cardW = (W - gap * (n - 1)) / n;
+                                const cardH = 1.4;
+                                members.forEach((m, i) => {
+                                    const x = M + i * (cardW + gap);
+                                    pptSlide.addShape('roundRect', {
+                                        x, y, w: cardW, h: cardH,
+                                        fill: { color: cardFill }, line: { color: 'E2E8F0', width: 1 }, rectRadius: 0.08
+                                    });
+                                    pptSlide.addText([
+                                        { text: (m.name || 'TBD').toString(), options: { fontSize: 14, bold: true, color: titleColor, fontFace: 'Outfit', breakLine: true } },
+                                        { text: (m.role || '').toString(), options: { fontSize: 11, color: textColor, fontFace: 'Inter' } }
+                                    ], { x, y, w: cardW, h: cardH, align: 'center', valign: 'middle' });
+                                });
+                                return y + cardH + 0.3;
+                            }
+                            case 'timeline': {
+                                const steps = block.content.steps || [];
+                                const runs = steps.map(s => ({
+                                    text: `${s.date || ''}${s.date ? '  —  ' : ''}${s.event || ''}`,
+                                    options: { bullet: { code: '2022' }, fontSize: 13, color: textColor, fontFace: 'Inter', breakLine: true, paraSpaceAfter: 6 }
+                                }));
+                                const h = Math.max(0.5, Math.min(4.5, steps.length * 0.45));
+                                if (runs.length) pptSlide.addText(runs, { x: M, y, w: W, h, valign: 'top' });
+                                return y + h + 0.2;
+                            }
+                            case 'proof_points': {
+                                const points = block.content.points || [];
+                                const runs = points.map(p => ({
+                                    text: (p || '').toString(),
+                                    options: { bullet: { code: '2713' }, fontSize: 14, color: textColor, fontFace: 'Inter', breakLine: true, paraSpaceAfter: 6 }
+                                }));
+                                const h = Math.max(0.5, Math.min(4.5, points.length * 0.45));
+                                if (runs.length) pptSlide.addText(runs, { x: M, y, w: W, h, valign: 'top' });
+                                return y + h + 0.2;
+                            }
+                            case 'table': {
+                                const headers = block.content.headers || [];
+                                const rows = block.content.rows || [];
+                                const tableData = [];
+                                if (headers.length) {
+                                    tableData.push(headers.map(h => ({
+                                        text: (h || '').toString(),
+                                        options: { bold: true, color: 'FFFFFF', fill: { color: '1E3A8A' }, fontFace: 'Inter' }
+                                    })));
+                                }
+                                rows.forEach(r => tableData.push((r || []).map(c => ({
+                                    text: (c == null ? '' : c).toString(),
+                                    options: { color: textColor, fontFace: 'Inter' }
+                                }))));
+                                const h = Math.max(0.5, Math.min(4.8, tableData.length * 0.42));
+                                if (tableData.length) {
+                                    pptSlide.addTable(tableData, {
+                                        x: M, y, w: W,
+                                        fontSize: 11, border: { type: 'solid', color: 'E2E8F0', pt: 1 }, autoPage: false
+                                    });
+                                }
+                                return y + h + 0.3;
+                            }
+                            case 'chart':
+                            case 'diagram':
+                            case 'infographic': {
+                                // Captured as an image from the (off-screen) rendered DOM.
+                                const root = stage || document;
+                                const blockEl = root.querySelector(`[data-block-id="${block.id}"]`);
                                 if (blockEl) {
                                     const dataUrl = await TenderAI.Utils.captureElement(blockEl);
-                                    pptSlide.addImage({ data: dataUrl, x: 0.5, y: 1.5, w: 12, h: 5 });
+                                    if (dataUrl) {
+                                        const h = 3.6;
+                                        pptSlide.addImage({ data: dataUrl, x: M, y, w: W, h });
+                                        return y + h + 0.3;
+                                    }
                                 }
-                                break;
+                                return y + 0.2;
+                            }
                         }
+                        return y;
                     }
                 },
 
@@ -5606,22 +5760,58 @@
                     toPPTX: async (slides, projectTitle) => {
                         const pptx = new PptxGenJS();
                         pptx.layout = 'LAYOUT_WIDE';
-                        
-                        for (const slide of slides) {
-                            const pptSlide = pptx.addSlide();
-                            pptSlide.background = { fill: slide.theme === 'dark' ? '172554' : 'FFFFFF' };
-                            
-                            for (const block of slide.blocks) {
-                                await TenderAI.Adapters.toPptx(block, pptSlide);
-                            }
-                            
-                            // Branding
-                            pptSlide.addText(`MediaOne | ${projectTitle}`, {
-                                x: 0.5, y: 7.1, w: 5, fontSize: 10, color: 'CBD5E1'
+
+                        // Off-screen stage so charts/diagrams on EVERY slide (not just the active one)
+                        // are rendered into the DOM and can be captured as images.
+                        const stage = document.createElement('div');
+                        stage.style.cssText = 'position:fixed; left:-10000px; top:0; width:1280px; height:720px; background:#ffffff; overflow:hidden; z-index:-1;';
+                        document.body.appendChild(stage);
+
+                        const TOP = 0.4;          // first block's y
+                        const MAX_Y = 6.9;        // bottom limit (footer sits at 7.05")
+
+                        const startSlide = (theme) => {
+                            const s = pptx.addSlide();
+                            s.background = { fill: theme === 'dark' ? '172554' : 'FFFFFF' };
+                            return s;
+                        };
+                        const addFooter = (s, theme) => {
+                            s.addText(`MediaOne  |  ${projectTitle}`, {
+                                x: 0.5, y: 7.05, w: 6, h: 0.3, fontSize: 9, fontFace: 'Inter',
+                                color: theme === 'dark' ? '64748B' : 'CBD5E1'
                             });
+                        };
+
+                        try {
+                            for (const slide of slides) {
+                                const blocks = slide.blocks || [];
+                                const hasVisual = blocks.some(b => ['chart', 'diagram', 'infographic'].includes(b.type));
+                                if (hasVisual) {
+                                    TenderAI.Renderers.renderSlide(slide, stage);
+                                    // Allow ECharts / Mermaid to finish painting before capture.
+                                    await new Promise(r => setTimeout(r, 600));
+                                }
+
+                                let pptSlide = startSlide(slide.theme);
+                                let cursorY = TOP;
+                                for (const block of blocks) {
+                                    // Start a continuation slide if this block would overflow
+                                    // (but never paginate before the first block on a page).
+                                    const h = TenderAI.Adapters.estimateHeight(block);
+                                    if (cursorY > TOP && cursorY + h > MAX_Y) {
+                                        addFooter(pptSlide, slide.theme);
+                                        pptSlide = startSlide(slide.theme);
+                                        cursorY = TOP;
+                                    }
+                                    cursorY = await TenderAI.Adapters.toPptx(block, pptSlide, cursorY, slide.theme, hasVisual ? stage : null);
+                                }
+                                addFooter(pptSlide, slide.theme);
+                            }
+
+                            await pptx.writeFile({ fileName: `${projectTitle.replace(/\s+/g, '_')}_Proposal.pptx` });
+                        } finally {
+                            stage.remove();
                         }
-                        
-                        pptx.writeFile({ fileName: `${projectTitle.replace(/\s+/g, '_')}_Proposal.pptx` });
                     }
                 },
 
@@ -5672,24 +5862,51 @@
                         const slide = slidesData[activeSlideIndex];
                         const block = slide?.blocks.find(b => b.id === blockId);
                         if (!block) return;
-                        
-                        const currentCode = block.type === 'chart' ? JSON.stringify(block.content.option, null, 2) : block.content.code;
-                        const newCode = prompt(`Edit ${block.type} code:`, currentCode);
-                        
-                        if (newCode !== null) {
-                            if (block.type === 'chart') {
-                                try { block.content.option = JSON.parse(newCode); } catch(e) { alert("Invalid JSON"); }
+
+                        const isChart = block.type === 'chart';
+                        const isInfographic = block.type === 'infographic';
+                        const currentCode = isChart
+                            ? JSON.stringify(block.content.option || {}, null, 2)
+                            : (isInfographic ? (block.content.svg || block.content.html || '') : (block.content.code || ''));
+                        const label = isChart ? 'ECharts option (JSON)' : (isInfographic ? 'SVG / HTML markup' : 'Mermaid code');
+
+                        openCodeEditor(`Edit ${block.type}`, label, currentCode, (newCode) => {
+                            if (isChart) {
+                                let parsed;
+                                try { parsed = JSON.parse(newCode); }
+                                catch (e) { showToast("Invalid JSON — changes not saved.", "error"); return false; }
+                                block.content.option = parsed;
+                            } else if (isInfographic) {
+                                block.content.svg = newCode;
+                                delete block.content.html;
                             } else {
                                 block.content.code = newCode;
                             }
                             renderSlideCanvas();
                             saveProjects();
-                        }
+                            showToast("Block updated.", "success");
+                            return true;
+                        });
                     },
                     stripHtml: (html) => {
                         const div = document.createElement('div');
                         div.innerHTML = html;
                         return div.textContent || div.innerText || '';
+                    },
+                    // Converts rich-text HTML into an array of PPTX text runs, preserving
+                    // list items as bullets so exported text isn't a flat blob.
+                    htmlToBullets: (html) => {
+                        const div = document.createElement('div');
+                        div.innerHTML = html || '';
+                        const lis = div.querySelectorAll('li');
+                        if (lis.length) {
+                            return Array.from(lis)
+                                .map(li => (li.textContent || '').trim())
+                                .filter(Boolean)
+                                .map(text => ({ text, options: { bullet: true, breakLine: true, paraSpaceAfter: 6 } }));
+                        }
+                        const text = (div.textContent || '').trim();
+                        return text ? [{ text }] : [{ text: '' }];
                     },
                     captureElement: async (el) => {
                         // Priority 1: Direct Canvas (ECharts)
@@ -6459,32 +6676,29 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                 const proofs = getProofBank();
                 const proof = proofs.find(p => p.id === id);
                 if (!proof || activeSlideIndex === -1) {
-                    alert('Please select a slide first.');
+                    showToast('Please select a slide first.', 'warning');
                     return;
                 }
 
                 const slide = slidesData[activeSlideIndex];
-                const bodyComp = (slide.components || []).find(c => c.isBody);
+                if (!slide.blocks) slide.blocks = [];
 
-                if (bodyComp) {
-                    // Update data model
-                    const newContent = `<li><strong>${proof.metric}</strong> — ${proof.label}: ${proof.context}</li>`;
-                    bodyComp.content += newContent;
-                    slide.body = bodyComp.content; // Sync legacy body field
+                const li = `<li><strong>${proof.metric}</strong> — ${proof.label}: ${proof.context || ''}</li>`;
 
-                    // Update UI
-                    renderSlideCanvas();
-                    saveProjects();
-                    addChatMessage(`Inserted proof point **"${proof.metric} ${proof.label}"** into the active slide.`, 'ai');
+                // Append into the last rich_text block, or create one if none exists.
+                let textBlock = [...slide.blocks].reverse().find(b => b.type === 'rich_text');
+                if (textBlock) {
+                    const html = textBlock.content.html || '';
+                    textBlock.content.html = /<\/ul>\s*$/i.test(html)
+                        ? html.replace(/<\/ul>\s*$/i, `${li}</ul>`)
+                        : `<ul>${html}${li}</ul>`;
                 } else {
-                    // Fallback to static ID if canvas not initialized
-                    const body = document.getElementById('current-slide-body');
-                    if (body) {
-                        body.innerHTML += `<li><strong>${proof.metric}</strong> — ${proof.label}: ${proof.context}</li>`;
-                        saveCurrentSlide();
-                        addChatMessage(`Inserted proof point **"${proof.metric} ${proof.label}"** into the active slide.`, 'ai');
-                    }
+                    slide.blocks.push(TenderAI.Schema.createBlock('rich_text', { html: `<ul>${li}</ul>` }));
                 }
+
+                renderSlideCanvas();
+                saveProjects();
+                addChatMessage(`Inserted proof point **"${proof.metric} ${proof.label}"** into the active slide.`, 'ai');
             }
 
             // --- Satisfaction Scores (Requirement 3.4) ---
@@ -7535,53 +7749,138 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                 }
             }
 
-            function downloadSlideAsImage() {
-                alert("Exporting current slide as high-res image... (Mock function)");
+            async function downloadSlideAsImage() {
                 document.getElementById('slide-more-dropdown').classList.remove('show');
+                if (activeSlideIndex === -1 || !slidesData[activeSlideIndex]) {
+                    showToast("Select a slide first.", "warning");
+                    return;
+                }
+                const canvas = document.getElementById('slide-canvas');
+                if (!canvas || !window.html2canvas) {
+                    showToast("Image export unavailable.", "error");
+                    return;
+                }
+                const toast = showToast("Rendering slide image…", "info", 0);
+                try {
+                    // Temporarily hide editing chrome for a clean capture.
+                    canvas.querySelectorAll('.block-actions-overlay').forEach(e => e.style.visibility = 'hidden');
+                    const rendered = await html2canvas(canvas, { scale: 2, backgroundColor: null });
+                    canvas.querySelectorAll('.block-actions-overlay').forEach(e => e.style.visibility = '');
+                    const link = document.createElement('a');
+                    link.download = `slide-${activeSlideIndex + 1}.png`;
+                    link.href = rendered.toDataURL('image/png');
+                    link.click();
+                    if (toast) toast.remove();
+                    showToast("Slide image downloaded.", "success");
+                } catch (err) {
+                    console.error("Slide image export failed:", err);
+                    if (toast) toast.remove();
+                    showToast("Failed to export slide image.", "error");
+                }
             }
 
             async function exportToPPTX() {
                 if (slidesData.length === 0) {
-                    alert("Please generate slides before exporting.");
+                    showToast("Please generate slides before exporting.", "warning");
                     return;
                 }
 
                 addChatMessage("Preparing your high-fidelity PowerPoint export...", 'ai');
 
+                const toast = showToast("Building PowerPoint…", "info", 0);
                 try {
                     const projectTitle = document.getElementById('active-project-title').innerText;
                     await TenderAI.Export.toPPTX(slidesData, projectTitle);
                     addChatMessage("Export complete.", 'ai');
+                    if (toast) toast.remove();
+                    showToast("PowerPoint exported.", "success");
                 } catch (err) {
                     console.error("PPTX Export Error:", err);
-                    alert("Failed to export PowerPoint. Check console for details.");
+                    if (toast) toast.remove();
+                    showToast("Failed to export PowerPoint. Check console for details.", "error");
                 }
 
                 document.getElementById('slide-more-dropdown').classList.remove('show');
             }
 
+            // Lightweight code-editing modal (replaces native prompt() for chart/diagram/infographic).
+            // onSave(value) should return true to close the modal, or false to keep it open (e.g. invalid input).
+            function openCodeEditor(title, fieldLabel, initialValue, onSave) {
+                const existing = document.getElementById('code-editor-overlay');
+                if (existing) existing.remove();
+
+                const overlay = document.createElement('div');
+                overlay.id = 'code-editor-overlay';
+                overlay.className = 'modal-overlay';
+                overlay.style.cssText = 'display:flex; align-items:center; justify-content:center; position:fixed; inset:0; background:rgba(15,23,42,0.55); z-index:9999;';
+                overlay.innerHTML = `
+                    <div class="modal-card" style="background:#fff; width:min(720px,92vw); max-height:86vh; display:flex; flex-direction:column; border-radius:14px; overflow:hidden; box-shadow:0 24px 60px rgba(0,0,0,0.3);">
+                        <div class="modal-header" style="padding:1rem 1.25rem; border-bottom:1px solid #e2e8f0; font-weight:700; font-family:'Outfit',sans-serif; color:#1e293b;">${title}</div>
+                        <div class="modal-body" style="padding:1.25rem; overflow:auto;">
+                            <label style="display:block; font-size:0.75rem; color:#64748b; margin-bottom:0.5rem;">${fieldLabel}</label>
+                            <textarea id="code-editor-textarea" spellcheck="false" style="width:100%; min-height:300px; font-family:'SFMono-Regular',Consolas,'Liberation Mono',monospace; font-size:0.8rem; line-height:1.5; padding:0.75rem; border:1px solid #cbd5e1; border-radius:8px; resize:vertical; box-sizing:border-box;"></textarea>
+                        </div>
+                        <div class="modal-footer" style="padding:1rem 1.25rem; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:0.5rem;">
+                            <button class="btn btn-ghost" id="code-editor-cancel">Cancel</button>
+                            <button class="btn btn-primary" id="code-editor-save">Save</button>
+                        </div>
+                    </div>`;
+                document.body.appendChild(overlay);
+
+                const textarea = overlay.querySelector('#code-editor-textarea');
+                textarea.value = initialValue || '';
+                textarea.focus();
+
+                const close = () => { document.removeEventListener('keydown', onKey); overlay.remove(); };
+                const save = () => { if (onSave(textarea.value) !== false) close(); };
+                const onKey = (e) => { if (e.key === 'Escape') close(); };
+
+                overlay.querySelector('#code-editor-cancel').onclick = close;
+                overlay.querySelector('#code-editor-save').onclick = save;
+                overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+                document.addEventListener('keydown', onKey);
+                if (window.lucide) lucide.createIcons();
+            }
+
             function prepareAndPrint() {
                 if (slidesData.length === 0) {
-                    alert("Please generate slides before exporting.");
+                    showToast("Please generate slides before exporting.", "warning");
                     return;
                 }
 
                 const printContainer = document.getElementById('print-container');
                 const projectTitle = document.getElementById('active-project-title').innerText;
 
-                printContainer.innerHTML = slidesData.map((slide, index) => `
-                <div class="print-slide">
-                    <div class="print-slide-title">${slide.title}</div>
-                    <div class="print-slide-body">${slide.body}</div>
-                    <div class="print-footer">
-                        <span>MediaOne Tender AI | ${projectTitle}</span>
-                        <span>Slide ${index + 1} of ${slidesData.length}</span>
-                    </div>
-                </div>
-            `).join('');
+                // Render the block model into real DOM (so charts/diagrams paint) rather than
+                // reading the stale slide.body/title fields, which block-based slides no longer have.
+                printContainer.innerHTML = '';
+                slidesData.forEach((slide, index) => {
+                    const wrap = document.createElement('div');
+                    wrap.className = `print-slide theme-${slide.theme || 'light'}`;
 
-                window.print();
+                    const body = document.createElement('div');
+                    body.className = 'print-slide-body';
+                    // renderSlide overwrites the container's className, so render into an inner node.
+                    const canvasEl = document.createElement('div');
+                    body.appendChild(canvasEl);
+                    TenderAI.Renderers.renderSlide(slide, canvasEl);
+                    // Strip editing affordances from the printed copy.
+                    body.querySelectorAll('.block-actions-overlay').forEach(e => e.remove());
+                    body.querySelectorAll('[contenteditable]').forEach(e => e.removeAttribute('contenteditable'));
+
+                    const footer = document.createElement('div');
+                    footer.className = 'print-footer';
+                    footer.innerHTML = `<span>MediaOne Tender AI | ${projectTitle}</span><span>Slide ${index + 1} of ${slidesData.length}</span>`;
+
+                    wrap.appendChild(body);
+                    wrap.appendChild(footer);
+                    printContainer.appendChild(wrap);
+                });
+
                 document.getElementById('slide-more-dropdown').classList.remove('show');
+
+                // Give ECharts / Mermaid a moment to render before opening the print dialog.
+                setTimeout(() => window.print(), 600);
             }
 
             // Close dropdown when clicking outside
@@ -8062,14 +8361,7 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                     if (isTyping) return;
 
                     if ((e.key === 'Backspace' || e.key === 'Delete')) {
-                        // 1. If an element is selected, delete it
-                        if (selectedElementId) {
-                            e.preventDefault();
-                            deleteComponent(selectedElementId);
-                            return;
-                        }
-
-                        // 2. If no element is selected, delete selected slides in the rail
+                        // 1. Delete selected slides in the rail
                         if (selectedSlideIndices.length > 0) {
                             e.preventDefault();
                             // deleteSlide handles bulk deletion if multiple indices are selected
@@ -8077,19 +8369,16 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                             return;
                         }
 
-                        // 3. Fallback: delete active slide
+                        // 2. Fallback: delete active slide
                         const inSlideEditor = !!document.getElementById('view-slide-editor')?.classList.contains('active');
                         if (inSlideEditor && activeSlideIndex !== -1) {
                             e.preventDefault();
                             deleteSlide(activeSlideIndex);
                         }
-                    } else if (e.key.startsWith('Arrow') && selectedElementId) {
-                        e.preventDefault();
-                        nudgeElement(e.key, e.shiftKey ? 10 : 1);
-                    } else if (e.key === 'ArrowUp' && !selectedElementId) {
+                    } else if (e.key === 'ArrowUp') {
                         e.preventDefault();
                         if (activeSlideIndex > 0) loadSlide(activeSlideIndex - 1);
-                    } else if (e.key === 'ArrowDown' && !selectedElementId) {
+                    } else if (e.key === 'ArrowDown') {
                         e.preventDefault();
                         if (activeSlideIndex < slidesData.length - 1) loadSlide(activeSlideIndex + 1);
                     }
@@ -8754,8 +9043,6 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                 document.getElementById('feedback-alert').style.display = 'none';
             }
 
-            let selectedElementId = null;
-
             function renderSlideCanvas() {
                 const canvas = document.getElementById('slide-canvas');
                 if (!canvas) return;
@@ -8782,13 +9069,6 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                 if (window.lucide) lucide.createIcons();
             }
 
-            function selectElement(id) {
-                selectedElementId = id;
-                document.querySelectorAll('.slide-element').forEach(el => {
-                    el.classList.toggle('active', el.id === 'el-' + id);
-                });
-            }
-
             function addBlock(type) {
                 if (activeSlideIndex === -1) {
                     showToast("Please select or create a slide first", "warning");
@@ -8806,6 +9086,9 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                 else if (type === 'team') content = { members: [{ name: "New Member", role: "Specialist" }] };
                 else if (type === 'timeline') content = { steps: [{ date: "Q1", event: "Kickoff" }] };
                 else if (type === 'proof_points') content = { points: ["Key achievement 1"] };
+                else if (type === 'kpi_cards') content = { items: [{ label: "Metric", value: "100%", subtext: "context" }] };
+                else if (type === 'table') content = { headers: ["Column A", "Column B"], rows: [["Cell", "Cell"]] };
+                else if (type === 'infographic') content = { svg: '<svg width="400" height="200" xmlns="http://www.w3.org/2000/svg"><rect width="400" height="200" rx="12" fill="#F1F5F9"/><text x="200" y="105" font-family="Outfit" font-size="20" fill="#1E3A8A" text-anchor="middle">Infographic</text></svg>' };
                 
                 const block = TenderAI.Schema.createBlock(type, content);
                 slide.blocks.push(block);
@@ -8838,46 +9121,14 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                 saveProjects();
             }
 
-            function reorderComponent(id, action) {
-                const slide = slidesData[activeSlideIndex];
-                if (!slide) return;
-                const index = slide.components.findIndex(c => c.id === id);
-                if (index === -1) return;
-
-                const comp = slide.components.splice(index, 1)[0];
-                if (action === 'front') {
-                    slide.components.push(comp);
-                } else {
-                    slide.components.unshift(comp);
-                }
-                renderSlideCanvas();
-                saveProjects();
-            }
-
-            function nudgeElement(key, amount) {
-                const slide = slidesData[activeSlideIndex];
-                const comp = slide?.components.find(c => c.id === selectedElementId);
-                if (!comp) return;
-
-                saveHistory();
-                if (key === 'ArrowUp') comp.y -= amount;
-                if (key === 'ArrowDown') comp.y += amount;
-                if (key === 'ArrowLeft') comp.x -= amount;
-                if (key === 'ArrowRight') comp.x += amount;
-
-                renderSlideCanvas();
-                saveProjects();
-            }
-
-            function updateComponentContent(id, content) {
-                const slide = slidesData[activeSlideIndex];
-                if (!slide) return;
-                const comp = slide.components.find(c => c.id === id);
-                if (comp) comp.content = content;
-                saveProjects();
-            }
-
+            // Adds an uploaded image as a proper 'image' block (block model — the renderer
+            // and PPTX/print exporters all understand this; the old free-floating
+            // components layer has been removed).
             function triggerImageUpload() {
+                if (activeSlideIndex === -1) {
+                    showToast("Please select or create a slide first", "warning");
+                    return;
+                }
                 const input = document.createElement('input');
                 input.type = 'file';
                 input.accept = 'image/*';
@@ -8887,96 +9138,15 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                     const reader = new FileReader();
                     reader.onload = (f) => {
                         saveHistory();
-                        const id = Date.now().toString();
-                        slidesData[activeSlideIndex].components.push({
-                            id, type: 'image', x: 200, y: 200, width: 400, height: 300, src: f.target.result
-                        });
-                        selectedElementId = id;
+                        const slide = slidesData[activeSlideIndex];
+                        if (!slide.blocks) slide.blocks = [];
+                        slide.blocks.push(TenderAI.Schema.createBlock('image', { src: f.target.result, alt: file.name }));
                         renderSlideCanvas();
                         saveProjects();
                     };
                     reader.readAsDataURL(file);
                 };
                 input.click();
-            }
-
-            // Drag & Resize Logic
-            let dragTarget = null;
-            let resizeTarget = null;
-            let startX, startY, startW, startH, startLeft, startTop;
-
-            function initDrag(e, id) {
-                if (e.target.isContentEditable) return;
-                dragTarget = id;
-                const comp = slidesData[activeSlideIndex].components.find(c => c.id === id);
-                startX = e.clientX;
-                startY = e.clientY;
-                startLeft = comp.x;
-                startTop = comp.y;
-                document.body.style.cursor = 'grabbing';
-                document.addEventListener('mousemove', handleDrag);
-                document.addEventListener('mouseup', stopDrag);
-            }
-
-            function handleDrag(e) {
-                if (!dragTarget) return;
-                const dx = (e.clientX - startX) / currentScale;
-                const dy = (e.clientY - startY) / currentScale;
-                const comp = slidesData[activeSlideIndex].components.find(c => c.id === dragTarget);
-                comp.x = startLeft + dx;
-                comp.y = startTop + dy;
-                const el = document.getElementById('el-' + dragTarget);
-                if (el) {
-                    el.style.left = comp.x + 'px';
-                    el.style.top = comp.y + 'px';
-                }
-            }
-
-            function stopDrag() {
-                if (dragTarget) {
-                    saveHistory();
-                    saveProjects();
-                }
-                dragTarget = null;
-                document.body.style.cursor = '';
-                document.removeEventListener('mousemove', handleDrag);
-                document.removeEventListener('mouseup', stopDrag);
-            }
-
-            function initResize(e, id) {
-                e.stopPropagation();
-                resizeTarget = id;
-                const comp = slidesData[activeSlideIndex].components.find(c => c.id === id);
-                startX = e.clientX;
-                startY = e.clientY;
-                startW = comp.width;
-                startH = comp.height;
-                document.addEventListener('mousemove', handleResize);
-                document.addEventListener('mouseup', stopResize);
-            }
-
-            function handleResize(e) {
-                if (!resizeTarget) return;
-                const dx = e.clientX - startX;
-                const dy = e.clientY - startY;
-                const comp = slidesData[activeSlideIndex].components.find(c => c.id === resizeTarget);
-                comp.width = Math.max(50, startW + dx);
-                comp.height = Math.max(30, startH + dy);
-                const el = document.getElementById('el-' + resizeTarget);
-                if (el) {
-                    el.style.width = comp.width + 'px';
-                    el.style.height = comp.height + 'px';
-                }
-            }
-
-            function stopResize() {
-                if (resizeTarget) {
-                    saveHistory();
-                    saveProjects();
-                }
-                resizeTarget = null;
-                document.removeEventListener('mousemove', handleResize);
-                document.removeEventListener('mouseup', stopResize);
             }
 
             function saveCurrentSlide() {
@@ -10209,7 +10379,7 @@ ${teamContext}
                         title: "Solution Architecture",
                         goal: "High-level phased approach with key deliverables per phase",
                         theme: "light",
-                        blockHints: "Use a 'title' block, then a 'timeline' block with 3–4 phases (each with a date like 'Month 1–2' and a short event description of key deliverables)."
+                        blockHints: "Use a 'title' block, then a 'diagram' block (Mermaid graph LR or graph TD) showing the phased flow, OR a 'timeline' block with 3–4 phases (each with a date like 'Month 1–2' and a short event description of key deliverables)."
                     },
                     {
                         title: "Why MediaOne?",
@@ -10233,7 +10403,7 @@ ${teamContext}
                         title: "Commercial Summary",
                         goal: "Value-based investment overview, ROI highlights, and next steps",
                         theme: "light",
-                        blockHints: "Use a 'title' block, then 'kpi_cards' for 3–4 ROI/investment highlights, then a 'rich_text' block with next steps or call to action."
+                        blockHints: "Use a 'title' block, then 'kpi_cards' for 3–4 ROI/investment highlights. If you have comparative or projected figures, add a 'chart' block (ECharts bar or line) to visualise the ROI/value. Finish with a 'rich_text' block of next steps or a call to action."
                     }
                 ];
 
@@ -10243,7 +10413,9 @@ ${teamContext}
 • { "type": "kpi_cards", "content": { "items": [{ "label": "Metric Name", "value": "20+", "subtext": "brief context" }] } }
 • { "type": "table", "content": { "headers": ["Column A", "Column B"], "rows": [["cell", "cell"]] } }
 • { "type": "timeline", "content": { "steps": [{ "date": "Month 1–2", "event": "Description of milestone" }] } }
-• { "type": "team", "content": { "members": [{ "name": "Full Name", "role": "Job Title" }] } }`;
+• { "type": "team", "content": { "members": [{ "name": "Full Name", "role": "Job Title" }] } }
+• { "type": "chart", "content": { "option": { "xAxis": { "type": "category", "data": ["A","B","C"] }, "yAxis": { "type": "value" }, "series": [{ "type": "bar", "data": [10,20,30] }] } } }  (valid ECharts option object)
+• { "type": "diagram", "content": { "code": "graph LR; A[Discovery]-->B[Build]-->C[Launch]" } }  (valid Mermaid code)`;
 
                 let totalGenerated = 0;
 
@@ -10272,29 +10444,30 @@ OUTPUT RULES:
 Example output shape:
 [{ "title": "Slide Name", "theme": "light", "blocks": [{ "type": "title", "content": { "text": "Slide Name" } }, { "type": "kpi_cards", "content": { "items": [{ "label": "Experience", "value": "20+", "subtext": "Years in SEO" }] } }] }]`;
 
-                    try {
-                        const response = await fetch(API_BASE_URL, {
-                            method: "POST",
-                            mode: "cors",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                                action: "analyze",
-                                model: apiModel,
-                                prompt: slidePrompt + "\n\nPROJECT KNOWLEDGE BASE:\n" + masterContext,
-                                max_tokens: 4000
-                            })
-                        });
-
-                        if (!response.ok) throw new Error(`API error: ${response.statusText}`);
-
-                        const data = await response.json();
-                        console.log(`Slide ${i + 1} AI Response:`, data.ai_response);
-                        let batchSlides = [];
-
+                    // Up to 2 attempts per slide so a single flaky/invalid response doesn't leave a gap.
+                    let batchSlides = [];
+                    let lastError = null;
+                    for (let attempt = 0; attempt < 2 && batchSlides.length === 0; attempt++) {
+                        if (attempt > 0 && text) text.innerText = `Retrying Slide ${i + 1}/${slidesToGenerate.length}...`;
                         try {
-                            let raw = data.ai_response || "";
-                            raw = raw.replace(/```json/g, "").replace(/```/g, "").trim();
+                            const response = await fetch(API_BASE_URL, {
+                                method: "POST",
+                                mode: "cors",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    action: "analyze",
+                                    model: apiModel,
+                                    prompt: slidePrompt + "\n\nPROJECT KNOWLEDGE BASE:\n" + masterContext,
+                                    max_tokens: 4000
+                                })
+                            });
 
+                            if (!response.ok) throw new Error(`API error: ${response.statusText}`);
+
+                            const data = await response.json();
+                            console.log(`Slide ${i + 1} AI Response (attempt ${attempt + 1}):`, data.ai_response);
+
+                            let raw = (data.ai_response || "").replace(/```json/g, "").replace(/```/g, "").trim();
                             const firstOpen = raw.indexOf("[");
                             const lastClose = raw.lastIndexOf("]");
 
@@ -10308,47 +10481,62 @@ Example output shape:
                                     batchSlides = JSON.parse(repaired);
                                 }
                             }
-                        } catch (e) {
-                            console.warn(`Slide ${i + 1} parse error:`, e);
+
+                            if (!Array.isArray(batchSlides) || batchSlides.length === 0) {
+                                batchSlides = [];
+                                throw new Error("AI returned no parseable slide objects.");
+                            }
+                        } catch (error) {
+                            lastError = error;
+                            batchSlides = [];
+                            console.warn(`Slide ${i + 1} attempt ${attempt + 1} failed:`, error);
                         }
-
-                        if (batchSlides.length > 0) {
-                            batchSlides.forEach(s => {
-                                // Build blocks array: prefer AI-generated blocks, fall back to legacy title+body
-                                const blocks = [];
-                                if (Array.isArray(s.blocks) && s.blocks.length > 0) {
-                                    s.blocks.forEach(b => {
-                                        if (b.type && b.content) {
-                                            blocks.push(TenderAI.Schema.createBlock(b.type, b.content));
-                                        }
-                                    });
-                                } else {
-                                    // Legacy fallback: AI returned old {title, body} format
-                                    if (s.title) blocks.push(TenderAI.Schema.createBlock('title', { text: s.title }));
-                                    if (s.body) blocks.push(TenderAI.Schema.createBlock('rich_text', { html: s.body }));
-                                }
-
-                                slidesData.push({
-                                    id: Date.now() + Math.random(),
-                                    title: s.title || slideDef.title,
-                                    theme: s.theme || slideDef.theme || "light",
-                                    layout: 'standard',
-                                    blocks: blocks
-                                });
-                                totalGenerated++;
-                            });
-
-                            if (activeSlideIndex === -1 && slidesData.length > 0) activeSlideIndex = 0;
-                            renderThumbnails();
-                            updateEditorState();
-                        } else {
-                            throw new Error("AI returned an invalid slide object.");
-                        }
-
-                    } catch (error) {
-                        console.error(`Slide ${i + 1} failed:`, error);
-                        addChatMessage(`⚠️ Slide ${i + 1} failed: ${error.message}`, "ai");
                     }
+
+                    if (batchSlides.length > 0) {
+                        batchSlides.forEach(s => {
+                            // Build blocks array: prefer AI-generated blocks, fall back to legacy title+body
+                            const blocks = [];
+                            if (Array.isArray(s.blocks) && s.blocks.length > 0) {
+                                s.blocks.forEach(b => {
+                                    if (b.type && b.content) {
+                                        blocks.push(TenderAI.Schema.createBlock(b.type, b.content));
+                                    }
+                                });
+                            } else {
+                                // Legacy fallback: AI returned old {title, body} format
+                                if (s.title) blocks.push(TenderAI.Schema.createBlock('title', { text: s.title }));
+                                if (s.body) blocks.push(TenderAI.Schema.createBlock('rich_text', { html: s.body }));
+                            }
+
+                            slidesData.push({
+                                id: Date.now() + Math.random(),
+                                title: s.title || slideDef.title,
+                                theme: s.theme || slideDef.theme || "light",
+                                layout: 'standard',
+                                blocks: blocks
+                            });
+                            totalGenerated++;
+                        });
+                    } else {
+                        // Insert an editable placeholder so the deck has no silent gap.
+                        slidesData.push({
+                            id: Date.now() + Math.random(),
+                            title: slideDef.title,
+                            theme: slideDef.theme || "light",
+                            layout: 'standard',
+                            blocks: [
+                                TenderAI.Schema.createBlock('title', { text: slideDef.title }),
+                                TenderAI.Schema.createBlock('rich_text', { html: `<p><em>⚠️ Auto-generation failed for this slide${lastError ? ` (${lastError.message})` : ''}. Edit manually or use “Beautify”.</em></p><ul><li>${slideDef.goal}</li></ul>` })
+                            ]
+                        });
+                        totalGenerated++;
+                        addChatMessage(`⚠️ Slide ${i + 1} (${slideDef.title}) could not be generated — inserted an editable placeholder.`, "ai");
+                    }
+
+                    if (activeSlideIndex === -1 && slidesData.length > 0) activeSlideIndex = 0;
+                    renderThumbnails();
+                    updateEditorState();
 
                     await new Promise(r => setTimeout(r, 200));
                 }
@@ -10379,21 +10567,25 @@ Example output shape:
                 btn.disabled = true;
                 btnText.innerText = "Beautifying...";
 
-                const prompt = `TASK: Beautify the following slide content. Convert it into a structured set of blocks.
-                
-BLOCK TYPES AVAILABLE:
-1. title: { "text": "..." }
-2. rich_text: { "html": "..." }
-3. kpi_cards: { "items": [{"label": "...", "value": "...", "subtext": "..."}] }
-4. table: { "headers": [...], "rows": [[...], [...]] }
-5. chart: { "option": {...ECharts Option...} }
-6. diagram: { "code": "Mermaid code" }
+                const prompt = `TASK: Beautify the following slide content. Convert it into a structured set of premium blocks.
 
-RESTRAINTS:
-1. Return ONLY a JSON array of blocks. No preamble.
-2. Use modern, premium design patterns.
-3. If comparing data, use a table or chart.
-4. If showing a process, use a diagram.
+BLOCK TYPES AVAILABLE (use exactly these "type" names and "content" shapes):
+1. title:        { "type": "title", "content": { "text": "..." } }
+2. rich_text:    { "type": "rich_text", "content": { "html": "<ul><li>...</li></ul>" } }
+3. kpi_cards:    { "type": "kpi_cards", "content": { "items": [{"label": "...", "value": "...", "subtext": "..."}] } }
+4. table:        { "type": "table", "content": { "headers": ["A","B"], "rows": [["x","y"]] } }
+5. timeline:     { "type": "timeline", "content": { "steps": [{"date": "Month 1", "event": "..."}] } }
+6. team:         { "type": "team", "content": { "members": [{"name": "...", "role": "..."}] } }
+7. proof_points: { "type": "proof_points", "content": { "points": ["...","..."] } }
+8. chart:        { "type": "chart", "content": { "option": {...valid ECharts option...} } }
+9. diagram:      { "type": "diagram", "content": { "code": "graph TD; A-->B" } }
+
+RULES:
+1. Return ONLY a raw JSON array of block objects. No preamble, no markdown code fences.
+2. Each object MUST have a "type" and a "content" matching the shapes above.
+3. Use modern, premium design patterns. Start with a "title" block.
+4. If comparing data, use a table or chart. If showing a process or timeline, use a diagram or timeline.
+5. Preserve the meaning of the current content; do not invent facts.
 
 CURRENT BLOCKS:
 ${JSON.stringify(slide.blocks)}`;
@@ -10424,11 +10616,17 @@ ${JSON.stringify(slide.blocks)}`;
                     if (responseText) {
                         try {
                             const newBlocks = JSON.parse(responseText);
-                            if (Array.isArray(newBlocks)) {
-                                slide.blocks = newBlocks;
+                            if (Array.isArray(newBlocks) && newBlocks.length > 0) {
+                                // Re-wrap through the schema so every block gets a valid id
+                                // (inline editing, delete & duplicate all rely on block.id).
+                                slide.blocks = newBlocks
+                                    .filter(b => b && b.type)
+                                    .map(b => TenderAI.Schema.createBlock(b.type, b.content || {}));
                                 renderSlideCanvas();
                                 saveProjects();
                                 showToast("Slide beautified!", "success");
+                            } else {
+                                showToast("AI returned no usable blocks.", "warning");
                             }
                         } catch (e) {
                             console.error("JSON parse error in beautify:", e);
@@ -10445,16 +10643,38 @@ ${JSON.stringify(slide.blocks)}`;
             }
 
             function askAItoRewrite() {
-                const currentContent = document.getElementById('current-slide-body').innerText;
-                addChatMessage(`Please rewrite the current slide to be more professional: "${slidesData[activeSlideIndex].title}"`, 'user');
+                if (activeSlideIndex === -1 || !slidesData[activeSlideIndex]) {
+                    showToast("Select a slide first.", "warning");
+                    return;
+                }
+                const slide = slidesData[activeSlideIndex];
+                const currentContent = (slide.blocks || [])
+                    .map(b => {
+                        if (b.type === 'title') return b.content.text || '';
+                        if (b.type === 'rich_text') return TenderAI.Utils.stripHtml(b.content.html || '');
+                        return '';
+                    })
+                    .filter(Boolean)
+                    .join('\n');
+                addChatMessage(`Please rewrite the current slide to be more professional: "${slide.title || 'Untitled'}"`, 'user');
                 callAIAPI(`Rewrite the following slide content for an executive audience, keeping the same core meaning but making it more persuasive and professional: ${currentContent}`);
             }
 
-            function applySuggestion(type, explanation) {
-                const body = document.getElementById('current-slide-body');
-                body.innerHTML = `<div style="background:var(--primary-light); padding:0.75rem; border-radius:var(--radius); margin-bottom:1rem; border:1px dashed var(--primary); font-size:0.8rem;"><strong>AI suggested:</strong> ${explanation}</div>${body.innerHTML}`;
-                addChatMessage(`Applied "${type}" suggestion to the active slide.`, 'ai');
-                lucide.createIcons();
+            // Suggestion actions operate on the block model of the active slide.
+            function applySuggestion(action) {
+                if (activeSlideIndex === -1) {
+                    showToast("Select a slide first.", "warning");
+                    return;
+                }
+                switch (action) {
+                    case 'beautify': beautifyActiveSlide(); break;
+                    case 'add_kpis': addBlock('kpi_cards'); showToast("Added KPI cards — edit the values.", "success"); break;
+                    case 'add_chart': addBlock('chart'); showToast("Added a chart — edit its data via the code button.", "success"); break;
+                    case 'add_timeline': addBlock('timeline'); showToast("Added a timeline.", "success"); break;
+                    case 'add_team': addBlock('team'); showToast("Added a team block.", "success"); break;
+                    case 'rewrite': askAItoRewrite(); break;
+                    default: break;
+                }
             }
 
             function acceptChanges() {
@@ -10467,17 +10687,31 @@ ${JSON.stringify(slide.blocks)}`;
                 const panel = document.getElementById('suggestions-panel-content');
                 if (!panel) return;
 
-                panel.innerHTML = `
-                <div class="suggestion-item" onclick="applySuggestion('Executive Tone', 'Refine for authority.')">
-                    <strong>Increase Executive Impact</strong>
-                    <p style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">Refine for authority and strategic impact.</p>
+                const blocks = (slide && slide.blocks) || [];
+                const types = new Set(blocks.map(b => b.type));
+                const suggestions = [];
+
+                // Context-aware suggestions based on what the slide already contains.
+                suggestions.push({ title: 'Beautify Layout', desc: 'Restructure into premium blocks via AI.', action: 'beautify' });
+                if (!types.has('kpi_cards')) {
+                    suggestions.push({ title: 'Add KPI Highlights', desc: 'Surface key metrics as impact cards.', action: 'add_kpis' });
+                }
+                if (types.has('table') && !types.has('chart')) {
+                    suggestions.push({ title: 'Visualise as Chart', desc: 'Turn this table into an ECharts visual.', action: 'add_chart' });
+                }
+                if (!types.has('timeline') && !types.has('diagram')) {
+                    suggestions.push({ title: 'Add a Timeline', desc: 'Show phases or milestones visually.', action: 'add_timeline' });
+                }
+                if (types.has('rich_text')) {
+                    suggestions.push({ title: 'Rewrite for Executives', desc: 'Sharpen the tone for a senior audience.', action: 'rewrite' });
+                }
+
+                panel.innerHTML = suggestions.slice(0, 4).map(s => `
+                <div class="suggestion-item" onclick="applySuggestion('${s.action}')">
+                    <strong>${s.title}</strong>
+                    <p style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">${s.desc}</p>
                     <div class="suggestion-meta"><span class="apply-btn">Apply</span></div>
-                </div>
-                <div class="suggestion-item" onclick="applySuggestion('Shorten', 'Condense points.')">
-                    <strong>Condense Content</strong>
-                    <p style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">Streamline bullet points for clarity.</p>
-                    <div class="suggestion-meta"><span class="apply-btn">Apply</span></div>
-                </div>`;
+                </div>`).join('');
                 lucide.createIcons();
             }
 
