@@ -3209,7 +3209,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1623</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1624</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -4284,15 +4284,41 @@
             }).join('');
         }
 
+        let _historySearchTimer = null;
+
         function filterHistory() {
-            const q = (document.getElementById('historySearch')?.value || '').toLowerCase().trim();
+            const q = (document.getElementById('historySearch')?.value || '').trim();
+
+            // Instant local filter first (title + username)
             if (!q) { renderHistoryList(_allHistoryConvs); return; }
-            const filtered = _allHistoryConvs.filter(c => {
-                const title = (c.title || '').toLowerCase();
-                const user = (c.userLabel || c.userId || '').toLowerCase();
-                return title.includes(q) || user.includes(q);
-            });
-            renderHistoryList(filtered);
+            const ql = q.toLowerCase();
+            const localMatches = _allHistoryConvs.filter(c =>
+                (c.title || '').toLowerCase().includes(ql) ||
+                (c.userLabel || c.userId || '').toLowerCase().includes(ql)
+            );
+            renderHistoryList(localMatches);
+
+            // Debounced server-side content search (searches message bodies)
+            clearTimeout(_historySearchTimer);
+            if (q.length < 2) return;
+            _historySearchTimer = setTimeout(async () => {
+                const searchEl = document.getElementById('historySearch');
+                if (!searchEl || searchEl.value.trim() !== q) return; // query changed, bail
+                try {
+                    const res = await fetch(PERSISTENCE_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'search_conversations', data: { query: q } })
+                    });
+                    const raw = await res.json();
+                    const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+                    if (data.conversations && searchEl.value.trim() === q) {
+                        renderHistoryList(data.conversations);
+                    }
+                } catch (e) {
+                    console.warn('[HISTORY SEARCH] Content search failed:', e);
+                }
+            }, 350);
         }
 
         async function fetchHistory() {
