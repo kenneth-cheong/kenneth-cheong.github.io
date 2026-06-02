@@ -3193,7 +3193,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1629</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1630</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -4412,7 +4412,7 @@
                     const list = document.getElementById('messageList');
                     list.innerHTML = '';
                     chatHistory.forEach(m => {
-                        addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, null, true, m.userLabel);
+                        addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, m.attachment || null, true, m.userLabel);
                     });
 
                     toggleHistory();
@@ -4557,7 +4557,7 @@
             // Load history if exists
             if (chatHistory.length > 0) {
                 chatHistory.forEach(m => {
-                    addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, null, true, m.userLabel);
+                    addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, m.attachment || null, true, m.userLabel);
                 });
                 updateCloudStatus('synced', 'Session Restored');
             }
@@ -4783,6 +4783,30 @@
             currentAttachment = null;
             document.getElementById('attachmentPreview').classList.remove('visible');
             document.getElementById('fileInput').value = '';
+        }
+
+        async function uploadAttachmentToS3(file, convId) {
+            const reader = new FileReader();
+            const b64 = await new Promise(resolve => {
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.readAsDataURL(file);
+            });
+            const res = await fetch(PERSISTENCE_API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'upload_attachment',
+                    content: b64,
+                    filename: file.name,
+                    mimeType: file.type,
+                    userId: userId,
+                    conversationId: convId || currentConversationId || 'unsaved'
+                })
+            });
+            const raw = await res.json();
+            const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+            if (data.error) throw new Error(data.error);
+            return data; // { s3Key, url, filename, mimeType }
         }
 
         async function uploadAttachmentToOpenAI(file) {
@@ -9183,8 +9207,20 @@ CRITICAL CONTACT RULE:
             const input = document.getElementById('userInput');
             const syncedContext = localStorage.getItem('syncedContext');
 
-            addMessage("user", text, null, currentAttachment);
-            const activeAttachment = currentAttachment;
+            // Upload attachment to S3 before rendering (so URL is available in history)
+            let enrichedAttachment = currentAttachment;
+            if (currentAttachment) {
+                try {
+                    showToast(`Uploading ${currentAttachment.name}…`, 'loading', 3000);
+                    const s3Data = await uploadAttachmentToS3(currentAttachment);
+                    enrichedAttachment = Object.assign(currentAttachment, { s3Key: s3Data.s3Key, url: s3Data.url });
+                } catch(e) {
+                    console.warn('[S3 UPLOAD] Failed, proceeding without persistent URL:', e);
+                }
+            }
+
+            addMessage("user", text, null, enrichedAttachment);
+            const activeAttachment = enrichedAttachment;
             removeAttachment();
 
             input.value = "";
@@ -9628,13 +9664,36 @@ CRITICAL CONTACT RULE:
                 htmlContent = htmlContent.replace(/\[ACTION: SELECT_CAMPAIGN\]/g, buildCampaignCard());
             }
 
+            // Store attachment metadata in history entry (for persistence)
+            if (!isRestoring && attachment && sender === 'user') {
+                const mimeType = attachment.type || attachment.mimeType || '';
+                const histEntry = chatHistory[chatHistory.length - 1];
+                if (histEntry && attachment.s3Key) {
+                    histEntry.attachment = {
+                        name: attachment.name,
+                        mimeType,
+                        s3Key: attachment.s3Key,
+                        url: attachment.url
+                    };
+                    try { localStorage.setItem('chatbot_history', JSON.stringify(chatHistory)); } catch(e) {}
+                }
+            }
+
             let attachmentHtml = '';
             if (attachment) {
-                if (attachment.type.startsWith('image/')) {
-                    const url = URL.createObjectURL(attachment);
-                    attachmentHtml = `<div class="attachment-msg-preview"><img src="${url}" onclick="openImageModal('${url}')" style="max-width:200px; border-radius:8px; margin-top:8px; display:block; border:1px solid rgba(255,255,255,0.1); cursor:zoom-in;"></div>`;
+                const mimeType = attachment.type || attachment.mimeType || '';
+                const attachUrl = attachment.url || null;
+                const attachName = attachment.name || 'file';
+
+                if (mimeType.startsWith('image/')) {
+                    const displayUrl = attachUrl || (attachment instanceof File ? URL.createObjectURL(attachment) : null);
+                    if (displayUrl) {
+                        attachmentHtml = `<div class="attachment-msg-preview"><img src="${displayUrl}" onclick="openImageModal('${displayUrl}')" style="max-width:200px; border-radius:8px; margin-top:8px; display:block; border:1px solid rgba(255,255,255,0.1); cursor:zoom-in;"></div>`;
+                    }
+                } else if (attachUrl) {
+                    attachmentHtml = `<div class="attachment-msg-preview" style="margin-top:8px; font-size:0.75rem; color:#94a3b8;"><a href="${attachUrl}" target="_blank" download="${attachName}" style="color:#94a3b8; text-decoration:none;"><i class="fas fa-file"></i> ${attachName} <i class="fas fa-download" style="font-size:0.6rem;"></i></a></div>`;
                 } else {
-                    attachmentHtml = `<div class="attachment-msg-preview" style="margin-top:8px; font-size:0.75rem; color:#94a3b8;"><i class="fas fa-file"></i> ${attachment.name}</div>`;
+                    attachmentHtml = `<div class="attachment-msg-preview" style="margin-top:8px; font-size:0.75rem; color:#94a3b8;"><i class="fas fa-file"></i> ${attachName}</div>`;
                 }
             }
 
