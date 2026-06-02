@@ -3209,7 +3209,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1622</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1623</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3289,11 +3289,19 @@
                 </div>
             </div>
             <div style="padding: 20px 24px;">
-                <div style="margin-bottom:12px;">
+                <div style="margin-bottom:10px;">
                     <button class="btn btn-primary" style="width:100%; justify-content:center;"
                         onclick="startNewChat()">
                         <i class="fas fa-plus"></i> New Chat
                     </button>
+                </div>
+                <div style="position:relative; margin-bottom:10px;">
+                    <i class="fas fa-search" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:0.72rem; pointer-events:none;"></i>
+                    <input id="historySearch" type="text" placeholder="Search conversations…"
+                        oninput="filterHistory()"
+                        style="width:100%; padding:7px 10px 7px 30px; border:1px solid #e2e8f0; border-radius:10px; font-size:0.8rem; font-family:inherit; background:#f8fafc; color:#334155; box-sizing:border-box; outline:none;"
+                        onfocus="this.style.borderColor='#6366f1'; this.style.background='#fff';"
+                        onblur="this.style.borderColor='#e2e8f0'; this.style.background='#f8fafc';">
                 </div>
                 <div style="display:flex; align-items:center; gap:6px; font-size:0.75rem; color:#64748b; padding:6px 10px; background:#f8fafc; border-radius:10px; border:1px solid #e2e8f0;">
                     <i class="fas fa-users" style="font-size:0.72rem;"></i> Showing all team conversations
@@ -4223,6 +4231,70 @@
             }
         }
 
+        let _allHistoryConvs = [];
+
+        function renderHistoryList(convs) {
+            const list = document.getElementById('historyList');
+            if (!list) return;
+
+            const userColours = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#ef4444','#06b6d4','#ec4899','#e07b39'];
+            const userColourMap = {};
+            let colourIdx = 0;
+            const getUserColour = (key) => {
+                if (!userColourMap[key]) userColourMap[key] = userColours[colourIdx++ % userColours.length];
+                return userColourMap[key];
+            };
+
+            if (convs.length === 0) {
+                const q = (document.getElementById('historySearch')?.value || '').trim();
+                list.innerHTML = q
+                    ? `<div style="padding:32px; text-align:center; color:var(--text-muted); font-size:0.85rem;"><i class="fas fa-search" style="opacity:0.3; display:block; font-size:1.5rem; margin-bottom:8px;"></i>No chats match "<strong>${escapeHtml(q)}</strong>"</div>`
+                    : `<div style="padding:32px; text-align:center; color:var(--text-muted);"><i class="fas fa-comments" style="font-size:1.5rem; opacity:0.3; display:block; margin-bottom:8px;"></i>No previous chats found<br><button onclick="fetchHistory()" style="margin-top:12px; background:none; border:1px solid #cbd5e1; border-radius:8px; padding:6px 14px; font-size:0.78rem; color:#64748b; cursor:pointer; font-family:inherit;"><i class="fas fa-rotate-right"></i> Retry</button></div>`;
+                return;
+            }
+
+            list.innerHTML = convs.map(c => {
+                const safeId = c.conversationId.replace(/[^a-zA-Z0-9_-]/g, '_');
+                const displayTitle = escapeHtml(c.title || 'Untitled Chat').replace(/\*\*(.*?)\*\*/g, '$1');
+                const d = new Date(c.updatedAt || c.timestamp);
+                const dateStr = isNaN(d.getTime()) ? 'Recently' : d.toLocaleDateString();
+                const rawLabel = c.userLabel || c.userId || 'Unknown';
+                const ownerDisplay = rawLabel.replace('user_', '').split('@')[0].replace(/_/g, '.');
+                const colour = getUserColour(rawLabel);
+                const isOwn = c.userId === userId;
+                return `
+                <div class="history-item ${c.conversationId === currentConversationId ? 'active' : ''}" id="hitem_${safeId}" onclick="loadConversation('${c.conversationId}')">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:4px;">
+                        <span style="display:inline-flex; align-items:center; gap:4px; font-size:0.68rem; font-weight:700; padding:2px 8px; border-radius:20px; color:#fff; background:${colour}; flex-shrink:0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:65%;">
+                            <i class="fas fa-user" style="font-size:0.55rem; flex-shrink:0;"></i> ${escapeHtml(ownerDisplay)}${isOwn ? ' (you)' : ''}
+                        </span>
+                        <span style="font-size:0.65rem; color:#94a3b8; white-space:nowrap; flex-shrink:0;"><i class="far fa-clock"></i> ${dateStr}</span>
+                    </div>
+                    <div style="font-weight:600; font-size:0.83rem; color:#1e293b; line-height:1.35; padding-right:${isOwn ? '44px' : '0'}; position:relative; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        <span id="htitle_${safeId}" ondblclick="event.stopPropagation(); ${isOwn ? `startInlineRename('${c.conversationId}', '${safeId}')` : ''}" title="${isOwn ? 'Double-click to rename' : ''}">${displayTitle}</span>
+                        ${isOwn ? `<div class="history-item-actions" style="position:absolute; right:-8px; top:-4px; display:flex; gap:6px;">
+                            <div class="action-btn" onclick="event.stopPropagation(); startInlineRename('${c.conversationId}', '${safeId}')" title="Rename"><i class="fas fa-pencil-alt"></i></div>
+                            <div class="action-btn delete" onclick="event.stopPropagation(); deleteConversation('${c.conversationId}')" title="Delete"><i class="fas fa-trash"></i></div>
+                        </div>` : ''}
+                    </div>
+                    <div style="margin-top:3px;">
+                        <span style="background:rgba(245,158,11,0.12); color:#b45309; padding:1px 7px; border-radius:8px; font-size:0.63rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em;">${c.mode || 'AI'}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function filterHistory() {
+            const q = (document.getElementById('historySearch')?.value || '').toLowerCase().trim();
+            if (!q) { renderHistoryList(_allHistoryConvs); return; }
+            const filtered = _allHistoryConvs.filter(c => {
+                const title = (c.title || '').toLowerCase();
+                const user = (c.userLabel || c.userId || '').toLowerCase();
+                return title.includes(q) || user.includes(q);
+            });
+            renderHistoryList(filtered);
+        }
+
         async function fetchHistory() {
             const list = document.getElementById('historyList');
             list.innerHTML = '<div style="padding: 20px; text-align: center;"><i class="fas fa-spinner fa-spin"></i></div>';
@@ -4251,57 +4323,12 @@
                 }
 
                 const convs = data.conversations || [];
-                console.log(`[PERSISTENCE] Loaded ${convs.length} items`, convs.length === 0 ? { rawResult: result, parsedData: data } : '');
-
-                if (convs.length === 0) {
-                    list.innerHTML = `<div style="padding: 32px; text-align: center; color: var(--text-muted);">
-                        <i class="fas fa-comments" style="font-size:1.5rem; opacity:0.3; display:block; margin-bottom:8px;"></i>
-                        No previous chats found
-                        <br><button onclick="fetchHistory()" style="margin-top:12px; background:none; border:1px solid #cbd5e1; border-radius:8px; padding:6px 14px; font-size:0.78rem; color:#64748b; cursor:pointer; font-family:inherit;">
-                            <i class="fas fa-rotate-right"></i> Retry
-                        </button>
-                    </div>`;
-                    return;
-                }
-
-                // Assign a consistent colour to each unique user
-                const userColours = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#ef4444','#06b6d4','#ec4899','#e07b39'];
-                const userColourMap = {};
-                let colourIdx = 0;
-                const getUserColour = (key) => {
-                    if (!userColourMap[key]) userColourMap[key] = userColours[colourIdx++ % userColours.length];
-                    return userColourMap[key];
-                };
-
-                list.innerHTML = convs.map(c => {
-                    const safeId = c.conversationId.replace(/[^a-zA-Z0-9_-]/g, '_');
-                    const displayTitle = escapeHtml(c.title || 'Untitled Chat').replace(/\*\*(.*?)\*\*/g, '$1');
-                    const d = new Date(c.updatedAt || c.timestamp);
-                    const dateStr = isNaN(d.getTime()) ? 'Recently' : d.toLocaleDateString();
-                    const rawLabel = c.userLabel || c.userId || 'Unknown';
-                    const ownerDisplay = rawLabel.replace('user_', '').split('@')[0].replace(/_/g, '.');
-                    const colour = getUserColour(rawLabel);
-                    const isOwn = c.userId === userId;
-                    return `
-                    <div class="history-item ${c.conversationId === currentConversationId ? 'active' : ''}" id="hitem_${safeId}" onclick="loadConversation('${c.conversationId}')">
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:4px;">
-                            <span style="display:inline-flex; align-items:center; gap:4px; font-size:0.68rem; font-weight:700; padding:2px 8px; border-radius:20px; color:#fff; background:${colour}; flex-shrink:0; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:65%;">
-                                <i class="fas fa-user" style="font-size:0.55rem; flex-shrink:0;"></i> ${escapeHtml(ownerDisplay)}${isOwn ? ' (you)' : ''}
-                            </span>
-                            <span style="font-size:0.65rem; color:#94a3b8; white-space:nowrap; flex-shrink:0;"><i class="far fa-clock"></i> ${dateStr}</span>
-                        </div>
-                        <div style="font-weight:600; font-size:0.83rem; color:#1e293b; line-height:1.35; padding-right:${isOwn ? '44px' : '0'}; position:relative; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                            <span id="htitle_${safeId}" ondblclick="event.stopPropagation(); ${isOwn ? `startInlineRename('${c.conversationId}', '${safeId}')` : ''}" title="${isOwn ? 'Double-click to rename' : ''}">${displayTitle}</span>
-                            ${isOwn ? `<div class="history-item-actions" style="position:absolute; right:-8px; top:-4px; display:flex; gap:6px;">
-                                <div class="action-btn" onclick="event.stopPropagation(); startInlineRename('${c.conversationId}', '${safeId}')" title="Rename"><i class="fas fa-pencil-alt"></i></div>
-                                <div class="action-btn delete" onclick="event.stopPropagation(); deleteConversation('${c.conversationId}')" title="Delete"><i class="fas fa-trash"></i></div>
-                            </div>` : ''}
-                        </div>
-                        <div style="margin-top:3px;">
-                            <span style="background:rgba(245,158,11,0.12); color:#b45309; padding:1px 7px; border-radius:8px; font-size:0.63rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em;">${c.mode || 'AI'}</span>
-                        </div>
-                    </div>`;
-                }).join('');
+                console.log(`[PERSISTENCE] Loaded ${convs.length} items`);
+                _allHistoryConvs = convs;
+                // Clear search when refreshing
+                const searchEl = document.getElementById('historySearch');
+                if (searchEl) searchEl.value = '';
+                renderHistoryList(_allHistoryConvs);
             } catch (error) {
                 console.error(`[PERSISTENCE FETCH ERROR]`, error);
                 list.innerHTML = `<div style="padding: 20px; color: #ef4444; text-align: center; font-size: 0.8rem;">Failed to load history: ${error.message}</div>`;
