@@ -706,6 +706,9 @@
             padding: 12px 18px;
             border-radius: 16px;
             border: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
             border-bottom-left-radius: 4px;
             box-shadow: var(--shadow-md);
             display: flex;
@@ -714,9 +717,26 @@
             animation: fadeIn 0.3s ease-out forwards;
         }
 
+        .typing-dots-row {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .typing-status {
+            font-size: 0.78rem;
+            color: #64748b;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            max-width: 260px;
+            animation: fadeIn 0.3s ease;
+        }
+
         .typing-dot {
-            width: 8px;
-            height: 8px;
+            width: 7px;
+            height: 7px;
             background: var(--accent-blue);
             border-radius: 50%;
             opacity: 0.6;
@@ -3171,7 +3191,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1606</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1607</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3882,9 +3902,12 @@
 
             <div class="typing" id="typingIndicator">
                 <div class="typing-bubble">
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
+                    <div class="typing-dots-row">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                    <div class="typing-status" id="typingStatus"></div>
                 </div>
             </div>
 
@@ -8843,7 +8866,7 @@ CRITICAL CONTACT RULE:
 
             input.value = "";
             input.style.height = 'auto';
-            showTyping(true);
+            showTyping(true, text);
 
             try {
                 let threadId = localStorage.getItem('threadId');
@@ -8959,7 +8982,7 @@ CRITICAL CONTACT RULE:
 
             input.value = "";
             input.style.height = 'auto';
-            showTyping(true);
+            showTyping(true, text);
 
             // Build history from message list (Limit to last 10 turns to save tokens)
             const history = [];
@@ -9462,8 +9485,78 @@ CRITICAL CONTACT RULE:
             window.location.href = `mailto:${email}?subject=Client%20Portal%20Contact%20Request`;
         }
 
-        function showTyping(show) {
+        let _typingTimer = null;
+
+        function getStatusSteps(msg) {
+            const t = (msg || '').toLowerCase();
+            const steps = [];
+
+            // Always start with thinking
+            steps.push({ icon: '🧠', text: 'Thinking…' });
+
+            // Detect intent and add relevant tool steps
+            const hasMon = localStorage.getItem('mondayApiKey');
+            const hasGsc = localStorage.getItem('googleToken_Gsc');
+            const hasGa4 = localStorage.getItem('googleToken_Ga4');
+            const hasAds = localStorage.getItem('googleToken_Ads');
+            const hasMeta = localStorage.getItem('meta_access_token');
+            const hasLinkedIn = localStorage.getItem('linkedin_access_token');
+            const hasTikTok = localStorage.getItem('tiktok_access_token');
+            const hasWorkspace = localStorage.getItem('googleToken_Workspace');
+
+            const wantsAds = /google ads|sem|ppc|cpc|roas|spend|conversions|campaign|keywords?|bid|ad group/i.test(t);
+            const wantsMeta = /meta|facebook|instagram|fb ads|paid social/i.test(t);
+            const wantsLinkedIn = /linkedin/i.test(t);
+            const wantsTikTok = /tiktok|tik tok/i.test(t);
+            const wantsGsc = /gsc|search console|impressions|clicks|seo|organic|ranking|serp/i.test(t);
+            const wantsGa4 = /ga4|analytics|sessions|users|traffic|conversions/i.test(t);
+            const wantsMonday = /monday|board|campaign|client|project|item|status|update/i.test(t);
+            const wantsChat = /chat|message|slack|space|team said|conversation/i.test(t);
+            const wantsInsight = /insight|report|eom|end of month|deep dive|summary|performance/i.test(t);
+            const wantsMemory = /remember|prefer|always|noted|save|note/i.test(t);
+
+            if (wantsInsight) steps.push({ icon: '📊', text: 'Pulling performance data…' });
+            if ((wantsMonday || wantsInsight) && hasMon) steps.push({ icon: '🗂️', text: 'Querying Monday.com…' });
+            if ((wantsAds || wantsInsight) && hasAds) steps.push({ icon: '📈', text: 'Fetching Google Ads data…' });
+            if ((wantsMeta || wantsInsight) && hasMeta) steps.push({ icon: '📣', text: 'Fetching Meta Ads data…' });
+            if ((wantsLinkedIn || wantsInsight) && hasLinkedIn) steps.push({ icon: '💼', text: 'Fetching LinkedIn Ads data…' });
+            if ((wantsTikTok || wantsInsight) && hasTikTok) steps.push({ icon: '🎵', text: 'Fetching TikTok Ads data…' });
+            if ((wantsGsc || wantsInsight) && hasGsc) steps.push({ icon: '🔍', text: 'Pulling Search Console data…' });
+            if ((wantsGa4 || wantsInsight) && hasGa4) steps.push({ icon: '📉', text: 'Fetching Analytics data…' });
+            if (wantsChat && hasWorkspace) steps.push({ icon: '💬', text: 'Searching team conversations…' });
+            if (wantsMemory) steps.push({ icon: '💾', text: 'Saving to memory…' });
+
+            // Always end with writing
+            steps.push({ icon: '✍️', text: 'Writing response…' });
+            return steps;
+        }
+
+        function showTyping(show, userMsg) {
             document.getElementById('typingIndicator').classList.toggle('active', show);
+
+            const statusEl = document.getElementById('typingStatus');
+            if (_typingTimer) { clearInterval(_typingTimer); _typingTimer = null; }
+
+            if (show && statusEl) {
+                const steps = getStatusSteps(userMsg || '');
+                let idx = 0;
+                const update = () => {
+                    const s = steps[Math.min(idx, steps.length - 1)];
+                    statusEl.style.opacity = '0';
+                    setTimeout(() => {
+                        statusEl.textContent = `${s.icon} ${s.text}`;
+                        statusEl.style.opacity = '1';
+                        statusEl.style.transition = 'opacity 0.3s ease';
+                    }, 150);
+                    idx++;
+                };
+                update();
+                _typingTimer = setInterval(() => {
+                    if (idx < steps.length) update();
+                }, 2200);
+            } else if (statusEl) {
+                statusEl.textContent = '';
+            }
 
             const btn = document.getElementById('sendBtn');
             const input = document.getElementById('userInput');
