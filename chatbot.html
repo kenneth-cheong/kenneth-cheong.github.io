@@ -3191,7 +3191,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1607</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1608</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -9250,7 +9250,9 @@ CRITICAL CONTACT RULE:
                     history[history.length - 1].content = currentContent;
                 }
 
+                _chatAbortController = new AbortController();
                 const res = await fetch(MONDAY_LAMBDA_URL, {
+                    signal: _chatAbortController.signal,
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -9339,9 +9341,17 @@ CRITICAL CONTACT RULE:
                 addMessage("bot", reply, toolLog, null, false, null, thinkingText);
 
             } catch (error) {
-                console.error("Claude Error:", error);
-                addMessage("bot", `Claude Error: ${error.message}`);
+                if (error.name === 'AbortError') {
+                    // User stopped — remove the user message bubble that was just added
+                    const msgs = document.querySelectorAll('#messageList .message.user');
+                    if (msgs.length) msgs[msgs.length - 1].remove();
+                    chatHistory.pop();
+                } else {
+                    console.error("Claude Error:", error);
+                    addMessage("bot", `Claude Error: ${error.message}`);
+                }
             } finally {
+                _chatAbortController = null;
                 showTyping(false);
             }
         }
@@ -9486,6 +9496,14 @@ CRITICAL CONTACT RULE:
         }
 
         let _typingTimer = null;
+        let _chatAbortController = null;
+
+        function stopResponse() {
+            if (_chatAbortController) {
+                _chatAbortController.abort();
+                _chatAbortController = null;
+            }
+        }
 
         function getStatusSteps(msg) {
             const t = (msg || '').toLowerCase();
@@ -9561,7 +9579,24 @@ CRITICAL CONTACT RULE:
             const btn = document.getElementById('sendBtn');
             const input = document.getElementById('userInput');
 
-            if (btn) btn.disabled = show;
+            if (btn) {
+                if (show) {
+                    btn.onclick = stopResponse;
+                    btn.title = 'Stop response';
+                    btn.style.background = '#ef4444';
+                    btn.style.color = '#fff';
+                    btn.style.borderRadius = '50%';
+                    btn.innerHTML = '<i class="fas fa-stop"></i>';
+                } else {
+                    btn.onclick = handleSendMessage;
+                    btn.title = '';
+                    btn.style.background = '';
+                    btn.style.color = '';
+                    btn.style.borderRadius = '';
+                    btn.innerHTML = '<i class="fas fa-paper-plane"></i>';
+                    btn.disabled = false;
+                }
+            }
             if (input) {
                 input.disabled = show;
                 input.placeholder = show ? "AI is processing..." : "Ask anything about your Monday board...";
