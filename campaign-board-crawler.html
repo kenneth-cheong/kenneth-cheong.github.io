@@ -1196,19 +1196,6 @@
         }
         .staff-card.is-me:hover { border-color: var(--success) !important; }
 
-        .my-focus-btn {
-            display: flex; align-items: center; gap: 6px;
-            padding: 6px 12px; font-size: 12px; font-weight: 700;
-            border-radius: 8px; border: 1px solid var(--border);
-            background: transparent; color: var(--muted); cursor: pointer; transition: all 0.2s;
-            white-space: nowrap;
-        }
-        .my-focus-btn:hover { border-color: var(--success); color: var(--success); }
-        .my-focus-btn.active {
-            background: rgba(16, 185, 129, 0.15); border-color: var(--success);
-            color: var(--success); box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
-        }
-
         .user-selector {
             padding: 6px 10px; font-size: 12px; border-radius: 8px;
             border: 1px solid var(--border); background: var(--surface);
@@ -2051,13 +2038,9 @@
 
                         <div style="flex: 1;"></div>
 
-                        <select id="user-selector" class="user-selector" onchange="setCurrentUser(this.value)" title="Select yourself to enable My Focus">
+                        <select id="user-selector" class="user-selector" onchange="setCurrentUser(this.value)" title="Select yourself to scope Today view to your tasks">
                             <option value="">Select Me...</option>
                         </select>
-
-                        <button id="my-focus-btn" class="my-focus-btn" onclick="toggleMyFocus()" title="Show only my campaigns, sorted by priority">
-                            <i class="fas fa-crosshairs"></i> My Focus
-                        </button>
 
                         <div class="view-toggle-container">
                             <div class="view-toggle-btn" id="view-today" onclick="setViewMode('today')">
@@ -2206,7 +2189,6 @@
             selectedStaffNames: new Set(),
             currentUser: localStorage.getItem('current_user') || '',
             mondayUsers: [],
-            myFocusActive: false,
             boardColumnSettings: {},
             allStatusLabels: [],
             sort: { key: 'deadline', dir: 'asc' },
@@ -2283,13 +2265,6 @@
         function setCurrentUser(name) {
             state.currentUser = name;
             localStorage.setItem('current_user', name);
-            if (!name) state.myFocusActive = false;
-            updateFilteredUI();
-        }
-
-        function toggleMyFocus() {
-            if (!state.currentUser) { showToast('Select yourself from the dropdown first.'); return; }
-            state.myFocusActive = !state.myFocusActive;
             updateFilteredUI();
         }
 
@@ -3033,7 +3008,7 @@
 
             const sortedStaff = Object.values(staffGroups).sort((a, b) => {
                 // Current user always first when My Focus is active
-                if (state.myFocusActive && state.currentUser) {
+                if (state.currentUser) {
                     if (a.name === state.currentUser) return -1;
                     if (b.name === state.currentUser) return 1;
                 }
@@ -3151,7 +3126,7 @@
             const pTier = getPriorityTier(pScore);
             const isMyItem = state.currentUser && i.people.some(p => p === state.currentUser);
             let html = `
-            <tr class="item-row ${state.expandedItemIds.has(i.id) ? 'is-expanded' : ''}" ${isMyItem && state.myFocusActive ? 'style="background:rgba(16,185,129,0.04);"' : ''}>
+            <tr class="item-row ${state.expandedItemIds.has(i.id) ? 'is-expanded' : ''}" ${isMyItem ? 'style="background:rgba(16,185,129,0.04);"' : ''}>
                 <td class="cb-col" onclick="event.stopPropagation()">
                     <input type="checkbox" class="item-cb" data-item-cb="${i.id}" ${isChecked ? 'checked' : ''}
                         onchange="toggleItemSelection('${i.id}')">
@@ -3739,15 +3714,6 @@
             document.getElementById('stat-soon').innerText = liveStats.soon;
             document.getElementById('stat-2w').innerText = liveStats.v2w;
             document.getElementById('stat-items').innerText = filtered.length;
-
-            // My Focus: filter to current user and sort by priority
-            if (state.myFocusActive && state.currentUser) {
-                filtered = filtered.filter(i => i.people.some(p => p === state.currentUser));
-                filtered.sort((a, b) => calcPriority(b) - calcPriority(a));
-            }
-
-            const mfBtn = document.getElementById('my-focus-btn');
-            if (mfBtn) mfBtn.classList.toggle('active', state.myFocusActive && !!state.currentUser);
 
             const gridContainer = document.getElementById('manager-grid-container');
             const auditorTable = document.getElementById('auditor-table-container');
@@ -4743,11 +4709,6 @@
                 filtered = filtered.filter(i => i.people.some(p => state.selectedStaffNames.has(p)));
             }
 
-            // Apply My Focus filter
-            if (state.myFocusActive && state.currentUser) {
-                filtered = filtered.filter(i => i.people.some(p => p === state.currentUser));
-            }
-
             // If we have too many items, sample them to avoid token limit issues (max ~150 items)
             const contextItems = filtered.slice(0, 150).map(i => ({
                 campaign: i.name,
@@ -4766,7 +4727,6 @@
             return {
                 viewMode: state.viewMode,
                 currentUser: state.currentUser || null,
-                myFocusActive: state.myFocusActive,
                 totalVisibleItems: filtered.length,
                 itemsShownInContext: contextItems.length,
                 items: contextItems
@@ -5616,21 +5576,14 @@ ${JSON.stringify(contextData)}`;
                     element: '#user-selector',
                     popover: {
                         title: '👤 Select Yourself',
-                        description: 'Choose your name from Monday users. Required to enable My Focus mode.',
-                    }
-                },
-                {
-                    element: '#my-focus-btn',
-                    popover: {
-                        title: '🎯 My Focus',
-                        description: 'Shows ONLY campaigns assigned to you, auto-sorted by priority. Perfect for daily standups!',
+                        description: 'Choose your name to scope the Today view to your tasks and highlight your rows in all views.',
                     }
                 },
                 {
                     element: '.view-toggle-container',
                     popover: {
                         title: '👁️ View Modes',
-                        description: 'Three views: By Staff (manager cards), All Campaigns (table), Timeliness (completion analytics).',
+                        description: 'Four views: Today (your prioritised worklist), By Staff (manager cards), All Campaigns (table), Timeliness (completion analytics).',
                     }
                 },
                 {
