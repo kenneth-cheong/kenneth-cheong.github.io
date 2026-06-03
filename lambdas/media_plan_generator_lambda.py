@@ -2,6 +2,8 @@ import json
 import requests
 import os
 
+BENCHMARK_LAST_UPDATED = "2025-Q4"  # Update this when refreshing benchmark data below
+
 def lambda_handler(event, context):
     # Extract data from event
     data = event.get('data', {})
@@ -818,52 +820,67 @@ def lambda_handler(event, context):
 
     prompt = f"""You are a highly skilled digital marketing expert creating a comprehensive monthly media plan. The total budget is strictly ${budget}.
 
-    **Important: You MUST ONLY use the following ad formats: {selected_ad_formats}**.  Do not include any other ad formats in your plan.
+    **Important: You MUST ONLY use the following ad formats: {selected_ad_formats}**. Do not include any other ad formats in your plan.
 
-    If an ad format is specified that is not possible or reasonable for a given platform (e.g., "Google Search" on TikTok), **do not include that platform in the plan at all**.  Explain in the "budget allocation" section why that platform was excluded due to incompatibility.
+    If an ad format is not possible or reasonable for a given platform (e.g. "Google Search" on TikTok), do not include that platform in the plan at all. Explain the exclusion in the Budget Allocation Rationale section.
 
-    Generate an HTML table (do not mention 'HTML table' in the response) with the following columns:
-        - Ad formats
-        - Budget
+    Generate THREE scenario tables — **Conservative**, **Recommended**, and **Aggressive** — all using the SAME total budget of ${budget}. The scenarios differ in how the budget is allocated across channels and the risk/return profile:
+    - **Conservative**: Concentrate spend on highest-proven-ROI channels (e.g. Google Search). Lower reach, higher conversion probability.
+    - **Recommended**: Balanced mix across all selected channels that best fits the objectives and audience. This is the primary recommendation.
+    - **Aggressive**: Spread budget broadly for maximum reach, including higher-CPM channels. Higher reach potential, lower conversion certainty.
+
+    Each scenario table must have these columns:
+        - Ad Format
+        - Budget (amount and % of total)
+        - Estimated Reach (unique users = Impressions ÷ Frequency; use Frequency = 3 for Search, 4 for Display/Social)
+        - Average Frequency
         - Impressions
-        - CTR (Click-Through Rate)
+        - CTR shown as a point estimate with a low–high confidence range in parentheses, e.g. "2.5% (2.0%–3.1%)"
         - Clicks
-        - CPC (Cost Per Click)
-        - CPM (Cost Per Mille) - applicable for LinkedIn, Facebook/Instagram, TikTok, and Google Display. Leave blank for Google Search.
-        - Number of Keywords (only applicable for Google Search)
+        - CPC shown with a confidence range, e.g. "$1.20 ($0.90–$1.50)"
+        - CPM (for LinkedIn, Facebook/Instagram, TikTok, Google Display only — leave blank for Google Search)
+        - Number of Keywords (Google Search only)
         - Leads
-        - Conversion Rate (must not exceed 5%)
-        - CPL (Cost Per Lead)
-        - Recommended Campaign Objective for the ad platform (e.g., 'Lead Generation' for LinkedIn, 'Conversions' for Facebook, 'Website Traffic' for Google, 'App Installs for TikTok)
+        - Conversion Rate with a confidence range (point estimate must not exceed 5%)
+        - CPL with a confidence range
+        - Recommended Campaign Objective
 
-    Use the following industry benchmarks to guide your channel recommendations and estimations (and if no data exist for IG, use FB):
+    Add a **summary row** at the bottom of each scenario table showing column totals/averages and a **Deduped Unique Audience** estimate: sum individual Reaches then apply a 30% cross-platform overlap reduction for 2 channels, or 40% for 3+ channels.
+
+    Use these benchmarks (sourced from published platform data, last updated {BENCHMARK_LAST_UPDATED}) to guide estimates. Set confidence ranges based on the variance observed across industries in the benchmark data (if no IG-specific data exists, use Facebook data):
 {benchmark_section}
 
-    Explain the reasons for the budget allocation across channels, highlighting the strengths of each platform in achieving the organisational objectives and reaching the intended audience (also in HTML format).  If a platform is excluded due to incompatible ad formats, explain this clearly.
+    After the three scenario tables, provide:
+    1. **Scenario Comparison Summary** — one paragraph on which scenario best suits which business context.
+    2. **Budget Allocation Rationale** — explain each channel's role, its strengths in reaching the target audience, and why it was included or excluded. Use HTML format.
+    3. **Benchmark Data Note** — state that benchmarks are sourced from published platform industry data ({BENCHMARK_LAST_UPDATED}) and may not reflect current market conditions or account-specific factors. Recommend validating these estimates against actual account performance after the first 2–4 weeks of the campaign.
+
+    All output must be valid HTML. Use <h3> tags for scenario headings.
 
     Key Considerations:
-        *  Assume the campaign location focus is {media_plan_location} unless channel-specific variations exist.
-        *  Consider that we are targeting {media_plan_target_audience} to promote: {media_plan_product_service}
-        * The content should be in line with these Pillars: {media_plan_content_strategy}
-        *   Incorporate information to highlight : {media_plan_touchpoints}
-        *  The style should be in line with these customer personas : {media_plan_customer_personas}
-        *  Landing pages can be found at: {media_plan_landing_pages}
-        *  Drive traffic by highlighting the {media_plan_cta}
-        *  Follow these organisational objectives: {organisational_objectives}
-        *  Monitor the following indicators for success: {media_plan_kpis}
-        *  This campaign must differentiate against competitors outlined at: {media_plan_competitive_analysis}
-        *  Follow these legal and ethical guidelines: {media_plan_compliance}
-        *  Take into account these tech specific settings when producing: {media_plan_technology_plan}
-        *  You are responsible for Analytics & Reporting and creating: {media_plan_analytics_reporting}
-        *  Apply those insights to adjust: {selected_ad_formats}
+        * Campaign location: {media_plan_location}
+        * Target audience: {media_plan_target_audience} for: {media_plan_product_service}
+        * Content pillars: {media_plan_content_strategy}
+        * Touchpoints to highlight: {media_plan_touchpoints}
+        * Customer personas: {media_plan_customer_personas}
+        * Landing pages: {media_plan_landing_pages}
+        * CTA: {media_plan_cta}
+        * Organisational objectives: {organisational_objectives}
+        * KPIs: {media_plan_kpis}
+        * Competitive differentiation: {media_plan_competitive_analysis}
+        * Compliance guidelines: {media_plan_compliance}
+        * Technology settings: {media_plan_technology_plan}
+        * Analytics & Reporting: {media_plan_analytics_reporting}
+        * Apply insights to: {selected_ad_formats}
 
-        Here is specific information to consider about the company / product from their webpage : {json.dumps(data)} and the following additional information: {manual}
+        Company/product context from webpages: {json.dumps(data)}
+        Additional information: {manual}
     """
 
     # Anthropic API request parameters
     querystring = {
         "model": "claude-haiku-4-5-20251001",
-        "max_tokens": 4096,
+        "max_tokens": 8192,
         "messages": [{"role": "user", "content": prompt}]
     }
     headers = {
