@@ -36,9 +36,9 @@ def lambda_handler(event, context):
     media_plan_technology_plan = event.get('mediaPlanTechnologyPlan', '')
     media_plan_analytics_reporting = event.get('mediaPlanAnalyticsReporting', '')
     
-    # OpenAI API details
-    gpt_url = "https://api.openai.com/v1/chat/completions"
-    gpt_key = os.environ['GPT_KEY']
+    # Anthropic API details
+    claude_url = "https://api.anthropic.com/v1/messages"
+    claude_key = os.environ['CLAUDE_API_KEY']
 
 
     google_benchmarks = {
@@ -800,6 +800,22 @@ def lambda_handler(event, context):
                         }
                     }
     
+    uses_google = any(f in selected_ad_formats for f in ["Google Display", "Google Search", "Performance Max"])
+    uses_tiktok = "TikTok" in selected_ad_formats
+    uses_fb = "Facebook/Instagram" in selected_ad_formats
+    uses_linkedin = "LinkedIn" in selected_ad_formats
+
+    benchmark_lines = []
+    if uses_google:
+        benchmark_lines.append(f"        - Google Ads: {json.dumps(google_benchmarks)}")
+    if uses_tiktok:
+        benchmark_lines.append(f"        - TikTok: {json.dumps(tiktok_benchmarks)}")
+    if uses_fb:
+        benchmark_lines.append(f"        - Facebook/Instagram: {json.dumps(facebook_benchmarks)}")
+    if uses_linkedin:
+        benchmark_lines.append(f"        - LinkedIn: {json.dumps(linkedin_benchmarks)}")
+    benchmark_section = "\n".join(benchmark_lines)
+
     prompt = f"""You are a highly skilled digital marketing expert creating a comprehensive monthly media plan. The total budget is strictly ${budget}.
 
     **Important: You MUST ONLY use the following ad formats: {selected_ad_formats}**.  Do not include any other ad formats in your plan.
@@ -820,47 +836,48 @@ def lambda_handler(event, context):
         - CPL (Cost Per Lead)
         - Recommended Campaign Objective for the ad platform (e.g., 'Lead Generation' for LinkedIn, 'Conversions' for Facebook, 'Website Traffic' for Google, 'App Installs for TikTok)
 
-    Use the following industry benchmarks to guide your channel recommendations and estimations (and if no data exist for IG, use FB) if these ad formats if applcable:
-        - Google Ads: {json.dumps(google_benchmarks)}
-        - TikTok: {json.dumps(tiktok_benchmarks)}
-        - Facebook/Instagram: {json.dumps(facebook_benchmarks)}
-        - LinkedIn: {json.dumps(linkedin_benchmarks)}
+    Use the following industry benchmarks to guide your channel recommendations and estimations (and if no data exist for IG, use FB):
+{benchmark_section}
 
     Explain the reasons for the budget allocation across channels, highlighting the strengths of each platform in achieving the organisational objectives and reaching the intended audience (also in HTML format).  If a platform is excluded due to incompatible ad formats, explain this clearly.
 
     Key Considerations:
         *  Assume the campaign location focus is {media_plan_location} unless channel-specific variations exist.
-        *  Consider that we are targeting the [target audience] to promote: {media_plan_product_service}
+        *  Consider that we are targeting {media_plan_target_audience} to promote: {media_plan_product_service}
         * The content should be in line with these Pillars: {media_plan_content_strategy}
         *   Incorporate information to highlight : {media_plan_touchpoints}
         *  The style should be in line with these customer personas : {media_plan_customer_personas}
         *  Landing pages can be found at: {media_plan_landing_pages}
         *  Drive traffic by highlighting the {media_plan_cta}
-        *  Followed these organisational objectivess: {organisational_objectives}
+        *  Follow these organisational objectives: {organisational_objectives}
         *  Monitor the following indicators for success: {media_plan_kpis}
         *  This campaign must differentiate against competitors outlined at: {media_plan_competitive_analysis}
-        *  Follow these legal and ethicall guidelines {media_plan_compliance}
+        *  Follow these legal and ethical guidelines: {media_plan_compliance}
         *  Take into account these tech specific settings when producing: {media_plan_technology_plan}
-        *  You are responsible for Analysing & Reporting and creating: {media_plan_analytics_reporting}
-        *  Apply those insights to adjust : {selected_ad_formats}
+        *  You are responsible for Analytics & Reporting and creating: {media_plan_analytics_reporting}
+        *  Apply those insights to adjust: {selected_ad_formats}
 
         Here is specific information to consider about the company / product from their webpage : {json.dumps(data)} and the following additional information: {manual}
     """
 
-    # OpenAI API request parameters
-    querystring = {"model":"gpt-4o-mini", #You may want to make this configurable
-                "messages":[{"role": "user", "content": prompt}]}
+    # Anthropic API request parameters
+    querystring = {
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 4096,
+        "messages": [{"role": "user", "content": prompt}]
+    }
     headers = {
         "Content-Type": "application/json",
-        'Authorization': gpt_key
+        "x-api-key": claude_key,
+        "anthropic-version": "2023-06-01"
     }
 
     # Make the API request
-    response = requests.post(gpt_url, headers=headers, json=querystring)
+    response = requests.post(claude_url, headers=headers, json=querystring)
 
     # Process the response
     try:
-        response_text = response.json()['choices'][0]['message']['content']
+        response_text = response.json()['content'][0]['text']
         #Clean up the response
         cleaned_response = response_text.replace('```html','').replace('```','').replace('\n\n', '<br>').replace('#','').replace("**",'')
 
@@ -871,7 +888,7 @@ def lambda_handler(event, context):
         body = cleaned_response
     except (KeyError, ValueError, json.JSONDecodeError) as e:
         # Handle API errors gracefully
-        error_message = f"Error processing OpenAI API response: {str(e)}.  Raw response: {response.text}"
+        error_message = f"Error processing Claude API response: {str(e)}.  Raw response: {response.text}"
         print(error_message)
         body = f"<p style='color:red;'>An error occurred while generating the media plan: {error_message}</p>"
 
