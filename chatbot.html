@@ -3209,7 +3209,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1666</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1667</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -9644,6 +9644,32 @@ CRITICAL CONTACT RULE:
                 // Replace the last history item (which was the plain text user message) with the full content block
                 if (history.length > 0 && history[history.length - 1].role === 'user') {
                     history[history.length - 1].content = currentContent;
+                }
+
+                // BULLETPROOF GUARD: measure the actual serialized payload and hard-trim if oversized.
+                // Catches ANY source of bloat (history, attachments, restored convos) regardless of path.
+                const PAYLOAD_CHAR_LIMIT = 150000; // ~40k tokens of messages — well under the 200k token ceiling
+                let _msgChars = JSON.stringify(history).length;
+                if (_msgChars > PAYLOAD_CHAR_LIMIT) {
+                    console.warn(`[CLAUDE] Messages payload too large (${_msgChars} chars) — trimming history`);
+                    // Drop oldest messages one at a time until under budget (keep at least the current message)
+                    while (history.length > 1 && JSON.stringify(history).length > PAYLOAD_CHAR_LIMIT) {
+                        history.shift();
+                    }
+                    // If still over (single huge current message), truncate its text content
+                    if (JSON.stringify(history).length > PAYLOAD_CHAR_LIMIT && history.length > 0) {
+                        const last = history[history.length - 1];
+                        if (Array.isArray(last.content)) {
+                            last.content.forEach(block => {
+                                if (block.type === 'text' && block.text.length > PAYLOAD_CHAR_LIMIT) {
+                                    block.text = block.text.slice(0, PAYLOAD_CHAR_LIMIT) + '\n…[truncated]';
+                                }
+                            });
+                        } else if (typeof last.content === 'string' && last.content.length > PAYLOAD_CHAR_LIMIT) {
+                            last.content = last.content.slice(0, PAYLOAD_CHAR_LIMIT) + '\n…[truncated]';
+                        }
+                    }
+                    console.warn(`[CLAUDE] Trimmed to ${JSON.stringify(history).length} chars`);
                 }
 
                 _chatAbortController = new AbortController();
