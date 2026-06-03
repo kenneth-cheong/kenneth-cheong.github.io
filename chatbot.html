@@ -3209,7 +3209,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1659</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1660</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -9244,24 +9244,27 @@ CRITICAL CONTACT RULE:
             input.style.height = 'auto';
             showTyping(true, text);
 
-            // Build history from message list (Limit to last 10 turns to save tokens)
+            // Build history from message list (last 6 turns; truncate long bot messages)
             const history = [];
-            const messageNodes = Array.from(document.querySelectorAll('.message')).slice(-10);
+            const MAX_BOT_CHARS  = 2000; // ~500 tokens — prevents long reports ballooning context
+            const messageNodes = Array.from(document.querySelectorAll('.message')).slice(-6);
             messageNodes.forEach(m => {
                 if (m.id === 'welcomeMessage') return;
                 const role = m.classList.contains('user') ? 'user' : 'assistant';
                 const contentDiv = m.querySelector('.msg-content');
                 if (!contentDiv) return;
 
-                // Clone to avoid modifying the UI
                 const clone = contentDiv.cloneNode(true);
-                // Remove tool logs and UI elements from history content
-                clone.querySelectorAll('.tool-log, .contact-agent-container, .connector-prompt-card, .attachment-msg-preview').forEach(el => el.remove());
+                clone.querySelectorAll('.tool-log, .contact-agent-container, .connector-prompt-card, .attachment-msg-preview, .mermaid-diagram, .chart-container').forEach(el => el.remove());
 
-                const content = clone.innerText.trim();
+                let content = clone.innerText.trim();
                 if (!content) return;
 
-                // Merge consecutive messages from same role to satisfy Anthropic requirements
+                // Truncate very long assistant messages to avoid token overflow
+                if (role === 'assistant' && content.length > MAX_BOT_CHARS) {
+                    content = content.slice(0, MAX_BOT_CHARS) + '\n…[response truncated in history — full answer was shown above]';
+                }
+
                 if (history.length > 0 && history[history.length - 1].role === role) {
                     history[history.length - 1].content += "\n\n" + content;
                 } else {
@@ -9720,7 +9723,21 @@ CRITICAL CONTACT RULE:
                     chatHistory.pop();
                 } else {
                     console.error("Claude Error:", error);
-                    addMessage("bot", `Claude Error: ${error.message}`);
+                    const isTooLong = /too long|token.*limit|context.*limit|maximum.*token/i.test(error.message);
+                    if (isTooLong) {
+                        const errEl = document.createElement('div');
+                        errEl.className = 'message bot';
+                        errEl.innerHTML = `<div class="msg-content" style="color:#b45309; background:#fefce8; border:1px solid #fde047; border-left:4px solid #eab308; border-radius:10px; padding:12px 16px; font-size:0.85rem; line-height:1.6;">
+                            <strong>⚠️ Conversation too long for a single request</strong><br>
+                            The chat history has accumulated too many tokens (${error.message.match(/[\d,]+(?= tokens)/)?.[0] || ''} tokens). The easiest fix is to start a fresh conversation.
+                            <br><button onclick="startNewChat()" style="margin-top:10px; padding:6px 16px; background:#ea580c; color:#fff; border:none; border-radius:8px; font-size:0.8rem; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                                <i class="fas fa-plus"></i> Start New Conversation
+                            </button>
+                        </div>`;
+                        document.getElementById('messageList').appendChild(errEl);
+                    } else {
+                        addMessage("bot", `Claude Error: ${error.message}`);
+                    }
                 }
             } finally {
                 _chatAbortController = null;
