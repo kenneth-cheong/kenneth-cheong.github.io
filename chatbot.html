@@ -741,6 +741,15 @@
             animation: fadeIn 0.3s ease;
         }
 
+        .typing-stopwatch {
+            font-size: 0.72rem;
+            color: #94a3b8;
+            font-weight: 500;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
         .typing-dot {
             width: 7px;
             height: 7px;
@@ -3200,7 +3209,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1632</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1633</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3958,6 +3967,7 @@
                         <div class="typing-dot"></div>
                     </div>
                     <div class="typing-status" id="typingStatus"></div>
+                    <div class="typing-stopwatch" id="typingStopwatch"></div>
                 </div>
             </div>
 
@@ -9304,7 +9314,11 @@ CRITICAL CONTACT RULE:
             19. dataforseo_backlinks_summary: Fetch live backlink stats (total links, referring domains, domain rank) for any domain or URL. Use whenever the user asks about backlinks or link building.
             20. dataforseo_domain_rank_overview: Fetch a domain's estimated organic traffic, number of ranking keywords, and authority score. Use for domain analysis requests.
             21. dataforseo_ranked_keywords: Fetch keywords a domain currently ranks for in Google, with positions and search volume. Use whenever asked what a domain ranks for or its organic keyword footprint.
-            22. get_workduo_report: Fetch AI visibility data from WorkDuo — how visible a brand/client is in AI-generated answers across topics. ALWAYS use this when the user asks about AI visibility, AI search presence, LLM visibility, or WorkDuo. First call action='list_projects' to find project and entity IDs, then call action='get_visibility'. IMPORTANT: Not all 55 projects have data — if a project returns total=0 with a 'note' field, it is not yet configured in WorkDuo; skip it and try other matching projects. Projects with real data will have rows containing 'visibility', 'mentions', 'topic' fields.
+            22. get_workduo_report: Fetch AI visibility data from WorkDuo — how visible a brand/client is in AI-generated answers across topics. ALWAYS use this when the user asks about AI visibility, AI search presence, LLM visibility, or WorkDuo.
+            STEP 1: Call action='list_projects' to find the matching project. Each project has an 'entity' (the client/primary brand) and 'projectEntities' (the client + competitors with trackingType 'PRIMARY' or 'COMPETITOR').
+            STEP 2a — For DAILY LINE CHARTS (competitor comparison over time): Call action='get_visibility' with metric='all' for the PRIMARY entity first, then call again for EACH competitor entity. Each call returns daily rows with fields: date (ISO string), visibility (0–1 decimal — multiply × 100 for %), sov, mentions, position. Align all entities on the same date axis.
+            STEP 2b — For MONTHLY BAR CHARTS or SUMMARY metrics: Call action='get_visibility' with dimension='topic' or aggregate across the date rows.
+            IMPORTANT: Not all projects have data — if a project returns total=0 with a 'note' field it is not configured; try other matching projects.
 
             ════════════════════════════════════════════════
             PERFORMANCE INSIGHTS FRAMEWORK
@@ -9381,7 +9395,25 @@ CRITICAL CONTACT RULE:
             • Flowcharts, sequence diagrams, Gantt, entity diagrams → use a \`\`\`mermaid code block
             • Data charts (bar, line, pie, doughnut) → use a \`\`\`chartjs code block containing valid Chart.js v4 JSON config
             When the user asks for a chart, diagram, or visual representation of data, ALWAYS generate one.
-            Chart.js example format:
+
+            GEO / WORKDUO VISIBILITY CHARTS — MANDATORY STYLE (use whenever showing AI visibility, SOV, citation counts or any WorkDuo metric):
+            1. Monthly visibility bar chart — single light-blue bar series, percentage Y-axis, "Mon YYYY" X labels, bold title + gray subtitle:
+            \`\`\`chartjs
+            {"type":"bar","data":{"labels":["Mar 2026","Apr 2026","May 2026"],"datasets":[{"label":"Visibility","data":[24.64,32.1,40.65],"backgroundColor":"#60A5FA","borderRadius":0,"borderWidth":0}]},"options":{"responsive":true,"plugins":{"legend":{"display":false},"title":{"display":true,"text":"Pasta Fresca visibility, March–May 2026","font":{"size":16,"weight":"bold"},"color":"#111827","padding":{"bottom":4}},"subtitle":{"display":true,"text":"Combined Google AI Overview and ChatGPT visibility, calculated as total mentions divided by total responses.","font":{"size":11},"color":"#6B7280","padding":{"bottom":16}}},"scales":{"y":{"beginAtZero":true,"ticks":{"callback":"function(v){return v+'%'}","color":"#6B7280"},"grid":{"color":"#F3F4F6"},"border":{"display":false}},"x":{"ticks":{"color":"#6B7280"},"grid":{"display":false},"border":{"display":false}}}}}
+            \`\`\`
+            2. Daily visibility line chart (competitor comparison over time):
+            CRITICAL RULES — violation = wrong chart:
+            - X-axis labels MUST be DATES ("May 1", "May 2", …). NEVER put brand/competitor names on the X-axis.
+            - Each brand/competitor MUST be its own dataset (one line per brand).
+            - visibility values from the API are 0–1 decimals — multiply × 100 before plotting.
+            - Client/primary brand: borderColor "#3B82F6", borderWidth 2. Competitors: muted colors "#93C5FD", "#FCA5A5", "#6EE7B7", "#FCD34D" (cycle through), borderWidth 1.5.
+            - tension 0.3, pointRadius 0, fill false, legend at bottom.
+            \`\`\`chartjs
+            {"type":"line","data":{"labels":["May 1","May 2","May 3","May 4","May 5"],"datasets":[{"label":"Pasta Fresca Da Salvatore","data":[55,60,43,29,44],"borderColor":"#3B82F6","borderWidth":2,"tension":0.3,"pointRadius":0,"fill":false},{"label":"LAVO Italian Restaurant","data":[30,28,32,25,31],"borderColor":"#93C5FD","borderWidth":1.5,"tension":0.3,"pointRadius":0,"fill":false},{"label":"LINO","data":[20,18,22,19,21],"borderColor":"#FCA5A5","borderWidth":1.5,"tension":0.3,"pointRadius":0,"fill":false}]},"options":{"responsive":true,"plugins":{"legend":{"position":"bottom","labels":{"boxWidth":12,"font":{"size":11}}},"title":{"display":true,"text":"Pasta Fresca Da Salvatore vs Competitors — AI Visibility","font":{"size":15,"weight":"bold"},"color":"#111827"},"subtitle":{"display":true,"text":"Visibility score measured as total mentions divided by total AI-generated responses, last 30 days","font":{"size":11},"color":"#6B7280","padding":{"bottom":12}}},"scales":{"y":{"beginAtZero":true,"max":100,"ticks":{"callback":"function(v){return v+'%'}","color":"#6B7280"},"grid":{"color":"#F3F4F6"},"border":{"display":false}},"x":{"ticks":{"color":"#6B7280","maxTicksLimit":12},"grid":{"display":false},"border":{"display":false}}}}}
+            \`\`\`
+            Always use these styles for GEO/WorkDuo data. For non-GEO charts use standard styling.
+
+            General Chart.js example format (non-GEO):
             \`\`\`chartjs
             {"type":"bar","data":{"labels":["Jan","Feb"],"datasets":[{"label":"Spend","data":[1200,1800],"backgroundColor":["#6366f1","#8b5cf6"]}]},"options":{"responsive":true,"plugins":{"legend":{"position":"top"}}}}
             \`\`\`
@@ -9760,9 +9792,13 @@ CRITICAL CONTACT RULE:
                 list.appendChild(senderRow);
             }
 
+            const durationHtml = (sender === 'bot' && !isRestoring && window._lastResponseDuration)
+                ? `<span style="opacity:0.45; margin-left:6px; font-size:0.65rem;">(${window._lastResponseDuration})</span>`
+                : '';
+            if (sender === 'bot' && !isRestoring) window._lastResponseDuration = null;
             msg.innerHTML = `
                 <div class="msg-content">${thinkingHtml}${htmlContent}${attachmentHtml}${toolHtml}</div>
-                <span class="time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span class="time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${durationHtml}</span>
             `;
             list.appendChild(msg);
             renderChartsInElement(msg);
@@ -9802,11 +9838,37 @@ CRITICAL CONTACT RULE:
             // Chart.js charts
             el.querySelectorAll('code.language-chartjs').forEach((code) => {
                 try {
-                    const config = JSON.parse(code.textContent.trim());
+                    // Revive function strings → real functions
+                    const reviveFunctions = (obj) => {
+                        if (obj === null || typeof obj !== 'object') return obj;
+                        for (const key of Object.keys(obj)) {
+                            const val = obj[key];
+                            if (typeof val === 'string' && /^\s*function\s*\(/.test(val)) {
+                                try { obj[key] = new Function('return (' + val + ')')(); } catch(e) {}
+                            } else if (typeof val === 'object') {
+                                reviveFunctions(val);
+                            }
+                        }
+                        return obj;
+                    };
+
+                    const config = reviveFunctions(JSON.parse(code.textContent.trim()));
+
                     // Ensure responsive + no aspect ratio lock so container controls height
                     if (!config.options) config.options = {};
                     config.options.responsive = true;
                     config.options.maintainAspectRatio = false;
+
+                    // For percentage charts without an explicit max, cap Y-axis just above the data
+                    const allData = (config.data?.datasets || []).flatMap(d => d.data || []).filter(Number.isFinite);
+                    const dataMax = allData.length ? Math.max(...allData) : null;
+                    if (dataMax !== null && dataMax <= 100) {
+                        const yScale = config.options?.scales?.y;
+                        if (yScale && yScale.beginAtZero && !yScale.max && !yScale.suggestedMax) {
+                            yScale.suggestedMax = Math.min(100, Math.ceil((dataMax * 1.25) / 10) * 10);
+                        }
+                    }
+
                     const container = document.createElement('div');
                     container.className = 'chart-container';
                     const cvs = document.createElement('canvas');
@@ -9893,7 +9955,9 @@ CRITICAL CONTACT RULE:
             document.getElementById('typingIndicator').classList.toggle('active', show);
 
             const statusEl = document.getElementById('typingStatus');
+            const swEl = document.getElementById('typingStopwatch');
             if (_typingTimer) { clearInterval(_typingTimer); _typingTimer = null; }
+            if (window._stopwatchTimer) { clearInterval(window._stopwatchTimer); window._stopwatchTimer = null; }
 
             if (show && statusEl) {
                 const steps = getStatusSteps(userMsg || '');
@@ -9912,8 +9976,32 @@ CRITICAL CONTACT RULE:
                 _typingTimer = setInterval(() => {
                     if (idx < steps.length) update();
                 }, 2200);
+
+                if (swEl) {
+                    window._stopwatchStart = Date.now();
+                    const tick = () => {
+                        const ms = Date.now() - window._stopwatchStart;
+                        const s = Math.floor(ms / 1000);
+                        const m = Math.floor(s / 60);
+                        swEl.textContent = m > 0
+                            ? `${m}:${String(s % 60).padStart(2, '0')}`
+                            : `${s}s`;
+                    };
+                    tick();
+                    window._stopwatchTimer = setInterval(tick, 1000);
+                }
             } else if (statusEl) {
                 statusEl.textContent = '';
+                if (swEl) swEl.textContent = '';
+                if (window._stopwatchStart) {
+                    const ms = Date.now() - window._stopwatchStart;
+                    const s = Math.floor(ms / 1000);
+                    const m = Math.floor(s / 60);
+                    window._lastResponseDuration = m > 0
+                        ? `${m}m ${s % 60}s`
+                        : `${s}s`;
+                    window._stopwatchStart = null;
+                }
             }
 
             const btn = document.getElementById('sendBtn');
