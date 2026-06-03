@@ -2075,7 +2075,10 @@
                             <i class="fas fa-times" onclick="toggleSettings()"
                                 style="cursor: pointer; color: var(--muted);"></i>
                         </div>
-                        <div id="results-status-exclusions" style="overflow-y: auto;"></div>
+                        <div style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 24px;">
+                            <div id="settings-folders-section"></div>
+                            <div id="results-status-exclusions"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -2496,6 +2499,7 @@
             });
             document.getElementById('selection-summary').innerText = `${total} boards selected for audit`;
             document.getElementById('crawl-btn').disabled = state.selectedFolderIds.size === 0;
+            renderSettingsFolders();
         }
 
         function toggleFolder(id) {
@@ -2541,6 +2545,7 @@
             if (val) state.folders.forEach(f => state.selectedFolderIds.add(f.id));
             else state.selectedFolderIds.clear();
             renderFolders();
+            renderSettingsFolders();
         }
 
         function renderStatusExclusionsPanel() {
@@ -3930,8 +3935,57 @@
         function toggleSettings() {
             const p = document.getElementById('settings-pnl');
             const b = document.getElementById('settings-backdrop');
+            const opening = !p.classList.contains('show');
             p.classList.toggle('show');
             if (b) b.classList.toggle('show');
+            if (opening) {
+                renderSettingsFolders();
+                renderStatusExclusionsPanel();
+            }
+        }
+
+        function renderSettingsFolders() {
+            const container = document.getElementById('settings-folders-section');
+            if (!container || !state.folders.length) return;
+
+            const query = (document.getElementById('settings-folder-search')?.value || '').toLowerCase();
+            const shown = state.folders.filter(f =>
+                !query || f.name.toLowerCase().includes(query) || (f.ws || '').toLowerCase().includes(query)
+            );
+            const selectedCount = state.selectedFolderIds.size;
+            const totalBoards = [...state.selectedFolderIds].reduce((n, id) => {
+                const f = state.folders.find(x => x.id === id);
+                return n + (f ? f.boards.length : 0);
+            }, 0);
+
+            container.innerHTML = `
+                <div>
+                    <label style="display:flex; align-items:center; gap:8px; margin-bottom:10px; font-size:11px; text-transform:uppercase; font-weight:700; color:var(--muted);">
+                        Folders to Audit
+                        <span style="font-weight:500; text-transform:none; font-size:11px; color:var(--text);">${selectedCount} folder${selectedCount !== 1 ? 's' : ''} · ${totalBoards} board${totalBoards !== 1 ? 's' : ''}</span>
+                    </label>
+                    <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
+                        <input type="text" id="settings-folder-search"
+                            style="flex:1; padding:6px 10px; font-size:12px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--text); outline:none;"
+                            placeholder="Search folders..."
+                            value="${query}"
+                            oninput="renderSettingsFolders()">
+                        <span class="person-btn" onclick="toggleAllFolders(true)">Select All</span>
+                        <span class="person-btn" onclick="toggleAllFolders(false)">Clear</span>
+                    </div>
+                    <div class="folder-grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); max-height:260px; overflow-y:auto; gap:8px; margin-top:0; padding:0;">
+                        ${shown.map(f => `
+                            <div class="folder-item ${state.selectedFolderIds.has(f.id) ? 'selected' : ''}" onclick="toggleFolder('${f.id}')">
+                                <input type="checkbox" ${state.selectedFolderIds.has(f.id) ? 'checked' : ''} style="accent-color:var(--primary); pointer-events:none; flex-shrink:0;">
+                                <div class="folder-info">
+                                    <div class="folder-name" style="font-size:12px;">${f.name}</div>
+                                    <div class="folder-meta">${f.boards.length} board${f.boards.length !== 1 ? 's' : ''} · ${f.ws || 'Workspace'}</div>
+                                </div>
+                            </div>
+                        `).join('') || '<div style="padding:12px; color:var(--muted); font-size:12px;">No folders match</div>'}
+                    </div>
+                </div>
+            `;
         }
 
         // --- Multi-Select Dropdown Factory ---
