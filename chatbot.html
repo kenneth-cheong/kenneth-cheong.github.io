@@ -3209,7 +3209,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1667</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1668</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -4452,6 +4452,18 @@
             localStorage.removeItem('chatbot_history');
             localStorage.removeItem('threadId');
             threadId = null;
+
+            // Clear oversized synced board data that could overflow the token limit.
+            // Small/normal syncs are kept so the user doesn't lose their loaded boards;
+            // only bloated ones (e.g. exhaustive 500-board syncs) get dropped.
+            try {
+                const sc = localStorage.getItem('syncedContext');
+                if (sc && sc.length > 150000) {
+                    localStorage.removeItem('syncedContext');
+                    console.warn(`[NEW CHAT] Cleared oversized syncedContext (${sc.length} chars) to prevent token overflow.`);
+                    showToast('Cleared large synced data — click Load Data to re-sync if needed', 'info', 4000);
+                }
+            } catch (e) { /* ignore */ }
 
             document.getElementById('messageList').innerHTML = '';
             const sidebar = document.getElementById('historySidebar');
