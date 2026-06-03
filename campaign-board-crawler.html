@@ -2036,9 +2036,14 @@
                             <i class="fas fa-cog"></i> Settings
                         </button>
 
-                        <button class="btn btn-secondary" onclick="startAudit()" title="Re-sync data from Monday.com"
+                        <button class="btn btn-secondary" onclick="refreshVisibleItems()" title="Re-sync only the boards visible in the current view (faster)"
                             style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px;">
-                            <i class="fas fa-sync-alt"></i> Refresh
+                            <i class="fas fa-sync-alt"></i> Quick Refresh
+                        </button>
+
+                        <button class="btn btn-secondary" onclick="startAudit()" title="Re-sync all boards from Monday.com"
+                            style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 12px;">
+                            <i class="fas fa-redo"></i> Refresh All
                         </button>
 
                         <div style="flex: 1;"></div>
@@ -2563,6 +2568,81 @@
             updateFilteredUI();
         }
 
+        async function fetchQualifiedItemsFromBoard(b) {
+            let bItems = [], cursor = null;
+            do {
+                const idata = await monday(`query($id:[ID!],$c:String){
+                    boards(ids:$id){
+                        items_page(limit:500,cursor:$c){
+                            cursor
+                            items {
+                                id name
+                                column_values {
+                                    id text type
+                                    column { title }
+                                    ...on StatusValue{label}
+                                    ...on DateValue{date}
+                                    ...on TimelineValue{from to}
+                                }
+                            }
+                        }
+                    }
+                }`, { id: [b.id], c: cursor });
+                const p = idata.boards?.[0]?.items_page;
+                if (!p) { console.warn(`Could not retrieve items for board ${b.id}.`); break; }
+                bItems = bItems.concat(p.items);
+                cursor = p.cursor;
+            } while (cursor);
+
+            const limit = new Date().getTime() + (14 * 24 * 60 * 60 * 1000);
+            const qualified = bItems.filter(i => {
+                const dv = i.column_values.find(cv => cv.date || cv.to);
+                return dv && new Date(dv.date || dv.to).getTime() < limit;
+            });
+            return { allCount: bItems.length, qualified };
+        }
+
+        function mapItemFromBoard(i, b) {
+            const dv = i.column_values.find(cv => cv.date || cv.to);
+            const st = i.column_values.find(cv => cv.label !== undefined);
+            const assigned = i.column_values.find(cv => cv.type === 'people' || cv.type === 'multiple-person');
+            const csmStatusCol = i.column_values.find(cv => {
+                const t = (cv.column?.title || '').toLowerCase();
+                return t.includes('[csm]') && t.includes('campaign status');
+            });
+            const masterData = getMasterDataFromMap(b.name, b.id);
+            const today = new Date().setHours(0, 0, 0, 0);
+            const due = dv ? new Date(dv.date || dv.to) : null;
+            const diffDays = due ? Math.floor((today - due.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+            let status = 'overdue';
+            if (diffDays <= 0) { status = diffDays >= -7 ? 'soon' : '2w'; }
+            let dateDisplay = 'No Date';
+            if (dv) {
+                const from = dv.from ? new Date(dv.from).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+                const to = new Date(dv.date || dv.to).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                dateDisplay = from ? `${from} - ${to}` : to;
+            }
+            return {
+                ...i,
+                bName: b.name, fName: b.folderName, bId: b.id,
+                deadline: dv ? (dv.date || dv.to) : null,
+                deadlineDisplay: dateDisplay,
+                daysOverdue: diffDays,
+                people: assigned?.text ? assigned.text.split(/, | & | and /).map(p => p.trim()) : ['Unassigned'],
+                peopleColumnId: assigned?.id || '',
+                csManagers: masterData.csm,
+                masterStatus: masterData.status,
+                masterCsmStatus: masterData.csmStatus,
+                masterTimeline: masterData.timeline,
+                masterName: masterData.masterName,
+                masterTechSummary: masterData.techSummary || '',
+                csmCampaignStatus: csmStatusCol?.label || '',
+                status,
+                statusColumnId: st?.id || '',
+                itemStatus: st?.label || ''
+            };
+        }
+
         async function startAudit() {
             state.auditedItems = [];
             state.masterCampaignMap = {};
@@ -2573,10 +2653,7 @@
             document.getElementById('step-folders').style.display = 'none';
             document.getElementById('step-results').style.display = 'flex';
 
-            // Setup toast for persistent auditing
             showToast("Initializing simultaneous audit...");
-
-            // Trigger Master Board fetch without blocking
             state.masterFetchPromise = fetchMasterCampaignData().catch(err => {
                 console.error("Master board fetch failed, proceeding without CS mapping", err);
                 showToast("Warning: CS mapping failed. Proceeding...");
@@ -2585,7 +2662,7 @@
             showToast("Starting audit...");
             document.getElementById('toast-progress-container').style.display = 'block';
             document.getElementById('progress-text').style.display = 'block';
-            toastCount = 999; // Lock toast open
+            toastCount = 999;
 
             let finished = 0, total = queue.length;
             async function work() {
@@ -2593,117 +2670,72 @@
                     const b = queue.shift();
                     try {
                         showToast(`Scanning items for: ${b.name}`);
-                        let bItems = [], cursor = null;
-                        do {
-                            const idata = await monday(`query($id:[ID!],$c:String){ 
-                                boards(ids:$id){ 
-                                    items_page(limit:500,cursor:$c){ 
-                                        cursor 
-                                        items { 
-                                            id 
-                                            name 
-                                            column_values {
-                                                id
-                                                text
-                                                type
-                                                column { title }
-                                                ...on StatusValue{label}
-                                                ...on DateValue{date}
-                                                ...on TimelineValue{from to}
-                                            }
-                                        } 
-                                    } 
-                                } 
-                            }`, { id: [b.id], c: cursor });
-                            const p = idata.boards?.[0]?.items_page;
-                            if (!p) {
-                                console.warn(`Could not retrieve items for board ${b.id}. Full response:`, idata);
-                                break;
-                            }
-                            bItems = bItems.concat(p.items);
-                            cursor = p.cursor;
-                        } while (cursor);
-
-                        const today = new Date().setHours(0, 0, 0, 0);
-                        const qualified = bItems.filter(i => {
-                            const dv = i.column_values.find(cv => cv.date || cv.to);
-                            if (!dv) return false;
-                            const due = new Date(dv.date || dv.to).getTime();
-                            const limit = new Date().getTime() + (14 * 24 * 60 * 60 * 1000); // 14 days from now
-                            return due < limit;
-                        });
-
-                        state.auditedItems = state.auditedItems.concat(qualified.map(i => {
-                            const dv = i.column_values.find(cv => cv.date || cv.to);
-                            const st = i.column_values.find(cv => cv.label !== undefined); // Find status label
-                            const assigned = i.column_values.find(cv => cv.type === 'people' || cv.type === 'multiple-person');
-                            const csmStatusCol = i.column_values.find(cv => {
-                                const t = (cv.column?.title || '').toLowerCase();
-                                return t.includes('[csm]') && t.includes('campaign status');
-                            });
-
-                            // Get Master Data (CSM, Status, Timeline)
-                            const masterData = getMasterDataFromMap(b.name, b.id);
-
-                            const today = new Date().setHours(0, 0, 0, 0);
-                            const due = dv ? new Date(dv.date || dv.to) : null;
-                            const diffDays = due ? Math.floor((today - due.getTime()) / (1000 * 60 * 60 * 24)) : 0;
-
-                            let status = 'overdue';
-                            if (diffDays <= 0) {
-                                if (diffDays >= -7) status = 'soon';
-                                else status = '2w';
-                            }
-
-                            if (status === 'overdue') { } // Counts handled dynamically in updateFilteredUI
-                            else if (status === 'soon') { }
-                            else { }
-
-                            let dateDisplay = 'No Date';
-                            if (dv) {
-                                const from = dv.from ? new Date(dv.from).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
-                                const to = new Date(dv.date || dv.to).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                                dateDisplay = from ? `${from} - ${to}` : to;
-                            }
-
-                            return {
-                                ...i,
-                                bName: b.name,
-                                fName: b.folderName,
-                                bId: b.id,
-                                deadline: dv ? (dv.date || dv.to) : null,
-                                deadlineDisplay: dateDisplay,
-                                daysOverdue: diffDays,
-                                people: assigned?.text ? assigned.text.split(/, | & | and /).map(p => p.trim()) : ['Unassigned'],
-                                peopleColumnId: assigned?.id || '',
-                                csManagers: masterData.csm,
-                                masterStatus: masterData.status,
-                                masterCsmStatus: masterData.csmStatus,
-                                masterTimeline: masterData.timeline,
-                                masterName: masterData.masterName,
-                                masterTechSummary: masterData.techSummary || '',
-                                csmCampaignStatus: csmStatusCol?.label || '',
-                                status: status,
-                                statusColumnId: st?.id || '',
-                                itemStatus: st?.label || ''
-                            };
-                        }));
-                        state.stats.boardsAudited++; state.stats.totalItems += bItems.length;
+                        const { allCount, qualified } = await fetchQualifiedItemsFromBoard(b);
+                        state.auditedItems = state.auditedItems.concat(qualified.map(i => mapItemFromBoard(i, b)));
+                        state.stats.boardsAudited++;
+                        state.stats.totalItems += allCount;
                     } catch (e) {
                         console.error(e);
-                        state.stats.boardsAudited++; // Still count as 'audited' (even if failed) for the counter
+                        state.stats.boardsAudited++;
                     }
                     updateUI(Math.round((++finished / total) * 100));
                 }
             }
             await Promise.all(Array(20).fill(0).map(work));
 
-            toastCount = 0; // Unlock toast
+            toastCount = 0;
             hideToast();
             setTimeout(() => {
                 document.getElementById('toast-progress-container').style.display = 'none';
                 document.getElementById('progress-text').style.display = 'none';
-            }, 3000); // Hide progress bar after 3 seconds
+            }, 3000);
+        }
+
+        async function refreshVisibleItems() {
+            const visibleBoardIds = new Set(getFilteredItems().map(i => i.bId));
+            if (!visibleBoardIds.size) { showToast('No items in view to refresh.'); return; }
+
+            const queue = [];
+            state.selectedFolderIds.forEach(fid => {
+                const f = state.folders.find(x => x.id === fid);
+                f.boards.forEach(b => {
+                    if (!b.name.toLowerCase().includes('template') && visibleBoardIds.has(b.id) && !queue.find(q => q.id === b.id))
+                        queue.push({ ...b, folderName: f.name });
+                });
+            });
+            if (!queue.length) { showToast('Could not locate boards for visible items.'); return; }
+
+            showToast(`Refreshing ${queue.length} board${queue.length > 1 ? 's' : ''}...`);
+            document.getElementById('toast-progress-container').style.display = 'block';
+            document.getElementById('progress-text').style.display = 'block';
+            toastCount = 999;
+
+            // Drop items from those boards, keep everything else
+            state.auditedItems = state.auditedItems.filter(i => !visibleBoardIds.has(i.bId));
+
+            let finished = 0, total = queue.length;
+            async function work() {
+                while (queue.length > 0) {
+                    const b = queue.shift();
+                    try {
+                        showToast(`Re-scanning: ${b.name}`);
+                        const { qualified } = await fetchQualifiedItemsFromBoard(b);
+                        state.auditedItems = state.auditedItems.concat(qualified.map(i => mapItemFromBoard(i, b)));
+                    } catch (e) { console.error(e); }
+                    document.getElementById('progress-fill').style.width = Math.round((++finished / total) * 100) + '%';
+                    document.getElementById('progress-text').innerText = `Refreshing... ${finished}/${total} boards`;
+                }
+            }
+            await Promise.all(Array(20).fill(0).map(work));
+
+            toastCount = 0;
+            hideToast();
+            setTimeout(() => {
+                document.getElementById('toast-progress-container').style.display = 'none';
+                document.getElementById('progress-text').style.display = 'none';
+            }, 3000);
+            updateFilteredUI();
+            showToast(`Quick refresh complete — ${queue.length} board${queue.length > 1 ? 's' : ''} updated.`);
         }
 
         function updateUI(pct) {
