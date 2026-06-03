@@ -3209,7 +3209,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1665</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1666</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -9244,9 +9244,12 @@ CRITICAL CONTACT RULE:
             input.style.height = 'auto';
             showTyping(true, text);
 
-            // Build history from message list (last 6 turns; truncate long bot messages)
+            // Build history from message list (last 6 turns)
+            // Truncate EVERY message (both roles) and enforce a total budget so a single
+            // huge turn (e.g. an inlined site crawl) can never blow the 200k token limit.
             const history = [];
-            const MAX_BOT_CHARS  = 2000; // ~500 tokens — prevents long reports ballooning context
+            const MAX_MSG_CHARS   = 4000;   // per-message cap (~1k tokens) — applies to user AND assistant
+            const MAX_TOTAL_CHARS = 80000;  // total history budget (~20k tokens), excluding current message
             const messageNodes = Array.from(document.querySelectorAll('.message')).slice(-6);
             messageNodes.forEach(m => {
                 if (m.id === 'welcomeMessage') return;
@@ -9260,9 +9263,9 @@ CRITICAL CONTACT RULE:
                 let content = clone.innerText.trim();
                 if (!content) return;
 
-                // Truncate very long assistant messages to avoid token overflow
-                if (role === 'assistant' && content.length > MAX_BOT_CHARS) {
-                    content = content.slice(0, MAX_BOT_CHARS) + '\n…[response truncated in history — full answer was shown above]';
+                // Truncate ANY long message to avoid token overflow
+                if (content.length > MAX_MSG_CHARS) {
+                    content = content.slice(0, MAX_MSG_CHARS) + '\n…[truncated in history — full message shown above]';
                 }
 
                 if (history.length > 0 && history[history.length - 1].role === role) {
@@ -9271,6 +9274,12 @@ CRITICAL CONTACT RULE:
                     history.push({ role, content });
                 }
             });
+
+            // Enforce total budget: drop oldest messages until under MAX_TOTAL_CHARS
+            const _histSize = () => history.reduce((n, h) => n + (typeof h.content === 'string' ? h.content.length : 0), 0);
+            while (history.length > 1 && _histSize() > MAX_TOTAL_CHARS) {
+                history.shift();
+            }
 
             // Ensure history starts with 'user' (Anthropic requirement)
             while (history.length > 0 && history[0].role !== 'user') {
@@ -9619,8 +9628,13 @@ CRITICAL CONTACT RULE:
                     });
                 } else if (activeAttachment) {
                     // For non-images, we extract text and append it to the message
-                    const fileContent = await extractText(activeAttachment);
+                    let fileContent = await extractText(activeAttachment);
                     if (fileContent) {
+                        // Cap inlined document text at ~40k chars (~10k tokens) to avoid overflow
+                        const MAX_FILE_CHARS = 40000;
+                        if (fileContent.length > MAX_FILE_CHARS) {
+                            fileContent = fileContent.slice(0, MAX_FILE_CHARS) + '\n…[document truncated — too long to include in full]';
+                        }
                         currentContent[0].text += `\n\n--- CONTENT OF ${activeAttachment.name} ---\n${fileContent}\n--- END OF ${activeAttachment.name} ---`;
                     } else {
                         currentContent[0].text += `\n\n[User attached file: ${activeAttachment.name}]`;
