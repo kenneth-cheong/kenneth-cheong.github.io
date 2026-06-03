@@ -15,7 +15,7 @@ def strip_html(content):
 
 def lambda_handler(event, context):
     try:
-        api_key = os.environ.get('OPENAI_API_KEY')
+        api_key = os.environ.get('ANTHROPIC_API_KEY')
         if not api_key:
             return {'statusCode': 500, 'body': json.dumps({'error': 'API key not configured'})}
 
@@ -113,32 +113,28 @@ FOCUS KEYWORD: {keyword}
 Based on the content above, generate the required strict JSON output for the Deep Compare Analysis.
 """
 
-        print("Sending request to OpenAI with concurrent scrape payload...")
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        
+        print("Sending request to Anthropic with concurrent scrape payload...")
         response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            },
             json={
-                "model": "gpt-4o-mini",
-                "messages": [
-                    {"role": "system", "content": system_msg},
-                    {"role": "user", "content": user_msg}
-                ],
-                "response_format": {"type": "json_object"},
-                "temperature": 0.2
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 4096,
+                "system": system_msg + "\n\nReturn ONLY valid JSON, no markdown or commentary.",
+                "messages": [{"role": "user", "content": user_msg}]
             },
             timeout=45
         )
 
         resp_json = response.json()
         if response.status_code != 200:
-            raise Exception(f"OpenAI API Error: {resp_json}")
+            raise Exception(f"Anthropic API Error: {resp_json}")
 
-        result_text = resp_json['choices'][0]['message']['content']
+        result_text = resp_json['content'][0]['text']
         result_data = json.loads(result_text)
 
         return {

@@ -12,26 +12,15 @@ def lambda_handler(event, context):
         primary_keyword = event.get('primary_keyword', '')
         secondary_keywords = event.get('secondary_keywords', '')
         
-        api_key = os.environ.get('OPENAI_API_KEY')
+        api_key = os.environ.get('ANTHROPIC_API_KEY')
 
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-
-        # Determine the image source for the prompt
-        image_source = image_url if image_url else f"data:image/jpeg;base64,{image_data}" if image_data else None
-        
-        if not image_source:
-             return {
+        if not image_url and not image_data:
+            return {
                 'statusCode': 400,
                 'headers': {'Access-Control-Allow-Origin': '*'},
                 'body': json.dumps({'error': 'No image source provided (URL or base64)'})
             }
 
-        # Build the system and user messages
-        system_msg = "You are an expert in accessibility, SEO, and visual content analysis."
-        
         prompt_text = (
             f"Analyze the provided image and generate a concise, descriptive alt-text (max 125 chars).\n"
             f"Context: The image is placed {image_placement} in a document about: {page_context}.\n"
@@ -45,45 +34,38 @@ def lambda_handler(event, context):
             f"5. Provide ONLY the final alt-text string."
         )
 
-        # Vision API request structure
-        payload = {
-            "model": "gpt-4o-mini",
-            "messages": [
-                {"role": "system", "content": system_msg},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt_text},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": image_source
-                            }
-                        }
-                    ]
-                }
-            ],
-            "max_tokens": 100,
-            "temperature": 0.5
-        }
+        # Build image block in Claude's format
+        if image_url:
+            image_block = {"type": "image", "source": {"type": "url", "url": image_url}}
+        else:
+            image_block = {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_data}}
 
         response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
-            json=payload,
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            },
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 150,
+                "system": "You are an expert in accessibility, SEO, and visual content analysis.",
+                "messages": [{"role": "user", "content": [image_block, {"type": "text", "text": prompt_text}]}]
+            },
             timeout=30
         )
 
         resp_json = response.json()
-        
+
         if 'error' in resp_json:
             return {
                 'statusCode': response.status_code,
                 'headers': {'Access-Control-Allow-Origin': '*'},
-                'body': json.dumps({'error': resp_json['error'].get('message', 'OpenAI API error')})
+                'body': json.dumps({'error': resp_json['error'].get('message', 'Anthropic API error')})
             }
 
-        alt_text = resp_json['choices'][0]['message']['content'].strip()
+        alt_text = resp_json['content'][0]['text'].strip()
         # Clean up any quotes if the model provided them
         alt_text = alt_text.replace('"', '').replace("'", "")
 

@@ -380,17 +380,12 @@ def lambda_handler(event, context):
         )
 
         # ── API key ────────────────────────────────────────────────────────
-        api_key = os.environ.get('OPENAI_API_KEY')
+        api_key = os.environ.get('ANTHROPIC_API_KEY')
         if not api_key:
             return {
                 'statusCode': 500,
                 'body': json.dumps({'error': 'API key not configured'})
             }
-
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
 
         # ── Build message layers ───────────────────────────────────────────
         linking_guidelines = build_linking_guidelines(settings, action)
@@ -416,57 +411,41 @@ def lambda_handler(event, context):
         # ── Compose message array ──────────────────────────────────────────
         # Translate gets a lightweight override — no quality framework needed
         if action == "translate":
-            messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a professional translator. "
-                        "Translate content accurately while preserving "
-                        "all structural elements (Markdown headers, lists, "
-                        "tables, HTML tags). Do not add commentary."
-                    )
-                },
-                {"role": "user", "content": user_msg}
-            ]
+            system_str = (
+                "You are a professional translator. "
+                "Translate content accurately while preserving "
+                "all structural elements (Markdown headers, lists, "
+                "tables, HTML tags). Do not add commentary."
+            )
         else:
-            messages = [
-                # Layer 1: Static constitution — identity + universal standards
-                {
-                    "role": "system",
-                    "content": SYSTEM_MSG_CONSTITUTION
-                },
-                # Layer 2: Dynamic brief — content type, keywords, audience, tone
-                {
-                    "role": "system",
-                    "content": dynamic_system_msg
-                },
-                # Layer 3: The actual task
-                {
-                    "role": "user",
-                    "content": user_msg
-                }
-            ]
+            # Merge constitution + dynamic brief into a single system string
+            system_str = SYSTEM_MSG_CONSTITUTION + "\n\n" + dynamic_system_msg
 
-        # ── Call OpenAI ────────────────────────────────────────────────────
-        print(f"Sending request to OpenAI — action: {action}, "
+        # ── Call Anthropic ─────────────────────────────────────────────────
+        print(f"Sending request to Anthropic — action: {action}, "
               f"content_type: {content_type}, "
               f"target_reader: {target_reader}")
 
         response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=headers,
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            },
             json={
-                "model": "gpt-4o-mini",
-                "messages": messages,
-                "temperature": 0.3 if action == "translate" else 0.7
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 8096,
+                "system": system_str,
+                "messages": [{"role": "user", "content": user_msg}]
             },
             timeout=90
         )
 
         resp_json   = response.json()
         result_text = (
-            resp_json['choices'][0]['message']['content']
-            if 'choices' in resp_json else ""
+            resp_json['content'][0]['text']
+            if 'content' in resp_json else ""
         )
 
         # ── Post-processing for targeted fragment generation ───────────────

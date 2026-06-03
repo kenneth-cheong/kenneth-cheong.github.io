@@ -39,38 +39,27 @@ def lambda_handler(event, context):
         f"CRITICAL: For every metric in Table 2 and Table 3 that requires a count, you MUST use the format 'N out of {total_pages}' where '{total_pages}' is exactly the value provided above. Do NOT use 0 unless there are truly 0 issues. If you see data in the 'Website Crawl Data', use it to calculate N."
     )
 
-    # 3. Call OpenAI Responses API
-    gpt_key = os.environ.get('GPT_KEY')
-    url = "https://api.openai.com/v1/responses"
-    headers = {
-        "Authorization": 'Bearer ' + gpt_key,
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "model": "gpt-4o-mini",
-        "instructions": instructions,
-        "input": [
-            {
-                "role": "system",
-                "content": instructions
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
-    }
-    
+    # 3. Call Anthropic Messages API
+    api_key = os.environ.get('ANTHROPIC_API_KEY')
+
     try:
-        response = requests.post(url, headers=headers, json=payload)
+        response = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            },
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 4096,
+                "system": instructions,
+                "messages": [{"role": "user", "content": prompt}]
+            }
+        )
         response.raise_for_status()
         response_data = response.json()
-        
-        # Extract the content from the 'responses' endpoint structure
-        # output is a list, usually the last item is the assistant response
-        output_content = response_data['output'][-1]['content'][0]
-        html_output = output_content.get('text', '')
+        html_output = response_data['content'][0]['text']
         
         # Clean up any potential markdown headers if they slipped through
         html_output = html_output.replace('```html', '').replace('```', '')
@@ -85,7 +74,7 @@ def lambda_handler(event, context):
         }
 
     except Exception as e:
-        print(f"Error calling OpenAI API: {e}")
+        print(f"Error calling Anthropic API: {e}")
         return {
             'statusCode': 500,
             'headers': {

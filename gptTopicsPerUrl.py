@@ -12,8 +12,7 @@ def lambda_handler(event, context):
     if 'https://' not in target and 'http://' not in target:
         target = 'https://'+target
     keyword = event['keyword']
-    gpt_key = os.environ['GPT_KEY']
-    gpt_url = "https://api.openai.com/v1/chat/completions"
+    api_key = os.environ['ANTHROPIC_API_KEY']
     output = {}
 
     try:
@@ -121,15 +120,20 @@ def lambda_handler(event, context):
             *   How effective are the CTAs likely to be based on their visibility, clarity, and relevance to the page content?
             *   What improvements could be made to the CTAs to increase their effectiveness? Output the results in a python dictionary only, in lowercase in the format {page_type: page_type, topics:{topic 1: no. of words, topic 2: no. of words}}."""+ "The targeted keyword is "+keyword+".  Here is the page text:"+ json.dumps(output)
        
-        querystring = {"model":"gpt-4o-mini",
-        "messages":[{"role": "user", "content": prompt}]}
-        headers = {
-            "Content-Type": "application/json",
-            'Authorization': gpt_key
+        response = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            },
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 1024,
+                "messages": [{"role": "user", "content": prompt}]
             }
-        
-        response = requests.post(gpt_url, headers=headers, json=querystring)
-        gpt_output = json.loads(response.json()['choices'][0]['message']['content'].replace("```python","").replace("```","").replace("\n","").replace("_"," ").replace("'",'"').replace("json",""))
+        )
+        gpt_output = json.loads(response.json()['content'][0]['text'].replace("```python","").replace("```","").replace("\n","").replace("_"," ").replace("'",'"').replace("json",""))
         output[target]['topics'] = gpt_output['topics']
         output[target]['page_type'] = gpt_output['page type']
         return({'statusCode': 200,"body":output})

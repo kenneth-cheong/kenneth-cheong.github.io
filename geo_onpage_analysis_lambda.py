@@ -30,9 +30,9 @@ def lambda_handler(event, context):
         text_chunks = extract_text_chunks(page_data['html'])
 
         # 2. Prepare AI Analysis
-        openai_key = os.environ.get('OPENAI_API_KEY')
+        openai_key = os.environ.get('ANTHROPIC_API_KEY')
         if not openai_key:
-            return error_response("OpenAI API key not configured")
+            return error_response("Anthropic API key not configured")
 
         analysis_prompt = f"""
 Perform a comprehensive GEO (Generative Engine Optimisation) On-Page Analysis for the following landing page.
@@ -137,24 +137,22 @@ Output your analysis in strictly JSON format:
 """
 
         response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
+            "https://api.anthropic.com/v1/messages",
             headers={
-                "Authorization": f"Bearer {openai_key}",
-                "Content-Type": "application/json"
+                "x-api-key": openai_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
             },
             json={
-                "model": "gpt-4o-mini",
-                "messages": [
-                    {"role": "system", "content": "You are a specialized GEO (Generative Engine Optimisation) analyst. You help websites rank in AI-generated search results through semantic, entity, and structural optimization. Return ONLY valid JSON."},
-                    {"role": "user", "content": analysis_prompt}
-                ],
-                "response_format": { "type": "json_object" },
-                "temperature": 0.4
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 4096,
+                "system": "You are a specialized GEO (Generative Engine Optimisation) analyst. You help websites rank in AI-generated search results through semantic, entity, and structural optimization. Return ONLY valid JSON.",
+                "messages": [{"role": "user", "content": analysis_prompt}]
             }
         )
         response.raise_for_status()
         result = response.json()
-        analysis_data = json.loads(result['choices'][0]['message']['content'])
+        analysis_data = json.loads(result['content'][0]['text'])
 
         # Verify internal linking URLs
         if 'internal_linking' in analysis_data and 'linking_table' in analysis_data['internal_linking']:
