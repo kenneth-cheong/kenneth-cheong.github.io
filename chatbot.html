@@ -3209,7 +3209,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1660</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1661</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -9455,7 +9455,7 @@ CRITICAL CONTACT RULE:
             - If multiple campaigns are loaded, fetch all of them and combine the results.
 
             LEARNED MEMORIES (Context):
-            ${(() => { const ut = localStorage.getItem('userTeam') || ''; const relevant = learnedInsights.filter(i => { const teams = i.teams || (i.team ? [i.team] : ['Everyone']); return !ut || ut === 'Everyone' || teams.includes('Everyone') || teams.includes(ut); }); return JSON.stringify(relevant.map(i => { const teams = i.teams || (i.team ? [i.team] : ['Everyone']); return `[${i.tag}][Teams: ${teams.join('+')}] ${i.text}`; })); })()}
+            ${(() => { const ut = localStorage.getItem('userTeam') || ''; const relevant = learnedInsights.filter(i => { const teams = i.teams || (i.team ? [i.team] : ['Everyone']); return !ut || ut === 'Everyone' || teams.includes('Everyone') || teams.includes(ut); }); const MAX_INSIGHT_CHARS = 400; return JSON.stringify(relevant.slice(0, 30).map(i => { const teams = i.teams || (i.team ? [i.team] : ['Everyone']); const txt = i.text.length > MAX_INSIGHT_CHARS ? i.text.slice(0, MAX_INSIGHT_CHARS) + '…' : i.text; return `[${i.tag}][Teams: ${teams.join('+')}] ${txt}`; })); })()}
             ${localStorage.getItem('userTeam') && localStorage.getItem('userTeam') !== 'Everyone' ? `USER'S TEAM: ${localStorage.getItem('userTeam')} — Only apply team-specific memories relevant to this team.` : ''}
 
             CURRENT CONTEXT:
@@ -9595,6 +9595,13 @@ CRITICAL CONTACT RULE:
                 }
 
                 system += `\n\nSYNCED CONTEXT:\n${contextStr}`;
+            }
+
+            // Hard ceiling: ~120k chars ≈ 30k tokens — keeps total prompt safely under 200k
+            const SYSTEM_CHAR_LIMIT = 120000;
+            if (system.length > SYSTEM_CHAR_LIMIT) {
+                console.warn(`[CLAUDE] System prompt too large (${system.length} chars) — truncating to ${SYSTEM_CHAR_LIMIT}`);
+                system = system.substring(0, SYSTEM_CHAR_LIMIT) + '\n...[context truncated to fit token limits]';
             }
 
             try {
