@@ -2001,13 +2001,13 @@
                         <div class="person-filter-wrapper">
                             <input type="text" id="filter-csm-status-input" class="filter-input"
                                 style="width: 100%; padding: 6px 10px; font-size: 12px;"
-                                placeholder="Filter by CSM status..." onfocus="toggleCsmStatusDropdown(true)"
+                                placeholder="5 statuses hidden" onfocus="toggleCsmStatusDropdown(true)"
                                 oninput="renderCsmStatusOptions()">
                             <div id="csm-status-dropdown" class="person-dropdown">
                                 <div id="csm-status-list" class="person-list"></div>
                                 <div class="person-controls">
-                                    <span class="person-btn" onclick="selectAllCsmStatuses()">Select All</span>
-                                    <span class="person-btn" onclick="clearCsmStatuses()">Clear</span>
+                                    <span class="person-btn" onclick="selectAllCsmStatuses()">Show All</span>
+                                    <span class="person-btn" onclick="clearCsmStatuses()">Reset</span>
                                     <span class="person-btn" style="margin-left:auto; color:var(--muted)"
                                         onclick="toggleCsmStatusDropdown(false)">Close</span>
                                 </div>
@@ -2193,7 +2193,7 @@
             allStatusLabels: [],
             sort: { key: 'deadline', dir: 'asc' },
             campaignSort: 'name_asc',
-            filters: { text: '', people: new Set(), csManagers: new Set(), status: 'all', csmStatuses: new Set() },
+            filters: { text: '', people: new Set(), csManagers: new Set(), status: 'all', hiddenCsmStatuses: new Set(['Abandoned', 'Completed', 'Expired', 'Terminated', '[PSG]  Expired']) },
             selectedItemIds: new Set(),
             excludedStatusLabels: new Set([
                 'Archive', 'Done', 'Not Needed', 'Not Needed (AI)',
@@ -3683,7 +3683,7 @@
                 if (state.excludedStatusLabels.has(i.itemStatus)) return false;
                 if (state.filters.status !== 'all' && i.status !== state.filters.status) return false;
                 if (state.filters.csManagers.size > 0 && !i.csManagers.some(p => state.filters.csManagers.has(p))) return false;
-                if (state.filters.csmStatuses.size > 0 && !state.filters.csmStatuses.has(i.masterCsmStatus || '')) return false;
+                if (state.filters.hiddenCsmStatuses.has(i.masterCsmStatus || '')) return false;
                 return i.name.toLowerCase().includes(queryText) || i.bName.toLowerCase().includes(queryText);
             });
         }
@@ -4372,36 +4372,39 @@
             const all = [...new Set(state.auditedItems.map(i => i.masterCsmStatus).filter(s => s && s !== '-' && s !== '...'))].sort();
             const shown = all.filter(s => !query || s.toLowerCase().includes(query));
             document.getElementById('csm-status-list').innerHTML = shown.map(s => `
-                <div class="person-item ${state.filters.csmStatuses.has(s) ? 'selected' : ''}"
+                <div class="person-item ${!state.filters.hiddenCsmStatuses.has(s) ? 'selected' : ''}"
                      onclick="toggleCsmStatusFilter('${s.replace(/'/g, "\\'")}')">
-                    <input type="checkbox" ${state.filters.csmStatuses.has(s) ? 'checked' : ''} style="pointer-events: none;">
+                    <input type="checkbox" ${!state.filters.hiddenCsmStatuses.has(s) ? 'checked' : ''} style="pointer-events: none;">
                     <span>${s}</span>
                 </div>`).join('') || '<div style="padding:8px;color:var(--muted);font-size:12px;">No statuses found</div>';
         }
 
+        function syncCsmStatusPlaceholder() {
+            const n = state.filters.hiddenCsmStatuses.size;
+            document.getElementById('filter-csm-status-input').placeholder =
+                n > 0 ? `${n} status${n > 1 ? 'es' : ''} hidden` : 'Filter by CSM status...';
+        }
+
         function toggleCsmStatusFilter(status) {
-            if (state.filters.csmStatuses.has(status)) state.filters.csmStatuses.delete(status);
-            else state.filters.csmStatuses.add(status);
+            if (state.filters.hiddenCsmStatuses.has(status)) state.filters.hiddenCsmStatuses.delete(status);
+            else state.filters.hiddenCsmStatuses.add(status);
             renderCsmStatusOptions();
             updateFilteredUI();
-            const input = document.getElementById('filter-csm-status-input');
-            input.placeholder = state.filters.csmStatuses.size > 0
-                ? `${state.filters.csmStatuses.size} status${state.filters.csmStatuses.size > 1 ? 'es' : ''} selected`
-                : 'Filter by CSM status...';
+            syncCsmStatusPlaceholder();
         }
 
         function clearCsmStatuses() {
-            state.filters.csmStatuses.clear();
+            state.filters.hiddenCsmStatuses = new Set(['Abandoned', 'Completed', 'Expired', 'Terminated', '[PSG]  Expired']);
             toggleCsmStatusDropdown(false);
             updateFilteredUI();
-            document.getElementById('filter-csm-status-input').placeholder = 'Filter by CSM status...';
+            syncCsmStatusPlaceholder();
         }
 
         function selectAllCsmStatuses() {
-            const all = [...new Set(state.auditedItems.map(i => i.masterCsmStatus).filter(s => s && s !== '-' && s !== '...'))];
-            all.forEach(s => state.filters.csmStatuses.add(s));
+            state.filters.hiddenCsmStatuses.clear();
             renderCsmStatusOptions();
             updateFilteredUI();
+            syncCsmStatusPlaceholder();
         }
 
         async function fetchColumnSettings(boardId) {
