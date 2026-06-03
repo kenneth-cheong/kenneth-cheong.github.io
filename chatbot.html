@@ -3209,7 +3209,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1673</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1675</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3740,6 +3740,23 @@
                             <div class="multi-select-options" id="workduoOptionsList">
                                 <div style="padding:10px; font-size:0.7rem; color:#94a3b8; text-align:center;">Open to load projects</div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ahrefs -->
+            <div class="collapsible-section" id="ahrefsSection">
+                <div class="collapsible-header" onclick="this.closest('.collapsible-section').classList.toggle('active')">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-navy);"><i class="fas fa-link" style="margin-right: 8px; opacity: 0.5;"></i> Ahrefs</span>
+                    <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
+                </div>
+                <div class="collapsible-content">
+                    <div style="display:flex; align-items:center; gap:8px; background:#fff7ed; border:1px solid #fed7aa; border-radius:10px; padding:10px 12px;">
+                        <i class="fas fa-circle-check" style="color:#FF7700; font-size:0.85rem;"></i>
+                        <div>
+                            <div style="font-size:0.75rem; font-weight:700; color:#c2410c;">Always Connected</div>
+                            <div style="font-size:0.65rem; color:#ea580c; margin-top:1px;">Server-side API key configured. Ask Claude about backlinks, DR, organic traffic, keywords, or competitors for any domain.</div>
                         </div>
                     </div>
                 </div>
@@ -4933,6 +4950,7 @@
             tiktok:     { label: 'TikTok Ads',              icon: 'fab fa-tiktok',      color: '#000000', section: 'tiktokSection' },
             seranking:  { label: 'SE Ranking',              icon: 'fas fa-chart-line',  color: '#6366F1', section: 'serankingSection' },
             workduo:    { label: 'WorkDuo AI Visibility',   icon: 'fas fa-robot',       color: '#7c3aed', section: 'workduoSection' },
+            ahrefs:     { label: 'Ahrefs',                  icon: 'fas fa-link',         color: '#FF7700', section: 'ahrefsSection' },
         };
 
         function buildConnectorCard(connector) {
@@ -9341,6 +9359,7 @@ CRITICAL CONTACT RULE:
             20. dataforseo_domain_rank_overview: Fetch a domain's estimated organic traffic, number of ranking keywords, and authority score. Use for domain analysis requests.
             21. dataforseo_ranked_keywords: Fetch keywords a domain currently ranks for in Google, with positions and search volume. Use whenever asked what a domain ranks for or its organic keyword footprint.
             22. get_workduo_report: Fetch AI visibility data from WorkDuo — how visible a brand/client is in AI-generated answers across topics. ALWAYS use this when the user asks about AI visibility, AI search presence, LLM visibility, or WorkDuo.
+            23. get_ahrefs_report: Fetch live Ahrefs data for any domain. ALWAYS use this when the user asks about backlinks, domain rating (DR), referring domains, organic traffic, organic keywords, or competitor analysis. Actions: overview (DR + traffic snapshot), keywords (top organic rankings), backlinks (top links by DR), competitors (competing domains).
             STEP 1: Call action='list_projects' to find the matching project. Each project has an 'entity' (the client/primary brand) and 'projectEntities' (the client + competitors with trackingType 'PRIMARY' or 'COMPETITOR').
             STEP 2a — For DAILY LINE CHARTS (competitor comparison over time): Call action='get_visibility' with metric='all' for the PRIMARY entity first, then call again for EACH competitor entity. Each call returns daily rows with fields: date (ISO string), visibility (0–1 decimal — multiply × 100 for %), sov, mentions, position. Align all entities on the same date axis.
             STEP 2b — For MONTHLY BAR CHARTS or SUMMARY metrics: Call action='get_visibility' with dimension='topic' or aggregate across the date rows.
@@ -9493,6 +9512,7 @@ CRITICAL CONTACT RULE:
             - TikTok Ads token: ${localStorage.getItem('tiktok_access_token') ? 'Connected' : 'Not connected'}
             - SE Ranking campaigns: ${(() => { try { return (window.allSERankingSites || []).length ? (window.allSERankingSites.map(s => s.name || s.id).join(', ')) : 'None configured'; } catch { return 'None configured'; } })()}
             - WorkDuo AI Visibility: Connected — ${(() => { const ids = JSON.parse(localStorage.getItem('selectedWorkDuoProjectIds') || '[]'); const projs = (window.allWorkDuoProjects || []).filter(p => ids.includes(String(p.id))); return projs.length ? `${projs.length} project(s) selected: ${projs.map(p => `${p.name} (id:${p.id}, entity:${p.entity?.id||'?'})`).join(', ')}` : 'no projects pre-selected (Claude will call list_projects first)'; })()}
+            - Ahrefs: Connected (server-side API key configured) — call get_ahrefs_report with a domain to get DR, backlinks, keywords, or competitors
 
             Always format results as Markdown tables.
 
