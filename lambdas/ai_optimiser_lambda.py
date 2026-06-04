@@ -350,10 +350,445 @@ def build_user_msg(action, content, prompt_override):
     return None
 
 
+# ── STRUCTURED ACTIONS ────────────────────────────────────────────────────────
+# Prompts for these actions are built server-side from structured data.
+# The frontend sends only dynamic parameters — never the raw prompt text.
+
+_STRUCTURED_ACTIONS = {
+    'news_classify', 'html_fragment', 'luxury_copy', 'serp_analysis',
+    'content_outline', 'content_section', 'content_polish', 'strategy_url_research'
+}
+
+
+def build_structured_prompt(action, body):
+    """Return (system_str, user_str) for a structured action, or (None, None) if unknown."""
+
+    if action == 'news_classify':
+        articles = body.get('articles', [])
+        date_str = body.get('date', '')
+        article_list = '\n'.join(
+            '[{i}] title: "{t}" | source: "{s}" | date: "{d}" | url: "{u}" | description: "{desc}"'.format(
+                i=idx + 1,
+                t=a.get('title', ''),
+                s=a.get('source', ''),
+                d=a.get('date', ''),
+                u=a.get('url', ''),
+                desc=(a.get('description') or '').replace('"', "'")
+            )
+            for idx, a in enumerate(articles)
+        )
+        system = (
+            "You are an SEO Expert classifying and prioritising real SEO news articles "
+            "for a digital marketing agency."
+        )
+        user = (
+            "The following articles were fetched live from trusted SEO publication RSS feeds. "
+            "Each has a REAL, VERIFIED URL from the feed — you MUST copy each URL EXACTLY as provided, "
+            "with NO modifications.\n\n"
+            f"ARTICLES TO CLASSIFY:\n{article_list}\n\n"
+            f"Today's date is {date_str}.\n\n"
+            "Your task: Select the 20–25 most important/relevant articles from the list above and classify each one.\n"
+            "RULES:\n"
+            "- DO NOT invent new articles — only use articles from the list above.\n"
+            "- DO NOT modify URLs — copy the \"url\" field verbatim for each article.\n"
+            "- Exclude generic SEO tips, clickbait, speculative rumours without corroboration.\n"
+            "- Prioritise: Google algorithm updates, SERP changes, AI Overview/SGE news, ranking volatility, technical SEO changes.\n"
+            "- Do NOT include low-quality articles that are merely opinion pieces without substance.\n"
+            "- Ensure date coverage across the full date range if possible.\n"
+            "- Return ONLY a JSON array (no markdown), each item having:\n"
+            '  - "id": original article index (1-based)\n'
+            '  - "title": verbatim from article\n'
+            '  - "source": verbatim from article\n'
+            '  - "date": verbatim from article\n'
+            '  - "url": verbatim from article — NEVER modify\n'
+            '  - "category": one of "Google Algorithm","SERP Changes","AI & Search","Technical SEO",'
+            '"Content & E-E-A-T","Link Building","Tools & Platforms","Industry News"\n'
+            '  - "subcategory": optional refined label\n'
+            '  - "summary": your 1-2 sentence summary based on title and description\n'
+            '  - "impact_score": integer 1-10\n'
+            '  - "confidence_score": integer 1-10 (10 = official Google confirmation, 1 = unverified rumour)\n'
+            '  - "immediate_risk": one of "Critical","High","Medium","Low","Monitor Only"\n'
+            '  - "affected_factors": array from: ["Content Quality & Relevance","Backlink Authority",'
+            '"Technical SEO","On-Page Optimisation","UX Signals","SERP / External Context"]\n'
+            '  - "affected_industries": array of most affected industries\n'
+            '  - "what_happened": 1-2 sentence factual description\n'
+            '  - "why_it_matters": 1-2 sentence explanation of agency impact\n'
+            '  - "what_to_monitor": specific metric or signal to watch\n'
+            '  - "recommended_actions": array of 1-3 concrete specific actions (NOT generic advice)\n'
+            '  - "urgency": one of "Immediate","High","Medium","Low"\n\n'
+            "Return ONLY a JSON array, no other text."
+        )
+        return system, user
+
+    elif action == 'html_fragment':
+        recommendation  = body.get('recommendation', '')
+        specific_hints  = body.get('specificHints', '')
+        persona_context = body.get('personaContext', '')
+        selected_topics = body.get('selectedTopics', '')
+        persona_block   = f"\nSTRICTLY ADHERE TO THESE TARGET PERSONAS:\n{persona_context}" if persona_context else ''
+        topics_block    = f"\nPRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n{selected_topics}" if selected_topics else ''
+        system = "You are an expert SEO content specialist generating targeted HTML fragments."
+        user = (
+            f'SEO RECOMMENDATION TO IMPLEMENT: "{recommendation}"{specific_hints}\n\n'
+            "TASK: Generate ONLY the new HTML fragment needed to fulfill this recommendation.\n"
+            f"{persona_block}{topics_block}\n\n"
+            "PLACEMENT INSTRUCTION: Also determine the ideal placement for this new content. "
+            "Prepend your response with a tag:\n"
+            "- [PLACEMENT: TOP] for titles/intros.\n"
+            "- [PLACEMENT: BOTTOM] for bios/FAQs.\n"
+            "- [PLACEMENT: AFTER_H2: (exact text of heading)] for middle-section expansions.\n\n"
+            "IMPORTANT: DO NOT return the original article headings or paragraphs. "
+            "Return ONLY the tag and the new HTML fragment."
+        )
+        return system, user
+
+    elif action == 'luxury_copy':
+        content_type_label = body.get('contentTypeLabel', 'caption')
+        f                  = body.get('fields', {})
+        sample_text        = body.get('sampleText', '')
+        brand_guide_text   = body.get('brandGuideText', '')
+        webpage_text       = body.get('webpageText', '')
+        creative_name      = body.get('creativeName', '')
+        creative_inst      = body.get('creativeInstruction', '')
+
+        def _line(label, val):
+            return f"- {label}: {val}\n" if val else ''
+
+        system = (
+            "You are a luxury brand editorial copywriter specializing in "
+            "high-end brand voice and aspirational content."
+        )
+        user = (
+            f"Generate a {content_type_label} based on the brief below.\n\n"
+            "STRATEGY\n"
+            f"{_line('Post Role', f.get('postRole'))}"
+            f"{_line('Strategy Context', f.get('strategyFit'))}"
+            f"{_line('Core Message', f.get('coreMessage'))}"
+            "AUDIENCE\n"
+            f"{_line('Brand Name', f.get('brandName'))}"
+            f"{_line('Target Sub-Groups', f.get('subgroups'))}"
+            f"{_line('Pain Points', f.get('painpoints'))}"
+            f"{_line('Audience Goals', f.get('audienceGoal'))}"
+            "CONTENT BRIEF\n"
+            f"{_line('Product / Service', f.get('productService'))}"
+            f"{_line('Core Topic', f.get('postInfo'))}"
+            f"{_line('Desired CTA', f.get('desiredAction'))}"
+            f"{_line('USP', f.get('usp'))}"
+            f"{_line('Constraints / Mandatories', f.get('constraints'))}"
+            "BRAND & FORMAT\n"
+            f"{_line('Brand POV', f.get('pov'))}"
+            f"{_line('Tone of Voice', f.get('tone'))}"
+            f"{_line('Language', f.get('language'))}"
+            f"{_line('Word Count', f.get('wordCount'))}"
+            f"{_line('Include Emojis', f.get('emojis'))}"
+            f"{_line('Include Hashtags', f.get('hashtags'))}"
+            f"{'SAMPLE REFERENCE (match this style and voice):\n' + sample_text + chr(10) if sample_text else ''}"
+            f"{'BRAND GUIDE CONTEXT:\n' + brand_guide_text + chr(10) if brand_guide_text else ''}"
+            f"{'REFERENCE CONTENT:\n' + webpage_text + chr(10) if webpage_text else ''}"
+            "WRITING RULES — apply every rule without exception:\n"
+            "1. NEVER open with the brand name or a phrase like \"At [Brand], we believe...\" — "
+            "lead instead with an atmospheric, sensory observation about the subject matter itself.\n"
+            "2. Structure as 2-3 short paragraphs. The final paragraph is a single soft call to action.\n"
+            "3. Weave the brand name in naturally mid-copy or in the closing line — never as the sentence opener.\n"
+            "4. Before writing, determine the brand's editorial tone from BRAND GUIDE CONTEXT or SAMPLE REFERENCE "
+            "if provided; otherwise infer from your knowledge of the brand. Never default to a generic style.\n"
+            "5. Speak to the reader's aspirations and lived experience — not to what the brand does.\n"
+            "6. Use varied sentence rhythm: mix short, punchy statements with slightly longer ones.\n"
+            "7. Identify the brand's signature vocabulary from provided context, or infer from brand knowledge. "
+            "Prioritise those words throughout.\n"
+            f"{'CREATIVE APPROACH FOR THIS VARIATION — ' + creative_name.upper() + ': ' + creative_inst + chr(10) if creative_name else ''}"
+            f"\nOutput ONLY the finished {content_type_label} — no meta-commentary, no explanations, no labels. "
+            "Ready to publish."
+        )
+        return system, user
+
+    elif action == 'serp_analysis':
+        serp_results  = body.get('serpResults', [])
+        target_domain = body.get('targetDomain', '')
+        keyword       = body.get('keyword', '')
+        all_keywords  = body.get('allKeywords', [keyword])
+        all_kw_label  = ', '.join(all_keywords)
+        multi         = len(all_keywords) > 1
+        kw_label      = (
+            f'keywords "{all_kw_label}" (SERP fetched for primary: "{keyword}")'
+            if multi else f'keyword "{keyword}"'
+        )
+        target_kw   = f'all of the target keywords ({all_kw_label})' if multi else f'"{keyword}"'
+        multi_block = (
+            f'\nALL TARGET KEYWORDS: {all_kw_label}\n'
+            'Optimise recommendations for ALL target keywords, not just the primary one.\n'
+        ) if multi else ''
+
+        system = (
+            "You are an expert SEO strategist specializing in SERP analysis and competitive intelligence."
+        )
+        user = (
+            f"Analyse the following top {len(serp_results)} Google SERP results for the {kw_label} "
+            "and provide a SERP competitor analysis with URL mapping recommendation.\n\n"
+            f"TARGET DOMAIN (our site): {target_domain}\n"
+            f"{multi_block}"
+            f"SERP RESULTS:\n{json.dumps(serp_results, indent=2)}\n\n"
+            "YOUR TASKS:\n"
+            '1. For each SERP result, classify its page_type as one of: "blog", "service", "product", '
+            '"homepage", "category", "other". Root domain URLs MUST be classified as "homepage".\n'
+            "2. Identify the competitor with the LOWEST domain authority (DA) ranking in the top 20.\n"
+            f'3. On the target domain "{target_domain}", determine the most relevant existing URL that could rank '
+            f"for {target_kw}. If none exists, suggest creating a new page.\n"
+            '4. If suggesting a new page, classify it as: "Blog Page", "Service Page", or "Product Page" '
+            "based on keyword intent.\n\n"
+            "Return ONLY valid JSON in this exact format:\n"
+            "{\n"
+            '  "serp_results": [\n'
+            '    { "rank": 1, "url": "...", "title": "...", "description": "...", "da": 0, '
+            '"page_type": "blog|service|product|homepage|category|other" }\n'
+            "  ],\n"
+            '  "recommendation": {\n'
+            '    "target_url": "<URL on target domain or suggested new URL path>",\n'
+            '    "existing_or_new": "Existing|New",\n'
+            '    "suggested_page_type": "Blog Page|Service Page|Product Page|N/A",\n'
+            '    "weakest_competitor": { "url": "...", "da": 0, "page_type": "..." },\n'
+            '    "rationale": "<explanation>",\n'
+            '    "suggested_improvements": "<SEO/content recommendations>"\n'
+            "  }\n"
+            "}"
+        )
+        return system, user
+
+    elif action == 'content_outline':
+        topic           = body.get('topic', '')
+        keyword         = body.get('keyword', '')
+        page_type       = body.get('pageTypeContext', 'Any')
+        persona_context = body.get('personaContext', '')
+        deep_compare    = body.get('deepCompareContext', '')
+        selected_topics = body.get('selectedTopics', '')
+        target_wc       = int(body.get('targetWordCount', 0) or 0)
+        locale          = body.get('locale', 'Global')
+        wc_block = (
+            f"⚠️ MANDATORY TARGET WORD COUNT: {target_wc} words. You MUST plan enough sections and depth "
+            f"to achieve this word count. Each section should average ~{round(target_wc / 8)} words. "
+            "If the target is high, add more H2 sections and deeper H3 sub-topics. This is a hard requirement.\n"
+        ) if target_wc > 0 else ''
+        persona_block = (
+            f"THE OUTLINE MUST BE SPECIFICALLY TAILORED TO THESE PERSONAS:\n{persona_context}\n"
+        ) if persona_context else ''
+
+        system = (
+            "You are an expert SEO content strategist specializing in structured article outlines "
+            "optimized for search and E-E-A-T signals."
+        )
+        user = (
+            "Generate a structured article outline (H1, H2, H3) for the following topic and keyword.\n"
+            f"TARGET PAGE TYPE: {page_type}\n"
+            f"{persona_block}"
+            f"{deep_compare}\n"
+            f"PRIORITIZE INCLUDING THESE CHERRY-PICKED TOPICS IDENTIFIED FROM COMPETITOR RESEARCH:\n{selected_topics}\n\n"
+            f'TOPIC: "{topic}"\n'
+            f'PRIMARY KEYWORD: "{keyword}"\n\n'
+            f"{wc_block}"
+            "INSTRUCTIONS:\n"
+            "1. Ensure the outline is unique and high-value.\n"
+            "2. Cover the cherry-picked topics comprehensively.\n"
+            "3. Account for EEAT principles.\n"
+            '4. Include a single consolidated "Frequently Asked Questions (FAQ)" as the LAST H2 section '
+            "with 4-6 relevant questions as H3 sub-items. Do NOT scatter FAQ-style content across other sections.\n"
+            "5. The Conclusion/Summary section MUST be the SECOND-TO-LAST H2, appearing right before the FAQ. "
+            "Do NOT place any conclusion/wrap-up content in the middle of the outline.\n"
+            "6. Output in a clear, editable text format.\n\n"
+            f'LOCALE: "{locale}"\n'
+            "Write content nuanced for this locale: use local spelling, terminology, cultural references, "
+            "and units of measurement."
+        )
+        return system, user
+
+    elif action == 'content_section':
+        topic               = body.get('topic', '')
+        primary_keyword     = body.get('primaryKeyword', '')
+        secondary_keywords  = body.get('secondaryKeywords', '')
+        page_type           = body.get('pageTypeContext', 'Any')
+        persona_instruction = body.get('personaInstruction', '')
+        compliance_instr    = body.get('complianceInstruction', '')
+        deep_compare        = body.get('deepCompareContext', '')
+        outline             = body.get('outline', '')
+        recent_content      = body.get('recentContent', '')
+        section_header      = body.get('sectionHeader', '')
+        section_context     = body.get('sectionContext', '')
+        ref_urls            = body.get('refUrls', '')
+        section_target      = int(body.get('sectionTarget', 0) or 0)
+        total_target        = int(body.get('totalTarget', 0) or 0)
+        section_index       = int(body.get('sectionIndex', 0) or 0)
+        total_sections      = int(body.get('totalSections', 1) or 1)
+        wc_block = (
+            f"⚠️ MANDATORY WORD COUNT REQUIREMENT: You MUST write AT LEAST {section_target} words for "
+            f"this section (section {section_index + 1} of {total_sections}). "
+            f"The total article target is {total_target} words. "
+            "This is a HARD MINIMUM — if your output is shorter, it will be rejected and you will be asked to rewrite. "
+            "Write comprehensive, in-depth content to meet this target. "
+            "Do NOT pad with filler — add genuine depth, examples, analysis, and detail.\n"
+        ) if section_target > 0 else ''
+
+        retry_text       = body.get('retryText', '')
+        retry_word_count = int(body.get('retryWordCount', 0) or 0)
+
+        system = (
+            "You are an expert SEO content writer creating high-quality, "
+            "E-E-A-T optimized article sections."
+        )
+        base_user = (
+            "Generate only the following section of a comprehensive, structured SEO article.\n"
+            f"TARGET PAGE TYPE: {page_type}\n"
+            f'TOPIC: "{topic}"\n'
+            f'PRIMARY KEYWORD: "{primary_keyword}"\n'
+            f'SECONDARY KEYWORDS: "{secondary_keywords}"\n'
+            f"{compliance_instr}{persona_instruction}\n"
+            f"{deep_compare}\n\n"
+            f"{wc_block}"
+            f"FULL APPROVED OUTLINE (FOR FLOW CONTEXT):\n{outline}\n\n"
+            "PREVIOUSLY WRITTEN CONTENT (DO NOT REPEAT, USE FOR TRANSITION):\n"
+            f"{recent_content or 'None (This is the start of the article)'}\n\n"
+            f"CURRENT SECTION TO WRITE:\n{section_header}\n{section_context}\n\n"
+            f"REFERENCE URLS (IF APPLICABLE):\n{ref_urls or 'None provided'}\n\n"
+            "CRITICAL CONTENT GUIDELINES (EEAT):\n"
+            "1. EXPERIENCE (E): Write with a first-person perspective or direct experience.\n"
+            "2. EXPERTISE (E): Provide deep, focused coverage of the intent.\n"
+            "3. AUTHORITATIVENESS (A): Reference credible sources (placeholders like [Source: Name])."
+        )
+        if retry_text:
+            user = (
+                f"Your previous output for this section was only {retry_word_count} words, "
+                f"which is below the required minimum of {section_target} words.\n\n"
+                "Please REWRITE and EXPAND this section to meet the word count target. "
+                "Add more depth, examples, analysis, case studies, and detail. "
+                "Do NOT simply pad — add genuinely useful content.\n\n"
+                f"Your previous output:\n{retry_text}\n\n---\n\nOriginal instructions:\n{base_user}"
+            )
+        else:
+            user = base_user
+        return system, user
+
+    elif action == 'content_polish':
+        full_content = body.get('fullContent', '')
+        system = (
+            "You are an expert editor specializing in harmonizing AI-generated SEO articles "
+            "into polished, cohesive content."
+        )
+        user = (
+            "Below is a raw, section-by-section generated SEO article. "
+            "It may contain redundant headers, repetitive introductions, or disjointed transitions "
+            "due to the partitioned generation process.\n\n"
+            "TASK:\n"
+            "1. Harmonise the tone across the entire article.\n"
+            '2. Remove redundant introductory phrases (e.g. "Definition and Importance" repeated across sections).\n'
+            "3. Ensure logical transitions between sections.\n"
+            "4. Keep all original information, but refine the formatting (Markdown H1, H2, H3) to be consistent and clean.\n"
+            '5. Fix any "frankenstein" characteristics where paragraphs feel disconnected.\n'
+            "6. Return ONLY the final polished Markdown article.\n\n"
+            f"RAW ARTICLE CONTENT:\n{full_content}"
+        )
+        return system, user
+
+    elif action == 'strategy_url_research':
+        input_val     = body.get('input', '')
+        is_url        = '.' in input_val or input_val.startswith('http')
+        canonical_url = (
+            (input_val if input_val.startswith('http') else 'https://' + input_val)
+            if is_url else None
+        )
+        system = (
+            "You are an expert SEO researcher analyzing companies and websites "
+            "to build accurate SEO profiles."
+        )
+        if canonical_url:
+            user = (
+                f"Go to {canonical_url} and read the page. Based ONLY on what you find at that exact URL, "
+                "fill in this SEO profile. Do not guess or substitute a different company.\n"
+                "Return ONLY a valid JSON object (no markdown, no explanation):\n"
+                "{\n"
+                '  "client_profile": "Exact industry and core offerings from the site",\n'
+                '  "target_audience": "Key customer personas based on site content",\n'
+                '  "market_context": "Main competitors and market trends for this specific business",\n'
+                '  "objectives": ["lead_generation","brand_authority","local_visibility",'
+                '"ecommerce_revenue","service_enquiries","niche_dominance"],\n'
+                '  "seed_keywords": "keyword1, keyword2, keyword3, keyword4, keyword5",\n'
+                '  "top_competitor_domains": ["domain1.com","domain2.com","domain3.com","domain4.com","domain5.com"],\n'
+                '  "seo_keywords": ["primary keyword 1","primary keyword 2","primary keyword 3"]\n'
+                "}"
+            )
+        else:
+            user = (
+                f'Research the company "{input_val}" and build an accurate SEO profile.\n'
+                "Return ONLY a valid JSON object (no markdown, no explanation):\n"
+                "{\n"
+                '  "client_profile": "Specific industry and core offerings",\n'
+                '  "target_audience": "Key customer personas",\n'
+                '  "market_context": "Main competitors and market trends",\n'
+                '  "objectives": ["lead_generation","brand_authority","local_visibility",'
+                '"ecommerce_revenue","service_enquiries","niche_dominance"],\n'
+                '  "seed_keywords": "keyword1, keyword2, keyword3, keyword4, keyword5",\n'
+                '  "top_competitor_domains": ["domain1.com","domain2.com","domain3.com","domain4.com","domain5.com"],\n'
+                '  "seo_keywords": ["primary keyword 1","primary keyword 2","primary keyword 3"],\n'
+                "  \"client_website\": \"the company's primary website domain e.g. example.com\"\n"
+                "}"
+            )
+        return system, user
+
+    return None, None
+
+
 def lambda_handler(event, context):
     try:
         # ── Input parsing ──────────────────────────────────────────────────
         action             = event.get('action', 'optimize')
+
+        # ── Structured actions: build prompt server-side ───────────────────
+        if action in _STRUCTURED_ACTIONS:
+            api_key = os.environ.get('ANTHROPIC_API_KEY')
+            if not api_key:
+                return {'statusCode': 500, 'body': json.dumps({'error': 'API key not configured'})}
+
+            system_str, user_str = build_structured_prompt(action, event)
+            if system_str is None:
+                return {
+                    'statusCode': 400,
+                    'body': json.dumps({'error': f"Unknown structured action: '{action}'"})
+                }
+
+            settings_s   = event.get('settings', {})
+            max_tokens_s = int(settings_s.get('maxTokens', event.get('max_tokens', 8096)))
+            request_body = {
+                'model':      'claude-haiku-4-5-20251001',
+                'max_tokens': max_tokens_s,
+                'system':     system_str,
+                'messages':   [{'role': 'user', 'content': user_str}]
+            }
+            temperature_s = settings_s.get('temperature')
+            if temperature_s is not None:
+                request_body['temperature'] = float(temperature_s)
+
+            resp = requests.post(
+                'https://api.anthropic.com/v1/messages',
+                headers={
+                    'x-api-key':           api_key,
+                    'anthropic-version':   '2023-06-01',
+                    'content-type':        'application/json'
+                },
+                json=request_body,
+                timeout=90
+            )
+            resp_json   = resp.json()
+            result_text = (
+                resp_json['content'][0]['text']
+                if 'content' in resp_json else ''
+            )
+            return {
+                'statusCode': 200,
+                'headers': {
+                    'Access-Control-Allow-Origin':  '*',
+                    'Access-Control-Allow-Headers': 'Content-Type',
+                    'Access-Control-Allow-Methods': 'OPTIONS,POST'
+                },
+                'body': json.dumps({'result': result_text})
+            }
+
         content            = event.get('content', '')
         prompt_override    = event.get('prompt', '')
         settings           = event.get('settings', {})

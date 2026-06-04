@@ -1309,6 +1309,223 @@ def claude_chat_with_tools(body):
         return {"statusCode": 500, "body": json.dumps({"error": str(e), "traceback": tb})}
 # ───────────────────────────────────────────────────────────────────────────
 
+# ── Prompt-building helpers (server-side prompts) ────────────────────────────
+
+def _call_claude_simple(system_text, user_text, model='claude-haiku-4-5', max_tokens=4096):
+    """Call Anthropic Messages API with a single user turn; return a Lambda result dict."""
+    anthropic_key = os.environ.get('ANTHROPIC_API_KEY')
+    if not anthropic_key:
+        return {'statusCode': 500, 'body': json.dumps({'error': 'ANTHROPIC_API_KEY not configured'})}
+    try:
+        r = requests.post(
+            'https://api.anthropic.com/v1/messages',
+            headers={
+                'x-api-key':          anthropic_key,
+                'anthropic-version':  '2023-06-01',
+                'content-type':       'application/json',
+            },
+            json={
+                'model':      model,
+                'max_tokens': max_tokens,
+                'system':     system_text,
+                'messages':   [{'role': 'user', 'content': user_text}]
+            },
+            timeout=60,
+        )
+        if r.status_code != 200:
+            return {'statusCode': r.status_code,
+                    'body': json.dumps({'error': f'Anthropic API error {r.status_code}',
+                                        'detail': r.text[:500]})}
+        text = r.json().get('content', [{}])[0].get('text', '')
+        return {'statusCode': 200, 'body': json.dumps({'result': text, 'reply': text})}
+    except requests.exceptions.Timeout:
+        return {'statusCode': 504, 'body': json.dumps({'error': 'Anthropic API request timed out'})}
+    except Exception as e:
+        return {'statusCode': 500, 'body': json.dumps({'error': str(e)})}
+
+
+def _build_geo_fetch_body(entities, start_date, end_date,
+                          is_comparison=False, cmp_from=None, cmp_to=None):
+    """Construct the claude_chat_with_tools body for a WorkDuo GEO visibility fetch."""
+    entity_list = [
+        f"- {e.get('name')} (entity_id: {e.get('entityId')}, project_id: {e.get('projectId')})"
+        for e in entities if e.get('entityId')
+    ]
+    if is_comparison:
+        system_text = (
+            f'You are fetching HISTORICAL comparison data from WorkDuo. '
+            f'For each entity, call get_visibility with metric="all", '
+            f'start_date="{cmp_from}", end_date="{cmp_to}". '
+            f'This is a prior-period request — the dates MUST be {cmp_from} to {cmp_to}. '
+            'Return ONLY a raw JSON array: '
+            '[{"entity_id":"...","name":"...","rows":[{"date":"YYYY-MM-DD","visibility":0.0,'
+            '"sov":0.0,"mentions":0,"position":0.0}],"note":null}]'
+        )
+        user_text = (
+            f'Fetch prior-period visibility from {cmp_from} to {cmp_to} '
+            f'using start_date="{cmp_from}" and end_date="{cmp_to}" in the tool call. '
+            'Return ONLY the JSON array:\n' + '\n'.join(entity_list)
+        )
+    else:
+        system_text = (
+            f'You are a data fetcher. For each WorkDuo entity call get_visibility with metric="all", '
+            f'start_date="{start_date}", end_date="{end_date}". '
+            'Return ONLY a raw JSON array — no markdown, no code fences, no explanation:\n'
+            '[{"entity_id":"...","name":"...","rows":[{"date":"YYYY-MM-DD","visibility":0.0,'
+            '"sov":0.0,"mentions":0,"position":0.0}],"note":null}]\n'
+            'If a project has no data set rows to [] and put the note in "note".'
+        )
+        user_text = (
+            f'Fetch WorkDuo visibility from {start_date} to {end_date} (metric="all") for each entity. '
+            'Return ONLY the JSON array:\n' + '\n'.join(entity_list)
+        )
+    return {
+        'model':      'claude-haiku-4-5',
+        'max_tokens': 8192,
+        'system':     [{'type': 'text', 'text': system_text}],
+        'messages':   [{'role': 'user', 'content': [{'type': 'text', 'text': user_text}]}]
+    }
+
+
+def _audit_recommendations(body):
+    site_url    = body.get('siteUrl', 'the website')
+    issues      = body.get('issues', [])
+    total_pages = int(body.get('totalPages', 0) or 0)
+    issue_list  = '\n'.join(
+        f"- {i.get('label', '')}: {i.get('affected', 0)} of {total_pages} pages affected"
+        for i in issues
+    )
+    system = 'You are a technical SEO expert providing actionable audit recommendations.'
+    user = (
+        f'A site audit of "{site_url}" ({total_pages} pages crawled) found the following issues:\n\n'
+        f'{issue_list}\n\n'
+        'Generate 5-7 prioritised, actionable recommendations to fix these issues. '
+        'Return ONLY a JSON array with no markdown, where each item has:\n'
+        '- priority: "high", "medium", or "low"\n'
+        '- title: short title (max 8 words)\n'
+        '- issue: one sentence describing the problem\n'
+        '- recommendation: 1-2 sentences of specific actionable advice\n'
+        '- impact: one sentence on the SEO/UX benefit of fixing this\n\n'
+        'JSON array only, no other text.'
+    )
+    return _call_claude_simple(system, user, max_tokens=2500)
+
+
+def _competitor_insights(body):
+    target_domain = body.get('targetDomain', '')
+    location      = body.get('location', '')
+    summary       = body.get('summary', '')
+    keywords      = body.get('keywords', '')
+    domain_part   = f' for target domain "{target_domain}"' if target_domain else ''
+    loc_part      = f' in {location}'                        if location      else ''
+    system = 'You are a senior SEO strategist providing strategic competitive analysis insights.'
+    user = (
+        f'A competitor analysis was run{domain_part}{loc_part}.\n\n'
+        f'Competitors found and their keyword rankings:\n{summary}\n\n'
+        f'Keywords analysed: {keywords or "see above"}\n\n'
+        'Generate 5-7 strategic insights and recommendations. '
+        'Return ONLY a JSON array where each item has:\n'
+        '- type: "insight" or "recommendation"\n'
+        '- title: short title (max 8 words)\n'
+        '- detail: 2-3 sentences of specific, actionable strategic advice\n'
+        '- priority: "high", "medium", or "low" (recommendations only — set "—" for insights)\n'
+        '- icon: one of "crosshairs", "chess", "chart-line", "lightbulb", "exclamation-triangle", "trophy", "key"\n\n'
+        'JSON array only, no other text.'
+    )
+    return _call_claude_simple(system, user, max_tokens=2800)
+
+
+def _strategy_auto_populate(body):
+    text   = (body.get('text') or '')[:100000]
+    system = 'You are an expert SEO strategist extracting structured business context from raw text.'
+    user   = (
+        'Analyze the following text and extract key business signals for an SEO strategy.\n'
+        'Return ONLY a valid JSON object with the following fields:\n'
+        '- client_profile: A concise description of the business.\n'
+        '- objectives: An array of objectives from these exact options: '
+        '["lead_generation", "brand_authority", "local_visibility", "ecommerce_revenue", '
+        '"service_enquiries", "niche_dominance"]. Pick at most 3.\n'
+        '- target_audience: Brief description of the target customer.\n'
+        '- market_context: Key competitors or market landscape info.\n'
+        '- seed_keywords: 3-5 primary keywords found in the text.\n\n'
+        f'TEXT:\n{text}'
+    )
+    return _call_claude_simple(system, user, max_tokens=2000)
+
+
+def _strategy_generate(body):
+    inputs        = body.get('inputs', {})
+    discovery     = body.get('discoveryData', [])
+    objectives_str = ', '.join(inputs.get('objectives', [])) or 'General Growth'
+    system = 'You are the Digimetrics Strategy Engine, a senior SEO strategist.'
+    user = (
+        'Analyse the client context below and devise 3 to 5 distinct keyword-led SEO strategies '
+        'that are genuinely tailored to this specific business, market, and set of objectives. '
+        'Do NOT use generic template strategy names — invent strategy angles that make sense for this client.\n\n'
+        f'CLIENT PROFILE: {inputs.get("clientProfile", "")}\n'
+        f'BUSINESS OBJECTIVES: {objectives_str}\n'
+        f'TARGET AUDIENCE: {inputs.get("targetAudience", "General")}\n'
+        f'MARKET CONTEXT: {inputs.get("marketContext", "Standard Industry")}\n'
+        f'KEYWORD INFLUENCERS (constraints, preferences, brand rules, terms to include/avoid): '
+        f'{inputs.get("keywordInfluencers", "None specified")}\n'
+        f'SEMANTIC DATA SIGNALS: {json.dumps(discovery[:10])}\n\n'
+        'TASK: Based on the above context, determine how many strategies (3-5) are warranted and '
+        'what angles are most valuable for this client. Each strategy should target a meaningfully '
+        'different audience segment, intent type, or growth lever — avoid overlap. '
+        'Name each strategy to reflect the specific opportunity, not a generic category.\n\n'
+        'OUTPUT FORMAT (MANDATORY JSON):\n'
+        'Return ONLY a JSON object with a "strategies" array. Each strategy MUST have:\n'
+        '- "name": Descriptive, client-specific strategy name '
+        '(e.g. "Relocation-Season Demand Capture" not "Long-Tail")\n'
+        '- "focus": 1-sentence strategic core specific to this client\n'
+        '- "target_keywords": Array of 10-15 primary keyword themes relevant to this strategy\n'
+        '- "content_approach": Brief content strategy tailored to this angle\n'
+        '- "expected_impact": "High", "Medium", or "Very High"\n'
+        '- "time_to_rank": Est. months (number)\n'
+        '- "recommended": boolean (true for exactly one)\n'
+        '- "keyword_data": { "primary_theme": "Core theme", "semantic_clusters": '
+        '[ { "topic": "Topic 1", "keywords": ["kw1","kw2","kw3","kw4","kw5"], "intent": "Informational" } ], '
+        '"longtail_opportunities": "2-3 sentences explaining the long-tail opportunity" }\n\n'
+        'Return compact valid JSON only. No prose.'
+    )
+    return _call_claude_simple(system, user, max_tokens=4000)
+
+
+def _strategy_recommendations(body):
+    strategy  = body.get('strategy', {})
+    audit_ctx = body.get('auditContext', {})
+    has_audit = bool(audit_ctx)
+    audit_block = (
+        f'\nAUDIT DATA (real metrics from the client\'s website):\n{json.dumps(audit_ctx)}\n'
+        if has_audit else ''
+    )
+    kw_list = ', '.join((strategy.get('target_keywords') or [])[:8])
+    system  = 'You are a senior SEO strategist reviewing a client website.'
+    user    = (
+        'Based on the chosen SEO strategy and audit data below, generate a detailed action plan.\n\n'
+        'CHOSEN STRATEGY:\n'
+        f'- Name: {strategy.get("name", "")}\n'
+        f'- Focus: {strategy.get("focus", "")}\n'
+        f'- Content Approach: {strategy.get("content_approach", "")}\n'
+        f'- Primary Keywords: {kw_list}\n'
+        f'{audit_block}'
+        'OUTPUT (MANDATORY JSON):\n'
+        'Return ONLY a JSON object with exactly two keys:\n\n'
+        '1. "strengths": array of 4-8 items representing what the site is already doing well. Each item:\n'
+        '   { "title": "Short win title", "detail": "1-sentence explanation", '
+        '"category": "Content|Technical SEO|Performance|Domain & Trust" }\n'
+        f'   {"Base these on PASSING checks and good scores in the audit data." if has_audit else "Generate plausible general strengths."}\n\n'
+        '2. "recommendations": array of 5-8 prioritized actions. Each item:\n'
+        '   { "task": "Action title", "description": "Specific actionable step", '
+        '"priority": "High|Medium|Low", "effort": "Quick|Medium|Strategic", '
+        '"impact": "High|Medium|Low", "rationale": "Why this matters for the strategy", '
+        '"category": "Content|Technical SEO|Performance|Domain & Trust" }\n'
+        f'   {"Base Technical SEO, Performance, and Domain & Trust items on FAILING or WARN checks in the audit. Do NOT flag items that are already passing." if has_audit else "Include at least 1 item per category."}\n\n'
+        'Compact valid JSON only. No prose.'
+    )
+    return _call_claude_simple(system, user, max_tokens=3500)
+
+
 # ── Claude Haiku chat handler (simple, no tools) ────────────────────────────
 def claude_chat(body):
     """
@@ -1640,6 +1857,34 @@ def lambda_handler(event, context):
                     result = {"statusCode": r.status_code, "body": r.text}
             except Exception as e:
                 result = {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+        # ── Server-side prompt actions ────────────────────────────────────
+        elif action == 'geo_fetch_visibility':
+            cwt_body = _build_geo_fetch_body(
+                entities   = body.get('entities', []),
+                start_date = body.get('startDate', ''),
+                end_date   = body.get('endDate', '')
+            )
+            result = claude_chat_with_tools(cwt_body)
+        elif action == 'geo_fetch_comparison':
+            cwt_body = _build_geo_fetch_body(
+                entities       = body.get('entities', []),
+                start_date     = body.get('startDate', ''),
+                end_date       = body.get('endDate', ''),
+                is_comparison  = True,
+                cmp_from       = body.get('cmpFrom', ''),
+                cmp_to         = body.get('cmpTo', '')
+            )
+            result = claude_chat_with_tools(cwt_body)
+        elif action == 'audit_recommendations':
+            result = _audit_recommendations(body)
+        elif action == 'competitor_insights':
+            result = _competitor_insights(body)
+        elif action == 'strategy_auto_populate':
+            result = _strategy_auto_populate(body)
+        elif action == 'strategy_generate':
+            result = _strategy_generate(body)
+        elif action == 'strategy_recommendations':
+            result = _strategy_recommendations(body)
         else:
             result = {"statusCode": 400, "body": json.dumps({"error": f"Invalid Action: {action}"})}
 
