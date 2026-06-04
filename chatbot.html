@@ -4379,7 +4379,19 @@
                     const raw = await res.json();
                     const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
                     if (data.conversations && searchEl.value.trim() === q) {
-                        renderHistoryList(data.conversations);
+                        // Merge, don't replace: keep the local title/username matches on
+                        // top, then append server content-matches not already shown.
+                        // This guarantees the list only grows by genuinely-relevant
+                        // content hits and never drops a local match underneath them.
+                        const seen = new Set(localMatches.map(c => c.conversationId));
+                        const merged = localMatches.slice();
+                        for (const c of data.conversations) {
+                            if (!seen.has(c.conversationId)) {
+                                seen.add(c.conversationId);
+                                merged.push(c);
+                            }
+                        }
+                        renderHistoryList(merged);
                     }
                 } catch (e) {
                     console.warn('[HISTORY SEARCH] Content search failed:', e);
