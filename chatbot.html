@@ -9463,7 +9463,7 @@ CRITICAL CONTACT RULE:
             NEUTRAL (context-dependent): spend, impressions
 
             STEP 3 — CLASSIFY INTO BUCKETS
-            Sort every finding into exactly one bin:
+            Sort every finding into exactly one bin. For each actionable_finding you MUST record four fields or it is NOT actionable: (a) target entity — the exact campaign/ad set/ad/keyword/audience NAME and level; (b) lever — the specific knob to turn (budget, bid, bid strategy, target CPA/ROAS, dayparting/schedule, audience exclusion, negative keyword, creative refresh, placement); (c) magnitude — direction + size, with from→to values when the current value is known; (d) trigger numbers — the metric, its value, and delta+polarity that justify the change.
             - actionable_findings: pause candidates, negative-keyword candidates, scale-winners, bid-strategy mismatches. These and only these become Recommendations.
             - insight_candidates: observations worth narrating (the "what happened").
             - insufficient_signal: anything below sample-size gates — explicitly excluded from recommendations.
@@ -9479,7 +9479,12 @@ CRITICAL CONTACT RULE:
 
             STEP 5 — OUTPUT FORMAT (strict — do not deviate)
             Section 1: **Insights** — 5 numbered observations, each anchored to a raw number and its delta with polarity label. Include growth_findings as observations, not imperatives.
-            Section 2: **Recommendations** — 3–5 items drawn EXCLUSIVELY from actionable_findings. Format: **N) Action verb phrase** — rationale referencing the exact numbers from Section 1. Cap: 5 actionable + 3 growth observations per section.
+            Section 2: **Recommendations** — 3–5 items drawn EXCLUSIVELY from actionable_findings, sorted with [High impact] items first. Every recommendation MUST be specific — generic advice is a failure. Each item follows this template:
+            **N) [Priority tag] [Lever verb] [exact entity name] [direction + magnitude, from→to when known]** — because [trigger metric = value, delta with polarity]; expected impact: [quantified — $ recovered/freed, projected conversions/ROAS, or % efficiency gain]. When the lever is pause/cut, name the reallocation destination: a specific scale-winner entity to receive the freed budget. Verify: [the exact metric to recheck and after how long].
+            Priority tag is exactly one of [High impact] (largest $ or conversion swing), [Quick win] (low-effort, low-risk change), or [Monitor] (act only if the trend holds). The verification clause is mandatory — name the metric and a concrete window (e.g. "recheck CPA after 7 days", "confirm ROAS holds ≥ 3x over the next 14 days").
+            Example (specific): "**1) [High impact] Cut daily budget on 'Summer Sale – Broad' from $120 → $72 (−40%)** — it spent $2,400 at a $96 CPA vs the $38 account average (CPA +152%) and burned $480 with 0 conversions over 7 days; expected impact: ~$480/mo wasted spend recovered. Move the freed $48/day to 'Retargeting – Cart Abandon' (ROAS 4.2x, currently budget-capped). Verify: recheck 'Summer Sale – Broad' CPA and conversions after 7 days."
+            BANNED — never ship a recommendation that is only a generic imperative with no named entity, lever, and number: "optimize underperforming campaigns", "improve CTR", "reduce CPA", "reallocate budget", "test new creatives", "monitor performance", "consider adjusting bids". If you cannot name the entity + lever + magnitude + trigger number, the finding failed STEP 3 and belongs in insufficient_signal, not Recommendations.
+            Cap: 5 actionable + 3 growth observations per section.
 
             NARRATION CONTRACT
             The computed numbers are the exclusive source of truth. You MUST NOT:
