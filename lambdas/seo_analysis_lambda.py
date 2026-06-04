@@ -413,19 +413,51 @@ def _score_color(score):
     return "#ff4d4f"
 
 
-def _score_bar(label, score):
-    pct = min(100, max(0, score)) if score is not None else 0
-    display = f"{round(score)}" if score is not None else "N/A"
+BINARY_LABELS = {"HTTPS Security", "Canonical Tag", "Schema & OG Tags"}
+
+DIM_ICONS = {
+    "HTTPS Security":       "fa-lock",
+    "Canonical Tag":        "fa-link",
+    "Images & Alt Text":    "fa-image",
+    "Page Title":           "fa-heading",
+    "Meta Description":     "fa-align-left",
+    "Headings":             "fa-list",
+    "Calls to Action":      "fa-hand-pointer",
+    "Schema & OG Tags":     "fa-code",
+    "Keyword Density":      "fa-percentage",
+    "Readability":          "fa-book-open",
+    "E-E-A-T Signals":      "fa-shield-alt",
+    "Internal Links":       "fa-sitemap",
+}
+
+def _score_card(label, score):
+    icon = DIM_ICONS.get(label, "fa-circle")
     color = _score_color(score)
+
+    if label in BINARY_LABELS:
+        passed = score is not None and score >= 80
+        badge_bg   = "#f6ffed" if passed else "#fff1f0"
+        badge_bdr  = "#b7eb8f" if passed else "#ffa39e"
+        badge_color = "#389e0d" if passed else "#cf1322"
+        badge_icon  = "fa-check-circle" if passed else "fa-times-circle"
+        badge_text  = "Pass" if passed else "Fail"
+        value_html = (
+            f'<span style="display:inline-flex;align-items:center;gap:4px;background:{badge_bg};'
+            f'border:1px solid {badge_bdr};border-radius:20px;padding:3px 10px;'
+            f'font-size:11px;font-weight:700;color:{badge_color};">'
+            f'<i class="fas {badge_icon}"></i> {badge_text}</span>'
+        )
+    else:
+        display = f"{round(score)}" if score is not None else "N/A"
+        value_html = f'<span style="font-size:22px;font-weight:800;color:{color};line-height:1;">{display}</span><span style="font-size:10px;color:#aaa;margin-left:1px;">/100</span>'
+
     return (
-        f'<div style="margin-bottom:10px;">'
-        f'<div style="display:flex;justify-content:space-between;margin-bottom:4px;">'
-        f'<span style="font-size:13px;color:#444;">{label}</span>'
-        f'<span style="font-size:13px;font-weight:700;color:{color};">{display}/100</span>'
-        f'</div>'
-        f'<div style="background:#f0f0f0;border-radius:4px;height:8px;overflow:hidden;">'
-        f'<div style="background:{color};width:{pct}%;height:100%;border-radius:4px;"></div>'
-        f'</div>'
+        f'<div style="background:#fff;border:1px solid #eee;border-radius:10px;padding:14px 16px;'
+        f'display:flex;flex-direction:column;gap:8px;">'
+        f'<div style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;'
+        f'color:#64748b;text-transform:uppercase;letter-spacing:0.4px;">'
+        f'<i class="fas {icon}" style="font-size:10px;"></i>{label}</div>'
+        f'{value_html}'
         f'</div>'
     )
 
@@ -520,7 +552,7 @@ def generate_html_report(url, keyword, result, ai_feedback=None, ai_error=None):
         result.get("intent_eeat_analysis"),
         result.get("internal_links_analysis"),
     ]
-    bars_html = "".join(_score_bar(d["label"], d.get("score")) for d in dims if d)
+    cards_html = "".join(_score_card(d["label"], d.get("score")) for d in dims if d)
 
     keyword_chip = (
         f'<span style="background:rgba(255,255,255,0.15);padding:2px 10px;border-radius:10px;font-size:11px;">Keyword: {keyword}</span>'
@@ -556,11 +588,13 @@ def generate_html_report(url, keyword, result, ai_feedback=None, ai_error=None):
     Word count: <strong style="color:{wc_color};">{wc:,}</strong> — <span style="color:{wc_color};">{wc_note}</span>
   </div>
 
-  <div style="background:#fff;border:1px solid #eee;border-radius:10px;padding:18px;margin-bottom:14px;">
+  <div style="background:#f8f9fa;border:1px solid #eee;border-radius:10px;padding:18px;margin-bottom:14px;">
     <div style="font-weight:700;font-size:14px;color:#1a1a2e;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
       <i class="fas fa-chart-bar" style="color:#1a73e8;"></i> Score Breakdown
     </div>
-    {bars_html}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">
+      {cards_html}
+    </div>
   </div>
 
   {ai_block}
