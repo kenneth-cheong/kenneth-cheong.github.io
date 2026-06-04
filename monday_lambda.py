@@ -13,6 +13,11 @@ MONDAY_API_URL = "https://api.monday.com/v2"
 SERANKING_TOKEN = os.environ.get('SERANKING_TOKEN') or "4181980cafdc89bc7bd8c7e9d26725f18cd617ef"
 DATAFORSEO_API_KEY = os.environ.get('DATAFORSEO_API_KEY') or os.environ.get('API_KEY')
 
+# TikTok Marketing API config
+TIKTOK_APP_ID = os.environ.get('TIKTOK_APP_ID') or "7530162592132792321"
+TIKTOK_APP_SECRET = os.environ.get('TIKTOK_APP_SECRET') or "622e73187d25951998792c27e8c85c9ec1c6a831"
+TIKTOK_API_BASE = "https://business-api.tiktok.com/open_api/v1.3"
+
 # MongoDB Config
 MONGODB_URI = os.environ.get('MONGODB_URI')
 MONGODB_DATABASE = 'monday_db'
@@ -152,10 +157,10 @@ def tiktok_auth(body):
         return {"statusCode": 400, "body": json.dumps({"error": "Missing auth_code"})}
     try:
         r = requests.post(
-            'https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/',
+            f'{TIKTOK_API_BASE}/oauth2/access_token/',
             json={
-                "app_id": "7530162592132792321",
-                "secret": "622e73187d25951998792c27e8c85c9ec1c6a831",
+                "app_id": TIKTOK_APP_ID,
+                "secret": TIKTOK_APP_SECRET,
                 "auth_code": auth_code
             },
             headers={"Content-Type": "application/json"},
@@ -168,6 +173,175 @@ def tiktok_auth(body):
         return {"statusCode": 400, "body": json.dumps({"error": data.get('message', 'Auth failed'), "raw": data})}
     except Exception as e:
         return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+
+def tiktok_get_advertisers(body):
+    """List the advertiser (ad account) IDs an access token can manage."""
+    access_token = body.get('access_token')
+    if not access_token:
+        return {"statusCode": 400, "body": json.dumps({"error": "Missing access_token"})}
+    try:
+        r = requests.get(
+            f'{TIKTOK_API_BASE}/oauth2/advertiser/get/',
+            headers={"Access-Token": access_token, "Content-Type": "application/json"},
+            params={"app_id": TIKTOK_APP_ID, "secret": TIKTOK_APP_SECRET},
+            timeout=15
+        )
+        data = r.json()
+        if data.get('code') != 0:
+            return {"statusCode": 200, "body": json.dumps({"error": data.get('message', 'Failed to list advertisers'), "list": [], "raw": data})}
+        adv_list = data.get('data', {}).get('list', [])
+        return {"statusCode": 200, "body": json.dumps({"list": adv_list})}
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+
+def run_tiktok_report(access_token, advertiser_id, start_date, end_date,
+                      dimensions=None, metrics=None, data_level="AUCTION_ADVERTISER"):
+    """Fetch a TikTok integrated BASIC report for a single advertiser."""
+    if not access_token:
+        return {"error": "Missing TikTok access token. Connect TikTok Ads first."}
+    if not advertiser_id:
+        return {"error": "Missing advertiser_id"}
+    if not start_date or not end_date:
+        return {"error": "start_date and end_date (YYYY-MM-DD) are required"}
+    if not dimensions:
+        dimensions = ["stat_time_day"]
+    if not metrics:
+        metrics = ["spend", "impressions", "clicks", "ctr", "cpc", "cpm",
+                   "conversion", "cost_per_conversion", "conversion_rate",
+                   "reach", "result", "cost_per_result"]
+    params = {
+        "advertiser_id": str(advertiser_id),
+        "report_type": "BASIC",
+        "data_level": data_level,
+        "dimensions": json.dumps(dimensions),
+        "metrics": json.dumps(metrics),
+        "start_date": start_date,
+        "end_date": end_date,
+        "page": 1,
+        "page_size": 100,
+    }
+    try:
+        r = requests.get(
+            f'{TIKTOK_API_BASE}/report/integrated/get/',
+            headers={"Access-Token": access_token, "Content-Type": "application/json"},
+            params=params,
+            timeout=30
+        )
+        data = r.json()
+        if data.get('code') != 0:
+            return {"error": data.get('message', 'TikTok report error'),
+                    "code": data.get('code'),
+                    "hint": "If a metric is incompatible with data_level, retry with a smaller metrics list.",
+                    "raw": data}
+        d = data.get('data', {})
+        return {
+            "advertiser_id": str(advertiser_id),
+            "start_date": start_date,
+            "end_date": end_date,
+            "dimensions": dimensions,
+            "metrics": metrics,
+            "data_level": data_level,
+            "rows": d.get('list', []),
+            "page_info": d.get('page_info', {})
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+def run_meta_ads_report(access_token, ad_account_id, start_date, end_date,
+                        level="account", time_increment=None, fields=None):
+    """Fetch a Meta (Facebook/Instagram) Ads Insights report for a single ad account."""
+    if not access_token:
+        return {"error": "Missing Meta access token. Connect Meta Ads first."}
+    if not ad_account_id:
+        return {"error": "Missing ad_account_id"}
+    if not start_date or not end_date:
+        return {"error": "start_date and end_date (YYYY-MM-DD) are required"}
+    acct = str(ad_account_id)
+    if not acct.startswith("act_"):
+        acct = "act_" + acct
+    if not fields:
+        fields = ["spend", "impressions", "clicks", "ctr", "cpc", "cpm",
+                  "reach", "frequency", "actions", "action_values",
+                  "purchase_roas", "cost_per_action_type"]
+    params = {
+        "access_token": access_token,
+        "level": level,
+        "fields": ",".join(fields),
+        "time_range": json.dumps({"since": start_date, "until": end_date}),
+        "limit": 500,
+    }
+    if time_increment:
+        params["time_increment"] = time_increment
+    try:
+        r = requests.get(
+            f"https://graph.facebook.com/v23.0/{acct}/insights",
+            params=params,
+            timeout=30
+        )
+        data = r.json()
+        if isinstance(data, dict) and data.get("error"):
+            err = data["error"]
+            return {"error": err.get("message", "Meta API error"), "code": err.get("code"), "raw": err}
+        return {
+            "ad_account_id": acct,
+            "start_date": start_date,
+            "end_date": end_date,
+            "level": level,
+            "rows": data.get("data", []),
+            "paging": data.get("paging", {})
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+def run_linkedin_ads_report(access_token, account_id, start_date, end_date,
+                            pivot="ACCOUNT", granularity="ALL", fields=None):
+    """Fetch a LinkedIn Ads analytics report for a single sponsored account."""
+    if not access_token:
+        return {"error": "Missing LinkedIn access token. Connect LinkedIn Ads first."}
+    if not account_id:
+        return {"error": "Missing account_id"}
+    try:
+        s = datetime.strptime(start_date, "%Y-%m-%d")
+        e = datetime.strptime(end_date, "%Y-%m-%d")
+    except Exception:
+        return {"error": "start_date and end_date must be YYYY-MM-DD"}
+    if not fields:
+        fields = ["impressions", "clicks", "costInUsd", "costInLocalCurrency",
+                  "externalWebsiteConversions", "oneClickLeads", "landingPageClicks",
+                  "likes", "shares", "comments", "follows", "dateRange", "pivotValues"]
+    acct = str(account_id).replace("urn:li:sponsoredAccount:", "")
+    # Build the URL manually — LinkedIn's Rest.li 2.0.0 protocol requires the
+    # parentheses/commas unencoded and the URN colons percent-encoded.
+    date_range = (f"(start:(year:{s.year},month:{s.month},day:{s.day}),"
+                  f"end:(year:{e.year},month:{e.month},day:{e.day}))")
+    accounts = f"List(urn%3Ali%3AsponsoredAccount%3A{acct})"
+    url = (f"https://api.linkedin.com/rest/adAnalytics?q=analytics"
+           f"&dateRange={date_range}"
+           f"&timeGranularity={granularity}"
+           f"&accounts={accounts}"
+           f"&pivot={pivot}"
+           f"&fields={','.join(fields)}")
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "LinkedIn-Version": "202510",
+        "X-Restli-Protocol-Version": "2.0.0"
+    }
+    try:
+        r = requests.get(url, headers=headers, timeout=30)
+        data = r.json()
+        if isinstance(data, dict) and (data.get("status") and data.get("status") >= 400 or data.get("serviceErrorCode")):
+            return {"error": data.get("message", "LinkedIn API error"), "raw": data}
+        return {
+            "account_id": acct,
+            "start_date": start_date,
+            "end_date": end_date,
+            "pivot": pivot,
+            "granularity": granularity,
+            "rows": data.get("elements", []),
+            "paging": data.get("paging", {})
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 def linkedin_get_ad_accounts(body):
     access_token = body.get('access_token')
@@ -830,6 +1004,74 @@ def claude_chat_with_tools(body):
                 },
                 "required": ["text", "tag"]
             }
+        },
+        {
+            "name": "get_tiktok_ads_report",
+            "description": (
+                "Fetch TikTok Ads performance data — spend, impressions, clicks, CTR, CPC, CPM, "
+                "conversions, cost per conversion, conversion rate, reach, and results. Use this "
+                "whenever the user asks about TikTok Ads or TikTok paid social performance. The "
+                "advertiser_id values are in the synced context under 'tiktok_advertiser_ids'. "
+                "Call once per advertiser_id. For a daily time series use dimensions ['stat_time_day']; "
+                "for a single aggregated total use ['advertiser_id']."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "advertiser_id": {"type": "string", "description": "The TikTok advertiser (ad account) ID. Found in synced context under 'tiktok_advertiser_ids'."},
+                    "start_date": {"type": "string", "description": "Start date (YYYY-MM-DD)."},
+                    "end_date": {"type": "string", "description": "End date (YYYY-MM-DD)."},
+                    "dimensions": {"type": "array", "items": {"type": "string"}, "description": "Report dimensions. Use ['stat_time_day'] for a daily breakdown or ['advertiser_id'] for a single aggregated total. Defaults to ['stat_time_day']."},
+                    "metrics": {"type": "array", "items": {"type": "string"}, "description": "Optional metric list. Defaults to spend, impressions, clicks, ctr, cpc, cpm, conversion, cost_per_conversion, conversion_rate, reach, result, cost_per_result."},
+                    "data_level": {"type": "string", "enum": ["AUCTION_ADVERTISER", "AUCTION_CAMPAIGN", "AUCTION_ADGROUP", "AUCTION_AD"], "description": "Aggregation level. Defaults to AUCTION_ADVERTISER."}
+                },
+                "required": ["advertiser_id", "start_date", "end_date"]
+            }
+        },
+        {
+            "name": "get_meta_ads_report",
+            "description": (
+                "Fetch Meta (Facebook/Instagram) Ads performance data — spend, impressions, clicks, "
+                "CTR, CPC, CPM, reach, frequency, ROAS, actions/results, and cost per action. Use this "
+                "whenever the user asks about Meta Ads, Facebook Ads, Instagram Ads, or paid social "
+                "performance. The ad_account_id values are in the synced context / CURRENT CONTEXT under "
+                "'meta_ad_account_ids'. Call once per ad_account_id. For a daily breakdown set "
+                "time_increment to 1."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "ad_account_id": {"type": "string", "description": "The Meta ad account ID (e.g. 'act_123456789'; the 'act_' prefix is added automatically if missing). Found in synced context under 'meta_ad_account_ids'."},
+                    "start_date": {"type": "string", "description": "Start date (YYYY-MM-DD)."},
+                    "end_date": {"type": "string", "description": "End date (YYYY-MM-DD)."},
+                    "level": {"type": "string", "enum": ["account", "campaign", "adset", "ad"], "description": "Aggregation level. Defaults to 'account'."},
+                    "time_increment": {"type": "integer", "description": "Set to 1 for a daily time series. Omit for a single aggregated total."},
+                    "fields": {"type": "array", "items": {"type": "string"}, "description": "Optional Insights field list. Defaults to spend, impressions, clicks, ctr, cpc, cpm, reach, frequency, actions, action_values, purchase_roas, cost_per_action_type."}
+                },
+                "required": ["ad_account_id", "start_date", "end_date"]
+            }
+        },
+        {
+            "name": "get_linkedin_ads_report",
+            "description": (
+                "Fetch LinkedIn Ads performance data — impressions, clicks, cost (USD and local), "
+                "conversions, leads, landing page clicks, likes, shares, comments, and follows. Use this "
+                "whenever the user asks about LinkedIn Ads or B2B paid social performance. The account_id "
+                "values are in the synced context / CURRENT CONTEXT under 'linkedin_ad_account_ids'. Call "
+                "once per account_id. Set granularity to DAILY for a daily time series."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "account_id": {"type": "string", "description": "The LinkedIn sponsored account ID (numeric, e.g. '512345678'). Found in synced context under 'linkedin_ad_account_ids'."},
+                    "start_date": {"type": "string", "description": "Start date (YYYY-MM-DD)."},
+                    "end_date": {"type": "string", "description": "End date (YYYY-MM-DD)."},
+                    "pivot": {"type": "string", "enum": ["ACCOUNT", "CAMPAIGN", "CAMPAIGN_GROUP", "CREATIVE"], "description": "Reporting pivot. Defaults to ACCOUNT."},
+                    "granularity": {"type": "string", "enum": ["ALL", "DAILY", "MONTHLY"], "description": "Time granularity. Defaults to ALL (single aggregated total)."},
+                    "fields": {"type": "array", "items": {"type": "string"}, "description": "Optional analytics field list. Defaults to impressions, clicks, costInUsd, costInLocalCurrency, externalWebsiteConversions, oneClickLeads, landingPageClicks, likes, shares, comments, follows, dateRange, pivotValues."}
+                },
+                "required": ["account_id", "start_date", "end_date"]
+            }
         }
     ]
 
@@ -1262,6 +1504,76 @@ def claude_chat_with_tools(body):
                             "tool_use_id": tool_id,
                             "content":     "Success: Note saved to persistent memory modal."
                         })
+
+                    elif tool_name == "get_tiktok_ads_report":
+                        tiktok_token = body.get('tiktok_access_token')
+                        advertiser_id = tool_input.get("advertiser_id")
+                        print(f"[TOOLS] Fetching TikTok Ads Report for {advertiser_id}")
+                        result_data = run_tiktok_report(
+                            tiktok_token,
+                            advertiser_id,
+                            tool_input.get("start_date"),
+                            tool_input.get("end_date"),
+                            tool_input.get("dimensions"),
+                            tool_input.get("metrics"),
+                            tool_input.get("data_level", "AUCTION_ADVERTISER")
+                        )
+                        result_str = json.dumps(result_data)
+                        if len(result_str) > 40000:
+                            result_str = result_str[:40000] + "\n... [result truncated, narrow the date range or metrics]"
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     result_str
+                        })
+                        tool_call_log.append(f"Fetched TikTok Ads report for advertiser {advertiser_id}")
+
+                    elif tool_name == "get_meta_ads_report":
+                        meta_token = body.get('meta_access_token')
+                        ad_account_id = tool_input.get("ad_account_id")
+                        print(f"[TOOLS] Fetching Meta Ads Report for {ad_account_id}")
+                        result_data = run_meta_ads_report(
+                            meta_token,
+                            ad_account_id,
+                            tool_input.get("start_date"),
+                            tool_input.get("end_date"),
+                            tool_input.get("level", "account"),
+                            tool_input.get("time_increment"),
+                            tool_input.get("fields")
+                        )
+                        result_str = json.dumps(result_data)
+                        if len(result_str) > 40000:
+                            result_str = result_str[:40000] + "\n... [result truncated, narrow the date range or fields]"
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     result_str
+                        })
+                        tool_call_log.append(f"Fetched Meta Ads report for account {ad_account_id}")
+
+                    elif tool_name == "get_linkedin_ads_report":
+                        linkedin_token = body.get('linkedin_access_token')
+                        account_id = tool_input.get("account_id")
+                        print(f"[TOOLS] Fetching LinkedIn Ads Report for {account_id}")
+                        result_data = run_linkedin_ads_report(
+                            linkedin_token,
+                            account_id,
+                            tool_input.get("start_date"),
+                            tool_input.get("end_date"),
+                            tool_input.get("pivot", "ACCOUNT"),
+                            tool_input.get("granularity", "ALL"),
+                            tool_input.get("fields")
+                        )
+                        result_str = json.dumps(result_data)
+                        if len(result_str) > 40000:
+                            result_str = result_str[:40000] + "\n... [result truncated, narrow the date range or fields]"
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     result_str
+                        })
+                        tool_call_log.append(f"Fetched LinkedIn Ads report for account {account_id}")
+
                     else:
                         # Unknown tool — return an error so Claude can recover
                         tool_results.append({
@@ -1630,6 +1942,8 @@ def lambda_handler(event, context):
             result = linkedin_get_ad_accounts(body)
         elif action == 'tiktok_auth':
             result = tiktok_auth(body)
+        elif action == 'tiktok_get_advertisers':
+            result = tiktok_get_advertisers(body)
         elif action == 'get_board_items':
             result = get_board_items(body)
         elif action == 'claude_chat':

@@ -3869,6 +3869,22 @@
                             <button class="btn-service-disconnect" id="btnDisconnectTikTok" onclick="disconnectTikTokAds()" style="display:none;">Disconnect</button>
                         </div>
                         <div id="tiktokStatus" style="font-size:0.7rem; color:#64748b; margin-top:4px; min-height:16px;"></div>
+                        <div id="selectorTikTok" style="display:none; margin-top:5px;">
+                            <select id="selectedTikTokAccount" style="display:none;">
+                                <option value="">-- Select Advertiser --</option>
+                            </select>
+                            <div class="searchable-select" id="ss-selectedTikTokAccount">
+                                <div class="ss-trigger" id="ss-trigger-selectedTikTokAccount" onclick="toggleSearchableSelect('selectedTikTokAccount')">
+                                    <span class="ss-label">-- Select Advertiser --</span>
+                                    <i class="fas fa-chevron-down ss-icon"></i>
+                                </div>
+                                <div class="ss-panel" id="ss-panel-selectedTikTokAccount">
+                                    <div class="ss-search-row"><i class="fas fa-search"></i><input type="text" placeholder="Search advertisers..." oninput="filterSearchableSelect('selectedTikTokAccount', this.value)"></div>
+                                    <div class="ss-bulk-actions"><button onclick="ssSelectAll('selectedTikTokAccount')">✓ All</button><button onclick="ssClearAll('selectedTikTokAccount')">✗ None</button></div>
+                                    <div class="ss-options" id="ss-options-selectedTikTokAccount"><div class="ss-empty">Connect TikTok Ads first.</div></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -6774,7 +6790,7 @@
 
         function saveMarketingSelection() {
             if (!window.ssSelections) window.ssSelections = {};
-            ['selectedGscSite', 'selectedGa4Property', 'selectedAdsAccount', 'selectedMetaAccount'].forEach(id => {
+            ['selectedGscSite', 'selectedGa4Property', 'selectedAdsAccount', 'selectedMetaAccount', 'selectedLinkedInAccount', 'selectedTikTokAccount'].forEach(id => {
                 localStorage.setItem(id, JSON.stringify(window.ssSelections[id] || []));
             });
             showToast('Property selection saved', 'success');
@@ -7078,6 +7094,7 @@
                 document.getElementById('statusBadgeTikTok').textContent = '✓ Connected';
                 document.getElementById('statusBadgeTikTok').style.cssText = 'background:#dcfce7;color:#166534;';
                 document.getElementById('tiktokStatus').innerHTML = '<i class="fas fa-check-circle" style="color:#010101;"></i> Connected.';
+                fetchTikTokAdvertisers();
             } catch (err) {
                 document.getElementById('tiktokStatus').innerHTML = `<i class="fas fa-exclamation-triangle" style="color:#ea4335;"></i> ${err.message}`;
                 document.getElementById('btnConnectTikTok').disabled = false;
@@ -7086,6 +7103,10 @@
 
         function disconnectTikTokAds() {
             localStorage.removeItem('tiktok_access_token');
+            localStorage.removeItem('tiktok_last_verified');
+            localStorage.removeItem('selectedTikTokAccount');
+            if (!window.ssSelections) window.ssSelections = {};
+            window.ssSelections['selectedTikTokAccount'] = [];
             document.getElementById('tiktokTokenInput').disabled = false;
             document.getElementById('tiktokTokenInput').value = '';
             document.getElementById('btnConnectTikTok').style.display = '';
@@ -7094,6 +7115,67 @@
             document.getElementById('statusBadgeTikTok').textContent = '—';
             document.getElementById('statusBadgeTikTok').style.cssText = '';
             document.getElementById('tiktokStatus').textContent = '';
+            document.getElementById('selectorTikTok').style.display = 'none';
+            document.getElementById('ss-options-selectedTikTokAccount').innerHTML = '<div class="ss-empty">Connect TikTok Ads first.</div>';
+            updateSSTriggerLabel('selectedTikTokAccount');
+        }
+
+        async function fetchTikTokAdvertisers() {
+            const token = localStorage.getItem('tiktok_access_token');
+            if (!token) return;
+            const statusEl = document.getElementById('tiktokStatus');
+            statusEl.innerHTML += ' — <i class="fas fa-spinner fa-spin"></i> Fetching advertisers…';
+            try {
+                const res = await fetch(MONDAY_LAMBDA_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'tiktok_get_advertisers', access_token: token })
+                }).then(r => r.json()).then(r => typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r));
+
+                statusEl.innerHTML = statusEl.innerHTML.replace(/ — <i.*?<\/i> Fetching advertisers…/, '');
+
+                const accounts = res.list || [];
+                if (accounts.length === 0) {
+                    const errMsg = res.error ? `API error: ${res.error}` : 'No advertisers found for this token.';
+                    statusEl.innerHTML += ` <span style="color:#f59e0b; font-size:0.65rem;">${errMsg}</span>`;
+                    console.warn('[TikTok] Raw response:', res);
+                    return;
+                }
+
+                const select = document.getElementById('selectedTikTokAccount');
+                select.innerHTML = '<option value="">-- Select Advertiser --</option>';
+                accounts.forEach(acc => {
+                    const id = acc.advertiser_id;
+                    const name = acc.advertiser_name || id;
+                    const opt = document.createElement('option');
+                    opt.value = id;
+                    opt.textContent = `${name} (${id})`;
+                    select.appendChild(opt);
+                });
+                document.getElementById('selectorTikTok').style.display = '';
+
+                if (!window.ssSelections) window.ssSelections = {};
+                const savedRaw = localStorage.getItem('selectedTikTokAccount') || '[]';
+                try {
+                    const saved = JSON.parse(savedRaw);
+                    window.ssSelections['selectedTikTokAccount'] = Array.isArray(saved) ? saved : [];
+                } catch { window.ssSelections['selectedTikTokAccount'] = []; }
+
+                refreshSearchableSelect('selectedTikTokAccount');
+
+                // Auto-select if only one advertiser
+                if (accounts.length === 1 && window.ssSelections['selectedTikTokAccount'].length === 0) {
+                    const acc = accounts[0];
+                    window.ssSelections['selectedTikTokAccount'] = [{ value: acc.advertiser_id, label: `${acc.advertiser_name || acc.advertiser_id} (${acc.advertiser_id})` }];
+                    localStorage.setItem('selectedTikTokAccount', JSON.stringify(window.ssSelections['selectedTikTokAccount']));
+                    refreshSearchableSelect('selectedTikTokAccount');
+                }
+                updateSSTriggerLabel('selectedTikTokAccount');
+                localStorage.setItem('tiktok_last_verified', Date.now());
+            } catch (err) {
+                statusEl.innerHTML = statusEl.innerHTML.replace(/ — <i.*?<\/i> Fetching advertisers…/, '');
+                statusEl.innerHTML += ` <span style="color:#ea4335;">${err.message}</span>`;
+            }
         }
 
         (function initTikTokAdsConnection() {
@@ -7105,7 +7187,23 @@
             document.getElementById('btnDisconnectTikTok').style.display = '';
             document.getElementById('statusBadgeTikTok').textContent = '✓ Connected';
             document.getElementById('statusBadgeTikTok').style.cssText = 'background:#dcfce7;color:#166534;';
-            document.getElementById('tiktokStatus').innerHTML = '<i class="fas fa-check-circle" style="color:#010101;"></i> Token saved.';
+            document.getElementById('tiktokStatus').innerHTML = '<i class="fas fa-check-circle" style="color:#010101;"></i> Connected.';
+
+            // Skip refetch if advertisers were loaded recently — restore from cache
+            const lastVerified = parseInt(localStorage.getItem('tiktok_last_verified') || '0', 10);
+            if (lastVerified && Date.now() - lastVerified < AUTH_VERIFY_TTL) {
+                if (!window.ssSelections) window.ssSelections = {};
+                try { window.ssSelections['selectedTikTokAccount'] = JSON.parse(localStorage.getItem('selectedTikTokAccount') || '[]'); } catch { window.ssSelections['selectedTikTokAccount'] = []; }
+                if ((window.ssSelections['selectedTikTokAccount'] || []).length > 0) {
+                    document.getElementById('selectorTikTok').style.display = '';
+                    refreshSearchableSelect('selectedTikTokAccount');
+                    updateSSTriggerLabel('selectedTikTokAccount');
+                } else {
+                    fetchTikTokAdvertisers();
+                }
+                return;
+            }
+            fetchTikTokAdvertisers();
         })();
 
         // ---- Searchable Multi-Select helpers (for GSC / GA4 / Ads dropdowns) ----
@@ -7116,7 +7214,9 @@
             selectedGscSite: '-- Select Site(s) --',
             selectedGa4Property: '-- Select Property/ies --',
             selectedAdsAccount: '-- Select Account(s) --',
-            selectedMetaAccount: '-- Select Ad Account(s) --'
+            selectedMetaAccount: '-- Select Ad Account(s) --',
+            selectedLinkedInAccount: '-- Select Ad Account(s) --',
+            selectedTikTokAccount: '-- Select Advertiser(s) --'
         };
 
         function toggleSearchableSelect(id) {
@@ -9360,6 +9460,7 @@ CRITICAL CONTACT RULE:
             21. dataforseo_ranked_keywords: Fetch keywords a domain currently ranks for in Google, with positions and search volume. Use whenever asked what a domain ranks for or its organic keyword footprint.
             22. get_workduo_report: Fetch AI visibility data from WorkDuo — how visible a brand/client is in AI-generated answers across topics. ALWAYS use this when the user asks about AI visibility, AI search presence, LLM visibility, or WorkDuo.
             23. get_ahrefs_report: Fetch live Ahrefs data for any domain. ALWAYS use this when the user asks about backlinks, domain rating (DR), referring domains, organic traffic, organic keywords, or competitor analysis. Actions: overview (DR + traffic snapshot), keywords (top organic rankings), backlinks (top links by DR), competitors (competing domains).
+            24. get_tiktok_ads_report: Fetch TikTok Ads performance data — spend, impressions, clicks, CTR, CPC, CPM, conversions, cost per conversion, conversion rate, reach, and results. Use this whenever the user asks about TikTok Ads or TikTok paid social performance. The advertiser_id values are in the synced context / CURRENT CONTEXT under 'tiktok_advertiser_ids' — call the tool once per advertiser_id. Pass start_date and end_date (YYYY-MM-DD). For a daily breakdown use dimensions ['stat_time_day']; for a single total use ['advertiser_id']. If the user selected no advertiser, tell them to pick one in the TikTok Ads connector.
             STEP 1: Call action='list_projects' to find the matching project. Each project has an 'entity' (the client/primary brand) and 'projectEntities' (the client + competitors with trackingType 'PRIMARY' or 'COMPETITOR').
             STEP 2a — For DAILY LINE CHARTS (competitor comparison over time): Call action='get_visibility' with metric='all' for the PRIMARY entity first, then call again for EACH competitor entity. Each call returns daily rows with fields: date (ISO string), visibility (0–1 decimal — multiply × 100 for %), sov, mentions, position. Align all entities on the same date axis.
             STEP 2b — For MONTHLY BAR CHARTS or SUMMARY metrics: Call action='get_visibility' with dimension='topic' or aggregate across the date rows.
@@ -9512,9 +9613,14 @@ CRITICAL CONTACT RULE:
             - GA4 Property/ies: ${ga4Props.length ? ga4Props.join(', ') : 'None selected'}
             - Google Ads Account(s): ${adsAccs.length ? adsAccs.join(', ') : 'None selected'}
             - Meta Ad Account(s): ${(() => { try { const m = JSON.parse(localStorage.getItem('selectedMetaAccount') || '[]'); return m.length ? m.map(s=>s.label||s.value).join(', ') : 'None selected'; } catch { return 'None selected'; } })()}
+            - meta_ad_account_ids: ${(() => { try { return JSON.stringify(JSON.parse(localStorage.getItem('selectedMetaAccount') || '[]').map(s=>s.value||s).filter(Boolean)); } catch { return '[]'; } })()}
             - Meta Ads token: ${localStorage.getItem('meta_access_token') ? 'Connected' : 'Not connected'}
             - LinkedIn Ads token: ${localStorage.getItem('linkedin_access_token') ? 'Connected' : 'Not connected'}
+            - LinkedIn Ad Account(s): ${(() => { try { const l = JSON.parse(localStorage.getItem('selectedLinkedInAccount') || '[]'); return l.length ? l.map(s=>s.label||s.value).join(', ') : 'None selected'; } catch { return 'None selected'; } })()}
+            - linkedin_ad_account_ids: ${(() => { try { return JSON.stringify(JSON.parse(localStorage.getItem('selectedLinkedInAccount') || '[]').map(s=>s.value||s).filter(Boolean)); } catch { return '[]'; } })()}
             - TikTok Ads token: ${localStorage.getItem('tiktok_access_token') ? 'Connected' : 'Not connected'}
+            - TikTok Advertiser(s): ${(() => { try { const t = JSON.parse(localStorage.getItem('selectedTikTokAccount') || '[]'); return t.length ? t.map(s=>s.label||s.value).join(', ') : 'None selected'; } catch { return 'None selected'; } })()}
+            - tiktok_advertiser_ids: ${(() => { try { return JSON.stringify(JSON.parse(localStorage.getItem('selectedTikTokAccount') || '[]').map(s=>s.value||s).filter(Boolean)); } catch { return '[]'; } })()}
             - SE Ranking campaigns: ${(() => { try { return (window.allSERankingSites || []).length ? (window.allSERankingSites.map(s => s.name || s.id).join(', ')) : 'None configured'; } catch { return 'None configured'; } })()}
             - WorkDuo AI Visibility: Connected — ${(() => { const ids = JSON.parse(localStorage.getItem('selectedWorkDuoProjectIds') || '[]'); const projs = (window.allWorkDuoProjects || []).filter(p => ids.includes(String(p.id))); return projs.length ? `${projs.length} project(s) selected: ${projs.map(p => `${p.name} (id:${p.id}, entity:${p.entity?.id||'?'})`).join(', ')}` : 'no projects pre-selected (Claude will call list_projects first)'; })()}
             - Ahrefs: Connected (server-side API key configured) — call get_ahrefs_report with a domain to get DR, backlinks, keywords, or competitors
@@ -9744,7 +9850,9 @@ CRITICAL CONTACT RULE:
                         meta_access_token: localStorage.getItem('meta_access_token') || '',
                         meta_ad_account_ids: (() => { try { return JSON.parse(localStorage.getItem('selectedMetaAccount') || '[]').map(s => s.value || s).filter(Boolean); } catch { return []; } })(),
                         linkedin_access_token: localStorage.getItem('linkedin_access_token') || '',
-                        linkedin_ad_account_ids: (() => { try { return JSON.parse(localStorage.getItem('selectedLinkedInAccount') || '[]').map(s => s.value || s).filter(Boolean); } catch { return []; } })()
+                        linkedin_ad_account_ids: (() => { try { return JSON.parse(localStorage.getItem('selectedLinkedInAccount') || '[]').map(s => s.value || s).filter(Boolean); } catch { return []; } })(),
+                        tiktok_access_token: localStorage.getItem('tiktok_access_token') || '',
+                        tiktok_advertiser_ids: (() => { try { return JSON.parse(localStorage.getItem('selectedTikTokAccount') || '[]').map(s => s.value || s).filter(Boolean); } catch { return []; } })()
                     })
                 });
 
