@@ -293,6 +293,33 @@ def run_meta_ads_report(access_token, ad_account_id, start_date, end_date,
     except Exception as e:
         return {"error": str(e)}
 
+def _linkedin_resolve_names(ids, resource_path, access_token):
+    """Batch-resolve LinkedIn entity IDs to human-readable names. Returns {id_str: name}."""
+    if not ids or not resource_path:
+        return {}
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "LinkedIn-Version": "202510",
+        "X-Restli-Protocol-Version": "2.0.0"
+    }
+    names = {}
+    ids = list(ids)
+    for i in range(0, len(ids), 50):  # chunk to keep URLs sane
+        chunk = ids[i:i + 50]
+        url = f"https://api.linkedin.com/rest/{resource_path}?ids=List({','.join(chunk)})"
+        try:
+            r = requests.get(url, headers=headers, timeout=20)
+            if r.status_code != 200:
+                continue
+            results = (r.json() or {}).get("results", {})
+            for k, v in results.items():
+                nm = (v or {}).get("name") or (v or {}).get("title")
+                if nm:
+                    names[str(k)] = nm
+        except Exception:
+            continue
+    return names
+
 def run_linkedin_ads_report(access_token, account_id, start_date, end_date,
                             pivot="ACCOUNT", granularity="ALL", fields=None):
     """Fetch a LinkedIn Ads analytics report for a single sponsored account."""
@@ -331,13 +358,36 @@ def run_linkedin_ads_report(access_token, account_id, start_date, end_date,
         data = r.json()
         if isinstance(data, dict) and (data.get("status") and data.get("status") >= 400 or data.get("serviceErrorCode")):
             return {"error": data.get("message", "LinkedIn API error"), "raw": data}
+        rows = data.get("elements", [])
+        # Resolve pivot URNs (campaign/account/group) to human-readable names.
+        # CREATIVE has no friendly name, so it is left as a URN.
+        pivot_resource = {
+            "ACCOUNT": "adAccounts",
+            "CAMPAIGN": "adCampaigns",
+            "CAMPAIGN_GROUP": "adCampaignGroups"
+        }.get(pivot)
+        if pivot_resource and rows:
+            ids = set()
+            for row in rows:
+                for urn in (row.get("pivotValues") or []):
+                    num = str(urn).split(":")[-1]
+                    if num.isdigit():
+                        ids.add(num)
+            name_map = _linkedin_resolve_names(sorted(ids), pivot_resource, access_token)
+            if name_map:
+                for row in rows:
+                    pv = row.get("pivotValues") or []
+                    if pv:
+                        num = str(pv[0]).split(":")[-1]
+                        if num in name_map:
+                            row["pivotName"] = name_map[num]
         return {
             "account_id": acct,
             "start_date": start_date,
             "end_date": end_date,
             "pivot": pivot,
             "granularity": granularity,
-            "rows": data.get("elements", []),
+            "rows": rows,
             "paging": data.get("paging", {})
         }
     except Exception as e:
