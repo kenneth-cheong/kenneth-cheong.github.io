@@ -5,10 +5,29 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 
-try:
-    import textstat
-except ImportError:
-    textstat = None
+def _count_syllables(word):
+    word = word.lower().strip(".,!?;:")
+    if not word:
+        return 0
+    vowels = "aeiouy"
+    count = 0
+    prev_vowel = False
+    for ch in word:
+        is_vowel = ch in vowels
+        if is_vowel and not prev_vowel:
+            count += 1
+        prev_vowel = is_vowel
+    if word.endswith("e") and count > 1:
+        count -= 1
+    return max(1, count)
+
+def _flesch_reading_ease(text):
+    sentences = max(1, len(re.findall(r'[.!?]+', text)))
+    words = re.findall(r'\b\w+\b', text)
+    if not words:
+        return 0
+    syllables = sum(_count_syllables(w) for w in words)
+    return 206.835 - 1.015 * (len(words) / sentences) - 84.6 * (syllables / len(words))
 
 PRIORITY_HIGH = "high"
 PRIORITY_MEDIUM = "medium"
@@ -172,10 +191,8 @@ def analyze_headings(content, primary_keyword):
 
 
 def analyze_readability(text):
-    if not textstat:
-        return {"label": "Readability", "score": None, "level": "unavailable", "recommendations": []}
     try:
-        flesch_score = textstat.flesch_reading_ease(text)
+        flesch_score = _flesch_reading_ease(text)
         normalized = 100 if flesch_score >= 60 else (0 if flesch_score <= 30 else ((flesch_score - 30) / 30) * 100)
         recs = []
         if flesch_score < 60:
@@ -678,14 +695,9 @@ def lambda_handler(event, context):
         quality_score = min(100, max(0, round(result["overall_score"])))
 
         return {
-            'statusCode': 200,
-            'headers': {'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json'},
-            'body': json.dumps({
-                'body': html_body,
-                'quality_score': quality_score,
-                'analysis': result,
-            }),
+            'body': html_body,
+            'quality_score': quality_score,
         }
 
     except Exception as e:
-        return {'statusCode': 500, 'body': json.dumps({'error': str(e)})}
+        return {'body': f'<p style="color:red;">Error: {str(e)}</p>', 'quality_score': 0}
