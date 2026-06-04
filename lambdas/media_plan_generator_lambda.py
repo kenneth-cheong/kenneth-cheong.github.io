@@ -894,9 +894,35 @@ def lambda_handler(event, context):
 
     # Process the response
     try:
+        import re as _re
         response_text = response.json()['content'][0]['text']
-        #Clean up the response
-        cleaned_response = response_text.replace('```html','').replace('```','').replace('\n\n', '<br>').replace('#','').replace("**",'')
+
+        def _md_to_html(text):
+            # Strip code fences
+            text = text.replace('```html', '').replace('```', '')
+            # HR dividers
+            text = _re.sub(r'\n?---+\n?', '<hr style="border:none;border-top:2px solid #e2e8f0;margin:20px 0;">', text)
+            # Bold **text**
+            text = _re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+            # H1/H2/H3 headings
+            text = _re.sub(r'^#{1,3}\s+(.+)$', lambda m: f'<h3 style="font-size:15px;font-weight:700;color:#1a1a2e;margin:20px 0 6px;padding-bottom:4px;border-bottom:1px solid #f0f0f0;">{m.group(1)}</h3>', text, flags=_re.MULTILINE)
+            # Remaining lone # chars (not followed by space — artefacts)
+            text = text.replace('#', '')
+            # Wrap non-HTML text blocks in paragraphs
+            blocks = _re.split(r'\n{2,}', text)
+            out = []
+            for block in blocks:
+                block = block.strip()
+                if not block:
+                    continue
+                if block.startswith('<') or block.startswith('<hr'):
+                    out.append(block)
+                else:
+                    block = block.replace('\n', ' ')
+                    out.append(f'<p style="font-size:13px;color:#444;line-height:1.7;margin:0 0 12px;">{block}</p>')
+            return '\n'.join(out)
+
+        cleaned_response = _md_to_html(response_text)
 
         # Check for empty responses
         if not cleaned_response.strip():
