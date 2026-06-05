@@ -2006,16 +2006,6 @@
             color: #b91c1c;
         }
 
-        /* LLM Toggle & Tool Log Styles */
-        .llm-switch input:checked+.mode-slider {
-            background: linear-gradient(135deg, #7c3aed, #4f46e5) !important;
-        }
-
-        .mode-label.claude-active {
-            color: #a78bfa !important;
-            opacity: 1 !important;
-        }
-
         /* Unified Status Bar */
         .unified-status-bar {
             display: flex;
@@ -3209,7 +3199,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1746</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1747</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3396,10 +3386,6 @@
                             <input type="checkbox" id="privateMemoryMode">
                             <span class="slider round"></span>
                         </label>
-                    </div>
-                    <div class="form-group" style="margin-top: 12px;">
-                        <label>OpenAI Vector Store ID</label>
-                        <input type="text" id="vectorStoreId" placeholder="vs_...">
                     </div>
                     <div class="form-group" style="margin-top: 12px;">
                         <label>Monday.com Boards</label>
@@ -4038,10 +4024,7 @@
     <script>
         let isSyncing = false;
         let threadId = localStorage.getItem('threadId') || null;
-        let assistantId = localStorage.getItem('assistantId') || null;
-        let vectorStoreId = localStorage.getItem('vectorStoreId') || null;
         let currentMode = localStorage.getItem('chatbotMode') || 'client'; // 'client' or 'internal'
-        let currentLLM = localStorage.getItem('chatbotLLM') || 'claude'; // Default to 'claude' to match Autonomous Badge lock
         window.lastSyncedInternalState = { boards: [], items: [], staff: [] };
 
         // Persistence State
@@ -4231,7 +4214,7 @@
                             conversationId: currentConversationId,
                             messages: chatHistory,
                             threadId: localStorage.getItem('threadId'),
-                            mode: currentLLM,
+                            mode: 'claude',
                             title: bestTitle,
                             userLabel: userEmail,
                             timestamp: new Date().toISOString() // Ensure fresh timestamp on every save
@@ -4253,47 +4236,6 @@
                 console.error(`[PERSISTENCE SAVE ERROR]`, error);
                 updateCloudStatus('error', `Sync Failed`);
                 return false;
-            }
-        }
-
-        async function generateAiTitle() {
-            // Only generate if we have at least one exchange and no smart title yet
-            if (chatHistory.length < 2 || localStorage.getItem(`title_${currentConversationId}`)) return;
-
-            console.log("[AI-TITLE] Generating intelligent title...");
-            try {
-                const lastUserMsg = chatHistory.findLast(m => m.role === 'user')?.content || "";
-                const lastBotMsg = chatHistory.findLast(m => m.role === 'assistant')?.content || "";
-
-                const prompt = `Summarize this chat into a 3-5 word title. 
-                User: ${lastUserMsg.substring(0, 200)}
-                Bot: ${lastBotMsg.substring(0, 200)}
-                Title:`;
-
-                const res = await fetch(MONDAY_LAMBDA_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'openai_proxy',
-                        data: {
-                            model: "gpt-4o-mini",
-                            messages: [{ role: "user", content: prompt }],
-                            max_tokens: 20
-                        }
-                    })
-                });
-
-                const raw = await res.json();
-                const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
-                const aiTitle = data.choices?.[0]?.message?.content?.replace(/["']/g, "").trim();
-
-                if (aiTitle && aiTitle.length > 3) {
-                    console.log(`[AI-TITLE] Set title to: ${aiTitle}`);
-                    localStorage.setItem(`title_${currentConversationId}`, aiTitle);
-                    saveConversation(); // Re-sync with new title
-                }
-            } catch (e) {
-                console.warn("[AI-TITLE] Failed to generate title", e);
             }
         }
 
@@ -4464,10 +4406,6 @@
                     if (convData.threadId) {
                         localStorage.setItem('threadId', convData.threadId);
                         threadId = convData.threadId;
-                    }
-
-                    if (convData.mode) {
-                        setLLM(convData.mode);
                     }
 
                     // Clear and re-render messages
@@ -4645,16 +4583,6 @@
                 applyMode('client');
             }
 
-            // Restore LLM
-            if (currentLLM === 'claude') {
-                const lt = document.getElementById('llmToggle');
-                if (lt) lt.checked = true;
-                applyLLM('claude');
-            } else {
-                applyLLM('gpt');
-            }
-
-
             // Attachment Event Listeners
             const inputArea = document.getElementById('userInput');
             const inputBar = document.getElementById('inputBar');
@@ -4679,10 +4607,6 @@
             });
 
             inputBar.addEventListener('drop', handleDrop, false);
-
-            if (assistantId) {
-                updateSyncStatus("Assistant Ready", false, true);
-            }
 
             // Start auto-sync if enabled
             if (document.getElementById('autoSync').checked) {
@@ -4771,38 +4695,6 @@
             }
         }
 
-        // ---- LLM Toggle Logic ----
-        function handleLLMToggle(isClaude) {
-            const llm = isClaude ? 'claude' : 'gpt';
-            setLLM(llm);
-        }
-
-        function setLLM(llm) {
-            currentLLM = llm;
-            localStorage.setItem('chatbotLLM', llm);
-            const lt = document.getElementById('llmToggle');
-            if (lt) lt.checked = (llm === 'claude');
-            applyLLM(llm);
-        }
-
-        function applyLLM(llm) {
-            const gptLabel = document.getElementById('gptLLMLabel');
-            const claudeLabel = document.getElementById('claudeLLMLabel');
-            const llmToggle = document.getElementById('llmToggle');
-
-            if (llmToggle) llmToggle.checked = (llm === 'claude');
-
-            if (llm === 'claude') {
-                if (gptLabel) gptLabel.classList.remove('active');
-                if (claudeLabel) claudeLabel.classList.add('active', 'claude-active');
-                showToast("Switched to Claude 3.5 Sonnet", "info");
-            } else {
-                if (gptLabel) gptLabel.classList.add('active');
-                if (claudeLabel) claudeLabel.classList.remove('active', 'claude-active');
-                showToast("Switched to GPT-4o-mini", "info");
-            }
-        }
-
         // ---- Attachment Handling ----
         let currentAttachment = null;
 
@@ -4883,29 +4775,6 @@
             const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
             if (data.error) throw new Error(data.error);
             return data; // { s3Key, url, filename, mimeType }
-        }
-
-        async function uploadAttachmentToOpenAI(file) {
-            const reader = new FileReader();
-            const b64 = await new Promise((resolve) => {
-                reader.onload = () => resolve(reader.result.split(',')[1]);
-                reader.readAsDataURL(file);
-            });
-
-            const res = await fetch(MONDAY_LAMBDA_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'openai_upload',
-                    content: b64,
-                    filename: file.name,
-                    purpose: file.type.startsWith('image/') ? 'vision' : 'assistants'
-                })
-            });
-            const data = await res.json();
-            const body = typeof data.body === 'string' ? JSON.parse(data.body) : (data.body || data);
-            if (body.error) throw new Error(body.error.message);
-            return body.id;
         }
 
         async function getFileBase64(file) {
@@ -5058,9 +4927,6 @@
             if (_storedEmail.toLowerCase().startsWith('[object')) localStorage.removeItem('clientEmail');
             document.getElementById('clientEmail').value = localStorage.getItem('clientEmail') || "";
             document.getElementById('privateMemoryMode').checked = localStorage.getItem('privateMemoryMode') === 'true';
-            const vsId = localStorage.getItem('vectorStoreId') || "";
-            document.getElementById('vectorStoreId').value = vsId;
-            localStorage.setItem('vectorStoreId', vsId);
             document.getElementById('contextUrls').value = localStorage.getItem('contextUrls') || "";
             document.getElementById('autoSync').checked = localStorage.getItem('autoSync') === 'true';
             document.getElementById('googleClientId').value = localStorage.getItem('googleClientId') || '1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com';
@@ -5252,7 +5118,6 @@
             const newEmail = document.getElementById('clientEmail').value.trim();
             setUserIdFromEmail(newEmail);
             localStorage.setItem('privateMemoryMode', document.getElementById('privateMemoryMode').checked);
-            localStorage.setItem('vectorStoreId', document.getElementById('vectorStoreId').value.trim());
             const contextUrls = document.getElementById('contextUrls').value.trim();
             const autoSync = document.getElementById('autoSync').checked;
 
@@ -5720,57 +5585,6 @@
             }
         }
 
-        async function fetchOpenAIViaLambda(endpoint, method = 'POST', data = {}) {
-            console.log(`[OPENAI PROXY] ${method} ${endpoint} via ${MONDAY_LAMBDA_URL}`);
-            try {
-                const res = await fetch(MONDAY_LAMBDA_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'openai_proxy',
-                        endpoint: endpoint,
-                        method: method,
-                        data: data
-                    })
-                });
-
-                if (!res.ok) {
-                    throw new Error(`Proxy HTTP Error ${res.status}: ${res.statusText}`);
-                }
-
-                const result = await res.json();
-
-                // Extract body if Lambda wrapped it in a JSON string
-                const finalResult = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body || result);
-
-                // Log errors from OpenAI if they exist (ignore 404 for deletes to keep console clean)
-                if (finalResult && finalResult.error) {
-                    const isMissingFile = (method === 'DELETE' && endpoint.includes('/files/') && finalResult.error.code === null);
-
-                    // AUTO-CLEANUP logic for 404 / Invalid Resource errors
-                    const errStatus = finalResult.error.status || (finalResult.error.message ? 0 : 404); // Some proxies might not pass status perfectly
-                    const errMessage = (finalResult.error.message || "").toLowerCase();
-                    const isNotFound = errStatus === 404 || errMessage.includes("not found") || errMessage.includes("no such") || errMessage.includes("does not exist") || errMessage.includes("expired");
-
-                    if (isNotFound) {
-                        console.warn(`[SYNC] Resource not found/expired at ${endpoint}. Cleaning up stale ID from storage...`);
-                        if (endpoint.includes('/assistants/')) localStorage.removeItem('assistantId');
-                        if (endpoint.includes('/vector_stores/')) localStorage.removeItem('vectorStoreId');
-                        if (endpoint.includes('/threads/')) sessionStorage.removeItem('openai_thread_id');
-                    }
-
-                    if (!isMissingFile) {
-                        console.error(`[OPENAI ERROR] ${endpoint}:`, finalResult.error);
-                    }
-                }
-
-                return finalResult;
-            } catch (e) {
-                console.error(`[PROXY CRASH] ${endpoint}:`, e);
-                return null;
-            }
-        }
-
         async function downloadFileViaLambda(fileUrl) {
             try {
                 const res = await fetch(MONDAY_LAMBDA_URL, {
@@ -5791,41 +5605,6 @@
                 console.error("Download Proxy Error:", e);
                 return null;
             }
-        }
-
-        // Helper: Process a single asset (Download -> Proxy -> Upload to OpenAI)
-        async function processAsset(asset) {
-            try {
-                console.log(`  [FILE SYNC] Simultaneous Start: "${asset.name}"`);
-                const blob = await downloadFileViaLambda(asset.public_url);
-                if (!blob) throw new Error("Could not download file via proxy");
-
-                const reader = new FileReader();
-                const contentB64 = await new Promise((resolve) => {
-                    reader.onload = () => resolve(reader.result.split(',')[1]);
-                    reader.readAsDataURL(blob);
-                });
-
-                const result = await fetch(MONDAY_LAMBDA_URL, {
-                    method: 'POST',
-                    headers: { 'Content-type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'openai_upload',
-                        content: contentB64,
-                        filename: asset.name
-                    })
-                }).then(r => r.json());
-
-                const uData = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body || result);
-
-                if (uData.id) {
-                    console.log(`  [FILE SYNC] Simultaneous Complete: "${asset.name}" -> ${uData.id}`);
-                    return uData.id;
-                }
-            } catch (e) {
-                console.error(`  [FILE SYNC ERROR] Failed ${asset.name}:`, e);
-            }
-            return null;
         }
 
         // ---- Multi-Select Dropdown Component ----
@@ -8419,297 +8198,10 @@
                     addMessage('bot', `✅ **Data loaded successfully!** You can now ask me anything about the context below.\n\n${summaryLines.join('\n')}`);
                     return;
 
-                // Step 2: Upload to OpenAI with Unique Filename
-                const syncBatchId = Date.now();
-                const fileName = `internal_campaign_ctx_${syncBatchId}.json`;
-
-                showToast(`Step 2/5: Uploading context (${fileName})...`, 'loading', 3000);
-                updateSyncStatus("Uploading to OpenAI...", true);
-
-                let jsonStr = JSON.stringify(combinedContext, null, 2);
-                const sizeInMB = (jsonStr.length / (1024 * 1024));
-                if (sizeInMB > 4) {
-                    console.warn(`[SYNC] Context too large (${sizeInMB.toFixed(2)}MB). Truncating for AWS Lambda 6MB payload safety.`);
-                    // Aggressive truncation: Remove updates and limit messages
-                    if (combinedContext.chat_messages) combinedContext.chat_messages.forEach(s => s.messages = s.messages.slice(0, 20));
-                    if (combinedContext.campaigns) combinedContext.campaigns.forEach(c => c.recent_updates = []);
-                    jsonStr = JSON.stringify(combinedContext, null, 2);
-                }
-                console.log(`[SYNC] Final Context Size: ${(jsonStr.length / (1024 * 1024)).toFixed(2)}MB`);
-
-                const blob = new Blob([jsonStr], { type: 'application/json' });
-                const reader2 = new FileReader();
-                const jsonB64 = await new Promise((resolve) => {
-                    reader2.onload = () => resolve(reader2.result.split(',')[1]);
-                    reader2.readAsDataURL(blob);
-                });
-
-                let syncFileData;
-                try {
-                    const uploadRes = await fetch(MONDAY_LAMBDA_URL, {
-                        method: 'POST',
-                        headers: { 'Content-type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'openai_upload',
-                            content: jsonB64,
-                            filename: fileName
-                        })
-                    });
-                    if (!uploadRes.ok) throw new Error(`HTTP ${uploadRes.status}: ${uploadRes.statusText}`);
-                    const uploadRaw = await uploadRes.json();
-                    syncFileData = typeof uploadRaw.body === 'string' ? JSON.parse(uploadRaw.body) : (uploadRaw.body || uploadRaw);
-                } catch (uploadErr) {
-                    console.error('[SYNC] Step 2/5 (Upload) failed:', uploadErr);
-                    throw new Error(`Step 2/5: Failed to upload context to OpenAI — ${uploadErr.message}`);
-                }
-
-                const allFileIds = [syncFileData.id];
-
-                // Step 3: Vector Store management
-                showToast("Step 3/5: Managing Knowledge Store...", 'loading', 3000);
-                let vsId = document.getElementById('vectorStoreId').value.trim();
-                if (!vsId) {
-                    updateSyncStatus("Creating Vector Store...", true);
-                    const vsData = await fetchOpenAIViaLambda("/vector_stores", "POST", { name: "Internal Campaign Store" });
-                    vsId = vsData.id;
-                    document.getElementById('vectorStoreId').value = vsId;
-                    localStorage.setItem('vectorStoreId', vsId);
-                }
-
-                await fetchOpenAIViaLambda(`/vector_stores/${vsId}/file_batches`, "POST", { file_ids: allFileIds });
-
-                // Step 4: Purge old files
-                showToast("Step 4/5: Purging stale context...", 'loading', 3000);
-                const vsFilesData = await fetchOpenAIViaLambda(`/vector_stores/${vsId}/files?limit=100`, "GET");
-                const oldFileList = (vsFilesData.data || []).filter(f => !allFileIds.includes(f.id)).map(f => f.id);
-                if (oldFileList.length > 0) {
-                    console.log(`[PURGE] Removing ${oldFileList.length} stale files...`);
-                    await Promise.all(oldFileList.map(oldId =>
-                        fetchOpenAIViaLambda(`/files/${oldId}`, "DELETE").catch(() => { })
-                    ));
-                }
-
-                // Step 5: Create/update internal assistant with Strict Isolation
-                showToast("Step 5/5: Updating Assistant Instructions...", 'loading', 3000);
-                const cleanItemNames = selectedItems.map(i => typeof i === 'object' ? i.name : i).join(', ');
-
-                // DATA INJECTION: For small datasets (<15k chars), inject directly into instructions 
-                // to bypass file_search retrieval limits and ensure 100% list accuracy.
-                let compactData = JSON.stringify((combinedContext.campaigns || []).map(c => ({
-                    name: c.name,
-                    monday_url: c.monday_url,
-                    status: c.columns['[CSM] Campaign Status'] || c.columns['Status'],
-                    csm: c.columns['Client Success Manager'] || c.columns['Staff Name'] || c.columns['CSM'],
-                    type: c.columns['[BD]Project Type'] || c.columns['Type']
-                })));
-
-                // SAFETY: If compactData is too large, it will break the OpenAI assistant instructions
-                if (compactData.length > 50000) {
-                    console.log(`[SYNC] compactData too large (${compactData.length} chars). Omitting direct injection to favor file_search.`);
-                    compactData = "[]"; // Force empty array so AI relies on file_search
-                }
-
-                // Build a compact board registry string for the AI to search
-                // Format: "BoardName | https://mediaone-business-group-pte-ltd.monday.com/boards/ID" per line
-                // Capped at 100 boards to avoid bloating instructions — full list is in the vector store file.
-                const MAX_REGISTRY_LINES = 100;
-                const boardRegistryLines = window.mondayBoardRegistry.length > 0
-                    ? window.mondayBoardRegistry.slice(0, MAX_REGISTRY_LINES).map(b => `${b.name} | https://mediaone-business-group-pte-ltd.monday.com/boards/${b.id}`).join('\n')
-                        + (window.mondayBoardRegistry.length > MAX_REGISTRY_LINES ? `\n... and ${window.mondayBoardRegistry.length - MAX_REGISTRY_LINES} more boards (search the full registry via file_search).` : '')
-                    : 'No boards discovered.';
-
-                const hasBoardDrilldown = hasBoardSelection;
-
-                let instructions = `You are the MediaOne Internal Campaign Analyst.
-
-MODE: Internal — you have access to campaign data from Monday.com.
-${hasBoardDrilldown ? `\n⚠️ CAMPAIGN BOARD MODE ACTIVE: The user has selected ${campaignBoardDrilldowns.length} specific campaign board(s). ALL your answers MUST be based EXCLUSIVELY on the data from these selected boards (found under "selected_campaign_boards" in the JSON). Do NOT reference or use the summary board campaign data unless the user explicitly asks about the summary board.\n` : ''}
-STRICT CONTEXT RULE:
-Ignore any information from previous conversations or files that are not visible in the current JSON context. You are only analyzing the data uploaded JUST NOW.
-
-DOMAIN KNOWLEDGE & ACRONYMS:
-- "GEO" stands for "Generative Engine Optimization" (not Geography/Geographic). If the user asks for GEO campaigns, search for Generative Engine Optimization or GEO specifically.
-- "SEO" stands for Search Engine Optimization.
-
-Your role:
-1. Help internal staff quickly find information about campaigns, staff assignments, campaign statuses, and details.
-2. When answering, always cite which campaign item the information comes from.
-3. If there are people columns, note who is assigned.
-4. Present data in Markdown tables whenever listing multiple items.
-5. NO TRUNCATION: If the user asks for "all" or a list, you must list EVERY single matching item from the data. List all items, do not truncate.
-6. Be direct but EXHAUSTIVE — this is for internal staff, not clients. Do not omit any relevant data to save space.
-7. If the data doesn't contain what's being asked, say so clearly.
-8. ALWAYS include clickable Monday.com links (item_url or monday_url) for each item you mention. Format as a markdown link: [Item Name](url).
-9. MENTION ALL URLS: ALWAYS include any available URLs (such as asset links, public_urls, or references found in columns) directly in your response/tables without the user explicitly asking for them.
-
-BOARD REGISTRY LOOKUP:
-Below is a complete list of ALL active boards in the Monday.com workspace. When a user asks about a specific client, campaign, or wants to "zoom in" / "drill down":
-- Search through the BOARD REGISTRY below to find boards whose names match or relate to the campaign/client name.
-- Board names in Monday often follow patterns like "[YY-MM/CODE] Client Name (Service Type)" e.g. "[23-09/BHS-01] Bhavini S Law Practice (SEO)".
-- A single client may have MULTIPLE boards (one per service: SEO, SEM, SMM, Web, etc.).
-- Present ALL matching boards from the registry as clickable links so the user can navigate to them.
-- If no matching boards are found, say so explicitly.
-
-CRITICAL FORMATTING RULE:
-- When presenting data, ALWAYS use Markdown tables with clear headers.
-- Include a clickable Monday.com link column in tables.
-- ALWAYS include an additional column for ANY other available URLs, like asset public_urls or external links.
-- When showing board lookups, include Board Name and a clickable Board URL column.
-- Do NOT truncate rows in tables. Show the full dataset matching the user's request.
-- Group related information logically.
-- Highlight any missing or empty fields.
-
-DATA CONTEXT:
-${hasBoardDrilldown ? `PRIMARY DATA SOURCE: ${campaignBoardDrilldowns.length} selected campaign board(s).
-IMPORTANT: You have ZERO access to the summary board. ALL your answers MUST come from the SELECTED BOARD DATA below. If the data doesn't answer the question, say so.` : `Summary board (Board ID: ${INTERNAL_CAMPAIGN_BOARD_ID}) with ${items.length} campaigns.`}
-Total Workspace Boards in Registry: ${window.mondayBoardRegistry.length}
-
-BOARD REGISTRY (${window.mondayBoardRegistry.length} boards):
-${boardRegistryLines}`;
-
-                if (hasBoardDrilldown) {
-                    // DIRECT INJECTION: Serialize selected board data into instructions
-                    // This bypasses file_search entirely, preventing stale vector store data from leaking in
-                    const boardDataCompact = campaignBoardDrilldowns.map(d => ({
-                        board_name: d.board_name,
-                        board_url: d.board_url,
-                        items: d.items.map(item => ({
-                            name: item.name,
-                            url: item.item_url,
-                            columns: item.columns,
-                            updates: item.recent_updates
-                        }))
-                    }));
-                    const boardDataStr = JSON.stringify(boardDataCompact);
-                    instructions += `\n\nSELECTED BOARD DATA (USE THIS EXCLUSIVELY):\n${boardDataStr}`;
-                } else if (compactData.length < 200000) {
-                    instructions += `\n\nDIRECT CAMPAIGN LIST (USE THIS FOR ALL LISTS):\n${compactData}`;
-                }
-
-                // Inject Google Chat messages into instructions
-                if (chatMessages.length > 0) {
-                    const chatCompact = chatMessages.map(s => ({
-                        space: s.space_name,
-                        messages: s.messages.slice(0, 30).map(m => ({
-                            from: m.sender,
-                            text: m.text.substring(0, 500),
-                            time: m.timestamp
-                        }))
-                    }));
-                    const chatDataStr = JSON.stringify(chatCompact);
-                    instructions += `\n\nGOOGLE CHAT MESSAGES (from ${chatMessages.length} space(s)):\nThe user has included recent Google Chat conversations. Use this to cross-reference discussions with campaign data. When the user asks about conversations, discussions, or team chats, reference this data.\n${chatDataStr}`;
-                }
-
-                // Inject Google Drive document extracts into instructions
-                if (driveDocuments.length > 0) {
-                    const driveCompact = driveDocuments.map(doc => ({
-                        folder: doc.folder,
-                        file: doc.file,
-                        excerpt: doc.content.substring(0, 1000)
-                    }));
-                    const driveDataStr = JSON.stringify(driveCompact);
-                    instructions += `\n\nGOOGLE DRIVE DOCUMENTS (${driveDocuments.length} file(s) from ${selectedDriveFolders.length} folder(s)):\nThe user has shared Drive files. Use these to find project briefs, SOWs, reports, or any campaign documentation mentioned. Cross-reference file content with Monday.com campaign names.\n${driveDataStr}`;
-                }
-
-                // Inject Gmail threads into instructions
-                if (gmailData.length > 0) {
-                    const gmailCompact = gmailData.map(t => ({
-                        thread_id: t.thread_id,
-                        messages: t.messages.slice(0, 5).map(m => ({
-                            subject: m.subject,
-                            from: m.from,
-                            date: m.date,
-                            excerpt: m.body.substring(0, 500)
-                        }))
-                    }));
-                    const gmailDataStr = JSON.stringify(gmailCompact);
-                    instructions += `\n\nGMAIL THREADS (${gmailData.length} thread(s)):\nThe user has included Gmail email threads related to their campaigns/staff. Use this to surface campaign-related email discussions, proposals, or status updates.\n${gmailDataStr}`;
-                }
-
-                const internalAssistantPayload = {
-                    instructions: instructions,
-                    model: "gpt-4o-mini",
-                    tools: [{
-                        type: "file_search",
-                        file_search: {
-                            max_num_results: 50,
-                            ranking_options: {
-                                ranker: "default_2024_08_21",
-                                score_threshold: 0.0
-                            }
-                        }
-                    }],
-                    tool_resources: {
-                        file_search: {
-                            vector_store_ids: [vsId]
-                        }
-                    }
-                };
-
-                let currentAsstId = localStorage.getItem('assistantId');
-                if (currentAsstId && currentAsstId.startsWith('asst_')) {
-                    await fetchOpenAIViaLambda(`/assistants/${currentAsstId}`, "POST", internalAssistantPayload);
-                } else {
-                    const asstData = await fetchOpenAIViaLambda("/assistants", "POST", { ...internalAssistantPayload, name: `Internal Campaign Analyst [${new Date().toISOString().split('T')[0]}]` });
-                    if (asstData && asstData.id) {
-                        currentAsstId = asstData.id;
-                        localStorage.setItem('assistantId', currentAsstId);
-                    }
-                }
-
-                // Clear thread for fresh context
-                localStorage.removeItem('threadId');
-                threadId = null;
-
-                // Save for Claude
-                try {
-                    localStorage.setItem('syncedContext', JSON.stringify(combinedContext));
-                } catch (e) {
-                    console.warn("[SYNC] Could not save syncedContext to localStorage (Storage full).", e);
-                }
-
-                showToast("Internal Sync Complete!", 'success');
-                const totalItemCount = items.length + campaignBoardDrilldowns.reduce((sum, b) => sum + (b.total_items || 0), 0);
-                updateSyncStatus(`Internal Sync Done (${totalItemCount} campaigns)`, false, true);
-
-                // Update synced state to prevent un-synced filter warnings
-                window.lastSyncedInternalState = {
-                    boards: msState.msBoardDropdown.selected.map(b => typeof b === 'object' ? b.id : b),
-                    items: msState.msItemDropdown.selected.map(i => typeof i === 'object' ? i.id : i),
-                    staff: [...msState.msStaffDropdown.selected]
-                };
-                const itemNames = selectedItems.map(i => typeof i === 'object' ? i.name : i);
-
-                // Build board reference from user-selected boards
-                const selectedBoardNames = selectedBoards.map(b => typeof b === 'object' ? b.name : b);
-                let boardRefLines = '';
-                if (campaignBoardDrilldowns.length > 0) {
-                    boardRefLines = `\n\n📋 **Campaign Boards Loaded** (${campaignBoardDrilldowns.length}):\n` +
-                        campaignBoardDrilldowns.map(d => `- [${d.board_name}](${d.board_url}) — ${d.total_items} items`).join('\n');
-                } else if (window.mondayBoardRegistry.length > 0) {
-                    boardRefLines = `\n\n📋 **Board Registry:** ${window.mondayBoardRegistry.length} boards available — select boards in the filter above or ask me to look up boards for any campaign.`;
-                }
-
-                // Build Google Chat reference
-                let chatRefLines = '';
-                if (chatMessages.length > 0) {
-                    const totalMsgs = chatMessages.reduce((sum, s) => sum + s.messages.length, 0);
-                    chatRefLines = `\n\n💬 **Google Chat Loaded** (${chatMessages.length} space(s), ${totalMsgs} messages):\n` +
-                        chatMessages.map(s => `- ${s.space_name} — ${s.messages.length} messages`).join('\n');
-                }
-
-                addMessage("bot", `✅ **Internal data loaded!** Found **${totalItemCount} total campaigns/items** matching your filters.
-${itemNames.length > 0 ? `\n📌 Summary Board Matches: ${itemNames.join(', ')}` : ''}
-${selectedStaff.length > 0 ? `👤 Staff: ${selectedStaff.join(', ')}` : ''}
-${hasDynamicFilters ? `⚡ Custom Advanced Filters Applied` : ''}
-${boardRefLines}${chatRefLines}
-
-You can now ask me anything about these campaigns.`);
-
             } catch (error) {
                 console.error(`[INTERNAL SYNC ERROR] Target: ${MONDAY_LAMBDA_URL}`, error);
                 updateSyncStatus("Internal Sync Failed", false);
-                addMessage("bot", `Internal sync failed at endpoint **${MONDAY_LAMBDA_URL}**: 
+                addMessage("bot", `Internal sync failed at endpoint **${MONDAY_LAMBDA_URL}**:
 > ${error.message}
 
 *Common causes: CORS blocked, Lambda timeout, or invalid API endpoint.*`);
@@ -8754,9 +8246,6 @@ You can now ask me anything about these campaigns.`);
                     total_seo_rankings_count: 0,
                     last_sync: new Date().toISOString()
                 };
-
-                const mondayFileIds = [];
-                const allAssetsToProcess = [];
 
                 // 0. Prep SE Ranking IDs for auto-linking
                 const selectedSiteIds = JSON.parse(localStorage.getItem('selectedSERankingSiteIds') || '[]');
@@ -8840,28 +8329,6 @@ You can now ask me anything about these campaigns.`);
                         });
 
                         combinedContext.monday_boards.push({ board_name: board.name, items: filteredItems });
-
-                        // Collect Assets (Item level + Update level)
-                        filteredItems.forEach(item => {
-                            (item.assets || []).forEach(asset => allAssetsToProcess.push(asset));
-                            (item.updates || []).forEach(update => {
-                                (update.assets || []).forEach(asset => allAssetsToProcess.push(asset));
-                            });
-                        });
-                    }
-                }
-
-                // 2. Simultaneous Asset Processing (Batch Limit: 5) with Deduplication
-                const uniqueAssets = Array.from(new Map(allAssetsToProcess.map(a => [a.id, a])).values());
-                combinedContext.available_reports = uniqueAssets.map(a => a.name);
-
-                if (uniqueAssets.length > 0) {
-                    updateSyncStatus(`Syncing ${uniqueAssets.length} reports...`, true);
-                    const BATCH_SIZE = 5;
-                    for (let i = 0; i < uniqueAssets.length; i += BATCH_SIZE) {
-                        const chunk = uniqueAssets.slice(i, i + BATCH_SIZE);
-                        const results = await Promise.all(chunk.map(asset => processAsset(asset)));
-                        mondayFileIds.push(...results.filter(id => id !== null));
                     }
                 }
 
@@ -8942,235 +8409,9 @@ You can now ask me anything about these campaigns.`);
                     console.warn("[SYNC] Could not save syncedContext to localStorage (Storage full).", e);
                 }
 
-                // If on Claude, we stop here as Claude uses the prompt-based context
-                if (currentLLM === 'claude') {
-                    updateSyncStatus("Claude Context Ready", false);
-                    isSyncing = false;
-                    return;
-                }
-
-                updateSyncStatus("Uploading To OpenAI...", true);
-
-                updateSyncStatus("Uploading Clean Snapshot...", true);
-                const blob = new Blob([JSON.stringify(combinedContext, null, 2)], { type: 'application/json' });
-                const reader2 = new FileReader();
-                const jsonB64 = await new Promise((resolve) => {
-                    reader2.onload = () => resolve(reader2.result.split(',')[1]);
-                    reader2.readAsDataURL(blob);
-                });
-
-                const syncFileData = await fetch(MONDAY_LAMBDA_URL, {
-                    method: 'POST',
-                    headers: { 'Content-type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'openai_upload',
-                        content: jsonB64,
-                        filename: 'monday_data.json'
-                    })
-                }).then(r => r.json()).then(r => typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r));
-
-                const allFileIds = [...mondayFileIds, syncFileData.id];
-
-                // 3. Vector Store Management & TOTAL Purge
-                let vectorStoreId = document.getElementById('vectorStoreId').value.trim();
-                if (!vectorStoreId) {
-                    updateSyncStatus("Creating Vector Store...", true);
-                    const vsData = await fetchOpenAIViaLambda("/vector_stores", "POST", { name: "Monday Context Store" });
-                    vectorStoreId = vsData.id;
-                    document.getElementById('vectorStoreId').value = vectorStoreId;
-                    localStorage.setItem('vectorStoreId', vectorStoreId);
-                }
-
-                updateSyncStatus("Batching Files...", true);
-                await fetchOpenAIViaLambda(`/vector_stores/${vectorStoreId}/file_batches`, "POST", { file_ids: allFileIds });
-
-                // FETCH ALL CURRENT FILES IN VS FOR TOTAL DELETION
-                updateSyncStatus("Purging Old Context...", true);
-                const vsFilesData = await fetchOpenAIViaLambda(`/vector_stores/${vectorStoreId}/files?limit=100`, "GET");
-                const oldFileList = (vsFilesData.data || []).filter(f => !allFileIds.includes(f.id)).map(f => f.id);
-
-                // 6. Optimized Purge: Parallel Batch Deletion of Old Files
-                // Note: Deleting from OpenAI automatically removes from all Vector Stores.
-                if (oldFileList.length > 0) {
-                    const DELETE_BATCH_SIZE = 10;
-                    for (let i = 0; i < oldFileList.length; i += DELETE_BATCH_SIZE) {
-                        const batch = oldFileList.slice(i, i + DELETE_BATCH_SIZE);
-                        await Promise.all(batch.map(async (oldId) => {
-                            try {
-                                await fetchOpenAIViaLambda(`/files/${oldId}`, "DELETE");
-                            } catch (err) { console.warn("Cleanup error for", oldId, err); }
-                        }));
-                    }
-                }
-
-                // 4. Hardened Assistant Update
-                const customFunctions = JSON.parse(localStorage.getItem('customFunctions') || '[]');
-                const tools = [{
-                    type: "file_search",
-                    file_search: {
-                        max_num_results: 50,
-                        ranking_options: {
-                            ranker: "default_2024_08_21",
-                            score_threshold: 0.0
-                        }
-                    }
-                }];
-
-                customFunctions.forEach(f => {
-                    if (f.name && f.params) {
-                        try {
-                            tools.push({
-                                type: "function",
-                                function: {
-                                    name: f.name,
-                                    description: f.desc,
-                                    parameters: JSON.parse(f.params)
-                                }
-                            });
-                        } catch (err) { console.error("Invalid Tool Schema for", f.name); }
-                    }
-                });
-
-                const assistantPayload = {
-                    instructions: `You are the MediaOne Marketing Expert (Database Interface Mode).
-
-CORE MANDATE:
-- Your internal knowledge about general IT, ticketing, or SEO is DEPRECATED and UNRELIABLE for MediaOne-specific queries.
-- You are strictly an interface to the "MediaOne Knowledge Base" (.txt file) via file search (Vector Store).
-- The knowledge base is structured with entries starting with "## Entry X", followed by "**Question:**" and "**Answer:**".
-- You MUST use the file_search tool for EVERY QUERY about MediaOne services, processes, or FAQs.
-- If you find a match, extract the exact text from the "**Answer:**" field and ALWAYS cite the Entry number (e.g., "According to Entry 169...").
-
-NO-GUESSING POLICY:
-- If the knowledge base does not contain a specific match, you MUST say: "I'm sorry, I cannot find this in our FAQ database." 
-- DO NOT fall back to general IT advice or generic steps.
-
-DATA SYNC CONTEXT:
-The attached JSON file contains live data in 'seo_live_rankings', 'monday_boards', and 'full_keywords_text_list'.
-
-CRITICAL INSTRUCTIONS FOR KEYWORDS:
-1. Every targeted keyword in the SEO campaign is clearly labeled as 'IDENTITY: LIVE_SEO_KEYWORD_RANKING'.
-2. When asked for ALL keywords, you MUST look for the 'full_keywords_text_list' field first. 
-3. This field contains the complete, pre-formatted list. DO NOT summarize it; output the entire list.
-4. Verify the total count using 'total_seo_rankings_count'. If it says 25, ensure your list has 25 items.
-5. If you cannot find 'full_keywords_text_list', search the 'seo_live_rankings' array as a backup.
-
-CRITICAL FORMATTING RULE: 
-- Whenever you present a list of tasks from Monday.com, SEO keyword rankings from SeRanking, or any structured data, ALWAYS format it as a Markdown table.
-- Tables should have clear, bold headings.
-- Be concise in your table cells.
-- If there is only one item, a table is still preferred for consistency.
-
-CRITICAL CONTACT RULE:
-- If the user asks to speak to a live agent, contact a consultant, or reach a CS manager, ALWAYS respond politely and include the exact marker "[ACTION: CONTACT_CONSULTANT]" at the very end of your message. DO NOT include any text after this marker. This is a system instruction to trigger the UI button.`,
-                    model: "gpt-4o-mini",
-                    tools: tools,
-                    tool_resources: {
-                        file_search: {
-                            vector_store_ids: [vectorStoreId]
-                        }
-                    }
-                };
-
-                console.log("Assistant Configuration updated:", assistantPayload);
-
-                updateSyncStatus(`Linking Assistant to VS: ${vectorStoreId}...`, true);
-
-                let currentAsstId = localStorage.getItem('assistantId');
-                // Guard against corrupted IDs (e.g., "undefined" stored by previous bug)
-                if (currentAsstId && !currentAsstId.startsWith('asst_')) {
-                    console.warn(`[SYNC] Clearing invalid stored assistantId: "${currentAsstId}"`);
-                    localStorage.removeItem('assistantId');
-                    currentAsstId = null;
-                }
-                let asstVerified = false;
-
-                const performAsstUpdate = async (asstId) => {
-                    if (!asstId) return false;
-                    updateSyncStatus(`Updating Assistant ${asstId.substring(0, 8)}...`, true);
-                    const updateResult = await fetchOpenAIViaLambda(`/assistants/${asstId}`, "POST", assistantPayload);
-
-                    // Check if the update itself returned an error (e.g., assistant was deleted)
-                    if (!updateResult || updateResult.error) {
-                        const errMsg = updateResult?.error?.message || 'Unknown update error';
-                        console.warn(`Assistant update failed for ${asstId}: ${errMsg}`);
-                        return false;
-                    }
-
-                    // Verify linkage
-                    const check = await fetchOpenAIViaLambda(`/assistants/${asstId}`, "GET");
-                    if (!check || check.error) {
-                        console.warn(`Assistant verification GET failed for ${asstId}`);
-                        return false;
-                    }
-                    const linkedVs = check?.tool_resources?.file_search?.vector_store_ids?.[0];
-                    if (linkedVs === vectorStoreId) {
-                        return true;
-                    }
-                    console.warn(`Linkage failed. Expected ${vectorStoreId}, got ${linkedVs}`);
-                    return false;
-                };
-
-                if (currentAsstId) {
-                    asstVerified = await performAsstUpdate(currentAsstId);
-                }
-
-                // Retry logic with backoff for force-creation
-                if (!asstVerified) {
-                    const MAX_RETRIES = 2;
-                    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-                        updateSyncStatus(`Force-creating new Assistant (attempt ${attempt}/${MAX_RETRIES})...`, true);
-
-                        // Brief delay before retry to avoid rate limits
-                        if (attempt > 1) {
-                            await new Promise(r => setTimeout(r, 3000 * attempt));
-                        }
-
-                        const asstData = await fetchOpenAIViaLambda("/assistants", "POST", { ...assistantPayload, name: `Monday Context Assistant [${new Date().toISOString().split('T')[0]}]` });
-
-                        // Check if creation actually succeeded
-                        if (!asstData || asstData.error || !asstData.id) {
-                            const errDetail = asstData?.error?.message || asstData?.error?.type || 'No assistant ID returned';
-                            console.error(`[SYNC] Assistant creation attempt ${attempt} failed: ${errDetail}`);
-
-                            if (attempt === MAX_RETRIES) {
-                                throw new Error(`Assistant creation failed after ${MAX_RETRIES} attempts: ${errDetail}`);
-                            }
-                            continue; // retry
-                        }
-
-                        currentAsstId = asstData.id;
-                        localStorage.setItem('assistantId', currentAsstId);
-
-                        // Final verification for the new one
-                        const finalCheck = await fetchOpenAIViaLambda(`/assistants/${currentAsstId}`, "GET");
-                        if (finalCheck && !finalCheck.error) {
-                            const finalVs = finalCheck?.tool_resources?.file_search?.vector_store_ids?.[0];
-                            if (finalVs === vectorStoreId) {
-                                asstVerified = true;
-                                break; // success, exit retry loop
-                            }
-                        }
-
-                        console.warn(`[SYNC] Attempt ${attempt}: Created assistant ${currentAsstId} but VS linkage verification failed.`);
-                    }
-                }
-
-                // Update Debug UI
-                const debugSection = document.getElementById('asstDebugSection');
-                const debugInfo = document.getElementById('asstDebugInfo');
-                if (debugSection && debugInfo) {
-                    debugSection.style.display = 'block';
-                    debugInfo.innerHTML = `LIVE ASST: ${currentAsstId || 'NONE'}\nLIVE VS:   ${vectorStoreId}\nSTATUS:    ${asstVerified ? '✅ Linked' : '❌ Link Failure'}\nMODEL:     gpt-4o-mini`;
-
-                }
-
-                if (!asstVerified) {
-                    throw new Error("Assistant failed to link to Vector Store despite force-creation. Check OpenAI API limits.");
-                }
-
-                updateSyncStatus(`Sync Complete (Active VS: ${vectorStoreId})`, false, true);
-                addMessage("bot", `Sync complete! Assistant is now linked to **Vector Store: ${vectorStoreId}**. Context updated from **${boardIds.length} Monday boards**.`);
+                updateSyncStatus("Claude Context Ready", false);
+                isSyncing = false;
+                return;
 
             } catch (error) {
                 console.error("Sync error:", error);
@@ -9240,106 +8481,7 @@ CRITICAL CONTACT RULE:
                 }
             }
 
-            if (currentLLM === 'claude') {
-                return handleClaudeMessage(text);
-            }
-
-            const openaiKey = localStorage.getItem('openaiKey');
-            const assistantId = localStorage.getItem('assistantId');
-            if (!assistantId) {
-                alert("Please sync your Monday data first.");
-                toggleSettings();
-                return;
-            }
-
-            addMessage("user", text, null, currentAttachment);
-            const activeAttachment = currentAttachment;
-            removeAttachment();
-
-            input.value = "";
-            input.style.height = 'auto';
-            showTyping(true, text);
-
-            try {
-                let threadId = localStorage.getItem('threadId');
-                // 1. Create Thread if not exists
-                if (!threadId) {
-                    const tData = await fetchOpenAIViaLambda("/threads", "POST", {});
-                    threadId = tData.id;
-                    localStorage.setItem('threadId', threadId);
-                }
-
-                // 2. Prepare Message Content
-                let searchHint, additionalInstructions;
-                if (currentMode === 'internal') {
-                    searchHint = "[Internal Campaign Analyst Mode: Search the campaign data. Present FULL results in tables. DO NOT TRUNCATE. Provide EVERY single match available, do not stop early.]";
-                    additionalInstructions = "You are in Internal Campaign Analyst mode. Search the attached campaign data for answers. Present all multi-item results in Markdown tables. CRITICAL STRICT RULE: NEVER truncate your lists or tables. If there are 22 matching rows, you MUST output all 22. DO NOT stop at 5 items. ALWAYS include any available URLs directly. If the data doesn't contain what's asked, say so clearly.";
-                } else {
-                    searchHint = "[MediaOne Database Mode: Use file_search for row 169. Cite Entry numbers. NO GUESSING.]";
-                    additionalInstructions = "STRICT MANDATE: You are in Database Interface mode. Your internal knowledge is deprecated. You MUST search the FAQ entries (starting with ## Entry) for EVERY MediaOne question. Cite the entry number (e.g., 'According to Entry 169...'). If no match is found, say: 'I cannot find this in our FAQ database.'";
-                }
-
-                const content = [{ type: "text", text: `${searchHint}\n\n${text}` }];
-                const attachments = [];
-
-                if (activeAttachment) {
-                    showToast(`Uploading ${activeAttachment.name}...`, 'loading');
-                    const fileId = await uploadAttachmentToOpenAI(activeAttachment);
-
-                    if (activeAttachment.type.startsWith('image/')) {
-                        content.push({ type: "image_file", image_file: { file_id: fileId } });
-                    } else {
-                        attachments.push({ file_id: fileId, tools: [{ type: "file_search" }] });
-                    }
-                }
-
-                // 3. Add Message
-                await fetchOpenAIViaLambda(`/threads/${threadId}/messages`, "POST", {
-                    role: "user",
-                    content: content,
-                    attachments: attachments.length > 0 ? attachments : undefined
-                });
-
-                // 3. Create Run with Force-Overwrite Instructions
-                const rData = await fetchOpenAIViaLambda(`/threads/${threadId}/runs`, "POST", {
-                    assistant_id: assistantId,
-                    additional_instructions: additionalInstructions
-                });
-
-                if (!rData || !rData.id) {
-                    const errorMsg = rData && rData.error ? rData.error.message : "No Run ID returned from proxy.";
-                    throw new Error(`Failed to create assistant run: ${errorMsg}`);
-                }
-                const runId = rData.id;
-
-                // 4. Poll for Completion
-                let runStatus = "queued";
-                if (!runId) throw new Error("Failed to create assistant run.");
-
-                while (runStatus !== "completed" && runStatus !== "failed") {
-                    await new Promise(r => setTimeout(r, 1500));
-                    const pollData = await fetchOpenAIViaLambda(`/threads/${threadId}/runs/${runId}`, "GET");
-                    runStatus = pollData ? pollData.status : "failed";
-                    console.log(`[CHAT] Run Status: ${runStatus}`);
-                }
-
-                if (runStatus === "failed") throw new Error("Assistant run failed or timed out.");
-
-                // 5. Get Last Message
-                const mData = await fetchOpenAIViaLambda(`/threads/${threadId}/messages?limit=1`, "GET");
-                const lastMsg = mData && mData.data ? mData.data[0] : null;
-
-                if (lastMsg && lastMsg.role === "assistant") {
-                    const reply = lastMsg.content[0].text.value;
-                    addMessage("bot", reply);
-                }
-
-            } catch (error) {
-                console.error("AI Assistant Error:", error);
-                addMessage("bot", `Error communicating with Assistant: ${error.message}`);
-            } finally {
-                showTyping(false);
-            }
+            return handleClaudeMessage(text);
         }
 
         async function extractText(file) {
@@ -10000,10 +9142,6 @@ CRITICAL CONTACT RULE:
                 }
                 if (sender === 'bot') {
                     saveConversation();
-                    // Generate a smart AI title after the first bot response
-                    if (chatHistory.length >= 2 && chatHistory.length <= 4) {
-                        setTimeout(generateAiTitle, 1000);
-                    }
                 }
             }
 

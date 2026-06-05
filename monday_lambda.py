@@ -12,6 +12,7 @@ MONDAY_API_KEY = os.environ.get('MONDAY_API_KEY') or os.environ.get('MONDAY_TOKE
 MONDAY_API_URL = "https://api.monday.com/v2"
 SERANKING_TOKEN = os.environ.get('SERANKING_TOKEN') or "4181980cafdc89bc7bd8c7e9d26725f18cd617ef"
 DATAFORSEO_API_KEY = os.environ.get('DATAFORSEO_API_KEY') or os.environ.get('API_KEY')
+AHREFS_API_KEY = os.environ.get('AHREFS_API_KEY')
 
 # TikTok Marketing API config
 TIKTOK_APP_ID = os.environ.get('TIKTOK_APP_ID') or "7530162592132792321"
@@ -721,7 +722,16 @@ def run_gsc_performance(site_url, tool_input, token):
         payload['endDate'] = datetime.now().strftime('%Y-%m-%d')
     if 'dimensions' not in payload:
         payload['dimensions'] = ['query']
-        
+
+    # Default + hard-cap rowLimit so a single call can't dump tens of thousands of
+    # rows into the conversation. Claude is steered to make small sequential calls
+    # (one dimension at a time) rather than one giant query.
+    try:
+        requested_limit = int(payload.get('rowLimit', 250))
+    except (TypeError, ValueError):
+        requested_limit = 250
+    payload['rowLimit'] = max(1, min(requested_limit, 1000))
+
     try:
         # Prepare variations of the site URL to handle different GSC property types
         import urllib.parse
@@ -749,7 +759,15 @@ def run_gsc_performance(site_url, tool_input, token):
             
             if r.status_code == 200:
                 print(f"[GSC] Success using variation: {v}")
-                return r.json()
+                data = r.json()
+                # Compact rows: round long floats (ctr/position) to keep the
+                # payload small without losing analytical value.
+                for row in data.get('rows', []):
+                    if 'ctr' in row:
+                        row['ctr'] = round(row['ctr'], 4)
+                    if 'position' in row:
+                        row['position'] = round(row['position'], 1)
+                return data
             
             last_error = r.text
             print(f"[GSC] Variation {v} failed: {r.status_code}")
@@ -912,14 +930,23 @@ def claude_chat_with_tools(body):
 
         {
             "name": "get_gsc_performance",
-            "description": "Fetch Google Search Console performance data (clicks, impressions, ctr, position).",
+            "description": (
+                "Fetch Google Search Console performance data (clicks, impressions, ctr, position). "
+                "IMPORTANT: fetch data in small, focused slices and call this tool sequentially — "
+                "do NOT request everything in one query. Use ONE dimension per call (e.g. 'query' for "
+                "top keywords, then a separate call with 'page' for top pages, then 'date' for the trend). "
+                "Combining multiple dimensions multiplies the row count and overflows the context. "
+                "Each call returns at most 'rowLimit' rows (default 250); keep it small and refine the "
+                "date range or dimension instead of asking for more rows."
+            ),
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "siteUrl": {"type": "string", "description": "The site URL (e.g., 'sc-domain:example.com')."},
                     "startDate": {"type": "string", "description": "Start date (YYYY-MM-DD)."},
                     "endDate": {"type": "string", "description": "End date (YYYY-MM-DD)."},
-                    "dimensions": {"type": "array", "items": {"type": "string", "enum": ["query", "page", "country", "device", "date"]}}
+                    "dimensions": {"type": "array", "items": {"type": "string", "enum": ["query", "page", "country", "device", "date"]}, "description": "Prefer a SINGLE dimension per call. Run separate sequential calls for each breakdown you need."},
+                    "rowLimit": {"type": "integer", "description": "Max rows to return for this slice (default 250, hard max 1000). Keep small; make multiple focused calls rather than one large one."}
                 },
                 "required": ["siteUrl"]
             }
@@ -1053,6 +1080,28 @@ def claude_chat_with_tools(body):
                     "tag": {"type": "string", "enum": ["Preference", "Project Logic", "Fact", "General"], "description": "Category of the memory."}
                 },
                 "required": ["text", "tag"]
+            }
+        },
+        {
+            "name": "get_ahrefs_report",
+            "description": (
+                "Fetch live Ahrefs data for any domain. Use this whenever the user asks about "
+                "backlinks, Domain Rating (DR), referring domains, organic traffic, organic keywords, "
+                "or competitor analysis. Actions: 'overview' returns DR + traffic snapshot; "
+                "'keywords' returns top organic keyword rankings; 'backlinks' returns top backlinks "
+                "by DR; 'competitors' returns competing domains."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "domain": {"type": "string", "description": "The domain to analyse, e.g. 'example.com'."},
+                    "action": {
+                        "type": "string",
+                        "enum": ["overview", "keywords", "backlinks", "competitors"],
+                        "description": "What to fetch. Defaults to 'overview'."
+                    }
+                },
+                "required": ["domain"]
             }
         },
         {
@@ -1624,6 +1673,65 @@ def claude_chat_with_tools(body):
                         })
                         tool_call_log.append(f"Fetched LinkedIn Ads report for account {account_id}")
 
+                    elif tool_name == "get_ahrefs_report":
+                        domain = tool_input.get("domain", "").strip().lstrip("https://").lstrip("http://").rstrip("/")
+                        action = tool_input.get("action", "overview")
+                        print(f"[TOOLS] Fetching Ahrefs {action} for {domain}")
+                        ahrefs_key = AHREFS_API_KEY
+                        if not ahrefs_key:
+                            result_data = {"error": "AHREFS_API_KEY is not configured on the server"}
+                        else:
+                            ahrefs_headers = {
+                                "Authorization": f"Bearer {ahrefs_key}",
+                                "Accept": "application/json"
+                            }
+                            try:
+                                if action == "overview":
+                                    r_ah = requests.get(
+                                        "https://api.ahrefs.com/v3/site-explorer/overview",
+                                        headers=ahrefs_headers,
+                                        params={"target": domain, "mode": "domain"},
+                                        timeout=30
+                                    )
+                                    result_data = r_ah.json() if r_ah.status_code == 200 else {"error": r_ah.text[:500]}
+                                elif action == "keywords":
+                                    r_ah = requests.get(
+                                        "https://api.ahrefs.com/v3/site-explorer/organic-keywords",
+                                        headers=ahrefs_headers,
+                                        params={"target": domain, "mode": "domain", "limit": 50, "order_by": "volume:desc"},
+                                        timeout=30
+                                    )
+                                    result_data = r_ah.json() if r_ah.status_code == 200 else {"error": r_ah.text[:500]}
+                                elif action == "backlinks":
+                                    r_ah = requests.get(
+                                        "https://api.ahrefs.com/v3/site-explorer/all-backlinks",
+                                        headers=ahrefs_headers,
+                                        params={"target": domain, "mode": "domain", "limit": 50, "order_by": "domain_rating_source:desc"},
+                                        timeout=30
+                                    )
+                                    result_data = r_ah.json() if r_ah.status_code == 200 else {"error": r_ah.text[:500]}
+                                elif action == "competitors":
+                                    r_ah = requests.get(
+                                        "https://api.ahrefs.com/v3/site-explorer/competing-domains",
+                                        headers=ahrefs_headers,
+                                        params={"target": domain, "mode": "domain", "limit": 20},
+                                        timeout=30
+                                    )
+                                    result_data = r_ah.json() if r_ah.status_code == 200 else {"error": r_ah.text[:500]}
+                                else:
+                                    result_data = {"error": f"Unknown action: {action}"}
+                            except Exception as ah_e:
+                                result_data = {"error": str(ah_e)}
+                        result_str = json.dumps(result_data)
+                        if len(result_str) > 40000:
+                            result_str = result_str[:40000] + "\n... [result truncated]"
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     result_str
+                        })
+                        tool_call_log.append(f"Fetched Ahrefs {action} for {domain}")
+
                     else:
                         # Unknown tool — return an error so Claude can recover
                         tool_results.append({
@@ -1632,6 +1740,18 @@ def claude_chat_with_tools(body):
                             "content":     json.dumps({"error": f"Unknown tool: {tool_name}"}),
                             "is_error":    True
                         })
+
+                # ── Central safety cap ────────────────────────────────────
+                # Every tool result is capped here so a single large payload
+                # (e.g. full GSC/GA4/SE Ranking coverage) can't blow the next
+                # round's request past the 200k-token context ceiling. Only
+                # monday_graphql truncated itself before; this covers ALL tools.
+                TOOL_RESULT_CHAR_LIMIT = 40000   # ~10k tokens per result
+                for _tr in tool_results:
+                    _c = _tr.get("content")
+                    if isinstance(_c, str) and len(_c) > TOOL_RESULT_CHAR_LIMIT:
+                        print(f"[TOOLS] Capping {block.get('name','result')} result ({len(_c)} chars)")
+                        _tr["content"] = _c[:TOOL_RESULT_CHAR_LIMIT] + "\n... [result truncated to fit token budget — narrow the date range, fields, or row count]"
 
                 messages.append({"role": "user", "content": tool_results})
                 continue   # next round
