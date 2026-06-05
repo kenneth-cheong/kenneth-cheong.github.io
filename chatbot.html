@@ -2327,11 +2327,23 @@
             background: rgba(255, 255, 255, 0.05);
             border-top: 1px solid rgba(255, 255, 255, 0.1);
             align-items: center;
-            gap: 12px;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         .attachment-preview.visible {
             display: flex;
+        }
+
+        .attachment-chip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            max-width: 220px;
+            padding: 6px 8px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
         }
 
         .attachment-thumb {
@@ -2340,10 +2352,15 @@
             border-radius: 6px;
             object-fit: cover;
             border: 1px solid rgba(255, 255, 255, 0.2);
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .attachment-info {
             flex: 1;
+            min-width: 0;
             font-size: 0.75rem;
             color: #cbd5e1;
             white-space: nowrap;
@@ -2357,6 +2374,7 @@
             font-size: 0.9rem;
             opacity: 0.7;
             transition: opacity 0.2s;
+            flex-shrink: 0;
         }
 
         .attachment-remove:hover {
@@ -3199,7 +3217,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1750</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1751</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3990,18 +4008,9 @@
                 </div>
             </div>
 
-            <div id="attachmentPreview" class="attachment-preview">
-                <img id="previewImg" class="attachment-thumb" style="display:none; cursor:zoom-in;"
-                    onclick="openImageModal(this.src)">
-                <div id="previewIcon" class="attachment-thumb"
-                    style="display:none; align-items:center; justify-content:center; background:rgba(255,255,255,0.1);">
-                    <i class="fas fa-file"></i>
-                </div>
-                <div id="attachmentName" class="attachment-info"></div>
-                <i class="fas fa-times attachment-remove" onclick="removeAttachment()"></i>
-            </div>
+            <div id="attachmentPreview" class="attachment-preview"></div>
             <div class="input-bar" id="inputBar">
-                <input type="file" id="fileInput" style="display:none;" onchange="handleFileSelect(this)">
+                <input type="file" id="fileInput" style="display:none;" multiple onchange="handleFileSelect(this)">
                 <button class="upload-btn" onclick="document.getElementById('fileInput').click()"
                     title="Attach image or file">
                     <i class="fas fa-paperclip"></i>
@@ -4412,7 +4421,7 @@
                     const list = document.getElementById('messageList');
                     list.innerHTML = '';
                     chatHistory.forEach(m => {
-                        addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, m.attachment || null, true, m.userLabel);
+                        addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, m.attachments || m.attachment || null, true, m.userLabel);
                     });
 
                     toggleHistory();
@@ -4571,7 +4580,7 @@
             // Load history if exists
             if (chatHistory.length > 0) {
                 chatHistory.forEach(m => {
-                    addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, m.attachment || null, true, m.userLabel);
+                    addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, m.attachments || m.attachment || null, true, m.userLabel);
                 });
                 updateCloudStatus('synced', 'Session Restored');
             }
@@ -4696,7 +4705,7 @@
         }
 
         // ---- Attachment Handling ----
-        let currentAttachment = null;
+        let currentAttachments = [];
 
         function handlePaste(e) {
             const items = (e.clipboardData || e.originalEvent.clipboardData).items;
@@ -4712,44 +4721,81 @@
             const dt = e.dataTransfer;
             const files = dt.files;
             if (files.length > 0) {
-                processFile(files[0]);
+                Array.from(files).forEach(processFile);
             }
         }
 
         function handleFileSelect(input) {
-            if (input.files && input.files[0]) {
-                processFile(input.files[0]);
+            if (input.files && input.files.length) {
+                Array.from(input.files).forEach(processFile);
             }
+            // Reset so selecting the same file again (or adding more) still fires onchange
+            input.value = '';
         }
 
         function processFile(file) {
-            currentAttachment = file;
-            const preview = document.getElementById('attachmentPreview');
-            const img = document.getElementById('previewImg');
-            const icon = document.getElementById('previewIcon');
-            const name = document.getElementById('attachmentName');
-
-            name.textContent = file.name;
-            preview.classList.add('visible');
-
-            if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    img.src = e.target.result;
-                    img.style.display = 'block';
-                    icon.style.display = 'none';
-                };
-                reader.readAsDataURL(file);
-            } else {
-                img.style.display = 'none';
-                icon.style.display = 'flex';
-                icon.innerHTML = file.type.startsWith('audio/') ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-file"></i>';
-            }
+            currentAttachments.push(file);
+            renderAttachmentPreviews();
         }
 
-        function removeAttachment() {
-            currentAttachment = null;
-            document.getElementById('attachmentPreview').classList.remove('visible');
+        function renderAttachmentPreviews() {
+            const preview = document.getElementById('attachmentPreview');
+            preview.innerHTML = '';
+
+            if (!currentAttachments.length) {
+                preview.classList.remove('visible');
+                return;
+            }
+            preview.classList.add('visible');
+
+            currentAttachments.forEach((file, index) => {
+                const chip = document.createElement('div');
+                chip.className = 'attachment-chip';
+
+                const isImage = (file.type || '').startsWith('image/');
+                const isAudio = (file.type || '').startsWith('audio/');
+
+                if (isImage) {
+                    const img = document.createElement('img');
+                    img.className = 'attachment-thumb';
+                    img.style.cursor = 'zoom-in';
+                    const reader = new FileReader();
+                    reader.onload = (e) => { img.src = e.target.result; };
+                    reader.readAsDataURL(file);
+                    img.onclick = () => openImageModal(img.src);
+                    chip.appendChild(img);
+                } else {
+                    const icon = document.createElement('div');
+                    icon.className = 'attachment-thumb';
+                    icon.style.background = 'rgba(255,255,255,0.1)';
+                    icon.innerHTML = isAudio ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-file"></i>';
+                    chip.appendChild(icon);
+                }
+
+                const name = document.createElement('div');
+                name.className = 'attachment-info';
+                name.textContent = file.name;
+                name.title = file.name;
+                chip.appendChild(name);
+
+                const remove = document.createElement('i');
+                remove.className = 'fas fa-times attachment-remove';
+                remove.title = 'Remove';
+                remove.onclick = () => removeAttachment(index);
+                chip.appendChild(remove);
+
+                preview.appendChild(chip);
+            });
+        }
+
+        // Remove a single attachment by index, or clear all when called with no argument.
+        function removeAttachment(index) {
+            if (typeof index === 'number') {
+                currentAttachments.splice(index, 1);
+            } else {
+                currentAttachments = [];
+            }
+            renderAttachmentPreviews();
             document.getElementById('fileInput').value = '';
         }
 
@@ -8510,20 +8556,23 @@
             const input = document.getElementById('userInput');
             const syncedContext = localStorage.getItem('syncedContext');
 
-            // Upload attachment to S3 before rendering (so URL is available in history)
-            let enrichedAttachment = currentAttachment;
-            if (currentAttachment) {
-                try {
-                    showToast(`Uploading ${currentAttachment.name}…`, 'loading', 3000);
-                    const s3Data = await uploadAttachmentToS3(currentAttachment);
-                    enrichedAttachment = Object.assign(currentAttachment, { s3Key: s3Data.s3Key, url: s3Data.url });
-                } catch(e) {
-                    console.warn('[S3 UPLOAD] Failed, proceeding without persistent URL:', e);
+            // Upload attachments to S3 before rendering (so URLs are available in history)
+            const enrichedAttachments = [];
+            if (currentAttachments.length) {
+                showToast(`Uploading ${currentAttachments.length} file${currentAttachments.length > 1 ? 's' : ''}…`, 'loading', 4000);
+                for (const file of currentAttachments) {
+                    try {
+                        const s3Data = await uploadAttachmentToS3(file);
+                        enrichedAttachments.push(Object.assign(file, { s3Key: s3Data.s3Key, url: s3Data.url }));
+                    } catch(e) {
+                        console.warn(`[S3 UPLOAD] Failed for ${file.name}, proceeding without persistent URL:`, e);
+                        enrichedAttachments.push(file);
+                    }
                 }
             }
 
-            addMessage("user", text, null, enrichedAttachment);
-            const activeAttachment = enrichedAttachment;
+            addMessage("user", text, null, enrichedAttachments);
+            const activeAttachments = enrichedAttachments;
             removeAttachment();
 
             input.value = "";
@@ -8913,30 +8962,36 @@
             }
 
             try {
-                // Prepare final content with attachment if present
+                // Prepare final content with attachments if present
                 const currentContent = [{ type: "text", text: text }];
-                if (activeAttachment && activeAttachment.type.startsWith('image/')) {
-                    const b64 = await getFileBase64(activeAttachment);
-                    currentContent.push({
-                        type: "image",
-                        source: {
-                            type: "base64",
-                            media_type: activeAttachment.type,
-                            data: b64
-                        }
-                    });
-                } else if (activeAttachment) {
-                    // For non-images, we extract text and append it to the message
-                    let fileContent = await extractText(activeAttachment);
-                    if (fileContent) {
-                        // Cap inlined document text at ~40k chars (~10k tokens) to avoid overflow
-                        const MAX_FILE_CHARS = 40000;
-                        if (fileContent.length > MAX_FILE_CHARS) {
-                            fileContent = fileContent.slice(0, MAX_FILE_CHARS) + '\n…[document truncated — too long to include in full]';
-                        }
-                        currentContent[0].text += `\n\n--- CONTENT OF ${activeAttachment.name} ---\n${fileContent}\n--- END OF ${activeAttachment.name} ---`;
+                // Share the ~40k-char document budget across ALL attached docs so several
+                // files together can't blow the token limit.
+                const MAX_DOC_CHARS_TOTAL = 40000;
+                let docCharsUsed = 0;
+                for (const att of activeAttachments) {
+                    if (att.type && att.type.startsWith('image/')) {
+                        const b64 = await getFileBase64(att);
+                        currentContent.push({
+                            type: "image",
+                            source: { type: "base64", media_type: att.type, data: b64 }
+                        });
                     } else {
-                        currentContent[0].text += `\n\n[User attached file: ${activeAttachment.name}]`;
+                        // For non-images, extract text and append it to the message
+                        let fileContent = await extractText(att);
+                        if (fileContent) {
+                            const remaining = MAX_DOC_CHARS_TOTAL - docCharsUsed;
+                            if (remaining <= 0) {
+                                currentContent[0].text += `\n\n[Attached file ${att.name} omitted — combined document size limit reached]`;
+                                continue;
+                            }
+                            if (fileContent.length > remaining) {
+                                fileContent = fileContent.slice(0, remaining) + '\n…[document truncated — too long to include in full]';
+                            }
+                            docCharsUsed += fileContent.length;
+                            currentContent[0].text += `\n\n--- CONTENT OF ${att.name} ---\n${fileContent}\n--- END OF ${att.name} ---`;
+                        } else {
+                            currentContent[0].text += `\n\n[User attached file: ${att.name}]`;
+                        }
                     }
                 }
 
@@ -9165,38 +9220,43 @@
                 htmlContent = htmlContent.replace(/\[ACTION: SELECT_CAMPAIGN\]/g, buildCampaignCard());
             }
 
+            // Normalize to an array so single-file (legacy/restore) and multi-file both work
+            const attachmentList = Array.isArray(attachment) ? attachment : (attachment ? [attachment] : []);
+
             // Store attachment metadata in history entry (for persistence)
-            if (!isRestoring && attachment && sender === 'user') {
-                const mimeType = attachment.type || attachment.mimeType || '';
+            if (!isRestoring && attachmentList.length && sender === 'user') {
                 const histEntry = chatHistory[chatHistory.length - 1];
-                if (histEntry && attachment.s3Key) {
-                    histEntry.attachment = {
-                        name: attachment.name,
-                        mimeType,
-                        s3Key: attachment.s3Key,
-                        url: attachment.url
-                    };
+                const persisted = attachmentList
+                    .filter(att => att && att.s3Key)
+                    .map(att => ({
+                        name: att.name,
+                        mimeType: att.type || att.mimeType || '',
+                        s3Key: att.s3Key,
+                        url: att.url
+                    }));
+                if (histEntry && persisted.length) {
+                    histEntry.attachments = persisted;
                     try { localStorage.setItem('chatbot_history', JSON.stringify(chatHistory)); } catch(e) {}
                 }
             }
 
             let attachmentHtml = '';
-            if (attachment) {
-                const mimeType = attachment.type || attachment.mimeType || '';
-                const attachUrl = attachment.url || null;
-                const attachName = attachment.name || 'file';
+            attachmentList.forEach(att => {
+                const mimeType = att.type || att.mimeType || '';
+                const attachUrl = att.url || null;
+                const attachName = att.name || 'file';
 
                 if (mimeType.startsWith('image/')) {
-                    const displayUrl = attachUrl || (attachment instanceof File ? URL.createObjectURL(attachment) : null);
+                    const displayUrl = attachUrl || (att instanceof File ? URL.createObjectURL(att) : null);
                     if (displayUrl) {
-                        attachmentHtml = `<div class="attachment-msg-preview"><img src="${displayUrl}" onclick="openImageModal('${displayUrl}')" style="max-width:200px; border-radius:8px; margin-top:8px; display:block; border:1px solid rgba(255,255,255,0.1); cursor:zoom-in;"></div>`;
+                        attachmentHtml += `<div class="attachment-msg-preview"><img src="${displayUrl}" onclick="openImageModal('${displayUrl}')" style="max-width:200px; border-radius:8px; margin-top:8px; display:block; border:1px solid rgba(255,255,255,0.1); cursor:zoom-in;"></div>`;
                     }
                 } else if (attachUrl) {
-                    attachmentHtml = `<div class="attachment-msg-preview" style="margin-top:8px; font-size:0.75rem; color:#94a3b8;"><a href="${attachUrl}" target="_blank" download="${attachName}" style="color:#94a3b8; text-decoration:none;"><i class="fas fa-file"></i> ${attachName} <i class="fas fa-download" style="font-size:0.6rem;"></i></a></div>`;
+                    attachmentHtml += `<div class="attachment-msg-preview" style="margin-top:8px; font-size:0.75rem; color:#94a3b8;"><a href="${attachUrl}" target="_blank" download="${attachName}" style="color:#94a3b8; text-decoration:none;"><i class="fas fa-file"></i> ${attachName} <i class="fas fa-download" style="font-size:0.6rem;"></i></a></div>`;
                 } else {
-                    attachmentHtml = `<div class="attachment-msg-preview" style="margin-top:8px; font-size:0.75rem; color:#94a3b8;"><i class="fas fa-file"></i> ${attachName}</div>`;
+                    attachmentHtml += `<div class="attachment-msg-preview" style="margin-top:8px; font-size:0.75rem; color:#94a3b8;"><i class="fas fa-file"></i> ${attachName}</div>`;
                 }
-            }
+            });
 
             let toolLabel = "Background process";
             let toolIcon = "fa-cog";
