@@ -359,7 +359,7 @@ def build_user_msg(action, content, prompt_override):
 _STRUCTURED_ACTIONS = {
     'news_classify', 'html_fragment', 'luxury_copy', 'serp_analysis',
     'content_outline', 'content_section', 'content_polish', 'strategy_url_research',
-    'image_alt_rationale'
+    'smm_report', 'image_alt_rationale'
 }
 
 
@@ -451,137 +451,58 @@ def build_structured_prompt(action, body):
         sample_text        = body.get('sampleText', '')
         brand_guide_text   = body.get('brandGuideText', '')
         webpage_text       = body.get('webpageText', '')
-        creative_name      = body.get('creativeName', '')
-        creative_inst      = body.get('creativeInstruction', '')
+        variation_index    = int(body.get('variationIndex', 0) or 0)
+        language           = (f.get('language') or '').lower()
+
+        CREATIVE_ANGLES = [
+            { 'name': 'Atmospheric Opening',         'instruction': 'Lead with a cinematic, sensory scene that immerses the reader in a mood before any product or brand mention. Appeal to sight, texture, sound, or scent.' },
+            { 'name': 'Provocative Question',        'instruction': "Open with a sharp, scroll-stopping question that challenges a common assumption or voices an unspoken desire the audience hasn't yet articulated." },
+            { 'name': 'Contrarian Take',             'instruction': "Start with a statement that reframes conventional wisdom on this topic — something unexpected, counterintuitive, or quietly rebellious that earns the reader's curiosity." },
+            { 'name': 'Micro-Story',                 'instruction': 'Open with a tiny, hyper-specific story (2–3 lines) — a single moment, a gesture, a detail — that feels like a real scene the reader could have lived.' },
+            { 'name': 'Bold Declaration',            'instruction': 'Open with a confident, unhedged statement. No qualifiers, no warm-up. Claim the room from the very first word.' },
+            { 'name': 'Cultural Hook',               'instruction': "Connect this content to a larger cultural movement, collective mood, or societal shift the audience is already living — name the thing they feel but haven't said out loud." },
+            { 'name': 'Insider Angle',               'instruction': "Write as if sharing something most people don't know — a process secret, a craft-level insight, a behind-the-scenes truth. Give the reader a feeling of privileged access." },
+            { 'name': 'Aspiration & Transformation', 'instruction': 'Lead with the desired future state: describe what life looks, feels, or sounds like after the transformation. Begin at the destination, not the journey.' },
+            { 'name': 'Community & Belonging',       'instruction': 'Address the reader as a member of a specific tribe or movement that holds particular values. Write to make them feel seen, chosen, and part of something meaningful.' },
+            { 'name': 'Minimalist / Haiku Energy',   'instruction': 'Three sentences maximum. Each line lands with weight. Heavy rhythm, deliberate white space, every single word earns its place — restraint is the technique.' },
+        ]
+
+        angle = CREATIVE_ANGLES[variation_index % len(CREATIVE_ANGLES)]
 
         def _line(label, val):
             return f"- {label}: {val}\n" if val else ''
 
-        tone       = (f.get('tone') or '').strip()
-        pov        = (f.get('pov') or '').strip()
-        brand_name = (f.get('brandName') or '').strip()
-        tone_lower = tone.lower()
-
-        # ── 1. Dynamic system prompt derived from platform + tone + brand ─────
-        platform_role = {
-            'instagram-caption': 'Instagram caption writer',
-            'linkedin-post':     'LinkedIn content strategist',
-            'facebook-post':     'Facebook community copywriter',
-            'blog-article':      'long-form blog writer',
-        }.get(content_type_label, 'social media copywriter')
-
-        tone_descriptor = tone if tone else 'engaging and on-brand'
-        brand_clause    = f' for {brand_name}' if brand_name else ''
-        context_clause  = (
-            ' Derive your voice strictly from the brand guide and sample reference provided.'
-            if (brand_guide_text or sample_text)
-            else ' Infer brand positioning from the brief and write accordingly.'
-        )
-        system = (
-            f"You are an expert {platform_role}{brand_clause}. "
-            f"Your writing voice is {tone_descriptor}.{context_clause}"
-        )
-
-        # ── 2. Platform-specific base rules ───────────────────────────────────
-        PLATFORM_RULES = {
-            'instagram-caption': [
-                "Hook the reader in the very first sentence — no warm-up, no brand name opener.",
-                "Write for a visual medium: the image carries context, so words amplify mood rather than describe what's shown.",
-                "Structure as 2–3 short punchy paragraphs with natural line breaks for mobile readability.",
-                "End with a soft CTA or open question that invites saves, shares, or comments.",
-            ],
-            'linkedin-post': [
-                "Open with a single bold insight or statement that earns the scroll-stop — no brand name opener, no 'We are excited to...'",
-                "Structure: hook → insight or story → value → CTA. Use generous line breaks for feed readability.",
-                "Write with authority but without jargon — precision and clarity outperform buzzwords.",
-                "End with a question or directive that invites comments or shares.",
-            ],
-            'facebook-post': [
-                "Open conversationally — speak directly to the reader's situation or emotion.",
-                "Keep paragraphs to 1–2 sentences for mobile readability.",
-                "Balance promotional intent with genuine community value; prioritise connection over conversion.",
-                "CTA should feel like a natural next step, not a hard sell.",
-            ],
-            'blog-article': [
-                "Open with a compelling scene, stat, or question that frames the topic — never a brand introduction.",
-                "Use clear subheadings; each section should deliver standalone value.",
-                "Vary sentence length to maintain reading pace — mix long and short.",
-                "Close with a synthesis or CTA that ties back to the opening hook.",
-            ],
-        }
-        rules = list(PLATFORM_RULES.get(content_type_label, [
-            "Open with something that earns the reader's attention — never the brand name.",
-            "Structure content with a clear arc: hook → value → CTA.",
-            "Vary sentence rhythm for readability.",
-            "End with a purposeful call to action.",
-        ]))
-
-        # ── 3. Tone-aware rules (additive, matched against tone field) ────────
-        TONE_RULES = [
-            (('playful', 'fun', 'irreverent', 'witty', 'humorous', 'cheeky'), [
-                "Use unexpected turns of phrase, wordplay, or light humour where it fits naturally.",
-                "Keep energy high — short sentences, active voice, zero stiffness.",
-            ]),
-            (('luxury', 'premium', 'aspirational', 'elegant', 'sophisticated', 'high-end'), [
-                "Lead with sensory, atmospheric language — immerse the reader before informing them.",
-                "Every word earns its place; remove anything generic or filler.",
-                "Speak to the reader's identity and aspirations, not to features or specs.",
-            ]),
-            (('professional', 'corporate', 'formal', 'authoritative', 'expert'), [
-                "Be specific and substantive — precision over flourish.",
-                "Avoid superlatives without evidence; credibility comes from clarity.",
-            ]),
-            (('warm', 'friendly', 'conversational', 'approachable', 'human', 'casual'), [
-                "Write like you're talking to someone you know — genuine, not salesy.",
-                "Use contractions and natural speech patterns where it feels right.",
-            ]),
-            (('inspirational', 'motivational', 'empowering', 'bold'), [
-                "Speak to the reader's potential and transformation, not the brand's features.",
-                "Use inclusive language ('we', 'you') to make the reader part of the story.",
-            ]),
-            (('educational', 'informative', 'helpful', 'practical'), [
-                "Lead with the most useful insight — don't bury the takeaway.",
-                "Use plain language; define any specialist terms in context.",
-            ]),
-        ]
-        for keywords, tone_additions in TONE_RULES:
-            if any(k in tone_lower for k in keywords):
-                rules.extend(tone_additions)
-                break
-
-        # ── 4. Brand context and voice consistency rules ───────────────────────
-        if brand_guide_text or sample_text:
-            rules.append(
-                "Voice must reflect the brand guide and sample reference precisely — "
-                "adopt their vocabulary, rhythm, and register. Do not default to a generic style."
+        if language == 'xiaohongshu':
+            system = (
+                "You are a senior social media strategist and copywriter with over 15 years of experience "
+                "writing brand-led content specifically for Xiao Hong Shu (小红书 / RED). "
+                "You write in a natural, peer-to-peer tone that feels like a genuine personal recommendation, "
+                "not a brand advertisement. Use conversational Chinese, relatable storytelling, and relevant "
+                "hashtags (话题标签) in the Xiao Hong Shu style. Avoid corporate or salesy language."
             )
-        elif brand_name:
-            rules.append(
-                f"Infer {brand_name}'s editorial tone from your knowledge of the brand. "
-                "Never default to a generic style."
+        elif language == 'chinese':
+            system = (
+                "You are a senior social media strategist and copywriter with over 15 years of experience "
+                "writing brand-led, performance-aware social content for B2B and B2C brands in Chinese markets. "
+                "Write in Chinese."
+            )
+        else:
+            system = (
+                "You are a senior social media strategist and copywriter with over 15 years of experience "
+                "writing brand-led, performance-aware social content for B2B and B2C brands.\n\n"
+                "Your task is not to simply write a caption, but to decide how the caption should function "
+                "strategically within the brand's social media ecosystem.\n\n"
+                "You must:\n"
+                "- Identify the strategic role of the post\n"
+                "- Write with a clear audience intent in mind\n"
+                "- Reinforce brand positioning, not just deliver information\n"
+                "- Be concise, intentional, and purposeful\n\n"
+                "You must avoid: generic marketing language, over-explaining, and writing for engagement without "
+                "strategic value. Assume the reader is scrolling quickly. Every line must earn its place.\n\n"
+                "If trade-offs are required, prioritise: Clarity, Brand credibility, and Strategic intent.\n\n"
+                "The final caption must feel like it was written by a human strategist, not an automated generator."
             )
 
-        rules.append(
-            "Weave the brand name naturally mid-copy or in the closing line — never as the sentence opener."
-            if brand_name else
-            "Do not open with the brand name."
-        )
-
-        # ── 5. Format mechanics ───────────────────────────────────────────────
-        emojis_val   = (f.get('emojis') or '').strip().lower()
-        hashtags_val = (f.get('hashtags') or '').strip().lower()
-        if emojis_val in ('yes', 'true', '1', 'include'):
-            rules.append("Include 1–3 relevant emojis placed naturally within the copy — never clustered at the end.")
-        else:
-            rules.append("Do not include emojis.")
-        if hashtags_val in ('yes', 'true', '1', 'include'):
-            rules.append("Add 5–10 relevant hashtags as a separate block after the caption body.")
-        else:
-            rules.append("Do not include hashtags.")
-
-        rules_text = '\n'.join(f"{i + 1}. {r}" for i, r in enumerate(rules))
-
-        # ── 6. User message ───────────────────────────────────────────────────
         user = (
             f"Generate a {content_type_label} based on the brief below.\n\n"
             "STRATEGY\n"
@@ -589,7 +510,7 @@ def build_structured_prompt(action, body):
             f"{_line('Strategy Context', f.get('strategyFit'))}"
             f"{_line('Core Message', f.get('coreMessage'))}"
             "AUDIENCE\n"
-            f"{_line('Brand Name', brand_name)}"
+            f"{_line('Brand Name', f.get('brandName'))}"
             f"{_line('Target Sub-Groups', f.get('subgroups'))}"
             f"{_line('Pain Points', f.get('painpoints'))}"
             f"{_line('Audience Goals', f.get('audienceGoal'))}"
@@ -600,15 +521,27 @@ def build_structured_prompt(action, body):
             f"{_line('USP', f.get('usp'))}"
             f"{_line('Constraints / Mandatories', f.get('constraints'))}"
             "BRAND & FORMAT\n"
-            f"{_line('Brand POV', pov)}"
-            f"{_line('Tone of Voice', tone)}"
+            f"{_line('Brand POV', f.get('pov'))}"
+            f"{_line('Tone of Voice', f.get('tone'))}"
             f"{_line('Language', f.get('language'))}"
             f"{_line('Word Count', f.get('wordCount'))}"
-            f"{'SAMPLE REFERENCE (match this style and voice exactly):' + chr(10) + sample_text + chr(10) if sample_text else ''}"
+            f"{_line('Include Emojis', f.get('emojis'))}"
+            f"{_line('Include Hashtags', f.get('hashtags'))}"
+            f"{'SAMPLE REFERENCE (match this style and voice):' + chr(10) + sample_text + chr(10) if sample_text else ''}"
             f"{'BRAND GUIDE CONTEXT:' + chr(10) + brand_guide_text + chr(10) if brand_guide_text else ''}"
             f"{'REFERENCE CONTENT:' + chr(10) + webpage_text + chr(10) if webpage_text else ''}"
-            f"WRITING RULES — apply every rule without exception:\n{rules_text}\n"
-            f"{'CREATIVE APPROACH FOR THIS VARIATION — ' + creative_name.upper() + ': ' + creative_inst + chr(10) if creative_name else ''}"
+            "WRITING RULES — apply every rule without exception:\n"
+            "1. NEVER open with the brand name or a phrase like \"At [Brand], we believe...\" — "
+            "lead instead with an atmospheric, sensory observation about the subject matter itself.\n"
+            "2. Structure as 2-3 short paragraphs. The final paragraph is a single soft call to action.\n"
+            "3. Weave the brand name in naturally mid-copy or in the closing line — never as the sentence opener.\n"
+            "4. Before writing, determine the brand's editorial tone from BRAND GUIDE CONTEXT or SAMPLE REFERENCE "
+            "if provided; otherwise infer from your knowledge of the brand. Never default to a generic style.\n"
+            "5. Speak to the reader's aspirations and lived experience — not to what the brand does.\n"
+            "6. Use varied sentence rhythm: mix short, punchy statements with slightly longer ones.\n"
+            "7. Identify the brand's signature vocabulary from provided context, or infer from brand knowledge. "
+            "Prioritise those words throughout.\n"
+            f"CREATIVE APPROACH FOR THIS VARIATION — {angle['name'].upper()}: {angle['instruction']}\n"
             f"\nOutput ONLY the finished {content_type_label} — no meta-commentary, no explanations, no labels. "
             "Ready to publish."
         )
@@ -841,6 +774,86 @@ def build_structured_prompt(action, body):
                 "  \"client_website\": \"the company's primary website domain e.g. example.com\"\n"
                 "}"
             )
+        return system, user
+
+    elif action == 'smm_report':
+        report_data    = body.get('reportData', '')
+        report_period  = (body.get('reportPeriod') or '').strip()
+        brand_name     = (body.get('brandName') or '').strip()
+        additional_ctx = (body.get('additionalContext') or '').strip()
+        language       = body.get('language', 'UK English')
+
+        system = (
+            "You are a senior social media strategist with over 15 years of experience in "
+            "social media analytics, content strategy and performance reporting. "
+            "You write client-ready reports that are polished, analytical and constructive."
+        )
+
+        brand_prefix  = (brand_name + " ") if brand_name else ""
+        ctx_block     = ("Additional context: " + additional_ctx + "\n\n") if additional_ctx else ""
+        cover_period  = ("<p>" + report_period + "</p>") if report_period else ""
+        plat_period   = ('<p class="period">' + report_period + "</p>") if report_period else ""
+
+        user = (
+            "Refer closely to the attached social media performance report and review all available "
+            "data before writing the analysis. Do not make assumptions beyond the data provided. "
+            "Where data is missing or unclear, note it professionally.\n\n"
+            "Craft a clear, polished and client-ready social media performance report in " + language + ". "
+            "The tone must be positive, constructive and professional, while still being analytical and useful.\n\n"
+            "STRUCTURE:\n"
+            "For EACH platform found in the data, write a separate platform section containing:\n\n"
+            "1. Followers\n"
+            "   Analyse follower growth. Highlight positive growth trends, audience interest and what this "
+            "may suggest about brand awareness or community-building performance.\n\n"
+            "2. Page Reach\n"
+            "   Analyse reach performance and visibility. Explain what the reach numbers suggest about "
+            "content distribution, audience exposure and platform performance.\n\n"
+            "3. Post Engagement / Engagement Rate\n"
+            "   Analyse engagement performance, including likes, comments, shares, saves, clicks or any "
+            "available metrics. Explain what the engagement rate indicates about audience relevance and "
+            "content resonance.\n\n"
+            "4. Content Performance\n"
+            "   Review the best-performing and weaker-performing content. Identify what content themes, "
+            "formats, topics or creative styles appear to be working best. Consider how user behaviour "
+            "may differ across each platform.\n\n"
+            "5. Key Insights\n"
+            "   Summarise the main takeaways in proper sentences. Focus on what the data tells us about "
+            "audience behaviour, content effectiveness and platform opportunities.\n\n"
+            "RECOMMENDATIONS (after section 5, not numbered):\n"
+            "Provide practical, strategic bullet-point recommendations covering:\n"
+            "- Content creation improvements\n"
+            "- Content formats to prioritise\n"
+            "- Posting approach or frequency, if relevant\n"
+            "- Platform-specific opportunities\n"
+            "- Current social media trends relevant to the brand\n"
+            "- Ways to improve reach, engagement and follower growth\n\n"
+            "End the entire report with a 'Thank You.' closing.\n\n"
+            "WRITING RULES:\n"
+            "- Use proper sentences, not overly short bullet points (except in Recommendations)\n"
+            "- Keep tone positive and constructive; avoid generic statements unless clearly supported\n"
+            "- Do not overstate performance if data does not support it\n"
+            "- Write in " + language + " throughout\n"
+            "- Keep it polished, concise and presentation-ready\n\n"
+            "HTML FORMAT — output this exact structure:\n"
+            '<div class="smm-cover"><h1>' + brand_prefix + 'Social Media Report</h1>' + cover_period + '</div>\n\n'
+            "Then for each platform:\n"
+            '<div class="smm-platform">\n'
+            '<h2 class="platform-title">' + brand_prefix + '[Platform Name]</h2>\n'
+            + plat_period + '\n'
+            '<h3 class="analysis-header">[PLATFORM] ANALYSIS &amp; RECOMMENDATIONS</h3>\n'
+            "<h4>1. Followers</h4><p>...</p>\n"
+            "<h4>2. Page Reach</h4><p>...</p>\n"
+            "<h4>3. Post Engagement / Engagement Rate</h4><p>...</p>\n"
+            "<h4>4. Content Performance</h4><p>...</p>\n"
+            "<h4>5. Key Insights</h4><p>...</p>\n"
+            "<h4>Recommendations</h4><ul><li><strong>Title</strong> — explanation.</li></ul>\n"
+            "</div>\n\n"
+            'End with: <div class="smm-thank-you"><p>Thank You.</p></div>\n\n'
+            "Do NOT include <!DOCTYPE>, <html>, <head>, <body>, or <style> tags. "
+            "Return ONLY the inner HTML fragment.\n\n"
+            + ctx_block
+            + "REPORT DATA:\n" + report_data
+        )
         return system, user
 
     elif action == 'image_alt_rationale':
