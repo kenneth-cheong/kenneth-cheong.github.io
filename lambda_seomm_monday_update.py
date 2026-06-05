@@ -219,11 +219,24 @@ def fetch_icir_items_fast(api_key, board_id=BOARD_ID):
     api_url = "https://api.monday.com/v2"
     headers = {"Authorization": api_key, "API-Version": "2025-04"}
 
+    EXCLUDED_STATUS_KEYWORDS = ("expired", "terminated", "abandoned", "completed")
+
     def _extract(items):
         out = []
         for item in items:
-            cv = item.get("column_values") or []
-            csm_status = (cv[0].get("text") or "") if cv else ""
+            csm_status = bd_project_type = ""
+            for cv in (item.get("column_values") or []):
+                cid = cv.get("id")
+                if cid == "status0":
+                    csm_status = cv.get("text") or ""
+                elif cid == "tags":
+                    bd_project_type = cv.get("text") or ""
+            # Skip: no SEO in [BD]Project Type
+            if "seo" not in bd_project_type.lower():
+                continue
+            # Skip: [CSM] Campaign Status contains any excluded keyword
+            if any(kw in csm_status.lower() for kw in EXCLUDED_STATUS_KEYWORDS):
+                continue
             out.append({
                 "id": item["id"],
                 "name": item["name"],
@@ -242,12 +255,12 @@ def fetch_icir_items_fast(api_key, board_id=BOARD_ID):
             return None
         return data["data"].get(key)
 
-    # Fetch only the [CSM] Campaign Status column (status0) — avoids pulling all 122 columns
+    # Fetch [CSM] Campaign Status (status0) and [BD]Project Type (tags)
     q = (
         '{boards(ids:' + str(board_id) + ')'
         '{items_page(limit:500)'
         '{cursor items{id name group{title}'
-        'column_values(ids:["status0"]){text}}}}}'
+        'column_values(ids:["status0","tags"]){id text}}}}}'
     )
     r = requests.post(url=api_url, json={"query": q}, headers=headers)
     page = _safe_parse(r, "boards")
@@ -261,7 +274,7 @@ def fetch_icir_items_fast(api_key, board_id=BOARD_ID):
         q = (
             '{next_items_page(limit:500,cursor:"' + cursor + '")'
             '{cursor items{id name group{title}'
-            'column_values(ids:["status0"]){text}}}}'
+            'column_values(ids:["status0","tags"]){id text}}}}'
         )
         r = requests.post(url=api_url, json={"query": q}, headers=headers)
         page = _safe_parse(r, "next_items_page")
