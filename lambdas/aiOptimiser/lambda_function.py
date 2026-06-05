@@ -856,7 +856,7 @@ def build_structured_prompt(action, body):
         ranked_kw_str = ', '.join(_esc(k) for k in ranked_keywords) if ranked_keywords else 'N/A'
 
         image_list = '\n'.join(
-            '[{i}] current_alt: "{c}" | proposed_alt: "{p}" | already_optimised: {ao} | ranked_keyword: "{rk}" | image_url: "{u}"'.format(
+            'id={i} | current_alt: "{c}" | proposed_alt: "{p}" | already_optimised: {ao} | ranked_keyword: "{rk}" | image_url: "{u}"'.format(
                 i=img.get('id', idx),
                 c=_esc(img.get('current_alt', '')),
                 p=_esc(img.get('proposed_alt', '')),
@@ -894,7 +894,7 @@ def build_structured_prompt(action, body):
             "identical (and not already_optimised), say the existing alt is already appropriate and "
             "needs no change.\n\n"
             "Return ONLY a JSON array (no markdown), each item having:\n"
-            '  - "id": the image index exactly as given above\n'
+            '  - "id": the integer image index exactly as given above (e.g. 0, 1, 2 , a bare number, not "[0]")\n'
             '  - "rationale": your one-sentence explanation\n\n'
             "Return ONLY the JSON array, no other text."
         )
