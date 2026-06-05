@@ -21,8 +21,8 @@ def lambda_handler(event, context):
     proof_points         = body.get('proof_points', '')
     additional_info      = body.get('additional_info', '')
 
-    # 2. Construct Unified Strategist Persona (Instructions)
-    instructions = """
+    # 2. Construct Unified Strategist Persona (System Prompt)
+    system_prompt = """
 You are a senior brand and social media strategist with over 15 years of experience shaping clear, differentiated, and commercially grounded brand positioning and content strategy frameworks for B2B and B2C organisations.
 
 Your task is to synthesise the provided inputs into two things:
@@ -99,10 +99,10 @@ OUTPUT REQUIREMENTS
 - Provide one clear, confident direction — no alternatives or options.
 - All sections must be aligned and coherent as one unified strategy.
 - Return ONLY the raw JSON object. No markdown, no code fences, no extra text.
-- Ensure all string values are properly escaped and do NOT contain literal newlines (use \n for line breaks).
+- Ensure all string values are properly escaped and do NOT contain literal newlines (use \\n for line breaks).
 - Ensure no trailing commas after the last items in objects or arrays.
 ────────────────────────────────────────────
-"""
+""".strip()
 
     # 3. Construct Specific Input
     input_text = f"""
@@ -125,42 +125,44 @@ ADDITIONAL SUPPORTING DOCUMENTS CONTENT:
 {additional_info}
 
 Generate the Brand Foundation and Social Media Strategy framework now.
-"""
+""".strip()
 
-    # 4. Call OpenAI Responses API
-    api_key = os.environ.get('OPENAI_API_KEY')
-    url     = "https://api.openai.com/v1/responses"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type":  "application/json"
-    }
-
-    payload = {
-        "model": "gpt-4o-mini",
-        "instructions": instructions.strip(),
-        "input": [
-            {
-                "role":    "system",
-                "content": instructions.strip()
-            },
-            {
-                "role":    "user",
-                "content": input_text.strip()
-            }
-        ]
-    }
+    # 4. Call Anthropic Claude Haiku
+    api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
+    if not api_key:
+        return {
+            'statusCode': 500,
+            'headers': {'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json'},
+            'body': json.dumps({'error': 'Missing ANTHROPIC_API_KEY env var.'})
+        }
 
     try:
-        response      = requests.post(url, headers=headers, json=payload, timeout=60)
+        response = requests.post(
+            'https://api.anthropic.com/v1/messages',
+            headers={
+                'x-api-key':         api_key,
+                'anthropic-version': '2023-06-01',
+                'content-type':      'application/json'
+            },
+            json={
+                'model':      'claude-haiku-4-5-20251001',
+                'max_tokens': 4096,
+                'system':     system_prompt,
+                'messages':   [{'role': 'user', 'content': input_text}]
+            },
+            timeout=60
+        )
         response_json = response.json()
 
         if response.status_code == 200:
-            content_item = response_json['output'][-1]['content'][0]
-            answer = (
-                content_item.get('text', content_item)
-                if isinstance(content_item, dict)
-                else content_item
-            )
+            answer = response_json['content'][0]['text'] if response_json.get('content') else ''
+            # Strip markdown code fences if present
+            answer = answer.strip()
+            if answer.startswith('```'):
+                answer = answer.split('\n', 1)[-1]
+            if answer.endswith('```'):
+                answer = answer.rsplit('```', 1)[0]
+            answer = answer.strip()
             return {
                 'statusCode': 200,
                 'headers': {

@@ -4,7 +4,7 @@ import json
 
 def lambda_handler(event, context):
     apikey = os.environ.get('API_KEY_2')
-    
+
     # 1. Extract Existing Data
     reference_post = event.get('reference_post', "")
     content_type = event.get('content_type', "blog-post")
@@ -22,22 +22,59 @@ def lambda_handler(event, context):
     brand_guide_data = event.get('brand_guide', [])
     webpage_data = event.get('webpage_data', [])
 
-    # 2. Extract NEW Strategic Data (Matching HTML IDs)
+    # 2. Extract Strategic Data
     post_role = event.get('post_role', "")
     strategy_fit = event.get('strategy_fit', "")
     core_message = event.get('core_message', "")
+    brand_name = event.get('brand_name', "")
     brand_pov = event.get('brand_pov', "")
     constraints = event.get('constraints', "")
-    language = event.get('language', "English") # Default to English
+    language = event.get('language', "English")
 
     # --- Build the Prompt ---
     custom_prompt = event.get('custom_prompt') or event.get('prompt')
-    
+
     if custom_prompt:
         prompt = custom_prompt
     else:
-        # Start with Persona and Language
-        prompt = f"You are an expert digital marketer. Write a {content_type} in {language}. "
+        # Strategist persona — not a generic content generator
+        if language.lower() == 'xiaohongshu':
+            persona = (
+                "You are a senior social media strategist and copywriter with over 15 years of experience "
+                "writing brand-led content specifically for Xiao Hong Shu (小红书 / RED). "
+                "You write in a natural, peer-to-peer tone that feels like a genuine personal recommendation, "
+                "not a brand advertisement. Use conversational Chinese, relatable storytelling, and relevant "
+                "hashtags (话题标签) in the Xiao Hong Shu style. Avoid corporate or salesy language."
+            )
+            lang_instruction = "Write in a natural Xiao Hong Shu (小红书) style. "
+        elif language.lower() == 'chinese':
+            persona = (
+                "You are a senior social media strategist and copywriter with over 15 years of experience "
+                "writing brand-led, performance-aware social content for B2B and B2C brands in Chinese markets."
+            )
+            lang_instruction = f"Write in Chinese. "
+        else:
+            persona = (
+                "You are a senior social media strategist and copywriter with over 15 years of experience "
+                "writing brand-led, performance-aware social content for B2B and B2C brands."
+            )
+            lang_instruction = ""
+
+        prompt = (
+            f"{persona}\n\n"
+            f"Your task is not to simply write a caption, but to decide how the caption should function "
+            f"strategically within the brand's social media ecosystem.\n\n"
+            f"You must:\n"
+            f"- Identify the strategic role of the post\n"
+            f"- Write with a clear audience intent in mind\n"
+            f"- Reinforce brand positioning, not just deliver information\n"
+            f"- Be concise, intentional, and purposeful\n\n"
+            f"You must avoid: generic marketing language, over-explaining, and writing for engagement without "
+            f"strategic value. Assume the reader is scrolling quickly. Every line must earn its place.\n\n"
+            f"If trade-offs are required, prioritise: Clarity, Brand credibility, and Strategic intent.\n\n"
+            f"The final caption must feel like it was written by a human strategist, not an automated generator.\n\n"
+            f"Write a {content_type}. {lang_instruction}"
+        )
 
     # Strategic Context
     if post_role:
@@ -45,17 +82,23 @@ def lambda_handler(event, context):
     if strategy_fit:
         prompt += f"This post sits within the '{strategy_fit}' part of the content strategy. "
     if core_message:
-        prompt += f"The single most important takeaway (Core Message) is: '{core_message}'. "
+        prompt += f"The single most important takeaway is: '{core_message}'. "
+
+    # Brand
+    if brand_name:
+        prompt += f"\nBrand: {brand_name}. "
 
     # Main Content Info
     if post_info:
-        prompt += f"\n\nMain Content Topic: {post_info}. "
-    
+        prompt += f"\nMain Content Topic: {post_info}. "
+
     # Audience Targeting
-    prompt += "\nTarget Audience Details: "
-    if subgroups: prompt += f"Sub-group: {subgroups}, "
-    if painpoints: prompt += f"Pain points: {painpoints}, "
-    if audience_goal: prompt += f"Audience Goal: {audience_goal}, "
+    audience_parts = []
+    if subgroups: audience_parts.append(f"Sub-group: {subgroups}")
+    if painpoints: audience_parts.append(f"Pain points: {painpoints}")
+    if audience_goal: audience_parts.append(f"Audience goal: {audience_goal}")
+    if audience_parts:
+        prompt += "\nTarget Audience: " + ", ".join(audience_parts) + ". "
 
     # Product and CTA
     if product_service:
@@ -63,19 +106,20 @@ def lambda_handler(event, context):
     if usp:
         prompt += f"Unique Selling Point: {usp}. "
     if desired_action:
-        prompt += f"Desired Action: {desired_action}. "
+        prompt += f"Desired Action (CTA): {desired_action}. "
 
     # Style and Tone
-    prompt += f"\nStyle Requirements: "
-    if tone: prompt += f"Tone: {tone}. "
-    if brand_pov: prompt += f"Brand Stance/POV: {brand_pov}. "
-    if pov: prompt += f"Perspective: {pov}. "
-    if word_count: prompt += f"Length: {word_count}. "
+    style_parts = []
+    if tone: style_parts.append(f"Tone: {tone}")
+    if brand_pov: style_parts.append(f"Brand stance: {brand_pov}")
+    if pov: style_parts.append(f"Perspective: {pov}")
+    if word_count: style_parts.append(f"Length: {word_count}")
+    if style_parts:
+        prompt += "\nStyle: " + ". ".join(style_parts) + ". "
 
     # Data Context
     def get_text_from_item(item):
         if isinstance(item, dict):
-            # Check common keys returned by parser APIs
             for key in ['body', 'content', 'text', 'parsed_text']:
                 if key in item and item[key]:
                     return str(item[key])
@@ -84,24 +128,29 @@ def lambda_handler(event, context):
 
     if webpage_data:
         webpage_content = ' '.join([get_text_from_item(i) for i in webpage_data])
-        prompt += f"\nContext from Website: '{webpage_content}'. "
+        prompt += f"\nContext from Reference Material: '{webpage_content}'. "
 
     if brand_guide_data:
         brand_guide_content = ' '.join([get_text_from_item(i) for i in brand_guide_data])
         prompt += f"\nBrand Guidelines: '{brand_guide_content}'. "
 
     if reference_post:
-        prompt += f"\nReference Style: Match the style of this example: '{reference_post}'. "
+        prompt += f"\nReference Style (match the tone and voice, not the content): '{reference_post}'. "
 
-    # Constraints (High Priority - Added toward end)
+    # Constraints (High Priority)
     if constraints:
-        prompt += f"\nCRITICAL CONSTRAINTS: You must adhere to these rules: {constraints}. "
+        prompt += f"\nCRITICAL CONSTRAINTS — you must include or adhere to: {constraints}. "
 
-    # Formatting Instructions based on Content Type
+    # Output format
     if content_type == 'blog-post':
         prompt += "\n\nThe output should be formatted as clean HTML (tags only, no markdown code blocks)."
     else:
-        prompt += "\n\nThe output should be plain text only. STRICTLY DO NOT use any HTML tags, markdown code blocks, or markdown formatting (like asterisks for bold)."
+        prompt += (
+            "\n\nThe output should be plain text only. "
+            "STRICTLY DO NOT use any HTML tags, markdown code blocks, or markdown formatting. "
+            "Do not add section headers, bullet lists, or structural labels. "
+            "Write the caption as flowing, natural copy only."
+        )
 
     # API Call to 1min.ai
     url = "https://api.1min.ai/api/features"
@@ -113,23 +162,22 @@ def lambda_handler(event, context):
             "isMixed": False,
             "webSearch": True,
             "numOfSite": 1,
-            "maxWord": 1200 # Increased slightly for longer content
+            "maxWord": 1200
         }
     }
 
     headers = {
         "Content-Type": "application/json",
-        'API-KEY': "2154bdde6d17a2d600ef5d662e1ddca1ac0272679402a08832a0c0fdc652cc61" # Note: Usually move this to Environment Variables
+        'API-KEY': "2154bdde6d17a2d600ef5d662e1ddca1ac0272679402a08832a0c0fdc652cc61"
     }
 
     try:
         response = requests.post(url, headers=headers, json=json_data)
         response.raise_for_status()
-        
-        # Clean the response to ensure it is raw HTML
+
         result_text = response.json()['aiRecord']['aiRecordDetail']['resultObject'][0]
         output = result_text.replace('```html','').replace('```','').strip()
-        
+
         return output
     except requests.exceptions.RequestException as e:
         print(f"Error making API call: {e}")
