@@ -3217,7 +3217,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1768</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1769</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -6065,9 +6065,10 @@
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Fetching...';
             }
 
-            // Show loading state in dropdowns
-            document.querySelectorAll('.ms-dropdown .ms-placeholder').forEach(p => {
-                p.innerText = "Loading options...";
+            // Show loading state in item/staff dropdowns only (skip auth-required Google dropdowns)
+            ['msItemDropdown', 'msStaffDropdown'].forEach(id => {
+                const p = document.querySelector(`#${id} .ms-trigger .ms-placeholder`);
+                if (p) p.innerText = "Loading options...";
             });
 
             isFetchingOptions = true;
@@ -6136,10 +6137,13 @@
 
             } catch (e) {
                 console.error("Fetch options error:", e);
+                // Reset trigger placeholders so they don't stay stuck on "Loading options..."
+                renderMsTrigger('msItemDropdown');
+                renderMsTrigger('msStaffDropdown');
                 if (btn) {
                     btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Fetch Failed';
                     setTimeout(() => {
-                        btn.innerHTML = '<i class="fas fa-download"></i> Fetch Campaigns & Staff';
+                        btn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Options';
                         btn.disabled = false;
                     }, 3000);
                 }
