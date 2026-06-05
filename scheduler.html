@@ -1022,6 +1022,28 @@
                                 </button>
                             </div>
                         </div>
+
+                        <div class="card" style="padding: 1.25rem 1.5rem; display: flex; align-items: center; gap: 1.25rem; min-width: 320px; flex: 0 0 auto;">
+                            <div style="width: 40px; height: 40px; border-radius: 10px; background: #f0fdf4; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                <svg width="20" height="20" fill="none" stroke="#16a34a" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                                </svg>
+                            </div>
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-weight: 600; font-size: 0.875rem;">SEO MM Monday Update</div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 1px;">Sync SE Ranking positions → Monday.com KPI columns & Google Chat alerts</div>
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 0.5rem; flex-shrink: 0;">
+                                <button class="btn btn-primary" id="btn-seomm-update" style="background: var(--success); border-color: var(--success);"
+                                    onclick="runSeommUpdate(this)">
+                                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 4px;">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                    Run Now
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -2059,6 +2081,23 @@
                 showToast('Campaign Summary started — results will be written to Monday.com in ~24h.', 'success');
             } catch (e) {
                 showToast('Failed to start Campaign Summary: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = original;
+            }
+        }
+
+        async function runSeommUpdate(btn) {
+            const original = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right:4px;"></i> Starting...';
+            try {
+                await apiCall('invoke_lambda', { functionName: 'seomm-monday-update', async: true });
+                showToast('SEO MM Monday Update started — Monday.com & Google Chat will be updated shortly.', 'success');
+                logActivity('info', 'SEO MM Update', 'Lambda invoked asynchronously');
+            } catch (e) {
+                showToast('Failed to start SEO MM Update: ' + e.message, 'error');
+                logActivity('error', 'SEO MM Update Failed', e.message);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = original;
