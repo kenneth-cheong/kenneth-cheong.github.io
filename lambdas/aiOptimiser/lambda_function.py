@@ -358,7 +358,8 @@ def build_user_msg(action, content, prompt_override):
 
 _STRUCTURED_ACTIONS = {
     'news_classify', 'html_fragment', 'luxury_copy', 'serp_analysis',
-    'content_outline', 'content_section', 'content_polish', 'strategy_url_research'
+    'content_outline', 'content_section', 'content_polish', 'strategy_url_research',
+    'image_alt_rationale'
 }
 
 
@@ -840,6 +841,63 @@ def build_structured_prompt(action, body):
                 "  \"client_website\": \"the company's primary website domain e.g. example.com\"\n"
                 "}"
             )
+        return system, user
+
+    elif action == 'image_alt_rationale':
+        images             = body.get('images', [])
+        primary_keyword    = body.get('primary_keyword', '')
+        secondary_keywords = body.get('secondary_keywords', '')
+        ranked_keywords    = body.get('ranked_keywords', [])
+        page_context       = body.get('page_context', '')
+
+        def _esc(v):
+            return str(v if v is not None else '').replace('"', "'")
+
+        ranked_kw_str = ', '.join(_esc(k) for k in ranked_keywords) if ranked_keywords else 'N/A'
+
+        image_list = '\n'.join(
+            '[{i}] current_alt: "{c}" | proposed_alt: "{p}" | already_optimised: {ao} | ranked_keyword: "{rk}" | image_url: "{u}"'.format(
+                i=img.get('id', idx),
+                c=_esc(img.get('current_alt', '')),
+                p=_esc(img.get('proposed_alt', '')),
+                ao='true' if img.get('already_optimised') else 'false',
+                rk=_esc(img.get('ranked_keyword', '')),
+                u=_esc(img.get('image_url', ''))
+            )
+            for idx, img in enumerate(images)
+        )
+
+        system = (
+            "You are an SEO and web-accessibility expert reviewing image alt text. "
+            "You explain, concisely and concretely, why a proposed alt text is an "
+            "improvement for both accessibility (screen readers) and SEO , or why an "
+            "existing alt text was deliberately left unchanged."
+        )
+        user = (
+            "For each image below you are given its CURRENT alt text (may be empty), a "
+            "PROPOSED alt text, an ALREADY_OPTIMISED flag, and (if applicable) the "
+            "RANKED_KEYWORD the current alt already targets.\n\n"
+            f"PAGE CONTEXT: {page_context or 'N/A'}\n"
+            f"PRIMARY KEYWORD: {primary_keyword or 'N/A'}\n"
+            f"SECONDARY KEYWORDS: {secondary_keywords or 'N/A'}\n"
+            f"KEYWORDS THIS PAGE ALREADY RANKS FOR: {ranked_kw_str}\n\n"
+            f"IMAGES:\n{image_list}\n\n"
+            "For each image, write ONE specific sentence (max ~30 words):\n"
+            "- If already_optimised is true: explain that the current alt text was kept UNCHANGED "
+            "because it already targets the ranking keyword (name it), so altering it could weaken "
+            "an existing ranking. Do NOT propose changes for these.\n"
+            "- Otherwise: explain why the proposed alt is better, grounded in the actual difference "
+            "between current and proposed (e.g. 'was empty', 'was a filename', 'lacked the subject', "
+            "'now describes X and includes the keyword naturally'). Mention a keyword ONLY if the "
+            "proposed alt genuinely and naturally uses it; never claim keyword usage that isn't there.\n"
+            "Do NOT be generic or repeat the same sentence. If current and proposed are effectively "
+            "identical (and not already_optimised), say the existing alt is already appropriate and "
+            "needs no change.\n\n"
+            "Return ONLY a JSON array (no markdown), each item having:\n"
+            '  - "id": the image index exactly as given above\n'
+            '  - "rationale": your one-sentence explanation\n\n'
+            "Return ONLY the JSON array, no other text."
+        )
         return system, user
 
     return None, None
