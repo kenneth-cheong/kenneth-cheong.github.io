@@ -479,63 +479,66 @@ def lambda_handler(event, context):
         })
     df_new = pd.DataFrame(stats)
 
-    df_compare = df_new.merge(
-        df_monday_current[df_monday_current["SEO [Reg] P1 KWs"] != ""][
-            ["integrated_item_id", "SEO [Reg] P1 KWs"]
-        ],
-        how="left", left_on="campaign_id", right_on="integrated_item_id",
-    )
-    df_compare = df_compare[
-        (df_compare["kpi_kws"] != "") & (df_compare["integrated_item_id"].notna())
-    ]
-    df_compare[["p1_kws", "p2_kws", "total_kws", "kpi_kws", "SEO [Reg] P1 KWs"]] = (
-        df_compare[["p1_kws", "p2_kws", "total_kws", "kpi_kws", "SEO [Reg] P1 KWs"]].astype("int32")
-    )
+    if not df_new.empty:
+        df_compare = df_new.merge(
+            df_monday_current[df_monday_current["SEO [Reg] P1 KWs"] != ""][
+                ["integrated_item_id", "SEO [Reg] P1 KWs"]
+            ],
+            how="left", left_on="campaign_id", right_on="integrated_item_id",
+        )
+        df_compare = df_compare[
+            (df_compare["kpi_kws"] != "") & (df_compare["integrated_item_id"].notna())
+        ]
+        df_compare[["p1_kws", "p2_kws", "total_kws", "kpi_kws", "SEO [Reg] P1 KWs"]] = (
+            df_compare[["p1_kws", "p2_kws", "total_kws", "kpi_kws", "SEO [Reg] P1 KWs"]].astype("int32")
+        )
 
-    df_now_hit = df_compare[
-        (df_compare["SEO [Reg] P1 KWs"] < df_compare["kpi_kws"])
-        & (df_compare["p1_kws"] >= df_compare["kpi_kws"])
-    ]
-    df_now_not_hit = df_compare[
-        (df_compare["p1_kws"] < df_compare["SEO [Reg] P1 KWs"])
-        & (df_compare["p1_kws"] < df_compare["kpi_kws"])
-    ]
+        df_now_hit = df_compare[
+            (df_compare["SEO [Reg] P1 KWs"] < df_compare["kpi_kws"])
+            & (df_compare["p1_kws"] >= df_compare["kpi_kws"])
+        ]
+        df_now_not_hit = df_compare[
+            (df_compare["p1_kws"] < df_compare["SEO [Reg] P1 KWs"])
+            & (df_compare["p1_kws"] < df_compare["kpi_kws"])
+        ]
 
-    # --- 8. Google Chat: KPI change alerts ---
-    chat_creds = service_account.Credentials.from_service_account_info(
-        bubbly_creds, scopes=["https://www.googleapis.com/auth/chat.bot"]
-    )
-    chat_service = build("chat", "v1", credentials=chat_creds)
-    space_alerts = "spaces/AAAA5DO8AyE"
+        # --- 8. Google Chat: KPI change alerts ---
+        chat_creds = service_account.Credentials.from_service_account_info(
+            bubbly_creds, scopes=["https://www.googleapis.com/auth/chat.bot"]
+        )
+        chat_service = build("chat", "v1", credentials=chat_creds)
+        space_alerts = "spaces/AAAA5DO8AyE"
 
-    def _send_chat(space, text):
-        chat_service.spaces().messages().create(parent=space, body={"text": text}).execute()
+        def _send_chat(space, text):
+            chat_service.spaces().messages().create(parent=space, body={"text": text}).execute()
 
-    if len(df_now_hit) > 0:
-        msg = "Newly KPI Hit Campaigns\n\n"
-        for _, row in df_now_hit.iterrows():
-            try:
-                msg += f"{row['title']} - was {row['SEO [Reg] P1 KWs']}/{row['kpi_kws']}, now {row['p1_kws']}/{row['kpi_kws']}\n"
-            except Exception:
-                pass
-        _send_chat(space_alerts, msg)
+        if len(df_now_hit) > 0:
+            msg = "Newly KPI Hit Campaigns\n\n"
+            for _, row in df_now_hit.iterrows():
+                try:
+                    msg += f"{row['title']} - was {row['SEO [Reg] P1 KWs']}/{row['kpi_kws']}, now {row['p1_kws']}/{row['kpi_kws']}\n"
+                except Exception:
+                    pass
+            _send_chat(space_alerts, msg)
 
-    if len(df_now_not_hit) > 0:
-        msg = "Now Not Hit Campaigns\n\n"
-        for _, row in df_now_not_hit.iterrows():
-            try:
-                msg += f"{row['title']} - was {row['SEO [Reg] P1 KWs']}/{row['kpi_kws']}, now {row['p1_kws']}/{row['kpi_kws']}\n"
-            except Exception:
-                pass
-        _send_chat(space_alerts, msg)
+        if len(df_now_not_hit) > 0:
+            msg = "Now Not Hit Campaigns\n\n"
+            for _, row in df_now_not_hit.iterrows():
+                try:
+                    msg += f"{row['title']} - was {row['SEO [Reg] P1 KWs']}/{row['kpi_kws']}, now {row['p1_kws']}/{row['kpi_kws']}\n"
+                except Exception:
+                    pass
+            _send_chat(space_alerts, msg)
 
-    # --- 9. Batch Monday updates: standard P1 + P2 ---
-    print("Updating Monday standard P1/P2 columns...")
-    std_updates = []
-    for _, row in df_new.iterrows():
-        std_updates.append((row["campaign_id"], "numbers98", row["p1_kws"]))
-        std_updates.append((row["campaign_id"], "numbers27", row["p2_kws"]))
-    batch_monday_updates(std_updates, monday_api_key, api_url)
+        # --- 9. Batch Monday updates: standard P1 + P2 ---
+        print("Updating Monday standard P1/P2 columns...")
+        std_updates = []
+        for _, row in df_new.iterrows():
+            std_updates.append((row["campaign_id"], "numbers98", row["p1_kws"]))
+            std_updates.append((row["campaign_id"], "numbers27", row["p2_kws"]))
+        batch_monday_updates(std_updates, monday_api_key, api_url)
+    else:
+        print("No standard campaigns matched — skipping sections 8-9.")
 
     # --- 10. Cluster campaigns ---
     merged_cluster = pd.merge(
@@ -576,11 +579,12 @@ def lambda_handler(event, context):
         })
     df_new_psg = pd.DataFrame(psg_stats)
 
-    psg_updates = []
-    for _, row in df_new_psg.iterrows():
-        psg_updates.append((row["monday_campaign_id"], "numbers98", row["p1_kws"]))
-        psg_updates.append((row["monday_campaign_id"], "numbers27", row["p2_kws"]))
-    batch_monday_updates(psg_updates, monday_api_key, api_url)
+    if not df_new_psg.empty:
+        psg_updates = []
+        for _, row in df_new_psg.iterrows():
+            psg_updates.append((row["monday_campaign_id"], "numbers98", row["p1_kws"]))
+            psg_updates.append((row["monday_campaign_id"], "numbers27", row["p2_kws"]))
+        batch_monday_updates(psg_updates, monday_api_key, api_url)
 
     # --- 12. Special campaigns (hardcoded KPI logic) ---
     # Each block is guarded so item-specific runs only update the selected items.
