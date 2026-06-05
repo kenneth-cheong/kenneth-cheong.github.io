@@ -213,8 +213,8 @@ def monday_create_update(item_id, body, api_key,
 def fetch_icir_items_fast(api_key, board_id=BOARD_ID):
     """Return [{id, name, group, csm_status}] for every item on the ICIR board.
 
-    Uses limit:500 pages and only fetches the two fields needed by the UI picker
-    (name + [CSM] Campaign Status, column id 'status0').
+    Fetches only id, name, group, and the [CSM] Campaign Status column (status0).
+    Uses limit:200 pages to stay within Monday API complexity limits.
     """
     api_url = "https://api.monday.com/v2"
     headers = {"Authorization": api_key, "API-Version": "2025-04"}
@@ -232,6 +232,17 @@ def fetch_icir_items_fast(api_key, board_id=BOARD_ID):
             })
         return out
 
+    def _safe_parse(resp, key):
+        data = resp.json()
+        if "errors" in data:
+            print(f"Monday API errors ({key}): {data['errors']}")
+            return None
+        if "data" not in data:
+            print(f"Unexpected Monday response ({key}): {str(data)[:300]}")
+            return None
+        return data["data"].get(key)
+
+    # Fetch only the [CSM] Campaign Status column (status0) — avoids pulling all 122 columns
     q = (
         '{boards(ids:' + str(board_id) + ')'
         '{items_page(limit:500)'
@@ -239,7 +250,10 @@ def fetch_icir_items_fast(api_key, board_id=BOARD_ID):
         'column_values(ids:["status0"]){text}}}}}'
     )
     r = requests.post(url=api_url, json={"query": q}, headers=headers)
-    page = r.json()["data"]["boards"][0]["items_page"]
+    page = _safe_parse(r, "boards")
+    if page is None:
+        return []
+    page = page[0]["items_page"]
     results = _extract(page["items"])
     cursor = page.get("cursor")
 
@@ -250,7 +264,9 @@ def fetch_icir_items_fast(api_key, board_id=BOARD_ID):
             'column_values(ids:["status0"]){text}}}}'
         )
         r = requests.post(url=api_url, json={"query": q}, headers=headers)
-        page = r.json()["data"]["next_items_page"]
+        page = _safe_parse(r, "next_items_page")
+        if page is None:
+            break
         results += _extract(page["items"])
         cursor = page.get("cursor")
         if cursor:
