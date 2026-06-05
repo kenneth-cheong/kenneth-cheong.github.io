@@ -2339,14 +2339,21 @@
                 const workspaceIds = [...new Set(allBoards.map(b => b.workspace?.id).filter(Boolean))];
                 try {
                     if (workspaceIds.length > 0) {
-                        const fdata = await monday(
-                            `query($wsIds:[ID!]){ folders(workspace_ids:$wsIds, limit:500){ id name parent { id name } } }`,
-                            { wsIds: workspaceIds },
-                            "Resolving folder names..."
-                        );
-                        (fdata.folders || []).forEach(f => {
-                            folderMeta[f.id] = { name: f.name, parentId: f.parent?.id, parentName: f.parent?.name };
-                        });
+                        // Monday caps the folders query at limit:100, so page through.
+                        let fPage = 1, fHasMore = true;
+                        while (fHasMore && fPage < 100) {
+                            const fdata = await monday(
+                                `query($wsIds:[ID!],$p:Int){ folders(workspace_ids:$wsIds, limit:100, page:$p){ id name parent { id name } } }`,
+                                { wsIds: workspaceIds, p: fPage },
+                                "Resolving folder names..."
+                            );
+                            const folders = fdata.folders || [];
+                            folders.forEach(f => {
+                                folderMeta[f.id] = { name: f.name, parentId: f.parent?.id, parentName: f.parent?.name };
+                            });
+                            fHasMore = folders.length === 100;
+                            fPage++;
+                        }
                     }
                 } catch (err) {
                     console.warn("workspace_ids folder fetch failed, falling back to IDs query", err);

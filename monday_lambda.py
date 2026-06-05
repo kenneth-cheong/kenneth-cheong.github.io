@@ -1826,6 +1826,71 @@ def _call_claude_simple(system_text, user_text, model='claude-haiku-4-5', max_to
         return {'statusCode': 500, 'body': json.dumps({'error': str(e)})}
 
 
+WORKDUO_API_BASE = "https://api.workduo.ai"
+
+def _workduo_auth():
+    pk = os.environ.get('WORKDUO_PUBLIC_KEY', '')
+    sk = os.environ.get('WORKDUO_SECRET_KEY', '')
+    return "Basic " + base64.b64encode(f"{pk}:{sk}".encode()).decode()
+
+
+def _get_workduo_projects():
+    auth = _workduo_auth()
+    all_projects = []
+    page = 1
+    while True:
+        r = requests.get(
+            f"{WORKDUO_API_BASE}/core/v1/projects",
+            params={"page": page, "pageSize": 100},
+            headers={"Authorization": auth},
+            timeout=20
+        )
+        if r.status_code != 200:
+            return {"statusCode": r.status_code, "body": json.dumps({"error": r.text[:500]})}
+        data = r.json()
+        batch = data.get("data", [])
+        all_projects.extend(batch)
+        if len(batch) < 100:
+            break
+        page += 1
+    return {"statusCode": 200, "body": json.dumps({"projects": all_projects})}
+
+
+def _geo_fetch_workduo_direct(entities, start_date, end_date):
+    auth = _workduo_auth()
+    results = []
+    for e in entities:
+        entity_id  = e.get("entityId", "")
+        project_id = e.get("projectId", "")
+        name       = e.get("name", "")
+        if not entity_id:
+            continue
+        try:
+            r = requests.get(
+                f"{WORKDUO_API_BASE}/data/v1/metrics/entities/{entity_id}",
+                params={"projectId": project_id, "dateRange": "custom",
+                        "startDate": start_date, "endDate": end_date},
+                headers={"Authorization": auth},
+                timeout=20
+            )
+            if r.status_code == 200:
+                rows = [
+                    {"date": row["date"][:10],
+                     "visibility": row.get("visibility", 0),
+                     "sov":        row.get("sov", 0),
+                     "mentions":   row.get("mentions", 0),
+                     "position":   row.get("position", 0)}
+                    for row in r.json().get("data", [])
+                ]
+                results.append({"entity_id": entity_id, "name": name, "rows": rows, "note": None})
+            else:
+                results.append({"entity_id": entity_id, "name": name, "rows": [],
+                                 "note": f"API {r.status_code}"})
+        except Exception as ex:
+            results.append({"entity_id": entity_id, "name": name, "rows": [], "note": str(ex)})
+    return {"statusCode": 200, "body": json.dumps({"reply": json.dumps(results)})}
+
+
 def _build_geo_fetch_body(entities, start_date, end_date,
                           is_comparison=False, cmp_from=None, cmp_to=None):
     """Construct the claude_chat_with_tools body for a WorkDuo GEO visibility fetch."""
@@ -2342,23 +2407,20 @@ def lambda_handler(event, context):
             except Exception as e:
                 result = {"statusCode": 500, "body": json.dumps({"error": str(e)})}
         # ── Server-side prompt actions ────────────────────────────────────
+        elif action == 'get_workduo_projects':
+            result = _get_workduo_projects()
         elif action == 'geo_fetch_visibility':
-            cwt_body = _build_geo_fetch_body(
+            result = _geo_fetch_workduo_direct(
                 entities   = body.get('entities', []),
                 start_date = body.get('startDate', ''),
                 end_date   = body.get('endDate', '')
             )
-            result = claude_chat_with_tools(cwt_body)
         elif action == 'geo_fetch_comparison':
-            cwt_body = _build_geo_fetch_body(
-                entities       = body.get('entities', []),
-                start_date     = body.get('startDate', ''),
-                end_date       = body.get('endDate', ''),
-                is_comparison  = True,
-                cmp_from       = body.get('cmpFrom', ''),
-                cmp_to         = body.get('cmpTo', '')
+            result = _geo_fetch_workduo_direct(
+                entities   = body.get('entities', []),
+                start_date = body.get('cmpFrom', ''),
+                end_date   = body.get('cmpTo', '')
             )
-            result = claude_chat_with_tools(cwt_body)
         elif action == 'audit_recommendations':
             result = _audit_recommendations(body)
         elif action == 'competitor_insights':
