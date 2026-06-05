@@ -1040,7 +1040,13 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                     </svg>
-                                    Run Now
+                                    Run All
+                                </button>
+                                <button class="btn btn-secondary" style="font-size: 0.8rem;" onclick="openSeommCampaignModal()">
+                                    <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 3px;">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h8"/>
+                                    </svg>
+                                    Select Items
                                 </button>
                             </div>
                         </div>
@@ -1480,6 +1486,56 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                     Generate Summaries
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SEO MM Campaign Picker Modal -->
+    <div class="modal-backdrop" id="seomm-campaign-modal">
+        <div class="modal" style="max-width: 620px;">
+            <div class="modal-header">
+                <div>
+                    <h2>Select Campaigns</h2>
+                    <p class="text-muted" style="font-size: 0.8rem; margin-top: 0.25rem;">Choose specific ICIR campaigns to run the SEO MM Monday Update for</p>
+                </div>
+                <button class="btn-icon" onclick="closeModal('seomm-campaign-modal')">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="seomm-loading" style="text-align:center; padding: 2.5rem 1rem; display:flex; flex-direction:column; align-items:center; gap:0.75rem;">
+                    <i class="fas fa-spinner fa-spin" style="font-size:1.5rem; color:var(--text-muted);"></i>
+                    <div style="color:var(--text-muted); font-size:0.875rem;">Loading campaigns from ICIR board…</div>
+                </div>
+                <div id="seomm-picker-content" style="display:none;">
+                    <div class="search-input-wrapper" style="margin-bottom: 0.75rem; min-width: unset;">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        <input id="seomm-search" type="text" class="input-field" placeholder="Search by name, group or status…" oninput="filterSeommCampaigns()">
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; padding:0 0.125rem;">
+                        <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.8rem; cursor:pointer; color:var(--text-muted);">
+                            <input type="checkbox" id="seomm-select-all" onchange="toggleSeommSelectAll(this)">
+                            Select all visible
+                        </label>
+                        <span id="seomm-selected-count" style="font-size:0.8rem; color:var(--text-muted); font-weight:500;">0 selected</span>
+                    </div>
+                    <div id="seomm-campaign-list" style="max-height:380px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--bg-color);"></div>
+                    <div id="seomm-visible-count" style="font-size:0.72rem; color:var(--text-muted); margin-top:0.4rem; text-align:right;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('seomm-campaign-modal')">Cancel</button>
+                <button class="btn btn-primary" id="btn-run-seomm-selected" style="background: var(--success);" onclick="runSeommSelected()" disabled>
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right:4px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Run Selected
                 </button>
             </div>
         </div>
@@ -2082,6 +2138,176 @@
             } catch (e) {
                 showToast('Failed to start Campaign Summary: ' + e.message, 'error');
             } finally {
+                btn.disabled = false;
+                btn.innerHTML = original;
+            }
+        }
+
+        // --- SEO MM Campaign Picker ---
+        let _seommCampaigns = [];
+        let _seommFiltered = [];
+        let _seommLoaded = false;
+        const _seommSelected = new Set();
+
+        function _seommStatusStyle(status) {
+            if (!status) return 'background:#e5e7eb;color:#374151';
+            const s = status.toLowerCase();
+            if (s.includes('active') || s.includes('live') || s.includes('ongoing') || s.includes('lit')) return 'background:#dcfce7;color:#15803d';
+            if (s.includes('paused') || s.includes('hold') || s.includes('pending') || s.includes('delay')) return 'background:#fef9c3;color:#854d0e';
+            if (s.includes('churn') || s.includes('cancel') || s.includes('expir') || s.includes('ended') || s.includes('lost')) return 'background:#fee2e2;color:#991b1b';
+            if (s.includes('new') || s.includes('onboard')) return 'background:#dbeafe;color:#1d4ed8';
+            return 'background:#f1f5f9;color:#475569';
+        }
+
+        async function openSeommCampaignModal() {
+            openModal('seomm-campaign-modal');
+            if (!_seommLoaded) await loadSeommCampaigns();
+        }
+
+        async function loadSeommCampaigns() {
+            const loading = document.getElementById('seomm-loading');
+            const content = document.getElementById('seomm-picker-content');
+            loading.style.display = 'flex';
+            content.style.display = 'none';
+            try {
+                const raw = await apiCall('invoke_lambda', {
+                    functionName: 'seomm-monday-update',
+                    payload: { action: 'list_campaigns' }
+                });
+                let campaigns = raw;
+                // Unwrap nested Lambda/API Gateway wrapping
+                if (campaigns && campaigns.statusCode !== undefined && campaigns.body !== undefined) {
+                    campaigns = typeof campaigns.body === 'string' ? JSON.parse(campaigns.body) : campaigns.body;
+                }
+                if (!Array.isArray(campaigns)) campaigns = [];
+                _seommCampaigns = campaigns;
+                _seommLoaded = true;
+                _seommSelected.clear();
+                renderSeommCampaigns(_seommCampaigns);
+                loading.style.display = 'none';
+                content.style.display = 'block';
+            } catch (e) {
+                loading.innerHTML = `<span style="color:var(--danger,#ef4444);font-size:0.875rem;">Failed to load campaigns: ${e.message}</span>`;
+            }
+        }
+
+        function renderSeommCampaigns(campaigns) {
+            _seommFiltered = campaigns;
+            const list = document.getElementById('seomm-campaign-list');
+            const frag = document.createDocumentFragment();
+
+            campaigns.forEach(c => {
+                const label = document.createElement('label');
+                label.style.cssText = 'display:flex;align-items:center;gap:0.625rem;padding:0.45rem 0.75rem;cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.1s;';
+                label.onmouseenter = () => { label.style.background = 'var(--card-bg)'; };
+                label.onmouseleave = () => { label.style.background = ''; };
+
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.className = 'seomm-cb';
+                cb.value = c.id;
+                cb.checked = _seommSelected.has(c.id);
+                cb.style.flexShrink = '0';
+                cb.onchange = () => seommCheckboxChange(cb);
+
+                const nameSpan = document.createElement('span');
+                nameSpan.style.cssText = 'flex:1;font-size:0.8rem;line-height:1.35;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+                nameSpan.title = c.name;
+                nameSpan.textContent = c.name;
+
+                label.appendChild(cb);
+                label.appendChild(nameSpan);
+
+                if (c.csm_status) {
+                    const badge = document.createElement('span');
+                    badge.style.cssText = `display:inline-block;padding:1px 7px;border-radius:9999px;font-size:0.7rem;font-weight:500;white-space:nowrap;flex-shrink:0;${_seommStatusStyle(c.csm_status)}`;
+                    badge.textContent = c.csm_status;
+                    label.appendChild(badge);
+                }
+
+                frag.appendChild(label);
+            });
+
+            list.innerHTML = '';
+            list.appendChild(frag);
+
+            const countEl = document.getElementById('seomm-visible-count');
+            if (countEl) {
+                countEl.textContent = campaigns.length < _seommCampaigns.length
+                    ? `Showing ${campaigns.length} of ${_seommCampaigns.length} campaigns`
+                    : `${_seommCampaigns.length} campaigns total`;
+            }
+            _syncSeommSelectAll();
+            _updateSeommSelectedCount();
+        }
+
+        function filterSeommCampaigns() {
+            const q = (document.getElementById('seomm-search').value || '').toLowerCase().trim();
+            const filtered = q
+                ? _seommCampaigns.filter(c =>
+                    c.name.toLowerCase().includes(q) ||
+                    (c.csm_status || '').toLowerCase().includes(q) ||
+                    (c.group || '').toLowerCase().includes(q))
+                : _seommCampaigns;
+            renderSeommCampaigns(filtered);
+        }
+
+        function seommCheckboxChange(cb) {
+            if (cb.checked) { _seommSelected.add(cb.value); }
+            else { _seommSelected.delete(cb.value); }
+            _syncSeommSelectAll();
+            _updateSeommSelectedCount();
+        }
+
+        function toggleSeommSelectAll(masterCb) {
+            document.querySelectorAll('.seomm-cb').forEach(cb => {
+                cb.checked = masterCb.checked;
+                if (masterCb.checked) { _seommSelected.add(cb.value); }
+                else { _seommSelected.delete(cb.value); }
+            });
+            _updateSeommSelectedCount();
+        }
+
+        function _syncSeommSelectAll() {
+            const all = document.querySelectorAll('.seomm-cb');
+            const checked = document.querySelectorAll('.seomm-cb:checked');
+            const sa = document.getElementById('seomm-select-all');
+            if (!sa) return;
+            sa.checked = all.length > 0 && checked.length === all.length;
+            sa.indeterminate = checked.length > 0 && checked.length < all.length;
+        }
+
+        function _updateSeommSelectedCount() {
+            const n = _seommSelected.size;
+            const el = document.getElementById('seomm-selected-count');
+            if (el) {
+                el.textContent = n === 0 ? '0 selected' : `${n} selected`;
+                el.style.color = n > 0 ? 'var(--success)' : 'var(--text-muted)';
+                el.style.fontWeight = n > 0 ? '600' : '500';
+            }
+            const btn = document.getElementById('btn-run-seomm-selected');
+            if (btn) btn.disabled = n === 0;
+        }
+
+        async function runSeommSelected() {
+            if (_seommSelected.size === 0) { showToast('Select at least one campaign first', 'warning'); return; }
+            const btn = document.getElementById('btn-run-seomm-selected');
+            const original = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right:4px;"></i> Starting…';
+            try {
+                const ids = [..._seommSelected];
+                await apiCall('invoke_lambda', {
+                    functionName: 'seomm-monday-update',
+                    payload: { item_ids: ids },
+                    async: true
+                });
+                const label = ids.length === 1 ? '1 campaign' : `${ids.length} campaigns`;
+                showToast(`SEO MM Update started for ${label} — results will appear in Monday.com shortly.`, 'success');
+                logActivity('info', 'SEO MM Update (Selected)', `${ids.length} campaign(s) queued`);
+                closeModal('seomm-campaign-modal');
+            } catch (e) {
+                showToast('Failed to start: ' + e.message, 'error');
                 btn.disabled = false;
                 btn.innerHTML = original;
             }

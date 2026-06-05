@@ -207,6 +207,59 @@ def monday_create_update(item_id, body, api_key,
 
 
 # ---------------------------------------------------------------------------
+# ICIR board fast-fetch (for UI campaign picker)
+# ---------------------------------------------------------------------------
+
+def fetch_icir_items_fast(api_key, board_id=BOARD_ID):
+    """Return [{id, name, group, csm_status}] for every item on the ICIR board.
+
+    Uses limit:500 pages and only fetches the two fields needed by the UI picker
+    (name + [CSM] Campaign Status, column id 'status0').
+    """
+    api_url = "https://api.monday.com/v2"
+    headers = {"Authorization": api_key, "API-Version": "2025-04"}
+
+    def _extract(items):
+        out = []
+        for item in items:
+            cv = item.get("column_values") or []
+            csm_status = (cv[0].get("text") or "") if cv else ""
+            out.append({
+                "id": item["id"],
+                "name": item["name"],
+                "group": (item.get("group") or {}).get("title", ""),
+                "csm_status": csm_status,
+            })
+        return out
+
+    q = (
+        '{boards(ids:' + str(board_id) + ')'
+        '{items_page(limit:500)'
+        '{cursor items{id name group{title}'
+        'column_values(ids:["status0"]){text}}}}}'
+    )
+    r = requests.post(url=api_url, json={"query": q}, headers=headers)
+    page = r.json()["data"]["boards"][0]["items_page"]
+    results = _extract(page["items"])
+    cursor = page.get("cursor")
+
+    while cursor:
+        q = (
+            '{next_items_page(limit:500,cursor:"' + cursor + '")'
+            '{cursor items{id name group{title}'
+            'column_values(ids:["status0"]){text}}}}'
+        )
+        r = requests.post(url=api_url, json={"query": q}, headers=headers)
+        page = r.json()["data"]["next_items_page"]
+        results += _extract(page["items"])
+        cursor = page.get("cursor")
+        if cursor:
+            time.sleep(0.3)
+
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Working-day helpers
 # ---------------------------------------------------------------------------
 
@@ -229,8 +282,20 @@ def get_working_days_excluding_holidays(year, holidays):
 # ---------------------------------------------------------------------------
 
 def lambda_handler(event, context):
+    # --- Fast path: list campaigns for the UI campaign picker ---
+    if event.get("action") == "list_campaigns":
+        monday_api_key = os.environ["MONDAY_API_KEY"]
+        items = fetch_icir_items_fast(monday_api_key)
+        return {"statusCode": 200, "body": json.dumps(items)}
+
     pd.options.display.max_colwidth = 500
     pd.set_option("display.max_rows", None)
+
+    # item_ids: optional list of Monday item ID strings from the UI picker.
+    # When provided, only those campaigns are processed (Google Sheets + staff
+    # summary skipped; special-campaign blocks guarded by their hardcoded IDs).
+    raw_item_ids = event.get("item_ids")
+    item_ids_set = set(str(x) for x in raw_item_ids) if raw_item_ids else None
 
     # --- Credentials ---
     bubbly_creds = get_secret("bubbly-json")
@@ -250,28 +315,32 @@ def lambda_handler(event, context):
     ]
     df_integrated = calc_kpi_hit_rate(df_integrated)
 
-    # --- 2. Google Sheets update (all 4 sheets in parallel) ---
-    print("Updating Google Sheets...")
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    gs_creds = SACredentials.from_service_account_info(bubbly_creds, scopes=scope)
-    gs_client = gspread.authorize(gs_creds)
+    # Filter to user-selected campaigns when item_ids is provided
+    if item_ids_set:
+        df_integrated = df_integrated[df_integrated["id"].isin(item_ids_set)]
 
-    sheets = [
-        ("Individual Timeliness Report", "Integrated Board"),
-        ("MediaOne Backlinks Mastersheet (2024)", "Integrated Board"),
-        ("MediaOne Backlinks Mastersheet (2025)", "Integrated Board"),
-        ("Media Buy Weekly WIP", "Integrated Board"),
-    ]
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = [
-            executor.submit(update_sheet_data, gs_client, name, ws, df_integrated)
-            for name, ws in sheets
+    # --- 2. Google Sheets update (full-board runs only, skipped for item-specific runs) ---
+    if not item_ids_set:
+        print("Updating Google Sheets...")
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        gs_creds = SACredentials.from_service_account_info(bubbly_creds, scopes=scope)
+        gs_client = gspread.authorize(gs_creds)
+        sheets = [
+            ("Individual Timeliness Report", "Integrated Board"),
+            ("MediaOne Backlinks Mastersheet (2024)", "Integrated Board"),
+            ("MediaOne Backlinks Mastersheet (2025)", "Integrated Board"),
+            ("Media Buy Weekly WIP", "Integrated Board"),
         ]
-        for f in as_completed(futures):
-            try:
-                f.result()
-            except Exception as exc:
-                print(f"Sheet update error: {exc}")
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [
+                executor.submit(update_sheet_data, gs_client, name, ws, df_integrated)
+                for name, ws in sheets
+            ]
+            for f in as_completed(futures):
+                try:
+                    f.result()
+                except Exception as exc:
+                    print(f"Sheet update error: {exc}")
 
     # --- 3. Build campaign subsets for SE Ranking processing ---
     df_seo = df_integrated.copy()
@@ -485,262 +554,268 @@ def lambda_handler(event, context):
     batch_monday_updates(psg_updates, monday_api_key, api_url)
 
     # --- 12. Special campaigns (hardcoded KPI logic) ---
+    # Each block is guarded so item-specific runs only update the selected items.
 
-    # First Aid
-    df_first_aid = df_seranking[df_seranking["title"].str.contains("First Aid", na=False)]
-    df_first_aid_hit = df_first_aid[(df_first_aid["google_ranking"] > 0) & (df_first_aid["google_ranking"] < 11)]
-    fa_maintain = fa_push = 0
-    try:
-        fa_maintain = df_first_aid_hit.groupby("tag").count().at["Maintain in 1 - 5", "keyword"]
-    except KeyError:
-        pass
-    try:
-        fa_push = df_first_aid_hit.groupby("tag").count().at["Push to 1 - 5", "keyword"]
-    except KeyError:
-        pass
-    fa_kpi = 999 if (fa_maintain > 4 and fa_push > 0) else 0
-    monday_update_column(5718076994, "numbers40", str(fa_kpi), monday_api_key, api_url)
-
-    fa_body = (
-        f"KPI Keywords Hit for 'Maintain in 1-5': {fa_maintain}/5\n"
-        f"KPI Keywords Hit for 'Push to 1-5': {fa_push}/1\n\n"
-        "<table><tbody><tr><td><div>keyword</div></td><td><div>tag</div></td><td><div>ranking</div></td></tr>"
-    )
-    for _, row in df_first_aid.sort_values(["tag", "google_ranking"]).iterrows():
-        fa_body += f"<tr><td><div>{row['keyword']}</div></td><td><div>{row['tag']}</div></td><td><div>{int(row['google_ranking'])}</div></td></tr>"
-    fa_body += "</tbody></table>"
-    monday_create_update(5718076994, fa_body, monday_api_key, api_url)
-
-    # That Econs Tutor
-    df_econs = df_seranking[df_seranking["title"].str.contains("That Econs", na=False)].copy()
-    special_kws = {"econ tuition jc", "economic tuition", "tuition for economics"}
-    df_econs["tag"] = df_econs["keyword"].apply(lambda k: "Regular" if k in special_kws else "Maintenance")
-    econs_reg = len(df_econs[(df_econs["tag"] == "Regular") & (df_econs["google_ranking"] < 11)])
-    econs_maint = len(df_econs[(df_econs["tag"] == "Maintenance") & (df_econs["google_ranking"] < 11)])
-    monday_update_column(9511040804, "numbers40", "999" if (econs_reg > 1 and econs_maint > 3) else "0", monday_api_key, api_url)
-
-    # Ma Kuang
-    df_makuang = df_seranking[df_seranking["title"].str.contains("Ma Kuang", na=False)]
-    mk_dict = {}
-    for _, row in df_makuang.iterrows():
-        mk_dict.setdefault(row["tag"], 0)
-        if row["google_ranking"] != 999 and row["google_ranking"] < 11:
-            mk_dict[row["tag"]] += 1
-    mk_clusters_hit = sum(1 for v in mk_dict.values() if v > 3)
-    mk_body = f"Clusters Hit: {mk_clusters_hit}/15 (Hit 7 - KPI HIT)\n" + "".join(
-        f"\n{k}: {v}/4" for k, v in mk_dict.items()
-    )
-    monday_create_update(7537978196, mk_body, monday_api_key, api_url)
-    monday_update_column(7537978196, "numbers40", "999" if mk_clusters_hit > 6 else "0", monday_api_key, api_url)
-
-    # Dr Gerard Leong (Indonesia)
-    df_gerard = df_seranking[df_seranking["title"].str.contains("Dr Gerard Leong (Indonesia)", regex=False, na=False)]
-    monday_update_column(5121313538, "numbers98", str(len(df_gerard[df_gerard["google_ranking"] < 11])), monday_api_key, api_url)
-    monday_update_column(5121313538, "numbers27", str(len(df_gerard[(df_gerard["google_ranking"] > 10) & (df_gerard["google_ranking"] < 21)])), monday_api_key, api_url)
-
-    # Common TCM
-    df_common = df_seranking[df_seranking["title"].str.contains("Common", na=False)]
-    df_common_hit = df_common[(df_common["google_ranking"] < 11) & (df_common["google_ranking"] > 0)].groupby("tag").count()
-    try:
-        common_kpi = 999 if (df_common_hit.at["General", "keyword"] > 4 and df_common_hit.at["Maintenance", "keyword"] > 9) else 0
-    except KeyError:
-        common_kpi = 0
-    monday_update_column(9298658614, "numbers40", str(common_kpi), monday_api_key, api_url)
-    common_body = (
-        f"General: {len(df_common[(df_common['tag']=='General') & (df_common['google_ranking']<11) & (df_common['google_ranking']>0)])}/10 (5 to hit KPI)"
-        f" <br>Maintenance: {len(df_common[(df_common['tag']=='Maintenance') & (df_common['google_ranking']<11) & (df_common['google_ranking']!=0)])}/10 (10 to hit KPI)"
-    )
-    monday_create_update(9298658614, common_body, monday_api_key, api_url)
-
-    # Anderco
-    df_anderco = df_seranking[df_seranking["title"].str.contains("Anderco", na=False)]
-    df_anderco_hit = df_anderco[(df_anderco["google_ranking"] < 11) & (df_anderco["google_ranking"] > 0)].groupby("tag").count()
-    monday_update_column(9066886636, "numbers40", "999" if len(df_anderco_hit) > 7 else "0", monday_api_key, api_url)
-    monday_create_update(9066886636, f"Clusters Hit: {len(df_anderco_hit)}/15 (KPI is 8)", monday_api_key, api_url)
-
-    # SATA
-    df_sata = df_seranking[df_seranking["title"].str.contains("Sata", na=False)]
-    df_sata_hit = df_sata[(df_sata["google_ranking"] < 11) & (df_sata["google_ranking"] > 0)].groupby("tag").count()
-    try:
-        sata_kpi = 999 if (df_sata_hit.at["General", "keyword"] > 1 and df_sata_hit.at["Maintenance", "keyword"] > 13) else 0
-    except KeyError:
-        sata_kpi = 0
-    monday_update_column(8579765720, "numbers40", str(sata_kpi), monday_api_key, api_url)
-    sata_body = (
-        f"General: {len(df_sata[(df_sata['tag']=='General') & (df_sata['google_ranking']<11) & (df_sata['google_ranking']>0)])}/4 (2 to hit KPI)"
-        f" <br>Maintenance: {len(df_sata[(df_sata['tag']=='Maintenance') & (df_sata['google_ranking']<11) & (df_sata['google_ranking']!=0)])}/17 (14 to hit KPI)"
-    )
-    monday_create_update(8579765720, sata_body, monday_api_key, api_url)
-
-    # Dior
-    df_dior = df_seranking[df_seranking["title"].str.contains("Dior", na=False)]
-    dior_maintain = len(df_dior[(df_dior["tag"] == "To maintain on page 1") & (df_dior["google_ranking"] < 11) & (df_dior["google_ranking"] > 0)])
-    dior_rank = len(df_dior[(df_dior["tag"] != "To maintain on page 1") & (df_dior["google_ranking"] < 11) & (df_dior["google_ranking"] != 0)])
-    dior_score = (1 if dior_maintain > 35 else 0) + (1 if dior_rank > 31 else 0)
-    monday_update_column(9539506286, "numbers98", str(dior_score), monday_api_key, api_url)
-    monday_update_column(9539506286, "numbers40", "999" if dior_score == 2 else "0", monday_api_key, api_url)
-    dior_body = (
-        f"To Maintain Page 1: {dior_maintain}/45 (36 to hit KPI)"
-        f" <br>To Rank on Page 1: {dior_rank}/64 (32 to hit KPI)"
-    )
-    monday_create_update(9539506286, dior_body, monday_api_key, api_url)
-
-    # --- 13. Legend Interiors (multi-engine) ---
-    print("Fetching Legend Interiors positions...")
-    url = f"https://api4.seranking.com/sites/10231412/positions?date_from={today_str}&date_to={today_str}"
-    r = requests.get(url, headers=se_headers)
-    site_engine_map = {"3098542": "Thailand", "3098545": "Singapore", "3090931": "Malaysia"}
-    legend_item_map = {"Singapore": "8222788388", "Malaysia": "8253266685", "Thailand": "8253270255"}
-
-    df_legend_p1 = pd.DataFrame()
-    df_legend_p2 = pd.DataFrame()
-    counter = 0
-    for engine in r.json():
-        engine_name = site_engine_map.get(str(engine["site_engine_id"]), "Unknown")
-        for kw in engine["keywords"]:
-            tag = keyword_group_dict.get(str(kw["group_id"]), "")
-            pos = kw["positions"][0]["pos"]
-            if tag == "General" and 0 < pos < 11:
-                df_legend_p1.at[counter, "keyword"] = kw["name"]
-                df_legend_p1.at[counter, "site_engine"] = engine_name
-            if tag == "General" and 10 < pos < 21:
-                df_legend_p2.at[counter, "keyword"] = kw["name"]
-                df_legend_p2.at[counter, "site_engine"] = engine_name
-            counter += 1
-
-    legend_updates = []
-    for country, item_id in legend_item_map.items():
+    # First Aid (item 5718076994)
+    if not item_ids_set or "5718076994" in item_ids_set:
+        df_first_aid = df_seranking[df_seranking["title"].str.contains("First Aid", na=False)]
+        df_first_aid_hit = df_first_aid[(df_first_aid["google_ranking"] > 0) & (df_first_aid["google_ranking"] < 11)]
+        fa_maintain = fa_push = 0
         try:
-            p1 = int(df_legend_p1.groupby("site_engine").count().at[country, "keyword"])
-        except (KeyError, AttributeError, ValueError):
-            p1 = 0
+            fa_maintain = df_first_aid_hit.groupby("tag").count().at["Maintain in 1 - 5", "keyword"]
+        except KeyError:
+            pass
         try:
-            p2 = int(df_legend_p2.groupby("site_engine").count().at[country, "keyword"])
-        except (KeyError, AttributeError, ValueError):
-            p2 = 0
-        legend_updates += [(item_id, "numbers98", str(p1)), (item_id, "numbers27", str(p2))]
-    batch_monday_updates(legend_updates, monday_api_key, api_url)
-
-    # --- 14. Ultra Vault ---
-    print("Fetching Ultra Vault positions...")
-    url = f"https://api4.seranking.com/sites/10231115/positions?date_from={today_str}&date_to={today_str}"
-    r = requests.get(url, headers=se_headers)
-    df_ultra = pd.DataFrame()
-    counter = 0
-    for engine in r.json():
-        for kw in engine["keywords"]:
-            df_ultra.at[counter, "keyword"] = kw["name"]
-            df_ultra.at[counter, "google_rank"] = kw["positions"][0]["pos"]
-            df_ultra.at[counter, "tag"] = keyword_group_dict.get(str(kw["group_id"]), "Unknown")
-            counter += 1
-
-    try:
-        ultra_df_hit = df_ultra[(df_ultra["google_rank"] < 11) & (df_ultra["google_rank"] > 0)].groupby("tag").count()
-        ultra_kpi = 999 if (ultra_df_hit.at["General", "keyword"] > 4 and ultra_df_hit.at["Maintenance", "keyword"] > 9) else 0
-    except KeyError:
-        ultra_kpi = 0
-    monday_update_column(7159686829, "numbers40", str(ultra_kpi), monday_api_key, api_url)
-    ultra_body = (
-        f"General: {len(df_ultra[(df_ultra['tag']=='General') & (df_ultra['google_rank']<11) & (df_ultra['google_rank']>0)])}/12 (5 to hit KPI)"
-        f" <br>Maintenance: {len(df_ultra[(df_ultra['tag']=='Maintenance') & (df_ultra['google_rank']<11) & (df_ultra['google_rank']!=0)])}/8 (8 to hit KPI)"
-    )
-    monday_create_update(7159686829, ultra_body, monday_api_key, api_url)
-
-    # --- 15. Extra Space (DataForSEO competitor check) ---
-    print("Running Extra Space competitor check...")
-    df_es = df_seranking[df_seranking["title"].str.contains("Extra Space", na=False)].copy()
-    df_es["storhub"] = 999
-    dfs_url = "https://api.dataforseo.com/v3/serp/google/organic/live/regular"
-    dfs_headers = {
-        "Authorization": "Basic c3ViQG1lZGlhb25lLmNvOjliZGZkNDBjNzRmMmZjNTM=",
-        "Content-Type": "application/json",
-    }
-    loc_map = {
-        "Hong Kong": ("Hong Kong", "English"),
-        "Korea": ("South Korea", "Korean"),
-        "Malaysia": ("Malaysia", "English"),
-        "Singapore": ("Singapore", "English"),
-    }
-    for index, row in df_es.iterrows():
-        for loc_key, (location_name, lang) in loc_map.items():
-            if loc_key not in row["title"]:
-                continue
-            if loc_key == "Hong Kong" and re.findall(r"[一-鿿]+", row["keyword"]):
-                lang = "Chinese (Traditional)"
-            payload = [{"keyword": row["keyword"], "location_name": location_name, "language_name": lang, "depth": 100}]
-            try:
-                resp = requests.post(dfs_url, headers=dfs_headers, json=payload, timeout=30)
-                for result in resp.json()["tasks"][0]["result"][0]["items"]:
-                    if "storhub.co" in result["url"]:
-                        df_es.at[index, "storhub"] = result["rank_group"]
-                        break
-            except Exception as exc:
-                print(f"DataForSEO error ({row['keyword']}): {exc}")
-            break
-
-    es_region_items = {
-        "Hong Kong": "8065489687",
-        "Korea": "8065500047",
-        "Malaysia": "8065455091",
-        "Singapore": "7741515665",
-    }
-    es_kpi_updates = []
-    for region, item_id in es_region_items.items():
-        df_region = df_es[df_es["title"].str.contains(region, na=False)]
-        if df_region.empty:
-            continue
-        score = len(df_region[df_region["google_ranking"] < df_region["storhub"]])
-        pct = round(score / len(df_region) * 100)
-        es_body = (
-            f"<p>Automated Ranking Comparison:</p><br>"
-            "<table><tbody><tr><td><div>keyword</div></td><td><div>extraspace</div></td><td><div>storhub</div></td></tr>"
+            fa_push = df_first_aid_hit.groupby("tag").count().at["Push to 1 - 5", "keyword"]
+        except KeyError:
+            pass
+        fa_kpi = 999 if (fa_maintain > 4 and fa_push > 0) else 0
+        monday_update_column(5718076994, "numbers40", str(fa_kpi), monday_api_key, api_url)
+        fa_body = (
+            f"KPI Keywords Hit for 'Maintain in 1-5': {fa_maintain}/5\n"
+            f"KPI Keywords Hit for 'Push to 1-5': {fa_push}/1\n\n"
+            "<table><tbody><tr><td><div>keyword</div></td><td><div>tag</div></td><td><div>ranking</div></td></tr>"
         )
-        for _, row in df_region.iterrows():
-            es_body += f"<tr><td><div>{row['keyword']}</div></td><td>{int(row['google_ranking'])}<div></div></td><td><p>{row['storhub']}</p></td></tr>"
-        es_body += f"</tbody></table><p>Better Ranking than StorHub: {score}/{len(df_region)} or {pct}%</p>"
-        monday_create_update(int(item_id), es_body, monday_api_key, api_url)
-        es_kpi_updates.append((item_id, "numbers40", "999" if score / len(df_region) >= 0.3 else "0"))
-    batch_monday_updates(es_kpi_updates, monday_api_key, api_url)
+        for _, row in df_first_aid.sort_values(["tag", "google_ranking"]).iterrows():
+            fa_body += f"<tr><td><div>{row['keyword']}</div></td><td><div>{row['tag']}</div></td><td><div>{int(row['google_ranking'])}</div></td></tr>"
+        fa_body += "</tbody></table>"
+        monday_create_update(5718076994, fa_body, monday_api_key, api_url)
 
-    # --- 16. Re-fetch board for final KPI state, then send staff summary ---
-    print("Re-fetching board for staff KPI summary...")
-    combined_final = fetch_monday_board(monday_api_key, BOARD_ID, pages=6)
-    df_final, _ = build_integrated_df(combined_final)
-    df_final = df_final[
-        (~df_final["SEO Campaign Status"].str.contains("Expired", na=False))
-        & (~df_final["client"].str.contains("TEMPLATE", na=False))
-    ]
-    df_final = calc_kpi_hit_rate(df_final)
+    # That Econs Tutor (item 9511040804)
+    if not item_ids_set or "9511040804" in item_ids_set:
+        df_econs = df_seranking[df_seranking["title"].str.contains("That Econs", na=False)].copy()
+        special_kws = {"econ tuition jc", "economic tuition", "tuition for economics"}
+        df_econs["tag"] = df_econs["keyword"].apply(lambda k: "Regular" if k in special_kws else "Maintenance")
+        econs_reg = len(df_econs[(df_econs["tag"] == "Regular") & (df_econs["google_ranking"] < 11)])
+        econs_maint = len(df_econs[(df_econs["tag"] == "Maintenance") & (df_econs["google_ranking"] < 11)])
+        monday_update_column(9511040804, "numbers40", "999" if (econs_reg > 1 and econs_maint > 3) else "0", monday_api_key, api_url)
 
-    live_campaign_statuses = [
-        "Lived (PM)", "Renewed No Pause (Sales)", "Guarantee (SEO)", "Renewed (Loyal)",
-        "Delayed (PM)", "PSG Extended Live", "Final Report", "SEO Consultant to Review",
-        "Renewed (New Timeline)", "Lit (SEO)",
-    ]
-    df_updated_1 = df_final[df_final["SEO Campaign Status"].isin(live_campaign_statuses)]
+    # Ma Kuang (item 7537978196)
+    if not item_ids_set or "7537978196" in item_ids_set:
+        df_makuang = df_seranking[df_seranking["title"].str.contains("Ma Kuang", na=False)]
+        mk_dict = {}
+        for _, row in df_makuang.iterrows():
+            mk_dict.setdefault(row["tag"], 0)
+            if row["google_ranking"] != 999 and row["google_ranking"] < 11:
+                mk_dict[row["tag"]] += 1
+        mk_clusters_hit = sum(1 for v in mk_dict.values() if v > 3)
+        mk_body = f"Clusters Hit: {mk_clusters_hit}/15 (Hit 7 - KPI HIT)\n" + "".join(
+            f"\n{k}: {v}/4" for k, v in mk_dict.items()
+        )
+        monday_create_update(7537978196, mk_body, monday_api_key, api_url)
+        monday_update_column(7537978196, "numbers40", "999" if mk_clusters_hit > 6 else "0", monday_api_key, api_url)
 
-    seo_staff = ["Kanivarasi Elanchelvan", "Jia Jia", "Chan Ching Yi", "Desiree Bin"]
-    sg_holidays_2025 = [
-        date(2025, 1, 1), date(2025, 1, 29), date(2025, 1, 30), date(2025, 4, 18),
-        date(2025, 5, 1), date(2025, 5, 12), date(2025, 6, 6), date(2025, 8, 9),
-        date(2025, 10, 20), date(2025, 12, 25),
-    ]
-    days = get_working_days_excluding_holidays(2026, sg_holidays_2025)
-    today = date.today()
-    staff = seo_staff[days.index(today) % 4] if today in days else seo_staff[0]
+    # Dr Gerard Leong Indonesia (item 5121313538)
+    if not item_ids_set or "5121313538" in item_ids_set:
+        df_gerard = df_seranking[df_seranking["title"].str.contains("Dr Gerard Leong (Indonesia)", regex=False, na=False)]
+        monday_update_column(5121313538, "numbers98", str(len(df_gerard[df_gerard["google_ranking"] < 11])), monday_api_key, api_url)
+        monday_update_column(5121313538, "numbers27", str(len(df_gerard[(df_gerard["google_ranking"] > 10) & (df_gerard["google_ranking"] < 21)])), monday_api_key, api_url)
 
-    text_message = f"*{staff}'s KPI HIT*\n"
-    for ctype in ["Standard", "Cluster", "Special"]:
-        mask = (df_updated_1["[SEO]SEO"].str.contains(staff, na=False)) & (df_updated_1["SEO Campaign Type"] == ctype)
-        hit = len(df_updated_1[mask & (df_updated_1["[SEO] KPI HIT RATE"] == "KPI HIT")])
-        total = len(df_updated_1[mask])
-        text_message += f"\n{ctype} Campaigns: {hit}/{total}"
-    text_message += "\n"
-    for _, row in df_updated_1[df_updated_1["[SEO]SEO"].str.contains(staff, na=False)].iterrows():
-        rate = row["[SEO] KPI HIT RATE"] or "NA"
-        text_message += f"\n{row['client']} | {rate}"
+    # Common TCM (item 9298658614)
+    if not item_ids_set or "9298658614" in item_ids_set:
+        df_common = df_seranking[df_seranking["title"].str.contains("Common", na=False)]
+        df_common_hit = df_common[(df_common["google_ranking"] < 11) & (df_common["google_ranking"] > 0)].groupby("tag").count()
+        try:
+            common_kpi = 999 if (df_common_hit.at["General", "keyword"] > 4 and df_common_hit.at["Maintenance", "keyword"] > 9) else 0
+        except KeyError:
+            common_kpi = 0
+        monday_update_column(9298658614, "numbers40", str(common_kpi), monday_api_key, api_url)
+        common_body = (
+            f"General: {len(df_common[(df_common['tag']=='General') & (df_common['google_ranking']<11) & (df_common['google_ranking']>0)])}/10 (5 to hit KPI)"
+            f" <br>Maintenance: {len(df_common[(df_common['tag']=='Maintenance') & (df_common['google_ranking']<11) & (df_common['google_ranking']!=0)])}/10 (10 to hit KPI)"
+        )
+        monday_create_update(9298658614, common_body, monday_api_key, api_url)
 
-    _send_chat("spaces/AAAA9VgFJmA", text_message)
+    # Anderco (item 9066886636)
+    if not item_ids_set or "9066886636" in item_ids_set:
+        df_anderco = df_seranking[df_seranking["title"].str.contains("Anderco", na=False)]
+        df_anderco_hit = df_anderco[(df_anderco["google_ranking"] < 11) & (df_anderco["google_ranking"] > 0)].groupby("tag").count()
+        monday_update_column(9066886636, "numbers40", "999" if len(df_anderco_hit) > 7 else "0", monday_api_key, api_url)
+        monday_create_update(9066886636, f"Clusters Hit: {len(df_anderco_hit)}/15 (KPI is 8)", monday_api_key, api_url)
+
+    # SATA (item 8579765720)
+    if not item_ids_set or "8579765720" in item_ids_set:
+        df_sata = df_seranking[df_seranking["title"].str.contains("Sata", na=False)]
+        df_sata_hit = df_sata[(df_sata["google_ranking"] < 11) & (df_sata["google_ranking"] > 0)].groupby("tag").count()
+        try:
+            sata_kpi = 999 if (df_sata_hit.at["General", "keyword"] > 1 and df_sata_hit.at["Maintenance", "keyword"] > 13) else 0
+        except KeyError:
+            sata_kpi = 0
+        monday_update_column(8579765720, "numbers40", str(sata_kpi), monday_api_key, api_url)
+        sata_body = (
+            f"General: {len(df_sata[(df_sata['tag']=='General') & (df_sata['google_ranking']<11) & (df_sata['google_ranking']>0)])}/4 (2 to hit KPI)"
+            f" <br>Maintenance: {len(df_sata[(df_sata['tag']=='Maintenance') & (df_sata['google_ranking']<11) & (df_sata['google_ranking']!=0)])}/17 (14 to hit KPI)"
+        )
+        monday_create_update(8579765720, sata_body, monday_api_key, api_url)
+
+    # Dior (item 9539506286)
+    if not item_ids_set or "9539506286" in item_ids_set:
+        df_dior = df_seranking[df_seranking["title"].str.contains("Dior", na=False)]
+        dior_maintain = len(df_dior[(df_dior["tag"] == "To maintain on page 1") & (df_dior["google_ranking"] < 11) & (df_dior["google_ranking"] > 0)])
+        dior_rank = len(df_dior[(df_dior["tag"] != "To maintain on page 1") & (df_dior["google_ranking"] < 11) & (df_dior["google_ranking"] != 0)])
+        dior_score = (1 if dior_maintain > 35 else 0) + (1 if dior_rank > 31 else 0)
+        monday_update_column(9539506286, "numbers98", str(dior_score), monday_api_key, api_url)
+        monday_update_column(9539506286, "numbers40", "999" if dior_score == 2 else "0", monday_api_key, api_url)
+        dior_body = (
+            f"To Maintain Page 1: {dior_maintain}/45 (36 to hit KPI)"
+            f" <br>To Rank on Page 1: {dior_rank}/64 (32 to hit KPI)"
+        )
+        monday_create_update(9539506286, dior_body, monday_api_key, api_url)
+
+    # --- 13. Legend Interiors (items 8222788388, 8253266685, 8253270255) ---
+    legend_ids = {"8222788388", "8253266685", "8253270255"}
+    if not item_ids_set or legend_ids & item_ids_set:
+        print("Fetching Legend Interiors positions...")
+        url = f"https://api4.seranking.com/sites/10231412/positions?date_from={today_str}&date_to={today_str}"
+        r = requests.get(url, headers=se_headers)
+        site_engine_map = {"3098542": "Thailand", "3098545": "Singapore", "3090931": "Malaysia"}
+        legend_item_map = {"Singapore": "8222788388", "Malaysia": "8253266685", "Thailand": "8253270255"}
+        df_legend_p1 = pd.DataFrame()
+        df_legend_p2 = pd.DataFrame()
+        counter = 0
+        for engine in r.json():
+            engine_name = site_engine_map.get(str(engine["site_engine_id"]), "Unknown")
+            for kw in engine["keywords"]:
+                tag = keyword_group_dict.get(str(kw["group_id"]), "")
+                pos = kw["positions"][0]["pos"]
+                if tag == "General" and 0 < pos < 11:
+                    df_legend_p1.at[counter, "keyword"] = kw["name"]
+                    df_legend_p1.at[counter, "site_engine"] = engine_name
+                if tag == "General" and 10 < pos < 21:
+                    df_legend_p2.at[counter, "keyword"] = kw["name"]
+                    df_legend_p2.at[counter, "site_engine"] = engine_name
+                counter += 1
+        legend_updates = []
+        for country, item_id in legend_item_map.items():
+            try:
+                p1 = int(df_legend_p1.groupby("site_engine").count().at[country, "keyword"])
+            except (KeyError, AttributeError, ValueError):
+                p1 = 0
+            try:
+                p2 = int(df_legend_p2.groupby("site_engine").count().at[country, "keyword"])
+            except (KeyError, AttributeError, ValueError):
+                p2 = 0
+            legend_updates += [(item_id, "numbers98", str(p1)), (item_id, "numbers27", str(p2))]
+        batch_monday_updates(legend_updates, monday_api_key, api_url)
+
+    # --- 14. Ultra Vault (item 7159686829) ---
+    if not item_ids_set or "7159686829" in item_ids_set:
+        print("Fetching Ultra Vault positions...")
+        url = f"https://api4.seranking.com/sites/10231115/positions?date_from={today_str}&date_to={today_str}"
+        r = requests.get(url, headers=se_headers)
+        df_ultra = pd.DataFrame()
+        counter = 0
+        for engine in r.json():
+            for kw in engine["keywords"]:
+                df_ultra.at[counter, "keyword"] = kw["name"]
+                df_ultra.at[counter, "google_rank"] = kw["positions"][0]["pos"]
+                df_ultra.at[counter, "tag"] = keyword_group_dict.get(str(kw["group_id"]), "Unknown")
+                counter += 1
+        try:
+            ultra_df_hit = df_ultra[(df_ultra["google_rank"] < 11) & (df_ultra["google_rank"] > 0)].groupby("tag").count()
+            ultra_kpi = 999 if (ultra_df_hit.at["General", "keyword"] > 4 and ultra_df_hit.at["Maintenance", "keyword"] > 9) else 0
+        except KeyError:
+            ultra_kpi = 0
+        monday_update_column(7159686829, "numbers40", str(ultra_kpi), monday_api_key, api_url)
+        ultra_body = (
+            f"General: {len(df_ultra[(df_ultra['tag']=='General') & (df_ultra['google_rank']<11) & (df_ultra['google_rank']>0)])}/12 (5 to hit KPI)"
+            f" <br>Maintenance: {len(df_ultra[(df_ultra['tag']=='Maintenance') & (df_ultra['google_rank']<11) & (df_ultra['google_rank']!=0)])}/8 (8 to hit KPI)"
+        )
+        monday_create_update(7159686829, ultra_body, monday_api_key, api_url)
+
+    # --- 15. Extra Space (items 8065489687, 8065500047, 8065455091, 7741515665) ---
+    es_ids = {"8065489687", "8065500047", "8065455091", "7741515665"}
+    if not item_ids_set or es_ids & item_ids_set:
+        print("Running Extra Space competitor check...")
+        df_es = df_seranking[df_seranking["title"].str.contains("Extra Space", na=False)].copy()
+        df_es["storhub"] = 999
+        dfs_url = "https://api.dataforseo.com/v3/serp/google/organic/live/regular"
+        dfs_headers = {
+            "Authorization": "Basic c3ViQG1lZGlhb25lLmNvOjliZGZkNDBjNzRmMmZjNTM=",
+            "Content-Type": "application/json",
+        }
+        loc_map = {
+            "Hong Kong": ("Hong Kong", "English"),
+            "Korea": ("South Korea", "Korean"),
+            "Malaysia": ("Malaysia", "English"),
+            "Singapore": ("Singapore", "English"),
+        }
+        for index, row in df_es.iterrows():
+            for loc_key, (location_name, lang) in loc_map.items():
+                if loc_key not in row["title"]:
+                    continue
+                if loc_key == "Hong Kong" and re.findall(r"[一-鿿]+", row["keyword"]):
+                    lang = "Chinese (Traditional)"
+                payload = [{"keyword": row["keyword"], "location_name": location_name, "language_name": lang, "depth": 100}]
+                try:
+                    resp = requests.post(dfs_url, headers=dfs_headers, json=payload, timeout=30)
+                    for result in resp.json()["tasks"][0]["result"][0]["items"]:
+                        if "storhub.co" in result["url"]:
+                            df_es.at[index, "storhub"] = result["rank_group"]
+                            break
+                except Exception as exc:
+                    print(f"DataForSEO error ({row['keyword']}): {exc}")
+                break
+        es_region_items = {
+            "Hong Kong": "8065489687",
+            "Korea": "8065500047",
+            "Malaysia": "8065455091",
+            "Singapore": "7741515665",
+        }
+        es_kpi_updates = []
+        for region, item_id in es_region_items.items():
+            df_region = df_es[df_es["title"].str.contains(region, na=False)]
+            if df_region.empty:
+                continue
+            score = len(df_region[df_region["google_ranking"] < df_region["storhub"]])
+            pct = round(score / len(df_region) * 100)
+            es_body = (
+                f"<p>Automated Ranking Comparison:</p><br>"
+                "<table><tbody><tr><td><div>keyword</div></td><td><div>extraspace</div></td><td><div>storhub</div></td></tr>"
+            )
+            for _, row in df_region.iterrows():
+                es_body += f"<tr><td><div>{row['keyword']}</div></td><td>{int(row['google_ranking'])}<div></div></td><td><p>{row['storhub']}</p></td></tr>"
+            es_body += f"</tbody></table><p>Better Ranking than StorHub: {score}/{len(df_region)} or {pct}%</p>"
+            monday_create_update(int(item_id), es_body, monday_api_key, api_url)
+            es_kpi_updates.append((item_id, "numbers40", "999" if score / len(df_region) >= 0.3 else "0"))
+        batch_monday_updates(es_kpi_updates, monday_api_key, api_url)
+
+    # --- 16. Staff KPI summary (full-board runs only) ---
+    if not item_ids_set:
+        print("Re-fetching board for staff KPI summary...")
+        combined_final = fetch_monday_board(monday_api_key, BOARD_ID, pages=6)
+        df_final, _ = build_integrated_df(combined_final)
+        df_final = df_final[
+            (~df_final["SEO Campaign Status"].str.contains("Expired", na=False))
+            & (~df_final["client"].str.contains("TEMPLATE", na=False))
+        ]
+        df_final = calc_kpi_hit_rate(df_final)
+        live_campaign_statuses = [
+            "Lived (PM)", "Renewed No Pause (Sales)", "Guarantee (SEO)", "Renewed (Loyal)",
+            "Delayed (PM)", "PSG Extended Live", "Final Report", "SEO Consultant to Review",
+            "Renewed (New Timeline)", "Lit (SEO)",
+        ]
+        df_updated_1 = df_final[df_final["SEO Campaign Status"].isin(live_campaign_statuses)]
+        seo_staff = ["Kanivarasi Elanchelvan", "Jia Jia", "Chan Ching Yi", "Desiree Bin"]
+        sg_holidays_2025 = [
+            date(2025, 1, 1), date(2025, 1, 29), date(2025, 1, 30), date(2025, 4, 18),
+            date(2025, 5, 1), date(2025, 5, 12), date(2025, 6, 6), date(2025, 8, 9),
+            date(2025, 10, 20), date(2025, 12, 25),
+        ]
+        days = get_working_days_excluding_holidays(2026, sg_holidays_2025)
+        today = date.today()
+        staff = seo_staff[days.index(today) % 4] if today in days else seo_staff[0]
+        text_message = f"*{staff}'s KPI HIT*\n"
+        for ctype in ["Standard", "Cluster", "Special"]:
+            mask = (df_updated_1["[SEO]SEO"].str.contains(staff, na=False)) & (df_updated_1["SEO Campaign Type"] == ctype)
+            hit = len(df_updated_1[mask & (df_updated_1["[SEO] KPI HIT RATE"] == "KPI HIT")])
+            total = len(df_updated_1[mask])
+            text_message += f"\n{ctype} Campaigns: {hit}/{total}"
+        text_message += "\n"
+        for _, row in df_updated_1[df_updated_1["[SEO]SEO"].str.contains(staff, na=False)].iterrows():
+            rate = row["[SEO] KPI HIT RATE"] or "NA"
+            text_message += f"\n{row['client']} | {rate}"
+        _send_chat("spaces/AAAA9VgFJmA", text_message)
 
     print("Lambda execution complete!")
     return {"statusCode": 200, "body": "SEO Monday update completed successfully"}
