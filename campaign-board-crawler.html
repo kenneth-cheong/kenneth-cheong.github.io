@@ -2059,6 +2059,9 @@
                             <div class="view-toggle-btn" id="view-manager" onclick="setViewMode('manager')">
                                 <i class="fas fa-users-cog"></i> By Staff
                             </div>
+                            <div class="view-toggle-btn" id="view-consultant" onclick="setViewMode('consultant')">
+                                <i class="fas fa-user-chart"></i><i class="fas fa-id-badge"></i> Consultant
+                            </div>
                             <div class="view-toggle-btn" id="view-auditor" onclick="setViewMode('auditor')">
                                 <i class="fas fa-table"></i> All Campaigns
                             </div>
@@ -2085,6 +2088,7 @@
                 <div id="results-scroll-area"
                     style="flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; position: relative;">
                     <div id="today-container" style="display: none;"></div>
+                    <div id="consultant-container" style="display: none;"></div>
                     <div id="timeliness-container" style="display: none;"></div>
                     <div id="manager-grid-container" style="display: none;"></div>
                     <div id="auditor-table-container" class="table-container"
@@ -2200,6 +2204,7 @@
             updateMetadata: {}, // { itemId: { page: 1, hasMore: true, loadingMore: false } }
             viewMode: 'manager',
             selectedStaffNames: new Set(),
+            consultantName: '',            // selected consultant for the Consultant Dashboard view
             currentUser: localStorage.getItem('current_user') || '',
             mondayUsers: [],
             boardColumnSettings: {},
@@ -3160,6 +3165,214 @@
             body.innerHTML = tableHtml;
         }
 
+        // ════════════════════════════════════════════════════════════════════════
+        //  CONSULTANT DASHBOARD (Phase 2, Step 8)
+        //  Builds on the By-Staff individual drill-down: pick one consultant and see,
+        //  per campaign, the timeline, pacing/success signal, open deliverables,
+        //  approvals waiting, and the single next recommended action.
+        // ════════════════════════════════════════════════════════════════════════
+        function setConsultant(name) {
+            state.consultantName = name || '';
+            renderConsultantView(getFilteredItems());
+        }
+
+        function _cbApprovalStatus(s) {
+            return /approval|review|waiting|pending|client|sign[\s-]?off|feedback|to approve|for approval/i.test(s || '');
+        }
+
+        // Parse a Monday timeline string for a start/end and compute elapsed %.
+        function _consultantTimeline(masterTimeline) {
+            const dates = (masterTimeline || '').match(/\d{4}-\d{2}-\d{2}/g);
+            if (!dates || dates.length < 2) return { hasDates: false, label: (masterTimeline || '').trim() };
+            const start = new Date(dates[0]), end = new Date(dates[1]), now = new Date();
+            const span = end - start;
+            let pct = span > 0 ? Math.round((now - start) / span * 100) : 0;
+            pct = Math.max(0, Math.min(100, pct));
+            const daysRemaining = Math.round((end - now) / 86400000);
+            return { hasDates: true, start, end, pctElapsed: pct, daysRemaining, label: `${dates[0]} → ${dates[1]}` };
+        }
+
+        // Pacing / success-likelihood signal from near-term deliverable health + risk signals.
+        function _successSignal(camp) {
+            const total = camp.items.length || 1;
+            let score = 100;
+            score -= Math.round(camp.counts.overdue / total * 55);
+            score -= Math.min(15, camp.counts.soon * 3);
+            if (camp.items.some(i => /blocked|urgent|critical|delayed|issue|problem|escalat|stall|behind/i.test(i.masterTechSummary || ''))) score -= 15;
+            const csm = camp.items[0]?.masterCsmStatus || camp.items[0]?.csmCampaignStatus || '';
+            if (/risk|delay|hold|stuck|behind|escalat/i.test(csm)) score -= 10;
+            score = Math.max(0, Math.min(100, score));
+            let label, color;
+            if (score >= 70)      { label = 'Likely on track'; color = 'var(--success)'; }
+            else if (score >= 40) { label = 'At risk';         color = 'var(--warning)'; }
+            else                  { label = 'Likely to slip';  color = 'var(--danger)';  }
+            return { score, label, color };
+        }
+
+        function renderConsultantView(filtered) {
+            const container = document.getElementById('consultant-container');
+            if (!container) return;
+
+            // People present in the current filter (their open deliverables).
+            const people = {};
+            filtered.forEach(i => i.people.forEach(p => {
+                if (p.toLowerCase().includes('deleted')) return;
+                (people[p] = people[p] || []).push(i);
+            }));
+            const names = Object.keys(people).sort((a, b) => a.localeCompare(b));
+
+            // Default to the chosen consultant, else the logged-in user if present.
+            let name = state.consultantName;
+            if (!name && state.currentUser && people[state.currentUser]) name = state.currentUser;
+            if (name && !people[name]) name = ''; // chosen person filtered out
+
+            const picker = `
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;">
+                    <span style="font-size:13px;font-weight:700;color:var(--text);"><i class="fas fa-id-badge" style="margin-right:6px;color:var(--primary);"></i>Consultant Dashboard</span>
+                    <select onchange="setConsultant(this.value)" class="user-selector" style="min-width:220px;">
+                        <option value="">Select a consultant…</option>
+                        ${names.map(n => `<option value="${n.replace(/"/g, '&quot;')}" ${n === name ? 'selected' : ''}>${n}${state.currentUser === n ? ' (you)' : ''}</option>`).join('')}
+                    </select>
+                    <span style="font-size:11px;color:var(--muted);">Per-campaign timeline · pacing · deliverables · approvals · next action</span>
+                </div>`;
+
+            if (!name) {
+                container.innerHTML = picker + `
+                    <div style="padding:50px 20px;text-align:center;color:var(--muted);">
+                        <i class="fas fa-id-badge" style="font-size:26px;opacity:0.3;display:block;margin-bottom:12px;"></i>
+                        Select a consultant above to see their campaign portfolio, pacing and next actions.
+                        ${names.length ? `<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">${names.slice(0, 12).map(n => `<button onclick="setConsultant('${n.replace(/'/g, "\\'")}')" class="board-tag" style="cursor:pointer;background:rgba(99,102,241,0.12);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3);padding:5px 10px;">${n}</button>`).join('')}</div>` : ''}
+                    </div>`;
+                return;
+            }
+
+            // Group this consultant's deliverables by campaign.
+            const myItems = people[name];
+            const campaigns = {};
+            myItems.forEach(i => {
+                if (!campaigns[i.bId]) campaigns[i.bId] = { id: i.bId, name: i.bName, folder: i.fName, items: [], counts: { overdue: 0, soon: 0, v2w: 0 } };
+                campaigns[i.bId].items.push(i);
+                campaigns[i.bId].counts[i.status === '2w' ? 'v2w' : i.status]++;
+            });
+            const camps = sortCampaignGroups(Object.values(campaigns));
+
+            // Portfolio summary KPIs.
+            const totDeliverables = myItems.length;
+            const totOverdue = myItems.filter(i => i.status === 'overdue').length;
+            const totApprovals = myItems.filter(i => _cbApprovalStatus(i.itemStatus) || _cbApprovalStatus(i.masterCsmStatus) || _cbApprovalStatus(i.csmCampaignStatus)).length;
+            const signals = camps.map(c => _successSignal(c));
+            const avgScore = signals.length ? Math.round(signals.reduce((s, x) => s + x.score, 0) / signals.length) : 0;
+            const atRisk = signals.filter(s => s.score < 70).length;
+            const avgColor = avgScore >= 70 ? 'var(--success)' : avgScore >= 40 ? 'var(--warning)' : 'var(--danger)';
+
+            const kpi = (val, lab, color) => `
+                <div style="flex:1;min-width:110px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;">
+                    <div style="font-size:1.5rem;font-weight:800;color:${color};line-height:1;">${val}</div>
+                    <div style="font-size:11px;color:var(--muted);font-weight:600;margin-top:4px;">${lab}</div>
+                </div>`;
+
+            let html = picker;
+            html += `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+                ${kpi(camps.length, 'Campaigns', 'var(--text)')}
+                ${kpi(totDeliverables, 'Open deliverables', 'var(--text)')}
+                ${kpi(totOverdue, 'Overdue', totOverdue ? 'var(--danger)' : 'var(--success)')}
+                ${kpi(totApprovals, 'Awaiting approval', totApprovals ? 'var(--warning)' : 'var(--muted)')}
+                ${kpi(avgScore + '%', 'Avg pacing health', avgColor)}
+                ${kpi(atRisk, 'Campaigns at risk', atRisk ? 'var(--warning)' : 'var(--success)')}
+            </div>`;
+
+            // Per-campaign cards.
+            camps.forEach(c => {
+                const sig = _successSignal(c);
+                const tl = _consultantTimeline(c.items[0]?.masterTimeline);
+                const masterName = c.items[0]?.masterName;
+                const csmStatus = c.items[0]?.masterCsmStatus && c.items[0].masterCsmStatus !== '-' ? c.items[0].masterCsmStatus : (c.items[0]?.csmCampaignStatus || '');
+                const approvals = c.items.filter(i => _cbApprovalStatus(i.itemStatus) || _cbApprovalStatus(i.masterCsmStatus) || _cbApprovalStatus(i.csmCampaignStatus));
+
+                // Next recommended action: worst overdue (highest priority), else soonest due.
+                const ranked = [...c.items].sort((a, b) => {
+                    const so = x => x.status === 'overdue' ? 0 : x.status === 'soon' ? 1 : 2;
+                    if (so(a) !== so(b)) return so(a) - so(b);
+                    if ((b.daysOverdue || 0) !== (a.daysOverdue || 0)) return (b.daysOverdue || 0) - (a.daysOverdue || 0);
+                    return calcPriority(b) - calcPriority(a);
+                });
+                const next = ranked[0];
+                const nextVerb = next ? (next.status === 'overdue' ? 'Clear overdue' : next.status === 'soon' ? 'Prioritise' : 'Progress') : '';
+
+                // Deliverables grouped by urgency.
+                const order = { overdue: 0, soon: 1, '2w': 2 };
+                const sortedItems = [...c.items].sort((a, b) => (order[a.status] - order[b.status]) || ((b.daysOverdue || 0) - (a.daysOverdue || 0)));
+                const delivRows = sortedItems.map(i => {
+                    const sc = i.status === 'overdue' ? 'var(--danger)' : i.status === 'soon' ? 'var(--warning)' : 'var(--primary)';
+                    const sl = i.status === 'overdue' ? 'Overdue' : i.status === 'soon' ? 'Due soon' : 'Due 2W';
+                    const wait = _cbApprovalStatus(i.itemStatus);
+                    return `<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-bottom:1px solid var(--border);font-size:13px;">
+                        <span style="width:8px;height:8px;border-radius:50%;background:${sc};flex-shrink:0;"></span>
+                        <a href="https://${state.slug}.monday.com/boards/${i.bId}/pulses/${i.id}" target="_blank" class="item-link" style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${i.name}</a>
+                        ${wait ? `<span class="board-tag" style="background:rgba(245,158,11,0.12);color:var(--warning);border:1px solid rgba(245,158,11,0.3);font-size:10px;">Approval</span>` : ''}
+                        ${i.itemStatus ? `<span style="font-size:10px;color:var(--muted);">${i.itemStatus}</span>` : ''}
+                        <span style="font-size:11px;color:var(--muted);font-family:monospace;white-space:nowrap;">${i.deadlineDisplay || ''}</span>
+                        <span style="font-size:10px;font-weight:700;color:${sc};white-space:nowrap;">${sl}${i.daysOverdue > 0 ? ' · ' + i.daysOverdue + 'd' : ''}</span>
+                    </div>`;
+                }).join('');
+
+                html += `
+                <div style="background:var(--surface);border:1px solid var(--border);border-left:4px solid ${sig.color};border-radius:12px;padding:16px;margin-bottom:14px;">
+                    <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:200px;">
+                            <div style="font-weight:800;font-size:15px;color:var(--text);">${c.name}</div>
+                            <div style="font-size:11px;color:var(--muted);margin-top:2px;">in ${c.folder}${masterName && masterName !== '-' && masterName !== '...' ? ` · <i class="fas fa-link" style="opacity:0.6;"></i> ${masterName}` : ''}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:1.4rem;font-weight:800;color:${sig.color};line-height:1;">${sig.score}%</div>
+                            <div style="font-size:11px;font-weight:700;color:${sig.color};">${sig.label}</div>
+                            ${csmStatus ? `<div style="font-size:10px;color:var(--muted);margin-top:2px;">${csmStatus}</div>` : ''}
+                        </div>
+                    </div>
+
+                    <!-- Timeline -->
+                    <div style="margin:14px 0 4px;">
+                        ${tl.hasDates ? `
+                            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:3px;">
+                                <span>${tl.label}</span>
+                                <span style="color:${tl.daysRemaining < 0 ? 'var(--danger)' : tl.daysRemaining < 30 ? 'var(--warning)' : 'var(--muted)'};font-weight:700;">${tl.daysRemaining < 0 ? Math.abs(tl.daysRemaining) + 'd over end' : tl.daysRemaining + 'd remaining'}</span>
+                            </div>
+                            <div style="position:relative;height:8px;border-radius:5px;background:rgba(255,255,255,0.06);overflow:hidden;">
+                                <div style="width:${tl.pctElapsed}%;height:100%;background:linear-gradient(90deg,var(--primary),${sig.color});"></div>
+                            </div>
+                            <div style="font-size:10px;color:var(--muted);margin-top:2px;">${tl.pctElapsed}% of campaign elapsed</div>
+                        ` : `<div style="font-size:11px;color:var(--muted);"><i class="far fa-calendar" style="margin-right:5px;opacity:0.6;"></i>${tl.label ? 'Timeline: ' + tl.label : 'No campaign timeline set on the master board.'}</div>`}
+                    </div>
+
+                    <!-- Mini stats -->
+                    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0;">
+                        <span class="board-tag" style="background:rgba(255,255,255,0.04);color:var(--text);border:1px solid var(--border);">${c.items.length} deliverables</span>
+                        ${c.counts.overdue > 0 ? `<span class="board-tag overdue">${c.counts.overdue} overdue</span>` : ''}
+                        ${c.counts.soon > 0 ? `<span class="board-tag soon">${c.counts.soon} due soon</span>` : ''}
+                        ${approvals.length ? `<span class="board-tag" style="background:rgba(245,158,11,0.12);color:var(--warning);border:1px solid rgba(245,158,11,0.3);">${approvals.length} awaiting approval</span>` : ''}
+                    </div>
+
+                    <!-- Next recommended action (drill-down leaf) -->
+                    ${next ? `<div style="display:flex;align-items:center;gap:8px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:8px;padding:8px 11px;margin-bottom:10px;">
+                        <i class="fas fa-arrow-right" style="color:var(--primary);font-size:11px;"></i>
+                        <span style="font-size:12px;color:var(--text);"><b style="color:var(--primary);">Next: ${nextVerb}</b> — <a href="https://${state.slug}.monday.com/boards/${next.bId}/pulses/${next.id}" target="_blank" class="item-link">${next.name}</a>${next.daysOverdue > 0 ? ` <span style="color:var(--danger);font-weight:700;">(${next.daysOverdue}d overdue)</span>` : next.deadlineDisplay ? ` <span style="color:var(--muted);">(due ${next.deadlineDisplay})</span>` : ''}</span>
+                    </div>` : ''}
+
+                    <!-- Deliverables -->
+                    <details ${c.counts.overdue > 0 ? 'open' : ''}>
+                        <summary style="cursor:pointer;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;padding:4px 0;outline:none;">Deliverables (${c.items.length})</summary>
+                        <div style="margin-top:6px;border:1px solid var(--border);border-radius:8px;overflow:hidden;">${delivRows}</div>
+                    </details>
+                </div>`;
+            });
+
+            if (!camps.length) {
+                html += `<div style="padding:40px;text-align:center;color:var(--muted);">No open deliverables for ${name} in the current filter window.</div>`;
+            }
+
+            container.innerHTML = html;
+        }
+
         function renderItemRow(i) {
             let tagClass = 'tag-overdue';
             let tagLabel = 'Overdue';
@@ -3773,12 +3986,22 @@
             const auditorTable = document.getElementById('auditor-table-container');
             const timelinessContainer = document.getElementById('timeliness-container');
             const todayContainer = document.getElementById('today-container');
+            const consultantContainer = document.getElementById('consultant-container');
+            // Hide every view container by default; the active branch re-shows its own.
+            if (consultantContainer) consultantContainer.style.display = 'none';
             if (state.viewMode === 'today') {
                 gridContainer.style.display = 'none';
                 if (auditorTable) auditorTable.style.display = 'none';
                 if (timelinessContainer) timelinessContainer.style.display = 'none';
                 if (todayContainer) todayContainer.style.display = 'block';
                 renderTodayView(filtered);
+            } else if (state.viewMode === 'consultant') {
+                gridContainer.style.display = 'none';
+                if (auditorTable) auditorTable.style.display = 'none';
+                if (timelinessContainer) timelinessContainer.style.display = 'none';
+                if (todayContainer) todayContainer.style.display = 'none';
+                if (consultantContainer) consultantContainer.style.display = 'block';
+                renderConsultantView(filtered);
             } else if (state.viewMode === 'timeliness') {
                 gridContainer.style.display = 'none';
                 if (auditorTable) auditorTable.style.display = 'none';
