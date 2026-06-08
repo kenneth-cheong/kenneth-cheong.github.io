@@ -3285,7 +3285,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1833</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1834</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -5838,6 +5838,7 @@
                 const badge = document.getElementById('syncRequiredBadge');
                 if (badge) badge.style.display = 'inline-flex';
             }
+            if (dropdownId === 'msGDriveFolderDropdown') onGDriveSelectionChanged();
         }
 
         function msUnselectAll(dropdownId) {
@@ -5869,6 +5870,7 @@
                 const badge = document.getElementById('syncRequiredBadge');
                 if (badge) badge.style.display = 'inline-flex';
             }
+            if (dropdownId === 'msGDriveFolderDropdown') onGDriveSelectionChanged();
         }
 
         function toggleMsPanel(dropdownId) {
@@ -5952,6 +5954,17 @@
                 const badge = document.getElementById('syncRequiredBadge');
                 if (badge) badge.style.display = 'inline-flex';
             }
+            if (dropdownId === 'msGDriveFolderDropdown') onGDriveSelectionChanged();
+        }
+
+        // Selecting Drive folders implies "include Drive" — keep the toggle in sync
+        // and prompt the user to reload data so the new folders are actually read.
+        function onGDriveSelectionChanged() {
+            const hasFolders = msState.msGDriveFolderDropdown.selected.length > 0;
+            const driveToggle = document.getElementById('syncDriveToggle');
+            if (driveToggle && hasFolders) driveToggle.checked = true;
+            const badge = document.getElementById('syncRequiredBadge');
+            if (badge) badge.style.display = 'inline-flex';
         }
 
         function removeMsSelection(dropdownId, optionId, event) {
@@ -5973,6 +5986,7 @@
                 const badge = document.getElementById('syncRequiredBadge');
                 if (badge) badge.style.display = 'inline-flex';
             }
+            if (dropdownId === 'msGDriveFolderDropdown') onGDriveSelectionChanged();
         }
 
         function renderMsTrigger(dropdownId) {
@@ -8184,8 +8198,10 @@
                 // ---- Fetch Google Drive folder contents ----
                 const selectedDriveFolders = msState.msGDriveFolderDropdown.selected;
                 const driveDocuments = [];
+                // Selecting specific folders is itself an explicit request to include Drive,
+                // so don't also require the separate "Sync Drive" toggle in that case.
                 const syncDriveEnabled = document.getElementById('syncDriveToggle')?.checked;
-                if (syncDriveEnabled && selectedDriveFolders.length > 0 && window.gchatAccessToken) {
+                if ((syncDriveEnabled || selectedDriveFolders.length > 0) && selectedDriveFolders.length > 0 && window.gchatAccessToken) {
                     showToast(`Reading ${selectedDriveFolders.length} Drive folder(s)...`, 'loading', 6000);
                     updateSyncStatus(`Loading Drive documents...`, true);
                     for (const folder of selectedDriveFolders) {
@@ -9086,6 +9102,12 @@
                     }
                 }
 
+                // Surface Drive documents explicitly so they aren't lost in the JSON blob.
+                if (contextObj && Array.isArray(contextObj.drive_documents) && contextObj.drive_documents.length > 0) {
+                    const driveFolders = [...new Set(contextObj.drive_documents.map(d => d.folder))];
+                    system += `\n\n=== GOOGLE DRIVE DOCUMENTS ===\nThe user selected ${driveFolders.length} Drive folder(s) (${driveFolders.join(', ')}) containing ${contextObj.drive_documents.length} document(s). Their extracted text is in SYNCED CONTEXT under "drive_documents" (fields: folder, file, type, content). Use this content directly to answer questions about the user's Drive files.\n=== END GOOGLE DRIVE DOCUMENTS ===`;
+                }
+
                 system += `\n\nSYNCED CONTEXT:\n${contextStr}`;
             }
 
@@ -9771,18 +9793,21 @@
 
         // ── Text-to-Speech ────────────────────────────────────────────────────
         let ttsEnabled = localStorage.getItem('tts_enabled') === 'true';
+        if (localStorage.getItem('tts_enabled') === null) localStorage.setItem('tts_enabled', 'false');
         let _ttsCurrentBtn = null;
         let _ttsReadingEl = null;
         let _ttsMutedMic = false;
 
         function toggleTTS() {
+            // Always stop any current speech immediately on click
+            window.speechSynthesis.cancel();
+            _ttsCleanup();
             ttsEnabled = !ttsEnabled;
             localStorage.setItem('tts_enabled', ttsEnabled);
             const btn = document.getElementById('ttsToggleBtn');
             const icon = document.getElementById('ttsIcon');
             btn.style.opacity = ttsEnabled ? '1' : '0.5';
             icon.className = ttsEnabled ? 'fas fa-volume-high' : 'fas fa-volume-xmark';
-            if (!ttsEnabled) { window.speechSynthesis.cancel(); _ttsCleanup(); }
         }
 
         function initTtsVoiceList() {
