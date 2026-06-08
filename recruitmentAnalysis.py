@@ -11,9 +11,9 @@ def lambda_handler(event, context):
         image_ext = event.get('image_ext', 'png')
         job_desc = event.get('job_desc', '')
         job_kpi = event.get('job_kpi', '')
-        
+
         evaluation_criteria = event.get('evaluation_criteria', [])
-        
+
         # Format weights/criteria for the prompt
         if evaluation_criteria:
             criteria_section = "EVALUATION CRITERIA & WEIGHTS:\n"
@@ -22,36 +22,33 @@ def lambda_handler(event, context):
         else:
             weights = event.get('weights', {'exp': 25, 'skills': 25, 'resp': 25, 'kpi': 25})
             criteria_section = f"WEIGHTS: Experience: {weights.get('exp') or 25}%, Skills: {weights.get('skills') or 25}%, Resp Fit: {weights.get('resp') or 25}%, KPI Fit: {weights.get('kpi') or 25}%"
-        
+
         api_key = event.get('api_key') or os.environ.get('OPENAI_API_KEY')
         if not api_key:
-            return {
-                'statusCode': 401,
-                'headers': cors_headers(),
-                'body': json.dumps({'error': 'OpenAI API Key not provided in payload or environment'})
-            }
+            print("ERROR: No OpenAI API key provided")
+            return {'error': 'OpenAI API Key not provided in payload or environment'}
 
         # Construct the prompt
         prompt = f"""
         You are an expert HR recruiter. YOUR PRIMARY GOAL is to extract the candidate's real full name from the CV text or image provided.
-        
+
         Analyze the following CV against the specified Job Description and Evaluation Criteria.
-        
+
         JOB DESCRIPTION:
         {job_desc}
-        
+
         RESPONSIBILITIES & KPIs:
         {job_kpi}
-        
+
         {criteria_section}
-        
+
         JOB HOPPER RULE:
         Flag as "job hopper" if the candidate has at least 3 positions in the recent period (last 5-7 years) where tenure was less than 12 months.
-        
+
         SCORING INSTRUCTIONS:
         Calculate the final 'score' (0-100) based strictly on the EVALUATION CRITERIA weights provided above.
         Each criterion should be scored 0-100, then multiplied by its percentage weight to form the total.
-        
+
         Return ONLY a valid JSON object with the following structure:
         {{
             "name": "FULL NAME EXTRACTED FROM CV (DO NOT USE HOLDER TEXT)",
@@ -97,7 +94,7 @@ def lambda_handler(event, context):
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
-        
+
         payload = {
             "model": "gpt-4o-mini",
             "messages": messages,
@@ -112,22 +109,18 @@ def lambda_handler(event, context):
 
         resp_json = response.json()
         if 'error' in resp_json:
-            return {
-                'statusCode': 400,
-                'headers': cors_headers(),
-                'body': json.dumps({'error': resp_json['error']['message']})
-            }
+            error_msg = resp_json['error'].get('message', 'Unknown OpenAI error')
+            error_code = resp_json['error'].get('code', '')
+            print(f"ERROR from OpenAI: code={error_code}, message={error_msg}")
+            return {'error': f'OpenAI error ({error_code}): {error_msg}'}
 
         analysis = json.loads(resp_json['choices'][0]['message']['content'])
-
-        return (analysis)
+        print(f"SUCCESS: score={analysis.get('score')}, name={analysis.get('name')}")
+        return analysis
 
     except Exception as e:
-        return {
-            'statusCode': 500,
-            'headers': cors_headers(),
-            'body': json.dumps({'error': str(e)})
-        }
+        print(f"EXCEPTION in lambda_handler: {str(e)}")
+        return {'error': str(e)}
 
 def cors_headers():
     return {
