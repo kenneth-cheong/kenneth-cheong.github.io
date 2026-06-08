@@ -3288,7 +3288,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1851</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1852</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -9106,7 +9106,7 @@
             {
               "title": "Deck title",
               "subtitle": "Client · period · author (optional)",
-              "theme": "mediaone",          // one of: mediaone (navy+orange, white bg, Barlow — default for MediaOne/agency work), indigo, blue, slate, emerald, amber
+              "theme": "mediaone",          // ALWAYS "mediaone" — every deck is rendered in the locked MediaOne brand theme (navy #1e3a8a + orange #f97316, white backgrounds, Barlow font, MEDIAONE wordmark on each slide). Do not use any other theme.
               "slides": [
                 {"type":"title","title":"Big opening title","subtitle":"optional subtitle"},
                 {"type":"section","title":"Section divider text"},
@@ -9123,8 +9123,9 @@
             - Keep each bullets slide to 3–6 short bullets (one idea each). Prefer many focused slides over few dense ones.
             - Use "metrics" slides for headline KPIs (2–4 metrics), "stats" for track-record proof points with num+value+label+desc (up to 4), "pillars" for numbered strategy steps (up to 5), "twocol" for current-state vs strategy comparisons (up to 6 items per side).
             - Use "chart" slides to visualize trends/comparisons (reuse the same Chart.js styling rules above, including GEO/WorkDuo styles when relevant).
-            - Always start with a "title" slide and consider a "closing" slide. Use "change" only when you have a real delta; omit it otherwise.
-            - For MediaOne / agency proposals use theme "mediaone". Pick a theme that fits the brand if known, else "mediaone". Base every fact on real data from tools/context — never fabricate numbers for a deck.
+            - Always start with a "title" slide and end with a "closing" slide. Use "change" only when you have a real delta; omit it otherwise.
+            - BRAND LOCK: always set "theme":"mediaone" — never any other value. The deck is rendered in the fixed MediaOne brand styling (navy + orange, white bg, Barlow, MEDIAONE wordmark) no matter what, so do not attempt to restyle or pick a different palette.
+            - Favour the MediaOne layout vocabulary: open with a "title" slide, use "stats" for proof points / track record, "pillars" for strategy steps, "twocol" for current-state vs proposed-strategy, "section" dividers between major parts, and a "closing" slide to wrap. Base every fact on real data from tools/context — never fabricate numbers for a deck.
             Example:
             \`\`\`slides
             {"title":"Q2 Performance Review","subtitle":"Acme Corp · Apr–Jun 2026","theme":"mediaone","slides":[{"type":"title","title":"Q2 Performance Review","subtitle":"Acme Corp · Apr–Jun 2026"},{"type":"stats","title":"Our Track Record","stats":[{"num":"01","value":"10+","label":"Years Experience","desc":"International performance marketing"},{"num":"02","value":"3,000+","label":"Clients Served","desc":"Across diverse industries"},{"num":"03","value":"$50M+","label":"Revenue Generated","desc":"For our clients"},{"num":"04","value":"12+","label":"Industry Awards","desc":"International recognition"}]},{"type":"metrics","title":"Headline results","metrics":[{"label":"Sessions","value":"48.2K","change":"+18%"},{"label":"Conversions","value":"1,120","change":"+9%"},{"label":"CPA","value":"$24.10","change":"-7%"}]},{"type":"pillars","title":"SEO Strategy","pillars":[{"num":"01","title":"Technical Foundation","desc":"Site speed, crawlability, Core Web Vitals"},{"num":"02","title":"Content Strategy","desc":"Keyword-mapped pillar + cluster model"},{"num":"03","title":"Authority Building","desc":"Targeted link acquisition and PR"}]},{"type":"bullets","title":"What worked","bullets":["Branded search up 22% after the homepage refresh","Meta retargeting drove 31% of conversions","Email reactivation recovered 180 dormant accounts"]},{"type":"closing","title":"Thank you","subtitle":"Questions? hello@mediaone.co"}]}
@@ -9799,7 +9800,9 @@
             const deck = _deckStore[deckId];
             if (!deck) return;
             if (typeof PptxGenJS === 'undefined') { alert('Presentation library not loaded yet — please retry in a moment.'); return; }
-            const t = DECK_THEMES[deck.theme] || DECK_THEMES.mediaone;
+            // Enforce the MediaOne brand theme on every generated deck regardless of
+            // what the model emitted as deck.theme — guarantees navy/orange + Barlow output.
+            const t = DECK_THEMES.mediaone;
             const FF = 'Barlow';
             const pptx = new PptxGenJS();
             pptx.defineLayout({ name: 'WIDE', width: 13.333, height: 7.5 });
@@ -9970,7 +9973,7 @@
             lines.push('');
             if (deck.title) lines.push('Title: ' + deck.title);
             if (deck.subtitle) lines.push('Subtitle: ' + deck.subtitle);
-            lines.push('Design: clean and modern, generous whitespace, one idea per slide, a ' + (deck.theme || 'mediaone') + ' accent color (navy + orange for mediaone), consistent typography (Barlow). Use icons and simple visuals where helpful.');
+            lines.push('Design: clean and modern on white backgrounds, generous whitespace, one idea per slide. Brand palette: deep navy (#1e3a8a) as the primary with a vivid orange (#f97316) accent. Typography: Barlow throughout. Add a small "MEDIAONE" wordmark to each slide. Use icons and simple visuals where helpful.');
             lines.push('');
             lines.push('Use this exact outline, one slide per "#" heading:');
             lines.push('');
