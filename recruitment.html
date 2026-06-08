@@ -1015,6 +1015,50 @@
         .toast-info i {
             color: #818cf8;
         }
+
+        /* Per-column header filters */
+        .col-filter-row th {
+            padding: 6px 8px;
+            background: rgba(15, 23, 42, 0.45);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .col-filter-row input,
+        .col-filter-row select {
+            width: 100%;
+            box-sizing: border-box;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 6px 8px;
+            color: white;
+            font-size: 0.72rem;
+            font-weight: 400;
+            outline: none;
+        }
+
+        .col-filter-row input::placeholder {
+            color: var(--text-dim);
+        }
+
+        .col-filter-row .cf-dates {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .col-filter-row .cf-clear {
+            cursor: pointer;
+            color: var(--text-dim);
+            background: transparent;
+            border: none;
+            font-size: 0.95rem;
+            padding: 4px;
+        }
+
+        .col-filter-row .cf-clear:hover {
+            color: var(--accent);
+        }
     </style>
 </head>
 
@@ -1289,53 +1333,6 @@
                             <input type="checkbox" id="showDeletedRepo" onchange="filterCandidatesRepo()"
                                 style="width: 20px; height: 20px;">
                             <label style="margin: 0; white-space: nowrap;">View Trash</label>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-bottom: 24px;">
-                    <div class="config-grid" style="margin-top: 0; grid-template-columns: repeat(5, 1fr);">
-                        <div class="form-group">
-                            <label>Search Name</label>
-                            <input type="text" id="searchCand" placeholder="Filter by name..."
-                                oninput="filterCandidatesRepo()">
-                        </div>
-                        <div class="form-group">
-                            <label>Position Applied</label>
-                            <select id="filterPosition" onchange="filterCandidatesRepo()"
-                                style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; padding: 12px; color: white; outline: none;">
-                                <option value="">All Positions</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Best Fit Position</label>
-                            <select id="filterBestFit" onchange="filterCandidatesRepo()"
-                                style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; padding: 12px; color: white; outline: none;">
-                                <option value="">All Positions</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Status</label>
-                            <select id="filterStatus" onchange="filterCandidatesRepo()"
-                                style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; padding: 12px; color: white; outline: none;">
-                                <option value="">All Statuses</option>
-                                <option value="No Action">No Action</option>
-                                <option value="Invited">Invited</option>
-                                <option value="Scheduled">Scheduled</option>
-                                <option value="Interviewed">Interviewed</option>
-                                <option value="Shortlisted">Shortlisted</option>
-                                <option value="Offered">Offered</option>
-                                <option value="Rejected">Rejected</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Date Range</label>
-                            <div style="display: flex; gap: 8px;">
-                                <input type="date" id="dateStart" onchange="filterCandidatesRepo()"
-                                    style="padding: 10px;">
-                                <input type="date" id="dateEnd" onchange="filterCandidatesRepo()"
-                                    style="padding: 10px;">
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -3076,6 +3073,119 @@
             return statuses.map(s => `<option value="${s}" ${s === currentStatus ? 'selected' : ''}>${s}</option>`).join('');
         }
 
+        /* ===== Per-column header filters (job-details + repository tables) ===== */
+        const STATUS_LIST = ['No Action', 'Invited', 'Scheduled', 'Interviewed', 'Shortlisted', 'Offered', 'Rejected'];
+
+        const columnFilters = {
+            candidateTable: { name: '', job: '', dateFrom: '', dateTo: '', score: '', bestFit: '', interviewerScore: '', pendingBy: '', status: '' },
+            repoTable: { name: '', job: '', dateFrom: '', dateTo: '', score: '', bestFit: '', interviewerScore: '', pendingBy: '', status: '' }
+        };
+
+        function renderTableById(tableId) {
+            if (tableId === 'repoTable') filterCandidatesRepo();
+            else renderCandidates();
+        }
+
+        function setColumnFilter(tableId, field, value) {
+            if (!columnFilters[tableId]) return;
+            columnFilters[tableId][field] = value;
+            state.pagination.page = 1; // jump back to first page when the result set changes
+            renderTableById(tableId);
+        }
+
+        function clearColumnFilters(tableId) {
+            const f = columnFilters[tableId];
+            if (!f) return;
+            Object.keys(f).forEach(k => f[k] = '');
+            document.querySelectorAll(`#${tableId} .col-filter-row [data-cf]`).forEach(el => el.value = '');
+            state.pagination.page = 1;
+            renderTableById(tableId);
+        }
+
+        // Filter a candidate list (each item must already have jobTitle resolved) by the table's column filters.
+        function applyColumnFilters(list, tableId) {
+            const f = columnFilters[tableId];
+            if (!f) return list;
+            return list.filter(c => {
+                if (f.name && !(c.name || '').toLowerCase().includes(f.name.toLowerCase())) return false;
+                if (f.job && (c.jobTitle || '') !== f.job) return false;
+                if (f.bestFit && (c.bestFit?.jobTitle || '') !== f.bestFit) return false;
+                if (f.status && (c.status || '') !== f.status) return false;
+                if (f.pendingBy) {
+                    const pb = c.pendingBy || '';
+                    if (f.pendingBy === '__UNASSIGNED__') { if (pb) return false; }
+                    else if (pb !== f.pendingBy) return false;
+                }
+                if (f.score) {
+                    if (!hasAiScore(c.aiScore) || Number(c.aiScore) < Number(f.score)) return false;
+                }
+                if (f.interviewerScore) {
+                    if ((Number(c.interviewerScore) || 0) < Number(f.interviewerScore)) return false;
+                }
+                if (f.dateFrom && new Date(ensureUTC(c.date)) < new Date(f.dateFrom)) return false;
+                if (f.dateTo && new Date(ensureUTC(c.date)) > new Date(f.dateTo + 'T23:59:59')) return false;
+                return true;
+            });
+        }
+
+        function buildColumnFilterRow(tableId) {
+            const inp = (field, type, ph, extra = '') =>
+                `<input type="${type}" data-cf="${field}" placeholder="${ph}" ${extra} oninput="setColumnFilter('${tableId}','${field}',this.value)" onchange="setColumnFilter('${tableId}','${field}',this.value)" onclick="event.stopPropagation()">`;
+            const sel = (field) =>
+                `<select data-cf="${field}" onchange="setColumnFilter('${tableId}','${field}',this.value)" onclick="event.stopPropagation()"><option value="">All</option></select>`;
+            return `
+                <th><button class="cf-clear" title="Clear all filters" onclick="event.stopPropagation(); clearColumnFilters('${tableId}')"><i class="fas fa-times"></i></button></th>
+                <th>${inp('name', 'text', 'Name…')}</th>
+                <th>${sel('job')}</th>
+                <th><div class="cf-dates">${inp('dateFrom', 'date', '', 'title="From"')}${inp('dateTo', 'date', '', 'title="To"')}</div></th>
+                <th>${inp('score', 'number', '≥', 'min="0" max="100"')}</th>
+                <th>${sel('bestFit')}</th>
+                <th>${inp('interviewerScore', 'number', '≥', 'min="0" max="100"')}</th>
+                <th>${sel('pendingBy')}</th>
+                <th>${sel('status')}</th>
+                <th></th>`;
+        }
+
+        function injectColumnFilterRow(tableId) {
+            const table = document.getElementById(tableId);
+            if (!table) return;
+            const thead = table.querySelector('thead');
+            if (!thead || thead.querySelector('.col-filter-row')) return;
+            const tr = document.createElement('tr');
+            tr.className = 'col-filter-row';
+            tr.innerHTML = buildColumnFilterRow(tableId);
+            thead.appendChild(tr);
+        }
+
+        function fillFilterSelect(tableId, field, values, allLabel, extraPairs = []) {
+            const el = document.querySelector(`#${tableId} .col-filter-row select[data-cf="${field}"]`);
+            if (!el) return;
+            const current = columnFilters[tableId][field] || '';
+            let html = `<option value="">${allLabel}</option>`;
+            extraPairs.forEach(([v, l]) => html += `<option value="${v}">${l}</option>`);
+            html += values.map(v => `<option value="${v}">${v}</option>`).join('');
+            el.innerHTML = html;
+            el.value = current;
+        }
+
+        function populateColumnFilterSelects() {
+            const positions = [...new Set(state.jobs.map(j => j.title))].sort();
+            const assignees = [...new Set((state.users || []).filter(u => u.status === 'Active').map(u => u.name))].sort();
+            ['candidateTable', 'repoTable'].forEach(tid => {
+                injectColumnFilterRow(tid);
+                fillFilterSelect(tid, 'job', positions, 'All Positions');
+                fillFilterSelect(tid, 'bestFit', [...positions, 'Applied is Best'], 'All');
+                fillFilterSelect(tid, 'status', STATUS_LIST, 'All Statuses');
+                fillFilterSelect(tid, 'pendingBy', assignees, 'All', [['__UNASSIGNED__', 'Unassigned']]);
+            });
+        }
+
+        // Ensure the filter row exists + selects are populated before a table renders.
+        function ensureColumnFilters(tableId) {
+            const sel = document.querySelector(`#${tableId} .col-filter-row select[data-cf="status"]`);
+            if (!sel || sel.options.length <= 1) populateColumnFilterSelects();
+        }
+
         function updateJobStatus(jobId, newStatus) {
             const job = state.jobs.find(j => String(j.id) === String(jobId));
             if (job) job.status = newStatus;
@@ -3373,8 +3483,10 @@
             const options = '<option value="">All Positions</option>' +
                 positions.map(p => `<option value="${p}">${p}</option>`).join('');
 
-            select.innerHTML = options;
-            bestFitSelect.innerHTML = options;
+            if (select) select.innerHTML = options;
+            if (bestFitSelect) bestFitSelect.innerHTML = options;
+
+            populateColumnFilterSelects();
         }
 
         function filterCandidatesRepo() {
@@ -3402,12 +3514,7 @@
                 }
             }
 
-            const search = document.getElementById('searchCand')?.value.toLowerCase() || "";
-            const pos = document.getElementById('filterPosition')?.value || "";
-            const bestFitPos = document.getElementById('filterBestFit')?.value || "";
-            const status = document.getElementById('filterStatus')?.value || "";
-            const startStr = document.getElementById('dateStart')?.value || "";
-            const endStr = document.getElementById('dateEnd')?.value || "";
+            ensureColumnFilters('repoTable');
 
             const accessibleCandidates = getAccessibleCandidates(true); // Include all so we can filter for trash vs active below
             let filtered = accessibleCandidates.map(c => {
@@ -3415,10 +3522,7 @@
                 return { ...c, jobTitle: job ? job.title : 'Unknown' };
             });
 
-            if (search) filtered = filtered.filter(c => c.name.toLowerCase().includes(search));
-            if (pos) filtered = filtered.filter(c => c.jobTitle === pos);
-            if (bestFitPos) filtered = filtered.filter(c => c.bestFit?.jobTitle === bestFitPos);
-            if (status) filtered = filtered.filter(c => c.status === status);
+            filtered = applyColumnFilters(filtered, 'repoTable');
 
             // Handle Deleted Logic
             if (showDeleted) {
@@ -3426,8 +3530,6 @@
             } else {
                 filtered = filtered.filter(c => !c.deleted);
             }
-            if (startStr) filtered = filtered.filter(c => new Date(ensureUTC(c.date)) >= new Date(startStr));
-            if (endStr) filtered = filtered.filter(c => new Date(ensureUTC(c.date)) <= new Date(endStr));
 
             // Sorting
             filtered.sort((a, b) => {
@@ -4303,7 +4405,9 @@
             });
 
             if (!response.ok) throw new Error(`Lambda failed for ${job.title}`);
-            return await response.json();
+            const result = await response.json();
+            if (result.error) throw new Error(`AI Analysis error: ${result.error}`);
+            return result;
         }
 
         async function callAIAnalysis(item, text) {
@@ -4336,7 +4440,9 @@
                 throw new Error(errorData.error || 'Lambda processing failed');
             }
 
-            return await response.json();
+            const analysisResult = await response.json();
+            if (analysisResult.error) throw new Error(`AI Analysis error: ${analysisResult.error}`);
+            return analysisResult;
         }
 
         function cleanCandidateName(analysisName, fileName) {
@@ -4403,6 +4509,7 @@
             }
 
             const analysis = await response.json();
+            if (analysis.error) throw new Error(`AI Analysis error: ${analysis.error}`);
 
             // Best Fit Evaluation
             console.log(`[Re-eval] Starting Best Fit evaluation for ${candidate.name}...`);
@@ -4651,6 +4758,14 @@
             if (state.activeJobId) {
                 filtered = filtered.filter(c => String(c.jobId) == String(state.activeJobId));
             }
+
+            ensureColumnFilters('candidateTable');
+            filtered = filtered.map(c => {
+                const job = state.jobs.find(j => String(j.id) == String(c.jobId));
+                return { ...c, jobTitle: job ? job.title : 'Unknown' };
+            });
+            filtered = applyColumnFilters(filtered, 'candidateTable');
+
             console.log("Filtered candidates count:", filtered.length);
             const body = document.getElementById('candidateBody');
             if (body.closest('table').querySelectorAll('th').length === 9) {
@@ -4684,7 +4799,12 @@
             const sliced = filtered.slice(start, start + state.pagination.limit);
 
             if (state.isFetchingCandidates && sliced.length === 0) {
-                body.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 40px; color: var(--text-dim);"><i class="fas fa-spinner fa-spin me-2"></i> Loading candidates...</td></tr>';
+                body.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 40px; color: var(--text-dim);"><i class="fas fa-spinner fa-spin me-2"></i> Loading candidates...</td></tr>';
+                return;
+            }
+
+            if (!state.isFetchingCandidates && sliced.length === 0) {
+                body.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 40px; color: var(--text-dim);">No candidates match the current filters.</td></tr>';
                 return;
             }
 

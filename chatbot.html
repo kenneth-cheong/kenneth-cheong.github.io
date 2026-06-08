@@ -23,7 +23,7 @@
     </script>
     <!-- Fonts & Icons -->
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Barlow:wght@400;500;600;700;800&display=swap"
         rel="stylesheet">
     <!-- Driver.js guided tour -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1/dist/driver.css"/>
@@ -3288,7 +3288,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1847</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1848</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -9781,8 +9781,9 @@
         // ── Slide deck pathways: PPTX export + Gamma prompt ───────────────────
         const _deckStore = {};
 
-        // Theme palettes — { primary, accent, text, muted, bg }
+        // Theme palettes — { primary, accent, text, muted, bg, band }
         const DECK_THEMES = {
+            mediaone:{ primary:'1E3A8A', accent:'F97316', text:'1E293B', muted:'64748B', bg:'FFFFFF', band:'EFF4FF' },
             indigo:  { primary:'6366F1', accent:'8B5CF6', text:'1E293B', muted:'64748B', bg:'FFFFFF', band:'EEF2FF' },
             blue:    { primary:'2563EB', accent:'3B82F6', text:'0F172A', muted:'64748B', bg:'FFFFFF', band:'EFF6FF' },
             slate:   { primary:'334155', accent:'64748B', text:'0F172A', muted:'64748B', bg:'FFFFFF', band:'F1F5F9' },
@@ -9794,7 +9795,8 @@
             const deck = _deckStore[deckId];
             if (!deck) return;
             if (typeof PptxGenJS === 'undefined') { alert('Presentation library not loaded yet — please retry in a moment.'); return; }
-            const t = DECK_THEMES[deck.theme] || DECK_THEMES.indigo;
+            const t = DECK_THEMES[deck.theme] || DECK_THEMES.mediaone;
+            const FF = 'Barlow';
             const pptx = new PptxGenJS();
             pptx.defineLayout({ name: 'WIDE', width: 13.333, height: 7.5 });
             pptx.layout = 'WIDE';
@@ -9803,8 +9805,8 @@
             // Footer accent on every content slide
             const addFooter = (slide, idx) => {
                 slide.addShape(pptx.ShapeType.rect, { x: 0, y: H - 0.18, w: W, h: 0.18, fill: { color: t.primary } });
-                if (idx != null) slide.addText(String(idx), { x: W - 0.9, y: H - 0.62, w: 0.6, h: 0.35, align: 'right', fontSize: 9, color: t.muted });
-                if (deck.title) slide.addText(deck.title, { x: MX, y: H - 0.62, w: W - 2, h: 0.35, fontSize: 9, color: t.muted });
+                if (idx != null) slide.addText(String(idx), { x: W - 0.9, y: H - 0.62, w: 0.6, h: 0.35, align: 'right', fontSize: 9, color: t.muted, fontFace: FF });
+                if (deck.title) slide.addText(deck.title, { x: MX, y: H - 0.62, w: W - 2, h: 0.35, fontSize: 9, color: t.muted, fontFace: FF });
             };
 
             deck.slides.forEach((s, i) => {
@@ -9815,15 +9817,15 @@
                 if (s.type === 'title') {
                     slide.background = { color: t.primary };
                     slide.addShape(pptx.ShapeType.rect, { x: MX, y: 3.0, w: 1.4, h: 0.12, fill: { color: 'FFFFFF' } });
-                    slide.addText(s.title || deck.title || 'Presentation', { x: MX, y: 3.3, w: W - 2 * MX, h: 1.6, fontSize: 44, bold: true, color: 'FFFFFF', align: 'left' });
-                    if (s.subtitle || deck.subtitle) slide.addText(s.subtitle || deck.subtitle, { x: MX, y: 4.9, w: W - 2 * MX, h: 0.8, fontSize: 18, color: 'FFFFFF', align: 'left' });
+                    slide.addText(s.title || deck.title || 'Presentation', { x: MX, y: 3.3, w: W - 2 * MX, h: 1.6, fontSize: 44, bold: true, color: 'FFFFFF', align: 'left', fontFace: FF });
+                    if (s.subtitle || deck.subtitle) slide.addText(s.subtitle || deck.subtitle, { x: MX, y: 4.9, w: W - 2 * MX, h: 0.8, fontSize: 18, color: 'FFFFFF', align: 'left', fontFace: FF });
                     return;
                 }
 
                 if (s.type === 'section') {
                     slide.background = { color: t.band };
                     slide.addShape(pptx.ShapeType.rect, { x: 0, y: H / 2 - 0.9, w: 0.35, h: 1.8, fill: { color: t.primary } });
-                    slide.addText(s.title || '', { x: MX, y: H / 2 - 1.0, w: W - 2 * MX, h: 2.0, fontSize: 34, bold: true, color: t.text, valign: 'middle' });
+                    slide.addText(s.title || '', { x: MX, y: H / 2 - 1.0, w: W - 2 * MX, h: 2.0, fontSize: 34, bold: true, color: t.text, valign: 'middle', fontFace: FF });
                     return;
                 }
 
