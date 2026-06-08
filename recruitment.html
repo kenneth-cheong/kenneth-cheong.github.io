@@ -2026,6 +2026,25 @@
             return d.toLocaleDateString('en-SG', { timeZone: 'Asia/Singapore' });
         }
 
+        // Display a candidate AI score safely. Older/unanalyzed records may have
+        // a missing or non-numeric score; show "N/A" instead of "undefined%".
+        function formatScore(score, suffix = '%') {
+            if (score === null || score === undefined || score === '') return 'N/A';
+            const n = Number(score);
+            return Number.isFinite(n) ? `${n}${suffix}` : 'N/A';
+        }
+
+        // True only when the candidate has a real numeric AI score.
+        function hasAiScore(score) {
+            if (score === null || score === undefined || score === '') return false;
+            return Number.isFinite(Number(score));
+        }
+
+        // Inline "Score now" button shown in place of a missing AI score.
+        function scoreButtonHtml(id) {
+            return `<button class="btn" style="padding: 4px 10px; font-size: 0.7rem; background: var(--gradient); color: white; white-space: nowrap;" onclick="event.stopPropagation(); scoreCandidate('${id}', event)"><i class="fas fa-bolt me-1"></i>Score</button>`;
+        }
+
         function formatDateTime8(date) {
             if (!date) return '';
             const d = new Date(ensureUTC(date));
@@ -3475,7 +3494,9 @@
                         <div style="display: flex; align-items: center; gap: 8px;">
                             ${c.isReEvaluating ?
                     `<span style="font-size: 0.8rem; color: var(--accent);"><i class="fas fa-spinner fa-spin me-1"></i> Analyzing...</span>` :
-                    `<span style="font-weight: 700; color: var(--secondary);">${c.aiScore}%</span>`
+                    (hasAiScore(c.aiScore)
+                        ? `<span style="font-weight: 700; color: var(--secondary);">${formatScore(c.aiScore)}</span>`
+                        : scoreButtonHtml(c.id))
                 }
                         </div>
                     </td>
@@ -4401,7 +4422,7 @@
             const otherJobs = allScores.filter(s => String(s.jobId) !== String(appliedJobId));
             const bestFitResult = otherJobs.reduce((best, current) => (current.score > best.score) ? current : best, { score: 0, jobTitle: 'Applied is Best' });
 
-            candidate.aiScore = analysis.score;
+            candidate.aiScore = parseInt(analysis.score) || 0;
             candidate.bestFit = bestFitResult;
             candidate.allScores = allScores;
             candidate.email = analysis.email || contactScans.email || candidate.email;
@@ -4448,6 +4469,38 @@
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalBtnText;
+            }
+        }
+
+        // Re-render whichever candidate tables are present in the DOM.
+        function refreshCandidateViews() {
+            if (document.getElementById('candidateBody')) renderCandidates();
+            if (document.getElementById('repoBody')) filterCandidatesRepo();
+        }
+
+        // Score a single candidate that has no AI score yet (triggered by the inline "Score" button).
+        async function scoreCandidate(id, event) {
+            if (event) event.stopPropagation();
+            const cand = state.candidates.find(c => String(c.id) === String(id));
+            if (!cand) return;
+            if (cand.isReEvaluating) return;
+
+            cand.isReEvaluating = true;
+            refreshCandidateViews();
+
+            try {
+                const fullCandidate = await persistenceApiCall('get_candidate_detail', { id }, true);
+                if (!fullCandidate) throw new Error("Candidate not found");
+                await runAIReEvaluation(fullCandidate);
+            } catch (err) {
+                console.error(`Error scoring candidate ${id}:`, err);
+                alert("Error scoring candidate: " + err.message);
+            } finally {
+                const finalCand = state.candidates.find(c => String(c.id) === String(id));
+                if (finalCand) finalCand.isReEvaluating = false;
+                refreshCandidateViews();
+                updateStats();
+                renderJobs();
             }
         }
 
@@ -4544,7 +4597,7 @@
                 phone: analysis.phone || contactScans.phone || '',
                 fileName: fileName,
                 date: new Date().toISOString(),
-                aiScore: analysis.score,
+                aiScore: parseInt(analysis.score) || 0,
                 interviewerScore: 0,
                 comments: [],
                 isHopper: analysis.job_hopper,
@@ -4656,7 +4709,9 @@
                         <div style="display: flex; align-items: center; gap: 8px;">
                             ${c.isReEvaluating ?
                     `<span style="font-size: 0.8rem; color: var(--accent);"><i class="fas fa-spinner fa-spin me-1"></i> Analyzing...</span>` :
-                    `<span style="font-weight: 700; color: ${c.aiScore > 75 ? 'var(--secondary)' : 'white'}">${c.aiScore}%</span>`
+                    (hasAiScore(c.aiScore)
+                        ? `<span style="font-weight: 700; color: ${c.aiScore > 75 ? 'var(--secondary)' : 'white'}">${formatScore(c.aiScore)}</span>`
+                        : scoreButtonHtml(c.id))
                 }
                         </div>
                     </td>
@@ -4738,7 +4793,7 @@
             document.getElementById('detailName').innerText = c.name;
             document.getElementById('detailEmail').innerText = c.email || 'Click to add email';
             document.getElementById('detailEmail').style.color = c.email ? 'var(--text-main)' : 'var(--text-dim)';
-            document.getElementById('detailScore').innerText = `AI Score: ${c.aiScore}/100`;
+            document.getElementById('detailScore').innerText = `AI Score: ${formatScore(c.aiScore, '/100')}`;
             document.getElementById('detailInterviewerScore').value = c.interviewerScore || 0;
             document.getElementById('detailSummary').innerText = c.summary;
 
