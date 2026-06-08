@@ -2,6 +2,7 @@ import json
 import os
 from datetime import datetime
 import uuid
+import certifi
 from pymongo import MongoClient
 import bson
 from bson import ObjectId
@@ -19,9 +20,10 @@ def get_db():
         if not MONGODB_URI:
             raise Exception("MONGODB_URI environment variable not configured")
         try:
-            client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+            client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000, tlsCAFile=certifi.where())
             client.admin.command('ping')
         except Exception as e:
+            client = None
             print(f"MongoDB connection error: {str(e)}")
             raise
     return client[MONGODB_DATABASE]

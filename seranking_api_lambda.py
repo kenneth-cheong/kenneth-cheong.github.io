@@ -131,11 +131,12 @@ def lambda_handler(event, context):
         return response(500, {"error": str(e)})
 
 def compact_positions(payload):
-    """Reduce a SE Ranking positions payload to the latest reading per keyword per
-    calendar month. Keeps the engine -> keywords -> positions shape the dashboard
-    expects (each kept position is the full original object), just without the
-    intra-month daily duplicates that bloat the response past Lambda's 6 MB limit.
-    Non-list payloads (e.g. error dicts) are returned untouched."""
+    """Reduce a SE Ranking positions payload to the first + last reading per keyword
+    per calendar month. Keeps the engine -> keywords -> positions shape the dashboard
+    expects, without the intra-month daily duplicates that bloat responses past Lambda's
+    6 MB limit. Retaining both endpoints per month ensures short windows (e.g. 7 days
+    within a single month) still produce two comparable data points so rank changes are
+    detectable. Non-list payloads (e.g. error dicts) are returned untouched."""
     if not isinstance(payload, list):
         return payload
     for engine in payload:
@@ -147,7 +148,8 @@ def compact_positions(payload):
             positions = kw.get('positions')
             if not isinstance(positions, list):
                 continue
-            latest_by_month = {}
+            first_by_month = {}
+            last_by_month = {}
             for p in positions:
                 if not isinstance(p, dict):
                     continue
@@ -155,10 +157,20 @@ def compact_positions(payload):
                 if len(day) < 7:
                     continue
                 month = day[:7]
-                kept = latest_by_month.get(month)
-                if kept is None or day > (kept.get('date') or '')[:10]:
-                    latest_by_month[month] = p
-            kw['positions'] = [latest_by_month[m] for m in sorted(latest_by_month)]
+                if month not in first_by_month or day < (first_by_month[month].get('date') or '')[:10]:
+                    first_by_month[month] = p
+                if month not in last_by_month or day > (last_by_month[month].get('date') or '')[:10]:
+                    last_by_month[month] = p
+            # Merge first and last per month into a deduplicated, date-sorted list
+            kept = {}
+            for month in sorted(set(list(first_by_month) + list(last_by_month))):
+                first = first_by_month.get(month)
+                last = last_by_month.get(month)
+                if first:
+                    kept[(first.get('date') or '')[:10]] = first
+                if last:
+                    kept[(last.get('date') or '')[:10]] = last
+            kw['positions'] = [kept[d] for d in sorted(kept)]
     return payload
 
 def response(status, body):
