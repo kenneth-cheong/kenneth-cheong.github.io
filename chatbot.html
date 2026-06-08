@@ -13,6 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <!-- Document Extraction Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
@@ -599,6 +600,27 @@
         .mermaid-diagram svg { min-width:360px; max-width:100%; height:auto; }
         .chart-container { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin:10px 0; position:relative; height:320px; }
         .message.bot.has-visual { max-width: min(95%, 680px); }
+
+        /* Slide deck card (generated presentations) */
+        .deck-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; margin:10px 0; overflow:hidden; }
+        .deck-card-head { display:flex; align-items:center; gap:10px; padding:14px 16px; background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; }
+        .deck-card-head .deck-icon { font-size:1.25rem; opacity:.95; }
+        .deck-card-head .deck-titles { flex:1; min-width:0; }
+        .deck-card-head .deck-title { font-weight:700; font-size:0.95rem; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .deck-card-head .deck-sub { font-size:0.72rem; opacity:.85; margin-top:2px; }
+        .deck-card-body { padding:12px 16px; }
+        .deck-slide-list { list-style:none; margin:0; padding:0; max-height:220px; overflow-y:auto; }
+        .deck-slide-list li { display:flex; align-items:center; gap:8px; padding:6px 0; font-size:0.8rem; color:#334155; border-bottom:1px solid #f1f5f9; }
+        .deck-slide-list li:last-child { border-bottom:none; }
+        .deck-slide-list .deck-num { flex:0 0 22px; height:22px; border-radius:6px; background:#eef2ff; color:#6366f1; font-size:0.7rem; font-weight:700; display:flex; align-items:center; justify-content:center; }
+        .deck-slide-list .deck-kind { margin-left:auto; font-size:0.65rem; color:#94a3b8; text-transform:uppercase; letter-spacing:.03em; }
+        .deck-card-actions { display:flex; gap:8px; padding:12px 16px 16px; border-top:1px solid #f1f5f9; }
+        .deck-btn { flex:1; display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:9px 12px; border-radius:9px; font-size:0.82rem; font-weight:600; cursor:pointer; border:1px solid transparent; transition:.15s; }
+        .deck-btn-primary { background:#6366f1; color:#fff; }
+        .deck-btn-primary:hover { background:#4f46e5; }
+        .deck-btn-ghost { background:#fff; color:#6366f1; border-color:#c7d2fe; }
+        .deck-btn-ghost:hover { background:#eef2ff; }
+        .deck-btn.copied { background:#10b981; color:#fff; border-color:transparent; }
 
         .message.bot {
             align-self: flex-start;
@@ -3263,7 +3285,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1832</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1833</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3407,6 +3429,10 @@
                     <button onclick="setUserTeam('SMM')" id="teamBtn-SMM" class="team-btn-opt"
                         style="padding: 5px 12px; border-radius: 8px; border: 1px solid #fbcfe8; font-size: 0.72rem; font-weight: 700; cursor: pointer; background: #fdf2f8; color: #9d174d; transition: all 0.15s;">
                         SMM
+                    </button>
+                    <button onclick="setUserTeam('BD')" id="teamBtn-BD" class="team-btn-opt"
+                        style="padding: 5px 12px; border-radius: 8px; border: 1px solid #fed7aa; font-size: 0.72rem; font-weight: 700; cursor: pointer; background: #fff7ed; color: #9a3412; transition: all 0.15s;">
+                        BD
                     </button>
                 </div>
             </div>
@@ -8919,6 +8945,31 @@
             • Data charts (bar, line, pie, doughnut) → use a \`\`\`chartjs code block containing valid Chart.js v4 JSON config
             When the user asks for a chart, diagram, or visual representation of data, ALWAYS generate one.
 
+            SLIDE DECKS / PRESENTATIONS — when the user asks for "slides", "a deck", "a presentation", a "pitch", a "report deck", or to "turn this into slides", output a single \`\`\`slides code block containing valid JSON in the schema below. The client renders it as a card with two actions: "Download .pptx" (a real editable PowerPoint generated in-browser) and "Copy Gamma prompt" (a ready-to-paste prompt for Gamma's AI slide generator). Output ONLY the JSON in the block — no commentary inside it.
+            Schema:
+            {
+              "title": "Deck title",
+              "subtitle": "Client · period · author (optional)",
+              "theme": "indigo",            // one of: indigo, blue, slate, emerald, amber
+              "slides": [
+                {"type":"title","title":"Big opening title","subtitle":"optional subtitle"},
+                {"type":"section","title":"Section divider text"},
+                {"type":"bullets","title":"Slide title","bullets":["Point one","Point two","Point three"]},
+                {"type":"metrics","title":"Key results","metrics":[{"label":"Revenue","value":"$1.2M","change":"+12%"},{"label":"Leads","value":"340","change":"+8%"}]},
+                {"type":"chart","title":"Slide title","chart":{ /* a full Chart.js v4 config, same format as a chartjs block */ }},
+                {"type":"closing","title":"Thank you / CTA","subtitle":"optional contact line"}
+              ]
+            }
+            Rules:
+            - Keep each bullets slide to 3–6 short bullets (one idea each). Prefer many focused slides over few dense ones.
+            - Use "metrics" slides for headline KPIs (2–4 metrics), "chart" slides to visualize trends/comparisons (reuse the same Chart.js styling rules above, including GEO/WorkDuo styles when relevant).
+            - Always start with a "title" slide and consider a "closing" slide. Use "change" only when you have a real delta; omit it otherwise.
+            - Pick a theme that fits the brand if known, else "indigo". Base every fact on real data from tools/context — never fabricate numbers for a deck.
+            Example:
+            \`\`\`slides
+            {"title":"Q2 Performance Review","subtitle":"Acme Corp · Apr–Jun 2026","theme":"indigo","slides":[{"type":"title","title":"Q2 Performance Review","subtitle":"Acme Corp · Apr–Jun 2026"},{"type":"metrics","title":"Headline results","metrics":[{"label":"Sessions","value":"48.2K","change":"+18%"},{"label":"Conversions","value":"1,120","change":"+9%"},{"label":"CPA","value":"$24.10","change":"-7%"}]},{"type":"chart","title":"Sessions by month","chart":{"type":"bar","data":{"labels":["Apr","May","Jun"],"datasets":[{"label":"Sessions","data":[14200,16100,17900],"backgroundColor":"#6366f1"}]},"options":{"plugins":{"legend":{"display":false}}}}},{"type":"bullets","title":"What worked","bullets":["Branded search up 22% after the homepage refresh","Meta retargeting drove 31% of conversions","Email reactivation recovered 180 dormant accounts"]},{"type":"closing","title":"Thank you","subtitle":"Questions? hello@acme.com"}]}
+            \`\`\`
+
             GEO / WORKDUO VISIBILITY CHARTS — MANDATORY STYLE (use whenever showing AI visibility, SOV, citation counts or any WorkDuo metric):
             1. Monthly visibility bar chart — single light-blue bar series, percentage Y-axis, "Mon YYYY" X labels, bold title + gray subtitle:
             \`\`\`chartjs
@@ -9489,7 +9540,228 @@
                 }
             });
 
+            // Slide decks
+            el.querySelectorAll('code.language-slides').forEach((code) => {
+                try {
+                    const deck = JSON.parse(code.textContent.trim());
+                    if (!deck || !Array.isArray(deck.slides) || !deck.slides.length) return;
+                    const deckId = 'deck-' + (++_chartCounter) + '-' + Date.now();
+                    _deckStore[deckId] = deck;
+
+                    const kindLabel = { title:'Title', section:'Section', bullets:'Content', metrics:'Metrics', chart:'Chart', closing:'Closing' };
+                    const rows = deck.slides.map((s, i) => `
+                        <li>
+                            <span class="deck-num">${i + 1}</span>
+                            <span>${escapeHtml(s.title || (s.type === 'section' ? '(section)' : 'Untitled'))}</span>
+                            <span class="deck-kind">${kindLabel[s.type] || 'Slide'}</span>
+                        </li>`).join('');
+
+                    const card = document.createElement('div');
+                    card.className = 'deck-card';
+                    card.innerHTML = `
+                        <div class="deck-card-head">
+                            <i class="fas fa-display deck-icon"></i>
+                            <div class="deck-titles">
+                                <div class="deck-title">${escapeHtml(deck.title || 'Presentation')}</div>
+                                <div class="deck-sub">${escapeHtml(deck.subtitle || (deck.slides.length + ' slides'))}</div>
+                            </div>
+                        </div>
+                        <div class="deck-card-body">
+                            <ul class="deck-slide-list">${rows}</ul>
+                        </div>
+                        <div class="deck-card-actions">
+                            <button class="deck-btn deck-btn-primary" onclick="downloadDeckPptx('${deckId}', this)"><i class="fas fa-download"></i> Download .pptx</button>
+                            <button class="deck-btn deck-btn-ghost" onclick="copyGammaPrompt('${deckId}', this)"><i class="fas fa-wand-magic-sparkles"></i> Copy Gamma prompt</button>
+                        </div>`;
+                    code.closest('pre')?.replaceWith(card);
+                    hasVisual = true;
+                } catch (e) {
+                    console.warn('[Slides] Parse error:', e.message);
+                }
+            });
+
             if (hasVisual && msgEl) msgEl.classList.add('has-visual');
+        }
+
+        // ── Slide deck pathways: PPTX export + Gamma prompt ───────────────────
+        const _deckStore = {};
+
+        // Theme palettes — { primary, accent, text, muted, bg }
+        const DECK_THEMES = {
+            indigo:  { primary:'6366F1', accent:'8B5CF6', text:'1E293B', muted:'64748B', bg:'FFFFFF', band:'EEF2FF' },
+            blue:    { primary:'2563EB', accent:'3B82F6', text:'0F172A', muted:'64748B', bg:'FFFFFF', band:'EFF6FF' },
+            slate:   { primary:'334155', accent:'64748B', text:'0F172A', muted:'64748B', bg:'FFFFFF', band:'F1F5F9' },
+            emerald: { primary:'059669', accent:'10B981', text:'064E3B', muted:'4B5563', bg:'FFFFFF', band:'ECFDF5' },
+            amber:   { primary:'D97706', accent:'F59E0B', text:'1E293B', muted:'64748B', bg:'FFFFFF', band:'FFFBEB' },
+        };
+
+        function downloadDeckPptx(deckId, btn) {
+            const deck = _deckStore[deckId];
+            if (!deck) return;
+            if (typeof PptxGenJS === 'undefined') { alert('Presentation library not loaded yet — please retry in a moment.'); return; }
+            const t = DECK_THEMES[deck.theme] || DECK_THEMES.indigo;
+            const pptx = new PptxGenJS();
+            pptx.defineLayout({ name: 'WIDE', width: 13.333, height: 7.5 });
+            pptx.layout = 'WIDE';
+            const W = 13.333, H = 7.5, MX = 0.9;
+
+            // Footer accent on every content slide
+            const addFooter = (slide, idx) => {
+                slide.addShape(pptx.ShapeType.rect, { x: 0, y: H - 0.18, w: W, h: 0.18, fill: { color: t.primary } });
+                if (idx != null) slide.addText(String(idx), { x: W - 0.9, y: H - 0.62, w: 0.6, h: 0.35, align: 'right', fontSize: 9, color: t.muted });
+                if (deck.title) slide.addText(deck.title, { x: MX, y: H - 0.62, w: W - 2, h: 0.35, fontSize: 9, color: t.muted });
+            };
+
+            deck.slides.forEach((s, i) => {
+                const slide = pptx.addSlide();
+                slide.background = { color: t.bg };
+                const num = i + 1;
+
+                if (s.type === 'title') {
+                    slide.background = { color: t.primary };
+                    slide.addShape(pptx.ShapeType.rect, { x: MX, y: 3.0, w: 1.4, h: 0.12, fill: { color: 'FFFFFF' } });
+                    slide.addText(s.title || deck.title || 'Presentation', { x: MX, y: 3.3, w: W - 2 * MX, h: 1.6, fontSize: 44, bold: true, color: 'FFFFFF', align: 'left' });
+                    if (s.subtitle || deck.subtitle) slide.addText(s.subtitle || deck.subtitle, { x: MX, y: 4.9, w: W - 2 * MX, h: 0.8, fontSize: 18, color: 'FFFFFF', align: 'left' });
+                    return;
+                }
+
+                if (s.type === 'section') {
+                    slide.background = { color: t.band };
+                    slide.addShape(pptx.ShapeType.rect, { x: 0, y: H / 2 - 0.9, w: 0.35, h: 1.8, fill: { color: t.primary } });
+                    slide.addText(s.title || '', { x: MX, y: H / 2 - 1.0, w: W - 2 * MX, h: 2.0, fontSize: 34, bold: true, color: t.text, valign: 'middle' });
+                    return;
+                }
+
+                if (s.type === 'closing') {
+                    slide.background = { color: t.primary };
+                    slide.addText(s.title || 'Thank you', { x: MX, y: H / 2 - 1.0, w: W - 2 * MX, h: 1.4, fontSize: 40, bold: true, color: 'FFFFFF', align: 'center', valign: 'middle' });
+                    if (s.subtitle) slide.addText(s.subtitle, { x: MX, y: H / 2 + 0.3, w: W - 2 * MX, h: 0.8, fontSize: 18, color: 'FFFFFF', align: 'center' });
+                    return;
+                }
+
+                // Content slides get a heading + accent underline + footer
+                slide.addText(s.title || '', { x: MX, y: 0.55, w: W - 2 * MX, h: 0.8, fontSize: 26, bold: true, color: t.text });
+                slide.addShape(pptx.ShapeType.rect, { x: MX, y: 1.35, w: 1.1, h: 0.07, fill: { color: t.accent } });
+                addFooter(slide, num);
+
+                if (s.type === 'metrics' && Array.isArray(s.metrics)) {
+                    const cards = s.metrics.slice(0, 4);
+                    const gap = 0.4, totalW = W - 2 * MX;
+                    const cw = (totalW - gap * (cards.length - 1)) / cards.length;
+                    cards.forEach((m, j) => {
+                        const x = MX + j * (cw + gap);
+                        slide.addShape(pptx.ShapeType.roundRect, { x, y: 2.4, w: cw, h: 2.4, rectRadius: 0.12, fill: { color: t.band }, line: { color: t.band } });
+                        slide.addText(String(m.value ?? ''), { x, y: 2.7, w: cw, h: 1.0, align: 'center', fontSize: 34, bold: true, color: t.primary });
+                        slide.addText(String(m.label ?? ''), { x, y: 3.75, w: cw, h: 0.5, align: 'center', fontSize: 14, color: t.text });
+                        if (m.change) {
+                            const up = !String(m.change).trim().startsWith('-');
+                            slide.addText(String(m.change), { x, y: 4.25, w: cw, h: 0.4, align: 'center', fontSize: 13, bold: true, color: up ? '10B981' : 'EF4444' });
+                        }
+                    });
+                    return;
+                }
+
+                if (s.type === 'chart' && s.chart) {
+                    try {
+                        const built = chartToPptx(pptx, s.chart, t);
+                        slide.addChart(built.type, built.data, built.opts);
+                    } catch (e) {
+                        slide.addText('[chart could not be rendered]', { x: MX, y: 3, w: W - 2 * MX, h: 0.5, fontSize: 14, color: t.muted });
+                    }
+                    return;
+                }
+
+                // Default: bullets
+                const bullets = Array.isArray(s.bullets) ? s.bullets : (s.title ? [] : []);
+                if (bullets.length) {
+                    slide.addText(
+                        bullets.map(b => ({ text: String(b), options: { bullet: { code: '2022', indent: 18 }, color: t.text, fontSize: 18, paraSpaceAfter: 12 } })),
+                        { x: MX, y: 1.9, w: W - 2 * MX, h: H - 2.8, valign: 'top' }
+                    );
+                }
+            });
+
+            const safe = (deck.title || 'presentation').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'presentation';
+            pptx.writeFile({ fileName: safe + '.pptx' });
+            if (btn) { const o = btn.innerHTML; btn.innerHTML = '<i class="fas fa-check"></i> Downloaded'; btn.classList.add('copied'); setTimeout(() => { btn.innerHTML = o; btn.classList.remove('copied'); }, 1800); }
+        }
+
+        // Convert a Chart.js config into PptxGenJS addChart(type, data, opts) args
+        function chartToPptx(pptx, cfg, t) {
+            const W = 13.333, MX = 0.9;
+            const typeMap = { bar: pptx.ChartType.bar, line: pptx.ChartType.line, pie: pptx.ChartType.pie, doughnut: pptx.ChartType.doughnut };
+            const ctype = typeMap[cfg.type] || pptx.ChartType.bar;
+            const labels = cfg.data?.labels || [];
+            const datasets = cfg.data?.datasets || [];
+            let data;
+            if (cfg.type === 'pie' || cfg.type === 'doughnut') {
+                data = [{ name: datasets[0]?.label || 'Series', labels, values: (datasets[0]?.data || []).map(Number) }];
+            } else {
+                data = datasets.map(ds => ({ name: ds.label || 'Series', labels, values: (ds.data || []).map(Number) }));
+            }
+            const palette = [t.primary, t.accent, '93C5FD', 'FCA5A5', '6EE7B7', 'FCD34D'];
+            const opts = {
+                x: MX, y: 1.9, w: W - 2 * MX, h: 4.8,
+                chartColors: palette,
+                showLegend: datasets.length > 1 || cfg.type === 'pie' || cfg.type === 'doughnut',
+                legendPos: 'b', legendColor: t.muted,
+                showTitle: false,
+                catAxisLabelColor: t.muted, valAxisLabelColor: t.muted,
+                catAxisLabelFontSize: 10, valAxisLabelFontSize: 10,
+            };
+            if (cfg.type === 'doughnut') opts.holeSize = 55;
+            if (cfg.type === 'line') { opts.lineSize = 2; opts.lineSmooth = true; }
+            return { type: ctype, data, opts };
+        }
+
+        // Serialize a deck into a ready-to-paste prompt for Gamma's AI generator
+        function gammaPromptFromDeck(deck) {
+            const lines = [];
+            lines.push('Create a polished, professional slide presentation.');
+            lines.push('');
+            if (deck.title) lines.push('Title: ' + deck.title);
+            if (deck.subtitle) lines.push('Subtitle: ' + deck.subtitle);
+            lines.push('Design: clean and modern, generous whitespace, one idea per slide, a ' + (deck.theme || 'indigo') + ' accent color, consistent typography. Use icons and simple visuals where helpful.');
+            lines.push('');
+            lines.push('Use this exact outline, one slide per "#" heading:');
+            lines.push('');
+            (deck.slides || []).forEach((s) => {
+                if (s.type === 'title' || s.type === 'closing') {
+                    lines.push('# ' + (s.title || ''));
+                    if (s.subtitle) lines.push(s.subtitle);
+                } else if (s.type === 'section') {
+                    lines.push('# ' + (s.title || '') + '  (section divider — large, minimal)');
+                } else if (s.type === 'metrics') {
+                    lines.push('# ' + (s.title || 'Key metrics'));
+                    (s.metrics || []).forEach(m => {
+                        lines.push('- ' + [m.label, m.value, m.change ? '(' + m.change + ')' : ''].filter(Boolean).join(': ').replace(': (', ' ('));
+                    });
+                    lines.push('Render these as large KPI stat cards.');
+                } else if (s.type === 'chart' && s.chart) {
+                    const c = s.chart;
+                    const labels = c.data?.labels || [];
+                    const series = (c.data?.datasets || []).map(ds => (ds.label ? ds.label + ': ' : '') + (ds.data || []).join(', '));
+                    lines.push('# ' + (s.title || 'Chart'));
+                    lines.push('[Render a ' + (c.type || 'bar') + ' chart. Categories: ' + labels.join(', ') + '. ' + series.map(x => 'Series — ' + x).join('; ') + '.]');
+                } else {
+                    lines.push('# ' + (s.title || ''));
+                    (s.bullets || []).forEach(b => lines.push('- ' + b));
+                }
+                lines.push('');
+            });
+            return lines.join('\n').trim();
+        }
+
+        function copyGammaPrompt(deckId, btn) {
+            const deck = _deckStore[deckId];
+            if (!deck) return;
+            const prompt = gammaPromptFromDeck(deck);
+            const done = () => { if (btn) { const o = btn.innerHTML; btn.innerHTML = '<i class="fas fa-check"></i> Copied — paste into Gamma'; btn.classList.add('copied'); setTimeout(() => { btn.innerHTML = o; btn.classList.remove('copied'); }, 2200); } };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(prompt).then(done).catch(() => { window.prompt('Copy this prompt and paste it into Gamma:', prompt); });
+            } else {
+                window.prompt('Copy this prompt and paste it into Gamma:', prompt);
+            }
         }
         // ─────────────────────────────────────────────────────────────────────
 
