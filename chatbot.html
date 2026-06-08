@@ -659,6 +659,13 @@
         .tts-speak-btn:hover { opacity: 1; }
         .tts-speak-btn.speaking { opacity: 1; color: var(--accent-orange); }
 
+        .tts-reading {
+            background: rgba(234, 88, 12, 0.08) !important;
+            outline: 1px solid rgba(234, 88, 12, 0.2);
+            border-radius: 3px;
+            transition: background 0.2s ease, outline 0.2s ease;
+        }
+
         /* Input Area */
         .input-bar {
             margin-top: 10px;
@@ -3234,7 +3241,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1822</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1823</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -9334,7 +9341,7 @@
                 : '';
             if (sender === 'bot' && !isRestoring) window._lastResponseDuration = null;
             const speakBtnHtml = sender === 'bot'
-                ? `<button class="tts-speak-btn" title="Speak this message" onclick="speakText(this.dataset.text, this)" data-text=${JSON.stringify(cleanText)}><i class="fas fa-volume-high"></i></button>`
+                ? `<button class="tts-speak-btn" title="Speak this message" onclick="speakText(this.dataset.text, this, this.closest('.message').querySelector('.msg-content'))" data-text=${JSON.stringify(cleanText)}><i class="fas fa-volume-high"></i></button>`
                 : '';
             msg.innerHTML = `
                 <div class="msg-content">${thinkingHtml}${htmlContent}${attachmentHtml}${toolHtml}</div>
@@ -9343,7 +9350,8 @@
             list.appendChild(msg);
             if (sender === 'bot' && !isRestoring && ttsEnabled) {
                 const btn = msg.querySelector('.tts-speak-btn');
-                speakText(cleanText, btn);
+                const content = msg.querySelector('.msg-content');
+                speakText(cleanText, btn, content);
             }
             renderChartsInElement(msg);
             setTimeout(() => {
@@ -9439,6 +9447,8 @@
         // ── Text-to-Speech ────────────────────────────────────────────────────
         let ttsEnabled = localStorage.getItem('tts_enabled') === 'true';
         let _ttsCurrentBtn = null;
+        let _ttsReadingEl = null;
+        let _ttsMutedMic = false;
 
         function toggleTTS() {
             ttsEnabled = !ttsEnabled;
@@ -9447,34 +9457,81 @@
             const icon = document.getElementById('ttsIcon');
             btn.style.opacity = ttsEnabled ? '1' : '0.5';
             icon.className = ttsEnabled ? 'fas fa-volume-high' : 'fas fa-volume-xmark';
-            if (!ttsEnabled) {
-                window.speechSynthesis.cancel();
-                if (_ttsCurrentBtn) { _ttsCurrentBtn.classList.remove('speaking'); _ttsCurrentBtn = null; }
+            if (!ttsEnabled) { window.speechSynthesis.cancel(); _ttsCleanup(); }
+        }
+
+        function _ttsCleanup() {
+            if (_ttsReadingEl) { _ttsReadingEl.classList.remove('tts-reading'); _ttsReadingEl = null; }
+            if (_ttsCurrentBtn) { _ttsCurrentBtn.classList.remove('speaking'); _ttsCurrentBtn = null; }
+            if (_ttsMutedMic) {
+                _ttsMutedMic = false;
+                if (typeof isRecording !== 'undefined' && isRecording && recognition) {
+                    try { recognition.start(); } catch(e) {}
+                }
             }
         }
 
-        function speakText(text, btnEl) {
+        function _ttsBuildChunks(contentEl) {
+            const blocks = contentEl.querySelectorAll('p, li, h1, h2, h3, h4, h5, h6, td');
+            const targets = blocks.length ? Array.from(blocks) : [contentEl];
+            const chunks = [];
+            let offset = 0;
+            for (const block of targets) {
+                const text = (block.innerText || block.textContent || '').trim();
+                if (!text) continue;
+                chunks.push({ el: block, start: offset, end: offset + text.length, text });
+                offset += text.length + 2;
+            }
+            return chunks;
+        }
+
+        function speakText(text, btnEl, contentEl) {
             if (!window.speechSynthesis) return;
             window.speechSynthesis.cancel();
-            if (_ttsCurrentBtn) { _ttsCurrentBtn.classList.remove('speaking'); _ttsCurrentBtn = null; }
-            const plain = text
-                .replace(/```[\s\S]*?```/g, 'code block.')
-                .replace(/`[^`]*`/g, '')
-                .replace(/!\[.*?\]\(.*?\)/g, '')
-                .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-                .replace(/#{1,6}\s/g, '')
-                .replace(/[*_~>]/g, '')
-                .replace(/https?:\/\/\S+/g, '')
-                .replace(/\s+/g, ' ').trim();
-            if (!plain) return;
-            const utter = new SpeechSynthesisUtterance(plain);
-            utter.rate = 1.05;
-            if (btnEl) {
-                btnEl.classList.add('speaking');
-                _ttsCurrentBtn = btnEl;
-                utter.onend = () => { btnEl.classList.remove('speaking'); if (_ttsCurrentBtn === btnEl) _ttsCurrentBtn = null; };
-                utter.onerror = () => { btnEl.classList.remove('speaking'); if (_ttsCurrentBtn === btnEl) _ttsCurrentBtn = null; };
+            _ttsCleanup();
+
+            // Mute mic to prevent feedback loop
+            if (typeof isRecording !== 'undefined' && isRecording && recognition) {
+                try { recognition.stop(); } catch(e) {}
+                _ttsMutedMic = true;
             }
+
+            let speakStr, chunks;
+            if (contentEl) {
+                chunks = _ttsBuildChunks(contentEl);
+                speakStr = chunks.map(c => c.text).join('. ');
+            } else {
+                chunks = null;
+                speakStr = text
+                    .replace(/```[\s\S]*?```/g, 'code block.')
+                    .replace(/`[^`]*`/g, '')
+                    .replace(/!\[.*?\]\(.*?\)/g, '')
+                    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+                    .replace(/#{1,6}\s/g, '')
+                    .replace(/[*_~>]/g, '')
+                    .replace(/https?:\/\/\S+/g, '')
+                    .replace(/\s+/g, ' ').trim();
+            }
+            if (!speakStr.trim()) return;
+
+            const utter = new SpeechSynthesisUtterance(speakStr);
+            utter.rate = 1.05;
+
+            if (chunks && chunks.length) {
+                utter.addEventListener('boundary', (e) => {
+                    const idx = e.charIndex;
+                    const active = chunks.find(c => idx >= c.start && idx < c.end) || null;
+                    if (active && active.el !== _ttsReadingEl) {
+                        if (_ttsReadingEl) _ttsReadingEl.classList.remove('tts-reading');
+                        active.el.classList.add('tts-reading');
+                        _ttsReadingEl = active.el;
+                    }
+                });
+            }
+
+            if (btnEl) { btnEl.classList.add('speaking'); _ttsCurrentBtn = btnEl; }
+            utter.onend = _ttsCleanup;
+            utter.onerror = _ttsCleanup;
             window.speechSynthesis.speak(utter);
         }
 
