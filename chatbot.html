@@ -2566,106 +2566,101 @@
         .stt-caption .interim { opacity: 0.55; font-style: italic; }
         @keyframes captionPop { from { opacity: 0; transform: translateX(-50%) translateY(4px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 
-        /* Full-screen voice conversation overlay */
-        .voice-overlay {
+        /* Inline hands-free voice bar (lives above the input bar; chat stays visible) */
+        .voice-bar {
             display: none;
-            position: fixed;
-            inset: 0;
-            z-index: 10000;
-            background: radial-gradient(circle at 50% 38%, #232a52 0%, #141832 55%, #0d1024 100%);
-            flex-direction: column;
             align-items: center;
-            justify-content: center;
-            gap: 30px;
-            -webkit-tap-highlight-color: transparent;
+            gap: 14px;
+            margin-top: 10px;
+            padding: 10px 14px;
+            border-radius: 16px;
+            background: #fff;
+            border: 1px solid rgba(0,0,0,0.05);
+            box-shadow: var(--shadow-lg);
+            border-left: 4px solid var(--accent-orange);
         }
-        .voice-overlay.active { display: flex; animation: voiceFadeIn 0.3s ease both; }
-        @keyframes voiceFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .voice-bar.active { display: flex; animation: voiceBarIn 0.25s ease both; }
+        @keyframes voiceBarIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .voice-bar.state-listening { border-left-color: #ea580c; }
+        .voice-bar.state-thinking  { border-left-color: #3b82f6; }
+        .voice-bar.state-speaking  { border-left-color: #10b981; }
 
-        .voice-orb-wrap {
-            position: relative;
-            width: 220px;
-            height: 220px;
+        /* Equalizer orb — bars scale with live amplitude */
+        .voice-bar-orb {
+            flex-shrink: 0;
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
+            gap: 3px;
             cursor: pointer;
+            background: #fff7ed;
+            transition: background 0.3s;
         }
-        .voice-orb {
-            width: 130px;
-            height: 130px;
-            border-radius: 50%;
-            background: var(--accent-gradient);
-            box-shadow: 0 0 60px rgba(249,115,22,0.45), inset 0 0 30px rgba(255,255,255,0.18);
-            transition: transform 0.08s ease-out, box-shadow 0.2s, background 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            font-size: 2.4rem;
+        .voice-bar.state-thinking .voice-bar-orb { background: #eff6ff; }
+        .voice-bar.state-speaking .voice-bar-orb { background: #ecfdf5; }
+        .voice-bar-orb .vb-eq {
+            width: 4px;
+            height: 10px;
+            border-radius: 2px;
+            background: var(--accent-orange);
+            transform-origin: center;
             will-change: transform;
+            transition: background 0.3s;
         }
-        /* concentric pulse rings driven by amplitude */
-        .voice-orb-ring {
-            position: absolute;
-            border-radius: 50%;
-            border: 2px solid rgba(249,115,22,0.35);
-            opacity: 0;
-            pointer-events: none;
-        }
-        .voice-overlay.state-listening .voice-orb { background: linear-gradient(135deg,#f97316,#ea580c); }
-        .voice-overlay.state-thinking .voice-orb {
-            background: linear-gradient(135deg,#3b82f6,#2563eb);
-            box-shadow: 0 0 60px rgba(59,130,246,0.5), inset 0 0 30px rgba(255,255,255,0.18);
-            animation: orbThink 1.1s ease-in-out infinite;
-        }
-        .voice-overlay.state-speaking .voice-orb {
-            background: linear-gradient(135deg,#10b981,#059669);
-            box-shadow: 0 0 60px rgba(16,185,129,0.5), inset 0 0 30px rgba(255,255,255,0.18);
-        }
-        @keyframes orbThink { 0%,100% { transform: scale(0.92); } 50% { transform: scale(1.08); } }
+        .voice-bar.state-thinking .voice-bar-orb .vb-eq { background: #3b82f6; animation: vbThink 1s ease-in-out infinite; }
+        .voice-bar.state-speaking .voice-bar-orb .vb-eq { background: #10b981; }
+        .voice-bar.state-thinking .voice-bar-orb .vb-eq:nth-child(2) { animation-delay: 0.15s; }
+        .voice-bar.state-thinking .voice-bar-orb .vb-eq:nth-child(3) { animation-delay: 0.3s; }
+        .voice-bar.state-thinking .voice-bar-orb .vb-eq:nth-child(4) { animation-delay: 0.45s; }
+        @keyframes vbThink { 0%,100% { transform: scaleY(0.6); } 50% { transform: scaleY(1.8); } }
 
-        .voice-state-label {
-            color: #fff;
-            font-size: 1.05rem;
-            font-weight: 700;
-            letter-spacing: 0.3px;
-            opacity: 0.92;
-            min-height: 24px;
+        .voice-bar-body { flex: 1; min-width: 0; }
+        .voice-bar-state {
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--accent-orange);
         }
-        .voice-sub-label { color: rgba(255,255,255,0.55); font-size: 0.82rem; margin-top: -18px; }
-
-        .voice-caption {
-            color: #e2e8f0;
-            font-size: 1rem;
-            line-height: 1.5;
-            max-width: 560px;
-            width: 86%;
-            text-align: center;
-            min-height: 48px;
-            padding: 0 10px;
+        .voice-bar.state-thinking .voice-bar-state { color: #3b82f6; }
+        .voice-bar.state-speaking .voice-bar-state { color: #10b981; }
+        .voice-bar.state-paused   .voice-bar-state { color: #94a3b8; }
+        .voice-bar-caption {
+            font-size: 0.88rem;
+            color: var(--primary-navy);
+            line-height: 1.35;
+            margin-top: 2px;
+            max-height: 3.5em;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-        .voice-caption .interim { opacity: 0.5; }
+        .voice-bar-caption:empty { display: none; }
+        .voice-bar-caption .interim { opacity: 0.45; font-style: italic; }
 
-        .voice-controls { display: flex; gap: 18px; align-items: center; margin-top: 4px; }
-        .voice-ctrl-btn {
-            width: 58px;
-            height: 58px;
+        .voice-bar-btn {
+            flex-shrink: 0;
+            width: 38px;
+            height: 38px;
             border-radius: 50%;
             border: none;
             cursor: pointer;
-            font-size: 1.2rem;
+            font-size: 0.95rem;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.15s, background 0.2s, opacity 0.2s;
+            transition: transform 0.15s, background 0.2s, color 0.2s;
             color: #fff;
         }
-        .voice-ctrl-btn:hover { transform: scale(1.08); }
-        .voice-ctrl-btn.end { background: #ef4444; }
-        .voice-ctrl-btn.mute { background: rgba(255,255,255,0.14); }
-        .voice-ctrl-btn.mute.muted { background: #f59e0b; }
-        .voice-ctrl-hint { position: absolute; bottom: 36px; color: rgba(255,255,255,0.4); font-size: 0.75rem; }
+        .voice-bar-btn:hover { transform: scale(1.08); }
+        .voice-bar-btn.end { background: #ef4444; }
+        .voice-bar-btn.mute { background: #f1f5f9; color: #64748b; }
+        .voice-bar-btn.mute.muted { background: #f59e0b; color: #fff; }
+
+        /* Voice-mode button active state */
+        .voice-mode-btn.active { color: var(--accent-orange); }
 
         /* Image Modal */
         .image-modal {
@@ -3430,7 +3425,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1857</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1858</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3592,7 +3587,7 @@
                     <div class="form-group">
                         <label>Voice</label>
                         <select id="ttsVoiceSelect" onchange="saveTtsSettings()">
-                            <option value="">System Default</option>
+                            <option value="">Auto — best available</option>
                         </select>
                     </div>
                     <div class="form-group" style="margin-top: 12px;">
@@ -3626,18 +3621,6 @@
                             <option value="ja-JP">Japanese</option>
                         </select>
                         <div style="font-size:0.65rem; color:#94a3b8; margin-top:4px;">Language used for the mic dictation &amp; hands-free voice mode.</div>
-                    </div>
-
-                    <div class="form-group" style="margin-top: 16px; border-top:1px solid #eef2f7; padding-top:14px;">
-                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                            <input type="checkbox" id="neuralTtsToggle" onchange="saveVoiceIoSettings()" style="width:auto;">
-                            <span>High-quality neural voice</span>
-                        </label>
-                        <div style="font-size:0.65rem; color:#94a3b8; margin-top:4px;">Routes spoken replies through your TTS endpoint (OpenAI / ElevenLabs / Google). Falls back to the browser voice if unset or unreachable.</div>
-                        <input type="text" id="neuralTtsUrl" placeholder="https://…/tts  (POST endpoint)" oninput="saveVoiceIoSettings()"
-                            style="margin-top:8px; width:100%; padding:8px 10px; border:1px solid #e2e8f0; border-radius:9px; font-size:0.78rem; font-family:inherit;">
-                        <input type="text" id="neuralTtsVoice" placeholder="Voice id (optional, e.g. alloy / Rachel)" oninput="saveVoiceIoSettings()"
-                            style="margin-top:6px; width:100%; padding:8px 10px; border:1px solid #e2e8f0; border-radius:9px; font-size:0.78rem; font-family:inherit;">
                     </div>
                 </div>
             </div>
@@ -4289,6 +4272,24 @@
             </div>
 
             <div id="attachmentPreview" class="attachment-preview"></div>
+
+            <!-- Inline hands-free voice indicator (sits above the input bar; chat stays visible) -->
+            <div class="voice-bar" id="voiceBar">
+                <div class="voice-bar-orb" id="voiceBarOrb" onclick="VoiceConvo.onOrbTap()" title="Tap to interrupt / send">
+                    <span class="vb-eq"></span><span class="vb-eq"></span><span class="vb-eq"></span><span class="vb-eq"></span>
+                </div>
+                <div class="voice-bar-body">
+                    <div class="voice-bar-state" id="voiceBarState">Listening…</div>
+                    <div class="voice-bar-caption" id="voiceBarCaption"></div>
+                </div>
+                <button class="voice-bar-btn mute" id="voiceBarMute" onclick="VoiceConvo.toggleMute()" title="Pause listening">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <button class="voice-bar-btn end" onclick="VoiceConvo.close()" title="End voice conversation">
+                    <i class="fas fa-xmark"></i>
+                </button>
+            </div>
+
             <div class="input-bar" id="inputBar">
                 <input type="file" id="fileInput" style="display:none;" multiple onchange="handleFileSelect(this)">
                 <button class="upload-btn" onclick="document.getElementById('fileInput').click()"
@@ -4312,26 +4313,6 @@
                 </button>
             </div>
         </main>
-    </div>
-
-    <!-- Hands-free Voice Conversation Overlay -->
-    <div class="voice-overlay" id="voiceOverlay">
-        <div class="voice-orb-wrap" id="voiceOrbWrap" onclick="VoiceConvo.onOrbTap()" title="Tap to interrupt / resume">
-            <div class="voice-orb-ring" id="voiceRing1"></div>
-            <div class="voice-orb-ring" id="voiceRing2"></div>
-            <div class="voice-orb" id="voiceOrb"><i class="fas fa-microphone"></i></div>
-        </div>
-        <div class="voice-state-label" id="voiceStateLabel">Listening…</div>
-        <div class="voice-caption" id="voiceCaption"></div>
-        <div class="voice-controls">
-            <button class="voice-ctrl-btn mute" id="voiceMuteBtn" onclick="VoiceConvo.toggleMute()" title="Pause listening">
-                <i class="fas fa-microphone"></i>
-            </button>
-            <button class="voice-ctrl-btn end" onclick="VoiceConvo.close()" title="End voice conversation">
-                <i class="fas fa-xmark"></i>
-            </button>
-        </div>
-        <div class="voice-ctrl-hint">Tap the orb to interrupt · Esc to exit</div>
     </div>
 
     <script>
@@ -9854,7 +9835,7 @@
                 if (ttsEnabled || convoActive) {
                     const btn = msg.querySelector('.tts-speak-btn');
                     const content = msg.querySelector('.msg-content');
-                    if (convoActive) VoiceConvo.onReplyStart();
+                    if (convoActive) VoiceConvo.onReplyStart(cleanText);
                     speakText(cleanText, btn, content);
                 }
             }
@@ -10402,7 +10383,8 @@
                 const voices = window.speechSynthesis.getVoices();
                 if (!voices.length) return;
                 const saved = localStorage.getItem('tts_voice') || '';
-                select.innerHTML = '<option value="">System Default</option>';
+                const best = _pickBestVoice();
+                select.innerHTML = `<option value="">Auto — best available${best ? ` (${best.name})` : ''}</option>`;
                 const SG_LANGS = ['en', 'zh', 'ms', 'ta'];
                 const EXCLUDE_VOICES = new Set([
                     // macOS novelty / sound-effect voices
@@ -10438,6 +10420,7 @@
         }
 
         function saveTtsSettings() {
+            _bestVoiceCache = null;
             const voice = document.getElementById('ttsVoiceSelect')?.value || '';
             const speed = document.getElementById('ttsSpeedSlider')?.value || '1.0';
             localStorage.setItem('tts_voice', voice);
@@ -10447,29 +10430,19 @@
         function saveVoiceIoSettings() {
             const lang = document.getElementById('sttLangSelect')?.value || 'en-US';
             localStorage.setItem('stt_lang', lang);
-            localStorage.setItem('neural_tts_enabled', document.getElementById('neuralTtsToggle')?.checked ? 'true' : 'false');
-            localStorage.setItem('neural_tts_url', document.getElementById('neuralTtsUrl')?.value.trim() || '');
-            localStorage.setItem('neural_tts_voice', document.getElementById('neuralTtsVoice')?.value.trim() || '');
             // Apply language live to an existing dictation recogniser.
             if (recognition) recognition.lang = lang;
+            _bestVoiceCache = null;   // re-pick best voice for the new language
         }
 
         function restoreVoiceIoSettings() {
             const langSel = document.getElementById('sttLangSelect');
             if (langSel) langSel.value = localStorage.getItem('stt_lang') || 'en-US';
-            const tog = document.getElementById('neuralTtsToggle');
-            if (tog) tog.checked = localStorage.getItem('neural_tts_enabled') === 'true';
-            const urlEl = document.getElementById('neuralTtsUrl');
-            if (urlEl) urlEl.value = localStorage.getItem('neural_tts_url') || '';
-            const voiceEl = document.getElementById('neuralTtsVoice');
-            if (voiceEl) voiceEl.value = localStorage.getItem('neural_tts_voice') || '';
         }
 
         function testTtsVoice() {
             speakText('Testing one two three. This is how your voice sounds at the current speed.', null, null);
         }
-
-        let _ttsAudio = null;   // active neural-TTS <audio> element, if any
 
         function _ttsCleanup() {
             if (_ttsReadingEl) { _ttsReadingEl.classList.remove('tts-reading'); _ttsReadingEl = null; }
@@ -10489,59 +10462,44 @@
             if (window.VoiceConvo && VoiceConvo.isActive()) VoiceConvo.onSpeechEnded();
         }
 
-        // Hard-stop every speech source — used for barge-in and when exiting voice mode.
+        // Hard-stop speech — used for barge-in and when exiting voice mode.
         function stopAllTts() {
             try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
-            if (_ttsAudio) {
-                try { _ttsAudio.onended = null; _ttsAudio.onerror = null; _ttsAudio.pause(); } catch (e) {}
-                if (_ttsAudio.src && _ttsAudio.src.startsWith('blob:')) URL.revokeObjectURL(_ttsAudio.src);
-                _ttsAudio = null;
-            }
             _ttsCleanup();
         }
 
-        function _neuralTtsEnabled() {
-            return localStorage.getItem('neural_tts_enabled') === 'true' && !!(localStorage.getItem('neural_tts_url') || '').trim();
+        // Auto-pick the clearest available browser voice for the active language.
+        // The browser's own "default" is often a low-quality compact voice, so we
+        // score for known high-quality engines (Google / Natural / Enhanced / Apple premium).
+        let _bestVoiceCache = null;
+        function _pickBestVoice() {
+            const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+            if (!voices.length) return null;
+            const lp = (getSttLang() || 'en-US').toLowerCase();
+            const base = lp.split('-')[0];
+            const GOOD = ['google', 'natural', 'neural', 'online', 'premium', 'enhanced'];
+            const GOOD_NAMES = ['samantha', 'daniel', 'karen', 'moira', 'tessa', 'serena', 'allison', 'ava', 'zoe', 'aaron', 'nicky'];
+            const score = (v) => {
+                const n = v.name.toLowerCase(), l = v.lang.toLowerCase();
+                let s = 0;
+                if (l === lp) s += 40; else if (l.startsWith(base)) s += 20;
+                if (GOOD.some(g => n.includes(g))) s += 30;
+                if (GOOD_NAMES.some(g => n.includes(g))) s += 15;
+                if (v.localService === false) s += 10;   // network voices are usually clearer
+                if (n.includes('compact')) s -= 25;
+                if (v.default) s += 2;
+                return s;
+            };
+            return voices.slice().sort((a, b) => score(b) - score(a))[0] || null;
         }
-
-        // Returns true if neural synthesis was kicked off; false to fall back to browser TTS.
-        async function _speakNeural(speakStr, btnEl, contentEl) {
-            const url = (localStorage.getItem('neural_tts_url') || '').trim();
-            if (!url) return false;
-            try {
-                const res = await fetchWithTimeout(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        text: speakStr,
-                        voice: localStorage.getItem('neural_tts_voice') || '',
-                        speed: parseFloat(localStorage.getItem('tts_speed') || '1.0')
-                    })
-                }, 20000);
-                if (!res.ok) throw new Error('Neural TTS HTTP ' + res.status);
-                const ct = res.headers.get('content-type') || '';
-                let audioSrc;
-                if (ct.includes('application/json')) {
-                    const data = await res.json();
-                    const b64 = data.audio || data.audioContent || data.data;
-                    if (!b64) throw new Error('No audio in response');
-                    audioSrc = b64.startsWith('data:') ? b64 : `data:${data.mime || 'audio/mpeg'};base64,${b64}`;
-                } else {
-                    audioSrc = URL.createObjectURL(await res.blob());
-                }
-                stopAllTts();
-                const audio = new Audio(audioSrc);
-                _ttsAudio = audio;
-                if (btnEl) { btnEl.classList.add('speaking'); _ttsCurrentBtn = btnEl; }
-                if (contentEl) { contentEl.classList.add('tts-reading'); _ttsReadingEl = contentEl; }
-                audio.onended = _ttsFinish;
-                audio.onerror = _ttsFinish;
-                audio.play().catch(() => _ttsFinish());
-                return true;
-            } catch (e) {
-                console.warn('[Neural TTS] falling back to browser voice:', e);
-                return false;
+        function _resolveTtsVoice() {
+            const saved = localStorage.getItem('tts_voice') || '';
+            if (saved) {
+                const m = (window.speechSynthesis.getVoices() || []).find(v => v.name === saved);
+                if (m) return m;
             }
+            if (!_bestVoiceCache) _bestVoiceCache = _pickBestVoice();
+            return _bestVoiceCache;
         }
 
         function _ttsBuildChunks(contentEl) {
@@ -10560,7 +10518,7 @@
 
         function speakText(text, btnEl, contentEl) {
             const convoActive = window.VoiceConvo && VoiceConvo.isActive();
-            if (!window.speechSynthesis && !_neuralTtsEnabled()) return;
+            if (!window.speechSynthesis) return;
             stopAllTts();
 
             // Mute the dictation mic to prevent a feedback loop — but NOT when the
@@ -10588,25 +10546,10 @@
             }
             if (!speakStr.trim()) { _ttsFinish(); return; }
 
-            // Try high-quality neural TTS first; fall back to the browser voice on any failure.
-            if (_neuralTtsEnabled()) {
-                _speakNeural(speakStr, btnEl, contentEl).then(ok => {
-                    if (!ok) _speakBrowser(speakStr, chunks, btnEl);
-                });
-                return;
-            }
-            _speakBrowser(speakStr, chunks, btnEl);
-        }
-
-        function _speakBrowser(speakStr, chunks, btnEl) {
-            if (!window.speechSynthesis) { _ttsFinish(); return; }
             const utter = new SpeechSynthesisUtterance(speakStr);
             utter.rate = parseFloat(localStorage.getItem('tts_speed') || '1.0');
-            const savedVoice = localStorage.getItem('tts_voice') || '';
-            if (savedVoice) {
-                const match = window.speechSynthesis.getVoices().find(v => v.name === savedVoice);
-                if (match) utter.voice = match;
-            }
+            const voice = _resolveTtsVoice();
+            if (voice) { utter.voice = voice; utter.lang = voice.lang; }
 
             if (chunks && chunks.length) {
                 utter.addEventListener('boundary', (e) => {
@@ -10937,26 +10880,16 @@
 
             function setState(s) {
                 state = s;
-                const ov = $('voiceOverlay');
-                ov.classList.remove('state-listening', 'state-thinking', 'state-speaking');
-                const label = $('voiceStateLabel'), orbIcon = $('voiceOrb').querySelector('i');
-                if (s === 'listening') {
-                    ov.classList.add('state-listening'); label.textContent = 'Listening…';
-                    if (orbIcon) orbIcon.className = 'fas fa-microphone';
-                } else if (s === 'thinking') {
-                    ov.classList.add('state-thinking'); label.textContent = 'Thinking…';
-                    if (orbIcon) orbIcon.className = 'fas fa-ellipsis';
-                } else if (s === 'speaking') {
-                    ov.classList.add('state-speaking'); label.textContent = 'Speaking…';
-                    if (orbIcon) orbIcon.className = 'fas fa-volume-high';
-                } else if (s === 'paused') {
-                    label.textContent = 'Paused — tap mic to resume';
-                    if (orbIcon) orbIcon.className = 'fas fa-microphone-slash';
-                }
+                const bar = $('voiceBar'), label = $('voiceBarState');
+                bar.classList.remove('state-listening', 'state-thinking', 'state-speaking', 'state-paused');
+                if (s === 'listening')      { bar.classList.add('state-listening'); label.textContent = 'Listening'; }
+                else if (s === 'thinking')  { bar.classList.add('state-thinking');  label.textContent = 'Thinking'; }
+                else if (s === 'speaking')  { bar.classList.add('state-speaking');  label.textContent = 'Speaking'; }
+                else if (s === 'paused')    { bar.classList.add('state-paused');    label.textContent = 'Paused — tap mic to resume'; }
             }
 
             function setCaption(finalText, interimText) {
-                const cap = $('voiceCaption');
+                const cap = $('voiceBarCaption');
                 const f = (finalText || '').trim(), i = (interimText || '').trim();
                 cap.innerHTML = `${_escapeHtmlSafe(f)}${f && i ? ' ' : ''}<span class="interim">${_escapeHtmlSafe(i)}</span>`;
             }
@@ -11022,7 +10955,8 @@
                 startListening();
             }
 
-            // ── Web Audio amplitude loop: drives the orb + VAD/barge-in ─────────
+            // ── Web Audio amplitude loop: drives the equalizer bars + VAD/barge-in ─
+            const EQ_WEIGHTS = [0.7, 1.0, 0.85, 0.55];
             function loop() {
                 if (!active || !analyser) return;
                 analyser.getByteTimeDomainData(timeData);
@@ -11033,20 +10967,15 @@
                 }
                 const rms = Math.sqrt(sum / timeData.length);
 
-                // Animate orb + rings with the live level.
-                const orb = $('voiceOrb');
-                if (orb) {
-                    const scale = state === 'thinking' ? 1 : 1 + Math.min(rms * 3.2, 0.7);
-                    orb.style.transform = `scale(${scale.toFixed(3)})`;
-                }
-                const r1 = $('voiceRing1'), r2 = $('voiceRing2');
-                if (r1 && r2) {
-                    const lvl = Math.min(rms * 4, 1);
-                    const base = 130;
-                    r1.style.width = r1.style.height = (base + lvl * 70) + 'px';
-                    r1.style.opacity = (state === 'listening' ? lvl * 0.6 : 0).toFixed(2);
-                    r2.style.width = r2.style.height = (base + lvl * 120) + 'px';
-                    r2.style.opacity = (state === 'listening' ? lvl * 0.35 : 0).toFixed(2);
+                // Animate the equalizer bars with the live level (CSS handles the
+                // "thinking" pulse animation, so only drive bars when not thinking).
+                if (state !== 'thinking') {
+                    const bars = $('voiceBarOrb').querySelectorAll('.vb-eq');
+                    const lvl = Math.min(rms * 5, 1);
+                    bars.forEach((b, idx) => {
+                        const sc = 0.5 + lvl * 2.2 * EQ_WEIGHTS[idx % EQ_WEIGHTS.length];
+                        b.style.transform = `scaleY(${sc.toFixed(2)})`;
+                    });
                 }
 
                 if (state === 'listening') {
@@ -11080,9 +11009,10 @@
                     return;
                 }
                 active = true;
-                $('voiceOverlay').classList.add('active');
-                $('voiceMuteBtn').classList.remove('muted');
-                $('voiceMuteBtn').querySelector('i').className = 'fas fa-microphone';
+                $('voiceBar').classList.add('active');
+                $('voiceModeBtn').classList.add('active');
+                $('voiceBarMute').classList.remove('muted');
+                $('voiceBarMute').querySelector('i').className = 'fas fa-microphone';
 
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch (e) {} }
@@ -11097,9 +11027,8 @@
             }
 
             function close() {
-                if (!active && state === 'idle') { $('voiceOverlay').classList.remove('active'); return; }
                 active = false;
-                setState('idle');
+                state = 'idle';
                 clearTimeout(thinkWatchdog);
                 if (rafId) cancelAnimationFrame(rafId);
                 rafId = null;
@@ -11109,13 +11038,14 @@
                 if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
                 if (audioCtx) { try { audioCtx.close(); } catch (e) {} audioCtx = null; }
                 analyser = null;
-                $('voiceOverlay').classList.remove('active', 'state-listening', 'state-thinking', 'state-speaking');
+                $('voiceBar').classList.remove('active', 'state-listening', 'state-thinking', 'state-speaking', 'state-paused');
+                $('voiceModeBtn').classList.remove('active');
                 setCaption('', '');
-                const orb = $('voiceOrb'); if (orb) orb.style.transform = '';
+                $('voiceBarOrb').querySelectorAll('.vb-eq').forEach(b => b.style.transform = '');
             }
 
             function toggleMute() {
-                const btn = $('voiceMuteBtn');
+                const btn = $('voiceBarMute');
                 if (state === 'paused') {
                     btn.classList.remove('muted');
                     btn.querySelector('i').className = 'fas fa-microphone';
@@ -11138,7 +11068,7 @@
             return {
                 open, close, toggleMute, onOrbTap,
                 isActive: () => active,
-                onReplyStart() { if (active) { clearTimeout(thinkWatchdog); setState('speaking'); } },
+                onReplyStart(text) { if (active) { clearTimeout(thinkWatchdog); setState('speaking'); setCaption(text || '', ''); } },
                 onSpeechEnded() { if (active && state === 'speaking') startListening(); }
             };
         })();
