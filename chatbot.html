@@ -638,9 +638,26 @@
             font-size: 0.7rem;
             margin-top: 8px;
             opacity: 0.6;
-            display: block;
-            text-align: right;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
         }
+
+        .tts-speak-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 2px 4px;
+            font-size: 0.75rem;
+            color: inherit;
+            opacity: 0.5;
+            border-radius: 4px;
+            line-height: 1;
+            transition: opacity 0.15s;
+        }
+        .tts-speak-btn:hover { opacity: 1; }
+        .tts-speak-btn.speaking { opacity: 1; color: var(--accent-orange); }
 
         /* Input Area */
         .input-bar {
@@ -3217,7 +3234,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1820</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1821</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3242,6 +3259,9 @@
                     </button>
                     <button class="btn btn-outline" onclick="toggleSettings()">
                         <i class="fas fa-cog"></i> Settings
+                    </button>
+                    <button class="btn btn-outline" id="ttsToggleBtn" onclick="toggleTTS()" title="Auto-speak bot responses" style="opacity:0.5;">
+                        <i class="fas fa-volume-xmark" id="ttsIcon"></i> Audio
                     </button>
                     <div class="header-overflow-wrap">
                         <button class="btn btn-outline" id="tourBtn" onclick="toggleOverflowMenu(event)"
@@ -9313,11 +9333,18 @@
                 ? `<span style="opacity:0.45; margin-left:6px; font-size:0.65rem;">(${window._lastResponseDuration})</span>`
                 : '';
             if (sender === 'bot' && !isRestoring) window._lastResponseDuration = null;
+            const speakBtnHtml = sender === 'bot'
+                ? `<button class="tts-speak-btn" title="Speak this message" onclick="speakText(this.dataset.text, this)" data-text=${JSON.stringify(cleanText)}><i class="fas fa-volume-high"></i></button>`
+                : '';
             msg.innerHTML = `
                 <div class="msg-content">${thinkingHtml}${htmlContent}${attachmentHtml}${toolHtml}</div>
-                <span class="time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${durationHtml}</span>
+                <span class="time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${durationHtml}${speakBtnHtml}</span>
             `;
             list.appendChild(msg);
+            if (sender === 'bot' && !isRestoring && ttsEnabled) {
+                const btn = msg.querySelector('.tts-speak-btn');
+                speakText(cleanText, btn);
+            }
             renderChartsInElement(msg);
             setTimeout(() => {
                 list.scrollTop = list.scrollHeight;
@@ -9407,6 +9434,48 @@
 
         function escapeHtml(s) {
             return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        // ── Text-to-Speech ────────────────────────────────────────────────────
+        let ttsEnabled = localStorage.getItem('tts_enabled') === 'true';
+        let _ttsCurrentBtn = null;
+
+        function toggleTTS() {
+            ttsEnabled = !ttsEnabled;
+            localStorage.setItem('tts_enabled', ttsEnabled);
+            const btn = document.getElementById('ttsToggleBtn');
+            const icon = document.getElementById('ttsIcon');
+            btn.style.opacity = ttsEnabled ? '1' : '0.5';
+            icon.className = ttsEnabled ? 'fas fa-volume-high' : 'fas fa-volume-xmark';
+            if (!ttsEnabled) {
+                window.speechSynthesis.cancel();
+                if (_ttsCurrentBtn) { _ttsCurrentBtn.classList.remove('speaking'); _ttsCurrentBtn = null; }
+            }
+        }
+
+        function speakText(text, btnEl) {
+            if (!window.speechSynthesis) return;
+            window.speechSynthesis.cancel();
+            if (_ttsCurrentBtn) { _ttsCurrentBtn.classList.remove('speaking'); _ttsCurrentBtn = null; }
+            const plain = text
+                .replace(/```[\s\S]*?```/g, 'code block.')
+                .replace(/`[^`]*`/g, '')
+                .replace(/!\[.*?\]\(.*?\)/g, '')
+                .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+                .replace(/#{1,6}\s/g, '')
+                .replace(/[*_~>]/g, '')
+                .replace(/https?:\/\/\S+/g, '')
+                .replace(/\s+/g, ' ').trim();
+            if (!plain) return;
+            const utter = new SpeechSynthesisUtterance(plain);
+            utter.rate = 1.05;
+            if (btnEl) {
+                btnEl.classList.add('speaking');
+                _ttsCurrentBtn = btnEl;
+                utter.onend = () => { btnEl.classList.remove('speaking'); if (_ttsCurrentBtn === btnEl) _ttsCurrentBtn = null; };
+                utter.onerror = () => { btnEl.classList.remove('speaking'); if (_ttsCurrentBtn === btnEl) _ttsCurrentBtn = null; };
+            }
+            window.speechSynthesis.speak(utter);
         }
 
         async function openContactEmail() {
