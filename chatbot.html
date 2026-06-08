@@ -2472,63 +2472,7 @@
             color: #3b82f6;
         }
 
-        /* Microphone Button Styles */
-        .mic-btn {
-            background: none;
-            border: none;
-            color: #64748b;
-            cursor: pointer;
-            font-size: 1.1rem;
-            padding: 4px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .mic-btn:hover {
-            color: #ef4444;
-        }
-
-        .mic-btn.recording {
-            color: #ef4444;
-            animation: pulse-red 1.5s infinite;
-        }
-
-        @keyframes pulse-red {
-            0% {
-                transform: scale(1);
-                text-shadow: 0 0 0 rgba(239, 68, 68, 0);
-            }
-
-            50% {
-                transform: scale(1.2);
-                text-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
-            }
-
-            100% {
-                transform: scale(1);
-                text-shadow: 0 0 0 rgba(239, 68, 68, 0);
-            }
-        }
-
-        .mic-btn .recording-dot {
-            display: none;
-            width: 6px;
-            height: 6px;
-            background: #ef4444;
-            border-radius: 50%;
-            position: absolute;
-            top: -2px;
-            right: -2px;
-        }
-
-        .mic-btn.recording .recording-dot {
-            display: block;
-        }
-
-        /* Hands-free Voice Conversation Mode */
+        /* Voice chat (hands-free) button */
         .voice-mode-btn {
             background: none;
             border: none;
@@ -2542,29 +2486,6 @@
             justify-content: center;
         }
         .voice-mode-btn:hover { color: var(--accent-orange); transform: scale(1.08); }
-
-        /* Live interim transcript caption (dictation + convo) */
-        .stt-caption {
-            display: none;
-            position: absolute;
-            left: 50%;
-            transform: translateX(-50%);
-            bottom: calc(100% + 8px);
-            max-width: 90%;
-            padding: 7px 14px;
-            background: rgba(26,31,60,0.92);
-            color: #fff;
-            font-size: 0.82rem;
-            line-height: 1.35;
-            border-radius: 12px;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.18);
-            z-index: 50;
-            pointer-events: none;
-            white-space: normal;
-        }
-        .stt-caption.show { display: block; animation: captionPop 0.18s ease both; }
-        .stt-caption .interim { opacity: 0.55; font-style: italic; }
-        @keyframes captionPop { from { opacity: 0; transform: translateX(-50%) translateY(4px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 
         /* Inline hands-free voice bar (lives above the input bar; chat stays visible) */
         .voice-bar {
@@ -2633,9 +2554,10 @@
             color: var(--primary-navy);
             line-height: 1.35;
             margin-top: 2px;
-            max-height: 3.5em;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
             overflow: hidden;
-            text-overflow: ellipsis;
         }
         .voice-bar-caption:empty { display: none; }
         .voice-bar-caption .interim { opacity: 0.45; font-style: italic; }
@@ -2818,17 +2740,42 @@
             text-transform: uppercase;
             letter-spacing: 0.1em;
             margin-bottom: 12px;
-            display: block;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            position: sticky;
+            top: -2px;
+            background: #fff;
+            padding: 8px 0;
+            z-index: 3;
+        }
+
+        .prompt-category-title::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(to right, #e2e8f0, transparent);
+        }
+
+        .prompt-category-count {
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: #c2410c;
+            background: #fff1e7;
+            border-radius: 20px;
+            padding: 2px 9px;
+            letter-spacing: 0;
         }
 
         .prompt-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 12px;
         }
 
         .prompt-item {
-            padding: 16px 20px;
+            position: relative;
+            padding: 15px 18px 15px 19px;
             background: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 16px;
@@ -2836,22 +2783,41 @@
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 15px;
             text-align: left;
+            overflow: hidden;
+        }
+
+        /* Left accent bar reveals on hover — signals "click to use" */
+        .prompt-item::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: var(--accent-orange);
+            transform: scaleY(0);
+            transition: transform 0.2s ease;
+            border-radius: 0 3px 3px 0;
         }
 
         .prompt-item:hover {
             background: #fff;
             border-color: var(--accent-orange);
-            transform: translateX(4px);
-            box-shadow: 0 10px 15px -3px rgba(234, 88, 12, 0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 20px -8px rgba(234, 88, 12, 0.18);
+        }
+
+        .prompt-item:hover::before {
+            transform: scaleY(1);
         }
 
         .prompt-icon {
             width: 44px;
             height: 44px;
             border-radius: 12px;
-            background: #fff;
+            background: linear-gradient(135deg, #fff, #fff7ed);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -2865,7 +2831,38 @@
         .prompt-item:hover .prompt-icon {
             background: var(--accent-orange);
             color: #fff;
-            transform: scale(1.1);
+            transform: scale(1.08) rotate(-4deg);
+        }
+
+        /* "Use this prompt" cue — slides in on hover */
+        .prompt-go {
+            flex-shrink: 0;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: var(--accent-orange);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            opacity: 0;
+            transform: translateX(8px);
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 10px -2px rgba(234, 88, 12, 0.5);
+        }
+
+        .prompt-item:hover .prompt-go {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        /* Search match highlight */
+        mark.prompt-hl {
+            background: #fef08a;
+            color: inherit;
+            border-radius: 3px;
+            padding: 0 1px;
         }
 
         .prompt-tag {
@@ -2880,14 +2877,33 @@
             letter-spacing: 0.04em;
         }
         .prompt-card-actions {
+            position: absolute;
+            top: 8px;
+            right: 10px;
             display: flex;
-            flex-direction: column;
-            gap: 2px;
+            flex-direction: row;
+            gap: 1px;
             opacity: 0;
-            transition: opacity 0.2s;
-            flex-shrink: 0;
+            transform: translateY(-3px);
+            transition: all 0.18s;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(2px);
+            border-radius: 9px;
+            padding: 2px;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+            z-index: 2;
         }
-        .prompt-item:hover .prompt-card-actions { opacity: 1; }
+        .prompt-item:hover .prompt-card-actions { opacity: 1; transform: translateY(0); }
+        .prompt-card-actions button {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 7px;
+            transition: background 0.15s;
+        }
+        .prompt-card-actions button:hover { background: #f1f5f9; }
         .prompt-filter-chip {
             padding: 4px 12px;
             border-radius: 20px;
@@ -3425,7 +3441,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1859</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1860</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -4296,14 +4312,9 @@
                     title="Attach image or file">
                     <i class="fas fa-paperclip"></i>
                 </button>
-                <button class="mic-btn" id="micBtn" onclick="toggleVoiceInput()" title="Dictate — speak to fill the message box">
-                    <i class="fas fa-microphone"></i>
-                    <div class="recording-dot"></div>
-                </button>
-                <button class="voice-mode-btn" id="voiceModeBtn" onclick="VoiceConvo.open()" title="Voice conversation — hands-free, talk and listen">
+                <button class="voice-mode-btn" id="voiceModeBtn" onclick="VoiceConvo.open()" title="Voice chat — hands-free, talk and listen">
                     <i class="fas fa-headset"></i>
                 </button>
-                <div class="stt-caption" id="sttCaption"></div>
                 <button class="prompts-btn" onclick="openPromptsModal()" data-tooltip="Quick Prompts Templates">
                     <i class="fas fa-wand-magic-sparkles"></i>
                 </button>
@@ -10362,7 +10373,6 @@
         if (localStorage.getItem('tts_enabled') === null) localStorage.setItem('tts_enabled', 'false');
         let _ttsCurrentBtn = null;
         let _ttsReadingEl = null;
-        let _ttsMutedMic = false;
 
         function toggleTTS() {
             // Always stop any current speech immediately on click
@@ -10430,8 +10440,6 @@
         function saveVoiceIoSettings() {
             const lang = document.getElementById('sttLangSelect')?.value || 'en-US';
             localStorage.setItem('stt_lang', lang);
-            // Apply language live to an existing dictation recogniser.
-            if (recognition) recognition.lang = lang;
             _bestVoiceCache = null;   // re-pick best voice for the new language
         }
 
@@ -10447,12 +10455,6 @@
         function _ttsCleanup() {
             if (_ttsReadingEl) { _ttsReadingEl.classList.remove('tts-reading'); _ttsReadingEl = null; }
             if (_ttsCurrentBtn) { _ttsCurrentBtn.classList.remove('speaking'); _ttsCurrentBtn = null; }
-            if (_ttsMutedMic) {
-                _ttsMutedMic = false;
-                if (typeof isRecording !== 'undefined' && isRecording && recognition) {
-                    try { recognition.start(); } catch(e) {}
-                }
-            }
         }
 
         // Called when playback finishes naturally (or errors out). Lets the
@@ -10517,16 +10519,8 @@
         }
 
         function speakText(text, btnEl, contentEl) {
-            const convoActive = window.VoiceConvo && VoiceConvo.isActive();
             if (!window.speechSynthesis) return;
             stopAllTts();
-
-            // Mute the dictation mic to prevent a feedback loop — but NOT when the
-            // hands-free conversation is running, which manages its own mic + barge-in.
-            if (!convoActive && typeof isRecording !== 'undefined' && isRecording && recognition) {
-                try { recognition.stop(); } catch(e) {}
-                _ttsMutedMic = true;
-            }
 
             let speakStr, chunks;
             if (contentEl) {
@@ -10726,138 +10720,10 @@
                 handleSendMessage();
             }
         });
-        let recognition = null;
-        let mediaRecorder = null;
-        let audioChunks = [];
-        let isRecording = false;
-        let _sttManualStop = false;   // true when the user (not the engine) ended the session
-
         const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
         function getSttLang() { return localStorage.getItem('stt_lang') || 'en-US'; }
-
-        // ── Live interim caption above the input bar ──────────────────────────
-        function _showSttCaption(finalText, interimText) {
-            const cap = document.getElementById('sttCaption');
-            if (!cap) return;
-            const f = (finalText || '').trim();
-            const i = (interimText || '').trim();
-            if (!f && !i) { cap.classList.remove('show'); cap.innerHTML = ''; return; }
-            cap.innerHTML = `${_escapeHtmlSafe(f)}${f && i ? ' ' : ''}<span class="interim">${_escapeHtmlSafe(i)}</span>`;
-            cap.classList.add('show');
-        }
-        function _hideSttCaption() {
-            const cap = document.getElementById('sttCaption');
-            if (cap) { cap.classList.remove('show'); cap.innerHTML = ''; }
-        }
         function _escapeHtmlSafe(s) {
             return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-        }
-
-        function initSpeechRecognition() {
-            if (!SpeechRecognitionImpl) return;
-            recognition = new SpeechRecognitionImpl();
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            recognition.lang = getSttLang();
-
-            recognition.onresult = (event) => {
-                const input = document.getElementById('userInput');
-                let finalTranscript = '';
-                let interimTranscript = '';
-                for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    const t = event.results[i][0].transcript;
-                    if (event.results[i].isFinal) finalTranscript += t;
-                    else interimTranscript += t;
-                }
-                if (finalTranscript) {
-                    input.value += (input.value ? ' ' : '') + finalTranscript.trim();
-                    input.style.height = 'auto';
-                    input.style.height = (input.scrollHeight) + 'px';
-                }
-                _showSttCaption(input.value, interimTranscript);
-            };
-
-            recognition.onerror = (event) => {
-                console.error('Speech recognition error:', event.error);
-                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-                    showToast('Microphone permission denied. Enable it in your browser settings.', 'error', 4000);
-                    _sttManualStop = true;
-                    stopVoiceInput();
-                } else if (event.error === 'audio-capture') {
-                    showToast('No microphone found.', 'error', 3500);
-                    _sttManualStop = true;
-                    stopVoiceInput();
-                }
-                // 'no-speech' / 'aborted' / 'network' fall through — onend handles restart
-            };
-
-            // Chrome silently ends continuous sessions (~60s or after pauses).
-            // Auto-restart so dictation keeps going until the user stops it.
-            recognition.onend = () => {
-                if (isRecording && !_sttManualStop) {
-                    try { recognition.start(); } catch (e) { /* already starting */ }
-                }
-            };
-        }
-
-        async function toggleVoiceInput() {
-            if (isRecording) stopVoiceInput();
-            else startVoiceInput();
-        }
-
-        async function startVoiceInput() {
-            _sttManualStop = false;
-            const hasRecognition = !!SpeechRecognitionImpl;
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-                });
-                isRecording = true;
-                document.getElementById('micBtn').classList.add('recording');
-
-                if (hasRecognition) {
-                    // Transcript-only: speech is recognised live into the input box.
-                    if (!recognition) initSpeechRecognition();
-                    recognition.lang = getSttLang();
-                    try { recognition.start(); } catch (e) { }
-                    _showSttCaption(document.getElementById('userInput').value, 'Listening…');
-                    // We don't need the raw audio when we have a transcript — release the mic.
-                    stream.getTracks().forEach(t => t.stop());
-                } else {
-                    // Fallback: no Web Speech API (e.g. some browsers) → record an audio clip
-                    // and attach it so the backend can transcribe server-side.
-                    mediaRecorder = new MediaRecorder(stream);
-                    audioChunks = [];
-                    mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-                    mediaRecorder.onstop = () => {
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        const audioFile = new File([audioBlob], `recording_${Date.now()}.webm`, { type: 'audio/webm' });
-                        processFile(audioFile);
-                    };
-                    mediaRecorder.start();
-                    showToast('Recording audio — speech recognition not supported in this browser', 'info', 3000);
-                }
-            } catch (err) {
-                console.error('Error accessing microphone:', err);
-                showToast('Microphone access denied or unavailable.', 'error', 3500);
-                isRecording = false;
-                document.getElementById('micBtn').classList.remove('recording');
-            }
-        }
-
-        function stopVoiceInput() {
-            isRecording = false;
-            _sttManualStop = true;
-            document.getElementById('micBtn').classList.remove('recording');
-            _hideSttCaption();
-
-            if (recognition) {
-                try { recognition.stop(); } catch (e) { }
-            }
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                mediaRecorder.stop();
-                mediaRecorder.stream.getTracks().forEach(track => track.stop());
-            }
         }
 
         // ── Hands-free Voice Conversation Mode ────────────────────────────────
@@ -11068,7 +10934,18 @@
             return {
                 open, close, toggleMute, onOrbTap,
                 isActive: () => active,
-                onReplyStart(text) { if (active) { clearTimeout(thinkWatchdog); setState('speaking'); setCaption(text || '', ''); } },
+                onReplyStart(text) {
+                    if (!active) return;
+                    clearTimeout(thinkWatchdog);
+                    setState('speaking');
+                    // Full reply is in the chat bubble above; show only a short, clean preview here.
+                    const clean = (text || '')
+                        .replace(/```[\s\S]*?```/g, ' ')
+                        .replace(/[*_~`>#]/g, '')
+                        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+                        .replace(/\s+/g, ' ').trim();
+                    setCaption(clean, '');
+                },
                 onSpeechEnded() { if (active && state === 'speaking') startListening(); }
             };
         })();
@@ -12348,10 +12225,10 @@
                         }
                     },
                     {
-                        element: '#micBtn',
+                        element: '#voiceModeBtn',
                         popover: {
-                            title: '🎙️ Voice Input',
-                            description: 'Speak instead of type. Click once to start recording, click again to stop. Your speech is transcribed and sent as a message.',
+                            title: '🎧 Voice Chat',
+                            description: 'Hands-free conversation — tap to talk and the assistant replies out loud. It listens, sends when you pause, speaks the answer, then re-opens the mic. Tap the bar to interrupt.',
                             side: 'top',
                             align: 'start'
                         }
