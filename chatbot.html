@@ -3263,7 +3263,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1825</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1826</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -9607,7 +9607,12 @@
             if (!speakStr.trim()) return;
 
             const utter = new SpeechSynthesisUtterance(speakStr);
-            utter.rate = 1.05;
+            utter.rate = parseFloat(localStorage.getItem('tts_speed') || '1.0');
+            const savedVoice = localStorage.getItem('tts_voice') || '';
+            if (savedVoice) {
+                const match = window.speechSynthesis.getVoices().find(v => v.name === savedVoice);
+                if (match) utter.voice = match;
+            }
 
             if (chunks && chunks.length) {
                 utter.addEventListener('boundary', (e) => {
