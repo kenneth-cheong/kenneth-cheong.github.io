@@ -3288,7 +3288,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1837</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1838</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -7460,9 +7460,15 @@
 
             while (pages < 20) {
                 const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-                const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name,mimeType)&pageSize=100&includeItemsFromAllDrives=true&supportsAllDrives=true${pageToken ? `&pageToken=${pageToken}` : ''}`;
+                // corpora=allDrives is REQUIRED to list children of a Shared Drive folder —
+                // without it the query defaults to the user's My Drive and returns nothing,
+                // even though the folder itself shows up in the (allDrives) folder picker.
+                const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name,mimeType)&pageSize=100&corpora=allDrives&includeItemsFromAllDrives=true&supportsAllDrives=true${pageToken ? `&pageToken=${pageToken}` : ''}`;
                 const res = await fetch(url, { headers: { 'Authorization': `Bearer ${window.gchatAccessToken}` } });
-                if (!res.ok) break;
+                if (!res.ok) {
+                    console.warn(`[DRIVE] Contents fetch for folder ${folderId} failed: ${res.status} ${res.statusText}`);
+                    break;
+                }
                 const data = await res.json();
                 const files = data.files || [];
 
@@ -8797,6 +8803,8 @@
             STEP 2a — For DAILY LINE CHARTS (competitor comparison over time): Call action='get_visibility' with metric='all' for the PRIMARY entity first, then call again for EACH competitor entity. Each call returns daily rows with fields: date (ISO string), visibility (0–1 decimal — multiply × 100 for %), sov, mentions, position. Align all entities on the same date axis.
             STEP 2b — For MONTHLY BAR CHARTS or SUMMARY metrics: Call action='get_visibility' with dimension='topic' or aggregate across the date rows.
             IMPORTANT: Not all projects have data — if a project returns total=0 with a 'note' field it is not configured; try other matching projects.
+
+            GOOGLE DRIVE: You CAN access the user's Google Drive. When the user selects Drive folders in the connector and loads data, the extracted text of those documents is provided to you in SYNCED CONTEXT under "drive_documents" (each has folder, file, type, content). When asked whether you can access Drive or about a Drive folder's contents, check drive_documents and answer from it directly — do NOT say you lack Drive access. If no drive_documents are present, tell the user to select the folder(s) in the Google Drive Folders picker and click "Load Data" (and that only folders containing readable Docs/Sheets/Slides/text files will return content).
 
             ════════════════════════════════════════════════
             DIGIMETRICS PLATFORM TOOLS — PROACTIVE RECOMMENDATIONS
