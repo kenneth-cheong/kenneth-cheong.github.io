@@ -3288,7 +3288,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1843</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1844</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -5963,11 +5963,21 @@
         // Selecting Drive folders implies "include Drive" — keep the toggle in sync
         // and prompt the user to reload data so the new folders are actually read.
         function onGDriveSelectionChanged() {
-            const hasFolders = msState.msGDriveFolderDropdown.selected.length > 0;
+            const sel = msState.msGDriveFolderDropdown.selected;
+            const hasFolders = sel.length > 0;
             const driveToggle = document.getElementById('syncDriveToggle');
             if (driveToggle && hasFolders) driveToggle.checked = true;
             const badge = document.getElementById('syncRequiredBadge');
             if (badge) badge.style.display = 'inline-flex';
+            // Flag any newly-selected folder that has no readable items (once per folder)
+            if (getWorkspaceToken()) {
+                sel.forEach(folder => {
+                    const id = typeof folder === 'object' ? folder.id : folder;
+                    if (window._driveFolderChecked.has(id)) return;
+                    window._driveFolderChecked.add(id);
+                    checkDriveFolderEmpty(folder);
+                });
+            }
         }
 
         function removeMsSelection(dropdownId, optionId, event) {
@@ -6011,7 +6021,11 @@
                 const name = typeof item === 'object' ? item.name : item;
                 const id = typeof item === 'object' ? item.id : name;
                 const label = name.length > 22 ? name.substring(0, 20) + '…' : name;
-                html += `<span class="ms-chip" title="${name}">${label}<i class="fas fa-times ms-chip-remove" onclick="removeMsSelection('${dropdownId}', '${id.toString().replace(/'/g, "\\'")}', event)"></i></span>`;
+                // Flag Drive folders that were found to have no readable documents
+                const isEmpty = dropdownId === 'msGDriveFolderDropdown' && window._emptyDriveFolderIds && window._emptyDriveFolderIds.has(id);
+                const warn = isEmpty ? '<i class="fas fa-triangle-exclamation" style="color:#f59e0b; margin-right:4px;"></i>' : '';
+                const chipTitle = isEmpty ? `${name} — no readable documents in this folder` : name;
+                html += `<span class="ms-chip" title="${chipTitle}">${warn}${label}<i class="fas fa-times ms-chip-remove" onclick="removeMsSelection('${dropdownId}', '${id.toString().replace(/'/g, "\\'")}', event)"></i></span>`;
             });
             if (state.selected.length > MAX_CHIPS) {
                 html += `<span class="ms-overflow-count">+${state.selected.length - MAX_CHIPS} more</span>`;
@@ -7546,6 +7560,63 @@
             }
         }
 
+        // ---- Google Drive: extract file/folder IDs from Google URLs pasted in chat ----
+        function parseGoogleDriveUrls(text) {
+            if (!text) return [];
+            const found = [];
+            const seen = new Set();
+            const add = (id, kind) => { if (id && !seen.has(id)) { seen.add(id); found.push({ id, kind }); } };
+            let m;
+            const patterns = [
+                [/drive\.google\.com\/drive\/(?:u\/\d+\/)?folders\/([a-zA-Z0-9_-]{10,})/g, 'folder'],
+                [/docs\.google\.com\/(?:document|spreadsheets|presentation)\/d\/([a-zA-Z0-9_-]{10,})/g, 'file'],
+                [/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]{10,})/g, 'file'],
+                [/(?:drive|docs)\.google\.com\/[^\s]*[?&]id=([a-zA-Z0-9_-]{10,})/g, 'unknown']
+            ];
+            for (const [re, kind] of patterns) {
+                while ((m = re.exec(text)) !== null) add(m[1], kind);
+            }
+            return found;
+        }
+
+        // ---- Google Drive: fetch a single item (file or folder) by ID and return its text ----
+        async function fetchGoogleDriveItemById(id) {
+            const token = getWorkspaceToken();
+            if (!token) return null;
+            const meta = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=id,name,mimeType&supportsAllDrives=true`,
+                { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.ok ? r.json() : null).catch(() => null);
+            if (!meta) return null;
+            if (meta.mimeType === 'application/vnd.google-apps.folder') {
+                const files = await fetchGoogleDriveFolderContents(id);
+                const docs = [];
+                for (const f of files.slice(0, 30)) {
+                    const t = await fetchGoogleDriveFileContent(f);
+                    if (t && t.trim()) docs.push({ file: f.name, content: t });
+                }
+                return { kind: 'folder', name: meta.name, docs };
+            }
+            const content = await fetchGoogleDriveFileContent(meta);
+            return { kind: 'file', name: meta.name, content: content || '' };
+        }
+
+        // ---- Google Drive: warn when a selected folder has no readable items ----
+        window._emptyDriveFolderIds = window._emptyDriveFolderIds || new Set();
+        window._driveFolderChecked = window._driveFolderChecked || new Set();
+        async function checkDriveFolderEmpty(folder) {
+            const id = typeof folder === 'object' ? folder.id : folder;
+            const name = typeof folder === 'object' ? folder.name : id;
+            try {
+                const files = await fetchGoogleDriveFolderContents(id);
+                if (!files || files.length === 0) {
+                    window._emptyDriveFolderIds.add(id);
+                    showToast(`⚠️ "${name}" has no readable documents — nothing will load from it.`, 'warning', 6000);
+                    renderMsTrigger('msGDriveFolderDropdown');
+                } else {
+                    window._emptyDriveFolderIds.delete(id);
+                }
+            } catch (e) { /* non-fatal */ }
+        }
+
         // ---- Gmail: Search for matching threads ----
         async function fetchGmailThreads(searchQuery, daysBack = 90) {
             if (!window.gchatAccessToken) return [];
@@ -8862,7 +8933,7 @@
             STEP 2b — For MONTHLY BAR CHARTS or SUMMARY metrics: Call action='get_visibility' with dimension='topic' or aggregate across the date rows.
             IMPORTANT: Not all projects have data — if a project returns total=0 with a 'note' field it is not configured; try other matching projects.
 
-            GOOGLE DRIVE: You CAN access the user's Google Drive. When the user selects Drive folders in the connector and loads data, the extracted text of those documents is provided to you in SYNCED CONTEXT under "drive_documents" (each has folder, file, type, content). When asked whether you can access Drive or about a Drive folder's contents, check drive_documents and answer from it directly — do NOT say you lack Drive access. If no drive_documents are present, tell the user to select the folder(s) in the Google Drive Folders picker and click "Load Data" (and that only folders containing readable Docs/Sheets/Slides/text files will return content).
+            GOOGLE DRIVE: You CAN access the user's Google Drive. When the user selects Drive folders in the connector and loads data, the extracted text of those documents is provided to you in SYNCED CONTEXT under "drive_documents" (each has folder, file, type, content). The user can ALSO paste a Google Drive / Docs / Sheets / Slides URL directly into the chat — the linked file's or folder's text is fetched automatically and appended to their message inside "--- GOOGLE DRIVE FILE/FOLDER: ... ---" markers; read and use that content directly. When asked whether you can access Drive or about a Drive folder's contents, check drive_documents and the pasted-link content and answer from it directly — do NOT say you lack Drive access. If no drive_documents are present and no link was pasted, tell the user to either paste a Drive link or select the folder(s) in the Google Drive Folders picker and click "Load Data" (only readable Docs/Sheets/Slides/text files return content).
 
             ════════════════════════════════════════════════
             DIGIMETRICS PLATFORM TOOLS — PROACTIVE RECOMMENDATIONS
@@ -9218,6 +9289,39 @@
                         } else {
                             currentContent[0].text += `\n\n[User attached file: ${att.name}]`;
                         }
+                    }
+                }
+
+                // --- Inline Google Drive / Docs URLs pasted in the message ---
+                const driveUrlItems = parseGoogleDriveUrls(text);
+                if (driveUrlItems.length > 0) {
+                    if (!getWorkspaceToken()) {
+                        currentContent[0].text += `\n\n[A Google Drive link was detected but Google Workspace isn't connected. Connect it in the right-hand panel so I can read the linked file/folder.]`;
+                    } else {
+                        const tEl = showToast(`Reading ${driveUrlItems.length} Google Drive link${driveUrlItems.length > 1 ? 's' : ''}…`, 'loading', 0);
+                        for (const item of driveUrlItems) {
+                            try {
+                                const res = await fetchGoogleDriveItemById(item.id);
+                                const remaining = MAX_DOC_CHARS_TOTAL - docCharsUsed;
+                                if (!res) {
+                                    currentContent[0].text += `\n\n[Could not access the Google Drive item ${item.id} — it may not exist or you may not have permission.]`;
+                                } else if (res.kind === 'folder') {
+                                    let blob = res.docs.map(d => `### ${d.file}\n${d.content}`).join('\n\n');
+                                    if (!blob) blob = '(no readable documents in this folder)';
+                                    if (blob.length > remaining) blob = blob.slice(0, Math.max(0, remaining)) + '\n…[truncated]';
+                                    docCharsUsed += blob.length;
+                                    currentContent[0].text += `\n\n--- GOOGLE DRIVE FOLDER: ${res.name} (${res.docs.length} document${res.docs.length !== 1 ? 's' : ''}) ---\n${blob}\n--- END FOLDER ---`;
+                                } else {
+                                    let c = res.content || '(no readable text in this file)';
+                                    if (c.length > remaining) c = c.slice(0, Math.max(0, remaining)) + '\n…[truncated]';
+                                    docCharsUsed += c.length;
+                                    currentContent[0].text += `\n\n--- GOOGLE DRIVE FILE: ${res.name} ---\n${c}\n--- END FILE ---`;
+                                }
+                            } catch (e) {
+                                console.warn('[DRIVE URL] Failed to read', item.id, e);
+                            }
+                        }
+                        tEl && tEl.remove && tEl.remove();
                     }
                 }
 
