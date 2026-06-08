@@ -3288,7 +3288,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1853</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1854</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -9800,10 +9800,41 @@
             amber:   { primary:'D97706', accent:'F59E0B', text:'1E293B', muted:'64748B', bg:'FFFFFF', band:'FFFBEB' },
         };
 
-        // The only slide types the renderer understands. Anything else is dropped.
+        // The only slide types the renderer understands.
         const DECK_SLIDE_TYPES = new Set(['title','section','bullets','metrics','stats','pillars','twocol','chart','closing']);
         // Hard caps so a verbose model can't overflow a fixed-size slide.
         const DECK_LIMITS = { stats:4, metrics:4, pillars:5, bullets:6, twocol:6 };
+        // Common synonyms the model reaches for, mapped to the layout we actually render.
+        // Keys are alpha-only (the lookup strips non-letters), so "two-column" -> "twocolumn".
+        const DECK_TYPE_ALIASES = {
+            cover:'title', hero:'title', intro:'title', opening:'title', titleslide:'title',
+            thanks:'closing', thankyou:'closing', cta:'closing', end:'closing', outro:'closing', contact:'closing', conclusion:'closing',
+            divider:'section', agenda:'section', sectionheader:'section', chapter:'section', header:'section',
+            list:'bullets', points:'bullets', content:'bullets', text:'bullets', bullet:'bullets', paragraph:'bullets', summary:'bullets', overview:'bullets',
+            kpi:'metrics', kpis:'metrics', numbers:'metrics', results:'metrics', metric:'metrics',
+            stat:'stats', statistics:'stats', proofpoints:'stats', trackrecord:'stats', achievements:'stats',
+            comparison:'twocol', compare:'twocol', versus:'twocol', vs:'twocol', twocolumn:'twocol', columns:'twocol', sidebyside:'twocol',
+            steps:'pillars', process:'pillars', roadmap:'pillars', strategy:'pillars', phases:'pillars', pillar:'pillars', approach:'pillars',
+            graph:'chart', data:'chart', diagram:'chart',
+        };
+
+        // Flatten an unrecognised (or data-less) slide into a bullets slide so NOTHING is lost:
+        // keep its title and harvest any text we can find from its content fields.
+        function coerceSlideToBullets(s) {
+            let bullets = [];
+            for (const key of ['bullets','items','points','lines','content','list']) {
+                if (Array.isArray(s[key])) {
+                    bullets = s[key].map(x => typeof x === 'string' ? x : (x && (x.text || x.label || x.title || x.value)) || '').filter(Boolean);
+                    if (bullets.length) break;
+                }
+            }
+            if (!bullets.length) {
+                bullets = Object.keys(s)
+                    .filter(k => k !== 'type' && k !== 'title' && typeof s[k] === 'string' && s[k].trim())
+                    .map(k => s[k].trim());
+            }
+            return { type: 'bullets', title: typeof s.title === 'string' ? s.title : '', bullets: bullets.slice(0, DECK_LIMITS.bullets) };
+        }
 
         // Coerce ANY model-emitted deck object into the locked MediaOne shape.
         // This is the strict-enforcement choke point: the model only supplies CONTENT;
@@ -9814,16 +9845,39 @@
             const subtitle = typeof d.subtitle === 'string' ? d.subtitle.trim() : '';
 
             let slides = (Array.isArray(d.slides) ? d.slides : [])
-                .filter(s => s && typeof s === 'object' && DECK_SLIDE_TYPES.has(s.type))
+                .filter(s => s && typeof s === 'object')
                 .map(s => {
                     // Strip any per-slide styling the model tried to inject — styling is owned
                     // by the renderer. Keep only content fields.
                     ['color','background','bg','theme','accent','style','font','fontFace','css'].forEach(k => delete s[k]);
-                    if (s.type === 'stats'   && Array.isArray(s.stats))   s.stats   = s.stats.slice(0, DECK_LIMITS.stats);
-                    if (s.type === 'metrics' && Array.isArray(s.metrics)) s.metrics = s.metrics.slice(0, DECK_LIMITS.metrics);
-                    if (s.type === 'pillars' && Array.isArray(s.pillars)) s.pillars = s.pillars.slice(0, DECK_LIMITS.pillars);
-                    if (s.type === 'bullets' && Array.isArray(s.bullets)) s.bullets = s.bullets.slice(0, DECK_LIMITS.bullets);
-                    if (s.type === 'twocol' && s.twocol && typeof s.twocol === 'object') {
+
+                    // 1. Resolve a canonical, known type: direct match, then alias map.
+                    let type = DECK_SLIDE_TYPES.has(s.type)
+                        ? s.type
+                        : DECK_TYPE_ALIASES[String(s.type || '').toLowerCase().replace(/[^a-z]/g, '')];
+
+                    // 2. A content layout is only valid if its data field is actually present;
+                    //    otherwise — and for anything still unrecognised — fall back to bullets,
+                    //    preserving whatever content the slide carried (alternative to dropping).
+                    const hasData = {
+                        bullets: Array.isArray(s.bullets),
+                        metrics: Array.isArray(s.metrics),
+                        stats:   Array.isArray(s.stats),
+                        pillars: Array.isArray(s.pillars),
+                        twocol:  s.twocol && typeof s.twocol === 'object',
+                        chart:   s.chart && typeof s.chart === 'object',
+                    };
+                    if (!type || (type in hasData && !hasData[type])) {
+                        return coerceSlideToBullets(s);
+                    }
+
+                    // 3. Known type with valid data — keep it and clamp its collection.
+                    s.type = type;
+                    if (type === 'stats')   s.stats   = s.stats.slice(0, DECK_LIMITS.stats);
+                    if (type === 'metrics') s.metrics = s.metrics.slice(0, DECK_LIMITS.metrics);
+                    if (type === 'pillars') s.pillars = s.pillars.slice(0, DECK_LIMITS.pillars);
+                    if (type === 'bullets') s.bullets = s.bullets.slice(0, DECK_LIMITS.bullets);
+                    if (type === 'twocol') {
                         ['left','right'].forEach(side => {
                             if (s.twocol[side] && Array.isArray(s.twocol[side].items)) {
                                 s.twocol[side].items = s.twocol[side].items.slice(0, DECK_LIMITS.twocol);
