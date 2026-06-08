@@ -5546,27 +5546,27 @@
                                 }
                                 break;
                             case 'team':
-                                el.innerHTML = `<div class="team-grid">${(block.content.members || []).map(m => {
+                                el.innerHTML = `<div class="team-grid">${(block.content.members || []).map((m, idx) => {
                                     const name = (m && m.name) ? m.name : 'TBD';
                                     const role = (m && m.role) ? m.role : '';
                                     return `
                                     <div class="team-card">
                                         <div class="team-avatar">${(name[0] || '?').toUpperCase()}</div>
                                         <div class="team-info">
-                                            <strong>${name}</strong>
-                                            <span>${role}</span>
+                                            <strong contenteditable="true" onblur="TenderAI.Utils.updateTeamMember('${block.id}', ${idx}, 'name', this.innerText)">${name}</strong>
+                                            <span contenteditable="true" onblur="TenderAI.Utils.updateTeamMember('${block.id}', ${idx}, 'role', this.innerText)">${role}</span>
                                         </div>
                                     </div>`;
                                 }).join('')}</div>`;
                                 break;
                             case 'timeline':
                                 el.innerHTML = `<div class="slide-timeline">
-                                    ${(block.content.steps || []).map(s => `
+                                    ${(block.content.steps || []).map((s, idx) => `
                                         <div class="timeline-step">
                                             <div class="step-marker"></div>
                                             <div class="step-content">
-                                                <strong>${s.date || ''}</strong>
-                                                <p>${s.event || ''}</p>
+                                                <strong contenteditable="true" onblur="TenderAI.Utils.updateTimelineStep('${block.id}', ${idx}, 'date', this.innerText)">${s.date || ''}</strong>
+                                                <p contenteditable="true" onblur="TenderAI.Utils.updateTimelineStep('${block.id}', ${idx}, 'event', this.innerText)">${s.event || ''}</p>
                                             </div>
                                         </div>
                                     `).join('')}
@@ -5574,8 +5574,8 @@
                                 break;
                             case 'proof_points':
                                 el.innerHTML = `<ul class="proof-points">
-                                    ${(block.content.points || []).map(p => `
-                                        <li><i data-lucide="check-circle" size="14"></i> ${p}</li>
+                                    ${(block.content.points || []).map((p, idx) => `
+                                        <li><i data-lucide="check-circle" size="14"></i> <span contenteditable="true" onblur="TenderAI.Utils.updateProofPointItem('${block.id}', ${idx}, this.innerText)">${p}</span></li>
                                     `).join('')}
                                 </ul>`;
                                 break;
@@ -5855,6 +5855,30 @@
                         const block = slide?.blocks.find(b => b.id === blockId);
                         if (block && block.content.rows[rowIdx]) {
                             block.content.rows[rowIdx][colIdx] = value;
+                            saveProjects();
+                        }
+                    },
+                    updateTeamMember: (blockId, idx, field, value) => {
+                        const slide = slidesData[activeSlideIndex];
+                        const block = slide?.blocks.find(b => b.id === blockId);
+                        if (block && block.content.members && block.content.members[idx]) {
+                            block.content.members[idx][field] = value;
+                            saveProjects();
+                        }
+                    },
+                    updateTimelineStep: (blockId, idx, field, value) => {
+                        const slide = slidesData[activeSlideIndex];
+                        const block = slide?.blocks.find(b => b.id === blockId);
+                        if (block && block.content.steps && block.content.steps[idx]) {
+                            block.content.steps[idx][field] = value;
+                            saveProjects();
+                        }
+                    },
+                    updateProofPointItem: (blockId, idx, value) => {
+                        const slide = slidesData[activeSlideIndex];
+                        const block = slide?.blocks.find(b => b.id === blockId);
+                        if (block && block.content.points && idx < block.content.points.length) {
+                            block.content.points[idx] = value;
                             saveProjects();
                         }
                     },
@@ -6746,7 +6770,7 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                     <div style="padding: 1.5rem;">
                         <div class="card" style="padding: 1.5rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 1.5rem;">
                             <h3 style="margin-bottom: 1rem; color: var(--primary);">Summary & Insights</h3>
-                            <div class="formatted-content">${mr.summary || 'No summary available.'}</div>
+                            <div class="formatted-content" contenteditable="true" onblur="updateMarketResearchField('summary', this.innerHTML)">${mr.summary || 'No summary available.'}</div>
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
                             <div class="card" style="padding: 1.5rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg);">
@@ -6754,7 +6778,7 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                                     <i data-lucide="trending-up" size="18" style="color: var(--success);"></i> Industry Trends
                                 </h3>
                                 <ul style="padding-left: 1.25rem; font-size: 0.875rem; color: var(--text-muted);">
-                                    ${(mr.trends || []).map(t => `<li style="margin-bottom:0.5rem">${t}</li>`).join('') || '<li>No trends identified.</li>'}
+                                    ${(mr.trends || []).map((t, i) => `<li style="margin-bottom:0.5rem" contenteditable="true" onblur="updateMarketResearchListItem('trends', ${i}, this.innerText)">${t}</li>`).join('') || '<li>No trends identified.</li>'}
                                 </ul>
                             </div>
                             <div class="card" style="padding: 1.5rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg);">
@@ -6762,7 +6786,7 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                                     <i data-lucide="zap" size="18" style="color: var(--warning);"></i> Opportunities
                                 </h3>
                                 <ul style="padding-left: 1.25rem; font-size: 0.875rem; color: var(--text-muted);">
-                                    ${(mr.opportunities || []).map(o => `<li style="margin-bottom:0.5rem">${o}</li>`).join('') || '<li>No opportunities identified.</li>'}
+                                    ${(mr.opportunities || []).map((o, i) => `<li style="margin-bottom:0.5rem" contenteditable="true" onblur="updateMarketResearchListItem('opportunities', ${i}, this.innerText)">${o}</li>`).join('') || '<li>No opportunities identified.</li>'}
                                 </ul>
                             </div>
                         </div>
@@ -6801,10 +6825,10 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        ${(ca.landscape || []).map(c => `
+                                        ${(ca.landscape || []).map((c, i) => `
                                             <tr>
-                                                <td style="font-weight: 600;">${c.name}</td>
-                                                <td style="font-size: 0.8125rem;">${c.swot}</td>
+                                                <td style="font-weight: 600;" contenteditable="true" onblur="updateCompetitorLandscape(${i}, 'name', this.innerText)">${c.name}</td>
+                                                <td style="font-size: 0.8125rem;" contenteditable="true" onblur="updateCompetitorLandscape(${i}, 'swot', this.innerText)">${c.swot}</td>
                                             </tr>
                                         `).join('') || '<tr><td colspan="2" style="text-align:center;">No competitors analyzed.</td></tr>'}
                                     </tbody>
@@ -6814,16 +6838,46 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
                             <div class="card" style="padding: 1.5rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg); border-left: 4px solid var(--success);">
                                 <h3 style="margin-bottom: 1rem; color: var(--success); font-size: 1rem;">Blue Ocean Opportunities</h3>
-                                <p style="font-size: 0.875rem; color: var(--text-muted);">${ca.blueOcean || 'No blue ocean strategies identified yet.'}</p>
+                                <p style="font-size: 0.875rem; color: var(--text-muted);" contenteditable="true" onblur="updateCompetitorField('blueOcean', this.innerText)">${ca.blueOcean || 'No blue ocean strategies identified yet.'}</p>
                             </div>
                             <div class="card" style="padding: 1.5rem; background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg); border-left: 4px solid var(--danger);">
                                 <h3 style="margin-bottom: 1rem; color: var(--danger); font-size: 1rem;">Red Ocean (Avoid)</h3>
-                                <p style="font-size: 0.875rem; color: var(--text-muted);">${ca.redOcean || 'No red ocean areas identified yet.'}</p>
+                                <p style="font-size: 0.875rem; color: var(--text-muted);" contenteditable="true" onblur="updateCompetitorField('redOcean', this.innerText)">${ca.redOcean || 'No red ocean areas identified yet.'}</p>
                             </div>
                         </div>
                     </div>
                 `;
                 lucide.createIcons();
+            }
+
+            // --- Editable AI output handlers: Market Research & Competitor Analysis ---
+            function updateMarketResearchField(field, value) {
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (!p || !p.marketResearch) return;
+                p.marketResearch[field] = value;
+                saveProjects();
+            }
+            function updateMarketResearchListItem(field, idx, value) {
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (!p || !p.marketResearch || !Array.isArray(p.marketResearch[field])) return;
+                if (idx < p.marketResearch[field].length) {
+                    p.marketResearch[field][idx] = value;
+                    saveProjects();
+                }
+            }
+            function updateCompetitorField(field, value) {
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (!p || !p.competitorAnalysis) return;
+                p.competitorAnalysis[field] = value;
+                saveProjects();
+            }
+            function updateCompetitorLandscape(idx, field, value) {
+                const p = projects.find(proj => proj.id === currentProjectId);
+                if (!p || !p.competitorAnalysis || !Array.isArray(p.competitorAnalysis.landscape)) return;
+                if (p.competitorAnalysis.landscape[idx]) {
+                    p.competitorAnalysis.landscape[idx][field] = value;
+                    saveProjects();
+                }
             }
 
             function triggerGlobalUpload() {
