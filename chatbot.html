@@ -3125,6 +3125,7 @@
         .insight-team.team-seo { background: #dcfce7; color: #166534; }
         .insight-team.team-sem { background: #fef9c3; color: #854d0e; }
         .insight-team.team-smm { background: #fce7f3; color: #9d174d; }
+        .insight-team.team-bd  { background: #fff7ed; color: #9a3412; }
         .insight-team.team-everyone { background: #f1f5f9; color: #475569; }
 
         .insight-date {
@@ -3198,6 +3199,7 @@
         .insight-team-select.team-seo      { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
         .insight-team-select.team-sem      { background: #fef9c3; color: #854d0e; border-color: #fef08a; }
         .insight-team-select.team-smm      { background: #fce7f3; color: #9d174d; border-color: #fbcfe8; }
+        .insight-team-select.team-bd       { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
         .insight-team-select.team-everyone { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
 
         .insight-teams { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
@@ -3217,6 +3219,7 @@
         .insight-team-chip.team-seo      { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
         .insight-team-chip.team-sem      { background: #fef9c3; color: #854d0e; border-color: #fef08a; }
         .insight-team-chip.team-smm      { background: #fce7f3; color: #9d174d; border-color: #fbcfe8; }
+        .insight-team-chip.team-bd       { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
         .insight-team-chip.team-everyone { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
         .insight-team-add {
             padding: 2px 7px; border-radius: 20px; font-size: 0.65rem; font-weight: 700;
@@ -3285,7 +3288,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1834</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1835</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -8778,7 +8781,7 @@
             10. get_gsc_performance: For Google Search Console (clicks, impressions).
             11. get_ga4_report: For Google Analytics (sessions, users, conversions).
             12. get_ads_report: For Google Ads performance (cost, CPC, ROAS).
-            13. save_memory_note: STRICT MANDATE. Use this whenever you learn a new preference, fact, or logic about the user or their projects. Always include a "tag" field (one of: "Preference", "Strategy", "Fact", "Process", "Constraint") and a "teams" array (one or more of: "SEO", "SEM", "SMM", "Everyone" — use multiple if the memory applies to multiple teams, use ["Everyone"] if broad).
+            13. save_memory_note: STRICT MANDATE. Use this whenever you learn a new preference, fact, or logic about the user or their projects. Always include a "tag" field (one of: "Preference", "Strategy", "Fact", "Process", "Constraint") and a "teams" array (one or more of: "SEO", "SEM", "SMM", "BD", "Everyone" — use multiple if the memory applies to multiple teams, use ["Everyone"] if broad).
             14. get_seranking_report: Fetch keyword rankings and positions for a specific SE Ranking campaign. You MUST use this tool when the user asks about SEO keywords, rankings, or SE Ranking data.
             15. get_meta_ads_report: Fetch Meta (Facebook/Instagram) Ads performance data — spend, impressions, clicks, CTR, CPM, CPC, ROAS, results, and cost per result. Use this whenever the user asks about Meta Ads, Facebook Ads, Instagram Ads, or paid social performance. The ad_account_id values are in the synced context under 'meta_ad_account_ids'.
             16. get_linkedin_ads_report: Fetch LinkedIn Ads performance data — spend, impressions, clicks, CTR, CPM, CPC, conversions, and cost per conversion. Use this whenever the user asks about LinkedIn Ads or B2B paid social performance. The account_id values are in the synced context under 'linkedin_ad_account_ids'. Use the linkedin_access_token from synced context for API calls.
@@ -10444,6 +10447,7 @@
                     <option value="SEO">SEO</option>
                     <option value="SEM">SEM</option>
                     <option value="SMM">SMM</option>
+                    <option value="BD">BD</option>
                 </select>
                 <select id="insightFilterSource" onchange="renderInsights()"
                     style="padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.75rem; font-family: inherit; background: #fff; color: #475569; font-weight: 600; cursor: pointer;">
@@ -10734,7 +10738,7 @@
             const insight = learnedInsights.find(i => i.id == id);
             if (!insight) return;
             const current = insight.teams || (insight.team ? [insight.team] : ['Everyone']);
-            const available = ['Everyone','SEO','SEM','SMM'].filter(t => !current.includes(t));
+            const available = ['Everyone','SEO','SEM','SMM','BD'].filter(t => !current.includes(t));
             if (!available.length) { showToast('All teams already assigned', 'info'); return; }
             const dropdown = document.createElement('div');
             dropdown.className = 'team-dropdown';
