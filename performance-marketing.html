@@ -6,6 +6,7 @@
 <title>Performance Marketing Audit — Starter | MediaOne</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
 <style>
   :root { --brand:#4f46e5; --brand2:#0ea5e9; --ink:#1e293b; --muted:#64748b; --line:#e2e8f0; --bg:#f1f5f9; }
   * { box-sizing:border-box; }
@@ -288,7 +289,19 @@ function renderPerformanceMarketing(d){
       type:'doughnut',
       data:{ labels: segs.map(p=>p.platform), datasets:[{ data: segs.map(p=>parseInt(p.budget_share_pct,10)||0), backgroundColor: segs.map((p,i)=>palette[i%palette.length]), borderWidth:2, borderColor:'#fff' }] },
       options:{ responsive:true, maintainAspectRatio:false, cutout:'58%',
-        plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:c=>` ${c.label}: ${c.parsed}%` } } } }
+        plugins:{
+          legend:{display:false},
+          tooltip:{ callbacks:{ label:c=>` ${c.label}: ${c.parsed}%` } },
+          datalabels:{
+            display: true,
+            color: '#fff',
+            font: { weight: 'bold', size: 11 },
+            formatter: (value, ctx) => ctx.chart.data.labels[ctx.dataIndex] + '\n' + value + '%',
+            textAlign: 'center'
+          }
+        }
+      },
+      plugins: [ChartDataLabels]
     });
   }
 }
