@@ -3288,7 +3288,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1852</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1853</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -9743,8 +9743,12 @@
             // Slide decks
             el.querySelectorAll('code.language-slides').forEach((code) => {
                 try {
-                    const deck = JSON.parse(code.textContent.trim());
-                    if (!deck || !Array.isArray(deck.slides) || !deck.slides.length) return;
+                    const parsed = JSON.parse(code.textContent.trim());
+                    if (!parsed || !Array.isArray(parsed.slides) || !parsed.slides.length) return;
+                    // Coerce the model's JSON into the locked MediaOne shape BEFORE it is
+                    // stored, previewed or exported — the renderer, not the model, is the
+                    // source of truth for brand + structure.
+                    const deck = normalizeDeck(parsed);
                     const deckId = 'deck-' + (++_chartCounter) + '-' + Date.now();
                     _deckStore[deckId] = deck;
 
@@ -9795,6 +9799,51 @@
             emerald: { primary:'059669', accent:'10B981', text:'064E3B', muted:'4B5563', bg:'FFFFFF', band:'ECFDF5' },
             amber:   { primary:'D97706', accent:'F59E0B', text:'1E293B', muted:'64748B', bg:'FFFFFF', band:'FFFBEB' },
         };
+
+        // The only slide types the renderer understands. Anything else is dropped.
+        const DECK_SLIDE_TYPES = new Set(['title','section','bullets','metrics','stats','pillars','twocol','chart','closing']);
+        // Hard caps so a verbose model can't overflow a fixed-size slide.
+        const DECK_LIMITS = { stats:4, metrics:4, pillars:5, bullets:6, twocol:6 };
+
+        // Coerce ANY model-emitted deck object into the locked MediaOne shape.
+        // This is the strict-enforcement choke point: the model only supplies CONTENT;
+        // brand, structure and bounds are decided here, in code, not by the model.
+        function normalizeDeck(input) {
+            const d = (input && typeof input === 'object') ? input : {};
+            const title = typeof d.title === 'string' && d.title.trim() ? d.title.trim() : 'Presentation';
+            const subtitle = typeof d.subtitle === 'string' ? d.subtitle.trim() : '';
+
+            let slides = (Array.isArray(d.slides) ? d.slides : [])
+                .filter(s => s && typeof s === 'object' && DECK_SLIDE_TYPES.has(s.type))
+                .map(s => {
+                    // Strip any per-slide styling the model tried to inject — styling is owned
+                    // by the renderer. Keep only content fields.
+                    ['color','background','bg','theme','accent','style','font','fontFace','css'].forEach(k => delete s[k]);
+                    if (s.type === 'stats'   && Array.isArray(s.stats))   s.stats   = s.stats.slice(0, DECK_LIMITS.stats);
+                    if (s.type === 'metrics' && Array.isArray(s.metrics)) s.metrics = s.metrics.slice(0, DECK_LIMITS.metrics);
+                    if (s.type === 'pillars' && Array.isArray(s.pillars)) s.pillars = s.pillars.slice(0, DECK_LIMITS.pillars);
+                    if (s.type === 'bullets' && Array.isArray(s.bullets)) s.bullets = s.bullets.slice(0, DECK_LIMITS.bullets);
+                    if (s.type === 'twocol' && s.twocol && typeof s.twocol === 'object') {
+                        ['left','right'].forEach(side => {
+                            if (s.twocol[side] && Array.isArray(s.twocol[side].items)) {
+                                s.twocol[side].items = s.twocol[side].items.slice(0, DECK_LIMITS.twocol);
+                            }
+                        });
+                    }
+                    return s;
+                });
+
+            // Guarantee a title slide first and a closing slide last.
+            if (!slides.length || slides[0].type !== 'title') {
+                slides.unshift({ type: 'title', title, subtitle });
+            }
+            if (slides[slides.length - 1].type !== 'closing') {
+                slides.push({ type: 'closing', title: 'Thank you', subtitle: '' });
+            }
+
+            // theme is hard-locked — downstream code ignores it anyway, but keep it honest.
+            return { title, subtitle, theme: 'mediaone', slides };
+        }
 
         function downloadDeckPptx(deckId, btn) {
             const deck = _deckStore[deckId];
