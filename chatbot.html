@@ -12,6 +12,7 @@
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -596,8 +597,9 @@
             padding: 12px 20px;
         }
 
-        .mermaid-diagram { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin:10px 0; overflow-x:auto; text-align:center; }
-        .mermaid-diagram svg { min-width:360px; max-width:100%; height:auto; }
+        .mermaid-diagram { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:8px; margin:10px 0; overflow:hidden; position:relative; }
+        .mermaid-diagram svg { display:block; width:100%; height:100%; }
+        .mermaid-diagram .mermaid-zoom-hint { position:absolute; bottom:6px; right:8px; font-size:0.65rem; color:#94a3b8; pointer-events:none; user-select:none; }
         .chart-container { background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin:10px 0; position:relative; height:320px; }
         .message.bot.has-visual { max-width: min(95%, 680px); }
 
@@ -712,6 +714,7 @@
 
         /* Input Area */
         .input-bar {
+            position: relative;
             margin-top: 10px;
             background: #fff;
             padding: 12px;
@@ -2525,6 +2528,145 @@
             display: block;
         }
 
+        /* Hands-free Voice Conversation Mode */
+        .voice-mode-btn {
+            background: none;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            font-size: 1.05rem;
+            padding: 4px;
+            transition: color 0.25s, transform 0.25s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .voice-mode-btn:hover { color: var(--accent-orange); transform: scale(1.08); }
+
+        /* Live interim transcript caption (dictation + convo) */
+        .stt-caption {
+            display: none;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: calc(100% + 8px);
+            max-width: 90%;
+            padding: 7px 14px;
+            background: rgba(26,31,60,0.92);
+            color: #fff;
+            font-size: 0.82rem;
+            line-height: 1.35;
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+            z-index: 50;
+            pointer-events: none;
+            white-space: normal;
+        }
+        .stt-caption.show { display: block; animation: captionPop 0.18s ease both; }
+        .stt-caption .interim { opacity: 0.55; font-style: italic; }
+        @keyframes captionPop { from { opacity: 0; transform: translateX(-50%) translateY(4px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+        /* Full-screen voice conversation overlay */
+        .voice-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            background: radial-gradient(circle at 50% 38%, #232a52 0%, #141832 55%, #0d1024 100%);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .voice-overlay.active { display: flex; animation: voiceFadeIn 0.3s ease both; }
+        @keyframes voiceFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .voice-orb-wrap {
+            position: relative;
+            width: 220px;
+            height: 220px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .voice-orb {
+            width: 130px;
+            height: 130px;
+            border-radius: 50%;
+            background: var(--accent-gradient);
+            box-shadow: 0 0 60px rgba(249,115,22,0.45), inset 0 0 30px rgba(255,255,255,0.18);
+            transition: transform 0.08s ease-out, box-shadow 0.2s, background 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 2.4rem;
+            will-change: transform;
+        }
+        /* concentric pulse rings driven by amplitude */
+        .voice-orb-ring {
+            position: absolute;
+            border-radius: 50%;
+            border: 2px solid rgba(249,115,22,0.35);
+            opacity: 0;
+            pointer-events: none;
+        }
+        .voice-overlay.state-listening .voice-orb { background: linear-gradient(135deg,#f97316,#ea580c); }
+        .voice-overlay.state-thinking .voice-orb {
+            background: linear-gradient(135deg,#3b82f6,#2563eb);
+            box-shadow: 0 0 60px rgba(59,130,246,0.5), inset 0 0 30px rgba(255,255,255,0.18);
+            animation: orbThink 1.1s ease-in-out infinite;
+        }
+        .voice-overlay.state-speaking .voice-orb {
+            background: linear-gradient(135deg,#10b981,#059669);
+            box-shadow: 0 0 60px rgba(16,185,129,0.5), inset 0 0 30px rgba(255,255,255,0.18);
+        }
+        @keyframes orbThink { 0%,100% { transform: scale(0.92); } 50% { transform: scale(1.08); } }
+
+        .voice-state-label {
+            color: #fff;
+            font-size: 1.05rem;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            opacity: 0.92;
+            min-height: 24px;
+        }
+        .voice-sub-label { color: rgba(255,255,255,0.55); font-size: 0.82rem; margin-top: -18px; }
+
+        .voice-caption {
+            color: #e2e8f0;
+            font-size: 1rem;
+            line-height: 1.5;
+            max-width: 560px;
+            width: 86%;
+            text-align: center;
+            min-height: 48px;
+            padding: 0 10px;
+        }
+        .voice-caption .interim { opacity: 0.5; }
+
+        .voice-controls { display: flex; gap: 18px; align-items: center; margin-top: 4px; }
+        .voice-ctrl-btn {
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.15s, background 0.2s, opacity 0.2s;
+            color: #fff;
+        }
+        .voice-ctrl-btn:hover { transform: scale(1.08); }
+        .voice-ctrl-btn.end { background: #ef4444; }
+        .voice-ctrl-btn.mute { background: rgba(255,255,255,0.14); }
+        .voice-ctrl-btn.mute.muted { background: #f59e0b; }
+        .voice-ctrl-hint { position: absolute; bottom: 36px; color: rgba(255,255,255,0.4); font-size: 0.75rem; }
+
         /* Image Modal */
         .image-modal {
             display: none;
@@ -3288,7 +3430,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1854</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1855</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3466,6 +3608,37 @@
                     <button onclick="testTtsVoice()" style="margin-top:8px; width:100%; padding:9px; border-radius:10px; border:1px solid #e2e8f0; background:#f8fafc; font-size:0.82rem; font-weight:600; cursor:pointer; color:var(--primary-navy); font-family:inherit; transition:background 0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
                         <i class="fas fa-play" style="font-size:0.75rem; margin-right:5px;"></i> Test Voice
                     </button>
+
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label>Recognition language</label>
+                        <select id="sttLangSelect" onchange="saveVoiceIoSettings()">
+                            <option value="en-US">English (US)</option>
+                            <option value="en-GB">English (UK)</option>
+                            <option value="en-SG">English (Singapore)</option>
+                            <option value="en-AU">English (Australia)</option>
+                            <option value="en-IN">English (India)</option>
+                            <option value="zh-CN">Chinese (Mandarin)</option>
+                            <option value="ms-MY">Malay</option>
+                            <option value="ta-IN">Tamil</option>
+                            <option value="es-ES">Spanish</option>
+                            <option value="fr-FR">French</option>
+                            <option value="de-DE">German</option>
+                            <option value="ja-JP">Japanese</option>
+                        </select>
+                        <div style="font-size:0.65rem; color:#94a3b8; margin-top:4px;">Language used for the mic dictation &amp; hands-free voice mode.</div>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 16px; border-top:1px solid #eef2f7; padding-top:14px;">
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                            <input type="checkbox" id="neuralTtsToggle" onchange="saveVoiceIoSettings()" style="width:auto;">
+                            <span>High-quality neural voice</span>
+                        </label>
+                        <div style="font-size:0.65rem; color:#94a3b8; margin-top:4px;">Routes spoken replies through your TTS endpoint (OpenAI / ElevenLabs / Google). Falls back to the browser voice if unset or unreachable.</div>
+                        <input type="text" id="neuralTtsUrl" placeholder="https://…/tts  (POST endpoint)" oninput="saveVoiceIoSettings()"
+                            style="margin-top:8px; width:100%; padding:8px 10px; border:1px solid #e2e8f0; border-radius:9px; font-size:0.78rem; font-family:inherit;">
+                        <input type="text" id="neuralTtsVoice" placeholder="Voice id (optional, e.g. alloy / Rachel)" oninput="saveVoiceIoSettings()"
+                            style="margin-top:6px; width:100%; padding:8px 10px; border:1px solid #e2e8f0; border-radius:9px; font-size:0.78rem; font-family:inherit;">
+                    </div>
                 </div>
             </div>
 
@@ -4122,10 +4295,14 @@
                     title="Attach image or file">
                     <i class="fas fa-paperclip"></i>
                 </button>
-                <button class="mic-btn" id="micBtn" onclick="toggleVoiceInput()" title="Voice Input & Recording">
+                <button class="mic-btn" id="micBtn" onclick="toggleVoiceInput()" title="Dictate — speak to fill the message box">
                     <i class="fas fa-microphone"></i>
                     <div class="recording-dot"></div>
                 </button>
+                <button class="voice-mode-btn" id="voiceModeBtn" onclick="VoiceConvo.open()" title="Voice conversation — hands-free, talk and listen">
+                    <i class="fas fa-headset"></i>
+                </button>
+                <div class="stt-caption" id="sttCaption"></div>
                 <button class="prompts-btn" onclick="openPromptsModal()" data-tooltip="Quick Prompts Templates">
                     <i class="fas fa-wand-magic-sparkles"></i>
                 </button>
@@ -4135,6 +4312,26 @@
                 </button>
             </div>
         </main>
+    </div>
+
+    <!-- Hands-free Voice Conversation Overlay -->
+    <div class="voice-overlay" id="voiceOverlay">
+        <div class="voice-orb-wrap" id="voiceOrbWrap" onclick="VoiceConvo.onOrbTap()" title="Tap to interrupt / resume">
+            <div class="voice-orb-ring" id="voiceRing1"></div>
+            <div class="voice-orb-ring" id="voiceRing2"></div>
+            <div class="voice-orb" id="voiceOrb"><i class="fas fa-microphone"></i></div>
+        </div>
+        <div class="voice-state-label" id="voiceStateLabel">Listening…</div>
+        <div class="voice-caption" id="voiceCaption"></div>
+        <div class="voice-controls">
+            <button class="voice-ctrl-btn mute" id="voiceMuteBtn" onclick="VoiceConvo.toggleMute()" title="Pause listening">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button class="voice-ctrl-btn end" onclick="VoiceConvo.close()" title="End voice conversation">
+                <i class="fas fa-xmark"></i>
+            </button>
+        </div>
+        <div class="voice-ctrl-hint">Tap the orb to interrupt · Esc to exit</div>
     </div>
 
     <script>
@@ -9652,10 +9849,14 @@
                 <span class="time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${durationHtml}${speakBtnHtml}</span>
             `;
             list.appendChild(msg);
-            if (sender === 'bot' && !isRestoring && ttsEnabled) {
-                const btn = msg.querySelector('.tts-speak-btn');
-                const content = msg.querySelector('.msg-content');
-                speakText(cleanText, btn, content);
+            if (sender === 'bot' && !isRestoring) {
+                const convoActive = window.VoiceConvo && VoiceConvo.isActive();
+                if (ttsEnabled || convoActive) {
+                    const btn = msg.querySelector('.tts-speak-btn');
+                    const content = msg.querySelector('.msg-content');
+                    if (convoActive) VoiceConvo.onReplyStart();
+                    speakText(cleanText, btn, content);
+                }
             }
             renderChartsInElement(msg);
             setTimeout(() => {
@@ -9684,6 +9885,38 @@
                     const id = `mermaid-${Date.now()}-${Math.random().toString(36).slice(2)}`;
                     const { svg } = await mermaid.render(id, src);
                     wrapper.innerHTML = svg;
+                    // Size the container to a comfortable height before pan-zoom init
+                    const svgEl = wrapper.querySelector('svg');
+                    if (svgEl && typeof svgPanZoom !== 'undefined') {
+                        // Derive natural height from viewBox or height attr, cap between 300–600px
+                        const vb = svgEl.getAttribute('viewBox');
+                        const naturalH = vb ? parseFloat(vb.split(/\s+/)[3]) : parseFloat(svgEl.getAttribute('height')) || 400;
+                        const containerH = Math.min(600, Math.max(300, naturalH));
+                        wrapper.style.height = containerH + 'px';
+                        // Remove fixed dimensions so svg-pan-zoom can control it
+                        svgEl.removeAttribute('width');
+                        svgEl.removeAttribute('height');
+                        svgEl.style.width = '100%';
+                        svgEl.style.height = '100%';
+                        requestAnimationFrame(() => {
+                            try {
+                                svgPanZoom(svgEl, {
+                                    zoomEnabled: true,
+                                    panEnabled: true,
+                                    controlIconsEnabled: true,
+                                    fit: true,
+                                    center: true,
+                                    minZoom: 0.1,
+                                    maxZoom: 20,
+                                    zoomScaleSensitivity: 0.3,
+                                });
+                            } catch(e2) { /* non-fatal */ }
+                        });
+                        const hint = document.createElement('span');
+                        hint.className = 'mermaid-zoom-hint';
+                        hint.textContent = 'Scroll to zoom · drag to pan';
+                        wrapper.appendChild(hint);
+                    }
                     hasVisual = true;
                 } catch(e) {
                     wrapper.innerHTML = `<div style="color:#ef4444; font-size:0.75rem; padding:8px;">Diagram error: ${e.message}</div><pre style="font-size:0.7rem; opacity:0.6;">${src}</pre>`;
@@ -10201,6 +10434,7 @@
             const label = document.getElementById('ttsSpeedLabel');
             if (slider) slider.value = speed;
             if (label) label.textContent = speed.toFixed(1) + '×';
+            restoreVoiceIoSettings();
         }
 
         function saveTtsSettings() {
@@ -10210,9 +10444,32 @@
             localStorage.setItem('tts_speed', speed);
         }
 
+        function saveVoiceIoSettings() {
+            const lang = document.getElementById('sttLangSelect')?.value || 'en-US';
+            localStorage.setItem('stt_lang', lang);
+            localStorage.setItem('neural_tts_enabled', document.getElementById('neuralTtsToggle')?.checked ? 'true' : 'false');
+            localStorage.setItem('neural_tts_url', document.getElementById('neuralTtsUrl')?.value.trim() || '');
+            localStorage.setItem('neural_tts_voice', document.getElementById('neuralTtsVoice')?.value.trim() || '');
+            // Apply language live to an existing dictation recogniser.
+            if (recognition) recognition.lang = lang;
+        }
+
+        function restoreVoiceIoSettings() {
+            const langSel = document.getElementById('sttLangSelect');
+            if (langSel) langSel.value = localStorage.getItem('stt_lang') || 'en-US';
+            const tog = document.getElementById('neuralTtsToggle');
+            if (tog) tog.checked = localStorage.getItem('neural_tts_enabled') === 'true';
+            const urlEl = document.getElementById('neuralTtsUrl');
+            if (urlEl) urlEl.value = localStorage.getItem('neural_tts_url') || '';
+            const voiceEl = document.getElementById('neuralTtsVoice');
+            if (voiceEl) voiceEl.value = localStorage.getItem('neural_tts_voice') || '';
+        }
+
         function testTtsVoice() {
             speakText('Testing one two three. This is how your voice sounds at the current speed.', null, null);
         }
+
+        let _ttsAudio = null;   // active neural-TTS <audio> element, if any
 
         function _ttsCleanup() {
             if (_ttsReadingEl) { _ttsReadingEl.classList.remove('tts-reading'); _ttsReadingEl = null; }
@@ -10222,6 +10479,68 @@
                 if (typeof isRecording !== 'undefined' && isRecording && recognition) {
                     try { recognition.start(); } catch(e) {}
                 }
+            }
+        }
+
+        // Called when playback finishes naturally (or errors out). Lets the
+        // hands-free conversation loop re-open the mic for the next turn.
+        function _ttsFinish() {
+            _ttsCleanup();
+            if (window.VoiceConvo && VoiceConvo.isActive()) VoiceConvo.onSpeechEnded();
+        }
+
+        // Hard-stop every speech source — used for barge-in and when exiting voice mode.
+        function stopAllTts() {
+            try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
+            if (_ttsAudio) {
+                try { _ttsAudio.onended = null; _ttsAudio.onerror = null; _ttsAudio.pause(); } catch (e) {}
+                if (_ttsAudio.src && _ttsAudio.src.startsWith('blob:')) URL.revokeObjectURL(_ttsAudio.src);
+                _ttsAudio = null;
+            }
+            _ttsCleanup();
+        }
+
+        function _neuralTtsEnabled() {
+            return localStorage.getItem('neural_tts_enabled') === 'true' && !!(localStorage.getItem('neural_tts_url') || '').trim();
+        }
+
+        // Returns true if neural synthesis was kicked off; false to fall back to browser TTS.
+        async function _speakNeural(speakStr, btnEl, contentEl) {
+            const url = (localStorage.getItem('neural_tts_url') || '').trim();
+            if (!url) return false;
+            try {
+                const res = await fetchWithTimeout(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        text: speakStr,
+                        voice: localStorage.getItem('neural_tts_voice') || '',
+                        speed: parseFloat(localStorage.getItem('tts_speed') || '1.0')
+                    })
+                }, 20000);
+                if (!res.ok) throw new Error('Neural TTS HTTP ' + res.status);
+                const ct = res.headers.get('content-type') || '';
+                let audioSrc;
+                if (ct.includes('application/json')) {
+                    const data = await res.json();
+                    const b64 = data.audio || data.audioContent || data.data;
+                    if (!b64) throw new Error('No audio in response');
+                    audioSrc = b64.startsWith('data:') ? b64 : `data:${data.mime || 'audio/mpeg'};base64,${b64}`;
+                } else {
+                    audioSrc = URL.createObjectURL(await res.blob());
+                }
+                stopAllTts();
+                const audio = new Audio(audioSrc);
+                _ttsAudio = audio;
+                if (btnEl) { btnEl.classList.add('speaking'); _ttsCurrentBtn = btnEl; }
+                if (contentEl) { contentEl.classList.add('tts-reading'); _ttsReadingEl = contentEl; }
+                audio.onended = _ttsFinish;
+                audio.onerror = _ttsFinish;
+                audio.play().catch(() => _ttsFinish());
+                return true;
+            } catch (e) {
+                console.warn('[Neural TTS] falling back to browser voice:', e);
+                return false;
             }
         }
 
@@ -10240,12 +10559,13 @@
         }
 
         function speakText(text, btnEl, contentEl) {
-            if (!window.speechSynthesis) return;
-            window.speechSynthesis.cancel();
-            _ttsCleanup();
+            const convoActive = window.VoiceConvo && VoiceConvo.isActive();
+            if (!window.speechSynthesis && !_neuralTtsEnabled()) return;
+            stopAllTts();
 
-            // Mute mic to prevent feedback loop
-            if (typeof isRecording !== 'undefined' && isRecording && recognition) {
+            // Mute the dictation mic to prevent a feedback loop — but NOT when the
+            // hands-free conversation is running, which manages its own mic + barge-in.
+            if (!convoActive && typeof isRecording !== 'undefined' && isRecording && recognition) {
                 try { recognition.stop(); } catch(e) {}
                 _ttsMutedMic = true;
             }
@@ -10266,8 +10586,20 @@
                     .replace(/https?:\/\/\S+/g, '')
                     .replace(/\s+/g, ' ').trim();
             }
-            if (!speakStr.trim()) return;
+            if (!speakStr.trim()) { _ttsFinish(); return; }
 
+            // Try high-quality neural TTS first; fall back to the browser voice on any failure.
+            if (_neuralTtsEnabled()) {
+                _speakNeural(speakStr, btnEl, contentEl).then(ok => {
+                    if (!ok) _speakBrowser(speakStr, chunks, btnEl);
+                });
+                return;
+            }
+            _speakBrowser(speakStr, chunks, btnEl);
+        }
+
+        function _speakBrowser(speakStr, chunks, btnEl) {
+            if (!window.speechSynthesis) { _ttsFinish(); return; }
             const utter = new SpeechSynthesisUtterance(speakStr);
             utter.rate = parseFloat(localStorage.getItem('tts_speed') || '1.0');
             const savedVoice = localStorage.getItem('tts_voice') || '';
@@ -10289,8 +10621,8 @@
             }
 
             if (btnEl) { btnEl.classList.add('speaking'); _ttsCurrentBtn = btnEl; }
-            utter.onend = _ttsCleanup;
-            utter.onerror = _ttsCleanup;
+            utter.onend = _ttsFinish;
+            utter.onerror = _ttsFinish;
             window.speechSynthesis.speak(utter);
         }
 
@@ -10455,71 +10787,116 @@
         let mediaRecorder = null;
         let audioChunks = [];
         let isRecording = false;
+        let _sttManualStop = false;   // true when the user (not the engine) ended the session
+
+        const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
+        function getSttLang() { return localStorage.getItem('stt_lang') || 'en-US'; }
+
+        // ── Live interim caption above the input bar ──────────────────────────
+        function _showSttCaption(finalText, interimText) {
+            const cap = document.getElementById('sttCaption');
+            if (!cap) return;
+            const f = (finalText || '').trim();
+            const i = (interimText || '').trim();
+            if (!f && !i) { cap.classList.remove('show'); cap.innerHTML = ''; return; }
+            cap.innerHTML = `${_escapeHtmlSafe(f)}${f && i ? ' ' : ''}<span class="interim">${_escapeHtmlSafe(i)}</span>`;
+            cap.classList.add('show');
+        }
+        function _hideSttCaption() {
+            const cap = document.getElementById('sttCaption');
+            if (cap) { cap.classList.remove('show'); cap.innerHTML = ''; }
+        }
+        function _escapeHtmlSafe(s) {
+            return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+        }
 
         function initSpeechRecognition() {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (SpeechRecognition) {
-                recognition = new SpeechRecognition();
-                recognition.continuous = true;
-                recognition.interimResults = true;
-                recognition.lang = 'en-US';
+            if (!SpeechRecognitionImpl) return;
+            recognition = new SpeechRecognitionImpl();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = getSttLang();
 
-                recognition.onresult = (event) => {
-                    const input = document.getElementById('userInput');
-                    let finalTranscript = '';
+            recognition.onresult = (event) => {
+                const input = document.getElementById('userInput');
+                let finalTranscript = '';
+                let interimTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    const t = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) finalTranscript += t;
+                    else interimTranscript += t;
+                }
+                if (finalTranscript) {
+                    input.value += (input.value ? ' ' : '') + finalTranscript.trim();
+                    input.style.height = 'auto';
+                    input.style.height = (input.scrollHeight) + 'px';
+                }
+                _showSttCaption(input.value, interimTranscript);
+            };
 
-                    for (let i = event.resultIndex; i < event.results.length; ++i) {
-                        if (event.results[i].isFinal) {
-                            finalTranscript += event.results[i][0].transcript;
-                        }
-                    }
-                    if (finalTranscript) {
-                        input.value += (input.value ? ' ' : '') + finalTranscript;
-                        input.style.height = 'auto';
-                        input.style.height = (input.scrollHeight) + 'px';
-                    }
-                };
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                    showToast('Microphone permission denied. Enable it in your browser settings.', 'error', 4000);
+                    _sttManualStop = true;
+                    stopVoiceInput();
+                } else if (event.error === 'audio-capture') {
+                    showToast('No microphone found.', 'error', 3500);
+                    _sttManualStop = true;
+                    stopVoiceInput();
+                }
+                // 'no-speech' / 'aborted' / 'network' fall through — onend handles restart
+            };
 
-                recognition.onerror = (event) => {
-                    console.error('Speech recognition error:', event.error);
-                };
-            }
+            // Chrome silently ends continuous sessions (~60s or after pauses).
+            // Auto-restart so dictation keeps going until the user stops it.
+            recognition.onend = () => {
+                if (isRecording && !_sttManualStop) {
+                    try { recognition.start(); } catch (e) { /* already starting */ }
+                }
+            };
         }
 
         async function toggleVoiceInput() {
-            if (isRecording) {
-                stopVoiceInput();
-            } else {
-                startVoiceInput();
-            }
+            if (isRecording) stopVoiceInput();
+            else startVoiceInput();
         }
 
         async function startVoiceInput() {
+            _sttManualStop = false;
+            const hasRecognition = !!SpeechRecognitionImpl;
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+                });
                 isRecording = true;
                 document.getElementById('micBtn').classList.add('recording');
 
-                // Start Speech Recognition for real-time text
-                if (!recognition) initSpeechRecognition();
-                if (recognition) recognition.start();
-
-                // Start Media Recorder for the audio clip
-                mediaRecorder = new MediaRecorder(stream);
-                audioChunks = [];
-                mediaRecorder.ondataavailable = (event) => {
-                    audioChunks.push(event.data);
-                };
-                mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                    const audioFile = new File([audioBlob], `recording_${new Date().getTime()}.webm`, { type: 'audio/webm' });
-                    processFile(audioFile);
-                };
-                mediaRecorder.start();
-
+                if (hasRecognition) {
+                    // Transcript-only: speech is recognised live into the input box.
+                    if (!recognition) initSpeechRecognition();
+                    recognition.lang = getSttLang();
+                    try { recognition.start(); } catch (e) { }
+                    _showSttCaption(document.getElementById('userInput').value, 'Listening…');
+                    // We don't need the raw audio when we have a transcript — release the mic.
+                    stream.getTracks().forEach(t => t.stop());
+                } else {
+                    // Fallback: no Web Speech API (e.g. some browsers) → record an audio clip
+                    // and attach it so the backend can transcribe server-side.
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+                    mediaRecorder.onstop = () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const audioFile = new File([audioBlob], `recording_${Date.now()}.webm`, { type: 'audio/webm' });
+                        processFile(audioFile);
+                    };
+                    mediaRecorder.start();
+                    showToast('Recording audio — speech recognition not supported in this browser', 'info', 3000);
+                }
             } catch (err) {
                 console.error('Error accessing microphone:', err);
-                alert('Microphone access denied or not supported.');
+                showToast('Microphone access denied or unavailable.', 'error', 3500);
                 isRecording = false;
                 document.getElementById('micBtn').classList.remove('recording');
             }
@@ -10527,7 +10904,9 @@
 
         function stopVoiceInput() {
             isRecording = false;
+            _sttManualStop = true;
             document.getElementById('micBtn').classList.remove('recording');
+            _hideSttCaption();
 
             if (recognition) {
                 try { recognition.stop(); } catch (e) { }
@@ -10537,6 +10916,238 @@
                 mediaRecorder.stream.getTracks().forEach(track => track.stop());
             }
         }
+
+        // ── Hands-free Voice Conversation Mode ────────────────────────────────
+        // A ChatGPT-style continuous loop: listen (with silence detection) →
+        // auto-send → speak the reply → re-open the mic. Barge-in supported.
+        const VoiceConvo = (function () {
+            const START_THRESH = 0.045;   // RMS to count as "user is speaking"
+            const STOP_THRESH  = 0.022;   // RMS below this = silence
+            const SILENCE_MS   = 1300;    // trailing silence that ends a turn
+            const BARGE_THRESH = 0.11;    // higher bar to interrupt the bot
+            const BARGE_FRAMES = 16;      // ~250ms of sustained energy to barge in
+
+            let active = false;
+            let state = 'idle';           // idle | listening | thinking | speaking | paused
+            let stream = null, audioCtx = null, analyser = null, timeData = null, rafId = null;
+            let rec = null, transcript = '', hasSpeech = false;
+            let silenceStart = 0, bargeCount = 0, thinkWatchdog = null;
+
+            const $ = id => document.getElementById(id);
+
+            function setState(s) {
+                state = s;
+                const ov = $('voiceOverlay');
+                ov.classList.remove('state-listening', 'state-thinking', 'state-speaking');
+                const label = $('voiceStateLabel'), orbIcon = $('voiceOrb').querySelector('i');
+                if (s === 'listening') {
+                    ov.classList.add('state-listening'); label.textContent = 'Listening…';
+                    if (orbIcon) orbIcon.className = 'fas fa-microphone';
+                } else if (s === 'thinking') {
+                    ov.classList.add('state-thinking'); label.textContent = 'Thinking…';
+                    if (orbIcon) orbIcon.className = 'fas fa-ellipsis';
+                } else if (s === 'speaking') {
+                    ov.classList.add('state-speaking'); label.textContent = 'Speaking…';
+                    if (orbIcon) orbIcon.className = 'fas fa-volume-high';
+                } else if (s === 'paused') {
+                    label.textContent = 'Paused — tap mic to resume';
+                    if (orbIcon) orbIcon.className = 'fas fa-microphone-slash';
+                }
+            }
+
+            function setCaption(finalText, interimText) {
+                const cap = $('voiceCaption');
+                const f = (finalText || '').trim(), i = (interimText || '').trim();
+                cap.innerHTML = `${_escapeHtmlSafe(f)}${f && i ? ' ' : ''}<span class="interim">${_escapeHtmlSafe(i)}</span>`;
+            }
+
+            function initRec() {
+                if (!SpeechRecognitionImpl) return null;
+                const r = new SpeechRecognitionImpl();
+                r.continuous = true;
+                r.interimResults = true;
+                r.lang = getSttLang();
+                r.onresult = (event) => {
+                    let interim = '';
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        const t = event.results[i][0].transcript;
+                        if (event.results[i].isFinal) transcript += (transcript ? ' ' : '') + t.trim();
+                        else interim += t;
+                    }
+                    setCaption(transcript, interim);
+                };
+                r.onerror = (e) => {
+                    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+                        showToast('Microphone permission denied.', 'error', 3500);
+                        close();
+                    }
+                };
+                r.onend = () => {
+                    // Restart if Chrome dropped the session while we're still listening.
+                    if (active && state === 'listening') { try { r.start(); } catch (e) {} }
+                };
+                return r;
+            }
+
+            function startListening() {
+                if (!active) return;
+                clearTimeout(thinkWatchdog);
+                transcript = ''; hasSpeech = false; silenceStart = 0; bargeCount = 0;
+                setCaption('', '');
+                setState('listening');
+                if (!rec) rec = initRec();
+                if (rec) { rec.lang = getSttLang(); try { rec.start(); } catch (e) {} }
+            }
+
+            function stopRec() { if (rec) { try { rec.stop(); } catch (e) {} } }
+
+            function endTurn() {
+                if (state !== 'listening') return;
+                stopRec();
+                const text = transcript.trim();
+                if (!text) { startListening(); return; }   // nothing heard → keep listening
+                setState('thinking');
+                setCaption(text, '');
+                const input = $('userInput');
+                input.value = text;
+                // Re-arm the mic if the reply never comes back (error/no TTS).
+                clearTimeout(thinkWatchdog);
+                thinkWatchdog = setTimeout(() => { if (active && state === 'thinking') startListening(); }, 45000);
+                handleSendMessage();
+            }
+
+            function bargeIn() {
+                if (state !== 'speaking') return;
+                stopAllTts();
+                startListening();
+            }
+
+            // ── Web Audio amplitude loop: drives the orb + VAD/barge-in ─────────
+            function loop() {
+                if (!active || !analyser) return;
+                analyser.getByteTimeDomainData(timeData);
+                let sum = 0;
+                for (let i = 0; i < timeData.length; i++) {
+                    const v = (timeData[i] - 128) / 128;
+                    sum += v * v;
+                }
+                const rms = Math.sqrt(sum / timeData.length);
+
+                // Animate orb + rings with the live level.
+                const orb = $('voiceOrb');
+                if (orb) {
+                    const scale = state === 'thinking' ? 1 : 1 + Math.min(rms * 3.2, 0.7);
+                    orb.style.transform = `scale(${scale.toFixed(3)})`;
+                }
+                const r1 = $('voiceRing1'), r2 = $('voiceRing2');
+                if (r1 && r2) {
+                    const lvl = Math.min(rms * 4, 1);
+                    const base = 130;
+                    r1.style.width = r1.style.height = (base + lvl * 70) + 'px';
+                    r1.style.opacity = (state === 'listening' ? lvl * 0.6 : 0).toFixed(2);
+                    r2.style.width = r2.style.height = (base + lvl * 120) + 'px';
+                    r2.style.opacity = (state === 'listening' ? lvl * 0.35 : 0).toFixed(2);
+                }
+
+                if (state === 'listening') {
+                    if (rms > START_THRESH) { hasSpeech = true; silenceStart = 0; }
+                    else if (hasSpeech && rms < STOP_THRESH) {
+                        if (!silenceStart) silenceStart = performance.now();
+                        else if (performance.now() - silenceStart > SILENCE_MS) endTurn();
+                    } else if (hasSpeech) {
+                        silenceStart = 0;
+                    }
+                } else if (state === 'speaking') {
+                    // Barge-in: sustained loud input interrupts playback.
+                    if (rms > BARGE_THRESH) { if (++bargeCount >= BARGE_FRAMES) bargeIn(); }
+                    else bargeCount = Math.max(0, bargeCount - 1);
+                }
+                rafId = requestAnimationFrame(loop);
+            }
+
+            async function open() {
+                if (active) return;
+                if (!SpeechRecognitionImpl) {
+                    showToast('Voice conversation needs a browser with speech recognition (try Chrome).', 'error', 4500);
+                    return;
+                }
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+                    });
+                } catch (e) {
+                    showToast('Microphone access denied or unavailable.', 'error', 3500);
+                    return;
+                }
+                active = true;
+                $('voiceOverlay').classList.add('active');
+                $('voiceMuteBtn').classList.remove('muted');
+                $('voiceMuteBtn').querySelector('i').className = 'fas fa-microphone';
+
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch (e) {} }
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 512;
+                timeData = new Uint8Array(analyser.fftSize);
+                audioCtx.createMediaStreamSource(stream).connect(analyser);
+
+                rec = initRec();
+                loop();
+                startListening();
+            }
+
+            function close() {
+                if (!active && state === 'idle') { $('voiceOverlay').classList.remove('active'); return; }
+                active = false;
+                setState('idle');
+                clearTimeout(thinkWatchdog);
+                if (rafId) cancelAnimationFrame(rafId);
+                rafId = null;
+                stopAllTts();
+                stopRec();
+                rec = null;
+                if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+                if (audioCtx) { try { audioCtx.close(); } catch (e) {} audioCtx = null; }
+                analyser = null;
+                $('voiceOverlay').classList.remove('active', 'state-listening', 'state-thinking', 'state-speaking');
+                setCaption('', '');
+                const orb = $('voiceOrb'); if (orb) orb.style.transform = '';
+            }
+
+            function toggleMute() {
+                const btn = $('voiceMuteBtn');
+                if (state === 'paused') {
+                    btn.classList.remove('muted');
+                    btn.querySelector('i').className = 'fas fa-microphone';
+                    startListening();
+                } else {
+                    stopAllTts();
+                    stopRec();
+                    setState('paused');
+                    btn.classList.add('muted');
+                    btn.querySelector('i').className = 'fas fa-microphone-slash';
+                    setCaption('', '');
+                }
+            }
+
+            function onOrbTap() {
+                if (state === 'speaking') bargeIn();
+                else if (state === 'listening' && transcript.trim()) endTurn();
+            }
+
+            return {
+                open, close, toggleMute, onOrbTap,
+                isActive: () => active,
+                onReplyStart() { if (active) { clearTimeout(thinkWatchdog); setState('speaking'); } },
+                onSpeechEnded() { if (active && state === 'speaking') startListening(); }
+            };
+        })();
+        window.VoiceConvo = VoiceConvo;
+
+        // Esc closes the voice overlay
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && VoiceConvo.isActive()) VoiceConvo.close();
+        });
 
         // Auto-check connection status for all Google accounts on DOM ready
         window.addEventListener('DOMContentLoaded', () => {
@@ -10555,6 +11166,7 @@
             const label = document.getElementById('ttsSpeedLabel');
             if (slider) slider.value = savedSpeed;
             if (label) label.textContent = savedSpeed.toFixed(1) + '×';
+            restoreVoiceIoSettings();
         });
     </script>
 
