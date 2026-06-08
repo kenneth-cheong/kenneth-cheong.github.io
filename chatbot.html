@@ -3288,7 +3288,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1838</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1839</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -7419,9 +7419,19 @@
             }
         }
 
+        // Resolve the Workspace OAuth token, falling back to localStorage when the
+        // in-memory window.gchatAccessToken wasn't restored after a reload. Without this,
+        // a valid Drive selection silently yields "no documents found".
+        function getWorkspaceToken() {
+            if (!window.gchatAccessToken) {
+                window.gchatAccessToken = localStorage.getItem('googleToken_Workspace') || null;
+            }
+            return window.gchatAccessToken;
+        }
+
         // ---- Google Drive: List folders ----
         async function fetchGoogleDriveFolders() {
-            if (!window.gchatAccessToken) return;
+            if (!getWorkspaceToken()) return;
             try {
                 let allFolders = [];
                 let pageToken = '';
@@ -7453,7 +7463,7 @@
 
         // ---- Google Drive: Get all files in a folder (recursive) ----
         async function fetchGoogleDriveFolderContents(folderId) {
-            if (!window.gchatAccessToken) return [];
+            if (!getWorkspaceToken()) return [];
             let allFiles = [];
             let pageToken = '';
             let pages = 0;
@@ -7490,7 +7500,7 @@
 
         // ---- Google Drive: Export/download file content as plain text ----
         async function fetchGoogleDriveFileContent(file) {
-            if (!window.gchatAccessToken) return null;
+            if (!getWorkspaceToken()) return null;
             try {
                 let url;
                 const exportableTypes = {
@@ -7632,6 +7642,24 @@
         }
 
         /**
+         * fetch() wrapper that rejects after `ms` instead of hanging forever.
+         * Monday calls go through API Gateway/Lambda which can run up to 180s; without a
+         * client-side cap a hung integration leaves the sync (and its button) stuck indefinitely.
+         */
+        async function fetchWithTimeout(url, options = {}, ms = 60000) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), ms);
+            try {
+                return await fetch(url, { ...options, signal: controller.signal });
+            } catch (e) {
+                if (e.name === 'AbortError') throw new Error(`Request timed out after ${Math.round(ms / 1000)}s`);
+                throw e;
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+
+        /**
          * Fetch lightweight data from an individual campaign board (columns + first 100 items).
          */
         async function fetchCampaignBoardData(boardId) {
@@ -7665,7 +7693,7 @@
                         query = `{ next_items_page (cursor: "${cursor}", limit: 500) { cursor items { id name column_values { text column { id title } } updates (limit: 2) { text_body created_at creator { name } } } } }`;
                     }
 
-                    const res = await fetch(MONDAY_LAMBDA_URL, {
+                    const res = await fetchWithTimeout(MONDAY_LAMBDA_URL, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ action: 'get_monday_data', query })
@@ -8035,7 +8063,7 @@
                         const query = `{ items(ids: [${batchIds.join(',')}]) { name column_values { text value column { id title type } } updates (limit: 3) { text_body created_at creator { name } replies { text_body created_at creator { name } } } } }`;
                         let res, r, mData;
                         try {
-                            res = await fetch(MONDAY_LAMBDA_URL, {
+                            res = await fetchWithTimeout(MONDAY_LAMBDA_URL, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ action: 'get_monday_data', query })
@@ -8207,10 +8235,13 @@
                 // ---- Fetch Google Drive folder contents ----
                 const selectedDriveFolders = msState.msGDriveFolderDropdown.selected;
                 const driveDocuments = [];
+                // Hydrate the token from storage in case the in-memory copy was lost on reload,
+                // so a valid folder selection doesn't silently skip with "no documents found".
+                const workspaceToken = getWorkspaceToken();
                 // Selecting specific folders is itself an explicit request to include Drive,
                 // so don't also require the separate "Sync Drive" toggle in that case.
                 const syncDriveEnabled = document.getElementById('syncDriveToggle')?.checked;
-                if ((syncDriveEnabled || selectedDriveFolders.length > 0) && selectedDriveFolders.length > 0 && window.gchatAccessToken) {
+                if ((syncDriveEnabled || selectedDriveFolders.length > 0) && selectedDriveFolders.length > 0 && workspaceToken) {
                     showToast(`Reading ${selectedDriveFolders.length} Drive folder(s)...`, 'loading', 6000);
                     updateSyncStatus(`Loading Drive documents...`, true);
                     for (const folder of selectedDriveFolders) {
@@ -8387,9 +8418,19 @@
 
 *Common causes: CORS blocked, Lambda timeout, or invalid API endpoint.*`);
             } finally {
+                // Always restore BOTH buttons — the visible top-bar button (topSyncBtn) and the
+                // hidden legacy button (syncBtn) — regardless of success or failure. Previously only
+                // the hidden button was reset here, so any error left the visible "Load Data" button
+                // stuck disabled with a spinner ("sync button turns stale").
                 isSyncing = false;
-                syncBtn.disabled = false;
-                syncBtn.innerHTML = '<i class="fas fa-bolt"></i> Load Data';
+                if (syncBtn) {
+                    syncBtn.disabled = false;
+                    syncBtn.innerHTML = '<i class="fas fa-bolt"></i> Load Data';
+                }
+                if (topSyncBtn) {
+                    topSyncBtn.disabled = false;
+                    topSyncBtn.innerHTML = '<i class="fas fa-sync"></i> Load Selected Data';
+                }
             }
         }
 
