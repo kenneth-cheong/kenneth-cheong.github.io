@@ -3288,7 +3288,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1842</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1843</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -7462,8 +7462,13 @@
         }
 
         // ---- Google Drive: Get all files in a folder (recursive) ----
-        async function fetchGoogleDriveFolderContents(folderId) {
-            if (!getWorkspaceToken()) return [];
+        // _visited guards against shortcut cycles (a shortcut pointing back to an ancestor folder).
+        async function fetchGoogleDriveFolderContents(folderId, _visited) {
+            const token = getWorkspaceToken();
+            if (!token) return [];
+            _visited = _visited || new Set();
+            if (_visited.has(folderId)) return [];
+            _visited.add(folderId);
             let allFiles = [];
             let pageToken = '';
             let pages = 0;
@@ -7473,8 +7478,9 @@
                 // corpora=allDrives is REQUIRED to list children of a Shared Drive folder —
                 // without it the query defaults to the user's My Drive and returns nothing,
                 // even though the folder itself shows up in the (allDrives) folder picker.
-                const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name,mimeType)&pageSize=100&corpora=allDrives&includeItemsFromAllDrives=true&supportsAllDrives=true${pageToken ? `&pageToken=${pageToken}` : ''}`;
-                const res = await fetch(url, { headers: { 'Authorization': `Bearer ${window.gchatAccessToken}` } });
+                // shortcutDetails lets us follow shortcuts to folders/files (common in shared setups).
+                const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name,mimeType,shortcutDetails(targetId,targetMimeType))&pageSize=100&corpora=allDrives&includeItemsFromAllDrives=true&supportsAllDrives=true${pageToken ? `&pageToken=${pageToken}` : ''}`;
+                const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
                 if (!res.ok) {
                     console.warn(`[DRIVE] Contents fetch for folder ${folderId} failed: ${res.status} ${res.statusText}`);
                     break;
@@ -7482,11 +7488,22 @@
                 const data = await res.json();
                 const files = data.files || [];
 
-                // Recurse into sub-folders
                 for (const f of files) {
                     if (f.mimeType === 'application/vnd.google-apps.folder') {
-                        const sub = await fetchGoogleDriveFolderContents(f.id);
+                        // Sub-folder — recurse
+                        const sub = await fetchGoogleDriveFolderContents(f.id, _visited);
                         allFiles = allFiles.concat(sub);
+                    } else if (f.mimeType === 'application/vnd.google-apps.shortcut' && f.shortcutDetails) {
+                        // Resolve shortcuts: to a folder → recurse into the target; to a file →
+                        // treat the target as the real file so its content can be extracted.
+                        const { targetId, targetMimeType } = f.shortcutDetails;
+                        if (!targetId) continue;
+                        if (targetMimeType === 'application/vnd.google-apps.folder') {
+                            const sub = await fetchGoogleDriveFolderContents(targetId, _visited);
+                            allFiles = allFiles.concat(sub);
+                        } else {
+                            allFiles.push({ id: targetId, name: f.name, mimeType: targetMimeType });
+                        }
                     } else {
                         allFiles.push(f);
                     }
