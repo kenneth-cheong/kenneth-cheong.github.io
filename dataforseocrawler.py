@@ -236,6 +236,21 @@ def lambda_handler(event, context):
             response = requests.post("https://api.dataforseo.com/v3/backlinks/backlinks/live", headers=headers, json=payload)
             return {'statusCode': 200, 'headers': {'Access-Control-Allow-Origin': '*'}, 'body': json.dumps(response.json())}
 
+        elif action == 'backlinks_history':
+            target = body.get('target')
+            date_from = body.get('date_from')
+            date_to = body.get('date_to')
+            if not target:
+                return {'statusCode': 400, 'headers': {'Access-Control-Allow-Origin': '*'}, 'body': json.dumps({'error': 'target is required'})}
+            payload_item = {"target": target}
+            if date_from:
+                payload_item["date_from"] = date_from
+            if date_to:
+                payload_item["date_to"] = date_to
+            payload = [payload_item]
+            response = requests.post("https://api.dataforseo.com/v3/backlinks/history/live", headers=headers, json=payload)
+            return {'statusCode': 200, 'headers': {'Access-Control-Allow-Origin': '*'}, 'body': json.dumps(response.json())}
+
         return {
             'statusCode': 400,
             'headers': {'Access-Control-Allow-Origin': '*'},
