@@ -1,11 +1,13 @@
 import json
 import requests
 import os
+import re
 import base64
 import time
+import hashlib
 import traceback
 from datetime import datetime
-from pymongo import MongoClient
+from pymongo import MongoClient, UpdateOne
 from bson import ObjectId
 
 MONDAY_API_KEY = os.environ.get('MONDAY_API_KEY') or os.environ.get('MONDAY_TOKEN')
@@ -23,6 +25,14 @@ TIKTOK_API_BASE = "https://business-api.tiktok.com/open_api/v1.3"
 MONGODB_URI = os.environ.get('MONGODB_URI')
 MONGODB_DATABASE = 'monday_db'
 mongo_client = None
+
+# Knowledge Base (RAG) Config
+KB_COLLECTION   = 'knowledge_base'
+KB_VECTOR_INDEX = 'kb_vector_index'
+KB_EMBED_MODEL  = os.environ.get('KB_EMBED_MODEL', 'text-embedding-3-small')
+KB_EMBED_DIMS   = 1536
+KB_WRITE_KEY    = os.environ.get('KB_WRITE_KEY')   # shared secret for the Apps Script sync
+KB_SCORE_FLOOR  = float(os.environ.get('KB_SCORE_FLOOR', '0.6'))  # cosine vectorSearchScore (0..1)
 
 def get_db():
     global mongo_client
@@ -56,6 +66,195 @@ def get_clean_openai_key(body):
     if len(s_key) > 8:
         print(f"[DEBUG] Using Key: {s_key[:4]}...{s_key[-4:]}")
     return s_key
+
+# ── Knowledge Base (RAG) helpers ──────────────────────────────────────────────
+
+def embed_texts(texts, body=None):
+    """Embed a list of strings via OpenAI embeddings. Returns a list of vectors."""
+    key = get_clean_openai_key(body or {})
+    if not key:
+        raise RuntimeError("OpenAI key missing for embeddings")
+    out = []
+    for i in range(0, len(texts), 100):   # API accepts batches; 100 is comfortable
+        chunk = texts[i:i + 100]
+        r = requests.post(
+            "https://api.openai.com/v1/embeddings",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json={"model": KB_EMBED_MODEL, "input": chunk},
+            timeout=60
+        )
+        if r.status_code != 200:
+            raise RuntimeError(f"Embedding API error {r.status_code}: {r.text[:300]}")
+        data = sorted(r.json()["data"], key=lambda d: d["index"])
+        out.extend([d["embedding"] for d in data])
+    return out
+
+# Rows that EXPOSE a secret (a password value, wifi password, or email+password
+# pair) must never be embedded into a client-facing knowledge base. These patterns
+# look for a value-bearing leak, not just the word "password" (so legitimate
+# "how do I reset my password" Q&As are kept).
+_KB_SECRET_PATTERNS = [
+    re.compile(r'password\s*(?:is|:|=)\s*\S', re.I),
+    re.compile(r'wi-?fi\s+password', re.I),
+    re.compile(r'[a-z0-9._%+-]+@[a-z0-9.-]+\.\w+[\s/|,;:-]*password', re.I),
+]
+
+def _looks_like_secret(text):
+    if not text:
+        return False
+    return any(p.search(text) for p in _KB_SECRET_PATTERNS)
+
+def _normalize_tags(tags):
+    if isinstance(tags, list):
+        return [str(t).strip() for t in tags if str(t).strip()]
+    if isinstance(tags, str):
+        return [t.strip() for t in re.split(r'[;,/]| {2,}', tags) if t.strip()]
+    return []
+
+def sync_knowledge_base(body):
+    """Ingest Q&A rows from the source Sheet into MongoDB with embeddings.
+
+    Body: { write_key, rows: [{question, answer, tags, sheet_tab}], full_sync? }
+    Only rows whose content changed are re-embedded. With full_sync (default True)
+    rows no longer present in the Sheet are removed.
+    """
+    if KB_WRITE_KEY and body.get('write_key') != KB_WRITE_KEY:
+        return {"statusCode": 401, "body": json.dumps({"error": "Invalid or missing write_key"})}
+    db = get_db()
+    if db is None:
+        return {"statusCode": 500, "body": json.dumps({"error": "MongoDB unavailable"})}
+    coll = db[KB_COLLECTION]
+
+    rows = body.get('rows', [])
+    if not isinstance(rows, list):
+        return {"statusCode": 400, "body": json.dumps({"error": "'rows' must be a list"})}
+
+    clean = []
+    seen_qids = set()
+    skipped_secret = 0
+    for row in rows:
+        q = (row.get('question') or '').strip()
+        a = (row.get('answer') or '').strip()
+        if not q or not a:
+            continue
+        if _looks_like_secret(f"{q}\n{a}\n{row.get('tags', '')}"):
+            skipped_secret += 1
+            continue
+        qid = hashlib.sha256(q.lower().encode('utf-8')).hexdigest()[:24]
+        if qid in seen_qids:   # de-dupe identical questions within the batch
+            continue
+        seen_qids.add(qid)
+        clean.append({
+            "qid":          qid,
+            "question":     q,
+            "answer":       a,
+            "tags":         _normalize_tags(row.get('tags')),
+            "sheet_tab":    (row.get('sheet_tab') or row.get('tab') or '').strip(),
+            "content_hash": hashlib.sha256((q + "␟" + a).encode('utf-8')).hexdigest(),
+        })
+
+    # Only (re)embed rows whose content changed
+    existing = {d['qid']: d.get('content_hash') for d in coll.find({}, {"qid": 1, "content_hash": 1})}
+    to_embed = [c for c in clean if existing.get(c['qid']) != c['content_hash']]
+    if to_embed:
+        vectors = embed_texts([f"{c['question']}\n{c['answer']}" for c in to_embed], body)
+        for c, v in zip(to_embed, vectors):
+            c['embedding'] = v
+
+    now = datetime.utcnow()
+    ops = []
+    for c in clean:
+        update = {
+            "question":     c['question'],
+            "answer":       c['answer'],
+            "tags":         c['tags'],
+            "sheet_tab":    c['sheet_tab'],
+            "content_hash": c['content_hash'],
+            "updated_at":   now,
+        }
+        if 'embedding' in c:
+            update['embedding'] = c['embedding']
+        ops.append(UpdateOne({"qid": c['qid']}, {"$set": update}, upsert=True))
+    if ops:
+        coll.bulk_write(ops, ordered=False)
+
+    deleted = 0
+    if body.get('full_sync', True):
+        deleted = coll.delete_many({"qid": {"$nin": list(seen_qids)}}).deleted_count
+
+    return {"statusCode": 200, "body": json.dumps({
+        "received":       len(rows),
+        "synced":         len(clean),
+        "embedded":       len(to_embed),
+        "skipped_secret": skipped_secret,
+        "deleted":        deleted,
+    })}
+
+def kb_ensure_index(body):
+    """One-time admin: create the Atlas Vector Search index on knowledge_base."""
+    if KB_WRITE_KEY and body.get('write_key') != KB_WRITE_KEY:
+        return {"statusCode": 401, "body": json.dumps({"error": "Invalid or missing write_key"})}
+    db = get_db()
+    if db is None:
+        return {"statusCode": 500, "body": json.dumps({"error": "MongoDB unavailable"})}
+    coll = db[KB_COLLECTION]
+    try:
+        existing = [i["name"] for i in coll.list_search_indexes()]
+    except Exception as e:
+        existing = []
+        print(f"[KB] list_search_indexes failed: {e}")
+    if KB_VECTOR_INDEX in existing:
+        return {"statusCode": 200, "body": json.dumps({"status": "exists", "indexes": existing})}
+    try:
+        from pymongo.operations import SearchIndexModel
+        model = SearchIndexModel(
+            definition={"fields": [{
+                "type": "vector", "path": "embedding",
+                "numDimensions": KB_EMBED_DIMS, "similarity": "cosine"
+            }]},
+            name=KB_VECTOR_INDEX, type="vectorSearch"
+        )
+        coll.create_search_index(model)
+        return {"statusCode": 200, "body": json.dumps({"status": "created", "index": KB_VECTOR_INDEX})}
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": f"create_search_index failed: {e}"})}
+
+def search_knowledge_base_db(query, top_k=4, body=None):
+    """Semantic search over the knowledge base via Atlas Vector Search."""
+    query = (query or '').strip()
+    if not query:
+        return {"matches": [], "returned": 0, "error": "empty query"}
+    db = get_db()
+    if db is None:
+        return {"matches": [], "returned": 0, "error": "Knowledge base unavailable"}
+    try:
+        qvec = embed_texts([query], body)[0]
+    except Exception as e:
+        return {"matches": [], "returned": 0, "error": f"Embedding failed: {e}"}
+    try:
+        top_k = max(1, min(int(top_k or 4), 10))
+    except (TypeError, ValueError):
+        top_k = 4
+    try:
+        pipeline = [
+            {"$vectorSearch": {
+                "index":         KB_VECTOR_INDEX,
+                "path":          "embedding",
+                "queryVector":   qvec,
+                "numCandidates": 100,
+                "limit":         top_k,
+            }},
+            {"$project": {
+                "_id": 0, "question": 1, "answer": 1, "tags": 1, "sheet_tab": 1,
+                "score": {"$meta": "vectorSearchScore"},
+            }},
+        ]
+        results = list(db[KB_COLLECTION].aggregate(pipeline))
+    except Exception as e:
+        return {"matches": [], "returned": 0, "error": f"Vector search failed: {e}"}
+    matches = [r for r in results if r.get('score', 0) >= KB_SCORE_FLOOR]
+    return {"query": query, "matches": matches, "returned": len(matches)}
+
 
 def openai_proxy(body):
     openai_key = get_clean_openai_key(body)
@@ -1171,6 +1370,28 @@ def claude_chat_with_tools(body):
                 },
                 "required": ["account_id", "start_date", "end_date"]
             }
+        },
+        {
+            "name": "search_knowledge_base",
+            "description": (
+                "Search MediaOne's internal support knowledge base — a curated FAQ of question/answer "
+                "pairs covering company info, PSG and SFEC grants (eligibility, criteria, application, "
+                "required documents), package pricing, SEO services, deliverables and KPIs, SEM / Google "
+                "Ads, project timelines, and common client questions. ALWAYS call this FIRST when the user "
+                "asks a MediaOne company, grant, pricing, package, service, deliverable, or support "
+                "question, before answering from general knowledge. Ground your answer in the returned "
+                "matches — do NOT invent grant criteria, prices, eligibility, or policies. If no relevant "
+                "match is returned, tell the user you don't have that in the knowledge base rather than "
+                "guessing."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "The user's question or key topic to look up, in natural language."},
+                    "top_k": {"type": "integer", "description": "How many matches to return (1-10). Defaults to 4."}
+                },
+                "required": ["query"]
+            }
         }
     ]
 
@@ -1732,6 +1953,18 @@ def claude_chat_with_tools(body):
                         })
                         tool_call_log.append(f"Fetched Ahrefs {action} for {domain}")
 
+                    elif tool_name == "search_knowledge_base":
+                        kb_query = tool_input.get("query", "")
+                        kb_top_k = tool_input.get("top_k", 4)
+                        print(f"[TOOLS] KB search: {kb_query}")
+                        result_data = search_knowledge_base_db(kb_query, kb_top_k, body)
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     json.dumps(result_data)
+                        })
+                        tool_call_log.append(f"Searched knowledge base for: {kb_query}")
+
                     else:
                         # Unknown tool — return an error so Claude can recover
                         tool_results.append({
@@ -2185,6 +2418,13 @@ def lambda_handler(event, context):
             result = claude_chat(body)
         elif action == 'claude_chat_with_tools':
             result = claude_chat_with_tools(body)
+        elif action == 'sync_knowledge_base':
+            result = sync_knowledge_base(body)
+        elif action == 'kb_ensure_index':
+            result = kb_ensure_index(body)
+        elif action == 'search_knowledge_base':
+            result = {"statusCode": 200, "body": json.dumps(
+                search_knowledge_base_db(body.get('query', ''), body.get('top_k', 4), body))}
         elif action == 'keyword_discovery':
             # Direct access to DataForSEO for the Strategy Engine
             seeds = body.get('keywords', [])
