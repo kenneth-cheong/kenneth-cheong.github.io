@@ -65,6 +65,8 @@ def lambda_handler(event, context):
             return handle_fetch_projects(db, data, headers)
         elif action == 'save_projects':
             return handle_save_projects(db, data, headers)
+        elif action == 'fetch_all_projects':
+            return handle_fetch_all_projects(db, data, headers)
         else:
             return response(400, {"error": f"Unsupported action: {action}"}, headers)
 
@@ -93,6 +95,25 @@ def handle_fetch_projects(db, data, headers):
         }, headers)
     except Exception as e:
         print(f"Error in handle_fetch_projects: {str(e)}")
+        return response(500, {"error": str(e)}, headers)
+
+def handle_fetch_all_projects(db, data, headers):
+    requester_id = data.get('userId', '')
+    try:
+        print(f"Fetching all projects for org view (requester: {requester_id})")
+        all_docs = list(db.projects.find({}))
+        team_projects = []
+        for doc in all_docs:
+            owner_id = doc.get('userId', 'unknown')
+            if owner_id == requester_id:
+                continue  # skip own projects, already loaded
+            for p in doc.get('projects', []):
+                p_copy = dict(p)
+                p_copy['_ownerId'] = owner_id
+                team_projects.append(p_copy)
+        return response(200, {"teamProjects": team_projects}, headers)
+    except Exception as e:
+        print(f"Error in handle_fetch_all_projects: {str(e)}")
         return response(500, {"error": str(e)}, headers)
 
 def handle_save_projects(db, data, headers):

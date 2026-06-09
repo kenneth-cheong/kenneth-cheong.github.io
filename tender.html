@@ -8288,6 +8288,7 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
 
             // --- Project Management ---
             let projects = [];
+            let teamProjects = []; // read-only projects owned by other users
             let currentProjectId = null;
             let globalSubmissions = [];
             window.intelligenceLog = [];
@@ -11574,12 +11575,41 @@ ${JSON.stringify(slide.blocks)}`;
                         if (!currentProjectId && projects.length > 0) {
                             switchProject(projects[0].id);
                         }
+
+                        // Load other users' projects in the background
+                        fetchTeamProjectsFromCloud();
                     }
                 } catch (e) {
                     console.error("Cloud Fetch Error:", e);
                     updateCloudStatus('error');
                 } finally {
                     toggleLoader(false);
+                }
+            }
+
+            async function fetchTeamProjectsFromCloud() {
+                if (!currentUser) return;
+                try {
+                    const userId = (currentUser && currentUser.email) ? currentUser.email : 'mediaone_global_workspace';
+                    const payload = {
+                        action: 'fetch_all_projects',
+                        data: { userId: userId }
+                    };
+                    const response = await fetch(PERSISTENCE_API_URL, {
+                        method: 'POST',
+                        mode: 'cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) return;
+                    const data = await response.json();
+                    const result = (data && data.body) ? (typeof data.body === 'string' ? JSON.parse(data.body) : data.body) : data;
+                    if (result && result.teamProjects) {
+                        teamProjects = result.teamProjects;
+                        renderProjectList();
+                    }
+                } catch (e) {
+                    console.error("Team projects fetch error:", e);
                 }
             }
 
@@ -11745,7 +11775,7 @@ ${JSON.stringify(slide.blocks)}`;
             function renderProjectList() {
                 const list = document.getElementById('sidebar-project-list');
                 if (list) {
-                    list.innerHTML = projects.map(p => `
+                    const ownHtml = projects.map(p => `
                     <div class="project-sidebar-item ${p.id === currentProjectId ? 'active' : ''}" onclick="switchProject(${p.id})">
                         <div class="project-name-wrapper">
                             <i data-lucide="folder" size="14"></i>
@@ -11754,9 +11784,30 @@ ${JSON.stringify(slide.blocks)}`;
                         ${p.id === currentProjectId ? '<i data-lucide="check" size="12"></i>' : ''}
                     </div>
                 `).join('');
+
+                    const teamHtml = teamProjects.length > 0 ? `
+                        <div style="padding: 0.5rem 0.75rem 0.25rem; font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted, #94a3b8); margin-top: 0.5rem;">Team</div>
+                        ${teamProjects.map(p => `
+                        <div class="project-sidebar-item" style="opacity:0.75;" title="Owner: ${p._ownerId || 'teammate'}" onclick="viewTeamProject('${p.id}')">
+                            <div class="project-name-wrapper">
+                                <i data-lucide="users" size="14"></i>
+                                <span>${p.name}</span>
+                            </div>
+                        </div>
+                        `).join('')}
+                    ` : '';
+
+                    list.innerHTML = ownHtml + teamHtml;
                     lucide.createIcons();
                 }
                 renderAllProjectsDashboard();
+            }
+
+            function viewTeamProject(id) {
+                const p = teamProjects.find(tp => String(tp.id) === String(id));
+                if (!p) return;
+                const owner = p._ownerId || 'a teammate';
+                alert(`This tender belongs to ${owner} and is read-only.\n\nProject: ${p.name}\nClient: ${p.client || '—'}\nStatus: ${p.status || '—'}`);
             }
 
             function renderAllProjectsDashboard() {
@@ -11765,12 +11816,12 @@ ${JSON.stringify(slide.blocks)}`;
 
                 const statuses = ["New", "In Progress", "Submitted", "On Hold"];
 
-                tbody.innerHTML = projects.map(p => `
+                const ownRows = projects.map(p => `
                 <tr>
                     <td><strong contenteditable="true" onblur="updateProjectMeta(${p.id}, 'name', this.innerText)">${p.name}</strong></td>
                     <td><span contenteditable="true" onblur="updateProjectMeta(${p.id}, 'client', this.innerText)">${p.client || '—'}</span></td>
                     <td>
-                        <input type="date" class="table-input" value="${p.dueDate || ''}" 
+                        <input type="date" class="table-input" value="${p.dueDate || ''}"
                                onchange="updateProjectMeta(${p.id}, 'dueDate', this.value)">
                     </td>
                     <td>
@@ -11786,6 +11837,18 @@ ${JSON.stringify(slide.blocks)}`;
                     </td>
                 </tr>
             `).join('');
+
+                const teamRows = teamProjects.map(p => `
+                <tr style="opacity:0.7; background: var(--bg-subtle, #f8fafc);">
+                    <td><strong>${p.name}</strong> <span style="font-size:0.7rem;color:var(--text-muted,#94a3b8); margin-left:4px;">👥 ${p._ownerId || 'teammate'}</span></td>
+                    <td>${p.client || '—'}</td>
+                    <td>${p.dueDate || '—'}</td>
+                    <td><span class="status-badge">${p.status || '—'}</span></td>
+                    <td><span style="font-size:0.75rem;color:var(--text-muted,#94a3b8);">Read-only</span></td>
+                </tr>
+            `).join('');
+
+                tbody.innerHTML = ownRows + teamRows;
                 lucide.createIcons();
             }
 
