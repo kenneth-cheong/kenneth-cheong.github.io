@@ -194,6 +194,48 @@ def lambda_handler(event, context):
                 })
             }
 
+        elif action == 'backlinks_summary':
+            target = body.get('target')
+            mode = body.get('mode', 'domain')
+            if not target:
+                return {'statusCode': 400, 'headers': {'Access-Control-Allow-Origin': '*'}, 'body': json.dumps({'error': 'target is required'})}
+            payload = [{"target": target, "include_subdomains": True}]
+            response = requests.post("https://api.dataforseo.com/v3/backlinks/summary/live", headers=headers, json=payload)
+            return {'statusCode': 200, 'headers': {'Access-Control-Allow-Origin': '*'}, 'body': json.dumps(response.json())}
+
+        elif action == 'referring_domains':
+            target = body.get('target')
+            mode = body.get('mode', 'domain')
+            limit = int(body.get('limit', 100))
+            offset = int(body.get('offset', 0))
+            if not target:
+                return {'statusCode': 400, 'headers': {'Access-Control-Allow-Origin': '*'}, 'body': json.dumps({'error': 'target is required'})}
+            payload = [{"target": target, "limit": limit, "offset": offset, "order_by": ["rank,desc"], "include_subdomains": True, "backlinks_status_type": "live"}]
+            response = requests.post("https://api.dataforseo.com/v3/backlinks/referring_domains/live", headers=headers, json=payload)
+            return {'statusCode': 200, 'headers': {'Access-Control-Allow-Origin': '*'}, 'body': json.dumps(response.json())}
+
+        elif action == 'anchors':
+            target = body.get('target')
+            mode = body.get('mode', 'domain')
+            limit = int(body.get('limit', 100))
+            offset = int(body.get('offset', 0))
+            if not target:
+                return {'statusCode': 400, 'headers': {'Access-Control-Allow-Origin': '*'}, 'body': json.dumps({'error': 'target is required'})}
+            payload = [{"target": target, "limit": limit, "offset": offset, "order_by": ["backlinks,desc"], "include_subdomains": True, "backlinks_status_type": "live"}]
+            response = requests.post("https://api.dataforseo.com/v3/backlinks/anchors/live", headers=headers, json=payload)
+            return {'statusCode': 200, 'headers': {'Access-Control-Allow-Origin': '*'}, 'body': json.dumps(response.json())}
+
+        elif action == 'backlinks_list':
+            target = body.get('target')
+            mode = body.get('mode', 'domain')
+            limit = int(body.get('limit', 100))
+            offset = int(body.get('offset', 0))
+            if not target:
+                return {'statusCode': 400, 'headers': {'Access-Control-Allow-Origin': '*'}, 'body': json.dumps({'error': 'target is required'})}
+            payload = [{"target": target, "limit": limit, "offset": offset, "order_by": ["rank,desc"], "include_subdomains": True, "backlinks_status_type": "live"}]
+            response = requests.post("https://api.dataforseo.com/v3/backlinks/backlinks/live", headers=headers, json=payload)
+            return {'statusCode': 200, 'headers': {'Access-Control-Allow-Origin': '*'}, 'body': json.dumps(response.json())}
+
         return {
             'statusCode': 400,
             'headers': {'Access-Control-Allow-Origin': '*'},
