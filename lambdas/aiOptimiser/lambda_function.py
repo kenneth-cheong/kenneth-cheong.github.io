@@ -1018,6 +1018,217 @@ def fetch_seo_feeds_handler(event):
     }
 
 
+# ── OPTIMISER PROMPTS (migrated from client-side index.html) ───────────────────
+# These prompts used to be assembled in the browser and sent as a raw `prompt`.
+# They are now built here from structured parameters and run through the SAME
+# `generate` path, so model behaviour is unchanged — only the string assembly
+# moved server-side.
+
+OPTIMISER_PROMPT_ACTIONS = {
+    'optimiser_agent', 'content_gap', 'content_rewrite',
+    'content_freeform', 'discovery_prompts',
+}
+
+
+def _ctx_block(c):
+    """Shared context block injected into every Content Intelligence agent prompt.
+    Mirrors the former client-side ctxBlock(c)."""
+    c = c or {}
+    lines = []
+    if c.get('keyword'):        lines.append(f'PRIMARY KEYWORD: "{c["keyword"]}"')
+    if c.get('secondary'):      lines.append(f'SECONDARY KEYWORDS:\n{c["secondary"]}')
+    if c.get('topic'):          lines.append(f'TOPIC / BRIEF:\n{c["topic"]}')
+    if c.get('location'):       lines.append(f'TARGET LOCATION: {c["location"]}')
+    if c.get('language'):       lines.append(f'LANGUAGE: {c["language"]}')
+    if c.get('pageType'):       lines.append(f'PAGE TYPE: {c["pageType"]}')
+    if c.get('personas'):       lines.append(f'TARGET PERSONAS:\n{c["personas"]}')
+    if c.get('selectedTopics'): lines.append(f'COMPETITOR TOPICS TO COVER:\n{c["selectedTopics"]}')
+    if c.get('compliance'):     lines.append(f'COMPLIANCE REQUIREMENTS:\n{c["compliance"]}')
+    if c.get('content'):
+        lines.append('CURRENT DRAFT / CONTENT:\n"""\n' + str(c['content'])[:12000] + '\n"""')
+    else:
+        lines.append('(No draft provided yet - base your analysis on the topic, keyword and competitor context.)')
+    return '\n\nCONTEXT:\n' + '\n\n'.join(lines) + '\n'
+
+
+def _agent_prompt(key, c):
+    """Return the full prompt string for a Content Intelligence agent, or None."""
+    c = c or {}
+    ctx = _ctx_block(c)
+
+    if key == 'keyResearcher':
+        return (f'Act as an SEO keyword strategist.{ctx}\n'
+                'TASK - produce a KEY RESEARCH brief:\n'
+                '1. Secondary and semantically related keywords (LSI / entities) to target, grouped by search intent.\n'
+                '2. A KEYWORD PLACEMENT MAP: where the primary and secondary keywords should appear (title/H1, H2s, intro, URL slug, meta description, image alt text, anchor text).\n'
+                '3. Recommended IMAGE ALT TEXT (3-5 examples) for likely images.\n'
+                '4. Internal and external ANCHOR TEXT suggestions (natural, varied, non-spammy) and where to place them.\n'
+                'Return concise, actionable Markdown with clear headings.')
+    if key == 'marketResearcher':
+        return (f'Act as a market and competitive strategist.{ctx}\n'
+                'TASK - produce a MARKET RESEARCH brief with these sections:\n'
+                '1. RED OCEAN - saturated angles and competitors already ranking for this topic (what everyone already says).\n'
+                '2. BLUE OCEAN - underserved angles, gaps and contrarian positioning competitors miss.\n'
+                '3. ADDRESSABLE MARKET - who is searching this, rough segments and demand signals.\n'
+                '4. TARGET AUDIENCE - define 3 distinct personas (Persona A, B, C) each with goals, pains, objections and the message that converts them.\n'
+                'Use the competitor topics and personas above if provided. Return structured Markdown.')
+    if key == 'topicGenerator':
+        return (f'Act as a content topic strategist.{ctx}\n'
+                'TASK - generate a prioritised TOPIC / SUBTOPIC list that (a) covers what competitors rank for and (b) demonstrates E-E-A-T (Experience, Expertise, Authoritativeness, Trust).\n'
+                'For each topic give: the angle, which E-E-A-T signal it strengthens, and why it matters for this keyword. Flag topics that need first-hand experience or author/expert credentials. Return a ranked Markdown list.')
+    if key == 'factGatherer':
+        return (f'Act as a research librarian.{ctx}\n'
+                'TASK - gather facts to support this content:\n'
+                '1. Key statistics, data points and claims worth citing (and the type of source that would back each).\n'
+                '2. Authoritative REFERENCES / sources to cite (government, standards bodies, primary research, reputable industry).\n'
+                '3. For any draft above, list claims that currently LACK a citation and need one.\n'
+                'Flag anything that must be verified before publishing. Return Markdown with a references list.')
+    if key == 'povInfo':
+        return (f'Act as a content design strategist.{ctx}\n'
+                'TASK - propose proprietary INFORMATION ASSETS that present a point of view visually: list specific infographics, comparison TABLES, CHARTS/graphs, checklists or diagrams to create. For each: the title, what data/columns it shows, and where in the article it belongs. Include at least one ready-to-use Markdown TABLE example. Return Markdown.')
+    if key == 'pov':
+        return (f'Act as an editorial strategist.{ctx}\n'
+                'TASK - define the POINT OF VIEW and uniqueness:\n'
+                '1. Recommend the voice - FIRST-PARTY (our experience / proprietary data) vs THIRD-PARTY (objective / journalistic) - and where each fits.\n'
+                '2. Confirm SEARCH INTENT (informational / commercial / transactional / navigational) and how the content should satisfy it.\n'
+                '3. Define the UNIQUE ANGLE / thesis that differentiates this from competitors (what can we say that they cannot).\n'
+                'Return Markdown.')
+    if key == 'helpfulness':
+        return (f'Act as a Google Search quality rater.{ctx}\n'
+                "TASK - assess HELPFULNESS against Google's helpful-content guidance. Give a score out of 10 and justify it on: people-first value, satisfying the searcher's goal, depth and originality, demonstrated experience, trustworthiness, and whether the reader leaves feeling they learned enough. List the top concrete improvements that would raise the score. Return Markdown.")
+    if key == 'branding':
+        brand_tone = c.get('brandTone') or 'Professional'
+        return (f'Act as a brand editor.{ctx}\n'
+                f'TASK - audit the draft for BRAND consistency: tone of voice, terminology, banned/preferred words, capitalisation of product names, and alignment with the brand tone "{brand_tone}". List specific violations with the offending phrase and a suggested fix. If no draft is provided, give the brand guardrails to follow. Return Markdown.')
+    if key == 'legal':
+        juris = c.get('jurisdictions') or 'Singapore'
+        return (f'Act as a compliance reviewer for jurisdiction "{juris}".{ctx}\n'
+                'TASK - review for LEGAL and COMPLIANCE risk against the compliance requirements above and general advertising / consumer-protection norms: unsubstantiated claims, missing disclaimers, guarantees, absolute superlatives, regulated-industry rules. For each issue give severity, the phrase, and the required change. Return Markdown.')
+    if key == 'factCheck':
+        return (f'Act as a fact-checker.{ctx}\n'
+                'TASK - extract every checkable factual claim in the draft and rate each: Likely Accurate / Needs Verification / Likely Inaccurate, with reasoning and the source that would confirm it. Scrutinise dates, numbers, names and superlatives. Return a Markdown table with columns Claim | Verdict | Note.')
+    if key == 'language':
+        flesch = c.get('flesch')
+        flesch_str = (f'{flesch} ({c.get("fleschLabel", "")})' if flesch is not None else 'not available')
+        reading = c.get('readingLevel') or 'Grade 6-8 (Easy)'
+        return (f'Act as a plain-language editor.{ctx}\n'
+                f'The draft\'s computed Flesch Reading Ease is {flesch_str}; the target reading level is "{reading}".\n'
+                'TASK - identify the sentences and paragraphs hurting readability (long sentences, passive voice, jargon) and rewrite the worst offenders more simply. Recommend the changes needed to hit the target reading ease. Return Markdown.')
+    if key == 'length':
+        wc = c.get('wordCount', 0)
+        return (f'Act as a content depth analyst.{ctx}\n'
+                f'The current draft is {wc} words.\n'
+                'TASK - judge whether the length is SUFFICIENT to fully satisfy the query and match competitor depth (use the competitor topics above). State a recommended word-count range, list sub-topics that are thin or missing, and say where to expand or trim. Return Markdown.')
+    if key == 'formatting':
+        return (f'Act as a UX content editor.{ctx}\n'
+                'TASK - review FORMATTING for scannability: heading usage, paragraph length, bullet / numbered lists, bolding of key terms, intro and summary blocks, white space, and mobile readability. List specific formatting fixes. Return Markdown.')
+    if key == 'flow':
+        return (f'Act as a developmental editor.{ctx}\n'
+                'TASK - evaluate the logical FLOW: does the order of sections build naturally, are transitions smooth, is there repetition or any non-sequitur? Propose a re-ordering if needed and supply 2-3 transition sentences to smooth the roughest joins. Return Markdown.')
+    if key == 'hierarchy':
+        return (f'Act as an information architect.{ctx}\n'
+                'TASK - audit the TOPICAL HIERARCHY: propose a clean H1-H4 outline that groups subtopics logically and signals topical authority and semantic relationships to search engines. Flag heading-level misuse, missing parent topics and orphaned points. Return the recommended heading tree in Markdown.')
+    if key == 'faqs':
+        return (f'Act as an SEO content writer.{ctx}\n'
+                'TASK - generate 5-8 FAQs that match real "People Also Ask" intent for this keyword. Provide a concise, accurate answer (40-60 words) for each, filling gaps not already covered in the draft. Return Markdown using "### Question" followed by the answer.')
+    if key == 'schemas':
+        return (f'Act as a structured-data specialist.{ctx}\n'
+                "TASK - recommend the JSON-LD SCHEMA types that fit this content (e.g. Article, FAQPage, HowTo, Product, BreadcrumbList, Organization) and explain why each helps. List the key properties to populate for the top recommendation. Return Markdown. (The dashboard's Schema Generator can build the final JSON-LD.)")
+    if key == 'tocTldr':
+        return (f'Act as a content editor.{ctx}\n'
+                'TASK - produce two things: (1) a TABLE OF CONTENTS as a bulleted, anchor-link-style list of the article\'s sections, and (2) a TL;DR - a 3-5 bullet executive summary a reader can scan in 15 seconds. Base both on the draft / outline above. Return Markdown.')
+    return None
+
+
+def build_optimiser_prompt(action, body):
+    """Build the raw prompt string for a migrated optimiser action.
+    Returns the prompt string, or None if it cannot be built."""
+
+    if action == 'optimiser_agent':
+        return _agent_prompt(body.get('agentKey', ''), body.get('context', {}))
+
+    if action == 'content_gap':
+        page_type    = body.get('pageTypeContext', 'Any')
+        personas     = body.get('personaContext', '')
+        deep_compare = body.get('deepCompareContext', '')
+        topics       = body.get('selectedTopics', '')
+        keyword      = body.get('keyword', '')
+        editor       = body.get('editorContent', '')
+        persona_block = ("STRICTLY ADHERE TO THE FOLLOWING TARGET PERSONAS:\n" + personas) if personas else ""
+        return (
+            "ANALYSE THE FOLLOWING DATA FOR CONTENT GAPS AND IMPROVEMENT SUGGESTIONS.\n"
+            f"TARGET PAGE TYPE: {page_type}\n"
+            f"{persona_block}\n"
+            f"{deep_compare}\n"
+            "PRIORITIZE ANALYSING THESE SPECIFIC TOPICS CHOSEN BY THE USER:\n"
+            f"{topics or 'No specific topics chosen, analyse overall gaps.'}\n\n"
+            f'PRIMARY KEYWORD: "{keyword}"\n\n'
+            "YOUR CURRENT EDITOR CONTENT:\n"
+            f'"""\n{editor}\n"""\n\n'
+            "INSTRUCTIONS:\n"
+            "1. Compare your content vs the cherry-picked topics.\n"
+            '2. Identify specific "Content Gaps" related to these topics.\n'
+            "3. Provide 3-5 actionable steps to improve the SEO and value of your existing content.\n"
+            "4. Keep the tone professional and constructive."
+        ).strip()
+
+    if action == 'content_rewrite':
+        personas = body.get('personaContext', '')
+        topics   = body.get('selectedTopics', '')
+        keyword  = body.get('keyword', '')
+        suggestions = body.get('suggestions', '')
+        original    = body.get('originalContent', '')
+        persona_block = ("STRICTLY ADHERE TO THESE TARGET PERSONAS DURING REWRITE:\n" + personas + "\n") if personas else ""
+        topics_block  = ("ENSURE THESE COMPETITOR TOPICS ARE COVERED:\n" + topics + "\n") if topics else ""
+        return (
+            "REWRITE THE FOLLOWING ARTICLE BASED ON THE PROVIDED IMPROVEMENT SUGGESTIONS.\n\n"
+            f"{persona_block}"
+            f"{topics_block}\n"
+            f'PRIMARY KEYWORD: "{keyword}"\n\n'
+            "IMPROVEMENT SUGGESTIONS:\n"
+            f'"""\n{suggestions}\n"""\n\n'
+            "ORIGINAL ARTICLE CONTENT:\n"
+            f'"""\n{original}\n"""\n\n'
+            "INSTRUCTIONS:\n"
+            "1. Integrate all the improvement suggestions into the article.\n"
+            "2. Ensure the content gaps are filled and depth is added where suggested.\n"
+            "3. Maintain a natural, professional flow.\n"
+            "4. Do NOT just append the suggestions; fully integrate them into the existing structure.\n"
+            "5. Return the full rewritten article in Markdown format. IMPORTANT: DO NOT include any markdown code block markers like ``` or ```markdown in your response."
+        ).strip()
+
+    if action == 'content_freeform':
+        user_prompt = body.get('userPrompt', '')
+        personas    = body.get('personaContext', '')
+        topics      = body.get('selectedTopics', '')
+        persona_block = ("STRICTLY ADHERE TO THESE TARGET PERSONAS:\n" + personas) if personas else ""
+        topics_block  = ("PRIORITIZE ADDRESSING THESE COMPETITOR TOPICS:\n" + topics) if topics else ""
+        return (
+            f"PROMPT: {user_prompt}\n\n"
+            f"{persona_block}\n"
+            f"{topics_block}"
+        ).strip()
+
+    if action == 'discovery_prompts':
+        keywords  = body.get('keywords', [])
+        existing  = body.get('existingPrompts', [])
+        kw_str    = ', '.join(keywords) if isinstance(keywords, list) else str(keywords)
+        dedupe = ""
+        if existing:
+            dedupe = (f"IMPORTANT: Do NOT repeat any of these existing prompts: {json.dumps(existing)}. "
+                      "Generate 10 COMPLETELY NEW and UNIQUE ones.")
+        return (
+            f"Based on these keywords: {kw_str}, generate 10 realistic user-intent questions or prompts "
+            "that someone might ask a Generative AI engine (like ChatGPT or Perplexity) to search for "
+            "services/products related to these keywords. The language of the prompts MUST match the language "
+            "of the keywords FULLY.\n"
+            f"{dedupe}\n"
+            "Format: Return ONLY a JSON array of strings. Do not include any explanation or markdown formatting."
+        )
+
+    return None
+
+
 def lambda_handler(event, context):
     try:
         # ── Input parsing ──────────────────────────────────────────────────
@@ -1026,6 +1237,25 @@ def lambda_handler(event, context):
         # ── Non-AI actions ─────────────────────────────────────────────────
         if action == 'fetch_seo_feeds':
             return fetch_seo_feeds_handler(event)
+
+        # ── Optimiser prompts (migrated from client) ───────────────────────
+        # Build the prompt server-side from structured params, then run it
+        # through the standard `generate` path so behaviour is unchanged.
+        if action in OPTIMISER_PROMPT_ACTIONS:
+            built_prompt = build_optimiser_prompt(action, event)
+            if not built_prompt:
+                return {
+                    'statusCode': 400,
+                    'headers': {
+                        'Access-Control-Allow-Origin':  '*',
+                        'Access-Control-Allow-Headers': 'Content-Type',
+                        'Access-Control-Allow-Methods': 'OPTIONS,POST'
+                    },
+                    'body': json.dumps({'error': f"Could not build prompt for action '{action}'"})
+                }
+            event = dict(event)
+            event['prompt'] = built_prompt
+            action = 'generate'
 
         # ── Structured actions: build prompt server-side ───────────────────
         if action in _STRUCTURED_ACTIONS:
