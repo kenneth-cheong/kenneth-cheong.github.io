@@ -3442,7 +3442,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1889</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.1890</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -9699,6 +9699,17 @@
             const msg = document.createElement('div');
             msg.className = `message ${sender}`;
 
+            // Strip internal directives that should never reach the user.
+            // MEM_SAVE: {...} is an automated-memory directive — the backend extracts it
+            // into data.memory_updates, but the raw line can linger in the reply / tool log
+            // / thinking text. Remove it everywhere before rendering.
+            const stripDirectives = (s) => typeof s === 'string'
+                ? s.replace(/MEM_SAVE:\s*\{[\s\S]*?\}/g, '').replace(/[ \t]*\n{3,}/g, '\n\n').trim()
+                : s;
+            text = stripDirectives(text);
+            toolLog = stripDirectives(toolLog);
+            thinkingText = stripDirectives(thinkingText);
+
             // Clean OpenAI source citations (e.g., 【82:0†source】)
             const cleanText = text.replace(/【\d+:\d+†source】/g, '').trim();
 
@@ -9872,7 +9883,11 @@
             // Mermaid diagrams
             const mermaidBlocks = el.querySelectorAll('code.language-mermaid');
             for (const code of mermaidBlocks) {
-                const src = code.textContent.trim();
+                let src = code.textContent.trim();
+                // Some model outputs escape newlines literally (\n as two chars) or use
+                // literal \t, which makes mermaid.render throw. Normalize so the diagram
+                // parses instead of falling back to raw text.
+                if (src.includes('\\n')) src = src.replace(/\\n/g, '\n').replace(/\\t/g, '  ');
                 const wrapper = document.createElement('div');
                 wrapper.className = 'mermaid-diagram';
                 try {

@@ -1462,7 +1462,9 @@ def claude_chat_with_tools(body):
                     block["thinking"] for block in content_blocks
                     if block.get("type") == "thinking" and block.get("thinking", "").strip()
                 ) or None
-                summary = "\n".join(tool_call_log) if tool_call_log else None
+                # Exclude internal MEM_SAVE directives from the user-facing tool log
+                display_log = [t for t in tool_call_log if not t.startswith("MEM_SAVE:")]
+                summary = "\n".join(display_log) if display_log else None
                 return {
                     "statusCode": 200,
                     "body": json.dumps({
@@ -2000,7 +2002,7 @@ def claude_chat_with_tools(body):
                 "statusCode": 200,
                 "body": json.dumps({
                     "reply": fallback_text or f"Stopped unexpectedly ({stop_reason}).",
-                    "tool_calls_summary": "\n".join(tool_call_log) or None
+                    "tool_calls_summary": "\n".join(t for t in tool_call_log if not t.startswith("MEM_SAVE:")) or None
                 })
             }
 
@@ -2012,7 +2014,7 @@ def claude_chat_with_tools(body):
             "statusCode": 200,
             "body": json.dumps({
                 "reply": fallback or "I reached the maximum number of data lookups. Please refine your question.",
-                "tool_calls_summary": "\n".join(tool_call_log) or None
+                "tool_calls_summary": "\n".join(t for t in tool_call_log if not t.startswith("MEM_SAVE:")) or None
             })
         }
 
