@@ -9220,11 +9220,12 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                         thumb.id = `thumb-${index}-${rail.id === 'slide-rail-editor' ? 'editor' : 'main'}`;
                         thumb.draggable = true;
 
+                        const _t = slide.title || '';
                         const isDark =
                             slide.theme === 'dark' ||
-                            slide.title === slide.title.toUpperCase() ||
-                            slide.title.includes('Section') ||
-                            slide.title.includes('Divider');
+                            (_t.length > 0 && _t === _t.toUpperCase()) ||
+                            _t.includes('Section') ||
+                            _t.includes('Divider');
 
                         const safeTitle = escapeHtml(slide.title || 'Untitled');
                         const previewText = escapeHtml(stripHtml(slide.body || '').slice(0, 220));
@@ -9320,11 +9321,12 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                     return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
                 };
 
+                const _t = slide.title || '';
                 const isDark =
                     slide.theme === 'dark' ||
-                    slide.title === slide.title.toUpperCase() ||
-                    slide.title.includes('Section') ||
-                    slide.title.includes('Divider');
+                    (_t.length > 0 && _t === _t.toUpperCase()) ||
+                    _t.includes('Section') ||
+                    _t.includes('Divider');
 
                 const previewText = stripHtml(slide.body || '').slice(0, 220);
 
@@ -9381,7 +9383,8 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
 
                 // Automatic theme detection (if not explicitly set)
                 if (!slide.theme) {
-                    const isDark = slide.title === slide.title.toUpperCase() || slide.title.includes('Section') || slide.title.includes('Divider');
+                    const _t = slide.title || '';
+                    const isDark = (_t.length > 0 && _t === _t.toUpperCase()) || _t.includes('Section') || _t.includes('Divider');
                     slide.theme = isDark ? 'dark' : 'light';
                 }
 
@@ -9742,7 +9745,7 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                 }
 
                 // Close sidebar on mobile
-                if (window.innerWidth <= 768) {
+                if (window.innerWidth <= 768 && typeof toggleSidebar === 'function') {
                     toggleSidebar(false);
                 }
 
