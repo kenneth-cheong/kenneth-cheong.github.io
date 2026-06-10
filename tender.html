@@ -11288,6 +11288,12 @@ ${JSON.stringify(slide.blocks)}`;
                     }));
                 }
 
+                // If the active tender belongs to a teammate, persist it back to that owner's store
+                // instead of the current user's store (shared editing, ownership preserved).
+                if (current && current._ownerId && currentUser && current._ownerId !== currentUser.email) {
+                    return await saveTeamProjectToOwner(current);
+                }
+
                 if (currentUser) {
                     updateCloudStatus('syncing');
                     try {
@@ -11307,7 +11313,9 @@ ${JSON.stringify(slide.blocks)}`;
                             });
                         };
 
-                        const sanitizedProjects = projects.map(p => {
+                        // Exclude teammate-owned tenders — those are saved back to their owner's store.
+                        const ownProjects = projects.filter(p => !p._ownerId || p._ownerId === currentUser.email);
+                        const sanitizedProjects = ownProjects.map(p => {
                             const newP = { ...p };
                             if (newP.docs) {
                                 newP.docs = sanitizeSubmissions(newP.docs);
@@ -11385,6 +11393,78 @@ ${JSON.stringify(slide.blocks)}`;
                 }
             }
 
+            // Persist an edited teammate-owned tender back to its owner's cloud store.
+            // Read-modify-write: fetch the owner's store, replace just this one project,
+            // and save it back — preserving the owner's other tenders, team, proof bank, etc.
+            async function saveTeamProjectToOwner(project) {
+                if (!project || !project._ownerId) return false;
+                const ownerId = project._ownerId;
+                updateCloudStatus('syncing');
+                try {
+                    // 1. Fetch the owner's full store
+                    const fRes = await fetch(PERSISTENCE_API_URL, {
+                        method: 'POST', mode: 'cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'fetch_projects', data: { userId: ownerId } })
+                    });
+                    if (!fRes.ok) throw new Error(`Owner fetch failed: ${fRes.status}`);
+                    const fRaw = await fRes.json();
+                    const store = (fRaw && fRaw.body) ? (typeof fRaw.body === 'string' ? JSON.parse(fRaw.body) : fRaw.body) : fRaw;
+                    const ownerProjects = (store && store.projects) ? store.projects : [];
+
+                    // 2. Build a clean copy (strip the local _ownerId marker so it stays native in the owner's store)
+                    const cleanProj = { ...project };
+                    delete cleanProj._ownerId;
+                    cleanProj.lastModifiedBy = currentUser?.name || "Teammate";
+                    cleanProj.lastModifiedAt = new Date().toISOString();
+
+                    // 3. Strip oversized base64 from docs to stay under the 10MB Lambda limit
+                    if (Array.isArray(cleanProj.docs)) {
+                        cleanProj.docs = cleanProj.docs.map(d => {
+                            if (d.base64 && d.base64.length > 1.5 * 1024 * 1024) {
+                                const c = { ...d }; delete c.base64; c.isLargeFile = true; return c;
+                            }
+                            return d;
+                        });
+                    }
+
+                    const idx = ownerProjects.findIndex(p => String(p.id) === String(cleanProj.id));
+                    if (idx >= 0) ownerProjects[idx] = cleanProj; else ownerProjects.push(cleanProj);
+
+                    // 4. Save the owner's store back, preserving their other data
+                    const payload = {
+                        action: 'save_projects',
+                        data: {
+                            userId: ownerId,
+                            projects: ownerProjects,
+                            globalTeam: (store && store.globalTeam) || [],
+                            globalThemes: (store && store.globalThemes) || [],
+                            proofBank: (store && store.proofBank) || [],
+                            aiAgents: (store && store.aiAgents) || [],
+                            globalSubmissions: (store && store.globalSubmissions) || [],
+                            wizardPrompts: (store && store.wizardPrompts) || [],
+                            userPreferences: (store && store.userPreferences) || {}
+                        }
+                    };
+                    const sRes = await fetch(PERSISTENCE_API_URL, {
+                        method: 'POST', mode: 'cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!sRes.ok) throw new Error(`Owner save failed: ${sRes.status}`);
+                    const sRaw = await sRes.json();
+                    const sResp = (sRaw && sRaw.body) ? (typeof sRaw.body === 'string' ? JSON.parse(sRaw.body) : sRaw.body) : sRaw;
+                    if (sResp && sResp.success) {
+                        updateCloudStatus('synced');
+                        return true;
+                    }
+                    throw new Error((sResp && sResp.error) || 'Unknown server error');
+                } catch (error) {
+                    console.error('Team project save failed:', error);
+                    updateCloudStatus('error');
+                    return false;
+                }
+            }
 
             function updateCloudStatus(status) {
                 const container = document.getElementById('cloud-sync-status');
@@ -11791,7 +11871,7 @@ ${JSON.stringify(slide.blocks)}`;
             function renderProjectList() {
                 const list = document.getElementById('sidebar-project-list');
                 if (list) {
-                    const ownHtml = projects.map(p => `
+                    const ownHtml = projects.filter(p => !p._ownerId).map(p => `
                     <div class="project-sidebar-item ${p.id === currentProjectId ? 'active' : ''}" onclick="switchProject(${p.id})">
                         <div class="project-name-wrapper">
                             <i data-lucide="folder" size="14"></i>
@@ -11804,7 +11884,7 @@ ${JSON.stringify(slide.blocks)}`;
                     const teamHtml = teamProjects.length > 0 ? `
                         <div style="padding: 0.5rem 0.75rem 0.25rem; font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted, #94a3b8); margin-top: 0.5rem;">Team</div>
                         ${teamProjects.map(p => `
-                        <div class="project-sidebar-item" style="opacity:0.75;" title="Owner: ${p._ownerId || 'teammate'}" onclick="viewTeamProject('${p.id}')">
+                        <div class="project-sidebar-item ${String(p.id) === String(currentProjectId) ? 'active' : ''}" title="Owner: ${p._ownerId || 'teammate'}" onclick="openTeamProject('${p.id}')">
                             <div class="project-name-wrapper">
                                 <i data-lucide="users" size="14"></i>
                                 <span>${p.name}</span>
@@ -11819,11 +11899,46 @@ ${JSON.stringify(slide.blocks)}`;
                 renderAllProjectsDashboard();
             }
 
-            function viewTeamProject(id) {
-                const p = teamProjects.find(tp => String(tp.id) === String(id));
-                if (!p) return;
-                const owner = p._ownerId || 'a teammate';
-                alert(`This tender belongs to ${owner} and is read-only.\n\nProject: ${p.name}\nClient: ${p.client || '—'}\nStatus: ${p.status || '—'}`);
+            // Open a teammate's tender for editing. Pulls the owner's full copy (with slides/docs)
+            // so edits are made against complete data; saves are routed back to the owner via saveProjects().
+            async function openTeamProject(id) {
+                const stub = teamProjects.find(tp => String(tp.id) === String(id));
+                if (!stub) return;
+                const ownerId = stub._ownerId;
+                if (!ownerId) { alert('The owner of this tender is unknown, so it cannot be opened.'); return; }
+
+                // If already pulled into the working set this session, just switch to it.
+                const existing = projects.find(p => String(p.id) === String(id) && p._ownerId);
+                if (existing) {
+                    await switchProject(existing.id);
+                    switchView('slide-editor', document.querySelector('.nav-item[onclick*=slide-editor]'));
+                    return;
+                }
+
+                toggleLoader(true, "Opening teammate's tender...");
+                try {
+                    const res = await fetch(PERSISTENCE_API_URL, {
+                        method: 'POST', mode: 'cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'fetch_projects', data: { userId: ownerId } })
+                    });
+                    let full = stub;
+                    if (res.ok) {
+                        const raw = await res.json();
+                        const store = (raw && raw.body) ? (typeof raw.body === 'string' ? JSON.parse(raw.body) : raw.body) : raw;
+                        full = ((store && store.projects) || []).find(p => String(p.id) === String(id)) || stub;
+                    }
+                    const proj = { ...full, _ownerId: ownerId };
+                    const idx = projects.findIndex(p => String(p.id) === String(id));
+                    if (idx >= 0) projects[idx] = proj; else projects.push(proj);
+                    await switchProject(proj.id);
+                    switchView('slide-editor', document.querySelector('.nav-item[onclick*=slide-editor]'));
+                } catch (e) {
+                    console.error('Failed to open team project:', e);
+                    alert('Could not open this tender. Please try again.');
+                } finally {
+                    toggleLoader(false);
+                }
             }
 
             function renderAllProjectsDashboard() {
@@ -11832,7 +11947,7 @@ ${JSON.stringify(slide.blocks)}`;
 
                 const statuses = ["New", "In Progress", "Submitted", "On Hold"];
 
-                const ownRows = projects.map(p => `
+                const ownRows = projects.filter(p => !p._ownerId).map(p => `
                 <tr>
                     <td><strong contenteditable="true" onblur="updateProjectMeta(${p.id}, 'name', this.innerText)">${p.name}</strong></td>
                     <td><span contenteditable="true" onblur="updateProjectMeta(${p.id}, 'client', this.innerText)">${p.client || '—'}</span></td>
@@ -11847,7 +11962,7 @@ ${JSON.stringify(slide.blocks)}`;
                     </td>
                     <td>
                         <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn btn-ghost btn-sm" onclick="switchProject(${p.id}); switchView('overview', document.querySelector('.nav-item:nth-child(2)'))">Open</button>
+                            <button class="btn btn-ghost btn-sm" onclick="switchProject(${p.id}); switchView('slide-editor', document.querySelector('.nav-item[onclick*=slide-editor]'))">Open</button>
                             <button class="btn btn-ghost btn-sm" style="color: var(--danger);" onclick="deleteProject(${p.id})">Delete</button>
                         </div>
                     </td>
@@ -11855,12 +11970,14 @@ ${JSON.stringify(slide.blocks)}`;
             `).join('');
 
                 const teamRows = teamProjects.map(p => `
-                <tr style="opacity:0.7; background: var(--bg-subtle, #f8fafc);">
+                <tr style="background: var(--bg-subtle, #f8fafc);">
                     <td><strong>${p.name}</strong> <span style="font-size:0.7rem;color:var(--text-muted,#94a3b8); margin-left:4px;">👥 ${p._ownerId || 'teammate'}</span></td>
                     <td>${p.client || '—'}</td>
                     <td>${p.dueDate || '—'}</td>
                     <td><span class="status-badge">${p.status || '—'}</span></td>
-                    <td><span style="font-size:0.75rem;color:var(--text-muted,#94a3b8);">Read-only</span></td>
+                    <td>
+                        <button class="btn btn-ghost btn-sm" onclick="openTeamProject('${p.id}')">Open</button>
+                    </td>
                 </tr>
             `).join('');
 
