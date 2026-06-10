@@ -675,6 +675,19 @@
             border: 1px solid var(--border);
         }
 
+        .llm-cost-badge {
+            margin-left: auto;
+            font-size: 0.6rem;
+            font-family: monospace;
+            color: var(--text-muted, #6b7280);
+            background: var(--bg-secondary, #f3f4f6);
+            border: 1px solid var(--border, #e5e7eb);
+            border-radius: 10px;
+            padding: 1px 6px;
+            cursor: help;
+            white-space: nowrap;
+        }
+
         /* --- Cards in Chat --- */
         .ai-card {
             background: #fff;
@@ -10115,6 +10128,8 @@ Note: Index is 1-based. Blocks can be: title, rich_text, kpi_cards, table, chart
                     const apiModel = currentLLM === 'gpt-mini' ? 'gpt-4o-mini' :
                         (currentLLM === 'claude-haiku' ? 'claude-3-haiku' : 'claude-3-5-sonnet');
 
+                    const estimatedInputTokens = Math.round(fullPrompt.length / 3.5);
+
                     const response = await fetch(API_BASE_URL, {
                         method: 'POST',
                         mode: 'cors',
@@ -10139,6 +10154,35 @@ Note: Index is 1-based. Blocks can be: title, rich_text, kpi_cards, table, chart
 
                     if (data.ai_response) {
                         addChatMessage(data.ai_response, 'ai', null, [], false, explicitPhaseIndex);
+
+                        // --- LLM COST BADGE ---
+                        (function() {
+                            const LLM_PRICING = {
+                                'claude-3-5-sonnet': { input: 3.00, output: 15.00 },
+                                'claude-3-haiku':    { input: 0.25, output:  1.25 },
+                                'gpt-4o-mini':       { input: 0.15, output:  0.60 }
+                            };
+                            const p = LLM_PRICING[apiModel];
+                            if (!p) return;
+                            const u = data.usage || {};
+                            const inTok  = u.input_tokens  || u.prompt_tokens     || estimatedInputTokens;
+                            const outTok = u.output_tokens || u.completion_tokens || Math.round((data.ai_response || '').length / 3.5);
+                            const isEst  = !data.usage;
+                            const cost   = (inTok * p.input + outTok * p.output) / 1_000_000;
+                            const label  = `${isEst ? '~' : ''}$${cost < 0.001 ? cost.toFixed(5) : cost.toFixed(4)}`;
+                            const tip    = `${isEst ? 'Est. ' : ''}${inTok.toLocaleString()} in + ${outTok.toLocaleString()} out tokens (${apiModel})`;
+                            const msgs   = container.querySelectorAll('.message-ai');
+                            const lastMsg = msgs[msgs.length - 1];
+                            if (!lastMsg) return;
+                            const actions = lastMsg.querySelector('.chat-actions');
+                            if (!actions) return;
+                            const badge = document.createElement('span');
+                            badge.className = 'llm-cost-badge';
+                            badge.title = tip;
+                            badge.textContent = label;
+                            actions.appendChild(badge);
+                        })();
+
                         handleAIAction(data.ai_response);
 
                         // --- AUTO-CONTINUATION LOGIC ---
