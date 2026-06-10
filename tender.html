@@ -4546,8 +4546,9 @@
                             <button class="chip" onclick="addPrompt('Add executive summary')">+ Summary</button>
                         </div>
                         <div class="model-selector" style="transform: scale(0.8); transform-origin: right center;">
-                            <button class="model-btn active" id="btn-claude-haiku" onclick="setLLM('claude-haiku')">Haiku</button>
-                            <button class="model-btn" id="btn-gpt-mini" onclick="setLLM('gpt-mini')">GPT</button>
+                            <button class="model-btn active" id="btn-claude-haiku" data-model="claude" onclick="setLLM('claude-haiku')">Haiku</button>
+                            <button class="model-btn" id="btn-claude-sonnet" data-model="claude" onclick="setLLM('claude-sonnet')">Sonnet</button>
+                            <button class="model-btn" id="btn-gpt-mini" data-model="gpt" onclick="setLLM('gpt-mini')">GPT</button>
                         </div>
                     </div>
                     <div class="chat-input-box" id="chat-input-box">
@@ -6316,7 +6317,8 @@
 
                 let label = "Claude 3.5 Sonnet";
                 if (llm === 'claude-haiku') label = "Claude 3 Haiku";
-                if (llm === 'gpt-4o-mini') label = "GPT-4o-mini";
+                if (llm === 'claude-sonnet') label = "Claude 3.5 Sonnet";
+                if (llm === 'gpt-mini') label = "GPT-4o-mini";
 
                 if (!silent && typeof showToast === 'function') showToast(`Switched to ${label}`, "info");
             }
@@ -7381,7 +7383,7 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                     id: 1, 
                     title: "Market & Consumer Insights", 
                     agentId: "market-research", 
-                    model: "gpt-4o-mini",
+                    model: "claude-3-haiku",
                     desc: "TAM/SAM/SOM analysis, industry tailwinds, and hyper-local Singapore consumer behavior.",
                     prompt: "You are the Market Intelligence Agent. Study the client's industry with a focus on the Singapore and APAC region. 1) Perform a TAM/SAM/SOM analysis to define the opportunity size. 2) Identify top 3 industry tailwinds (opportunities) and headwinds (threats). 3) Analyze current consumer behavior patterns, search trends (Google Trends context), and social sentiment. 4) Identify relevant marketing 'moments' or seasonal trends we can hijack. Output a structured market brief in [MARKET_RESEARCH_JSON] format."
                 },
@@ -7397,7 +7399,7 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                     id: 3, 
                     title: "Legal & Risk Assessment", 
                     agentId: "legal", 
-                    model: "gpt-4o-mini",
+                    model: "claude-3-haiku",
                     desc: "PDPA, advertising codes (ASAS), and platform-specific restriction auditing.",
                     prompt: "You are the Legal & Compliance Auditor. Audit the proposed scope against: 1) Singapore PDPA and global data privacy standards. 2) Singapore Code of Advertising Practice (ASAS). 3) Platform policies (e.g., Google/Meta restrictions for finance, health, or sensitive sectors). 4) Cultural or political sensitivities in the target markets. Highlight 'Stop/Go' risks and propose specific mitigation strategies for high-risk campaign ideas."
                 },
@@ -7413,7 +7415,7 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                     id: 5, 
                     title: "Human Intelligence (Briefing Notes)", 
                     agentId: "human-input", 
-                    model: "gpt-4o-mini",
+                    model: "claude-3-haiku",
                     desc: "Deciphering sales briefings, verbal hints, and client personality signals.",
                     prompt: "You are the Sales Intelligence Decipherer. Analyze the human-inputted briefing notes, verbal hints from client calls, and meeting minutes. 1) Identify the client's 'unspoken' fears and primary motivations (e.g., job security, brand legacy). 2) Highlight specific buying signals or preferences mentioned (e.g., 'they hate long reports'). 3) Adjust the proposal's tone to match the client's personality (e.g., highly technical vs big-picture visionary). Ensure the final strategy addresses these 'soft' signals."
                 },
@@ -7421,7 +7423,7 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                     id: 6, 
                     title: "Commercial & Pricing Strategy", 
                     agentId: "pricing", 
-                    model: "gpt-4o-mini",
+                    model: "claude-3-haiku",
                     desc: "Value-based costing, margin protection, and manpower assumptions ($160/120/80).",
                     prompt: "You are the Commercial Strategist. Build a high-margin pricing structure. 1) Apply manpower rates: $160/hr (Senior), $120/hr (Mid), $80/hr (Junior). 2) Use 50% offshore rates for mundane tasks to protect margin. 3) Incorporate prefixed costs for backlinks, media buy, and production. 4) Recommend a tiered pricing strategy (Bronze/Silver/Gold) to give the client options while anchoring the high-value solution. Analyze if we should price aggressively to enter or conservatively to maintain premium status."
                 },
@@ -7437,7 +7439,7 @@ At the end of your response, you MUST include a [COMPETITOR_ANALYSIS_JSON: {...}
                     id: 8, 
                     title: "First Draft Generation", 
                     agentId: "designer", 
-                    model: "gpt-4o-mini",
+                    model: "claude-3-haiku",
                     desc: "Visual storytelling flow, slide-by-slide hooks, and high-impact 'Reveals'.",
                     prompt: "You are the Creative Director and Slide Architect. Convert the Strategic Win Themes into a 15-20 slide storyboard. 1) Define a clear storytelling arc (Context -> Problem -> Strategy -> Solution -> Proof). 2) For each slide, define the 'Visual Hook' and the 'Key Takeaway'. 3) Ensure branding is consistent with MediaOne's DNA. 4) Output the slide structure in [SLIDE_JSON] format, ensuring content is concise and boardroom-ready. Lead with the 'The Reveal'—the most powerful slide in the deck."
                 },
