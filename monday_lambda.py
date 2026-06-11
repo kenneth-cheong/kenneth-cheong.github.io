@@ -1022,6 +1022,36 @@ def run_ga4_report(property_id, tool_input, token):
         return {"error": str(e)}
 
 # ── Agentic loop: Claude + Monday.com tool use ──────────────────────────────
+# Human-readable labels for live progress + the structured tool_calls list
+# returned to the browser (rendered as chips in the tool log).
+TOOL_LABELS = {
+    "monday_graphql":                  "Querying Monday.com",
+    "search_messages_standard":        "Searching Google Chat",
+    "search_conversations":            "Searching Google Chat",
+    "search_messages":                 "Searching Google Chat",
+    "list_messages":                   "Reading Google Chat messages",
+    "list_messages_standard":          "Reading Google Chat messages",
+    "send_message":                    "Posting to Google Chat",
+    "list_my_spaces":                  "Listing Google Chat spaces",
+    "list_mcp_tools":                  "Listing chat tools",
+    "get_gsc_performance":             "Pulling Search Console data",
+    "get_ga4_report":                  "Fetching GA4 analytics",
+    "get_ads_report":                  "Fetching Google Ads data",
+    "save_memory_note":                "Saving to memory",
+    "get_seranking_report":            "Fetching SE Ranking positions",
+    "get_meta_ads_report":             "Fetching Meta Ads data",
+    "get_linkedin_ads_report":         "Fetching LinkedIn Ads data",
+    "get_tiktok_ads_report":           "Fetching TikTok Ads data",
+    "dataforseo_serp":                 "Fetching live SERP results",
+    "dataforseo_search_volume":        "Fetching search volumes",
+    "dataforseo_backlinks_summary":    "Fetching backlink summary",
+    "dataforseo_domain_rank_overview": "Analyzing domain rank",
+    "dataforseo_ranked_keywords":      "Fetching ranked keywords",
+    "get_workduo_report":              "Fetching AI visibility data",
+    "get_ahrefs_report":               "Fetching Ahrefs data",
+    "search_knowledge_base":           "Searching knowledge base",
+}
+
 def claude_chat_with_tools(body):
     """
     Full agentic loop:
@@ -1049,6 +1079,39 @@ def claude_chat_with_tools(body):
 
     if not messages:
         return {"statusCode": 400, "body": json.dumps({"error": "No messages provided"})}
+
+    # ── Live progress reporting ─────────────────────────────────────────────
+    # The browser sends a progress_id and polls get_chat_progress while this
+    # loop runs, so the typing indicator can show what is actually happening
+    # instead of a guessed rotation. Best-effort only: a Mongo hiccup must
+    # never break the chat itself.
+    progress_id = body.get('progress_id')
+    tool_events = []   # structured per-call list: [{"name", "label"}, ...]
+
+    def _report_progress(label):
+        if not progress_id:
+            return
+        try:
+            db = get_db()
+            if db is None:
+                return
+            db['chat_progress'].update_one(
+                {"_id": progress_id},
+                {"$set": {"label": label, "events": tool_events, "updated": time.time()}},
+                upsert=True,
+            )
+        except Exception as e:
+            print(f"[PROGRESS] write failed: {e}")
+
+    def _clear_progress():
+        if not progress_id:
+            return
+        try:
+            db = get_db()
+            if db is not None:
+                db['chat_progress'].delete_one({"_id": progress_id})
+        except Exception:
+            pass
 
     # Tool definitions
     tools = [{
@@ -1409,6 +1472,8 @@ def claude_chat_with_tools(body):
     try:
         for round_num in range(MAX_TOOL_ROUNDS + 1):
 
+            _report_progress("Thinking" if round_num == 0 else "Analyzing results")
+
             payload = {
                 "model": model,
                 "max_tokens": max_tokens,
@@ -1465,12 +1530,14 @@ def claude_chat_with_tools(body):
                 # Exclude internal MEM_SAVE directives from the user-facing tool log
                 display_log = [t for t in tool_call_log if not t.startswith("MEM_SAVE:")]
                 summary = "\n".join(display_log) if display_log else None
+                _clear_progress()
                 return {
                     "statusCode": 200,
                     "body": json.dumps({
                         "reply": final_text,
                         "thinking": thinking_text,
                         "tool_calls_summary": summary,
+                        "tool_calls": [t for t in tool_events if t.get("name") != "save_memory_note"],
                         "rounds": round_num,
                         "memory_updates": [t for t in tool_call_log if t.startswith("MEM_SAVE:")],
                         "debug_stats": {
@@ -1496,6 +1563,12 @@ def claude_chat_with_tools(body):
                     tool_id    = block.get("id", f"call_{int(time.time())}")
                     tool_name  = block["name"]
                     tool_input = block.get("input", {})
+
+                    # Record the call + beacon real progress before executing,
+                    # so the browser shows what is running right now.
+                    _tool_label = TOOL_LABELS.get(tool_name, tool_name.replace('_', ' ').title())
+                    tool_events.append({"name": tool_name, "label": _tool_label})
+                    _report_progress(_tool_label)
 
                     if tool_name == "monday_graphql":
                         gql_query = tool_input.get("query", "")
@@ -1998,11 +2071,13 @@ def claude_chat_with_tools(body):
                 block.get("text", "") for block in content_blocks
                 if block.get("type") == "text"
             ).strip()
+            _clear_progress()
             return {
                 "statusCode": 200,
                 "body": json.dumps({
                     "reply": fallback_text or f"Stopped unexpectedly ({stop_reason}).",
-                    "tool_calls_summary": "\n".join(t for t in tool_call_log if not t.startswith("MEM_SAVE:")) or None
+                    "tool_calls_summary": "\n".join(t for t in tool_call_log if not t.startswith("MEM_SAVE:")) or None,
+                    "tool_calls": [t for t in tool_events if t.get("name") != "save_memory_note"]
                 })
             }
 
@@ -2010,19 +2085,23 @@ def claude_chat_with_tools(body):
         fallback = "\n\n".join(
             b.get("text", "") for b in content_blocks if b.get("type") == "text"
         ).strip()
+        _clear_progress()
         return {
             "statusCode": 200,
             "body": json.dumps({
                 "reply": fallback or "I reached the maximum number of data lookups. Please refine your question.",
-                "tool_calls_summary": "\n".join(t for t in tool_call_log if not t.startswith("MEM_SAVE:")) or None
+                "tool_calls_summary": "\n".join(t for t in tool_call_log if not t.startswith("MEM_SAVE:")) or None,
+                "tool_calls": [t for t in tool_events if t.get("name") != "save_memory_note"]
             })
         }
 
     except requests.exceptions.Timeout:
+        _clear_progress()
         return {"statusCode": 504, "body": json.dumps({"error": "Request timed out during agentic loop"})}
     except Exception as e:
         tb = traceback.format_exc()
         print(f"[TOOLS] Exception: {e}\n{tb}")
+        _clear_progress()
         return {"statusCode": 500, "body": json.dumps({"error": str(e), "traceback": tb})}
 # ───────────────────────────────────────────────────────────────────────────
 
@@ -2420,6 +2499,21 @@ def lambda_handler(event, context):
             result = claude_chat(body)
         elif action == 'claude_chat_with_tools':
             result = claude_chat_with_tools(body)
+        elif action == 'get_chat_progress':
+            # Lightweight poll: what is the agentic loop doing right now?
+            pid = body.get('progress_id')
+            doc = None
+            try:
+                db = get_db()
+                if db is not None and pid:
+                    doc = db['chat_progress'].find_one({"_id": pid})
+            except Exception as e:
+                print(f"[PROGRESS] read failed: {e}")
+            doc = doc or {}
+            result = {"statusCode": 200, "body": json.dumps({
+                "label": doc.get("label"),
+                "events": doc.get("events", [])
+            })}
         elif action == 'sync_knowledge_base':
             result = sync_knowledge_base(body)
         elif action == 'kb_ensure_index':
