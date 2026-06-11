@@ -1051,8 +1051,8 @@ def _ctx_block(c):
     return '\n\nCONTEXT:\n' + '\n\n'.join(lines) + '\n'
 
 
-def _agent_prompt(key, c):
-    """Return the full prompt string for a Content Intelligence agent, or None."""
+def _agent_prompt_base(key, c):
+    """Return the task prompt string for a Content Intelligence agent, or None."""
     c = c or {}
     ctx = _ctx_block(c)
 
@@ -1138,6 +1138,31 @@ def _agent_prompt(key, c):
         return (f'Act as a content editor.{ctx}\n'
                 'TASK - produce two things: (1) a TABLE OF CONTENTS as a bulleted, anchor-link-style list of the article\'s sections, and (2) a TL;DR - a 3-5 bullet executive summary a reader can scan in 15 seconds. Base both on the draft / outline above. Return Markdown.')
     return None
+
+
+# Structured-output contract appended to every agent prompt. The client
+# (index.html renderAgentResult/parseAgentStructuredResult) renders the
+# score/status/findings as a scorecard and falls back to raw Markdown if
+# the JSON cannot be parsed, so this is safe to evolve.
+_AGENT_JSON_SUFFIX = (
+    '\n\nOUTPUT FORMAT (MANDATORY): Respond in exactly two parts.\n'
+    'PART 1 - a single small JSON object, no code fences, no commentary:\n'
+    '{"score": <integer 0-10 or null>, "status": "good"|"warn"|"bad", '
+    '"summary": "<one-sentence headline takeaway>", '
+    '"findings": [{"severity": "high"|"medium"|"low", "issue": "<specific issue, max 25 words>", "fix": "<concrete fix, max 25 words>"}]}\n'
+    'Rules for PART 1: if the TASK is an audit or assessment of the draft, set "score" to an honest 0-10 rating '
+    'of the current draft on this dimension (8-10 = "good", 5-7 = "warn", 0-4 = "bad") and list each concrete '
+    'problem as a finding (max 10). If the TASK is research or content creation (nothing is being judged), set '
+    '"score" to null, "status" to "good" and "findings" to []. Keep every JSON string short and on one line; '
+    'do NOT put the deliverable inside the JSON.\n'
+    'PART 2 - a line containing exactly ---CONTENT--- followed by the complete Markdown deliverable the TASK asked for.'
+)
+
+
+def _agent_prompt(key, c):
+    """Full agent prompt: the task prompt plus the mandatory JSON output contract."""
+    base = _agent_prompt_base(key, c)
+    return (base + _AGENT_JSON_SUFFIX) if base else None
 
 
 def build_optimiser_prompt(action, body):
