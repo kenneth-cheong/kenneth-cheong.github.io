@@ -1068,6 +1068,7 @@ def claude_chat_with_tools(body):
       model      - Claude model ID (optional)
     """
     anthropic_key = os.environ.get('ANTHROPIC_API_KEY')
+    anthropic_key_backup = os.environ.get('ANTHROPIC_API_KEY_BACKUP')
     if not anthropic_key:
         return {"statusCode": 500, "body": json.dumps({"error": "ANTHROPIC_API_KEY environment variable not configured"})}
 
@@ -1506,6 +1507,11 @@ def claude_chat_with_tools(body):
             if r.status_code != 200:
                 err_body = r.text[:1000]
                 print(f"[TOOLS] Anthropic error {r.status_code}: {err_body}")
+                # On usage-limit errors, retry once with the backup key if available
+                if r.status_code in (429, 529) and anthropic_key_backup and anthropic_headers["x-api-key"] != anthropic_key_backup:
+                    print("[TOOLS] Primary key hit usage limit — retrying with backup key")
+                    anthropic_headers["x-api-key"] = anthropic_key_backup
+                    continue
                 return {"statusCode": r.status_code, "body": json.dumps({"error": f"Anthropic API error {r.status_code}", "detail": err_body})}
 
             response_data = r.json()
