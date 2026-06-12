@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Reminders</title>
+<script src="https://cdn.jsdelivr.net/npm/monday-sdk-js/dist/main.js"></script>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #323338; --muted: #676879; --line: #e6e9ef;
+    --card: #f6f7fb; --accent: #0073ea; --accent-fg: #ffffff; --danger: #d83a52;
+    --input-bg: #ffffff;
+  }
+  [data-theme="dark"], [data-theme="black"] {
+    --bg: #181b34; --fg: #d5d8df; --muted: #9699a6; --line: #30324e;
+    --card: #21243d; --accent: #5a9bff; --accent-fg: #ffffff; --danger: #ff6b81;
+    --input-bg: #1f2238;
+  }
+  [data-theme="black"] { --bg: #111; --card: #1c1c1c; --line: #333; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Figtree, sans-serif;
+    background: var(--bg); color: var(--fg); font-size: 14px; line-height: 1.45;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 16px; margin: 0 0 2px; display: flex; align-items: center; gap: 8px; }
+  .sub { color: var(--muted); font-size: 12px; margin-bottom: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; font-weight: 600; }
+  input, select, textarea {
+    width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--input-bg); color: var(--fg); font-size: 14px; font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 38px; }
+  .row { display: flex; gap: 10px; }
+  .row > div { flex: 1; }
+  button {
+    border: none; border-radius: 8px; padding: 9px 14px; font-size: 14px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .primary { background: var(--accent); color: var(--accent-fg); }
+  .primary:disabled { opacity: .5; cursor: default; }
+  .ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+  .actions { display: flex; gap: 8px; margin-top: 14px; align-items: center; }
+  .list-item { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); }
+  .list-item:first-child { border-top: none; }
+  .li-main { flex: 1; min-width: 0; }
+  .li-msg { font-weight: 600; word-break: break-word; }
+  .li-meta { color: var(--muted); font-size: 12px; margin-top: 3px; }
+  .badge { display: inline-block; background: var(--accent); color: var(--accent-fg); border-radius: 20px; padding: 1px 8px; font-size: 11px; font-weight: 600; margin-left: 6px; }
+  .icon-btn { background: transparent; border: 1px solid var(--line); border-radius: 7px; padding: 5px 9px; font-size: 12px; color: var(--fg); }
+  .icon-btn.del { color: var(--danger); border-color: transparent; }
+  .empty { color: var(--muted); text-align: center; padding: 18px 0; }
+  .hidden { display: none !important; }
+  .section-title { font-size: 13px; font-weight: 700; margin: 0 0 6px; }
+  .hint { color: var(--muted); font-size: 11px; margin-top: 4px; }
+  .spinner { text-align: center; color: var(--muted); padding: 30px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>⏰ Reminders</h1>
+  <div class="sub" id="ctxLabel">Loading…</div>
+
+  <div id="app" class="hidden">
+    <!-- Create / edit form -->
+    <div class="card">
+      <div class="section-title" id="formTitle">New reminder</div>
+      <label>What should I remind about?</label>
+      <textarea id="message" placeholder="e.g. Follow up with the client"></textarea>
+      <div class="row">
+        <div>
+          <label>Date</label>
+          <input type="date" id="date" />
+        </div>
+        <div>
+          <label>Time</label>
+          <input type="time" id="time" value="09:00" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Repeat</label>
+          <select id="repeat">
+            <option value="">Doesn't repeat</option>
+            <option value="1">Every day</option>
+            <option value="wd">Every weekday (Mon–Fri)</option>
+            <option value="7">Every week</option>
+            <option value="__n">Every N days…</option>
+          </select>
+        </div>
+        <div id="everyNWrap" class="hidden">
+          <label>N days</label>
+          <input type="number" id="everyN" min="2" value="2" />
+        </div>
+      </div>
+      <label>Remind</label>
+      <select id="target"><option value="">Me</option></select>
+      <div class="hint">Times are Singapore time (SGT).</div>
+      <div class="actions">
+        <button class="primary" id="saveBtn">Set reminder</button>
+        <button class="ghost hidden" id="cancelEdit">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Active reminders -->
+    <div class="card">
+      <div class="section-title">Active on this item</div>
+      <div id="list"><div class="spinner">Loading…</div></div>
+    </div>
+  </div>
+
+  <div id="outside" class="hidden empty">
+    Open this from a monday item to manage reminders.
+  </div>
+</div>
+
+<script>
+const API = "https://xfug3j9w58.execute-api.ap-southeast-1.amazonaws.com/prod";
+const monday = window.mondaySdk();
+
+let ctx = { itemId: null, userId: null };
+let jwt = null;
+let editingId = null;
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => (s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+function setTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme || "light");
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    ...opts,
+    headers: { "Content-Type": "application/json", Authorization: jwt, ...(opts.headers || {}) },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || data.detail || ("HTTP " + res.status));
+  return data;
+}
+
+function notice(message, type = "success") {
+  monday.execute("notice", { message, type, timeout: 4000 });
+}
+
+// Build the recurrence rule string from the form.
+function readRule() {
+  const v = $("repeat").value;
+  if (v === "__n") return String(Math.max(2, Number($("everyN").value) || 2));
+  return v;
+}
+function applyRule(rule) {
+  if (!rule) { $("repeat").value = ""; }
+  else if (rule === "wd" || rule === "1" || rule === "7") { $("repeat").value = rule; }
+  else if (/^\d+$/.test(rule)) { $("repeat").value = "__n"; $("everyN").value = rule; }
+  else { $("repeat").value = ""; } // weekday rules (wN) created via text fall back to display-only
+  toggleEveryN();
+}
+function toggleEveryN() {
+  $("everyNWrap").classList.toggle("hidden", $("repeat").value !== "__n");
+}
+
+function resetForm() {
+  editingId = null;
+  $("formTitle").textContent = "New reminder";
+  $("saveBtn").textContent = "Set reminder";
+  $("cancelEdit").classList.add("hidden");
+  $("message").value = "";
+  $("repeat").value = ""; toggleEveryN();
+  $("target").value = "";
+  // default date = today, time 09:00
+  const now = new Date();
+  $("date").value = now.toISOString().slice(0, 10);
+  $("time").value = "09:00";
+}
+
+function startEdit(r) {
+  editingId = r.id;
+  $("formTitle").textContent = "Edit reminder";
+  $("saveBtn").textContent = "Save changes";
+  $("cancelEdit").classList.remove("hidden");
+  $("message").value = r.message;
+  applyRule(r.recur);
+  $("target").value = r.targetId && r.targetId !== ctx.userId ? r.targetId : "";
+  // populate date/time from epoch in SGT (offset +8)
+  const d = new Date(r.fireAtEpoch + 8 * 3600000);
+  $("date").value = d.toISOString().slice(0, 10);
+  $("time").value = d.toISOString().slice(11, 16);
+  window.scrollTo(0, 0);
+}
+
+function render(reminders) {
+  const list = $("list");
+  if (!reminders.length) { list.innerHTML = '<div class="empty">No active reminders yet.</div>'; return; }
+  list.innerHTML = reminders.map((r) => {
+    const who = (r.targetId && r.targetId !== ctx.userId && r.targetName) ? (" · 👤 " + esc(r.targetName)) : "";
+    const repeat = r.recur ? ('<span class="badge">🔁 ' + esc(r.recurLabel) + "</span>") : "";
+    return (
+      '<div class="list-item">' +
+        '<div class="li-main">' +
+          '<div class="li-msg">' + esc(r.message) + repeat + "</div>" +
+          '<div class="li-meta">🗓️ ' + esc(r.fireAtLabel) + who + "</div>" +
+        "</div>" +
+        '<button class="icon-btn" data-edit="' + r.id + '">Edit</button>' +
+        '<button class="icon-btn del" data-del="' + r.id + '">Cancel</button>' +
+      "</div>"
+    );
+  }).join("");
+  list.querySelectorAll("[data-edit]").forEach((b) =>
+    b.addEventListener("click", () => startEdit(reminders.find((x) => x.id === b.dataset.edit))));
+  list.querySelectorAll("[data-del]").forEach((b) =>
+    b.addEventListener("click", () => cancelReminder(b.dataset.del)));
+}
+
+async function refresh() {
+  try {
+    const { reminders } = await api("/reminders?itemId=" + encodeURIComponent(ctx.itemId));
+    render(reminders);
+  } catch (e) { $("list").innerHTML = '<div class="empty">Could not load: ' + esc(e.message) + "</div>"; }
+}
+
+async function save() {
+  const message = $("message").value.trim();
+  if (!message) return notice("Add a message first.", "error");
+  if (!$("date").value) return notice("Pick a date.", "error");
+  const fireAtLocal = $("date").value + "T" + ($("time").value || "09:00");
+  const recur = readRule();
+  const targetId = $("target").value || ctx.userId;
+  const targetName = $("target").value ? $("target").selectedOptions[0].textContent : "";
+  $("saveBtn").disabled = true;
+  try {
+    if (editingId) {
+      await api("/reminders/" + editingId, { method: "PATCH", body: JSON.stringify({ message, fireAtLocal, recur }) });
+      notice("Reminder updated.");
+    } else {
+      await api("/reminders", { method: "POST", body: JSON.stringify({ itemId: ctx.itemId, message, fireAtLocal, recur, targetId, targetName }) });
+      notice("Reminder set.");
+    }
+    resetForm();
+    refresh();
+  } catch (e) { notice("Failed: " + e.message, "error"); }
+  finally { $("saveBtn").disabled = false; }
+}
+
+async function cancelReminder(id) {
+  const res = await monday.execute("confirm", { message: "Cancel this reminder?", confirmButton: "Cancel reminder", cancelButton: "Keep" });
+  if (!res.data || !res.data.confirm) return;
+  try { await api("/reminders/" + id, { method: "DELETE" }); notice("Reminder cancelled."); refresh(); }
+  catch (e) { notice("Failed: " + e.message, "error"); }
+}
+
+async function loadUsers() {
+  try {
+    const r = await monday.api("query { users (limit: 200) { id name } }");
+    const users = (r.data && r.data.users) || [];
+    const sel = $("target");
+    users.filter((u) => String(u.id) !== String(ctx.userId)).forEach((u) => {
+      const o = document.createElement("option");
+      o.value = String(u.id); o.textContent = u.name; sel.appendChild(o);
+    });
+  } catch (e) { /* non-fatal: defaults to "Me" only */ }
+}
+
+async function init() {
+  // form wiring
+  $("repeat").addEventListener("change", toggleEveryN);
+  $("saveBtn").addEventListener("click", save);
+  $("cancelEdit").addEventListener("click", resetForm);
+
+  monday.listen("context", (res) => { if (res.data && res.data.theme) setTheme(res.data.theme); });
+
+  let context;
+  try {
+    const timeout = new Promise((res) => setTimeout(() => res(null), 2000));
+    const got = await Promise.race([monday.get("context").then((r) => r.data), timeout]);
+    context = got;
+  } catch (e) { context = null; }
+  if (!context || !(context.itemId || context.itemIds)) {
+    $("ctxLabel").classList.add("hidden");
+    $("outside").classList.remove("hidden");
+    return;
+  }
+  setTheme(context.theme);
+  ctx.itemId = String(context.itemId || (context.itemIds && context.itemIds[0]));
+  ctx.userId = String((context.user && context.user.id) || "");
+
+  try { jwt = (await monday.get("sessionToken")).data; }
+  catch (e) { $("ctxLabel").textContent = "Could not authenticate with monday."; return; }
+
+  $("ctxLabel").textContent = "Managing reminders for this item";
+  $("app").classList.remove("hidden");
+  resetForm();
+  loadUsers();
+  refresh();
+}
+
+init();
+</script>
+</body>
+</html>
