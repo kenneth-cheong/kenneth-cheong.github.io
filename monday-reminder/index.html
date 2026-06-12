@@ -122,6 +122,8 @@ const monday = window.mondaySdk();
 let ctx = { itemId: null, userId: null };
 let jwt = null;
 let editingId = null;
+// When opened as a modal from an item-menu action (URL ?modal=1), close after saving.
+const isModal = new URLSearchParams(location.search).has("modal");
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => (s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -246,6 +248,7 @@ async function save() {
     } else {
       await api("/reminders", { method: "POST", body: JSON.stringify({ itemId: ctx.itemId, message, fireAtLocal, recur, targetId, targetName }) });
       notice("Reminder set.");
+      if (isModal) { monday.execute("closeAppFeatureModal"); return; }
     }
     resetForm();
     refresh();
