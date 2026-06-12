@@ -1,0 +1,204 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Digimetrics SaaS backend — auth, metering gateway, credits, Stripe billing.
+
+Parameters:
+  AppOrigin:
+    Type: String
+    Description: Frontend origin (Amplify URL or custom domain) for CORS + redirects.
+    Default: http://localhost:5173
+  GoogleClientId:
+    Type: String
+  JwtSecret:
+    Type: String
+    NoEcho: true
+  StripeSecretKey:
+    Type: String
+    NoEcho: true
+  StripeWebhookSecret:
+    Type: String
+    NoEcho: true
+  GatewaySecret:
+    Type: String
+    NoEcho: true
+    Description: Shared secret the metering gateway sends to upstream tool Lambdas.
+  AdminEmails:
+    Type: String
+    Default: tom@mediaone.co,june@mediaone.co,kenneth@mediaone.co
+    Description: Comma-separated allowlist of admin emails (access to /admin/*).
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    MemorySize: 256
+    Timeout: 30
+    Architectures: [arm64]
+    Environment:
+      Variables:
+        USERS_TABLE: !Ref UsersTable
+        LEDGER_TABLE: !Ref LedgerTable
+        APP_ORIGIN: !Ref AppOrigin
+        JWT_SECRET: !Ref JwtSecret
+
+Resources:
+  # ── Data ────────────────────────────────────────────────────────────────
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: userId, AttributeType: S }
+        - { AttributeName: stripeCustomerId, AttributeType: S }
+      KeySchema:
+        - { AttributeName: userId, KeyType: HASH }
+      GlobalSecondaryIndexes:
+        - IndexName: stripeCustomerIndex
+          KeySchema:
+            - { AttributeName: stripeCustomerId, KeyType: HASH }
+          Projection: { ProjectionType: ALL }
+
+  LedgerTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: userId, AttributeType: S }
+        - { AttributeName: ts, AttributeType: S }
+      KeySchema:
+        - { AttributeName: userId, KeyType: HASH }
+        - { AttributeName: ts, KeyType: RANGE }
+
+  # ── HTTP API + JWT (Lambda) authorizer ──────────────────────────────────
+  Api:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins: [!Ref AppOrigin]
+        AllowHeaders: [Content-Type, Authorization]
+        AllowMethods: [GET, POST, OPTIONS]
+        AllowCredentials: true
+      Auth:
+        Authorizers:
+          JwtAuthorizer:
+            FunctionArn: !GetAtt AuthorizerFn.Arn
+            Identity:
+              Headers: [Authorization]
+            AuthorizerPayloadFormatVersion: '2.0'
+            EnableSimpleResponses: true
+        # No DefaultAuthorizer → routes are public unless they opt into
+        # JwtAuthorizer (auth/webhook stay public; everything else is gated).
+
+  AuthorizerFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .build/authorizer/
+      Handler: index.handler
+
+  # API Gateway must be allowed to invoke the authorizer (SAM doesn't add this
+  # for HttpApi Lambda authorizers referenced by ARN — without it every authed
+  # route 500s before the function runs).
+  AuthorizerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AuthorizerFn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/authorizers/*'
+
+  # ── Auth (public): Google login + token refresh ─────────────────────────
+  AuthFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .build/auth/
+      Handler: index.handler
+      Environment:
+        Variables:
+          GOOGLE_CLIENT_ID: !Ref GoogleClientId
+          ADMIN_EMAILS: !Ref AdminEmails
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
+      Events:
+        Google: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /auth/google, Method: POST } }
+        Refresh: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /auth/refresh, Method: POST } }
+
+  # ── Profile + usage (authed) ────────────────────────────────────────────
+  MeFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .build/me/
+      Handler: index.handler
+      Environment:
+        Variables:
+          ADMIN_EMAILS: !Ref AdminEmails
+      Policies:
+        - DynamoDBReadPolicy: { TableName: !Ref UsersTable }
+        - DynamoDBReadPolicy: { TableName: !Ref LedgerTable }
+      Events:
+        Me: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        Usage: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/usage, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+
+  # ── Metering gateway (authed): the choke point for every tool ───────────
+  MeteringFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .build/metering/
+      Handler: index.handler
+      Timeout: 60
+      Environment:
+        Variables:
+          GATEWAY_SECRET: !Ref GatewaySecret
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
+      Events:
+        Run: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/run/{toolId}', Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+
+  # ── Billing: checkout/portal (authed) + webhook (public, signed) ────────
+  BillingFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .build/billing/
+      Handler: index.handler
+      Environment:
+        Variables:
+          STRIPE_SECRET_KEY: !Ref StripeSecretKey
+          STRIPE_WEBHOOK_SECRET: !Ref StripeWebhookSecret
+          PRICE_STARTER_MONTHLY: !Sub '{{resolve:ssm:/saas/price/starter/monthly}}'
+          PRICE_STARTER_ANNUAL: !Sub '{{resolve:ssm:/saas/price/starter/annual}}'
+          PRICE_PRO_MONTHLY: !Sub '{{resolve:ssm:/saas/price/pro/monthly}}'
+          PRICE_PRO_ANNUAL: !Sub '{{resolve:ssm:/saas/price/pro/annual}}'
+          PRICE_EXPERT_MONTHLY: !Sub '{{resolve:ssm:/saas/price/expert/monthly}}'
+          PRICE_EXPERT_ANNUAL: !Sub '{{resolve:ssm:/saas/price/expert/annual}}'
+          PRICE_TOPUP_TOPUP_S: !Sub '{{resolve:ssm:/saas/price/topup/topup_s}}'
+          PRICE_TOPUP_TOPUP_M: !Sub '{{resolve:ssm:/saas/price/topup/topup_m}}'
+          PRICE_TOPUP_TOPUP_L: !Sub '{{resolve:ssm:/saas/price/topup/topup_l}}'
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
+      Events:
+        Checkout: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/checkout, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        Topup: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/topup, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        Portal: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/portal, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        Webhook: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/webhook, Method: POST } }
+
+  # ── Admin portal API (authed + ADMIN_EMAILS allowlist) ──────────────────
+  AdminFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .build/admin/
+      Handler: index.handler
+      Environment:
+        Variables:
+          ADMIN_EMAILS: !Ref AdminEmails
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
+      Events:
+        Users: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/users, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        Credits: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/credits, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        Tier: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/tier, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+
+Outputs:
+  ApiUrl:
+    Description: Base URL for the SaaS API (set as VITE_API_BASE in the frontend).
+    Value: !Sub 'https://${Api}.execute-api.${AWS::Region}.amazonaws.com'

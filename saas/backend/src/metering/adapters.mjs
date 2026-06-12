@@ -1,0 +1,191 @@
+// Per-tool request/response adapters.
+//
+// The frontend sends a GENERIC input (`{ input, url }`). Each existing upstream
+// Lambda expects its OWN payload shape and returns its OWN response shape. An
+// adapter maps generic-in → upstream-in, and upstream-out → generic-out:
+//   { rows: [...] }  — table tools
+//   { text: '...' }  — AI text tools
+//   { html: '...' }  — tools whose upstream returns ready HTML
+// which is exactly what the React result view + free-tier capping render.
+//
+// Tools without an adapter fall through to a raw pass-through.
+
+// ── Free-form AI text factory (aiOptimiser, action 'content_freeform') ───────
+// upstream in:  { action:'content_freeform', userPrompt }
+// upstream out: { statusCode, body:'{"result":"<text>"}' }  (gateway unwraps the
+// statusCode/body envelope before this runs, so `raw` is the inner object).
+function claude(buildMessage) {
+  return {
+    request: (body) => ({
+      action: 'content_freeform',
+      // Steer the server's long-form SEO framing toward the exact task.
+      userPrompt: `Follow this instruction exactly and output only what it asks, no preamble or meta-commentary.\n\n${buildMessage((body.input || '').trim(), body)}`,
+    }),
+    response: (raw) => ({ text: raw.result || raw.response || raw.text || (typeof raw === 'string' ? raw : '') }),
+  };
+}
+
+const PROMPTS = {
+  caption: (t, body) =>
+    `Write 3 scroll-stopping ${body?.platform || 'Instagram'} captions about: "${t}".\n` +
+    `Tone: ${body?.tone || 'Friendly'}. Vary the angle (hook-led, value-led, story-led). ` +
+    `Keep each under 60 words, add tasteful emojis and 3–5 relevant hashtags. Number 1–3, no preamble.`,
+  'meta-writer': (t) =>
+    `Write 3 options of SEO meta title (≤60 chars) + meta description (≤155 chars) for: "${t}". ` +
+    `Number each option and show the character counts in brackets.`,
+  'faq-generator': (t) =>
+    `Generate 6 FAQ question-and-answer pairs about: "${t}". Answers 2–3 sentences, ` +
+    `factual and concise, suitable for FAQ schema and People-Also-Ask.`,
+  'blog-outline': (t) =>
+    `Create a concise SEO blog post outline for: "${t}". A working title, 5–6 H2 sections each with ` +
+    `2–3 H3 subpoints and a one-line note, plus a meta description. Keep the whole thing under 350 words.`,
+  'email-subjects': (t) =>
+    `Write 10 high-open-rate email subject lines for: "${t}". Mix curiosity, benefit and urgency, ` +
+    `keep each under 50 characters, avoid spam-trigger words. Numbered list only.`,
+  'value-prop': (t) =>
+    `From this product/service description, write 3 value-proposition statements, 3 tagline options, ` +
+    `and a one-paragraph elevator pitch. Description: "${t}".`,
+  'hashtag-generator': (t) =>
+    `Generate hashtags for a social post about: "${t}". Three groups — high-reach, niche, and ` +
+    `branded/community — 8–10 each, comma-separated, shown separately for Instagram and LinkedIn.`,
+  'llms-txt': (t) =>
+    `Generate a complete llms.txt file for the website/brand: "${t}". Follow the llms.txt spec ` +
+    `(# title, > summary blockquote, then sectioned markdown links). Output only the file contents.`,
+  pillars: (t) =>
+    `Create a content pillar framework for: "${t}". Give 3–4 pillars, each with 4–5 subtopics ` +
+    `and a content angle. Format as markdown.`,
+  'content-writer': (t) =>
+    `Write a focused, SEO-friendly web copy draft for: "${t}". Clear headings, a short intro, ` +
+    `2–3 scannable sections and a brief conclusion. Aim for ~450 words so it returns promptly.`,
+};
+
+export const ADAPTERS = {
+  // Prompt tools (Claude bridge)
+  ...Object.fromEntries(Object.entries(PROMPTS).map(([id, fn]) => [id, claude(fn)])),
+
+  // ── Keyword Analysis → mangoolsKeywords ─────────────────────────────────
+  'keyword-analysis': {
+    request(body) {
+      return { keywords: parseList(body.input).slice(0, 25), location: body.location || 'SG', language: body.language || 'en' };
+    },
+    response(raw) {
+      const map = unwrap(raw);
+      const rows = Object.entries(map).map(([keyword, m]) => ({
+        keyword,
+        volume: m.search_volume ?? m.volume ?? 0,
+        difficulty: m.difficulty ?? m.competition ?? 0,
+        cpc: m.cpc != null ? `S$${Number(m.cpc).toFixed(2)}` : '—',
+      }));
+      rows.sort((a, b) => b.volume - a.volume);
+      return { rows };
+    },
+  },
+
+  // ── On-Page Optimisation → onPageContentRecommendations ─────────────────
+  // out: [ { current_value, suggested_value, rationale } ]
+  onpage: {
+    request: (body) => ({ url: (body.input || '').trim(), keywords: parseList(body.keywords || '') }),
+    response(raw) {
+      const arr = Array.isArray(raw) ? raw : unwrap(raw);
+      const rows = (Array.isArray(arr) ? arr : []).map((r) => ({
+        element: r.element || r.field || '—',
+        current: r.current_value ?? '—',
+        suggested: r.suggested_value ?? '—',
+        why: r.rationale ?? '',
+      }));
+      return { rows };
+    },
+  },
+
+  // ── Persona Generator → personaGenerator (returns HTML cards) ───────────
+  persona: {
+    request: (body) => ({ data: (body.input || '').trim(), manual: '', existing_personas: [] }),
+    response: (raw) => ({ html: htmlOf(raw) }),
+  },
+
+  // ── Landing Page Audit → auditLandingPageDirect (returns HTML report) ───
+  'landing-audit': {
+    request: (body) => ({ url: (body.input || '').trim(), keyword: null, use_ai: true }),
+    response: (raw) => ({ html: htmlOf(raw) }),
+  },
+
+  // ── SEM Ad Copy → generateSemGoogle ─────────────────────────────────────
+  // out: { body: { headlines: [...], descriptions: [...], sitelinks: [...] } }
+  'sem-copy': {
+    request: (body) => ({ country: 'SG', input: (body.input || '').trim(), tone: (body.tone || 'professional').toLowerCase(), language: 'english', type: 'search' }),
+    response(raw) {
+      const groups = unwrap(raw);
+      const text = Object.entries(groups)
+        .map(([cat, items]) => `## ${cat}\n` + (Array.isArray(items) ? items.map((i) => `- ${typeof i === 'string' ? i : JSON.stringify(i)}`).join('\n') : ''))
+        .join('\n\n');
+      return { text: text || 'No ad copy returned.' };
+    },
+  },
+
+  // ── Rank Checker → rankChecker (returns a numeric position) ─────────────
+  'rank-checker': {
+    request: (body) => ({
+      keyword: (body.input || '').trim(),
+      target: (body.target || '').trim(),
+      language: 'en',
+      location: body.location || 'SG',
+    }),
+    response(raw) {
+      const pos = typeof raw === 'number' ? raw : (raw?.position ?? raw?.rank ?? unwrap(raw)?.position);
+      return { text: pos && pos > 0 ? `📍 Current position: #${pos}` : 'Not ranking in the top 100 for this keyword/target.' };
+    },
+  },
+
+  // ── Competitors → serpCompetitors (expects keywords[] + location) ───────
+  // Request only; response shaping falls through to the gateway's normalize().
+  competitors: {
+    request: (body) => ({ keywords: parseList(body.input), location: body.location || 'SG' }),
+  },
+
+  // ── Backlinks → ahrefsProxy (endpoint-routed) ───────────────────────────
+  backlinks: {
+    request: (body) => ({ endpoint: 'overview', params: { target: (body.input || '').trim() } }),
+    response(raw) {
+      const d = raw?.domain || raw || {};
+      return {
+        rows: [
+          { metric: 'Domain Rating', value: d.domain_rating ?? d.dr ?? '—' },
+          { metric: 'Referring Domains', value: fmt(d.referring_domains) },
+          { metric: 'Backlinks', value: fmt(d.backlinks ?? d.total_backlinks) },
+          { metric: 'Organic Traffic', value: fmt(d.traffic ?? d.organic_traffic) },
+          { metric: 'Organic Keywords', value: fmt(d.organic_keywords ?? d.keywords) },
+        ],
+      };
+    },
+  },
+
+  // ── Media Plan → mediaPlanGenerator (returns an HTML plan) ──────────────
+  'media-plan': {
+    request: (body) => ({ data: (body.input || '').trim(), brief: (body.input || '').trim() }),
+    response: (raw) => ({ html: typeof raw === 'string' ? raw : (raw?.html || raw?.body || JSON.stringify(raw)) }),
+  },
+};
+
+// ── helpers ──────────────────────────────────────────────────────────────
+function parseList(s) {
+  return String(s || '').split(/[\n,]+/).map((x) => x.trim()).filter(Boolean);
+}
+
+/** Unwrap a `body` that may be a JSON string or an object. */
+function unwrap(raw) {
+  let b = raw?.body ?? raw;
+  if (typeof b === 'string') {
+    try { b = JSON.parse(b); } catch { return {}; }
+  }
+  return b || {};
+}
+
+function fmt(n) {
+  return n == null ? '—' : Number(n).toLocaleString();
+}
+
+/** Some upstreams return HTML in `body` (string). */
+function htmlOf(raw) {
+  const b = raw?.body ?? raw;
+  return typeof b === 'string' ? b : (b?.html || JSON.stringify(b));
+}
