@@ -162,13 +162,13 @@ export const TOOLS = [
     cost: 'ai_long', upstream: 'geoOnPageAnalysis',
     desc: 'Rewrite content to get picked up + cited by AI tools.' },
   { id: 'forensic-audit', name: 'GEO+SEO Forensic Audit', category: 'AI Visibility', minTier: 'pro',
-    cost: 'forensic_audit', upstream: 'dataforseoCrawler',
+    cost: 'forensic_audit', upstream: 'dataforseoCrawler', slow: true,
     desc: 'Deep SEO + GEO readiness check across 50+ factors.',
     teaser: { reveal: 'summary-only' } },
 
   // ── Ads & Strategy ────────────────────────────────────────────────────────
   { id: 'persona', name: 'Persona Generator', category: 'Strategy', minTier: 'starter',
-    cost: 'ai_long', upstream: 'personaGenerator',
+    cost: 'ai_long', upstream: 'personaGenerator', slow: true,
     desc: 'Build 10 audience personas from a URL.' },
   { id: 'media-plan', name: 'Media Plan Generator', category: 'Strategy', minTier: 'pro',
     cost: 'ai_long', upstream: 'mediaPlanGenerator',
@@ -180,25 +180,10 @@ export const TOOLS = [
     cost: 'ai_long', upstream: 'generateSemGoogle',
     desc: 'USP extraction → ad copy for Google / Meta / LinkedIn.' },
 
-  // ── Added tools (AI, single-input → text via the Claude bridge) ───────────
-  { id: 'meta-writer', name: 'Meta Title & Description Writer', category: 'SEO', minTier: 'free',
-    cost: 'ai_short', upstream: 'aiOptimiser',
-    desc: 'Click-worthy SEO titles + meta descriptions under the pixel limit.' },
-  { id: 'faq-generator', name: 'FAQ Generator', category: 'SEO', minTier: 'starter',
-    cost: 'ai_short', upstream: 'aiOptimiser',
-    desc: 'Generate FAQ Q&As ready for FAQ schema and People-Also-Ask.' },
-  { id: 'blog-outline', name: 'Blog Post Outline', category: 'Content', minTier: 'starter',
-    cost: 'ai_long', upstream: 'aiOptimiser',
-    desc: 'SEO-structured H2/H3 outline with talking points for any topic.' },
-  { id: 'email-subjects', name: 'Email Subject Lines', category: 'Content', minTier: 'free',
-    cost: 'ai_short', upstream: 'aiOptimiser',
-    desc: '10 high-open-rate subject lines for your campaign.' },
-  { id: 'value-prop', name: 'Value Proposition Builder', category: 'Strategy', minTier: 'starter',
-    cost: 'ai_short', upstream: 'aiOptimiser',
-    desc: 'Sharp value props + tagline options from a product description.' },
-  { id: 'hashtag-generator', name: 'Hashtag Generator', category: 'Content', minTier: 'free',
-    cost: 'ai_short', upstream: 'aiOptimiser',
-    desc: 'Reach + niche hashtag mix per platform for any post.' },
+  // ── Strategy Engine (flagship: auto SEO action-plan generator) ────────────
+  { id: 'strategy-engine', name: 'Digimetrics Strategy Engine', category: 'SEO', minTier: 'pro',
+    cost: 'ai_long', upstream: 'strategyEngine', slow: true,
+    desc: 'Auto-generates a keyword strategy with prioritised SEO action plans.' },
 ];
 
 export const CATEGORIES = ['SEO', 'Content', 'AI Visibility', 'Strategy'];
@@ -265,12 +250,14 @@ export const INPUTS = {
     { name: 'tone', label: 'Tone', type: 'select', options: ['Professional', 'Friendly', 'Bold', 'Urgent'], default: 'Professional' },
   ],
 
-  'meta-writer': [{ name: 'input', label: 'Page topic or target keyword', type: 'text', placeholder: 'best yoga studio singapore', required: true }],
-  'faq-generator': [{ name: 'input', label: 'Topic', type: 'text', placeholder: 'electric vehicle charging', required: true }],
-  'blog-outline': [{ name: 'input', label: 'Blog topic / target keyword', type: 'text', placeholder: 'how to start a podcast', required: true }],
-  'email-subjects': [{ name: 'input', label: 'Campaign or offer', type: 'text', placeholder: 'Black Friday 30% off sale', required: true }],
-  'value-prop': [{ name: 'input', label: 'Product or service description', type: 'textarea', placeholder: 'What you offer and to whom…', required: true }],
-  'hashtag-generator': [{ name: 'input', label: 'Post topic', type: 'text', placeholder: 'morning coffee routine', required: true }],
+  'strategy-engine': [
+    { name: 'domain', label: 'Website', type: 'url', placeholder: 'https://example.com', required: true },
+    { name: 'input', label: 'Business / brand description', type: 'textarea', placeholder: 'What the business does, products/services, positioning…', required: true },
+    { name: 'seedKeywords', label: 'Seed keywords', type: 'tags', placeholder: 'add a keyword and press Enter' },
+    { name: 'objective', label: 'Primary objective', type: 'select', options: ['Lead Generation', 'Brand Authority', 'Local Visibility', 'E-commerce Revenue', 'Service Enquiries', 'Niche Dominance'], default: 'Lead Generation' },
+    { name: 'targetAudience', label: 'Target audience', type: 'text', placeholder: 'e.g. SME owners in Singapore' },
+    { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'SG' },
+  ],
 };
 
 // Fallback when a tool has no explicit schema: one field, labelled by category.

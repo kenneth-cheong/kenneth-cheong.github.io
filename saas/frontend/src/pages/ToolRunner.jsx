@@ -30,7 +30,7 @@ export default function ToolRunner() {
     setOut(null);
     try {
       // `url` mirror kept for adapters/tools that read body.url.
-      const res = await api.runTool(tool.id, { ...values, url: values.url || values.input });
+      const res = await api.runTool(tool.id, { ...values, url: values.url || values.input }, tool.slow);
       setOut(res);
       if (typeof res.creditsRemaining === 'number') setCredits(res.creditsRemaining);
     } catch (e) {
@@ -74,7 +74,7 @@ export default function ToolRunner() {
             {cost === 0 ? 'Free to run' : `Costs ${cost} credit${cost > 1 ? 's' : ''}`}
           </span>
           <button className="btn-primary" disabled={busy || !ready} onClick={run}>
-            {busy ? 'Running…' : unlocked ? 'Run tool' : 'Run preview'}
+            {busy ? (tool.slow ? 'Generating… (~30–60s)' : 'Running…') : unlocked ? 'Run tool' : 'Run preview'}
           </button>
         </div>
       </div>

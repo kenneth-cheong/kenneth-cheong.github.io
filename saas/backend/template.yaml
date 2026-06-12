@@ -143,13 +143,21 @@ Resources:
     Properties:
       CodeUri: .build/metering/
       Handler: index.handler
-      Timeout: 60
+      # Long timeout for the Function-URL (slow-tool) path; the API-Gateway path
+      # is still capped at the platform's 30s regardless.
+      Timeout: 180
       Environment:
         Variables:
           GATEWAY_SECRET: !Ref GatewaySecret
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
+      # Function URL bypasses API Gateway's hard 30s integration limit for
+      # long-running tools (strategy engine, persona, forensic audit). JWT is
+      # verified inside the handler; CORS is handled by the handler too.
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: BUFFERED
       Events:
         Run: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/run/{toolId}', Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
 
@@ -202,3 +210,6 @@ Outputs:
   ApiUrl:
     Description: Base URL for the SaaS API (set as VITE_API_BASE in the frontend).
     Value: !Sub 'https://${Api}.execute-api.${AWS::Region}.amazonaws.com'
+  RunUrl:
+    Description: Function URL for slow tools (set as VITE_RUN_URL in the frontend).
+    Value: !GetAtt MeteringFnUrl.FunctionUrl

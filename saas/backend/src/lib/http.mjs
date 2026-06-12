@@ -15,6 +15,9 @@ export function json(statusCode, body) {
   };
 }
 
+/** CORS preflight response (for the Function URL path with no edge CORS). */
+export const preflight = () => ({ statusCode: 204, headers: CORS, body: '' });
+
 export const ok = (body) => json(200, body);
 export const badRequest = (msg) => json(400, { error: msg });
 export const unauthorized = (msg = 'Unauthorized') => json(401, { error: msg });

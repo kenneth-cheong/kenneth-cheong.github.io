@@ -30,24 +30,6 @@ const PROMPTS = {
     `Write 3 scroll-stopping ${body?.platform || 'Instagram'} captions about: "${t}".\n` +
     `Tone: ${body?.tone || 'Friendly'}. Vary the angle (hook-led, value-led, story-led). ` +
     `Keep each under 60 words, add tasteful emojis and 3–5 relevant hashtags. Number 1–3, no preamble.`,
-  'meta-writer': (t) =>
-    `Write 3 options of SEO meta title (≤60 chars) + meta description (≤155 chars) for: "${t}". ` +
-    `Number each option and show the character counts in brackets.`,
-  'faq-generator': (t) =>
-    `Generate 6 FAQ question-and-answer pairs about: "${t}". Answers 2–3 sentences, ` +
-    `factual and concise, suitable for FAQ schema and People-Also-Ask.`,
-  'blog-outline': (t) =>
-    `Create a concise SEO blog post outline for: "${t}". A working title, 5–6 H2 sections each with ` +
-    `2–3 H3 subpoints and a one-line note, plus a meta description. Keep the whole thing under 350 words.`,
-  'email-subjects': (t) =>
-    `Write 10 high-open-rate email subject lines for: "${t}". Mix curiosity, benefit and urgency, ` +
-    `keep each under 50 characters, avoid spam-trigger words. Numbered list only.`,
-  'value-prop': (t) =>
-    `From this product/service description, write 3 value-proposition statements, 3 tagline options, ` +
-    `and a one-paragraph elevator pitch. Description: "${t}".`,
-  'hashtag-generator': (t) =>
-    `Generate hashtags for a social post about: "${t}". Three groups — high-reach, niche, and ` +
-    `branded/community — 8–10 each, comma-separated, shown separately for Instagram and LinkedIn.`,
   'llms-txt': (t) =>
     `Generate a complete llms.txt file for the website/brand: "${t}". Follow the llms.txt spec ` +
     `(# title, > summary blockquote, then sectioned markdown links). Output only the file contents.`,
@@ -142,6 +124,47 @@ export const ADAPTERS = {
     request: (body) => ({ keywords: parseList(body.input), location: body.location || 'SG' }),
   },
 
+  // ── Strategy Engine → strategy_generate (auto SEO action plan) ──────────
+  // in:  { action:'strategy_generate', inputs:{...}, discoveryData:[] }
+  // out: { strategies:[{ name, description, recommended, target_keywords[],
+  //        focus_area, monthly_volume, difficulty }] }  (or markdown result)
+  'strategy-engine': {
+    request: (body) => ({
+      action: 'strategy_generate',
+      inputs: {
+        clientProfile: (body.input || '').trim(),
+        objectives: body.objective ? [body.objective] : [],
+        targetAudience: (body.targetAudience || '').trim(),
+        marketContext: '',
+        seedKeywords: (body.seedKeywords || '').trim(),
+        keywordInfluencers: '',
+        domain: (body.domain || body.url || '').trim(),
+        location: body.location || 'SG',
+        language: 'English',
+      },
+      discoveryData: [],
+    }),
+    response(raw) {
+      const data = unwrap(raw);
+      // strategies may be inline, or inside a ```json-fenced `result` string.
+      let strategies = data.strategies || (Array.isArray(data) ? data : null);
+      if (!strategies && typeof data.result === 'string') {
+        strategies = parseFenced(data.result)?.strategies;
+      }
+      if (Array.isArray(strategies) && strategies.length) {
+        return {
+          rows: strategies.map((s) => ({
+            strategy: (s.recommended ? '★ ' : '') + (s.name || '—'),
+            focus: s.focus_area || s.focus || '—',
+            keywords: Array.isArray(s.target_keywords) ? s.target_keywords.slice(0, 8).join(', ') : '',
+          })),
+        };
+      }
+      const text = (typeof data.result === 'string' && data.result) || (typeof data === 'string' ? data : '');
+      return { text: text || JSON.stringify(data, null, 2) };
+    },
+  },
+
   // ── Backlinks → ahrefsProxy (endpoint-routed) ───────────────────────────
   backlinks: {
     request: (body) => ({ endpoint: 'overview', params: { target: (body.input || '').trim() } }),
@@ -182,6 +205,13 @@ function unwrap(raw) {
 
 function fmt(n) {
   return n == null ? '—' : Number(n).toLocaleString();
+}
+
+/** Pull a JSON object out of text that may be wrapped in ```json fences. */
+function parseFenced(s) {
+  const m = String(s).match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const body = (m ? m[1] : s).trim();
+  try { return JSON.parse(body); } catch { return null; }
 }
 
 /** Some upstreams return HTML in `body` (string). */

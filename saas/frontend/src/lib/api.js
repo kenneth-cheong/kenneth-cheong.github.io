@@ -3,6 +3,8 @@
 import { PLANS, TOOLS, CREDIT_COSTS, TOPUP_PACKS, topupById, tierMeets } from '@shared/catalog.mjs';
 
 const BASE = import.meta.env.VITE_API_BASE || '';
+// Lambda Function URL for slow (>30s) tools — bypasses the API Gateway 30s cap.
+const RUN_URL = import.meta.env.VITE_RUN_URL || '';
 const MOCK = import.meta.env.VITE_MOCK === '1' || !BASE;
 
 let accessToken = localStorage.getItem('dm_access') || null;
@@ -47,9 +49,9 @@ async function tryRefresh() {
   }
 }
 
-async function call(path, { method = 'GET', body, auth = true, _retried = false } = {}) {
+async function call(path, { method = 'GET', body, auth = true, base, _retried = false } = {}) {
   if (MOCK) return mock(path, { method, body });
-  const res = await fetch(BASE + path, {
+  const res = await fetch((base || BASE) + path, {
     method,
     headers: {
       'Content-Type': 'application/json',
@@ -59,7 +61,7 @@ async function call(path, { method = 'GET', body, auth = true, _retried = false 
   });
   // Token expired/denied → refresh once and retry before surfacing the error.
   if ((res.status === 401 || res.status === 403) && auth && !_retried && (await tryRefresh())) {
-    return call(path, { method, body, auth, _retried: true });
+    return call(path, { method, body, auth, base, _retried: true });
   }
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) throw new ApiError(res.status, payload);
@@ -70,7 +72,12 @@ export const api = {
   loginGoogle: (idToken) => call('/auth/google', { method: 'POST', body: { idToken }, auth: false }),
   me: () => call('/me'),
   usage: () => call('/me/usage'),
-  runTool: (toolId, input) => call(`/run/${toolId}`, { method: 'POST', body: input }),
+  // Slow tools (catalog `slow:true`) route through the Function URL to dodge
+  // the 30s API Gateway limit; everything else uses the normal API.
+  runTool: (toolId, input, slow = false) =>
+    slow && RUN_URL
+      ? call(`run/${toolId}`, { method: 'POST', body: input, base: RUN_URL })
+      : call(`/run/${toolId}`, { method: 'POST', body: input }),
   checkout: (tier, interval) => call('/billing/checkout', { method: 'POST', body: { tier, interval } }),
   topup: (packId) => call('/billing/topup', { method: 'POST', body: { packId } }),
   portal: () => call('/billing/portal', { method: 'POST' }),

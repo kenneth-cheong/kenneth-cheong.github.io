@@ -22,4 +22,7 @@ export const UPSTREAMS = {
   auditLandingPage: 'https://llufeecqoe.execute-api.ap-southeast-1.amazonaws.com/auditLandingPage',
   auditLandingPageDirect: 'https://7eehmzk9e0.execute-api.ap-southeast-1.amazonaws.com/auditLandingPageDirectWeb',
   generateSemGoogle: 'https://bztsly2z89.execute-api.ap-southeast-1.amazonaws.com/generateSemGoogle',
+  // Strategy Engine uses the `strategy_generate` action on this shared lambda
+  // (SEO strategy generation — not monday-board management).
+  strategyEngine: 'https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday',
 };

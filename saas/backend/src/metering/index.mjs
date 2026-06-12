@@ -30,13 +30,29 @@ import {
   serverError,
   parseBody,
   claims,
+  preflight,
 } from '../lib/http.mjs';
+import { verify } from '../lib/jwt.mjs';
 
 // How many free "teaser" runs a locked tool allows per user per month.
 const TEASER_RUNS_PER_MONTH = 1;
 
 export const handler = async (event) => {
-  const c = claims(event);
+  // CORS preflight (Function URL path has no API-Gateway CORS layer).
+  const method = event.requestContext?.http?.method || event.httpMethod;
+  if (method === 'OPTIONS') return preflight();
+
+  // API-Gateway path supplies claims via the JWT authorizer. The Function URL
+  // path (used for slow, >30s tools) is unauthenticated at the edge, so verify
+  // the Bearer token here.
+  let c = claims(event);
+  if (!c?.userId) {
+    const hdr = event.headers?.authorization || event.headers?.Authorization || '';
+    try {
+      const t = verify(hdr.replace(/^Bearer\s+/i, ''));
+      if (t?.sub && t.typ !== 'refresh') c = { userId: t.sub, email: t.email, tier: t.tier };
+    } catch { /* fall through to 401 */ }
+  }
   if (!c?.userId) return unauthorized();
 
   const toolId =
