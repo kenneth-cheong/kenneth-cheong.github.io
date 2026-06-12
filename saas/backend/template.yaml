@@ -159,7 +159,10 @@ Resources:
         AuthType: NONE
         InvokeMode: BUFFERED
       Events:
-        Run: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/run/{toolId}', Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        # Account has a raised API Gateway integration-timeout quota (180s), so
+        # the normal /run path can also serve slow tools (the Function URL above
+        # is the redundant/long-tail path).
+        Run: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/run/{toolId}', Method: POST, TimeoutInMillis: 180000, Auth: { Authorizer: JwtAuthorizer } } }
 
   # ── Billing: checkout/portal (authed) + webhook (public, signed) ────────
   BillingFn:

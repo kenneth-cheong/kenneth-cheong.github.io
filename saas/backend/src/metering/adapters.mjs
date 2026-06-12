@@ -149,7 +149,7 @@ export const ADAPTERS = {
       // strategies may be inline, or inside a ```json-fenced `result` string.
       let strategies = data.strategies || (Array.isArray(data) ? data : null);
       if (!strategies && typeof data.result === 'string') {
-        strategies = parseFenced(data.result)?.strategies;
+        strategies = parseStrategyJson(data.result)?.strategies;
       }
       if (Array.isArray(strategies) && strategies.length) {
         return {
@@ -207,11 +207,52 @@ function fmt(n) {
   return n == null ? '—' : Number(n).toLocaleString();
 }
 
-/** Pull a JSON object out of text that may be wrapped in ```json fences. */
-function parseFenced(s) {
-  const m = String(s).match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const body = (m ? m[1] : s).trim();
-  try { return JSON.parse(body); } catch { return null; }
+/**
+ * Robustly pull JSON out of LLM text that may be ```json-fenced, missing its
+ * closing fence, or truncated. Tries: whole parse → balanced top-level object
+ * → salvage of complete array elements (strategies/recommendations/strengths).
+ */
+export function parseStrategyJson(s) {
+  let str = String(s).replace(/```(?:json)?/gi, '').trim();
+  const start = str.indexOf('{');
+  if (start >= 0) str = str.slice(start);
+  try { return JSON.parse(str); } catch { /* fall through */ }
+  const bal = balancedSlice(str, str.indexOf('{'));
+  if (bal) { try { return JSON.parse(bal); } catch { /* fall through */ } }
+  // Salvage: keep whichever array elements are complete.
+  const out = {};
+  for (const key of ['strategies', 'recommendations', 'strengths']) {
+    const m = str.match(new RegExp('"' + key + '"\\s*:\\s*\\['));
+    if (!m) continue;
+    let i = str.indexOf('[', m.index) + 1;
+    const items = [];
+    while (i < str.length) {
+      while (i < str.length && /[\s,]/.test(str[i])) i++;
+      if (str[i] !== '{') break;
+      const el = balancedSlice(str, i);
+      if (!el) break;
+      try { items.push(JSON.parse(el)); } catch { /* drop incomplete */ }
+      i += el.length;
+    }
+    if (items.length) out[key] = items;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/** Return the string-aware balanced {...}/[...] starting at index i, or null. */
+function balancedSlice(str, i) {
+  if (i < 0) return null;
+  const startCh = str[i];
+  if (startCh !== '{' && startCh !== '[') return null;
+  let depth = 0, inStr = false, esc = false;
+  for (let j = i; j < str.length; j++) {
+    const c = str[j];
+    if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false; continue; }
+    if (c === '"') inStr = true;
+    else if (c === '{' || c === '[') depth++;
+    else if (c === '}' || c === ']') { depth--; if (depth === 0) return str.slice(i, j + 1); }
+  }
+  return null;
 }
 
 /** Some upstreams return HTML in `body` (string). */

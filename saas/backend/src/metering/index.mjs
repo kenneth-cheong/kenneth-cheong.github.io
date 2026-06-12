@@ -14,7 +14,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 import { getUser, putUser, spendCredits, totalCredits } from '../lib/dynamo.mjs';
 import { UPSTREAMS } from './upstreams.mjs';
-import { ADAPTERS } from './adapters.mjs';
+import { ADAPTERS, parseStrategyJson } from './adapters.mjs';
 import {
   TOOLS,
   CREDIT_COSTS,
@@ -158,15 +158,8 @@ function splitItems(v) {
     .filter((s) => s && !seen.has(s) && seen.add(s));
 }
 
-async function callUpstream(tool, body) {
-  // Pure-client tools (e.g. schema builder) have no upstream.
-  if (!tool.upstream) return { clientOnly: true };
-  const url = UPSTREAMS[tool.upstream];
-  if (!url) throw new Error(`No upstream URL for ${tool.upstream}`);
-
-  const adapter = ADAPTERS[tool.id];
-  const payload = adapter ? adapter.request(body) : body;
-
+/** POST to an upstream, unwrapping the { statusCode, body } proxy envelope. */
+async function postUpstream(url, payload) {
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -178,19 +171,29 @@ async function callUpstream(tool, body) {
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`upstream ${res.status}: ${text.slice(0, 300)}`);
-
   let raw;
   try {
     raw = JSON.parse(text);
   } catch {
     raw = text; // plain text / HTML
   }
-  // Many upstreams return an API-Gateway-proxy envelope { statusCode, body }.
-  // Unwrap to the inner payload (parsing body if it's a JSON string) so the
-  // adapter/normaliser sees the real content.
   if (raw && typeof raw === 'object' && raw.statusCode !== undefined && raw.body !== undefined) {
     raw = typeof raw.body === 'string' ? safeParse(raw.body) : raw.body;
   }
+  return raw;
+}
+
+async function callUpstream(tool, body) {
+  // Pure-client tools (e.g. schema builder) have no upstream.
+  if (!tool.upstream) return { clientOnly: true };
+  // The Strategy Engine is a two-step composite (generate → recommendations).
+  if (tool.id === 'strategy-engine') return strategyEngineRun(body);
+
+  const url = UPSTREAMS[tool.upstream];
+  if (!url) throw new Error(`No upstream URL for ${tool.upstream}`);
+
+  const adapter = ADAPTERS[tool.id];
+  const raw = await postUpstream(url, adapter ? adapter.request(body) : body);
   // Shape to the generic { rows | text | html } the UI renders: prefer a
   // tool-specific response adapter, else a best-effort normaliser.
   const shaped = adapter?.response ? adapter.response(raw) : normalize(raw);
@@ -214,6 +217,76 @@ function normalize(raw) {
   // Surface upstream error objects clearly instead of as silent empties.
   if (raw.errorMessage || raw.error) return { text: `⚠ Upstream error: ${raw.errorMessage || raw.error}` };
   return { text: JSON.stringify(raw, null, 2) };
+}
+
+// ── Strategy Engine: generate strategies → actionable recommendations ─────────
+async function strategyEngineRun(body) {
+  const url = UPSTREAMS.strategyEngine;
+  const a = ADAPTERS['strategy-engine'];
+
+  const gen = await postUpstream(url, a.request(body));
+  const strategies = strategiesFrom(gen);
+  if (!strategies.length) return a.response(gen); // fall back to raw shape
+
+  const recommended = strategies.find((s) => s.recommended) || strategies[0];
+  let recs = { strengths: [], recommendations: [] };
+  try {
+    const recRaw = await postUpstream(url, {
+      action: 'strategy_recommendations',
+      strategy: recommended,
+      auditContext: { domainMetrics: { domain: (body.domain || body.url || '').trim() } },
+    });
+    recs = recsFrom(recRaw);
+  } catch (e) {
+    console.error('strategy_recommendations_failed', e.message); // best-effort
+  }
+  return { html: renderStrategy(strategies, recommended, recs) };
+}
+
+function strategiesFrom(raw) {
+  if (Array.isArray(raw?.strategies)) return raw.strategies;
+  if (typeof raw?.result === 'string') {
+    const p = parseStrategyJson(raw.result);
+    if (Array.isArray(p?.strategies)) return p.strategies;
+  }
+  return [];
+}
+function recsFrom(raw) {
+  let d = raw;
+  if (typeof raw?.result === 'string') { const p = parseStrategyJson(raw.result); if (p) d = p; }
+  return { strengths: d?.strengths || [], recommendations: d?.recommendations || [] };
+}
+
+const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+function renderStrategy(strategies, recommended, recs) {
+  const prio = (p) => ({ high: '#dc2626', medium: '#d97706', low: '#16a34a' }[String(p).toLowerCase()] || '#64748b');
+  const stratRows = strategies.map((s) => `
+    <tr style="border-top:1px solid #e2e8f0">
+      <td style="padding:8px;font-weight:600">${s === recommended ? '★ ' : ''}${esc(s.name)}</td>
+      <td style="padding:8px;color:#475569">${esc(s.focus_area || s.focus)}</td>
+      <td style="padding:8px;color:#475569">${esc((s.target_keywords || []).slice(0, 6).join(', '))}</td>
+    </tr>`).join('');
+  const strengths = (recs.strengths || []).map((x) => `
+    <li style="margin:6px 0"><strong>${esc(x.title)}</strong> — <span style="color:#475569">${esc(x.detail || x.description)}</span></li>`).join('');
+  const recCards = (recs.recommendations || []).map((r) => `
+    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:8px 0">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <strong>${esc(r.title)}</strong>
+        ${r.priority ? `<span style="background:${prio(r.priority)};color:#fff;border-radius:999px;padding:1px 8px;font-size:11px;text-transform:uppercase">${esc(r.priority)}</span>` : ''}
+        ${r.effort ? `<span style="background:#f1f5f9;color:#475569;border-radius:999px;padding:1px 8px;font-size:11px">effort: ${esc(r.effort)}</span>` : ''}
+      </div>
+      <p style="color:#475569;margin:6px 0">${esc(r.description)}</p>
+      ${Array.isArray(r.action_items) && r.action_items.length ? `<ul style="margin:6px 0 0;padding-left:18px">${r.action_items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>` : ''}
+    </div>`).join('');
+
+  return `
+    <h3 style="margin:0 0 6px;font-weight:700">Keyword strategy options</h3>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="text-align:left;color:#64748b"><th style="padding:8px">Strategy</th><th style="padding:8px">Focus</th><th style="padding:8px">Top keywords</th></tr></thead>
+      <tbody>${stratRows}</tbody>
+    </table>
+    ${strengths ? `<h3 style="margin:18px 0 6px;font-weight:700">✅ What you're doing well</h3><ul style="margin:0;padding-left:18px;font-size:13px">${strengths}</ul>` : ''}
+    ${recCards ? `<h3 style="margin:18px 0 6px;font-weight:700">🎯 Prioritised action plan <span style="font-weight:400;color:#64748b">— for “${esc(recommended.name)}”</span></h3>${recCards}` : ''}`;
 }
 
 /**
