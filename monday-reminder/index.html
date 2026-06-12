@@ -130,14 +130,24 @@ function setTheme(theme) {
   document.documentElement.setAttribute("data-theme", theme || "light");
 }
 
-async function api(path, opts = {}) {
+async function call(path, opts) {
   const res = await fetch(API + path, {
     ...opts,
     headers: { "Content-Type": "application/json", Authorization: jwt, ...(opts.headers || {}) },
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || data.detail || ("HTTP " + res.status));
-  return data;
+  return { ok: res.ok, status: res.status, data };
+}
+
+async function api(path, opts = {}) {
+  let r = await call(path, opts);
+  if (r.status === 401) {
+    // session token may have expired on a long-open panel — refresh once and retry
+    try { jwt = (await monday.get("sessionToken")).data; } catch (e) {}
+    r = await call(path, opts);
+  }
+  if (!r.ok) throw new Error(r.data.error || r.data.detail || ("HTTP " + r.status));
+  return r.data;
 }
 
 function notice(message, type = "success") {
