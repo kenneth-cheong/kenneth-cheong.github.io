@@ -436,8 +436,12 @@ async function integrationsRun(tool, body) {
   if (!conn?.connected) {
     return { needsConnect: tool.integration, text: `Connect your ${tool.name} account under Integrations to use this tool.` };
   }
-  const { rows, summary } = await fetchIntegration(tool.integration, conn, { ...body, input: body.input || conn.account });
-  return { rows, summary };
+  const live = await fetchIntegration(tool.integration, conn, { ...body, input: body.input || conn.account });
+  // No seeded fallback: if the live pull didn't return data, prompt a reconnect.
+  if (!live?.rows) {
+    return { needsConnect: tool.integration, text: `We couldn’t pull live ${tool.name} data — reconnect your account under Integrations to continue.` };
+  }
+  return { rows: live.rows, summary: live.summary, source: live.source };
 }
 
 // ── Backlinks Explorer: DataForSEO backlinks (summary + ref domains + anchors) ─

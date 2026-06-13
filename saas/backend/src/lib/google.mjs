@@ -12,7 +12,6 @@
 // so the product is always usable.
 // ─────────────────────────────────────────────────────────────────────────
 import { UPSTREAMS } from '../metering/upstreams.mjs';
-import { integrationResult } from '../../../shared/connectors.mjs';
 import { decrypt } from './crypto.mjs';
 
 // Same client as index.html unless overridden.
@@ -195,10 +194,11 @@ export async function fetchIntegration(provider, conn, body) {
     else if (provider === 'google-ads') res = await liveAds(conn, body);
     if (res) return { ...res, source: 'live' };
   } catch (e) {
-    console.warn('integration_live_fallback', provider, e.message);
+    console.warn('integration_live_fetch_failed', provider, e.message);
   }
-  // `source: 'demo'` lets the UI flag seeded data clearly.
-  return { ...integrationResult(provider, body), source: 'demo' };
+  // No usable token, or the live pull failed → signal "not available" so the
+  // caller shows a connect gate. No seeded/demo fallback.
+  return null;
 }
 
 // ── Account/property/customer discovery (for the picker) ──────────────────────

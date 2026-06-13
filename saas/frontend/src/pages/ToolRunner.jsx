@@ -206,7 +206,6 @@ function Result({ out, tool, project, user }) {
     <div className="mt-6">
       <div className="dm-no-print mb-2 flex items-center gap-2">
         {r.source === 'live' && <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">● Live data</span>}
-        {r.source === 'demo' && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">● Demo data</span>}
         {typeof out.creditsUsed === 'number' && out.creditsUsed > 0 && (
           <span className="text-xs text-slate-400">used {out.creditsUsed} · {out.creditsRemaining} left</span>
         )}
