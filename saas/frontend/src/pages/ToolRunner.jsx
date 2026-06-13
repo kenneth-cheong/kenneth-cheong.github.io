@@ -307,7 +307,9 @@ function Result({ out, tool, project, user }) {
           <SchemaResult json={r.text} />
         ) : (
           <>
-            {r.text && <pre className="whitespace-pre-wrap text-sm text-slate-700">{r.text}</pre>}
+            {r.text && (VARIATION_RE.test(r.text)
+              ? <CaptionCards text={r.text} />
+              : <pre className="whitespace-pre-wrap text-sm text-slate-700">{r.text}</pre>)}
             {r.preview && <pre className="whitespace-pre-wrap text-sm text-slate-500">{r.preview}</pre>}
             {r.sections && r.sections.length > 0 && <ResultSections sections={r.sections} />}
             {r.html && <div className="dm-report max-w-none text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: r.html }} />}
@@ -358,6 +360,39 @@ function ResultTable({ rows }) {
 
 const TONE = { red: 'bg-red-100 text-red-700', amber: 'bg-amber-100 text-amber-700', green: 'bg-green-100 text-green-700', blue: 'bg-blue-100 text-blue-700', slate: 'bg-slate-100 text-slate-600' };
 function Badge({ t, tone }) { return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TONE[tone] || TONE.slate}`}>{t}</span>; }
+
+// Caption Generator returns "━━━ Variation N ━━━\n<caption>" blocks as plain
+// text. Render each as its own copyable card instead of one monospace blob.
+const VARIATION_RE = /[━─-]{2,}\s*Variation\s*\d+\s*[━─-]{2,}/i;
+function CaptionCards({ text }) {
+  const parts = String(text).split(/[━─-]{2,}\s*Variation\s*(\d+)\s*[━─-]{2,}/i);
+  const cards = [];
+  for (let i = 1; i < parts.length; i += 2) {
+    const body = (parts[i + 1] || '').trim();
+    if (body) cards.push({ n: parts[i], body });
+  }
+  if (!cards.length) return <pre className="whitespace-pre-wrap text-sm text-slate-700">{text}</pre>;
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {cards.map((c, i) => (
+        <div key={i} className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 transition-shadow hover:shadow-sm">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-brand-500" aria-hidden /> Variation {c.n}
+            </span>
+            <button
+              onClick={() => copyText(c.body).then(() => toast('Caption copied', 'success'))}
+              className="rounded-md border border-slate-200 px-2 py-0.5 text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+            >
+              Copy
+            </button>
+          </div>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{c.body}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function cell(col, val) {
   const c = col.toLowerCase();
