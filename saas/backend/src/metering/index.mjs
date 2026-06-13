@@ -262,6 +262,9 @@ async function callUpstreamRaw(tool, body) {
   if (tool.id === 'anchor-cleaner') return anchorCleanerRun(body);
   // Performance Marketing Audit: paid-media opportunity analysis.
   if (tool.id === 'perf-marketing') return perfMarketingRun(body);
+  // llms.txt Generator: crawl the site → validate (llms.txt/robots/AI-bots/key
+  // pages) → generate a spec-compliant llms.txt + llms-full.txt + recommendations.
+  if (tool.id === 'llms-txt') return llmsTxtRun(body);
 
   const url = UPSTREAMS[tool.upstream];
   if (!url) throw new Error(`No upstream URL for ${tool.upstream}`);
@@ -910,6 +913,171 @@ function faParseRobots(robotsBody, d) {
     else if (l.startsWith('disallow:') && bots.some((b) => agent.includes(b)) && l.replace('disallow:', '').trim() === '/') { blocked = true; break; }
   }
   d.llmblock = blocked ? 'Yes' : 'No';
+}
+
+// ── llms.txt Generator: crawl → validate → generate ──────────────────────────
+// Mirrors index.html's structured builder but driven from a live crawl: fetches
+// the homepage + robots.txt + any existing llms.txt, validates the site for AI
+// readiness, then builds a spec-compliant llms.txt + llms-full.txt from real
+// internal links (organised + described by the AI), plus a recommendations list.
+async function llmsTxtRun(body) {
+  let target = (body.input || body.url || '').trim();
+  if (!target) throw new Error('A website URL is required.');
+  if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
+  let u;
+  try { u = new URL(target); } catch { throw new Error('Invalid URL format.'); }
+  const rootDomain = u.origin;
+  const host = u.hostname.replace(/^www\./, '');
+
+  const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+  const getBody = (path, ms) => withTimeout(postUpstream(UPSTREAMS.getHtml, { url: path }), ms)
+    .then((r) => (typeof r === 'string' ? r : (r && typeof r.body === 'string' ? r.body : '')))
+    .catch(() => '');
+
+  const [homeHtml, robotsBody, llmsBody, llmsFullBody] = await Promise.all([
+    getBody(rootDomain, 25000),
+    getBody(rootDomain + '/robots.txt', 12000),
+    getBody(rootDomain + '/llms.txt', 10000),
+    getBody(rootDomain + '/llms-full.txt', 10000),
+  ]);
+  if (!homeHtml || homeHtml.length < 200) {
+    throw new Error(`Could not fetch ${rootDomain}. Check the URL is public and reachable.`);
+  }
+
+  const title = (homeHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || host).replace(/\s+/g, ' ').trim();
+  const metaDesc = (homeHtml.match(/<meta[^>]+name=["']description["'][^>]*content=["']([^"']*)["']/i)?.[1] || '').trim();
+  const links = extractSiteLinks(homeHtml, host, rootDomain);
+
+  // ── Validation checks ──
+  const d = {};
+  faParseRobots(robotsBody, d);                 // sets d.robots, d.llmblock
+  const hasLlms = faValidTxt(llmsBody);
+  const hasLlmsFull = faValidTxt(llmsFullBody);
+  const has = (re) => links.some((l) => re.test(l.url.toLowerCase()) || re.test(l.label.toLowerCase()));
+  const keyPages = {
+    About: has(/about/), Contact: has(/contact/), Services: has(/service|solution/),
+    Products: has(/product|shop|store|pricing/), Blog: has(/blog|resource|article|guide|news|insight/),
+  };
+
+  // ── AI organises the real links into sections + writes the summary/prompts ──
+  const plan = await llmsAiPlan(title, rootDomain, metaDesc, links);
+  const summary = (body.summary || plan?.summary || metaDesc || '').trim();
+  const userPrompts = String(body.geoPrompts || '').split('\n').map((s) => s.trim()).filter(Boolean);
+  const geoPrompts = userPrompts.length ? userPrompts.slice(0, 6) : (Array.isArray(plan?.geo_prompts) ? plan.geo_prompts.filter(Boolean).slice(0, 5) : []);
+  let sections = Array.isArray(plan?.sections)
+    ? plan.sections.filter((s) => s && s.title && Array.isArray(s.links) && s.links.length).map((s) => ({
+        title: String(s.title), links: s.links.filter((l) => l && l.label && l.url).slice(0, 8),
+      })).filter((s) => s.links.length)
+    : [];
+  if (!sections.length) sections = links.length ? [{ title: 'Pages', links: links.slice(0, 6).map((l) => ({ label: l.label, url: l.url, desc: '' })) }] : [];
+
+  const llmsTxt = buildLlmsTxt({ title, summary, geoPrompts, sections, highlights: (body.highlights || '').trim() });
+  const llmsFull = buildLlmsFull({ title, summary, geoPrompts, sections });
+
+  // ── Recommendations from the checks ──
+  const recs = [];
+  recs.push(hasLlms ? 'You already have an llms.txt — replace it with the improved version below.' : 'No llms.txt found — publish the generated file at /llms.txt.');
+  if (!hasLlmsFull) recs.push('No llms-full.txt — publish the verbose version below at /llms-full.txt for deeper AI context.');
+  if (d.llmblock === 'Yes') recs.push('⚠ Your robots.txt blocks AI crawlers (GPTBot, ClaudeBot, etc.) — unblock them or AI tools cannot read your llms.txt.');
+  if (d.robots === 'Missing') recs.push('No robots.txt found — add one that allows AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended).');
+  if (!metaDesc) recs.push('Your homepage has no meta description — add one; it seeds how AI summarises you.');
+  if (!keyPages.About) recs.push('No About page linked from the homepage — add one so AI can describe your company.');
+  if (!keyPages.Contact) recs.push('No Contact page linked from the homepage — add one to surface your contact details.');
+
+  return {
+    sections: [
+      { type: 'heading', text: `llms.txt for ${title}` },
+      { type: 'stats', title: 'Site checks', items: [
+        { label: 'llms.txt', value: hasLlms ? 'Present' : 'Missing', tone: hasLlms ? 'green' : 'amber' },
+        { label: 'llms-full.txt', value: hasLlmsFull ? 'Present' : 'Missing', tone: hasLlmsFull ? 'green' : 'amber' },
+        { label: 'robots.txt', value: d.robots || '—', tone: d.robots === 'Pass' ? 'green' : 'amber' },
+        { label: 'AI crawlers', value: d.llmblock === 'Yes' ? 'Blocked' : 'Allowed', tone: d.llmblock === 'Yes' ? 'red' : 'green' },
+        { label: 'Pages found', value: String(links.length) },
+      ] },
+      { type: 'list', title: 'Key pages on the homepage', items: Object.entries(keyPages).map(([k, v]) => `${v ? '✓' : '✗'} ${k}${v ? '' : ' — not linked'}`) },
+      { type: 'list', title: 'Recommendations', items: recs },
+      { type: 'code', title: 'llms.txt', filename: 'llms.txt', content: llmsTxt },
+      { type: 'code', title: 'llms-full.txt (verbose)', filename: 'llms-full.txt', content: llmsFull },
+    ],
+    summary: { llmsTxtPresent: hasLlms, aiBlocked: d.llmblock === 'Yes', pagesFound: links.length },
+  };
+}
+
+/** Internal homepage links → [{ label, url }] (absolute, deduped, junk filtered). */
+function extractSiteLinks(html, host, rootDomain) {
+  const out = [];
+  const seen = new Set();
+  const re = /<a\b[^>]*?href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let m;
+  while ((m = re.exec(html)) && out.length < 60) {
+    const href = m[1].trim();
+    if (/^(#|mailto:|tel:|javascript:|data:)/i.test(href)) continue;
+    let abs;
+    try { abs = new URL(href, rootDomain); } catch { continue; }
+    if (abs.hostname.replace(/^www\./, '') !== host) continue; // internal only
+    abs.hash = '';
+    const url = abs.href.replace(/\/$/, '');
+    if (url === rootDomain.replace(/\/$/, '')) continue;        // skip the homepage itself
+    if (seen.has(url)) continue;
+    const text = m[2].replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim();
+    if (!text || text.length > 60) continue;
+    seen.add(url);
+    out.push({ label: text, url });
+  }
+  return out;
+}
+
+/** Ask the AI to organise crawled links into sections + write summary/prompts. */
+async function llmsAiPlan(title, rootDomain, metaDesc, links) {
+  const list = links.slice(0, 40).map((l) => `${l.label} | ${l.url}`).join('\n');
+  const userPrompt =
+    `Output ONLY strict JSON (no markdown fences, no prose). You are building an llms.txt for the website "${title}" (${rootDomain}).` +
+    (metaDesc ? ` Homepage meta description: "${metaDesc}".` : '') +
+    `\nReal internal pages found by crawling the homepage (label | url):\n${list || '(none found)'}\n` +
+    `\nReturn JSON of shape: {"summary": string, "geo_prompts": string[], "sections": [{"title": string, "links": [{"label": string, "url": string, "desc": string}]}]}.` +
+    ` Rules: "summary" = one sentence on what the site offers (for the > blockquote). "geo_prompts" = exactly 3 natural questions a user would ask an AI assistant that this site should be cited for. Group the most important pages into 2-4 sections named like Services, Products, Company, Resources. Use ONLY urls from the list above. Write a one-sentence "desc" per link. 4-8 links total.`;
+  try {
+    const raw = await postUpstream(UPSTREAMS.aiOptimiser, { action: 'content_freeform', userPrompt });
+    let s = aiText(raw).trim();
+    if (s.startsWith('```')) s = s.replace(/^```[a-z]*\n?/i, '').replace(/```$/, '').trim();
+    const j = JSON.parse(s);
+    return j && typeof j === 'object' ? j : null;
+  } catch { return null; }
+}
+
+/** Build a concise, spec-compliant llms.txt (mirrors index.html's generateLlmsTxt). */
+function buildLlmsTxt({ title, summary, geoPrompts, sections, highlights }) {
+  let c = `# ${title}\n\n`;
+  if (summary) c += `> ${summary}\n\n`;
+  if (geoPrompts?.length) { c += `Target Prompts for GEO:\n\n`; geoPrompts.forEach((p, i) => { c += `${i + 1}. ${p}\n`; }); c += `\n`; }
+  if (highlights) c += `${highlights}\n\n`;
+  for (const s of sections || []) {
+    if (!s.title || !(s.links || []).length) continue;
+    c += `## ${s.title}\n\n`;
+    for (const l of s.links) if (l.label && l.url) c += `- [${l.label}](${l.url})${l.desc ? ': ' + l.desc : ''}\n`;
+    c += `\n`;
+  }
+  c += `\n# Generated by Digimetrics | Specification: https://llmstxt.org\n`;
+  return c.replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
+}
+
+/** Build a verbose llms-full.txt (mirrors index.html's generateLlmsFullTxt). */
+function buildLlmsFull({ title, summary, geoPrompts, sections }) {
+  let c = `# ${title}\n\n`;
+  if (summary) c += `> ${summary}\n\n`;
+  if (geoPrompts?.length) { c += `Target Prompts for GEO:\n\n`; geoPrompts.forEach((p, i) => { c += `${i + 1}. ${p}\n`; }); c += `\n`; }
+  for (const s of sections || []) {
+    if (!s.title || !(s.links || []).length) continue;
+    c += `---\n\n## ${s.title}\n\n`;
+    for (const l of s.links) {
+      if (!l.label || !l.url) continue;
+      c += `### ${l.label}\n\n`;
+      if (l.desc) c += `> ${l.desc}\n\n`;
+      c += `**Source**: ${l.url}\n\n---\n\n`;
+    }
+  }
+  c += `\n# Generated by Digimetrics (llms-full.txt) | Specification: https://llmstxt.org\n`;
+  return c.replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
 }
 
 // ── Forensic recommendation engine (ported verbatim from index.html) ──────────
@@ -1729,7 +1897,7 @@ function deepBody(raw) {
 
 // Exposed for unit tests (orchestration is otherwise unreachable without a full
 // authed event). Not used by the handler path.
-export const __test = { callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml };
+export const __test = { callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks };
 
 /**
  * AI endpoints return token usage; convert to actual credits so a tiny caption

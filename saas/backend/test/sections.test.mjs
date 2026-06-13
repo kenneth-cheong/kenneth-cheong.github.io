@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { __test } from '../src/metering/index.mjs';
 
-const { sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing } = __test;
+const { sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, buildLlmsTxt, buildLlmsFull, extractSiteLinks } = __test;
 
 // Every section must carry a known `type` so the frontend ResultSections
 // renderer has a branch for it (heading/callout/text/stats/list/chart/cards/table).
@@ -104,5 +104,53 @@ describe('sectionsBacklinks + sectionsPerfMarketing shape', () => {
     const mix = out.find((s) => s.type === 'cards' && s.title === 'Recommended channel mix');
     expect(mix.items[0]).toMatchObject({ title: 'Google Search', badgeTone: 'green', barPct: 60 });
     expect(out.some((s) => s.type === 'list' && s.tone === 'green')).toBe(true); // quick wins
+  });
+});
+
+describe('llms.txt builders', () => {
+  const sections = [
+    { title: 'Services', links: [
+      { label: 'Self Storage', url: 'https://acme.sg/storage', desc: 'Secure self-storage units' },
+      { label: 'Business Storage', url: 'https://acme.sg/business', desc: 'Scalable space for inventory' },
+    ] },
+    { title: 'Company', links: [{ label: 'About', url: 'https://acme.sg/about', desc: '' }] },
+  ];
+  const opts = { title: 'Acme Storage', summary: "Singapore's storage provider.", geoPrompts: ['Where can I store my stuff in SG?'], sections };
+
+  it('buildLlmsTxt is spec-compliant (title, blockquote, GEO prompts, sectioned links, footer)', () => {
+    const txt = buildLlmsTxt(opts);
+    expect(txt.startsWith('# Acme Storage')).toBe(true);
+    expect(txt).toContain('> Singapore’s storage provider.'.replace('’', "'")); // summary blockquote
+    expect(txt).toContain('Target Prompts for GEO:');
+    expect(txt).toContain('1. Where can I store my stuff in SG?');
+    expect(txt).toContain('## Services');
+    expect(txt).toContain('- [Self Storage](https://acme.sg/storage): Secure self-storage units');
+    expect(txt).toContain('Specification: https://llmstxt.org');
+    expect(txt).not.toMatch(/\n{3,}/); // no triple blank lines
+  });
+
+  it('buildLlmsFull uses the verbose format (--- separators, ### headings, **Source**)', () => {
+    const full = buildLlmsFull(opts);
+    expect(full).toContain('## Services');
+    expect(full).toContain('### Self Storage');
+    expect(full).toContain('**Source**: https://acme.sg/storage');
+    expect(full).toContain('---');
+  });
+
+  it('extractSiteLinks returns internal, absolute, deduped links and skips the homepage', () => {
+    const html = `
+      <a href="/about">About Us</a>
+      <a href="https://www.acme.sg/services/">Services</a>
+      <a href="/about">About Us</a>            <!-- dup -->
+      <a href="https://other.com/x">External</a><!-- external -->
+      <a href="mailto:hi@acme.sg">Email</a>     <!-- skipped -->
+      <a href="https://acme.sg/">Home</a>       <!-- homepage, skipped -->`;
+    const links = extractSiteLinks(html, 'acme.sg', 'https://acme.sg');
+    const urls = links.map((l) => l.url);
+    expect(urls).toContain('https://acme.sg/about');
+    expect(urls).toContain('https://www.acme.sg/services');
+    expect(urls.filter((u) => u.includes('/about'))).toHaveLength(1); // deduped
+    expect(urls.some((u) => u.includes('other.com'))).toBe(false);    // external dropped
+    expect(urls.some((u) => u === 'https://acme.sg')).toBe(false);    // homepage dropped
   });
 });

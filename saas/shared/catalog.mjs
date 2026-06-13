@@ -164,7 +164,7 @@ export const TOOLS = [
     teaser: { reveal: 'summary-only' } },
   { id: 'llms-txt', name: 'llms.txt Generator', category: 'AI Visibility', minTier: 'starter',
     cost: 'ai_short', upstream: 'aiOptimiser',
-    desc: 'Generate an llms.txt so AI chatbots index you correctly.' },
+    desc: 'Crawl your site, check AI-readiness (existing llms.txt, robots/AI-bot access, key pages) and generate a spec-compliant llms.txt + llms-full.txt with recommendations.' },
   { id: 'geo-onpage', name: 'GEO On-Page Optimisation', category: 'AI Visibility', minTier: 'pro',
     cost: 'ai_long', upstream: 'geoOnPageAnalysis',
     desc: 'Rewrite content to get picked up + cited by AI tools.' },
@@ -420,9 +420,10 @@ export const INPUTS = {
     { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
   ],
   'llms-txt': [
-    { name: 'input', label: 'Website or brand', type: 'text', placeholder: 'https://example.com', required: true },
-    { name: 'summary', label: 'Summary / blockquote', type: 'textarea', placeholder: 'One-line description of what the site offers' },
-    { name: 'highlights', label: 'Key sections / highlights', type: 'textarea', placeholder: 'Services, products, resources to surface (one per line)' },
+    { name: 'input', label: 'Website URL', type: 'url', placeholder: 'https://example.com', required: true },
+    { name: 'summary', label: 'Summary / blockquote (optional)', type: 'textarea', placeholder: 'Leave blank to auto-write it from the site' },
+    { name: 'geoPrompts', label: 'Target prompts for GEO (optional, one per line)', type: 'textarea', placeholder: 'What makes Acme the best storage choice?\nHow does self-storage help businesses scale?' },
+    { name: 'highlights', label: 'Extra highlights (optional)', type: 'textarea', placeholder: 'Anything else to surface in the file' },
   ],
   'geo-onpage': [
     { name: 'input', label: 'Page URL', type: 'url', placeholder: 'https://example.com/page', required: true },

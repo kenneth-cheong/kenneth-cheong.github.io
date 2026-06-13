@@ -10,36 +10,7 @@
 //
 // Tools without an adapter fall through to a raw pass-through.
 
-// ── Free-form AI text factory (aiOptimiser, action 'content_freeform') ───────
-// upstream in:  { action:'content_freeform', userPrompt }
-// upstream out: { statusCode, body:'{"result":"<text>"}' }  (gateway unwraps the
-// statusCode/body envelope before this runs, so `raw` is the inner object).
-function claude(buildMessage) {
-  return {
-    request: (body) => ({
-      action: 'content_freeform',
-      // Steer the server's long-form SEO framing toward the exact task.
-      userPrompt: `Follow this instruction exactly and output only what it asks, no preamble or meta-commentary.\n\n${buildMessage((body.input || '').trim(), body)}`,
-    }),
-    response: (raw) => ({ text: raw.result || raw.response || raw.text || (typeof raw === 'string' ? raw : '') }),
-  };
-}
-
-// llms.txt has no agency Lambda (it's client-generated in the agency app), so we
-// keep the closest equivalent: a steered content_freeform generation.
-const PROMPTS = {
-  'llms-txt': (t, body) =>
-    `Generate a complete llms.txt file for the website/brand: "${t}". Follow the llms.txt spec ` +
-    `(# title, > summary blockquote, then sectioned markdown links). Output only the file contents.` +
-    (body?.summary ? `\nUse this summary for the blockquote: ${body.summary}` : '') +
-    (body?.highlights ? `\nSurface these key sections/highlights:\n${body.highlights}` : ''),
-};
-
-
 export const ADAPTERS = {
-  // Prompt tools (Claude bridge)
-  ...Object.fromEntries(Object.entries(PROMPTS).map(([id, fn]) => [id, claude(fn)])),
-
   // ── Caption Generator → aiOptimiser action 'luxury_copy' ────────────────
   // Mirrors the agency's _luxuryFields + buildLuxuryCopyPrompt() exactly.
   caption: {

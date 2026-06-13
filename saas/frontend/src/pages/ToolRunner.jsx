@@ -162,6 +162,9 @@ function sectionsToText(sections) {
         out.push((s.columns || []).join('\t'));
         for (const row of s.rows || []) out.push((s.columns || []).map((c) => row[c] ?? '').join('\t'));
         break;
+      case 'code':
+        out.push(s.content || '');
+        break;
       default: break;
     }
     out.push('');
