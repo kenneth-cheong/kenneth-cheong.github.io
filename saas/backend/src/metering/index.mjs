@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 import { getUser, putUser, spendCredits, totalCredits, saveRun, getCache, putCache } from '../lib/dynamo.mjs';
 import { UPSTREAMS } from './upstreams.mjs';
 import { ADAPTERS, parseStrategyJson } from './adapters.mjs';
-import { fetchIntegration } from '../lib/google.mjs';
+import { fetchIntegration, gscInspect, gscSitemaps, gscIndexing } from '../lib/google.mjs';
 import {
   TOOLS,
   CREDIT_COSTS,
@@ -1585,11 +1585,54 @@ function faComputeHealthScore(d, recs) {
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
+// ── GEO/AI readiness + finding categorisation (report depth) ──────────────────
+const FA_CAT_ORDER = ['Security & Trust', 'Performance', 'Crawlability & Indexing', 'On-Page SEO', 'Content Quality', 'Structured Data & GEO', 'Authority & Backlinks', 'Analytics & Access', 'CMS & Plugins', 'Other'];
+const FA_IMPACT = {
+  'Security & Trust': 'Browsers flag insecure sites and Google demotes them — it erodes visitor trust.',
+  'Performance': 'Slow pages raise bounce rate and drag down Core Web Vitals rankings.',
+  'Crawlability & Indexing': 'If Google can’t crawl or index a page, it can’t rank at all.',
+  'On-Page SEO': 'Weak titles, tags and headings cut click-through and topical clarity.',
+  'Content Quality': 'Duplicate content splits ranking signals and can suppress pages.',
+  'Structured Data & GEO': 'Limits how AI assistants and rich results understand and cite your site.',
+  'Authority & Backlinks': 'Toxic links risk penalties; low authority caps ranking potential.',
+  'Analytics & Access': 'Without data and access you can’t measure or act on performance.',
+  'CMS & Plugins': 'Missing SEO/security tooling leaves optimisation and protection gaps.',
+  'Other': 'General site-health factors.',
+};
+function faCategoryFor(r) {
+  const e = (r.error || '').toLowerCase();
+  if (/ssl|https/.test(e)) return 'Security & Trust';
+  if (/page speed|gtmetrix|cdn|web vital/.test(e)) return 'Performance';
+  if (/robots|sitemap|404|uptime|multiple slash|broken link/.test(e)) return 'Crawlability & Indexing';
+  if (/meta title|meta description|duplicate title|duplicate meta|unoptimised meta|canonical|hreflang|h1 tag/.test(e)) return 'On-Page SEO';
+  if (/duplicate content/.test(e)) return 'Content Quality';
+  if (/structured data|llm bots|llms\.txt|llms-full|semantic/.test(e)) return 'Structured Data & GEO';
+  if (/spam score|backlink|disavow/.test(e)) return 'Authority & Backlinks';
+  if (/ga4|analytics 4|search console/.test(e)) return 'Analytics & Access';
+  if (/plugin|rank math|wordfence/.test(e)) return 'CMS & Plugins';
+  return 'Other';
+}
+// AI-visibility sub-score from the GEO signals the audit already gathered.
+function faGeoReadiness(d) {
+  const factors = [
+    { label: 'llms.txt present', ok: d.llmstxt === 'Present', weight: 20, note: d.llmstxt === 'Present' ? 'AI crawlers have a curated map of your key content.' : 'Add llms.txt so AI assistants can find and cite your important pages.' },
+    { label: 'llms-full.txt present', ok: d.llmsfull === 'Present', weight: 15, note: d.llmsfull === 'Present' ? 'Full-content file is available for AI ingestion.' : 'Add llms-full.txt with your full content for deeper AI grounding.' },
+    { label: 'AI bots allowed', ok: d.llmblock !== 'Yes', weight: 25, note: d.llmblock === 'Yes' ? 'robots.txt blocks AI bots (GPTBot, ClaudeBot, etc.) — they cannot read your site.' : 'AI crawlers are not blocked in robots.txt.' },
+    { label: 'Structured data', ok: d.structdata === 'Yes', weight: 20, note: d.structdata === 'Yes' ? 'Schema helps AI and rich results parse your pages.' : 'Add schema markup so AI and rich results can understand your pages.' },
+    { label: 'Semantic HTML', ok: d.semantic === 'Yes', partial: d.semantic === 'Partial', weight: 20, note: d.semantic === 'Yes' ? 'Clean semantic structure aids machine parsing.' : d.semantic === 'Partial' ? 'Partly semantic — tighten heading/landmark structure for AI parsing.' : 'Non-semantic markup is hard for AI to parse; adopt semantic HTML5.' },
+  ];
+  let score = 0;
+  for (const f of factors) score += f.ok ? f.weight : (f.partial ? f.weight / 2 : 0);
+  score = Math.round(score);
+  return { score, tone: score >= 80 ? 'green' : score >= 50 ? 'amber' : 'red', factors };
+}
+
 /** Build the themed `sections` report for the forensic audit. */
 function faSections(d, recs, score, sevCounts, backlinksSource) {
   const dash = '—';
   const scoreTone = score >= 80 ? 'green' : score >= 50 ? 'amber' : 'red';
   const num = (v) => (v == null ? dash : Number(v).toLocaleString());
+  const sevBadge = { critical: 'red', warning: 'amber', opportunity: 'blue' };
 
   const sslTone = d.ssl === 'pass' ? 'green' : d.ssl === 'fail' ? 'red' : 'slate';
   const psTone = (v) => (v == null ? 'slate' : v >= 90 ? 'green' : v >= 50 ? 'amber' : 'red');
@@ -1603,6 +1646,30 @@ function faSections(d, recs, score, sevCounts, backlinksSource) {
   const spamTone = d.spam == null ? 'slate' : d.spam > 30 ? 'red' : d.spam > 15 ? 'amber' : 'green';
   const copyTone = d.copyscape == null ? 'slate' : d.copyscape > 15 ? 'red' : 'green';
   const sitelinerTone = d.siteliner == null ? 'slate' : d.siteliner > 15 ? 'red' : 'green';
+  const geo = faGeoReadiness(d);
+
+  const metrics = [
+    { label: 'SSL', value: d.ssl === 'pass' ? 'Pass' : d.ssl === 'fail' ? 'Fail' : dash, tone: sslTone },
+    { label: 'Domain Authority', value: d.da ?? dash, tone: daTone },
+    { label: 'PageSpeed Desktop', value: d.psd ?? dash, tone: psTone(d.psd) },
+    { label: 'PageSpeed Mobile', value: d.psm ?? dash, tone: psTone(d.psm) },
+    { label: 'GTmetrix Grade', value: d.gtmetrix || dash, tone: gtTone },
+    { label: 'GA4', value: d.ga4 || dash, tone: ga4Tone },
+    { label: 'Sitemap', value: d.sitemap || dash, tone: sitemapTone },
+    { label: 'HTTPS Redirect', value: d.https || dash, tone: httpsTone },
+    { label: 'Structured Data', value: d.structdata || dash, tone: sdTone },
+    { label: 'Semantic HTML', value: d.semantic || dash, tone: d.semantic === 'Yes' ? 'green' : d.semantic ? 'red' : 'slate' },
+    { label: 'LLM bots blocked', value: d.llmblock || dash, tone: d.llmblock === 'Yes' ? 'red' : d.llmblock ? 'green' : 'slate' },
+    { label: 'llms.txt', value: d.llmstxt || dash, tone: llmTone },
+    { label: 'llms-full.txt', value: d.llmsfull || dash, tone: d.llmsfull === 'Present' ? 'green' : d.llmsfull === 'Missing' ? 'red' : 'slate' },
+    { label: 'CMS', value: d.cms || dash, tone: 'slate' },
+    { label: 'Copyscape dup %', value: d.copyscape == null ? dash : `${d.copyscape}%`, tone: copyTone },
+    { label: 'Internal dup %', value: d.siteliner == null ? dash : `${d.siteliner}%`, tone: sitelinerTone },
+    { label: 'Backlinks', value: num(d.backlinks) + (backlinksSource ? ` · ${backlinksSource}` : ''), tone: 'slate' },
+    { label: 'Referring domains', value: num(d.refdomains), tone: 'slate' },
+    { label: 'Organic keywords', value: num(d.orgkw), tone: 'slate' },
+    { label: 'Spam score', value: d.spam == null ? dash : `${d.spam}%`, tone: spamTone },
+  ];
 
   const sections = [
     { type: 'heading', text: `GEO+SEO Forensic Audit — ${d.url}` },
@@ -1613,45 +1680,23 @@ function faSections(d, recs, score, sevCounts, backlinksSource) {
       { label: 'Opportunity', value: sevCounts.opportunity, tone: sevCounts.opportunity ? 'blue' : 'green' },
       { label: 'Total issues', value: recs.length, tone: recs.length === 0 ? 'green' : recs.length < 5 ? 'amber' : 'red' },
     ] },
-    { type: 'stats', title: 'Key metrics', items: [
-      { label: 'SSL', value: d.ssl === 'pass' ? 'Pass' : d.ssl === 'fail' ? 'Fail' : dash, tone: sslTone },
-      { label: 'Domain Authority', value: d.da ?? dash, tone: daTone },
-      { label: 'PageSpeed Desktop', value: d.psd ?? dash, tone: psTone(d.psd) },
-      { label: 'PageSpeed Mobile', value: d.psm ?? dash, tone: psTone(d.psm) },
-      { label: 'GTmetrix Grade', value: d.gtmetrix || dash, tone: gtTone },
-      { label: 'GA4', value: d.ga4 || dash, tone: ga4Tone },
-      { label: 'Sitemap', value: d.sitemap || dash, tone: sitemapTone },
-      { label: 'HTTPS Redirect', value: d.https || dash, tone: httpsTone },
-      { label: 'Structured Data', value: d.structdata || dash, tone: sdTone },
-      { label: 'Semantic HTML', value: d.semantic || dash, tone: d.semantic === 'Yes' ? 'green' : d.semantic ? 'red' : 'slate' },
-      { label: 'LLM bots blocked', value: d.llmblock || dash, tone: d.llmblock === 'Yes' ? 'red' : d.llmblock ? 'green' : 'slate' },
-      { label: 'llms.txt', value: d.llmstxt || dash, tone: llmTone },
-      { label: 'llms-full.txt', value: d.llmsfull || dash, tone: d.llmsfull === 'Present' ? 'green' : d.llmsfull === 'Missing' ? 'red' : 'slate' },
-      { label: 'CMS', value: d.cms || dash, tone: 'slate' },
-      { label: 'Copyscape dup %', value: d.copyscape == null ? dash : `${d.copyscape}%`, tone: copyTone },
-      { label: 'Internal dup %', value: d.siteliner == null ? dash : `${d.siteliner}%`, tone: sitelinerTone },
-      { label: 'Backlinks', value: num(d.backlinks) + (backlinksSource ? ` · ${backlinksSource}` : ''), tone: 'slate' },
-      { label: 'Referring domains', value: num(d.refdomains), tone: 'slate' },
-      { label: 'Organic keywords', value: num(d.orgkw), tone: 'slate' },
-      { label: 'Spam score', value: d.spam == null ? dash : `${d.spam}%`, tone: spamTone },
-    ] },
+    { type: 'heading', text: 'AI Visibility (GEO) readiness' },
+    { type: 'stats', items: [{ label: 'GEO readiness', value: `${geo.score}/100`, tone: geo.tone }] },
+    { type: 'cards', note: 'How ready your site is to be read and cited by AI assistants (ChatGPT, Perplexity, Google AI Overviews).', items: geo.factors.map((g) => ({ title: g.label, badge: g.ok ? 'Ready' : g.partial ? 'Partial' : 'Gap', badgeTone: g.ok ? 'green' : g.partial ? 'amber' : 'red', body: g.note })) },
   ];
 
   if (recs.length) {
-    sections.push({
-      type: 'table',
-      title: `Prioritised action plan — ${recs.length} ${recs.length === 1 ? 'issue' : 'issues'}`,
-      columns: ['#', 'Severity', 'Issue', 'Recommended action'],
-      rows: recs.map((r, i) => ({
-        '#': i + 1,
-        Severity: FA_SEV_LABEL[r.severity],
-        Issue: r.error,
-        'Recommended action': r.action,
-      })),
-    });
+    sections.push({ type: 'heading', text: `Prioritised findings — ${recs.length} ${recs.length === 1 ? 'issue' : 'issues'}` });
+    for (const cat of FA_CAT_ORDER) {
+      const items = recs.filter((r) => faCategoryFor(r) === cat);
+      if (!items.length) continue;
+      sections.push({ type: 'cards', title: `${cat} · ${items.length}`, note: FA_IMPACT[cat], items: items.map((r) => ({ title: r.error, badge: FA_SEV_LABEL[r.severity], badgeTone: sevBadge[r.severity], body: r.action })) });
+    }
   } else {
     sections.push({ type: 'callout', text: 'No issues detected across the audited factors. 🎉' });
   }
+
+  sections.push({ type: 'stats', title: 'All measured signals', items: metrics });
   return sections;
 }
 
@@ -1663,6 +1708,8 @@ async function integrationsRun(tool, body) {
   if (!conn?.connected) {
     return { needsConnect: tool.integration, text: `Connect your ${tool.name} account under Integrations to use this tool.` };
   }
+  // GSC sub-tools (URL Inspection / Sitemaps / Indexing) — dispatched by gscOp.
+  if (tool.integration === 'gsc' && body.gscOp && body.gscOp !== 'insights') return gscOpsRun(body, conn);
   const live = await fetchIntegration(tool.integration, conn, { ...body, input: body.input || conn.account });
   // No seeded fallback: if the live pull didn't return data, prompt a reconnect.
   if (!live?.rows) {
@@ -1671,27 +1718,71 @@ async function integrationsRun(tool, body) {
   // Summary cards + trend chart render above the (sortable) breakdown table -
   // the dashboard layout index.html uses, not a bare table.
   return {
-    sections: integrationSections(tool.integration, live.summary || {}, live.series || []),
+    sections: integrationSections(tool.integration, live.summary || {}, live.series || [], live.deltas, body.compare, live.striking),
     rows: live.rows, summary: live.summary, source: live.source,
   };
+}
+
+// Dispatch + format the GSC sub-tools. integration_pull cost is 0, so these are
+// free like the main pull. Destructive ops (indexing removal, sitemap delete)
+// are gated by a client-side confirm before they reach here.
+async function gscOpsRun(body, conn) {
+  try {
+    if (body.gscOp === 'inspect') {
+      const { rows, count } = await gscInspect(conn, body);
+      const indexed = rows.filter((r) => /indexed/i.test(r.coverage) && !/not\s+indexed/i.test(r.coverage)).length;
+      return { sections: [{ type: 'stats', items: [{ label: 'URLs checked', value: String(count) }, { label: 'Indexed', value: String(indexed) }] }], rows };
+    }
+    if (body.gscOp === 'sitemaps') {
+      const action = String(body.sitemapAction || 'list').toLowerCase();
+      const res = await gscSitemaps(conn, body);
+      if (action !== 'list') return { sections: [{ type: 'callout', text: `Sitemap ${action === 'submit' ? 'submitted' : 'deleted'}: ${res.feed}` }] };
+      if (!res.rows.length) return { sections: [{ type: 'text', text: 'No sitemaps submitted for this property yet.' }], rows: [] };
+      return { sections: [{ type: 'heading', text: 'Submitted sitemaps' }], rows: res.rows };
+    }
+    if (body.gscOp === 'indexing') {
+      const { rows, type } = await gscIndexing(conn, body);
+      const ok = rows.filter((r) => !/error/i.test(r.status)).length;
+      return { sections: [{ type: 'callout', text: `${type === 'URL_DELETED' ? 'Removal' : 'Indexing'} requested for ${ok}/${rows.length} URL${rows.length > 1 ? 's' : ''}.` }], rows };
+    }
+    return { text: 'Unknown Search Console operation.' };
+  } catch (e) {
+    return { sections: [{ type: 'callout', text: `\u26a0 ${e.message}` }] };
+  }
 }
 
 // Build the stat-card + trend-chart sections for an integration pull. The
 // breakdown stays a top-level `rows` table (sortable, formatted) so it isn't
 // rendered twice. Chart is omitted when no day-series came back.
-function integrationSections(provider, summary, series) {
+function integrationSections(provider, summary, series, deltas, compareRaw, striking) {
   const num = (v) => (v == null ? '\u2014' : Number(v).toLocaleString());
-  const stat = (label, value) => ({ label, value: value ?? '\u2014' });
+  const d = deltas || {};
+  // value + optional period-over-period delta chip. dir: 'up' = good-when-up,
+  // 'down' = good-when-down (position/CPA), 'neutral' = no good/bad colour.
+  const stat = (label, value, deltaPct, dir = 'up') => {
+    const item = { label, value: value ?? '\u2014' };
+    if (deltaPct != null && Number.isFinite(deltaPct)) {
+      item.delta = `${deltaPct > 0 ? '+' : ''}${deltaPct.toFixed(1)}%`;
+      if (dir === 'neutral' || Math.abs(deltaPct) < 0.05) item.deltaTone = 'slate';
+      else item.deltaTone = (dir === 'up' ? deltaPct > 0 : deltaPct < 0) ? 'green' : 'red';
+    }
+    return item;
+  };
   const sections = [];
   if (provider === 'gsc') {
-    sections.push({ type: 'stats', items: [stat('Clicks', num(summary.clicks)), stat('Impressions', num(summary.impressions)), stat('CTR', summary.ctr), stat('Avg position', summary.avgPosition)] });
+    sections.push({ type: 'stats', items: [stat('Clicks', num(summary.clicks), d.clicks), stat('Impressions', num(summary.impressions), d.impressions), stat('CTR', summary.ctr, d.ctr), stat('Avg position', summary.avgPosition, d.position, 'down')] });
     pushTrend(sections, 'Clicks & impressions over time', series, [{ key: 'clicks', label: 'Clicks', color: '#2563eb' }, { key: 'impressions', label: 'Impressions', color: '#a855f7' }]);
+    if (Array.isArray(striking) && striking.length) sections.push({ type: 'table', title: 'Striking distance \u2014 page-2 easy wins', columns: ['query', 'clicks', 'impressions', 'ctr', 'position'], rows: striking });
   } else if (provider === 'ga4') {
-    sections.push({ type: 'stats', items: [stat('Sessions', num(summary.sessions)), stat('Users', num(summary.users)), stat('Engaged', num(summary.engagedSessions)), stat('Conversions', num(summary.conversions))] });
+    sections.push({ type: 'stats', items: [stat('Sessions', num(summary.sessions), d.sessions), stat('Users', num(summary.users), d.users), stat('Engaged', num(summary.engagedSessions), d.engagedSessions), stat('Conversions', num(summary.conversions), d.conversions)] });
     pushTrend(sections, 'Sessions & users over time', series, [{ key: 'sessions', label: 'Sessions', color: '#2563eb' }, { key: 'users', label: 'Users', color: '#10b981' }]);
   } else if (provider === 'google-ads') {
-    sections.push({ type: 'stats', items: [stat('Cost', summary.cost), stat('Clicks', num(summary.clicks)), stat('Conversions', num(summary.conversions)), stat('CPA', summary.cpa)] });
+    sections.push({ type: 'stats', items: [stat('Cost', summary.cost, d.cost, 'neutral'), stat('Clicks', num(summary.clicks), d.clicks), stat('Conversions', num(summary.conversions), d.conversions), stat('CPA', summary.cpa, d.cpa, 'down')] });
     pushTrend(sections, 'Cost & clicks over time', series, [{ key: 'cost', label: 'Cost (S$)', color: '#2563eb' }, { key: 'clicks', label: 'Clicks', color: '#f59e0b' }]);
+  }
+  if (deltas) {
+    const lbl = /year/i.test(String(compareRaw || '')) ? 'the same period last year' : 'the previous period';
+    sections.unshift({ type: 'text', text: `Deltas shown vs ${lbl}.` });
   }
   return sections;
 }

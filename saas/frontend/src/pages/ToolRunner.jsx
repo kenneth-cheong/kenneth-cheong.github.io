@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { toolById, inputsFor, exampleFor, CREDIT_COSTS, PLANS, tierMeets } from '@shared/catalog.mjs';
+import { toolById, inputsFor, tabsFor, exampleFor, CREDIT_COSTS, PLANS, tierMeets } from '@shared/catalog.mjs';
 import { api, ApiError } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
@@ -19,7 +19,10 @@ export default function ToolRunner() {
   const { activeId, active } = useProjects();
   const tool = toolById(toolId);
   const location = useLocation();
-  const fields = useMemo(() => (tool ? inputsFor(tool) : []), [tool]);
+  const tabs = useMemo(() => tabsFor(tool), [tool]);
+  const [tab, setTab] = useState(0);
+  const activeTab = tabs?.[tab];
+  const fields = useMemo(() => (tabs ? activeTab?.fields || [] : tool ? inputsFor(tool) : []), [tool, tabs, activeTab]);
 
   const seedValues = () => {
     const fromHistory = location.state?.values;
@@ -33,7 +36,7 @@ export default function ToolRunner() {
   const shownRef = useRef([]); // latest visible fields, for the auto-started tour
 
   // Reset the form + result when navigating between tools (same route component).
-  useEffect(() => { setValues(seedValues()); setOut(location.state?.result ? { result: location.state.result } : null); /* eslint-disable-next-line */ }, [toolId]);
+  useEffect(() => { setTab(0); setValues(seedValues()); setOut(location.state?.result ? { result: location.state.result } : null); /* eslint-disable-next-line */ }, [toolId]);
 
   // First tool a user ever opens → auto-run that tool's guided tour, once.
   useEffect(() => {
@@ -51,6 +54,13 @@ export default function ToolRunner() {
   const unlocked = tierMeets(user.tier, tool.minTier);
   const cost = CREDIT_COSTS[tool.cost] ?? 0;
   const set = (name, v) => setValues((s) => ({ ...s, [name]: v }));
+  // Switch GSC sub-tool tab: clear the previous result, seed any new fields'
+  // defaults, but keep shared values (e.g. the selected property) across tabs.
+  function selectTab(i) {
+    setTab(i);
+    setOut(null);
+    setValues((v) => { const next = { ...v }; for (const f of tabs[i].fields) if (!(f.name in next)) next[f.name] = f.default ?? ''; return next; });
+  }
   const isVisible = (f) => !f.showWhen || (f.showWhen.in || []).includes(values[f.showWhen.field]);
   const shown = fields.filter(isVisible);
   shownRef.current = shown;
@@ -64,11 +74,17 @@ export default function ToolRunner() {
   }
 
   async function run(vals = values) {
+    // Confirm destructive GSC ops (index removal / sitemap delete) before sending.
+    const dw = activeTab?.destructiveWhen;
+    if (dw && (dw.in || []).includes(vals[dw.field])) {
+      const what = activeTab.op === 'indexing' ? 'request removal of these URLs from Google’s index' : 'delete this sitemap from Search Console';
+      if (!window.confirm(`This will ${what}. Continue?`)) return;
+    }
     if (unlocked && cost >= CONFIRM_AT && !window.confirm(`This run costs ${cost} credits. Continue?`)) return;
     setBusy(true);
     setOut(null);
     try {
-      const res = await api.runTool(tool.id, { ...vals, url: vals.url || vals.input, projectId: activeId || undefined }, tool.slow);
+      const res = await api.runTool(tool.id, { ...vals, gscOp: activeTab?.op, url: vals.url || vals.input, projectId: activeId || undefined }, tool.slow);
       setOut(res);
       if (typeof res.creditsRemaining === 'number') setCredits(res.creditsRemaining);
       if (res.creditsUsed > 0) toast(`−${res.creditsUsed} credit${res.creditsUsed > 1 ? 's' : ''} · ${res.creditsRemaining} left`, 'info');
@@ -108,10 +124,26 @@ export default function ToolRunner() {
         </div>
       )}
 
-      <div className="card mt-6 p-5">
+      {/* GSC sub-tool tabs (URL Inspection / Sitemaps / Indexing), like index.html. */}
+      {tabs && (
+        <div className="mt-5 flex flex-wrap gap-1 border-b border-slate-200">
+          {tabs.map((t, i) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => selectTab(i)}
+              className={`-mb-px border-b-2 px-3.5 py-2 text-sm font-medium transition ${i === tab ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className={`card ${tabs ? 'mt-4' : 'mt-6'} p-5`}>
         <div className="space-y-4">
           {shown.map((f, i) => (
-            <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} autoFocus={i === 0} />
+            <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} autoFocus={i === 0} provider={tool.integration} />
           ))}
         </div>
         <div className="mt-4 flex items-center justify-between gap-3">
@@ -127,7 +159,7 @@ export default function ToolRunner() {
 
       {/* Live re-pivot for integration dashboards — change range/breakdown and
           re-pull in place (integration pulls are free), like index.html. */}
-      {tool.integration && unlocked && (out || busy) && (
+      {tool.integration && unlocked && (out || busy) && (!tabs || activeTab?.op === 'insights') && (
         <RepivotBar
           fields={shown.filter((f) => f.type === 'select')}
           values={values}
@@ -447,14 +479,90 @@ function TagInput({ value, onChange, placeholder }) {
   );
 }
 
-function Field({ field, value, onChange, autoFocus }) {
+// Searchable account picker for the Google integration tools — lists the
+// connected user's accessible properties/accounts (type to filter by name/ID),
+// defaulting to their saved selection. Mirrors index.html's account dropdown.
+// Falls back to a plain text box when nothing is connected.
+function AccountField({ provider, value, onChange, placeholder }) {
+  const [accounts, setAccounts] = useState(null); // null = loading, [] = none
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef(null);
+
+  useEffect(() => {
+    if (!provider) { setAccounts([]); return; }
+    let alive = true;
+    Promise.all([
+      api.integrationAccounts(provider).then((d) => d.accounts || []).catch(() => []),
+      api.integrations().then((d) => d.connected?.[provider]?.account || '').catch(() => ''),
+    ]).then(([list, def]) => {
+      if (!alive) return;
+      setAccounts(list);
+      if (!value && (def || list[0])) onChange(def || list[0].id); // seed a sensible default
+    });
+    return () => { alive = false; };
+    // eslint-disable-next-line
+  }, [provider]);
+
+  useEffect(() => {
+    const onDoc = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+
+  // Nothing connected → let them type an ID/URL and point them to Integrations.
+  if (accounts !== null && accounts.length === 0) {
+    return (
+      <>
+        <input className="field mt-1.5" value={value || ''} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+        <span className="mt-1 block text-xs text-slate-400">
+          No connected accounts — <Link to="/integrations" className="font-medium text-brand-600 hover:text-brand-700">connect in Integrations</Link> or type an ID manually.
+        </span>
+      </>
+    );
+  }
+
+  const selected = (accounts || []).find((a) => a.id === value);
+  const label = selected ? selected.label : value || '';
+  const s = q.trim().toLowerCase();
+  const filtered = (accounts || []).filter((a) => !s || a.label.toLowerCase().includes(s) || String(a.id).toLowerCase().includes(s));
+
+  return (
+    <div className="relative mt-1.5" ref={boxRef}>
+      <button type="button" onClick={() => { setOpen((o) => !o); setQ(''); }} className="field flex w-full items-center justify-between text-left">
+        <span className={`truncate ${label ? '' : 'text-slate-400'}`}>{accounts === null ? 'Loading accounts…' : (label || 'Select an account…')}</span>
+        <span className="ml-2 shrink-0 text-slate-400">▾</span>
+      </button>
+      {open && accounts && (
+        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+          <div className="border-b border-slate-100 p-2">
+            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or ID…"
+              className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/10" />
+          </div>
+          <div className="max-h-56 overflow-auto py-1">
+            {filtered.length ? filtered.map((a) => (
+              <button key={a.id} type="button" onClick={() => { onChange(a.id); setOpen(false); }}
+                className={`block w-full truncate px-3 py-1.5 text-left text-sm hover:bg-slate-50 ${a.id === value ? 'font-semibold text-brand-700' : 'text-slate-700'}`}>
+                {a.label}
+              </button>
+            )) : <div className="px-3 py-2 text-sm text-slate-400">No matches.</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Field({ field, value, onChange, autoFocus, provider }) {
   const base = 'field mt-1.5';
   return (
     <label className="block" data-tour-field={field.name}>
       <span className="text-sm font-medium text-slate-700">
         {field.label}{field.required && <span className="text-slate-400"> *</span>}
       </span>
-      {field.type === 'tags' ? (
+      {field.type === 'account' ? (
+        <AccountField provider={provider} value={value} onChange={onChange} placeholder={field.placeholder} />
+      ) : field.type === 'tags' ? (
         <>
           <TagInput value={value} onChange={onChange} placeholder={field.placeholder} />
           <span className="mt-1 block text-xs text-slate-400">Add several — press Enter or comma between keywords.</span>

@@ -12,6 +12,7 @@ const assertShape = (sections) => {
   for (const s of sections) {
     expect(KNOWN.has(s.type)).toBe(true);
     if (s.type === 'stats') expect(Array.isArray(s.items)).toBe(true);
+    if (s.type === 'cards') expect(Array.isArray(s.items)).toBe(true);
     if (s.type === 'table') { expect(Array.isArray(s.columns)).toBe(true); expect(Array.isArray(s.rows)).toBe(true); }
   }
 };
@@ -64,7 +65,7 @@ describe('faComputeHealthScore', () => {
 });
 
 describe('faSections', () => {
-  it('produces only renderer-known section types, incl. an action-plan table when issues exist', () => {
+  it('renders findings as category cards (every rec) plus a GEO readiness section', () => {
     const d = { ...PERFECT, url: 'https://acme.sg', ssl: 'fail', llmstxt: 'Missing' };
     const recs = generateForensicRecommendations(d);
     recs.forEach((r) => { r.severity = faSeverityFor(r); });
@@ -72,9 +73,16 @@ describe('faSections', () => {
     recs.forEach((r) => sev[r.severity]++);
     const sections = faSections(d, recs, faComputeHealthScore(d, recs), sev, 'Ahrefs');
     assertShape(sections);
-    const table = sections.find((s) => s.type === 'table');
-    expect(table.rows.length).toBe(recs.length);
-    expect(table.columns).toContain('Recommended action');
+    // Every finding shows up as a card somewhere.
+    const cardTitles = sections.filter((s) => s.type === 'cards').flatMap((s) => s.items.map((it) => it.title));
+    recs.forEach((r) => expect(cardTitles).toContain(r.error));
+    // Findings carry a severity badge.
+    const findingCards = sections.filter((s) => s.type === 'cards' && /·/.test(s.title || '')).flatMap((s) => s.items);
+    expect(findingCards.length).toBe(recs.length);
+    expect(findingCards.every((c) => ['Critical', 'Warning', 'Opportunity'].includes(c.badge))).toBe(true);
+    // Dedicated AI/GEO readiness section with a sub-score.
+    expect(sections.some((s) => s.type === 'heading' && /GEO/i.test(s.text))).toBe(true);
+    expect(sections.some((s) => s.type === 'stats' && s.items.some((it) => /GEO readiness/i.test(it.label)))).toBe(true);
   });
 
   it('shows a celebratory callout (no table) when there are no issues', () => {

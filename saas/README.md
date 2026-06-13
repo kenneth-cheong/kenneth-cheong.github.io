@@ -8,16 +8,54 @@ See [`../SAAS_PROPOSAL.md`](../SAAS_PROPOSAL.md) for the product rationale, tier
 
 ```
 saas/
-├── shared/catalog.mjs     Single source of truth: plans, credit costs, tool registry
-├── backend/               AWS SAM: HTTP API + JWT authorizer + Lambdas + DynamoDB
-│   └── src/
-│       ├── authorizer/    JWT Lambda authorizer (gates every authed route)
-│       ├── auth/          Google Sign-In → our own JWT + refresh
-│       ├── me/            Profile + usage ledger
-│       ├── metering/      ⭐ The gateway: tier gate → credit gate → proxy → reconcile
-│       └── billing/       Stripe Checkout, Customer Portal, signed webhook
-└── frontend/              React + Vite + Tailwind (deploys to AWS Amplify Hosting)
+├── shared/
+│   ├── catalog.mjs        ⭐ Single source of truth: plans, credit costs, tool registry
+│   └── connectors.mjs     Integration (GSC/GA4/Ads) connector definitions
+├── backend/               CloudFormation (SAM transform): HTTP API + JWT authorizer
+│   │                      + 9 Lambdas + 8 DynamoDB tables. See DEPLOY.md.
+│   ├── template.yaml      The stack (digimetrics-saas, ap-southeast-1)
+│   ├── scripts/
+│   │   ├── build.mjs      esbuild bundler → .build/<fn>/ (run before deploy)
+│   │   └── setup-stripe.mjs   Creates SGD products/prices, writes Price IDs to SSM
+│   └── src/               9 Lambdas (one dir each) + lib/ shared helpers — see below
+└── frontend/              React + Vite + Tailwind (manual-deploy to Amplify Hosting)
 ```
+
+### Backend modules (`backend/src/`)
+
+Each dir is one Lambda (`index.mjs` handler); `lib/` is shared helpers bundled in.
+
+| Module | Trigger | Responsibility |
+|---|---|---|
+| `authorizer/` | API authorizer | JWT Lambda authorizer — gates every authed route |
+| `auth/` | `POST /auth/google`, `/auth/refresh` | Google Sign-In → our own JWT + refresh token |
+| `me/` | `GET /me`, `/me/usage` | Profile (tier, live credit balance) + usage ledger |
+| `metering/` | `POST /run/{toolId}` + `RunUrl` | ⭐ The gateway: tier gate → credit gate → proxy upstream → reconcile credits → cache |
+| `billing/` | `/billing/*` | Stripe Checkout, top-ups, Customer Portal, signed webhook |
+| `app/` | many authed routes | In-app API: assistant chat, support tickets, run history, notifications, projects, keyword tracking CRUD, Google OAuth connect/callback |
+| `admin/` | `/admin/*` (ADMIN_EMAILS only) | Admin portal: list users, adjust credits, override tier |
+| `track/` | EventBridge (daily) | Refresh every tracked keyword's rank → append position snapshot |
+| `close/` | EventBridge (daily) | Auto-close support tickets idle ≥ `AUTO_CLOSE_DAYS`; notify owner |
+
+`lib/`: `dynamo.mjs` (all table access), `crypto.mjs` (AES-256-GCM token encryption),
+`google.mjs` (OAuth + GSC/GA4/Ads calls), `jwt.mjs`, `http.mjs` (response helpers),
+`email.mjs` (SES), `rank.mjs` (rank lookups), `ratelimit.mjs`, `admin.mjs`, `s3.mjs`.
+
+DynamoDB tables: `Users, Ledger, Runs, Tickets, Projects, Tracked, Cache, Notifications`.
+
+### Frontend (`frontend/src/`)
+
+React + Vite + Tailwind, deployed manually to Amplify (see DEPLOY.md step 5).
+
+- **`pages/`** — route screens: `Login, Dashboard` (tool grid), `ToolRunner`,
+  `Pricing, Account, Usage, History, Projects, Tracking, Integrations, Support, Admin`.
+- **`components/`** — `Layout, ToolCard, CreditMeter, UpgradeModal, ChatDrawer,
+  ResultSections / SchemaResult` (tool output rendering), `TrendChart / LineChart,
+  ProjectSelector, NotificationBell, Toaster, ExplainMenu`.
+- **`context/`** — `AuthContext` (session/JWT/tier/credits), `ProjectContext`.
+- **`lib/`** — `api.js` (backend client; honours `VITE_MOCK`), `icons.jsx`,
+  `tours.js`, `ui.js`. The tool grid + runner are **catalog-driven** from
+  `shared/catalog.mjs`, so adding a tool needs no new page/component.
 
 ## Run the UI locally (no AWS needed)
 
@@ -36,21 +74,31 @@ tool to see the upgrade modal, "upgrade" to Pro (mock-instant) and watch tools u
 
 ## Deploy for real
 
-### 1. Backend (AWS SAM)
+**See [`DEPLOY.md`](DEPLOY.md) for the full, ordered runbook.** Quick orientation below.
+
+### 1. Backend (esbuild → CloudFormation)
+
+> **Not `sam deploy`.** The `package.json` scripts still mention SAM, but the SAM CLI
+> isn't installed — we bundle with esbuild and deploy via `aws cloudformation`. The
+> live stack is **`digimetrics-saas`** in `ap-southeast-1`.
 
 ```bash
 cd saas/backend
 npm install
-# Stripe Price IDs are read from SSM Parameter Store:
-aws ssm put-parameter --name /saas/price/pro/monthly --value price_xxx --type String   # etc.
-sam build
-sam deploy --guided      # prompts for GoogleClientId, JwtSecret, Stripe keys, etc.
+# Stripe products/prices/Price-IDs (writes to SSM Parameter Store):
+STRIPE_SECRET_KEY=sk_test_xxx AWS_REGION=ap-southeast-1 node scripts/setup-stripe.mjs
+
+node scripts/build.mjs                    # esbuild → .build/<fn>/
+aws cloudformation package --template-file template.yaml \
+  --s3-bucket <artifact-bucket> --output-template-file /tmp/pkg.yaml --region ap-southeast-1
+# first deploy: aws cloudformation deploy ...   (updates: create-change-set → execute)
 ```
 
-`sam deploy` outputs `ApiUrl` — use it as `VITE_API_BASE`.
-
-Point the Stripe webhook (`/billing/webhook`) at the deployed URL and put the signing
-secret into the `StripeWebhookSecret` parameter.
+The stack outputs **`ApiUrl`** (use as `VITE_API_BASE`) and **`RunUrl`** (Function URL
+for slow tools). Point the Stripe webhook (`/billing/webhook`) at `ApiUrl` and set the
+signing secret into the `StripeWebhookSecret` parameter. Full commands, parameter table,
+the **change-set + `UsePreviousValue` secret-preservation** rule, the **code-only fast
+path** (skip CFN), and the two SAM-transform gotchas are all in [`DEPLOY.md`](DEPLOY.md).
 
 #### Google integrations (GSC / GA4 / Ads) — wired exactly like the agency app
 
@@ -81,13 +129,20 @@ Ticket reply + auto-close emails go through SES. Verify a sender and pass
 in-platform notifications still work; email is simply skipped. `AutoCloseDays`
 (default 7) controls the daily inactivity auto-close job.
 
-### 2. Frontend (AWS Amplify Hosting)
+### 2. Frontend (AWS Amplify Hosting — manual deploy)
 
-1. Amplify Console → **New app → Host web app** → connect this repo.
-2. **App root directory:** `saas/frontend` (build spec: `amplify.yml`).
-3. Environment variables: `VITE_API_BASE` (the SAM ApiUrl), `VITE_GOOGLE_CLIENT_ID`.
-   **Do not** set `VITE_MOCK`.
-4. Add your custom domain in Amplify (managed SSL + CloudFront).
+The app is a **manual-deploy** Amplify app (not auto-built from GitHub). Build locally
+and upload the `dist/` bundle:
+
+```bash
+cd saas/frontend
+npm install
+# set VITE_API_BASE (the backend ApiUrl) + VITE_GOOGLE_CLIENT_ID; do NOT set VITE_MOCK
+npm run deploy        # bash deploy.sh: vite build → zip → aws amplify create-deployment
+```
+
+Add your custom domain in Amplify → Domain management (managed SSL + CloudFront), then
+update the backend `AppOrigin` param to the live URL. See [`DEPLOY.md`](DEPLOY.md) step 5.
 
 ## ⚠️ Security — the one thing that must not ship broken
 

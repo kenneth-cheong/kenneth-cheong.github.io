@@ -487,18 +487,21 @@ export const INPUTS = {
   ],
 
   gsc: [
-    { name: 'input', label: 'Property (site URL)', type: 'url', placeholder: 'https://example.com', required: true },
+    { name: 'input', label: 'Property', type: 'account', placeholder: 'https://example.com', required: true },
     { name: 'range', label: 'Date range', type: 'select', options: ['Last 7 days', 'Last 28 days', 'Last 3 months'], default: 'Last 28 days' },
     { name: 'dimension', label: 'Break down by', type: 'select', options: ['query', 'page', 'country', 'device'], default: 'query' },
+    { name: 'compare', label: 'Compare to', type: 'select', options: ['None', 'Previous period', 'Previous year'], default: 'None' },
   ],
   ga4: [
-    { name: 'input', label: 'GA4 property ID', type: 'text', placeholder: 'e.g. 123456789', required: true },
+    { name: 'input', label: 'Property', type: 'account', placeholder: 'e.g. 123456789', required: true },
     { name: 'range', label: 'Date range', type: 'select', options: ['Last 7 days', 'Last 28 days', 'Last 3 months'], default: 'Last 28 days' },
     { name: 'dimension', label: 'Break down by', type: 'select', options: ['channel', 'page', 'country', 'device'], default: 'channel' },
+    { name: 'compare', label: 'Compare to', type: 'select', options: ['None', 'Previous period', 'Previous year'], default: 'None' },
   ],
   'google-ads': [
-    { name: 'input', label: 'Ads account ID', type: 'text', placeholder: 'e.g. 123-456-7890', required: true },
+    { name: 'input', label: 'Ads account', type: 'account', placeholder: 'e.g. 123-456-7890', required: true },
     { name: 'range', label: 'Date range', type: 'select', options: ['Last 7 days', 'Last 28 days', 'Last 3 months'], default: 'Last 28 days' },
+    { name: 'compare', label: 'Compare to', type: 'select', options: ['None', 'Previous period', 'Previous year'], default: 'None' },
   ],
   'strategy-engine': [
     { name: 'domain', label: 'Website', type: 'url', placeholder: 'https://example.com', required: true },
@@ -519,4 +522,30 @@ const DEFAULT_LABEL = { SEO: 'Keyword or domain', Content: 'Topic or brief', 'AI
 export function inputsFor(tool) {
   if (INPUTS[tool.id]) return INPUTS[tool.id];
   return [{ name: 'input', label: DEFAULT_LABEL[tool.category] || 'Input', type: 'textarea', placeholder: '', required: true }];
+}
+
+// Tools that present several operations as tabs, each its own form + backend op
+// (`gscOp`). Mirrors index.html's Search Console tabs. `destructiveWhen` gates a
+// confirm before running (index removal / sitemap delete).
+const TABS = {
+  gsc: [
+    { key: 'insights', label: 'Search Insights', op: 'insights', fields: INPUTS.gsc },
+    { key: 'inspect', label: 'URL Inspection', op: 'inspect', fields: [
+      { name: 'input', label: 'Property', type: 'account', placeholder: 'https://example.com', required: true },
+      { name: 'urls', label: 'URLs to inspect', type: 'textarea', placeholder: 'One URL per line (up to 15)…', required: true },
+    ] },
+    { key: 'sitemaps', label: 'Sitemaps', op: 'sitemaps', fields: [
+      { name: 'input', label: 'Property', type: 'account', placeholder: 'https://example.com', required: true },
+      { name: 'sitemapAction', label: 'Action', type: 'select', options: ['List', 'Submit', 'Delete'], default: 'List' },
+      { name: 'sitemapUrl', label: 'Sitemap URL', type: 'url', placeholder: 'https://example.com/sitemap.xml', showWhen: { field: 'sitemapAction', in: ['Submit', 'Delete'] } },
+    ], destructiveWhen: { field: 'sitemapAction', in: ['Delete'] } },
+    { key: 'indexing', label: 'Indexing', op: 'indexing', fields: [
+      { name: 'urls', label: 'URLs', type: 'textarea', placeholder: 'One URL per line (up to 15)…', required: true },
+      { name: 'indexType', label: 'Request', type: 'select', options: ['Index / update', 'Remove from index'], default: 'Index / update' },
+    ], destructiveWhen: { field: 'indexType', in: ['Remove from index'] } },
+  ],
+};
+
+export function tabsFor(tool) {
+  return TABS[tool?.id] || null;
 }

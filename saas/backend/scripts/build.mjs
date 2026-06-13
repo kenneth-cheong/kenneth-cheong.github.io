@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Bundle each Lambda into a single self-contained ESM file under .build/<fn>/,
 // inlining the shared catalog + npm deps (except the AWS SDK, which the
-// nodejs20 runtime provides). template.yaml points CodeUri at these dirs, so
-// `sam deploy` just zips them — no SAM esbuild builder needed.
+// nodejs20 runtime provides). template.yaml points each CodeUri at these dirs,
+// so `aws cloudformation package` just zips + uploads them (no SAM CLI). See
+// ../DEPLOY.md step 3 for the full deploy flow.
 import { build } from 'esbuild';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';

@@ -25,6 +25,11 @@ function Section({ s }) {
           <div key={i} className="min-w-[120px] rounded-lg border border-slate-200 p-2.5" style={it.tone ? { borderTopWidth: 3, borderTopColor: BORDER[it.tone] } : undefined}>
             <div className="text-[11px] uppercase tracking-wide text-slate-500">{it.label}</div>
             <div className={`text-lg font-bold ${it.tone === 'red' ? 'text-red-600' : it.tone === 'amber' ? 'text-amber-600' : 'text-slate-900'}`}>{it.value}</div>
+            {it.delta && (
+              <div className={`mt-0.5 text-xs font-semibold ${it.deltaTone === 'red' ? 'text-red-600' : it.deltaTone === 'green' ? 'text-green-600' : 'text-slate-400'}`}>
+                {it.delta}<span className="ml-1 font-normal text-slate-400">vs prev</span>
+              </div>
+            )}
           </div>))}
         </div>
       </div>
@@ -38,7 +43,7 @@ function Section({ s }) {
     );
     // `series` → multi-line trend (integrations); legacy `data` → rank LineChart.
     case 'chart': return <div>{s.title && <H>{s.title}</H>}{Array.isArray(s.series) ? <TrendChart series={s.series} /> : <LineChart data={s.data} />}</div>;
-    case 'cards': return <div>{s.title && <H>{s.title}</H>}<div className="space-y-2">{s.items.map((c, i) => <Card key={i} c={c} />)}</div></div>;
+    case 'cards': return <div>{s.title && <H>{s.title}</H>}{s.note && <p className="-mt-1 mb-2 text-sm text-slate-500">{s.note}</p>}<div className="space-y-2">{s.items.map((c, i) => <Card key={i} c={c} />)}</div></div>;
     case 'table': return <div>{s.title && <H>{s.title}</H>}<Table columns={s.columns} rows={s.rows} /></div>;
     case 'code': return <CodeBlock title={s.title} filename={s.filename} content={s.content} />;
     default: return null;

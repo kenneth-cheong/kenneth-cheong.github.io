@@ -5,11 +5,10 @@
   "type": "module",
   "description": "Auth, metering gateway, credits ledger and Stripe billing for the Digimetrics SaaS.",
   "scripts": {
-    "build": "sam build",
-    "deploy": "sam deploy --guided",
-    "deploy:ci": "sam deploy --no-confirm-changeset --no-fail-on-empty-changeset",
-    "local": "sam local start-api --port 3001",
-    "logs": "sam logs --stack-name digimetrics-saas --tail",
+    "build": "node scripts/build.mjs",
+    "package": "node scripts/build.mjs && aws cloudformation package --template-file template.yaml --s3-bucket aws-sam-cli-managed-default-samclisourcebucket-fhg7g9oh6l2a --output-template-file /tmp/pkg.yaml --region ap-southeast-1",
+    "deploy": "echo 'No SAM CLI here. Deploy is a reviewed CloudFormation change-set: npm run package, then create-change-set (secrets as UsePreviousValue=true), describe-change-set, execute-change-set. Full commands in ../DEPLOY.md step 3.' && exit 1",
+    "setup-stripe": "node scripts/setup-stripe.mjs",
     "test": "vitest run"
   },
   "dependencies": {
