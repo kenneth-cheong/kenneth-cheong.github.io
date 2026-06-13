@@ -5,6 +5,7 @@ import { api, ApiError } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import UpgradeModal from '../components/UpgradeModal.jsx';
+import ResultSections from '../components/ResultSections.jsx';
 import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
 
 const CONFIRM_AT = 25; // credits — confirm before running pricey tools
@@ -12,7 +13,7 @@ const CONFIRM_AT = 25; // credits — confirm before running pricey tools
 export default function ToolRunner() {
   const { toolId } = useParams();
   const { user, setCredits } = useAuth();
-  const { activeId } = useProjects();
+  const { activeId, active } = useProjects();
   const tool = toolById(toolId);
   const location = useLocation();
   const fields = useMemo(() => (tool ? inputsFor(tool) : []), [tool]);
@@ -100,7 +101,7 @@ export default function ToolRunner() {
       </div>
 
       {busy && tool.slow && <SlowProgress tool={tool} />}
-      {out && !busy && <Result out={out} tool={tool} />}
+      {out && !busy && <Result out={out} tool={tool} project={active} user={user} />}
 
       {modal && <UpgradeModal reason={modal.reason} requiredTier={modal.requiredTier} onClose={() => setModal(null)} />}
     </div>
@@ -133,12 +134,57 @@ function SlowProgress({ tool }) {
 // ── Result ────────────────────────────────────────────────────────────────────
 function copyableOf(r) {
   if (r.text) return r.text;
+  if (r.sections) return sectionsToText(r.sections);
   if (r.rows) { const cols = Object.keys(r.rows[0] || {}); return [cols.join('\t'), ...r.rows.map((row) => cols.map((c) => row[c]).join('\t'))].join('\n'); }
   if (r.html) { const d = document.createElement('div'); d.innerHTML = r.html; return d.innerText; }
   return JSON.stringify(r, null, 2);
 }
 
-function Result({ out, tool }) {
+// Flatten the structured `sections` format into plain text for Copy.
+function sectionsToText(sections) {
+  const out = [];
+  for (const s of sections || []) {
+    if (s.title) out.push(s.title);
+    switch (s.type) {
+      case 'heading': out.push(s.text); break;
+      case 'callout': case 'text': out.push(s.text); break;
+      case 'stats': out.push((s.items || []).map((it) => `${it.label}: ${it.value}`).join('  ·  ')); break;
+      case 'list': for (const x of s.items || []) out.push(`• ${x}`); break;
+      case 'cards':
+        for (const c of s.items || []) {
+          out.push(`${c.title}${c.badge ? ` [${c.badge}]` : ''}${c.meta ? ` — ${c.meta}` : ''}`);
+          for (const l of c.lines || []) out.push(`  ${l.label ? `${l.label}: ` : ''}${l.value}`);
+          if (c.body) out.push(`  ${c.body}`);
+        }
+        break;
+      case 'table':
+        out.push((s.columns || []).join('\t'));
+        for (const row of s.rows || []) out.push((s.columns || []).map((c) => row[c] ?? '').join('\t'));
+        break;
+      default: break;
+    }
+    out.push('');
+  }
+  return out.join('\n').trim();
+}
+
+// First tabular section, for the CSV button.
+function firstTable(sections) { return (sections || []).find((s) => s.type === 'table' && s.rows && s.rows.length); }
+
+function PrintHeader({ tool, project, user }) {
+  const brand = project?.name || (user?.email ? user.email.split('@')[0] : 'Digimetrics');
+  const target = project?.domain;
+  const date = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  return (
+    <div className="dm-print-header">
+      <div className="dm-ph-brand">{brand}</div>
+      <div className="dm-ph-title">{tool.name}{target ? ` · ${target}` : ''}</div>
+      <div className="dm-ph-meta">Generated {date} · Digimetrics</div>
+    </div>
+  );
+}
+
+function Result({ out, tool, project, user }) {
   if (out.error) return <p className="mt-6 text-red-600">⚠ {out.error}</p>;
   const r = out.result || {};
 
@@ -151,11 +197,12 @@ function Result({ out, tool }) {
     );
   }
 
-  const hasContent = r.text || r.preview || r.html || (r.rows && r.rows.length);
+  const hasContent = r.text || r.preview || r.html || (r.rows && r.rows.length) || (r.sections && r.sections.length);
+  const sectionTable = r.sections && firstTable(r.sections);
 
   return (
     <div className="mt-6">
-      <div className="mb-2 flex items-center gap-2">
+      <div className="dm-no-print mb-2 flex items-center gap-2">
         {r.source === 'live' && <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">● Live data</span>}
         {r.source === 'demo' && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">● Demo data</span>}
         {typeof out.creditsUsed === 'number' && out.creditsUsed > 0 && (
@@ -164,6 +211,7 @@ function Result({ out, tool }) {
         {hasContent && (
           <div className="ml-auto flex gap-1.5">
             {r.rows && r.rows.length > 0 && <ResultBtn onClick={() => downloadCsv(r.rows, `${tool.id}.csv`)}>CSV</ResultBtn>}
+            {sectionTable && <ResultBtn onClick={() => downloadCsv(sectionTable.rows, `${tool.id}.csv`)}>CSV</ResultBtn>}
             <ResultBtn onClick={() => copyText(copyableOf(r))}>Copy</ResultBtn>
             <ResultBtn onClick={() => window.print()}>Print</ResultBtn>
           </div>
@@ -171,6 +219,7 @@ function Result({ out, tool }) {
       </div>
 
       <div className="card p-5">
+        <PrintHeader tool={tool} project={project} user={user} />
         {out.teaser && (
           <div className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
             {r.teaserMessage || 'Preview only — upgrade to see everything.'}
@@ -179,6 +228,7 @@ function Result({ out, tool }) {
 
         {r.text && <pre className="whitespace-pre-wrap text-sm text-slate-700">{r.text}</pre>}
         {r.preview && <pre className="whitespace-pre-wrap text-sm text-slate-500">{r.preview}</pre>}
+        {r.sections && r.sections.length > 0 && <ResultSections sections={r.sections} />}
         {r.html && <div className="dm-report max-w-none text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: r.html }} />}
 
         {r.rows && r.rows.length > 0 && <ResultTable rows={r.rows} />}

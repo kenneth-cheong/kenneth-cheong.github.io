@@ -52,6 +52,13 @@ Parameters:
     Type: String
     Default: '7'
     Description: Days of inactivity before a support ticket auto-closes.
+  AlarmEmail:
+    Type: String
+    Default: ''
+    Description: Email alerted when a Lambda starts erroring/throttling (empty disables notifications; alarms still fire to the console).
+
+Conditions:
+  HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, '']]
 
 Globals:
   Function:
@@ -443,6 +450,106 @@ Resources:
         Users: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/users, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Credits: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/credits, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Tier: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/tier, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+
+  # ── Observability: SNS topic + CloudWatch alarms ────────────────────────
+  # The topic (and email subscription) only exist when AlarmEmail is set; the
+  # alarms always exist and route to it when present, so they're visible in the
+  # console regardless.
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Condition: HasAlarmEmail
+    Properties:
+      DisplayName: Digimetrics SaaS alarms
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref AlarmEmail
+
+  # Gateway is the billing choke point — errors here mean tool runs are failing
+  # (and credits may be mis-charged). Most important alarm.
+  MeteringErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Metering gateway Lambda is throwing errors.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - { Name: FunctionName, Value: !Ref MeteringFn }
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref 'AWS::NoValue']
+      OKActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref 'AWS::NoValue']
+
+  MeteringThrottlesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Metering gateway Lambda is being throttled (raise concurrency).
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions:
+        - { Name: FunctionName, Value: !Ref MeteringFn }
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref 'AWS::NoValue']
+
+  AppErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: In-app Lambda (chat, support, projects, tracking) is throwing errors.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - { Name: FunctionName, Value: !Ref AppFn }
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref 'AWS::NoValue']
+      OKActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref 'AWS::NoValue']
+
+  # Authorizer errors lock everyone out — every authed route 500s if it fails.
+  AuthorizerErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: JWT authorizer Lambda is throwing errors — authed routes will 500.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - { Name: FunctionName, Value: !Ref AuthorizerFn }
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref 'AWS::NoValue']
+
+  # 5xx at the API edge — catches failures the per-Lambda alarms miss (auth
+  # rejections, integration timeouts, routing).
+  Api5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: HTTP API is returning 5xx responses.
+      Namespace: AWS/ApiGateway
+      MetricName: 5xx
+      Dimensions:
+        - { Name: ApiId, Value: !Ref Api }
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref 'AWS::NoValue']
 
 Outputs:
   ApiUrl:

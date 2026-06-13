@@ -472,52 +472,28 @@ async function backlinksRun(body) {
   if (summary.backlinks == null && !refDomains.length && !anchors.length) {
     return { text: 'No backlinks data was returned for this target. Check the domain and analysis scope.' };
   }
-  return { html: renderBacklinks(target, mode, summary, refDomains, anchors), summary };
+  return { sections: sectionsBacklinks(target, mode, summary, refDomains, anchors), summary };
 }
 
-function renderBacklinks(target, mode, s, refDomains, anchors) {
-  const fmtNum = (n) => (n == null ? '—' : Number(n).toLocaleString());
+function sectionsBacklinks(target, mode, s, refDomains, anchors) {
+  const n = (v) => (v == null ? '—' : Number(v).toLocaleString());
   const isNofollow = (a) => a && (a.nofollow || a.sponsored || a.ugc);
-  const stat = (label, value) => `
-    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;min-width:130px">
-      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#64748b">${esc(label)}</div>
-      <div style="font-size:20px;font-weight:700;color:#0f172a">${esc(value)}</div>
-    </div>`;
-  const stats = [
-    stat('Backlinks', fmtNum(s.backlinks)),
-    stat('Referring domains', fmtNum(s.referringDomains)),
-    stat('Domain rank', s.domainRank ?? '—'),
-    stat('Spam score', s.spamScore != null ? `${s.spamScore}%` : '—'),
-    stat('Broken backlinks', fmtNum(s.brokenBacklinks)),
-    stat('Referring IPs', fmtNum(s.referringIps)),
-  ].join('');
-
-  const refRows = refDomains.map((d) => `
-    <tr style="border-top:1px solid #f1f5f9">
-      <td style="padding:6px 8px">${esc(d.domain)}</td>
-      <td style="padding:6px 8px">${d.rank ?? '—'}</td>
-      <td style="padding:6px 8px">${fmtNum(d.backlinks)}</td>
-      <td style="padding:6px 8px">${esc(String(d.first_seen || '').slice(0, 10) || '—')}</td>
-      <td style="padding:6px 8px">${isNofollow(d.referring_links_attributes) ? 'nofollow' : 'dofollow'}</td>
-    </tr>`).join('');
-  const anchorRows = anchors.map((a) => `
-    <tr style="border-top:1px solid #f1f5f9">
-      <td style="padding:6px 8px">${esc(a.anchor || '(image / no text)')}</td>
-      <td style="padding:6px 8px">${fmtNum(a.backlinks)}</td>
-      <td style="padding:6px 8px">${fmtNum(a.referring_domains)}</td>
-      <td style="padding:6px 8px">${esc(String(a.first_seen || '').slice(0, 10) || '—')}</td>
-    </tr>`).join('');
-
-  const th = (cols) => `<thead><tr style="text-align:left;color:#64748b;font-size:12px">${cols.map((c) => `<th style="padding:6px 8px">${c}</th>`).join('')}</tr></thead>`;
-  return `
-    <h3 style="margin:0 0 8px;font-weight:700">Backlink profile — ${esc(target)} <span style="font-weight:400;color:#64748b">(${esc(mode)})</span></h3>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px">${stats}</div>
-    ${refRows ? `<h4 style="margin:0 0 6px;font-weight:700">Top referring domains</h4>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:18px">
-        ${th(['Domain', 'Rank', 'Backlinks', 'First seen', 'Type'])}<tbody>${refRows}</tbody></table>` : ''}
-    ${anchorRows ? `<h4 style="margin:0 0 6px;font-weight:700">Top anchors</h4>
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        ${th(['Anchor', 'Backlinks', 'Ref. domains', 'First seen'])}<tbody>${anchorRows}</tbody></table>` : ''}`;
+  const out = [
+    { type: 'heading', text: `Backlink profile — ${target} (${mode})` },
+    { type: 'stats', items: [
+      { label: 'Backlinks', value: n(s.backlinks) },
+      { label: 'Referring domains', value: n(s.referringDomains) },
+      { label: 'Domain rank', value: s.domainRank ?? '—' },
+      { label: 'Spam score', value: s.spamScore != null ? `${s.spamScore}%` : '—', tone: s.spamScore > 30 ? 'red' : undefined },
+      { label: 'Broken backlinks', value: n(s.brokenBacklinks), tone: s.brokenBacklinks > 0 ? 'amber' : undefined },
+      { label: 'Referring IPs', value: n(s.referringIps) },
+    ] },
+  ];
+  if (refDomains.length) out.push({ type: 'table', title: 'Top referring domains', columns: ['Domain', 'Rank', 'Backlinks', 'First seen', 'Type'],
+    rows: refDomains.map((d) => ({ Domain: d.domain, Rank: d.rank ?? '—', Backlinks: n(d.backlinks), 'First seen': String(d.first_seen || '').slice(0, 10) || '—', Type: isNofollow(d.referring_links_attributes) ? 'nofollow' : 'dofollow' })) });
+  if (anchors.length) out.push({ type: 'table', title: 'Top anchors', columns: ['Anchor', 'Backlinks', 'Ref. domains', 'First seen'],
+    rows: anchors.map((a) => ({ Anchor: a.anchor || '(image / no text)', Backlinks: n(a.backlinks), 'Ref. domains': n(a.referring_domains), 'First seen': String(a.first_seen || '').slice(0, 10) || '—' })) });
+  return out;
 }
 
 // ── AI Discovery / AI Mentions: multi-LLM visibility check ─────────────────────
@@ -1062,7 +1038,7 @@ async function perfMarketingRun(body) {
   });
   const d = parsePmAnswer(raw);
   if (!d) return { text: 'The audit did not return a usable result. Please try again.' };
-  return { html: renderPerfMarketing(d) };
+  return { sections: sectionsPerfMarketing(d) };
 }
 
 function parsePmAnswer(raw) {
@@ -1076,42 +1052,30 @@ function parsePmAnswer(raw) {
   return answer && typeof answer === 'object' ? answer : null;
 }
 
-function renderPerfMarketing(d) {
-  const suit = (s) => ({ high: '#16a34a', medium: '#d97706', low: '#64748b' }[String(s).toLowerCase()] || '#64748b');
-  const list = (arr, color) => Array.isArray(arr) && arr.length
-    ? `<ul style="margin:6px 0 0;padding-left:18px">${arr.map((x) => `<li style="margin:3px 0;color:${color || '#334155'}">${esc(x)}</li>`).join('')}</ul>` : '';
+function sectionsPerfMarketing(d) {
+  const out = [];
+  if (d.executive_summary) out.push({ type: 'callout', text: d.executive_summary });
   const r = d.estimated_budget_range || {};
-  const tile = (label, val, color) => `<div style="flex:1;min-width:120px;border:1px solid #e2e8f0;border-top:3px solid ${color};border-radius:10px;padding:10px"><div style="font-size:11px;text-transform:uppercase;color:#64748b">${label}</div><div style="font-size:18px;font-weight:700">${esc(val || '—')}</div></div>`;
-  const platforms = (d.platform_recommendations || []).map((p) => `
-    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:8px 0">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <strong>${esc(p.platform)}</strong>
-        <span style="background:${suit(p.suitability)};color:#fff;border-radius:999px;padding:1px 8px;font-size:11px">${esc(p.suitability)}</span>
-        <span style="margin-left:auto;font-weight:700">${esc(p.monthly_budget || '')} ${p.budget_share_pct != null ? `· ${esc(p.budget_share_pct)}%` : ''}</span>
-      </div>
-      <div style="height:6px;background:#f1f5f9;border-radius:999px;margin:8px 0;overflow:hidden"><div style="height:100%;width:${Number(p.budget_share_pct) || 0}%;background:#4f46e5"></div></div>
-      ${p.primary_objective ? `<div style="font-size:13px"><strong>Objective:</strong> ${esc(p.primary_objective)}</div>` : ''}
-      ${p.rationale ? `<div style="font-size:13px;color:#475569"><strong>Why:</strong> ${esc(p.rationale)}</div>` : ''}
-      ${p.expected_outcome ? `<div style="font-size:13px;color:#475569"><strong>Expected:</strong> ${esc(p.expected_outcome)}</div>` : ''}
-    </div>`).join('');
-  const opps = (d.opportunities || []).map((o) => `
-    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:8px 0">
-      <strong>${esc(o.title)}</strong>
-      ${o.insight ? `<p style="color:#475569;margin:6px 0">${esc(o.insight)}</p>` : ''}
-      ${o.recommended_action ? `<div style="font-size:13px"><strong>Action:</strong> ${esc(o.recommended_action)}</div>` : ''}
-    </div>`).join('');
-  return `
-    ${d.executive_summary ? `<div style="border-left:3px solid #4f46e5;background:#f8fafc;padding:10px 14px;border-radius:0 8px 8px 0;margin-bottom:16px">${esc(d.executive_summary)}</div>` : ''}
-    <h3 style="margin:0 0 6px;font-weight:700">Estimated budget range ${r.currency ? `<span style="font-weight:400;color:#64748b">(${esc(r.currency)})</span>` : ''}</h3>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">${tile('Conservative', r.conservative, '#16a34a')}${tile('Recommended', r.recommended, '#2563eb')}${tile('Aggressive', r.aggressive, '#ea580c')}</div>
-    ${r.rationale ? `<p style="color:#475569;font-size:13px;margin:0 0 16px">${esc(r.rationale)}</p>` : ''}
-    <h3 style="margin:0 0 6px;font-weight:700">Recommended channel mix</h3>${platforms}
-    ${opps ? `<h3 style="margin:18px 0 6px;font-weight:700">Opportunities</h3>${opps}` : ''}
-    ${(d.quick_wins || []).length || (d.watch_outs || []).length ? `<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:14px">
-      ${(d.quick_wins || []).length ? `<div style="flex:1;min-width:220px"><h4 style="margin:0 0 4px;font-weight:700">✅ Quick wins</h4>${list(d.quick_wins, '#166534')}</div>` : ''}
-      ${(d.watch_outs || []).length ? `<div style="flex:1;min-width:220px"><h4 style="margin:0 0 4px;font-weight:700">⚠ Watch-outs</h4>${list(d.watch_outs, '#991b1b')}</div>` : ''}
-    </div>` : ''}
-    ${(d.sales_talking_points || []).length ? `<h3 style="margin:18px 0 6px;font-weight:700">Sales talking points</h3>${list(d.sales_talking_points)}` : ''}`;
+  out.push({ type: 'stats', title: `Estimated budget range${r.currency ? ` (${r.currency})` : ''}`, items: [
+    { label: 'Conservative', value: r.conservative || '—', tone: 'green' },
+    { label: 'Recommended', value: r.recommended || '—', tone: 'blue' },
+    { label: 'Aggressive', value: r.aggressive || '—', tone: 'orange' },
+  ] });
+  if (r.rationale) out.push({ type: 'text', text: r.rationale });
+  const suitTone = (s) => ({ high: 'green', medium: 'amber', low: 'slate' }[String(s).toLowerCase()] || 'slate');
+  out.push({ type: 'cards', title: 'Recommended channel mix', items: (d.platform_recommendations || []).map((p) => ({
+    title: p.platform, badge: p.suitability, badgeTone: suitTone(p.suitability),
+    meta: `${p.monthly_budget || ''}${p.budget_share_pct != null ? ` · ${p.budget_share_pct}%` : ''}`.trim(),
+    barPct: Number(p.budget_share_pct) || 0,
+    lines: [p.primary_objective && { label: 'Objective', value: p.primary_objective }, p.rationale && { label: 'Why', value: p.rationale }, p.expected_outcome && { label: 'Expected', value: p.expected_outcome }].filter(Boolean),
+  })) });
+  if ((d.opportunities || []).length) out.push({ type: 'cards', title: 'Opportunities', items: d.opportunities.map((o) => ({
+    title: o.title, lines: [o.insight && { label: '', value: o.insight }, o.recommended_action && { label: 'Action', value: o.recommended_action }].filter(Boolean),
+  })) });
+  if ((d.quick_wins || []).length) out.push({ type: 'list', title: '✅ Quick wins', items: d.quick_wins, tone: 'green' });
+  if ((d.watch_outs || []).length) out.push({ type: 'list', title: '⚠ Watch-outs', items: d.watch_outs, tone: 'red' });
+  if ((d.sales_talking_points || []).length) out.push({ type: 'list', title: 'Sales talking points', items: d.sales_talking_points });
+  return out;
 }
 
 /** aiOptimiser response → text (handles statusCode/body + result/text/content). */
