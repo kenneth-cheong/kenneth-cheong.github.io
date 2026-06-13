@@ -354,10 +354,9 @@ function pushMsg(role,content){
   const d=document.createElement('div'); d.className='msg '+role; d.textContent=content; th.appendChild(d);
   th.scrollTop=th.scrollHeight;
 }
-document.getElementById('chatform').onsubmit=async (e)=>{
-  e.preventDefault();
-  const inp=document.getElementById('chatinput'); const text=inp.value.trim(); if(!text) return;
-  inp.value=''; pushMsg('u',text);
+async function sendChat(text){
+  text=String(text||'').trim(); if(!text) return;
+  pushMsg('u',text);
   const th=document.getElementById('thread');
   const wait=document.createElement('div'); wait.className='msg a'; wait.innerHTML='<span class="spin" style="border-color:#94a3b8;border-top-color:transparent"></span>…'; th.appendChild(wait); th.scrollTop=th.scrollHeight;
   try{
@@ -365,7 +364,42 @@ document.getElementById('chatform').onsubmit=async (e)=>{
     const data=await res.json(); wait.remove();
     if(data.error) pushMsg('a','⚠ '+data.error); else pushMsg('a',data.reply);
   }catch(err){ wait.remove(); pushMsg('a','⚠ '+err.message); }
-};
+}
+document.getElementById('chatform').onsubmit=(e)=>{ e.preventDefault(); const inp=document.getElementById('chatinput'); const text=inp.value.trim(); inp.value=''; sendChat(text); };
+
+// Right-click any result element → ask the assistant about it.
+(function(){
+  let target=null;
+  function close(){ const m=document.getElementById('explainMenu'); if(m)m.remove(); if(target){target.style.outline='';target=null;} document.removeEventListener('mousedown',onDoc,true); }
+  function onDoc(e){ if(!e.target.closest('#explainMenu')) close(); }
+  function ask(mode,text){ close();
+    const prompt = mode==='action'
+      ? 'In plain English, what should I actually DO about this — clear steps and how urgent is it?\\n\\nOn screen:\\n"'+text+'"'
+      : 'In plain English (no jargon, explain any term): what does this mean, why does it matter, and what should I do about it?\\n\\nOn screen:\\n"'+text+'"';
+    if(!document.getElementById('chat').classList.contains('open')) toggleChat();
+    sendChat(prompt);
+  }
+  document.addEventListener('contextmenu',(e)=>{
+    if(e.shiftKey) return;
+    const t=e.target;
+    if(t.closest('#chat, input, textarea, select, a, button, #explainMenu')) return;
+    const sel=window.getSelection&&window.getSelection().toString(); if(sel&&sel.trim()) return;
+    const card=t.closest('td, li, .card')||t;
+    const text=(card.innerText||card.textContent||'').replace(/\\s+\\n/g,'\\n').trim(); if(!text||text.length<2) return;
+    e.preventDefault(); close(); target=card; card.style.outline='2px solid #4f46e5'; card.style.outlineOffset='2px';
+    const capped = text.length>1500?text.slice(0,1500)+'…':text;
+    const menu=document.createElement('div'); menu.id='explainMenu';
+    menu.style.cssText='position:fixed;z-index:50;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);overflow:hidden;width:230px';
+    menu.innerHTML='<div style="padding:6px 10px;font-size:11px;color:#94a3b8;border-bottom:1px solid #f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+escapeHtml(text.slice(0,64))+'</div>'+
+      '<button data-a="explain" style="display:block;width:100%;text-align:left;padding:8px 10px;border:0;background:#fff;cursor:pointer;font:inherit">✨ Explain this</button>'+
+      '<button data-a="action" style="display:block;width:100%;text-align:left;padding:8px 10px;border:0;background:#fff;cursor:pointer;font:inherit">✅ What should I do about this?</button>';
+    document.body.appendChild(menu);
+    const r=menu.getBoundingClientRect(); menu.style.left=Math.min(e.clientX,innerWidth-r.width-8)+'px'; menu.style.top=Math.min(e.clientY,innerHeight-r.height-8)+'px';
+    menu.querySelector('[data-a="explain"]').onclick=()=>ask('explain',capped);
+    menu.querySelector('[data-a="action"]').onclick=()=>ask('action',capped);
+    setTimeout(()=>document.addEventListener('mousedown',onDoc,true),0);
+  },true);
+})();
 function escapeHtml(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 select(CATALOG[0].id);
 </script></body></html>`;

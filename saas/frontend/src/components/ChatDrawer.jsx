@@ -9,7 +9,7 @@ const COST = CREDIT_COSTS.ai_chat ?? 2;
 // Docked assistant panel — rendered beside the page (Layout shifts content left
 // when open). Each reply costs `ai_chat` credits and the bot can answer about
 // the user's connected GSC / GA4 / Google Ads data.
-export default function ChatDrawer({ open, onClose, width = 384 }) {
+export default function ChatDrawer({ open, onClose, width = 384, ask }) {
   const { setCredits } = useAuth();
   const [msgs, setMsgs] = useState([
     { role: 'assistant', content: "Hi! I'm your Digimetrics assistant. Ask me about any tool, how to get started, or your connected Search Console / GA4 / Ads numbers." },
@@ -17,18 +17,13 @@ export default function ChatDrawer({ open, onClose, width = 384 }) {
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const threadRef = useRef(null);
+  const msgsRef = useRef(msgs); msgsRef.current = msgs;
+  const askedRef = useRef(null);
 
-  useEffect(() => {
-    if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight;
-  }, [msgs, open, busy]);
-
-  if (!open) return null;
-
-  async function send(e) {
-    e.preventDefault();
-    const text = draft.trim();
+  async function submit(text) {
+    text = String(text || '').trim();
     if (!text || busy) return;
-    const next = [...msgs, { role: 'user', content: text }];
+    const next = [...msgsRef.current, { role: 'user', content: text }];
     setMsgs(next);
     setDraft('');
     setBusy(true);
@@ -45,6 +40,19 @@ export default function ChatDrawer({ open, onClose, width = 384 }) {
       setBusy(false);
     }
   }
+  const send = (e) => { e.preventDefault(); submit(draft); };
+
+  useEffect(() => {
+    if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight;
+  }, [msgs, open, busy]);
+
+  // Auto-send a question forwarded from the right-click "Explain this" menu.
+  useEffect(() => {
+    if (ask?.text && ask.id !== askedRef.current) { askedRef.current = ask.id; submit(ask.text); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ask]);
+
+  if (!open) return null;
 
   return (
     <aside

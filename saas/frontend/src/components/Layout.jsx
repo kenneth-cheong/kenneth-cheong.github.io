@@ -5,6 +5,7 @@ import CreditMeter from './CreditMeter.jsx';
 import ChatDrawer from './ChatDrawer.jsx';
 import NotificationBell from './NotificationBell.jsx';
 import Toaster from './Toaster.jsx';
+import ExplainMenu from './ExplainMenu.jsx';
 import { useMediaQuery } from '../lib/ui.js';
 import { PLANS } from '@shared/catalog.mjs';
 
@@ -24,13 +25,17 @@ export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const [chatOpen, setChatOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [ask, setAsk] = useState(null);
   const wide = useMediaQuery('(min-width: 768px)');
 
-  // Let any page open the assistant (e.g. the Support page's "ask the bot" CTA).
+  // Let any page open the assistant (Support CTA) or ask it about something
+  // (the right-click "Explain this" menu).
   useEffect(() => {
     const open = () => setChatOpen(true);
+    const onAsk = (e) => { setChatOpen(true); setAsk({ text: e.detail?.text || '', id: Math.random().toString(36).slice(2) }); };
     window.addEventListener('dm:open-chat', open);
-    return () => window.removeEventListener('dm:open-chat', open);
+    window.addEventListener('dm:ask', onAsk);
+    return () => { window.removeEventListener('dm:open-chat', open); window.removeEventListener('dm:ask', onAsk); };
   }, []);
 
   const nav = user.isAdmin ? [...baseNav, { to: '/admin', label: 'Admin' }] : baseNav;
@@ -83,7 +88,8 @@ export default function Layout({ children }) {
         <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
       </div>
 
-      <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} width={wide ? CHAT_W : '100%'} />
+      <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} width={wide ? CHAT_W : '100%'} ask={ask} />
+      <ExplainMenu />
       <Toaster />
     </>
   );
