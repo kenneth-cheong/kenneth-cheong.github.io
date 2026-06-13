@@ -776,34 +776,36 @@ async function contentCheckRun(body) {
   if (typeof d === 'string') return { text: d };
   const issues = Array.isArray(d.issues) ? d.issues : [];
   if (!issues.length && !d.summary) return { text: typeof d.result === 'string' ? d.result : JSON.stringify(d, null, 2) };
-  return { html: renderChecker(d.summary, issues) };
+  return { sections: sectionsChecker(d.summary, issues) };
 }
 
-function renderChecker(summary, issues) {
-  const sev = (s) => ({ critical: '#dc2626', high: '#dc2626', medium: '#d97706', low: '#16a34a' }[String(s).toLowerCase()] || '#64748b');
-  const stat = (label, value) => `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:8px 12px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#64748b">${esc(label)}</div><div style="font-size:18px;font-weight:700">${esc(value)}</div></div>`;
-  let summaryHtml = '';
+function sectionsChecker(summary, issues) {
+  const tone = (s) => ({ critical: 'red', high: 'red', medium: 'amber', low: 'green' }[String(s).toLowerCase()] || 'slate');
+  const out = [];
   if (summary && typeof summary === 'object') {
-    const chips = [];
-    if (summary.flesch_score != null) chips.push(stat('Readability', `${summary.flesch_score}${summary.flesch_label ? ` · ${summary.flesch_label}` : ''}`));
-    if (summary.word_count != null) chips.push(stat('Words', summary.word_count));
-    if (summary.avg_sentence_length != null) chips.push(stat('Avg sentence', summary.avg_sentence_length));
-    if (summary.total_issues != null) chips.push(stat('Issues', summary.total_issues));
-    for (const [k, v] of Object.entries(summary.by_type || {})) chips.push(stat(k, v));
-    summaryHtml = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px">${chips.join('')}</div>`;
+    const items = [];
+    if (summary.flesch_score != null) items.push({ label: 'Readability', value: `${summary.flesch_score}${summary.flesch_label ? ` · ${summary.flesch_label}` : ''}` });
+    if (summary.word_count != null) items.push({ label: 'Words', value: summary.word_count });
+    if (summary.avg_sentence_length != null) items.push({ label: 'Avg sentence', value: summary.avg_sentence_length });
+    if (summary.total_issues != null) items.push({ label: 'Issues', value: summary.total_issues });
+    for (const [k, v] of Object.entries(summary.by_type || {})) items.push({ label: k, value: v });
+    if (items.length) out.push({ type: 'stats', items });
   } else if (summary) {
-    summaryHtml = `<p style="color:#475569;margin:0 0 14px">${esc(summary)}</p>`;
+    out.push({ type: 'text', text: String(summary) });
   }
-  const rows = issues.map((i) => `
-    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:8px 0">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <strong>${esc(i.type || 'Issue')}</strong>
-        ${i.severity ? `<span style="background:${sev(i.severity)};color:#fff;border-radius:999px;padding:1px 8px;font-size:11px;text-transform:uppercase">${esc(i.severity)}</span>` : ''}
-      </div>
-      ${i.reason ? `<p style="color:#475569;margin:6px 0">${esc(i.reason)}</p>` : ''}
-      ${i.original ? `<div style="font-size:13px"><span style="color:#b91c1c;text-decoration:line-through">${esc(i.original)}</span>${i.suggested ? ` → <span style="color:#16a34a">${esc(i.suggested)}</span>` : ''}</div>` : ''}
-    </div>`).join('');
-  return `${summaryHtml}<h3 style="margin:0 0 6px;font-weight:700">Issues <span style="font-weight:400;color:#64748b">— ${issues.length}</span></h3>${rows || '<p style="color:#16a34a">No issues found. 🎉</p>'}`;
+  out.push({ type: 'heading', text: `Issues — ${issues.length}` });
+  if (!issues.length) { out.push({ type: 'text', text: 'No issues found. 🎉' }); return out; }
+  out.push({
+    type: 'cards',
+    items: issues.map((i) => ({
+      title: i.type || 'Issue',
+      badge: i.severity || undefined,
+      badgeTone: i.severity ? tone(i.severity) : undefined,
+      body: i.reason || undefined,
+      lines: i.original ? [{ value: `${i.original}${i.suggested ? ` → ${i.suggested}` : ''}` }] : [],
+    })),
+  });
+  return out;
 }
 
 // ── Schema Generator: deterministic JSON-LD builder (mirrors the agency) ──────
@@ -966,7 +968,7 @@ async function anchorCleanerRun(body) {
   health = Math.max(0, Math.round(health));
 
   const flagged = classified.filter((a) => a.priority !== 'KEEP');
-  return { html: renderAnchors(target, { total, exact, generic, empty, overOpt, health }, flagged) };
+  return { sections: sectionsAnchors(target, { total, exact, generic, empty, overOpt, health }, flagged) };
 }
 
 function extractAnchors(html, host) {
@@ -996,32 +998,26 @@ function classifyAnchor(text, keyword, kwTokens) {
   return { status: 'Brand / other', priority: 'KEEP', recommendation: 'Natural anchor — keeps link profile diverse.' };
 }
 
-function renderAnchors(target, s, flagged) {
-  const prio = (p) => ({ CRITICAL: '#dc2626', HIGH: '#d97706', MEDIUM: '#2563eb' }[p] || '#64748b');
-  const stat = (label, value, warn) => `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:8px 12px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#64748b">${esc(label)}</div><div style="font-size:18px;font-weight:700;color:${warn ? '#dc2626' : '#0f172a'}">${esc(value)}</div></div>`;
-  const stats = [
-    stat('Health', `${s.health}/100`, s.health < 60),
-    stat('Internal links', s.total),
-    stat('Exact-match', s.exact, s.overOpt),
-    stat('Generic', s.generic, s.generic > 0),
-    stat('Empty / broken', s.empty, s.empty > 0),
-  ].join('');
-  const rows = flagged.map((a) => `
-    <tr style="border-top:1px solid #f1f5f9">
-      <td style="padding:6px 8px">${esc(a.text || '(empty)')}</td>
-      <td style="padding:6px 8px;color:#475569;max-width:260px;overflow:hidden;text-overflow:ellipsis">${esc(a.href)}</td>
-      <td style="padding:6px 8px">${esc(a.status)}</td>
-      <td style="padding:6px 8px"><span style="background:${prio(a.priority)};color:#fff;border-radius:999px;padding:1px 8px;font-size:11px">${esc(a.priority)}</span></td>
-      <td style="padding:6px 8px;color:#475569">${esc(a.recommendation)}</td>
-    </tr>`).join('');
-  return `
-    <h3 style="margin:0 0 8px;font-weight:700">Anchor audit — ${esc(target)}</h3>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">${stats}</div>
-    ${s.overOpt ? '<p style="color:#b91c1c;font-size:13px;margin:0 0 12px">⚠ Over-optimisation: more than 30% of internal anchors are exact-match. Diversify them.</p>' : ''}
-    <h4 style="margin:6px 0;font-weight:700">Anchors to fix <span style="font-weight:400;color:#64748b">— ${flagged.length} of ${s.total}</span></h4>
-    ${flagged.length ? `<table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="text-align:left;color:#64748b;font-size:12px"><th style="padding:6px 8px">Anchor</th><th style="padding:6px 8px">Links to</th><th style="padding:6px 8px">Issue</th><th style="padding:6px 8px">Priority</th><th style="padding:6px 8px">Fix</th></tr></thead>
-      <tbody>${rows}</tbody></table>` : '<p style="color:#16a34a">No problem anchors found. 🎉</p>'}`;
+function sectionsAnchors(target, s, flagged) {
+  const out = [
+    { type: 'heading', text: `Anchor audit — ${target}` },
+    { type: 'stats', items: [
+      { label: 'Health', value: `${s.health}/100`, tone: s.health < 60 ? 'red' : undefined },
+      { label: 'Internal links', value: s.total },
+      { label: 'Exact-match', value: s.exact, tone: s.overOpt ? 'red' : undefined },
+      { label: 'Generic', value: s.generic, tone: s.generic > 0 ? 'amber' : undefined },
+      { label: 'Empty / broken', value: s.empty, tone: s.empty > 0 ? 'red' : undefined },
+    ] },
+  ];
+  if (s.overOpt) out.push({ type: 'callout', text: '⚠ Over-optimisation: more than 30% of internal anchors are exact-match. Diversify them.' });
+  out.push({ type: 'heading', text: `Anchors to fix — ${flagged.length} of ${s.total}` });
+  if (!flagged.length) { out.push({ type: 'text', text: 'No problem anchors found. 🎉' }); return out; }
+  out.push({
+    type: 'table',
+    columns: ['Anchor', 'Links to', 'Issue', 'Priority', 'Fix'],
+    rows: flagged.map((a) => ({ Anchor: a.text || '(empty)', 'Links to': a.href, Issue: a.status, Priority: a.priority, Fix: a.recommendation })),
+  });
+  return out;
 }
 
 // ── Performance Marketing Audit: paid-media opportunity analysis ──────────────
