@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Check, AlertTriangle, ExternalLink } from 'lucide-react';
 import { copyText, toast } from '../lib/ui.js';
 
 // Polished JSON-LD output for the Schema Generator. Replaces the duplicated
@@ -28,10 +29,10 @@ export default function SchemaResult({ json }) {
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {type && <span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">{type}</span>}
         {valid
-          ? <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700">✓ Valid JSON-LD</span>
-          : <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">⚠ Couldn’t parse</span>}
+          ? <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700"><Check size={13} aria-hidden /> Valid JSON-LD</span>
+          : <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700"><AlertTriangle size={13} aria-hidden /> Couldn’t parse</span>}
         <a href="https://search.google.com/test/rich-results" target="_blank" rel="noreferrer"
-           className="ml-auto text-xs font-medium text-brand-600 hover:text-brand-700">Test in Google Rich Results ↗</a>
+           className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">Test in Google Rich Results <ExternalLink size={12} aria-hidden /></a>
       </div>
 
       {/* code card */}

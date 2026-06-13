@@ -212,6 +212,18 @@ Resources:
   Api:
     Type: AWS::Serverless::HttpApi
     Properties:
+      # Stage-level throttling — the edge backstop against volumetric floods.
+      # Requests beyond these limits get a 429 from API Gateway BEFORE reaching
+      # Lambda (so they cost nothing). Set generously: real traffic never trips
+      # them; per-user fairness is enforced in-handler (see lib/ratelimit.mjs).
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 4000
+        ThrottlingRateLimit: 2000
+      RouteSettings:
+        # The billable tool path gets its own (still generous) ceiling.
+        'POST /run/{toolId}':
+          ThrottlingBurstLimit: 600
+          ThrottlingRateLimit: 300
       CorsConfiguration:
         AllowOrigins: [!Ref AppOrigin]
         AllowHeaders: [Content-Type, Authorization]
@@ -257,6 +269,8 @@ Resources:
           ADMIN_EMAILS: !Ref AdminEmails
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
+        # Rate-limit counters live in the Cache table (lib/ratelimit.mjs).
+        - DynamoDBCrudPolicy: { TableName: !Ref CacheTable }
       Events:
         Google: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /auth/google, Method: POST } }
         Refresh: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /auth/refresh, Method: POST } }
@@ -369,6 +383,8 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref NotificationsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref ProjectsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref TrackedTable }
+        # Rate-limit counters live in the Cache table (lib/ratelimit.mjs).
+        - DynamoDBCrudPolicy: { TableName: !Ref CacheTable }
         - S3CrudPolicy: { BucketName: !Ref AttachmentsBucket }
         - Statement:
             - Effect: Allow

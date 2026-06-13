@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { TOOLS, CATEGORIES, CATEGORY_META, toolById, tierMeets } from '@shared/catalog.mjs';
+import { Clock } from 'lucide-react';
+import { TOOLS, CATEGORIES, toolById, tierMeets } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import ToolCard from '../components/ToolCard.jsx';
+import { CategoryIcon } from '../lib/icons.jsx';
 import { getRecent } from '../lib/ui.js';
 
 export default function Dashboard() {
@@ -26,7 +28,7 @@ export default function Dashboard() {
     <div>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Welcome back, {user.name?.split(' ')[0] || 'there'} 👋</h1>
+          <h1 className="text-2xl font-bold">Welcome back, {user.name?.split(' ')[0] || 'there'}</h1>
           <p className="mt-1 text-slate-600">
             {TOOLS.length} tools · {lockedCount > 0 ? `${lockedCount} unlock at higher tiers` : 'all unlocked'}
           </p>
@@ -63,14 +65,14 @@ export default function Dashboard() {
               cat === c ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'
             }`}
           >
-            {c !== 'All' && <span aria-hidden>{CATEGORY_META[c]?.icon}</span>}{c}
+            {c !== 'All' && <CategoryIcon category={c} size={14} />}{c}
           </button>
         ))}
       </div>
 
       {/* Recently used (only on the unfiltered landing view) */}
       {cat === 'All' && !searching && recent.length > 0 && (
-        <Section title="Recently used" icon="🕘">
+        <Section title="Recently used" icon={<Clock size={14} aria-hidden />}>
           {recent.map((t) => <ToolCard key={t.id} tool={t} userTier={user.tier} />)}
         </Section>
       )}
@@ -81,7 +83,7 @@ export default function Dashboard() {
           const tools = TOOLS.filter((t) => t.category === c);
           if (!tools.length) return null;
           return (
-            <Section key={c} title={c} icon={CATEGORY_META[c]?.icon}>
+            <Section key={c} title={c} icon={<CategoryIcon category={c} size={14} />}>
               {tools.map((t) => <ToolCard key={t.id} tool={t} userTier={user.tier} />)}
             </Section>
           );
@@ -110,7 +112,7 @@ function Section({ title, icon, children }) {
   return (
     <section className="mt-8">
       <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-500">
-        <span aria-hidden>{icon}</span>{title}
+        {icon}{title}
       </h2>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
     </section>

@@ -60,6 +60,10 @@ async function call(path, { method = 'GET', body, auth = true, base, _retried = 
     return call(path, { method, body, auth, base, _retried: true });
   }
   const payload = await res.json().catch(() => ({}));
+  if (res.status === 429) {
+    const secs = payload?.retryAfter || Number(res.headers.get('Retry-After')) || 60;
+    throw new ApiError(429, { ...payload, error: `You're going a bit fast — try again in ${secs}s.` });
+  }
   if (!res.ok) throw new ApiError(res.status, payload);
   return payload;
 }

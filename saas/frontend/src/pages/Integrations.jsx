@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { Check, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api.js';
 
 const TOOL_FOR = { gsc: 'gsc', ga4: 'ga4', 'google-ads': 'google-ads' };
@@ -54,8 +55,8 @@ export default function Integrations() {
         Connect your Google account once to pull your own Search Console, Analytics and Ads data — free of credits, and queryable by the assistant.
       </p>
 
-      {justConnected && <div className="mt-4 rounded-lg bg-green-50 px-4 py-2 text-sm text-green-700">✓ Google connected. Pick a property/account for each source below.</div>}
-      {oauthError && <div className="mt-4 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">⚠ Google sign-in failed. Please try again.</div>}
+      {justConnected && <div className="mt-4 flex items-center gap-2 rounded-lg bg-green-50 px-4 py-2 text-sm text-green-700"><Check size={15} aria-hidden /> Google connected. Pick a property/account for each source below.</div>}
+      {oauthError && <div className="mt-4 flex items-center gap-2 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700"><AlertTriangle size={15} aria-hidden /> Google sign-in failed. Please try again.</div>}
 
       {/* One Google connection for all three sources */}
       <div className="card mt-6 p-5">
@@ -67,7 +68,7 @@ export default function Integrations() {
           </div>
           {anyConnected ? (
             <>
-              <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">✓ Connected</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700"><Check size={13} aria-hidden /> Connected</span>
               <button onClick={connectGoogle} disabled={busy} className="btn-ghost px-3 py-1.5 text-sm">{busy ? '…' : 'Reconnect'}</button>
               <button onClick={disconnectAll} disabled={busy} className="text-sm text-slate-500 hover:text-red-600">Disconnect</button>
             </>

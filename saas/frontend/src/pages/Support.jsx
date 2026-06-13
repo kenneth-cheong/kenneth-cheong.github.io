@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { Paperclip, MessageCircle } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -36,7 +37,7 @@ function Attachments({ items, onRemove, light }) {
           {/(png|jpe?g|gif|webp)$/i.test(a.url) || (a.contentType || '').startsWith('image/') ? (
             <a href={a.url} target="_blank" rel="noreferrer"><img src={a.url} alt={a.name} className="h-16 w-16 rounded-lg border border-slate-200 object-cover" /></a>
           ) : (
-            <a href={a.url} target="_blank" rel="noreferrer" className={`block rounded-lg border px-3 py-2 text-xs ${light ? 'border-white/40 text-white' : 'border-slate-200 text-brand-600'}`}>📎 {a.name}</a>
+            <a href={a.url} target="_blank" rel="noreferrer" className={`flex items-center gap-1 rounded-lg border px-3 py-2 text-xs ${light ? 'border-white/40 text-white' : 'border-slate-200 text-brand-600'}`}><Paperclip size={12} aria-hidden /> {a.name}</a>
           )}
           {onRemove && <button type="button" onClick={() => onRemove(i)} className="absolute -right-1.5 -top-1.5 grid h-4 w-4 place-items-center rounded-full bg-slate-700 text-[10px] text-white">×</button>}
         </div>
@@ -70,7 +71,7 @@ function Composer({ value, onChange, attachments, setAttachments, placeholder, o
       />
       <Attachments items={attachments} onRemove={(i) => setAttachments((a) => a.filter((_, j) => j !== i))} />
       <div className="mt-1.5 flex items-center gap-3 text-xs text-slate-500">
-        <button type="button" onClick={() => fileRef.current?.click()} className="font-medium text-brand-600 hover:text-brand-700">📎 Attach files</button>
+        <button type="button" onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1 font-medium text-brand-600 hover:text-brand-700"><Paperclip size={13} aria-hidden /> Attach files</button>
         <span>or paste a screenshot</span>
         {uploading && <span>uploading…</span>}
         <input ref={fileRef} type="file" multiple accept="image/*,.pdf,.txt,.doc,.docx" className="hidden" onChange={(e) => add(e.target.files)} />
@@ -92,7 +93,7 @@ function statusPill(status) {
 function AssistantNudge() {
   return (
     <div className="mt-6 flex items-center gap-3 rounded-xl border border-brand-200 bg-brand-50/60 p-4">
-      <span className="text-2xl">💬</span>
+      <MessageCircle size={24} className="shrink-0 text-brand-600" aria-hidden />
       <div className="flex-1">
         <div className="font-semibold text-brand-800">Need a quick answer? Ask the assistant first.</div>
         <div className="text-sm text-slate-600">It replies instantly, knows every tool, and can read your connected Search Console / GA4 / Ads data — most questions don't need a ticket.</div>
@@ -245,7 +246,7 @@ function TicketDetail({ ticketId }) {
         <Composer value={reply} onChange={setReply} attachments={attachments} setAttachments={setAttachments} onSubmit={send}
           placeholder={ticket.status === 'closed' ? 'Reply to reopen this ticket…' : 'Type a message…  (⌘/Ctrl + Enter to send)'} />
         <div className="mt-2 flex items-center justify-between">
-          <button onClick={openAssistant} className="text-xs font-medium text-brand-600 hover:text-brand-700">💬 Ask the assistant instead</button>
+          <button onClick={openAssistant} className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700"><MessageCircle size={13} aria-hidden /> Ask the assistant instead</button>
           <button onClick={send} className="btn-primary" disabled={busy}>{busy ? 'Sending…' : 'Send'}</button>
         </div>
       </div>

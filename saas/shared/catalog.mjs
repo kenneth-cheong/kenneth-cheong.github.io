@@ -211,13 +211,14 @@ export const TOOLS = [
 
 export const CATEGORIES = ['SEO', 'Content', 'AI Visibility', 'Strategy', 'Integrations'];
 
-/** Per-category icon + accent colour for the dashboard + tool cards. */
+/** Per-category accent colour for the dashboard + tool cards. The matching
+ *  line-icon lives in the frontend (src/lib/icons.jsx → CategoryIcon). */
 export const CATEGORY_META = {
-  SEO: { icon: '🔍', color: '#2563eb' },
-  Content: { icon: '✍️', color: '#7c3aed' },
-  'AI Visibility': { icon: '🤖', color: '#0891b2' },
-  Strategy: { icon: '🎯', color: '#ea580c' },
-  Integrations: { icon: '🔗', color: '#16a34a' },
+  SEO: { color: '#2563eb' },
+  Content: { color: '#7c3aed' },
+  'AI Visibility': { color: '#0891b2' },
+  Strategy: { color: '#ea580c' },
+  Integrations: { color: '#16a34a' },
 };
 
 /** One-click sample inputs per tool ("Try an example"). */

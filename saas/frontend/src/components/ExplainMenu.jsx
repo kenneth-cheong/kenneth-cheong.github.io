@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Sparkles, CheckCircle2 } from 'lucide-react';
 import { toast } from '../lib/ui.js';
 
 // Right-click any result/card → ask the assistant to explain it (port of the
@@ -89,7 +90,7 @@ export default function ExplainMenu() {
   useEffect(() => {
     try {
       if (localStorage.getItem('dm_explain_hint') === '1') return;
-      const t = setTimeout(() => { toast('💡 Tip: right-click any result to ask the assistant about it'); localStorage.setItem('dm_explain_hint', '1'); }, 3500);
+      const t = setTimeout(() => { toast('Tip: right-click any result to ask the assistant about it'); localStorage.setItem('dm_explain_hint', '1'); }, 3500);
       return () => clearTimeout(t);
     } catch { /* ignore */ }
   }, []);
@@ -110,8 +111,8 @@ export default function ExplainMenu() {
   return (
     <div className="dm-explain-menu fixed z-50 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl" style={{ left, top }}>
       <div className="truncate border-b border-slate-100 px-3 py-2 text-xs text-slate-400">{menu.preview}</div>
-      <button onClick={() => ask('explain')} className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50">✨ Explain this</button>
-      <button onClick={() => ask('action')} className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50">✅ What should I do about this?</button>
+      <button onClick={() => ask('explain')} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50"><Sparkles size={15} className="text-brand-600" aria-hidden /> Explain this</button>
+      <button onClick={() => ask('action')} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50"><CheckCircle2 size={15} className="text-green-600" aria-hidden /> What should I do about this?</button>
     </div>
   );
 }

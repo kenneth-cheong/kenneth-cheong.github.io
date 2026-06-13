@@ -14,7 +14,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
-import { CREDIT_COSTS, PLANS, CATEGORY_META } from '@shared/catalog.mjs';
+import { CREDIT_COSTS, PLANS } from '@shared/catalog.mjs';
 
 // ── driver.js base config (brand-themed via the .dm-tour popover class) ──────
 function run(steps, { onDone } = {}) {
@@ -86,7 +86,7 @@ export const OUTPUT_EXAMPLES = {
   'rank-checker':
     lead('Your live SERP position for each keyword × location, with a position-history sparkline.') +
     chips([['self storage singapore', '#4', 'green'], ['storage units', '#11', 'amber'], ['cheap storage', '#27', 'red']]) +
-    note('📍 <b>Current position: #4</b> for extraspaceasia.com.sg in Singapore — up 3 spots in 28 days.'),
+    note('<b>Current position: #4</b> for extraspaceasia.com.sg in Singapore — up 3 spots in 28 days.'),
 
   'time-to-rank':
     lead('A realistic forecast of how long each keyword takes to reach page one, from its difficulty and your authority.') +
@@ -170,15 +170,15 @@ export const OUTPUT_EXAMPLES = {
   "priceRange": "$$"
 }
 </script>`,
-      'JSON-LD · validated ✓'
+      'JSON-LD · validated'
     ),
 
   'strategy-engine':
-    lead('Auto-generated keyword strategies with a prioritised, ready-to-action SEO plan (★ = recommended).') +
+    lead('Auto-generated keyword strategies with a prioritised, ready-to-action SEO plan (top pick highlighted).') +
     table(
       ['Strategy', 'Focus', 'Target keywords'],
       [
-        ['★ Capture high-intent local demand', 'Service pages', 'self storage singapore, storage units…'],
+        [`${badge('Top pick', 'green')} Capture high-intent local demand`, 'Service pages', 'self storage singapore, storage units…'],
         ['Own the "cheap storage" cluster', 'Comparison content', 'cheap storage, affordable storage…'],
         ['Build business-storage authority', 'Blog + case studies', 'business storage, document storage…'],
       ]
@@ -189,7 +189,7 @@ export const OUTPUT_EXAMPLES = {
     lead('Platform-tuned caption variations, ready to paste — with hooks, emojis and hashtags.') +
     card(
       'Instagram · Variation 1',
-      'Your stuff deserves better than “under the bed” 🛏️➡️📦 New climate-controlled units just dropped — cool, dry, and yours from S$39/mo. Tap to claim yours.<br><span class="dm-ex-muted">#SelfStorage #SingaporeLiving #DeclutterYourLife</span>'
+      'Your stuff deserves better than “under the bed”. New climate-controlled units just dropped — cool, dry, and yours from S$39/mo. Tap to claim yours.<br><span class="dm-ex-muted">#SelfStorage #SingaporeLiving #DeclutterYourLife</span>'
     ) +
     note('Generate up to 5 variations per run, each in your chosen tone + language.'),
 
@@ -223,8 +223,8 @@ export const OUTPUT_EXAMPLES = {
     table(
       ['Assistant', 'Mentions you?', 'Cited as source'],
       [
-        ['ChatGPT', badge('Yes', 'green'), badge('✓', 'green')],
-        ['Perplexity', badge('Yes', 'green'), badge('✓', 'green')],
+        ['ChatGPT', badge('Yes', 'green'), badge('Cited', 'green')],
+        ['Perplexity', badge('Yes', 'green'), badge('Cited', 'green')],
         ['Gemini', badge('No', 'red'), badge('—', 'slate')],
       ]
     ),
@@ -419,13 +419,12 @@ function fieldHint(field) {
 
 // ── Tool tour ────────────────────────────────────────────────────────────────
 export function startToolTour(tool, fields) {
-  const meta = CATEGORY_META[tool.category] || { icon: '•' };
   const cost = CREDIT_COSTS[tool.cost] ?? 0;
   const steps = [];
 
   steps.push({
     popover: {
-      title: `${meta.icon} ${tool.name}`,
+      title: tool.name,
       description:
         `<p class="dm-ex-lead">${TOOL_INTRO[tool.id] || tool.desc}</p>` +
         `<p class="dm-ex-note">${tool.category} · ${cost === 0 ? 'free to run' : `${cost} credit${cost > 1 ? 's' : ''} per run`}${tool.slow ? ' · ~30–150s' : ''}</p>`,
@@ -466,7 +465,7 @@ export function startToolTour(tool, fields) {
 
   steps.push({
     popover: {
-      title: '📤 What you get back',
+      title: 'What you get back',
       description: OUTPUT_EXAMPLES[tool.id] || lead('A clean, formatted report you can copy, export to CSV or print as a white-label PDF.'),
     },
   });
@@ -479,20 +478,20 @@ export function startPlatformTour() {
   const steps = [
     {
       popover: {
-        title: '👋 Welcome to Digimetrics',
+        title: 'Welcome to Digimetrics',
         description:
           lead('27 marketing tools across SEO, Content, AI Visibility, Strategy and your own Google data — in one workspace.') +
           note('This 60-second tour shows you around. You can replay it any time from the <b>?</b> in the top bar.'),
       },
     },
     { element: '[data-tour="search"]', popover: { title: 'Find any tool', description: 'Search by name or what it does — e.g. “backlinks”, “captions”, “ai”.', side: 'bottom', align: 'start' } },
-    { element: '[data-tour="categories"]', popover: { title: 'Browse by category', description: 'Filter the grid: 🔍 SEO · ✍️ Content · 🤖 AI Visibility · 🎯 Strategy · 🔗 Integrations.', side: 'bottom', align: 'start' } },
+    { element: '[data-tour="categories"]', popover: { title: 'Browse by category', description: 'Filter the grid by SEO, Content, AI Visibility, Strategy or Integrations.', side: 'bottom', align: 'start' } },
     {
       element: 'main a[href^="/tool/"]',
       popover: {
         title: 'Every tool is a card',
         description:
-          'The badge shows its credit cost (green = free). A 🔒 pill means it unlocks on a higher plan — but you still get one real preview run on locked tools. Click a card to open it.',
+          'The badge shows its credit cost (green = free). A lock pill means it unlocks on a higher plan — but you still get one real preview run on locked tools. Click a card to open it.',
         side: 'right',
         align: 'start',
       },
@@ -506,7 +505,7 @@ export function startPlatformTour() {
     { element: '[data-tour="account-menu"]', popover: { title: 'Account, billing & support', description: 'Your plan, usage, pricing and support tickets live in here.', side: 'bottom', align: 'end' } },
     {
       popover: {
-        title: '🚀 You’re set',
+        title: 'You’re set',
         description:
           lead('Open any tool and click <b>“Tour”</b> next to its name for a guided, field-by-field walkthrough — ending on a real example of what it returns.') +
           note('Tip: <b>Caption Generator</b> and <b>Keyword Analysis</b> are free — great first runs.'),

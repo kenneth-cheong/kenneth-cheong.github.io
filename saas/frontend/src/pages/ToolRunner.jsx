@@ -9,6 +9,7 @@ import ResultSections from '../components/ResultSections.jsx';
 import SchemaResult from '../components/SchemaResult.jsx';
 import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
 import { startToolTour, hasSeen, markSeen } from '../lib/tours.js';
+import { Lock, Compass, Sparkles, AlertTriangle } from 'lucide-react';
 
 const CONFIRM_AT = 25; // credits — confirm before running pricey tools
 
@@ -89,21 +90,21 @@ export default function ToolRunner() {
       <Link to="/" className="text-sm text-slate-500 hover:text-slate-800">← All tools</Link>
       <div className="mt-3 flex items-center gap-3">
         <h1 className="text-2xl font-bold">{tool.name}</h1>
-        {!unlocked && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold uppercase text-amber-700">🔒 {PLANS[tool.minTier].name}</span>}
+        {!unlocked && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold uppercase text-amber-700"><Lock size={12} aria-hidden /> {PLANS[tool.minTier].name}</span>}
         <button
           type="button"
           onClick={() => startToolTour(tool, shown)}
           className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:border-brand-300 hover:text-brand-600"
           title="Guided walkthrough with a real example"
         >
-          🧭 Tour
+          <Compass size={14} aria-hidden /> Tour
         </button>
       </div>
       <p className="mt-1 text-slate-600">{tool.desc}</p>
 
       {!unlocked && tool.teaser && (
-        <div className="mt-4 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
-          ✨ You get <strong>one free preview run</strong> on your own data. Full results unlock with {PLANS[tool.minTier].name}.
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
+          <Sparkles size={16} className="shrink-0" aria-hidden /> <span>You get <strong>one free preview run</strong> on your own data. Full results unlock with {PLANS[tool.minTier].name}.</span>
         </div>
       )}
 
@@ -223,7 +224,7 @@ function PrintHeader({ tool, project, user }) {
 }
 
 function Result({ out, tool, project, user }) {
-  if (out.error) return <p className="mt-6 text-red-600">⚠ {out.error}</p>;
+  if (out.error) return <p className="mt-6 flex items-center gap-1.5 text-red-600"><AlertTriangle size={16} aria-hidden /> {out.error}</p>;
   const r = out.result || {};
 
   if (r.needsConnect) {
@@ -242,7 +243,7 @@ function Result({ out, tool, project, user }) {
   return (
     <div className="mt-6">
       <div className="dm-no-print mb-2 flex items-center gap-2">
-        {r.source === 'live' && <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">● Live data</span>}
+        {r.source === 'live' && <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700"><span className="inline-block h-1.5 w-1.5 rounded-full bg-green-600" aria-hidden /> Live data</span>}
         {typeof out.creditsUsed === 'number' && out.creditsUsed > 0 && (
           <span className="text-xs text-slate-400">used {out.creditsUsed} · {out.creditsRemaining} left</span>
         )}

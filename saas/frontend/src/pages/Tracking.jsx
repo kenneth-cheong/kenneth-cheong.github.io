@@ -26,7 +26,7 @@ export default function Tracking() {
     e.preventDefault();
     if (!keyword.trim() || !domain.trim()) return;
     setBusy(true);
-    try { await api.addTracked(keyword.trim(), domain.trim(), 'Singapore', activeId || undefined); setKeyword(''); toast('Keyword tracked', 'success'); load(); }
+    try { await api.addTracked(keyword.trim(), domain.trim(), 'Singapore', activeId); setKeyword(''); toast('Keyword tracked', 'success'); load(); }
     catch (err) { toast(err.message, 'error'); }
     finally { setBusy(false); }
   }
@@ -61,6 +61,11 @@ export default function Tracking() {
         <div className="card mt-6 p-6 text-center">
           <p className="text-slate-600">Keyword tracking is a paid feature.</p>
           <Link to="/pricing" className="btn-primary mt-3 inline-block">Upgrade to track keywords</Link>
+        </div>
+      ) : !activeId ? (
+        <div className="card mt-6 p-6 text-center">
+          <p className="text-slate-600">Keywords are tracked under a project. Create one to start tracking.</p>
+          <Link to="/projects" className="btn-primary mt-3 inline-block">Create a project</Link>
         </div>
       ) : (
         <>

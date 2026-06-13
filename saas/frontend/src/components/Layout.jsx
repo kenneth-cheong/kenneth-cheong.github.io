@@ -10,13 +10,13 @@ import ProjectSelector from './ProjectSelector.jsx';
 import { useMediaQuery } from '../lib/ui.js';
 import { PLANS } from '@shared/catalog.mjs';
 import { startPlatformTour, hasSeen, markSeen } from '../lib/tours.js';
+import { Menu, MessageCircle, HelpCircle, ChevronDown } from 'lucide-react';
 
 // Core workflow links stay in the top bar; account/meta links live in the
 // right-side account dropdown so the row never overflows.
 const primaryNav = [
   { to: '/', label: 'Tools', end: true },
   { to: '/projects', label: 'Projects' },
-  { to: '/tracking', label: 'Tracking' },
   { to: '/integrations', label: 'Integrations' },
   { to: '/history', label: 'History' },
 ];
@@ -68,7 +68,7 @@ export default function Layout({ children }) {
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
             <button className="md:hidden" onClick={() => setMenuOpen((o) => !o)} aria-label="Menu">
-              <span className="text-xl">☰</span>
+              <Menu size={22} aria-hidden />
             </button>
             <Link to="/" className="flex shrink-0 items-center gap-2 font-bold text-brand-700" onClick={() => setMenuOpen(false)}>
               <span className="grid h-7 w-7 place-items-center rounded-md bg-brand-600 text-white">D</span>
@@ -84,9 +84,9 @@ export default function Layout({ children }) {
               <button
                 onClick={() => setChatOpen((o) => !o)}
                 data-tour="assistant"
-                className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${chatOpen ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold ${chatOpen ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
               >
-                💬<span className="hidden lg:inline"> Assistant</span>
+                <MessageCircle size={16} aria-hidden /><span className="hidden lg:inline">Assistant</span>
               </button>
 
               <button
@@ -94,9 +94,9 @@ export default function Layout({ children }) {
                 data-tour="help"
                 title="Take the platform tour"
                 aria-label="Take the platform tour"
-                className="hidden h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-sm font-bold text-slate-600 hover:bg-slate-200 sm:grid"
+                className="hidden h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 sm:grid"
               >
-                ?
+                <HelpCircle size={18} aria-hidden />
               </button>
 
               {/* Account dropdown (desktop) — holds Account/Usage/Pricing/Support/Admin + Sign out */}
@@ -107,10 +107,20 @@ export default function Layout({ children }) {
                   className="flex items-center gap-1.5 rounded-lg py-1 pl-1 pr-1.5 hover:bg-slate-100"
                   aria-label="Account menu"
                 >
-                  <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
-                    {(user.name || user.email || '?').trim().charAt(0).toUpperCase()}
-                  </span>
-                  <span className="text-xs text-slate-400">▾</span>
+                  {user.picture ? (
+                    <img
+                      src={user.picture}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      className="h-7 w-7 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
+                      {(user.name || user.email || '?').trim().charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                  <ChevronDown size={14} className="text-slate-400" aria-hidden />
                 </button>
                 {acctOpen && (
                   <>

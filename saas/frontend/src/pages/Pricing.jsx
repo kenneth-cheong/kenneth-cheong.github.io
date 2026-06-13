@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Check } from 'lucide-react';
 import { PLANS, tierRank, CURRENCY } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
@@ -55,7 +56,7 @@ export default function Pricing() {
               </div>
               <ul className="mt-4 flex-1 space-y-2 text-sm">
                 {p.highlights.map((h) => (
-                  <li key={h} className="flex gap-2"><span className="text-brand-600">✓</span>{h}</li>
+                  <li key={h} className="flex items-center gap-2"><Check size={15} className="shrink-0 text-brand-600" aria-hidden />{h}</li>
                 ))}
               </ul>
               <button

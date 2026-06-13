@@ -1,6 +1,7 @@
 import { useAuth } from '../context/AuthContext.jsx';
 import { PLANS } from '@shared/catalog.mjs';
 import { Link } from 'react-router-dom';
+import { Zap } from 'lucide-react';
 
 export default function CreditMeter() {
   const { user } = useAuth();
@@ -12,7 +13,7 @@ export default function CreditMeter() {
 
   return (
     <Link to="/usage" data-tour="credits" className="group flex items-center gap-3" title="View usage">
-      <span className="text-lg">⚡</span>
+      <Zap size={18} className="text-amber-500" aria-hidden />
       <div className="w-32">
         <div className="flex justify-between text-xs font-medium text-slate-500">
           <span className={low ? 'text-amber-600' : ''}>

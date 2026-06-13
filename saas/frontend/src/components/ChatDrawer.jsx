@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, ApiError } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { CREDIT_COSTS } from '@shared/catalog.mjs';
+import { X } from 'lucide-react';
 
 const COST = CREDIT_COSTS.ai_chat ?? 2;
 
@@ -34,7 +35,7 @@ export default function ChatDrawer({ open, onClose, width = 384, ask }) {
     } catch (err) {
       const msg = err instanceof ApiError && err.status === 402
         ? "You're out of credits — top up or upgrade to keep chatting."
-        : `⚠ ${err.message}`;
+        : `Error: ${err.message}`;
       setMsgs((m) => [...m, { role: 'assistant', content: msg }]);
     } finally {
       setBusy(false);
@@ -62,7 +63,7 @@ export default function ChatDrawer({ open, onClose, width = 384, ask }) {
       <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-900 px-4 py-3 text-white">
         <span className="font-semibold">Assistant</span>
         <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs">{COST} credits / message</span>
-        <button onClick={onClose} className="ml-auto text-slate-300 hover:text-white" title="Close">✕</button>
+        <button onClick={onClose} className="ml-auto text-slate-300 hover:text-white" title="Close" aria-label="Close"><X size={18} aria-hidden /></button>
       </div>
 
       <div ref={threadRef} className="flex-1 space-y-3 overflow-y-auto p-3">

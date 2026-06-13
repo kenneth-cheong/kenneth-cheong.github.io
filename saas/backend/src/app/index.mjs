@@ -19,7 +19,8 @@ import { signOAuthState, verifyOAuthState } from '../lib/jwt.mjs';
 import { putAttachment } from '../lib/s3.mjs';
 import { sendEmail, SUPPORT_INBOX } from '../lib/email.mjs';
 import { isAdmin } from '../lib/admin.mjs';
-import { ok, badRequest, unauthorized, paymentRequired, parseBody, claims, preflight } from '../lib/http.mjs';
+import { ok, badRequest, unauthorized, paymentRequired, tooManyRequests, parseBody, claims, preflight, isEmail, clampStr } from '../lib/http.mjs';
+import { rateLimit, APP_LIMITS } from '../lib/ratelimit.mjs';
 
 const APP_ORIGIN = process.env.APP_ORIGIN || '';
 const redirect = (url) => ({ statusCode: 302, headers: { Location: url }, body: '' });
@@ -40,6 +41,12 @@ export const handler = async (event) => {
 
   const c = claims(event);
   if (!c?.userId) return unauthorized();
+
+  // Generous per-user limiter across all in-app endpoints (chat, support,
+  // tracking, integrations) — a cheap backstop against a runaway client.
+  const rl = await rateLimit('app', c.userId, APP_LIMITS);
+  if (!rl.allowed) return tooManyRequests(rl.retryAfter);
+
   const user = await getUser(c.userId);
   if (!user) return unauthorized('User not found');
   const body = parseBody(event);
@@ -51,7 +58,10 @@ export const handler = async (event) => {
       if (totalCredits(user) < cost) {
         return paymentRequired({ creditsRemaining: totalCredits(user), creditsNeeded: cost, tier: user.tier, topUpAvailable: true });
       }
-      const reply = await assistantReply(user, body.messages || []);
+      // Bound the conversation we forward: last 50 turns, each capped at 8k chars.
+      const messages = (Array.isArray(body.messages) ? body.messages : []).slice(-50)
+        .map((m) => ({ ...m, content: clampStr(m?.content, 8000) }));
+      const reply = await assistantReply(user, messages);
       const spent = await spendCredits({ userId: user.userId, cost, action: 'chat', tool: 'chatbot' });
       return ok({ reply, creditsUsed: cost, creditsRemaining: spent.total });
     }
@@ -96,6 +106,10 @@ export const handler = async (event) => {
       if ((await countTracked(user.userId)) >= limit) {
         return badRequest(limit === 0 ? 'Keyword tracking is a paid feature — upgrade to start tracking.' : `Your plan tracks up to ${limit} keywords. Upgrade for more.`);
       }
+      // Tracking lives under a project: require one the user actually owns.
+      if (!body.projectId) return badRequest('Create a project first — keywords are tracked under a project.');
+      const projects = await listProjects(user.userId);
+      if (!projects.some((p) => p.projectId === body.projectId)) return badRequest('That project no longer exists.');
       const keyword = (body.keyword || '').trim();
       const domain = (body.domain || '').trim();
       if (!keyword || !domain) return badRequest('A keyword and domain are required.');
@@ -115,10 +129,12 @@ export const handler = async (event) => {
       return ok({ attachment: att });
     }
     if (method === 'POST' && path.endsWith('/support/tickets')) {
-      const subject = (body.subject || '').trim();
-      const message = (body.message || '').trim();
+      const subject = clampStr((body.subject || '').trim(), 200);
+      const message = clampStr((body.message || '').trim(), 10000);
       if (!subject || !message) return badRequest('Subject and message are required.');
-      const additionalEmails = (body.additionalEmails || []).map((e) => String(e).trim()).filter(Boolean).slice(0, 10);
+      // Keep only well-formed addresses (drops junk before it reaches SES).
+      const additionalEmails = (Array.isArray(body.additionalEmails) ? body.additionalEmails : [])
+        .map((e) => String(e).trim()).filter(isEmail).slice(0, 10);
       const ticket = await createTicket({ userId: user.userId, userEmail: user.email, additionalEmails, category: body.category, subject, message, attachments: body.attachments || [] });
       await addNotification({ userId: user.userId, title: `Ticket ${ticket.id} received`, body: subject, ticketId: ticket.ticketId });
       if (SUPPORT_INBOX) await sendEmail({ to: SUPPORT_INBOX, subject: `New ticket ${ticket.id}: ${subject}`, text: `${user.email} opened a ticket.\n\n${message}` });
@@ -131,7 +147,7 @@ export const handler = async (event) => {
     }
     if (method === 'POST' && path.includes('/reply')) {
       const ticketId = seg(path, '/support/tickets/');
-      const text = (body.body || '').trim();
+      const text = clampStr((body.body || '').trim(), 10000);
       if (!text && !(body.attachments || []).length) return badRequest('Reply cannot be empty.');
       // Admins may answer another user's ticket (author = agent → notifies owner).
       const asAgent = !!body.asAgent && isAdmin(user.email);

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { PLANS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
@@ -9,6 +9,8 @@ import { toast } from '../lib/ui.js';
 export default function Projects() {
   const { user } = useAuth();
   const { projects, activeId, setActive, create, remove } = useProjects();
+  const navigate = useNavigate();
+  const track = (projectId) => { setActive(projectId); navigate('/tracking'); };
   const [name, setName] = useState('');
   const [domain, setDomain] = useState('');
   const [busy, setBusy] = useState(false);
@@ -57,6 +59,7 @@ export default function Projects() {
             {p.projectId === activeId
               ? <span className="rounded-full bg-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-700">Active</span>
               : <button onClick={() => setActive(p.projectId)} className="text-sm font-medium text-brand-600 hover:text-brand-700">Set active</button>}
+            <button onClick={() => track(p.projectId)} className="text-sm font-medium text-brand-600 hover:text-brand-700">Track</button>
             <button onClick={() => remove(p.projectId)} className="text-sm text-slate-400 hover:text-red-600">Delete</button>
           </div>
         ))}

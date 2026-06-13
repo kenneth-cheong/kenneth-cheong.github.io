@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { PartyPopper, Zap } from 'lucide-react';
 import { PLANS, TOPUP_PACKS, CURRENCY } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
@@ -41,13 +42,13 @@ export default function Account() {
       <h1 className="text-2xl font-bold">Account</h1>
 
       {params.get('checkout') === 'success' && (
-        <div className="mt-4 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
-          🎉 You're on {plan.name}. Credits have been topped up.
+        <div className="mt-4 flex items-center gap-2 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
+          <PartyPopper size={16} aria-hidden /> You're on {plan.name}. Credits have been topped up.
         </div>
       )}
       {params.get('topup') === 'success' && (
-        <div className="mt-4 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
-          ⚡ Top-up successful — credits added to your balance.
+        <div className="mt-4 flex items-center gap-2 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
+          <Zap size={16} aria-hidden /> Top-up successful — credits added to your balance.
         </div>
       )}
 

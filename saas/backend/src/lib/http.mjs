@@ -32,6 +32,20 @@ export const tierLocked = (requiredTier) =>
 
 export const serverError = (msg = 'Internal error') => json(500, { error: msg });
 
+/** 429 with a Retry-After header so clients (and the UI) can back off. */
+export const tooManyRequests = (retryAfter = 60) => ({
+  statusCode: 429,
+  headers: { 'Content-Type': 'application/json', 'Retry-After': String(Math.max(1, Math.ceil(retryAfter))), ...CORS },
+  body: JSON.stringify({ error: 'rate_limited', retryAfter: Math.max(1, Math.ceil(retryAfter)) }),
+});
+
+// ── Input validation helpers ─────────────────────────────────────────────────
+/** RFC-lite email check (good enough to reject obvious junk; not delivery-proof). */
+export const isEmail = (s) =>
+  typeof s === 'string' && s.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+/** Coerce to string and hard-cap length (defends against unbounded payloads). */
+export const clampStr = (s, max) => String(s ?? '').slice(0, max);
+
 export function parseBody(event) {
   if (!event.body) return {};
   try {

@@ -30,11 +30,13 @@ import {
   paymentRequired,
   tierLocked,
   serverError,
+  tooManyRequests,
   parseBody,
   claims,
   preflight,
 } from '../lib/http.mjs';
 import { verify } from '../lib/jwt.mjs';
+import { rateLimit, RUN_LIMITS } from '../lib/ratelimit.mjs';
 
 // How many free "teaser" runs a locked tool allows per user per month.
 const TEASER_RUNS_PER_MONTH = 1;
@@ -57,6 +59,11 @@ export const handler = async (event) => {
     } catch { /* fall through to 401 */ }
   }
   if (!c?.userId) return unauthorized();
+
+  // Per-user rate limit (generous burst + hourly ceiling). Runs before any
+  // upstream work or credit spend, and covers the Function-URL path too.
+  const rl = await rateLimit('run', c.userId, RUN_LIMITS);
+  if (!rl.allowed) return tooManyRequests(rl.retryAfter);
 
   const toolId =
     event.pathParameters?.toolId ||

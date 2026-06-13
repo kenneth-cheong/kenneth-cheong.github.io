@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import { Bell } from 'lucide-react';
 
 // In-platform notifications (ticket replies, ticket closed, etc.). Polls lightly
 // and opens the related ticket on click.
@@ -40,8 +41,8 @@ export default function NotificationBell() {
 
   return (
     <div ref={ref} className="relative">
-      <button onClick={toggle} className="relative text-xl text-slate-500 hover:text-slate-800" title="Notifications">
-        🔔
+      <button onClick={toggle} className="relative text-slate-500 hover:text-slate-800" title="Notifications" aria-label="Notifications">
+        <Bell size={20} aria-hidden />
         {unread > 0 && (
           <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
             {unread > 9 ? '9+' : unread}

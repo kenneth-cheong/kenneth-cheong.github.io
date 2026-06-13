@@ -8,7 +8,8 @@ import { OAuth2Client } from 'google-auth-library';
 import { getUser, putUser } from '../lib/dynamo.mjs';
 import { signAccess, signRefresh, verify } from '../lib/jwt.mjs';
 import { PLANS } from '../../../shared/catalog.mjs';
-import { ok, badRequest, unauthorized, parseBody } from '../lib/http.mjs';
+import { ok, badRequest, unauthorized, tooManyRequests, parseBody } from '../lib/http.mjs';
+import { rateLimit, AUTH_LIMITS } from '../lib/ratelimit.mjs';
 import { isAdmin } from '../lib/admin.mjs';
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -16,6 +17,12 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 export const handler = async (event) => {
   const path = event.rawPath || event.requestContext?.http?.path || '';
   const body = parseBody(event);
+
+  // These endpoints are public (pre-auth), so throttle by source IP to blunt
+  // credential-stuffing / token-guessing floods.
+  const ip = event.requestContext?.http?.sourceIp || 'unknown';
+  const rl = await rateLimit('auth', ip, AUTH_LIMITS);
+  if (!rl.allowed) return tooManyRequests(rl.retryAfter);
 
   if (path.endsWith('/refresh')) return handleRefresh(body);
   return handleGoogle(body);
@@ -54,6 +61,11 @@ async function handleGoogle({ idToken }) {
       createdAt: now,
       updatedAt: now,
     };
+    await putUser(user);
+  } else if (user.picture !== payload.picture || user.name !== payload.name) {
+    // Returning user → keep name/photo in sync with Google (also backfills
+    // accounts created before `picture` was captured).
+    user = { ...user, name: payload.name, picture: payload.picture, updatedAt: new Date().toISOString() };
     await putUser(user);
   }
 

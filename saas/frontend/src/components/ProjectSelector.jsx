@@ -21,7 +21,7 @@ export default function ProjectSelector() {
       title="Active project — runs are saved to it"
     >
       {projects.map((p) => <option key={p.projectId} value={p.projectId}>{p.name}</option>)}
-      <option value="__manage">⚙ Manage projects…</option>
+      <option value="__manage">Manage projects…</option>
     </select>
   );
 }

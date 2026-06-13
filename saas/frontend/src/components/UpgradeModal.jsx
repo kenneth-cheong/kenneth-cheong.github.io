@@ -1,6 +1,7 @@
 import { PLANS, CURRENCY } from '@shared/catalog.mjs';
 import { api } from '../lib/api.js';
 import { useState } from 'react';
+import { Unlock, Check } from 'lucide-react';
 
 // Shown when the backend returns 403 (tier_locked) or 402 (insufficient_credits).
 export default function UpgradeModal({ reason, requiredTier, onClose }) {
@@ -20,7 +21,7 @@ export default function UpgradeModal({ reason, requiredTier, onClose }) {
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4" onClick={onClose}>
       <div className="card w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="text-3xl">🔓</div>
+        <Unlock size={32} className="text-brand-600" aria-hidden />
         <h3 className="mt-2 text-xl font-bold">
           {reason === 'insufficient_credits' ? 'Out of credits' : `Unlock with ${plan.name}`}
         </h3>
@@ -31,8 +32,8 @@ export default function UpgradeModal({ reason, requiredTier, onClose }) {
         </p>
         <ul className="mt-4 space-y-1.5 text-sm">
           {plan.highlights.map((h) => (
-            <li key={h} className="flex gap-2">
-              <span className="text-brand-600">✓</span>
+            <li key={h} className="flex items-center gap-2">
+              <Check size={16} className="shrink-0 text-brand-600" aria-hidden />
               {h}
             </li>
           ))}

@@ -17,3 +17,40 @@ frontend:
   cache:
     paths:
       - node_modules/**/*
+
+# Security response headers applied to every served asset. The CSP is the key
+# defence: it blocks injected/inline <script> (the main vector for stealing the
+# JWTs we keep in localStorage) while still allowing Google Sign-In, Google
+# Fonts, and XHR to the API + slow-tool Function URL.
+#   - script-src has NO 'unsafe-inline' on purpose — Vite emits hashed external
+#     scripts, so inline injection stays blocked.
+#   - style-src DOES allow 'unsafe-inline': tool reports render as inline-styled
+#     HTML, and Tailwind/Google Fonts inject <style>.
+#   - connect/img use ap-southeast-1 wildcards so the env-specific API + Function
+#     URL + S3 attachment hosts resolve without templating secrets in here.
+customHeaders:
+  - pattern: '**'
+    headers:
+      - key: 'Strict-Transport-Security'
+        value: 'max-age=63072000; includeSubDomains; preload'
+      - key: 'X-Content-Type-Options'
+        value: 'nosniff'
+      - key: 'X-Frame-Options'
+        value: 'DENY'
+      - key: 'Referrer-Policy'
+        value: 'strict-origin-when-cross-origin'
+      - key: 'Permissions-Policy'
+        value: 'geolocation=(), microphone=(), camera=(), payment=()'
+      - key: 'Content-Security-Policy'
+        value: >-
+          default-src 'self';
+          script-src 'self' https://accounts.google.com https://apis.google.com;
+          style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+          font-src 'self' https://fonts.gstatic.com;
+          img-src 'self' data: https:;
+          connect-src 'self' https://*.execute-api.ap-southeast-1.amazonaws.com https://*.lambda-url.ap-southeast-1.on.aws https://accounts.google.com;
+          frame-src 'self' https://accounts.google.com;
+          frame-ancestors 'none';
+          base-uri 'self';
+          form-action 'self' https://accounts.google.com;
+          object-src 'none'
