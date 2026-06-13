@@ -7,7 +7,9 @@ import {
   UpdateCommand,
   QueryCommand,
   ScanCommand,
+  DeleteCommand,
 } from '@aws-sdk/lib-dynamodb';
+import { encrypt } from './crypto.mjs';
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
   marshallOptions: { removeUndefinedValues: true },
@@ -19,6 +21,9 @@ export const TABLES = {
   runs: process.env.RUNS_TABLE,
   tickets: process.env.TICKETS_TABLE,
   notifications: process.env.NOTIFICATIONS_TABLE,
+  projects: process.env.PROJECTS_TABLE,
+  cache: process.env.CACHE_TABLE,
+  tracked: process.env.TRACKED_TABLE,
 };
 
 const rid = () => Math.random().toString(36).slice(2, 8);
@@ -200,7 +205,7 @@ export async function listLedger(userId, limit = 100) {
 // One row per tool run so users can re-open past results. Sort key is time-first
 // so a query (ScanIndexForward:false) returns newest first. Results can be large
 // (HTML reports), so the list view reads a slim projection.
-export async function saveRun({ userId, tool, toolName, inputs, result, creditsUsed = 0 }) {
+export async function saveRun({ userId, tool, toolName, inputs, result, creditsUsed = 0, projectId = null }) {
   const ts = new Date().toISOString();
   const runId = `${ts}#${Math.random().toString(36).slice(2, 8)}`;
   const preview = result?.text ? result.text.slice(0, 90)
@@ -208,7 +213,7 @@ export async function saveRun({ userId, tool, toolName, inputs, result, creditsU
     : result?.html ? 'report' : '';
   await ddb.send(new PutCommand({
     TableName: TABLES.runs,
-    Item: { userId, runId, tool, toolName: toolName || tool, inputs: inputs || {}, result: result || {}, preview, creditsUsed, ts },
+    Item: { userId, runId, tool, toolName: toolName || tool, inputs: inputs || {}, result: result || {}, preview, creditsUsed, projectId, ts },
   }));
   return { runId, ts };
 }
@@ -219,7 +224,7 @@ export async function listRuns(userId, limit = 100) {
     KeyConditionExpression: 'userId = :u',
     ExpressionAttributeValues: { ':u': userId },
     // Slim projection for the list — omit the full `result` + `inputs` payloads.
-    ProjectionExpression: 'userId, runId, tool, toolName, preview, creditsUsed, ts',
+    ProjectionExpression: 'userId, runId, tool, toolName, preview, creditsUsed, projectId, ts',
     ScanIndexForward: false,
     Limit: limit,
   }));
@@ -344,12 +349,16 @@ export async function setIntegration({ userId, provider, account, connected, tok
     delete integrations[provider];
   } else {
     const prev = integrations[provider] || {};
+    const enc = { ...(tokens || {}) };
+    // Encrypt OAuth tokens before they touch the datastore.
+    if (enc.refreshToken) enc.refreshToken = encrypt(enc.refreshToken);
+    if (enc.accessToken) enc.accessToken = encrypt(enc.accessToken);
     integrations[provider] = {
       ...prev,
       connected: true,
       account: account != null && account !== '' ? account : (prev.account || ''),
       connectedAt: new Date().toISOString(),
-      ...(tokens || {}), // refreshToken / accessToken / expiresAt / scope (only defined keys)
+      ...enc,
     };
   }
   await putUser({ ...user, integrations, updatedAt: new Date().toISOString() });
@@ -364,6 +373,75 @@ export function redactIntegrations(integrations = {}) {
     out[k] = { connected: !!v.connected, account: v.account || '', connectedAt: v.connectedAt };
   }
   return out;
+}
+
+// ── Projects (group runs / keywords / integrations by site) ──────────────────
+export async function createProject({ userId, name, domain }) {
+  const ts = new Date().toISOString();
+  const projectId = `${ts}#${rid()}`;
+  const item = { userId, projectId, id: 'PRJ-' + rid().toUpperCase(), name: name || domain || 'Untitled', domain: domain || '', createdAt: ts };
+  await ddb.send(new PutCommand({ TableName: TABLES.projects, Item: item }));
+  return item;
+}
+export async function listProjects(userId, limit = 100) {
+  const { Items } = await ddb.send(new QueryCommand({
+    TableName: TABLES.projects, KeyConditionExpression: 'userId = :u',
+    ExpressionAttributeValues: { ':u': userId }, ScanIndexForward: true, Limit: limit,
+  }));
+  return Items || [];
+}
+export async function deleteProject(userId, projectId) {
+  await ddb.send(new DeleteCommand({ TableName: TABLES.projects, Key: { userId, projectId } }));
+}
+
+// ── Tracked keywords (rank position over time, per project) ──────────────────
+export async function addTracked({ userId, projectId, keyword, domain, location }) {
+  const trackId = `${projectId || 'none'}#${keyword}`;
+  const item = { userId, trackId, projectId: projectId || '', keyword, domain: domain || '', location: location || 'Singapore', history: [], addedAt: new Date().toISOString() };
+  try {
+    await ddb.send(new PutCommand({ TableName: TABLES.tracked, Item: item, ConditionExpression: 'attribute_not_exists(trackId)' }));
+  } catch (e) { if (e.name !== 'ConditionalCheckFailedException') throw e; }
+  return item;
+}
+export async function listTracked(userId, projectId) {
+  const { Items } = await ddb.send(new QueryCommand({ TableName: TABLES.tracked, KeyConditionExpression: 'userId = :u', ExpressionAttributeValues: { ':u': userId } }));
+  let items = Items || [];
+  if (projectId) items = items.filter((i) => i.projectId === projectId);
+  return items;
+}
+export async function countTracked(userId) { return (await listTracked(userId)).length; }
+export async function removeTracked(userId, trackId) {
+  await ddb.send(new DeleteCommand({ TableName: TABLES.tracked, Key: { userId, trackId } }));
+}
+export async function scanTracked() { const { Items } = await ddb.send(new ScanCommand({ TableName: TABLES.tracked })); return Items || []; }
+/** Append today's rank position (one point per day; last 120 kept). */
+export async function appendSnapshot(userId, trackId, position) {
+  const { Item } = await ddb.send(new GetCommand({ TableName: TABLES.tracked, Key: { userId, trackId } }));
+  if (!Item) return;
+  const date = new Date().toISOString().slice(0, 10);
+  const history = (Item.history || []).filter((h) => h.date !== date);
+  history.push({ date, position });
+  history.sort((a, b) => a.date.localeCompare(b.date));
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.tracked, Key: { userId, trackId },
+    UpdateExpression: 'SET history = :h, lastPosition = :p, updatedAt = :t',
+    ExpressionAttributeValues: { ':h': history.slice(-120), ':p': position, ':t': new Date().toISOString() },
+  }));
+}
+
+// ── Upstream result cache (cuts cost + latency on repeat queries) ─────────────
+// Keyed by a hash of tool + inputs; rows self-expire via DynamoDB TTL.
+export async function getCache(key) {
+  const { Item } = await ddb.send(new GetCommand({ TableName: TABLES.cache, Key: { key } }));
+  if (!Item) return null;
+  if (Item.expireAt && Item.expireAt * 1000 < Date.now()) return null; // TTL not yet swept
+  return Item.value ?? null;
+}
+export async function putCache(key, value, ttlSeconds) {
+  await ddb.send(new PutCommand({
+    TableName: TABLES.cache,
+    Item: { key, value, expireAt: Math.floor(Date.now() / 1000) + ttlSeconds },
+  }));
 }
 
 export { ddb };

@@ -1,19 +1,26 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { TOOLS, CATEGORIES, CATEGORY_META, toolById, tierMeets } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useProjects } from '../context/ProjectContext.jsx';
 import ToolCard from '../components/ToolCard.jsx';
 import { getRecent } from '../lib/ui.js';
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { projects } = useProjects();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('All');
+  const [showOnboard, setShowOnboard] = useState(() => localStorage.getItem('dm_onboard_done') !== '1');
 
   const match = (t) => q === '' || (t.name + t.desc).toLowerCase().includes(q.toLowerCase());
   const filtered = TOOLS.filter((t) => (cat === 'All' || t.category === cat) && match(t));
   const lockedCount = TOOLS.filter((t) => !tierMeets(user.tier, t.minTier)).length;
   const recent = getRecent().map(toolById).filter(Boolean).filter(match);
   const searching = q !== '';
+  const isNew = recent.length === 0 && projects.length === 0;
+
+  function dismissOnboard() { setShowOnboard(false); localStorage.setItem('dm_onboard_done', '1'); }
 
   return (
     <div>
@@ -31,6 +38,20 @@ export default function Dashboard() {
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none sm:w-64"
         />
       </div>
+
+      {showOnboard && isNew && (
+        <div className="mt-6 rounded-xl border border-brand-200 bg-brand-50/60 p-5">
+          <div className="flex items-start justify-between">
+            <h2 className="font-semibold text-brand-800">Get started in 3 steps</h2>
+            <button onClick={dismissOnboard} className="text-sm text-slate-400 hover:text-slate-700">Dismiss</button>
+          </div>
+          <ol className="mt-3 grid gap-3 sm:grid-cols-3">
+            <Step n="1" title="Create a project" body="Group a site's runs and data." to="/projects" cta="New project" />
+            <Step n="2" title="Run a free tool" body="Try Keyword Analysis — no credits." to="/tool/keyword-analysis" cta="Try it" />
+            <Step n="3" title="Connect Google" body="Pull your GSC / GA4 / Ads data." to="/integrations" cta="Connect" />
+          </ol>
+        </div>
+      )}
 
       <div className="mt-6 flex flex-wrap gap-2">
         {['All', ...CATEGORIES].map((c) => (
@@ -71,6 +92,16 @@ export default function Dashboard() {
         </div>
       )}
     </div>
+  );
+}
+
+function Step({ n, title, body, to, cta }) {
+  return (
+    <li className="rounded-lg border border-brand-100 bg-white p-3">
+      <div className="flex items-center gap-2"><span className="grid h-5 w-5 place-items-center rounded-full bg-brand-600 text-xs font-bold text-white">{n}</span><span className="font-semibold text-slate-800">{title}</span></div>
+      <p className="mt-1 text-sm text-slate-500">{body}</p>
+      <Link to={to} className="mt-2 inline-block text-sm font-medium text-brand-600 hover:text-brand-700">{cta} →</Link>
+    </li>
   );
 }
 

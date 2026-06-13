@@ -13,6 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 import { UPSTREAMS } from '../metering/upstreams.mjs';
 import { integrationResult } from '../../../shared/connectors.mjs';
+import { decrypt } from './crypto.mjs';
 
 // Same client as index.html unless overridden.
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com';
@@ -86,8 +87,8 @@ async function refreshAccessToken(refreshToken) {
 }
 
 async function accessTokenFor(conn) {
-  if (conn.accessToken && conn.expiresAt && Date.now() < conn.expiresAt - 60_000) return conn.accessToken;
-  const t = await refreshAccessToken(conn.refreshToken);
+  if (conn.accessToken && conn.expiresAt && Date.now() < conn.expiresAt - 60_000) return decrypt(conn.accessToken);
+  const t = await refreshAccessToken(decrypt(conn.refreshToken));
   return t.access_token;
 }
 

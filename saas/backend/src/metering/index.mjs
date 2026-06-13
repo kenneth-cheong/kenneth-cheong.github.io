@@ -12,7 +12,8 @@
 //   6. reconcile credits from ACTUAL usage (AI returns token counts)
 //   7. return result + { creditsUsed, creditsRemaining }
 // ─────────────────────────────────────────────────────────────────────────
-import { getUser, putUser, spendCredits, totalCredits, saveRun } from '../lib/dynamo.mjs';
+import { createHash } from 'node:crypto';
+import { getUser, putUser, spendCredits, totalCredits, saveRun, getCache, putCache } from '../lib/dynamo.mjs';
 import { UPSTREAMS } from './upstreams.mjs';
 import { ADAPTERS, parseStrategyJson } from './adapters.mjs';
 import { fetchIntegration } from '../lib/google.mjs';
@@ -39,6 +40,7 @@ import { verify } from '../lib/jwt.mjs';
 const TEASER_RUNS_PER_MONTH = 1;
 
 export const handler = async (event) => {
+  const t0 = Date.now();
   // CORS preflight (Function URL path has no API-Gateway CORS layer).
   const method = event.requestContext?.http?.method || event.httpMethod;
   if (method === 'OPTIONS') return preflight();
@@ -150,9 +152,13 @@ export const handler = async (event) => {
     const saved = await saveRun({
       userId: user.userId, tool: tool.id, toolName: tool.name,
       inputs: publicInputs(body), result: payload, creditsUsed,
+      projectId: body.projectId || null,
     });
     runId = saved.runId;
   } catch (e) { console.error('save_run_failed', tool.id, e.message); }
+
+  // Structured metric line (CloudWatch Logs Insights / metric filters).
+  console.log(JSON.stringify({ metric: 'tool_run', tool: tool.id, ms: Date.now() - t0, creditsUsed, cached: !!result?.cached, teaser }));
 
   return ok({
     tool: tool.id,
@@ -167,7 +173,7 @@ export const handler = async (event) => {
 /** Strip gateway-injected (underscore-prefixed) keys before saving inputs. */
 function publicInputs(body) {
   const out = {};
-  for (const [k, v] of Object.entries(body)) if (!k.startsWith('_')) out[k] = v;
+  for (const [k, v] of Object.entries(body)) if (!k.startsWith('_') && k !== 'projectId') out[k] = v;
   return out;
 }
 
@@ -207,7 +213,27 @@ async function postUpstream(url, payload) {
   return raw;
 }
 
+// Deterministic-ish data tools whose results we cache (TTL seconds). Live/AI
+// and user-data tools are never cached.
+const CACHE_TTL = { 'keyword-analysis': 86400, backlinks: 86400, competitors: 86400, 'time-to-rank': 86400, onpage: 86400 };
+function cacheKey(tool, body) {
+  const pub = {};
+  for (const [k, v] of Object.entries(body)) if (!k.startsWith('_') && k !== 'projectId' && k !== 'url') pub[k] = v;
+  return createHash('sha256').update(`${tool.id}|${JSON.stringify(pub)}`).digest('hex');
+}
+
 async function callUpstream(tool, body) {
+  const ttl = CACHE_TTL[tool.id];
+  if (!ttl) return callUpstreamRaw(tool, body);
+  const key = cacheKey(tool, body);
+  const hit = await getCache(key).catch(() => null);
+  if (hit) return { ...hit, cached: true };
+  const res = await callUpstreamRaw(tool, body);
+  putCache(key, res, ttl).catch(() => {}); // best-effort
+  return res;
+}
+
+async function callUpstreamRaw(tool, body) {
   // Integrations pull the user's own connected Google data (no upstream proxy).
   if (tool.integration) return integrationsRun(tool, body);
   // Schema Generator: deterministic JSON-LD builder (no upstream).

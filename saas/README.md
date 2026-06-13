@@ -92,13 +92,28 @@ in-platform notifications still work; email is simply skipped. `AutoCloseDays`
 ## ⚠️ Security — the one thing that must not ship broken
 
 The metering gateway proxies to the **existing public tool Lambdas** (see
-`backend/src/metering/upstreams.mjs`). Today those URLs are open to the world, so a
-user could call them directly and bypass billing entirely. Before charging anyone:
+`backend/src/metering/upstreams.mjs`). Those same Lambdas are called **directly by
+`index.html`** (the agency app), so a user who reads `index.html` can find the URLs
+and call them directly, bypassing billing.
 
-- Lock each upstream to require the `x-gateway-secret` header (set `GatewaySecret`), **or**
-- Move them behind a private API / IAM auth so only this gateway can invoke them.
+The gateway already sends an `x-gateway-secret` header on every upstream call (set
+`GatewaySecret`). The remaining step is enforcement on the Lambda side — **but
+locking the shared Lambdas would break `index.html`**, which sends no secret. So,
+to close the bypass *without affecting `index.html`*:
 
-Until then, treat this as a staging build only.
+- **Recommended:** give the SaaS **its own private copies** of the tool Lambdas
+  (or a private API in front of them) that require the secret, and point
+  `upstreams.mjs` at those. `index.html` keeps using the public ones, untouched.
+- **Or** migrate `index.html` to also send the secret and lock the shared Lambdas
+  (changes the agency app — only if you own both and want a single deployment).
+
+Note: nothing on the SaaS side leaks these URLs — they live server-side in
+`upstreams.mjs`, never in the frontend bundle. The exposure is `index.html` itself.
+
+**Hardened in this build:** Google OAuth refresh/access tokens are now **encrypted
+at rest** (AES-256-GCM, `backend/src/lib/crypto.mjs`) before hitting DynamoDB, and
+the gateway **caches** deterministic data-tool results (`CacheTable`, TTL) to cut
+upstream cost + the bypass blast radius.
 
 ## What's included vs. the agency app
 

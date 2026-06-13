@@ -99,6 +99,15 @@ export const api = {
   closeTicket: (ticketId) => call(`/support/tickets/${encodeURIComponent(ticketId)}/close`, { method: 'POST' }),
   uploadAttachment: ({ name, contentType, data }) =>
     call('/support/attachments', { method: 'POST', body: { name, contentType, data } }),
+  // Projects
+  projects: () => call('/projects'),
+  createProject: (name, domain) => call('/projects', { method: 'POST', body: { name, domain } }),
+  deleteProject: (projectId) => call('/projects/delete', { method: 'POST', body: { projectId } }),
+  // Keyword tracking
+  tracking: (projectId) => call(`/tracking${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
+  addTracked: (keyword, domain, location, projectId) => call('/tracking', { method: 'POST', body: { keyword, domain, location, projectId } }),
+  removeTracked: (trackId) => call('/tracking/delete', { method: 'POST', body: { trackId } }),
+  refreshTracking: (projectId, trackId) => call('/tracking/refresh', { method: 'POST', body: { projectId, trackId } }),
   // Integrations (Google OAuth)
   integrations: () => call('/integrations'),
   integrationAccounts: (provider) => call(`/integrations/accounts?provider=${encodeURIComponent(provider)}`),
@@ -130,6 +139,8 @@ function mockState() {
     runs: [],
     tickets: [],
     notifications: [],
+    projects: [],
+    tracked: [],
     // A few seeded users so the admin portal has rows to manage.
     adminUsers: [
       { userId: 'u_amy', email: 'amy@startup.sg', name: 'Amy Tan', tier: 'pro', monthlyCredits: 1450, topupCredits: 300, hasSubscription: true },
@@ -220,6 +231,52 @@ async function mock(path, { method, body }) {
     const run = s.runs.find((r) => r.runId === id);
     return run ? { run } : (() => { throw new ApiError(404, { error: 'Run not found' }); })();
   }
+  // ── Projects (mock) ───────────────────────────────────────────────────────
+  if (path === '/projects' && method === 'GET') return { projects: s.projects || [] };
+  if (path === '/projects/delete') { s.projects = (s.projects || []).filter((p) => p.projectId !== body.projectId); saveMock(s); return { ok: true }; }
+  if (path === '/projects' && method === 'POST') {
+    const limit = PLANS[s.user.tier]?.projects ?? 1;
+    if ((s.projects || []).length >= limit) throw new ApiError(400, { error: `Your ${s.user.tier} plan allows ${limit} project${limit > 1 ? 's' : ''}. Upgrade for more.` });
+    const ts = new Date().toISOString();
+    const p = { userId: 'mock', projectId: `${ts}#${Math.random().toString(36).slice(2, 8)}`, id: 'PRJ-' + Math.random().toString(36).slice(2, 8).toUpperCase(), name: (body.name || body.domain || 'Untitled'), domain: body.domain || '', createdAt: ts };
+    (s.projects = s.projects || []).push(p); saveMock(s);
+    return { project: p };
+  }
+
+  // ── Keyword tracking (mock) ───────────────────────────────────────────────
+  if (path.startsWith('/tracking') && method === 'GET') {
+    const pid = new URLSearchParams((path.split('?')[1] || '')).get('projectId');
+    const list = (s.tracked || []).filter((t) => !pid || t.projectId === pid);
+    return { tracked: list };
+  }
+  if (path === '/tracking/delete') { s.tracked = (s.tracked || []).filter((t) => t.trackId !== body.trackId); saveMock(s); return { ok: true }; }
+  if (path === '/tracking/refresh') {
+    const date = new Date().toISOString().slice(0, 10);
+    (s.tracked || []).forEach((t) => {
+      if (body.trackId && t.trackId !== body.trackId) return;
+      if (body.projectId && t.projectId !== body.projectId) return;
+      const last = t.history?.length ? t.history[t.history.length - 1].position : 20;
+      const pos = Math.max(1, Math.min(100, last + Math.round((Math.random() - 0.55) * 6)));
+      t.history = (t.history || []).filter((h) => h.date !== date).concat([{ date, position: pos }]);
+      t.lastPosition = pos;
+    });
+    saveMock(s);
+    return { tracked: (s.tracked || []).filter((t) => !body.projectId || t.projectId === body.projectId) };
+  }
+  if (path === '/tracking' && method === 'POST') {
+    const limit = PLANS[s.user.tier]?.trackedKeywords ?? 0;
+    if ((s.tracked || []).length >= limit) throw new ApiError(400, { error: limit === 0 ? 'Keyword tracking is a paid feature — upgrade to start tracking.' : `Your plan tracks up to ${limit} keywords. Upgrade for more.` });
+    // Seed ~10 days of demo history so the chart has a trend.
+    const today = Date.now(); let p = 12 + Math.floor(Math.random() * 20);
+    const history = Array.from({ length: 10 }, (_, i) => {
+      p = Math.max(1, Math.min(100, p + Math.round((Math.random() - 0.55) * 5)));
+      return { date: new Date(today - (9 - i) * 86400000).toISOString().slice(0, 10), position: p };
+    });
+    const t = { trackId: `${body.projectId || 'none'}#${body.keyword}`, projectId: body.projectId || '', keyword: body.keyword, domain: body.domain, location: body.location || 'Singapore', history, lastPosition: p, addedAt: new Date().toISOString() };
+    s.tracked = [...(s.tracked || []).filter((x) => x.trackId !== t.trackId), t]; saveMock(s);
+    return { tracked: t };
+  }
+
   // ── Notifications (mock) ──────────────────────────────────────────────────
   if (path === '/me/notifications') return { notifications: s.notifications || [] };
   if (path === '/me/notifications/read') { (s.notifications || []).forEach((n) => { n.read = true; }); saveMock(s); return { ok: true }; }
@@ -326,7 +383,7 @@ async function mock(path, { method, body }) {
     // Persist the run so the History page can re-open it (mirrors the backend).
     const runId = new Date().toISOString() + '#' + Math.random().toString(36).slice(2, 8);
     const preview = result.text ? result.text.slice(0, 90) : Array.isArray(result.rows) ? `${result.rows.length} rows` : result.html ? 'report' : '';
-    s.runs.unshift({ runId, tool: tool.id, toolName: tool.name, ts: new Date().toISOString(), preview, creditsUsed: used, inputs: body, result });
+    s.runs.unshift({ runId, tool: tool.id, toolName: tool.name, ts: new Date().toISOString(), preview, creditsUsed: used, projectId: body.projectId || null, inputs: body, result });
     s.runs = s.runs.slice(0, 200);
     saveMock(s);
     return { tool: tool.id, teaser, result, creditsUsed: used, creditsRemaining: mockTotal(s.user), runId };

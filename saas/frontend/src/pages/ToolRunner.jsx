@@ -3,6 +3,7 @@ import { useParams, Link, useLocation } from 'react-router-dom';
 import { toolById, inputsFor, exampleFor, CREDIT_COSTS, PLANS, tierMeets } from '@shared/catalog.mjs';
 import { api, ApiError } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useProjects } from '../context/ProjectContext.jsx';
 import UpgradeModal from '../components/UpgradeModal.jsx';
 import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
 
@@ -11,6 +12,7 @@ const CONFIRM_AT = 25; // credits — confirm before running pricey tools
 export default function ToolRunner() {
   const { toolId } = useParams();
   const { user, setCredits } = useAuth();
+  const { activeId } = useProjects();
   const tool = toolById(toolId);
   const location = useLocation();
   const fields = useMemo(() => (tool ? inputsFor(tool) : []), [tool]);
@@ -48,7 +50,7 @@ export default function ToolRunner() {
     setBusy(true);
     setOut(null);
     try {
-      const res = await api.runTool(tool.id, { ...values, url: values.url || values.input }, tool.slow);
+      const res = await api.runTool(tool.id, { ...values, url: values.url || values.input, projectId: activeId || undefined }, tool.slow);
       setOut(res);
       if (typeof res.creditsRemaining === 'number') setCredits(res.creditsRemaining);
       if (res.creditsUsed > 0) toast(`−${res.creditsUsed} credit${res.creditsUsed > 1 ? 's' : ''} · ${res.creditsRemaining} left`, 'info');

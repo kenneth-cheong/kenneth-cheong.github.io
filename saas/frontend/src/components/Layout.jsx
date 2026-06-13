@@ -6,11 +6,14 @@ import ChatDrawer from './ChatDrawer.jsx';
 import NotificationBell from './NotificationBell.jsx';
 import Toaster from './Toaster.jsx';
 import ExplainMenu from './ExplainMenu.jsx';
+import ProjectSelector from './ProjectSelector.jsx';
 import { useMediaQuery } from '../lib/ui.js';
 import { PLANS } from '@shared/catalog.mjs';
 
 const baseNav = [
   { to: '/', label: 'Tools', end: true },
+  { to: '/projects', label: 'Projects' },
+  { to: '/tracking', label: 'Tracking' },
   { to: '/integrations', label: 'Integrations' },
   { to: '/history', label: 'History' },
   { to: '/pricing', label: 'Pricing' },
@@ -60,6 +63,7 @@ export default function Layout({ children }) {
               {nav.map((n) => <NavLink key={n.to} to={n.to} end={n.end} className={linkCls}>{n.label}</NavLink>)}
             </nav>
             <div className="ml-auto flex items-center gap-3">
+              <ProjectSelector />
               <CreditMeter />
               <NotificationBell />
               <span className="hidden rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600 lg:inline">

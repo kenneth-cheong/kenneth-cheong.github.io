@@ -7,9 +7,12 @@ import {
   createTicket, getTicket, addTicketMessage, setTicketStatus, listTickets,
   setIntegration, redactIntegrations,
   addNotification, listNotifications, markNotificationsRead,
+  createProject, listProjects, deleteProject,
+  addTracked, listTracked, countTracked, removeTracked, appendSnapshot,
 } from '../lib/dynamo.mjs';
+import { rankPosition } from '../lib/rank.mjs';
 import { UPSTREAMS } from '../metering/upstreams.mjs';
-import { CREDIT_COSTS, INTEGRATIONS } from '../../../shared/catalog.mjs';
+import { CREDIT_COSTS, INTEGRATIONS, PLANS } from '../../../shared/catalog.mjs';
 import { integrationSummary } from '../../../shared/connectors.mjs';
 import { oauthConfigured, authUrl, exchangeCode, detectAccount, listAccounts } from '../lib/google.mjs';
 import { signOAuthState, verifyOAuthState } from '../lib/jwt.mjs';
@@ -53,6 +56,48 @@ export const handler = async (event) => {
     if (method === 'GET' && path.includes('/me/runs/')) {
       const run = await getRun(user.userId, seg(path, '/me/runs/'));
       return run ? ok({ run }) : badRequest('Run not found');
+    }
+
+    // ── Projects ──────────────────────────────────────────────────────────────
+    if (method === 'GET' && path.endsWith('/projects')) return ok({ projects: await listProjects(user.userId) });
+    if (method === 'POST' && path.endsWith('/projects/delete')) { await deleteProject(user.userId, body.projectId); return ok({ ok: true }); }
+    if (method === 'POST' && path.endsWith('/projects')) {
+      const existing = await listProjects(user.userId);
+      const limit = PLANS[user.tier]?.projects ?? 1;
+      if (existing.length >= limit) return badRequest(`Your ${user.tier} plan allows ${limit} project${limit > 1 ? 's' : ''}. Upgrade for more.`);
+      const name = (body.name || '').trim();
+      const domain = (body.domain || '').trim();
+      if (!name && !domain) return badRequest('A project name or domain is required.');
+      const project = await createProject({ userId: user.userId, name, domain });
+      return ok({ project });
+    }
+
+    // ── Keyword tracking (rank over time) ─────────────────────────────────────
+    if (method === 'GET' && path.endsWith('/tracking')) {
+      return ok({ tracked: await listTracked(user.userId, (event.queryStringParameters || {}).projectId) });
+    }
+    if (method === 'POST' && path.endsWith('/tracking/delete')) { await removeTracked(user.userId, body.trackId); return ok({ ok: true }); }
+    if (method === 'POST' && path.endsWith('/tracking/refresh')) {
+      const tracked = await listTracked(user.userId, body.projectId);
+      const targets = body.trackId ? tracked.filter((t) => t.trackId === body.trackId) : tracked;
+      for (const t of targets) {
+        try { await appendSnapshot(user.userId, t.trackId, await rankPosition({ keyword: t.keyword, target: t.domain, location: t.location })); }
+        catch (e) { console.error('track_refresh', t.trackId, e.message); }
+      }
+      return ok({ tracked: await listTracked(user.userId, body.projectId) });
+    }
+    if (method === 'POST' && path.endsWith('/tracking')) {
+      const limit = PLANS[user.tier]?.trackedKeywords ?? 0;
+      if ((await countTracked(user.userId)) >= limit) {
+        return badRequest(limit === 0 ? 'Keyword tracking is a paid feature — upgrade to start tracking.' : `Your plan tracks up to ${limit} keywords. Upgrade for more.`);
+      }
+      const keyword = (body.keyword || '').trim();
+      const domain = (body.domain || '').trim();
+      if (!keyword || !domain) return badRequest('A keyword and domain are required.');
+      const item = await addTracked({ userId: user.userId, projectId: body.projectId, keyword, domain, location: body.location });
+      // Seed an initial data point so the chart isn't empty.
+      try { await appendSnapshot(user.userId, item.trackId, await rankPosition({ keyword, target: domain, location: body.location })); } catch { /* best-effort */ }
+      return ok({ tracked: (await listTracked(user.userId, body.projectId)).find((t) => t.trackId === item.trackId) || item });
     }
 
     // ── Notifications ─────────────────────────────────────────────────────────
