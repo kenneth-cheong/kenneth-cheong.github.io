@@ -308,7 +308,11 @@ Resources:
         # Account has a raised API Gateway integration-timeout quota (180s), so
         # the normal /run path can also serve slow tools (the Function URL above
         # is the redundant/long-tail path).
-        Run: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/run/{toolId}', Method: POST, TimeoutInMillis: 180000, Auth: { Authorizer: JwtAuthorizer } } }
+        # NOTE: no TimeoutInMillis — the server-side SAM transform fails to link a
+        # route's integration when it's set (route ends up with Target: None → 404).
+        # Slow tools use the Function URL (RunUrl) anyway; this API path serves
+        # fast tools that finish within the 30s default.
+        Run: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/run/{toolId}', Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
 
   # ── Billing: checkout/portal (authed) + webhook (public, signed) ────────
   BillingFn:
@@ -352,7 +356,8 @@ Resources:
           GOOGLE_CLIENT_SECRET: !Ref GoogleClientSecret
           GOOGLE_ADS_DEVELOPER_TOKEN: !Ref GoogleAdsDeveloperToken
           GOOGLE_ADS_LOGIN_CUSTOMER_ID: !Ref GoogleAdsLoginCustomerId
-          GOOGLE_OAUTH_REDIRECT: !Sub 'https://${Api}.execute-api.${AWS::Region}.amazonaws.com/oauth/callback'
+          # OAuth redirect URI is derived at runtime from the request domain (see
+          # app handler) — referencing ${Api} here created a circular dependency.
           ATTACHMENTS_BUCKET: !Ref AttachmentsBucket
           SES_FROM: !Ref SesFrom
           SES_SUPPORT: !Ref SesSupport
@@ -370,7 +375,7 @@ Resources:
               Action: [ses:SendEmail, ses:SendRawEmail]
               Resource: '*'
       Events:
-        Chat: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /chat, Method: POST, TimeoutInMillis: 60000, Auth: { Authorizer: JwtAuthorizer } } }
+        Chat: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /chat, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Runs: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/runs, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Run: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/me/runs/{runId}', Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Projects: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /projects, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
@@ -379,7 +384,7 @@ Resources:
         Tracking: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /tracking, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         TrackAdd: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /tracking, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         TrackDelete: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /tracking/delete, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
-        TrackRefresh: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /tracking/refresh, Method: POST, TimeoutInMillis: 60000, Auth: { Authorizer: JwtAuthorizer } } }
+        TrackRefresh: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /tracking/refresh, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Notifications: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/notifications, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         NotificationsRead: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/notifications/read, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         TicketsList: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /support/tickets, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
@@ -529,24 +534,6 @@ Resources:
       Period: 300
       EvaluationPeriods: 1
       Threshold: 3
-      ComparisonOperator: GreaterThanOrEqualToThreshold
-      TreatMissingData: notBreaching
-      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref 'AWS::NoValue']
-
-  # 5xx at the API edge — catches failures the per-Lambda alarms miss (auth
-  # rejections, integration timeouts, routing).
-  Api5xxAlarm:
-    Type: AWS::CloudWatch::Alarm
-    Properties:
-      AlarmDescription: HTTP API is returning 5xx responses.
-      Namespace: AWS/ApiGateway
-      MetricName: 5xx
-      Dimensions:
-        - { Name: ApiId, Value: !Ref Api }
-      Statistic: Sum
-      Period: 300
-      EvaluationPeriods: 1
-      Threshold: 5
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
       AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref 'AWS::NoValue']

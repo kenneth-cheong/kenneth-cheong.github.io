@@ -31,14 +31,18 @@ export const GOOGLE_SCOPES = [
   'openid', 'email', 'profile',
 ].join(' ');
 
+// The redirect URI is derived per-request from the API's own domain (see
+// app handler) so the template needn't reference the API resource — that
+// reference created a CloudFormation circular dependency. Callers pass it in;
+// the env var remains a fallback for any non-request context.
 export function oauthConfigured() {
-  return !!(CLIENT_ID && REDIRECT);
+  return !!CLIENT_ID;
 }
 
-export function authUrl(provider, state) {
+export function authUrl(provider, state, redirect = REDIRECT) {
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
-    redirect_uri: REDIRECT,
+    redirect_uri: redirect,
     response_type: 'code',
     scope: GOOGLE_SCOPES,
     access_type: 'offline',
@@ -60,18 +64,18 @@ async function postJson(url, body) {
   return j;
 }
 
-export async function exchangeCode(code) {
+export async function exchangeCode(code, redirect = REDIRECT) {
   // Prefer direct exchange when a secret is configured; else reuse the agency
   // Lambda (which holds the secret), exactly as index.html's code flow does.
   if (CLIENT_SECRET) {
     const res = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ code, client_id: CLIENT_ID, client_secret: CLIENT_SECRET, redirect_uri: REDIRECT, grant_type: 'authorization_code' }),
+      body: new URLSearchParams({ code, client_id: CLIENT_ID, client_secret: CLIENT_SECRET, redirect_uri: redirect, grant_type: 'authorization_code' }),
     });
     if (!res.ok) throw new Error(`token exchange ${res.status}`);
     return res.json();
   }
-  return postJson(UPSTREAMS.googleAuth, { action: 'google_token_exchange', code, client_id: CLIENT_ID, redirect_uri: REDIRECT });
+  return postJson(UPSTREAMS.googleAuth, { action: 'google_token_exchange', code, client_id: CLIENT_ID, redirect_uri: redirect });
 }
 
 async function refreshAccessToken(refreshToken) {

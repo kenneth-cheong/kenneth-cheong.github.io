@@ -24,6 +24,11 @@ import { ok, badRequest, unauthorized, paymentRequired, parseBody, claims, prefl
 const APP_ORIGIN = process.env.APP_ORIGIN || '';
 const redirect = (url) => ({ statusCode: 302, headers: { Location: url }, body: '' });
 const seg = (path, after) => decodeURIComponent((path.split(after)[1] || '').split('/')[0] || '');
+// OAuth redirect URI, derived from the API's own request domain so the template
+// needn't reference the API resource (that ref caused a CFN circular dependency).
+// Same value in /integrations/authorize and /oauth/callback, so Google's exact-
+// match requirement holds; it's also what must be registered in the console.
+const oauthRedirectUri = (event) => `https://${event.requestContext?.domainName}/oauth/callback`;
 
 export const handler = async (event) => {
   const method = event.requestContext?.http?.method || event.httpMethod;
@@ -157,7 +162,7 @@ export const handler = async (event) => {
       const provider = (event.queryStringParameters || {}).provider;
       if (!INTEGRATIONS.some((p) => p.id === provider)) return badRequest('Unknown provider.');
       if (!oauthConfigured()) return badRequest('Google OAuth is not configured on this deployment.');
-      return ok({ url: authUrl(provider, signOAuthState(user.userId, provider)) });
+      return ok({ url: authUrl(provider, signOAuthState(user.userId, provider), oauthRedirectUri(event)) });
     }
     if (method === 'POST' && path.endsWith('/integrations/connect')) {
       // Used for disconnect, or to set/override the account id for a provider.
@@ -180,7 +185,7 @@ async function oauthCallback(event) {
   try {
     if (q.error) throw new Error(q.error);
     const st = verifyOAuthState(q.state);
-    const tok = await exchangeCode(q.code);
+    const tok = await exchangeCode(q.code, oauthRedirectUri(event));
     let account = '';
     if (tok.access_token) account = await detectAccount(st.provider, tok.access_token);
     // Only persist defined token fields (a re-consent may omit refresh_token).
@@ -208,15 +213,18 @@ async function notifyReply(ownerId, ticket, text) {
 }
 
 async function assistantReply(user, messages) {
-  const conns = user.integrations || {};
-  const context = Object.keys(conns).map((p) => integrationSummary(p, conns[p].account)).filter(Boolean).join('\n');
+  const context = await buildUserContext(user);
   const history = (messages || []).slice(-10).map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n');
   const userPrompt =
     "Reply ONLY with the assistant's next chat message. Hard rules: 2–4 short sentences max, " +
     'plain conversational text, NO markdown, NO headings, NO tables, NO bullet lists, NO preamble.\n\n' +
     'You are the in-app assistant for Digimetrics, a self-serve SEO + AI-content + AI-visibility ' +
-    'SaaS. Be helpful and brief. If you cannot resolve an issue, suggest opening a support ticket.\n\n' +
-    (context ? `The user's connected account data (use it to answer data questions):\n${context}\n\n` : '') +
+    'SaaS. Be helpful and brief. You can answer questions about the user\'s OWN account, plan, ' +
+    'credits/billing, projects (campaigns), tracked-keyword rankings, recent tool runs, and connected ' +
+    'integrations using the context below — quote the real numbers, don\'t invent. For billing changes ' +
+    '(upgrade, cancel, refunds) point them to the Pricing or Account page. If you cannot resolve an ' +
+    'issue, suggest opening a support ticket.\n\n' +
+    `Here is everything known about this user (their own data — safe to share with them):\n${context}\n\n` +
     `Conversation so far:\n${history}\n\nAssistant:`;
   const res = await fetch(UPSTREAMS.aiOptimiser, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -227,4 +235,65 @@ async function assistantReply(user, messages) {
   let raw; try { raw = JSON.parse(text); } catch { raw = text; }
   if (raw && typeof raw === 'object' && raw.body !== undefined) raw = typeof raw.body === 'string' ? JSON.parse(raw.body) : raw.body;
   return (typeof raw === 'string' ? raw : (raw.result || raw.text || raw.content || '')) || '(no reply)';
+}
+
+// Assemble a compact, factual snapshot of the user's account so the assistant
+// can answer "how many credits do I have / what's my plan / how is X ranking"
+// without inventing numbers. Everything here is the user's own data.
+async function buildUserContext(user) {
+  const fmtDate = (iso) => { try { return new Date(iso).toISOString().slice(0, 10); } catch { return '—'; } };
+  const plan = PLANS[user.tier] || PLANS.free;
+  const monthly = user.credits || 0;
+  const topup = user.topupCredits || 0;
+
+  // Pull the data-backed sections in parallel; degrade gracefully if a table
+  // is missing (e.g. the local harness) so chat never hard-fails.
+  const [projects, tracked, runs] = await Promise.all([
+    listProjects(user.userId).catch(() => []),
+    listTracked(user.userId).catch(() => []),
+    listRuns(user.userId, 6).catch(() => []),
+  ]);
+
+  const lines = [];
+  lines.push('ACCOUNT');
+  lines.push(`- Name: ${user.name || '—'} (${user.email || '—'})`);
+  lines.push(`- Plan: ${plan.name}${plan.priceMonthly ? ` (S$${plan.priceMonthly}/mo)` : ' (free)'}`);
+  lines.push(`- Member since: ${fmtDate(user.createdAt)}`);
+  if (isAdmin(user.email)) lines.push('- Role: admin');
+
+  lines.push('', 'CREDITS & BILLING');
+  lines.push(`- Balance: ${monthly + topup} credits (${monthly} monthly + ${topup} top-up)`);
+  lines.push(`- Monthly allowance: ${plan.monthlyCredits} credits/cycle (unused monthly credits expire; top-ups roll over)`);
+  if (user.periodEnd) lines.push(`- Plan renews / resets on: ${fmtDate(user.periodEnd)}`);
+  if (user.tier === 'free') lines.push('- On the free plan — upgrade on the Pricing page for more credits and features.');
+  lines.push('- Top-ups available from S$15 (300 credits) on the Account page; they never expire.');
+
+  const conns = user.integrations || {};
+  const intg = Object.keys(conns).map((p) => integrationSummary(p, conns[p].account)).filter(Boolean);
+  lines.push('', `INTEGRATIONS (${intg.length})`);
+  if (intg.length) for (const s of intg) lines.push(`- ${s}`);
+  else lines.push('- None connected. Connect Google Search Console / GA4 / Google Ads on the Integrations page.');
+
+  lines.push('', `PROJECTS / CAMPAIGNS (${projects.length} of ${plan.projects} allowed)`);
+  if (projects.length) for (const p of projects.slice(0, 15)) lines.push(`- ${p.name}${p.domain ? ` — ${p.domain}` : ''}`);
+  else lines.push('- No projects yet. Create one on the Projects page to group runs and tracked keywords.');
+
+  lines.push('', `TRACKED KEYWORDS (${tracked.length} of ${plan.trackedKeywords} allowed)`);
+  if (tracked.length) {
+    for (const t of tracked.slice(0, 20)) {
+      const h = t.history || [];
+      const pos = h.length ? h[h.length - 1].position : null;
+      lines.push(`- "${t.keyword}"${t.domain ? ` (${t.domain})` : ''}: ${pos ? `#${pos}` : 'not yet checked'}`);
+    }
+  } else if (plan.trackedKeywords === 0) {
+    lines.push('- Keyword tracking is a paid feature — available on Starter and above.');
+  } else {
+    lines.push('- None tracked yet. Add keywords on the Tracking page.');
+  }
+
+  lines.push('', 'RECENT TOOL RUNS');
+  if (runs.length) for (const r of runs) lines.push(`- ${r.toolName || r.tool || 'Tool'} — ${fmtDate(r.ts)}${r.creditsUsed ? ` (${r.creditsUsed} credits)` : ''}`);
+  else lines.push('- No tool runs yet.');
+
+  return lines.join('\n');
 }
