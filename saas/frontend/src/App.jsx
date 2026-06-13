@@ -8,6 +8,10 @@ import Account from './pages/Account.jsx';
 import Usage from './pages/Usage.jsx';
 import Admin from './pages/Admin.jsx';
 import ToolRunner from './pages/ToolRunner.jsx';
+import History from './pages/History.jsx';
+import Support from './pages/Support.jsx';
+import Integrations from './pages/Integrations.jsx';
+import ChatDrawer from './components/ChatDrawer.jsx';
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -32,9 +36,13 @@ export default function App() {
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/account" element={<Account />} />
         <Route path="/usage" element={<Usage />} />
+        <Route path="/history" element={<History />} />
+        <Route path="/support" element={<Support />} />
+        <Route path="/integrations" element={<Integrations />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <ChatDrawer />
     </Layout>
   );
 }

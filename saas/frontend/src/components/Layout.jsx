@@ -5,8 +5,11 @@ import { PLANS } from '@shared/catalog.mjs';
 
 const baseNav = [
   { to: '/', label: 'Tools', end: true },
+  { to: '/integrations', label: 'Integrations' },
+  { to: '/history', label: 'History' },
   { to: '/pricing', label: 'Pricing' },
   { to: '/usage', label: 'Usage' },
+  { to: '/support', label: 'Support' },
   { to: '/account', label: 'Account' },
 ];
 

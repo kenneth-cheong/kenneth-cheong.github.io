@@ -25,30 +25,100 @@ function claude(buildMessage) {
   };
 }
 
+// llms.txt has no agency Lambda (it's client-generated in the agency app), so we
+// keep the closest equivalent: a steered content_freeform generation.
 const PROMPTS = {
-  caption: (t, body) =>
-    `Write 3 scroll-stopping ${body?.platform || 'Instagram'} captions about: "${t}".\n` +
-    `Tone: ${body?.tone || 'Friendly'}. Vary the angle (hook-led, value-led, story-led). ` +
-    `Keep each under 60 words, add tasteful emojis and 3–5 relevant hashtags. Number 1–3, no preamble.`,
-  'llms-txt': (t) =>
+  'llms-txt': (t, body) =>
     `Generate a complete llms.txt file for the website/brand: "${t}". Follow the llms.txt spec ` +
-    `(# title, > summary blockquote, then sectioned markdown links). Output only the file contents.`,
-  pillars: (t) =>
-    `Create a content pillar framework for: "${t}". Give 3–4 pillars, each with 4–5 subtopics ` +
-    `and a content angle. Format as markdown.`,
-  'content-writer': (t) =>
-    `Write a focused, SEO-friendly web copy draft for: "${t}". Clear headings, a short intro, ` +
-    `2–3 scannable sections and a brief conclusion. Aim for ~450 words so it returns promptly.`,
+    `(# title, > summary blockquote, then sectioned markdown links). Output only the file contents.` +
+    (body?.summary ? `\nUse this summary for the blockquote: ${body.summary}` : '') +
+    (body?.highlights ? `\nSurface these key sections/highlights:\n${body.highlights}` : ''),
 };
+
 
 export const ADAPTERS = {
   // Prompt tools (Claude bridge)
   ...Object.fromEntries(Object.entries(PROMPTS).map(([id, fn]) => [id, claude(fn)])),
 
+  // ── Caption Generator → aiOptimiser action 'luxury_copy' ────────────────
+  // Mirrors the agency's _luxuryFields + buildLuxuryCopyPrompt() exactly.
+  caption: {
+    request(body) {
+      const list = (v) => parseList(v);
+      const fields = {
+        brandName: (body.brand || '').trim(),
+        postRole: (body.postRole || '').trim(),
+        strategyFit: (body.strategyFit || '').trim(),
+        coreMessage: (body.coreMessage || '').trim(),
+        subgroups: list(body.subgroups),
+        painpoints: list(body.painpoints),
+        audienceGoal: list(body.audienceGoal),
+        productService: (body.productService || '').trim(),
+        postInfo: (body.input || '').trim(),
+        desiredAction: (body.desiredAction || '').trim(),
+        usp: (body.usp || '').trim(),
+        constraints: (body.constraints || '').trim(),
+        pov: (body.pov || '').trim(),
+        tone: body.tone ? [String(body.tone).trim()] : [],
+        language: (body.language || 'English').trim(),
+        wordCount: (body.wordCount || '').trim(),
+        emojis: (body.emojis || 'Yes').toLowerCase(),
+        hashtags: (body.hashtags || 'Yes').toLowerCase(),
+        specificInstructions: (body.specificInstructions || '').trim(),
+      };
+      const labels = { Instagram: 'Instagram caption', Facebook: 'Facebook post', LinkedIn: 'LinkedIn post' };
+      const contentTypeLabel = labels[body.platform] || body.platform || 'Instagram caption';
+      return {
+        action: 'luxury_copy',
+        contentTypeLabel,
+        fields,
+        prompt: buildLuxuryPrompt(contentTypeLabel, fields),
+        previousCaptions: [],
+        sampleText: '',
+        brandGuideText: '',
+        webpageText: '',
+        variationIndex: 0,
+        settings: { temperature: 0.75 },
+      };
+    },
+    response: (raw) => ({ text: pickText(raw) }),
+  },
+
+  // AI Content Optimiser (content-writer) is a multi-agent composite handled in
+  // the gateway (contentOptimiserRun) — no single-call adapter here.
+
+  // ── Content Pillar Framework → contentPillar action 'pillar_framework' ──
+  pillars: {
+    request: (body) => ({
+      type: 'pillar_framework',
+      business_model: (body.businessModel || '').trim(),
+      objectives: body.objectives ? [String(body.objectives).trim()] : [],
+      audience_type: (body.audienceType || '').trim(),
+      decision_complexity: (body.complexity || '').trim(),
+      platforms: body.platforms ? [String(body.platforms).trim()] : [],
+      risk_sensitivity: (body.sensitivity || '').trim(),
+      promotional_tolerance: (body.promoTolerance || '').trim(),
+      reference_urls: {
+        website: (body.website || '').trim(),
+        brandGuide: (body.brandGuide || '').trim(),
+        competitors: (body.competitors || '').trim(),
+      },
+      additional_info: (body.input || '').trim(),
+    }),
+    response(raw) {
+      const d = unwrap(raw);
+      let answer = d.answer ?? d.result ?? (typeof d === 'string' ? d : '');
+      if (answer && typeof answer === 'object') {
+        answer = Array.isArray(answer) ? answer.map((b) => b?.text || '').join('') : (answer.text || '');
+      }
+      return { text: String(answer || '') };
+    },
+  },
+
   // ── Keyword Analysis → mangoolsKeywords ─────────────────────────────────
   'keyword-analysis': {
     request(body) {
-      return { keywords: parseList(body.input).slice(0, 25), location: body.location || 'SG', language: body.language || 'en' };
+      return { keywords: parseList(body.input).slice(0, 25), location: body.location || 'Singapore', language: body.language || 'English' };
     },
     response(raw) {
       const map = unwrap(raw);
@@ -81,20 +151,32 @@ export const ADAPTERS = {
 
   // ── Persona Generator → personaGenerator (returns HTML cards) ───────────
   persona: {
-    request: (body) => ({ data: (body.input || '').trim(), manual: '', existing_personas: [] }),
+    request: (body) => ({
+      data: (body.input || '').trim(),
+      manual: (body.manual || '').trim(),
+      existing_personas: [],
+      num_personas: Number(body.count) > 0 ? Number(body.count) : 10,
+    }),
     response: (raw) => ({ html: htmlOf(raw) }),
   },
 
   // ── Landing Page Audit → auditLandingPageDirect (returns HTML report) ───
   'landing-audit': {
-    request: (body) => ({ url: (body.input || '').trim(), keyword: null, use_ai: true }),
+    request: (body) => ({ url: (body.input || '').trim(), keyword: (body.keyword || '').trim() || null, use_ai: true }),
     response: (raw) => ({ html: htmlOf(raw) }),
   },
 
   // ── SEM Ad Copy → generateSemGoogle ─────────────────────────────────────
   // out: { body: { headlines: [...], descriptions: [...], sitelinks: [...] } }
   'sem-copy': {
-    request: (body) => ({ country: 'SG', input: (body.input || '').trim(), tone: (body.tone || 'professional').toLowerCase(), language: 'english', type: 'search' }),
+    request: (body) => ({
+      country: (body.country || 'Singapore').trim(),
+      input: (body.input || '').trim(),
+      tone: (body.tone || 'professional').toLowerCase(),
+      language: (body.language || 'English').trim().toLowerCase(),
+      type: SEM_FORMATS[body.format] || 'google-responsive-search-ads',
+      model: 'claude-haiku-4-5',
+    }),
     response(raw) {
       const groups = unwrap(raw);
       const text = Object.entries(groups)
@@ -109,8 +191,8 @@ export const ADAPTERS = {
     request: (body) => ({
       keyword: (body.input || '').trim(),
       target: (body.target || '').trim(),
-      language: 'en',
-      location: body.location || 'SG',
+      language: body.language || 'English',
+      location: body.location || 'Singapore',
     }),
     response(raw) {
       const pos = typeof raw === 'number' ? raw : (raw?.position ?? raw?.rank ?? unwrap(raw)?.position);
@@ -118,10 +200,16 @@ export const ADAPTERS = {
     },
   },
 
-  // ── Competitors → serpCompetitors (expects keywords[] + location) ───────
+  // ── Competitors → serpCompetitors (expects id, user, keywords[], location, language) ─
   // Request only; response shaping falls through to the gateway's normalize().
   competitors: {
-    request: (body) => ({ keywords: parseList(body.input), location: body.location || 'SG' }),
+    request: (body) => ({
+      id: 'comp_' + Date.now(),
+      user: body._email || 'saas-user',
+      keywords: parseList(body.input),
+      location: body.location || 'Singapore',
+      language: body.language || 'English',
+    }),
   },
 
   // ── Strategy Engine → strategy_generate (auto SEO action plan) ──────────
@@ -135,12 +223,12 @@ export const ADAPTERS = {
         clientProfile: (body.input || '').trim(),
         objectives: body.objective ? [body.objective] : [],
         targetAudience: (body.targetAudience || '').trim(),
-        marketContext: '',
+        marketContext: (body.marketContext || '').trim(),
         seedKeywords: (body.seedKeywords || '').trim(),
-        keywordInfluencers: '',
+        keywordInfluencers: (body.keywordInfluencers || '').trim(),
         domain: (body.domain || body.url || '').trim(),
-        location: body.location || 'SG',
-        language: 'English',
+        location: body.location || 'Singapore',
+        language: body.language || 'English',
       },
       discoveryData: [],
     }),
@@ -165,33 +253,95 @@ export const ADAPTERS = {
     },
   },
 
-  // ── Backlinks → ahrefsProxy (endpoint-routed) ───────────────────────────
-  backlinks: {
-    request: (body) => ({ endpoint: 'overview', params: { target: (body.input || '').trim() } }),
-    response(raw) {
-      const d = raw?.domain || raw || {};
-      return {
-        rows: [
-          { metric: 'Domain Rating', value: d.domain_rating ?? d.dr ?? '—' },
-          { metric: 'Referring Domains', value: fmt(d.referring_domains) },
-          { metric: 'Backlinks', value: fmt(d.backlinks ?? d.total_backlinks) },
-          { metric: 'Organic Traffic', value: fmt(d.traffic ?? d.organic_traffic) },
-          { metric: 'Organic Keywords', value: fmt(d.organic_keywords ?? d.keywords) },
-        ],
-      };
+  // Backlinks Explorer is a multi-action composite (summary + referring domains
+  // + anchors) handled in the gateway (backlinksRun), so it has no adapter here.
+
+  // ── Media Plan → mediaPlanGenerator (returns an HTML plan) ──────────────
+  // Upstream reads its own per-field keys; map the streamlined SaaS form onto
+  // the ones that meaningfully shape the plan and let the rest default server-side.
+  'media-plan': {
+    request: (body) => ({
+      webpagesInput: (body.input || '').trim(),
+      manualInput: (body.input || '').trim(),
+      budget: (body.budget || '').trim(),
+      mediaPlanLocation: (body.location || 'Singapore').trim(),
+      mediaPlanStartDate: (body.startDate || '').trim(),
+      mediaPlanEndDate: (body.endDate || '').trim(),
+      organisationalObjectives: (body.objectives || '').trim(),
+      adFormats: { googleSearch: true, performanceMax: true, googleDisplay: true, fbIg: true, linkedIn: true, tikTok: true },
+    }),
+    response: (raw) => ({ html: typeof raw === 'string' ? raw : (raw?.html || raw?.body || JSON.stringify(raw)) }),
+  },
+
+  // ── GEO On-Page Optimisation → geoOnPageAnalysis ────────────────────────
+  // upstream in: { url, prompts, brand, industry, audience, market }
+  'geo-onpage': {
+    request: (body) => ({
+      url: (body.input || body.url || '').trim(),
+      // Agency sends the raw newline-separated string; the Lambda splits it itself.
+      prompts: (body.prompts || '').trim(),
+      brand: (body.brand || '').trim(),
+      industry: (body.industry || '').trim(),
+      audience: (body.audience || '').trim(),
+      market: (body.market || 'Singapore').trim(),
+    }),
+    response: (raw) => {
+      const b = unwrap(raw);
+      if (typeof b === 'string') return { text: b };
+      return b.html ? { html: b.html } : { text: JSON.stringify(b, null, 2) };
     },
   },
 
-  // ── Media Plan → mediaPlanGenerator (returns an HTML plan) ──────────────
-  'media-plan': {
-    request: (body) => ({ data: (body.input || '').trim(), brief: (body.input || '').trim() }),
-    response: (raw) => ({ html: typeof raw === 'string' ? raw : (raw?.html || raw?.body || JSON.stringify(raw)) }),
-  },
+  // Content Checker (content-check) parses brand-guide PDFs + reference URLs
+  // before calling checkContent — handled in the gateway (contentCheckRun).
+};
+
+// SEM ad-format friendly label → generateSemGoogle `type` slug.
+const SEM_FORMATS = {
+  'Google Search': 'google-responsive-search-ads',
+  'Google Performance Max': 'google-performance-max-ads',
+  'Google Display': 'google-display-ads',
+  'Meta Image': 'meta-image-ads',
+  'Meta Carousel': 'meta-carousel-ads',
+  'LinkedIn Image': 'linkedin-image-ads',
 };
 
 // ── helpers ──────────────────────────────────────────────────────────────
 function parseList(s) {
   return String(s || '').split(/[\n,]+/).map((x) => x.trim()).filter(Boolean);
+}
+
+/** Verbatim replica of the agency's buildLuxuryCopyPrompt() (luxury_copy). */
+function buildLuxuryPrompt(contentTypeLabel, f) {
+  const parts = [];
+  parts.push(`Content Type: ${contentTypeLabel}`);
+  if (f.brandName) parts.push(`Brand: ${f.brandName}\nIMPORTANT: Always write the brand name exactly as "${f.brandName}" — preserve the exact capitalisation and spelling every time it appears.`);
+  if (f.coreMessage) parts.push(`Core Message: ${f.coreMessage}`);
+  if (f.postRole) parts.push(`Post Role/Objective: ${f.postRole}`);
+  if (f.strategyFit) parts.push(`Strategy Context: ${f.strategyFit}`);
+  if (Array.isArray(f.subgroups) && f.subgroups.length) parts.push(`Target Audiences: ${f.subgroups.join(', ')}`);
+  if (Array.isArray(f.painpoints) && f.painpoints.length) parts.push(`Audience Pain Points: ${f.painpoints.join(', ')}`);
+  if (Array.isArray(f.audienceGoal) && f.audienceGoal.length) parts.push(`Audience Goals: ${f.audienceGoal.join(', ')}`);
+  if (f.productService) parts.push(`Product/Service: ${f.productService}`);
+  if (f.postInfo) parts.push(`Content/Topic: ${f.postInfo}`);
+  if (f.desiredAction) parts.push(`Call-to-Action: ${f.desiredAction}`);
+  if (f.usp) parts.push(`Unique Selling Point: ${f.usp}`);
+  if (Array.isArray(f.tone) && f.tone.length) parts.push(`Tone of Voice: ${f.tone.join(', ')}`);
+  if (f.pov) parts.push(`Brand Point of View: ${f.pov}`);
+  if (f.constraints) parts.push(`Constraints/Mandatories: ${f.constraints}`);
+  if (f.specificInstructions) parts.push(`Special Instructions: ${f.specificInstructions}`);
+  if (f.wordCount) parts.push(`Word Count: ${f.wordCount}`);
+  if (f.language) parts.push(`Language: ${f.language}`);
+  if (f.emojis === 'yes') parts.push('Include emojis in the content');
+  if (f.hashtags === 'yes') parts.push('Include relevant hashtags');
+  return parts.join('\n');
+}
+
+/** aiOptimiser response → text, matching the agency's result/text/content order. */
+function pickText(raw) {
+  const d = unwrap(raw);
+  if (typeof d === 'string') return d;
+  return d.result || d.text || d.content || d.response || '';
 }
 
 /** Unwrap a `body` that may be a JSON string or an object. */
@@ -201,10 +351,6 @@ function unwrap(raw) {
     try { b = JSON.parse(b); } catch { return {}; }
   }
   return b || {};
-}
-
-function fmt(n) {
-  return n == null ? '—' : Number(n).toLocaleString();
 }
 
 /**

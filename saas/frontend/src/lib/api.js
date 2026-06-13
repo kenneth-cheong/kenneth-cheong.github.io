@@ -1,6 +1,7 @@
 // API client. Talks to the SAM backend in production; falls back to an
 // in-memory MOCK when VITE_MOCK=1 so the whole UI runs with no AWS at all.
-import { PLANS, TOOLS, CREDIT_COSTS, TOPUP_PACKS, topupById, tierMeets } from '@shared/catalog.mjs';
+import { PLANS, TOOLS, CREDIT_COSTS, TOPUP_PACKS, topupById, tierMeets, INTEGRATIONS } from '@shared/catalog.mjs';
+import { integrationResult, integrationSummary } from '@shared/connectors.mjs';
 
 const BASE = import.meta.env.VITE_API_BASE || '';
 // Lambda Function URL for slow (>30s) tools — bypasses the API Gateway 30s cap.
@@ -81,6 +82,15 @@ export const api = {
   checkout: (tier, interval) => call('/billing/checkout', { method: 'POST', body: { tier, interval } }),
   topup: (packId) => call('/billing/topup', { method: 'POST', body: { packId } }),
   portal: () => call('/billing/portal', { method: 'POST' }),
+  // In-app features: assistant chat, run history, support, integrations.
+  chat: (messages) => call('/chat', { method: 'POST', body: { messages } }),
+  runs: () => call('/me/runs'),
+  run: (runId) => call(`/me/runs/${encodeURIComponent(runId)}`),
+  tickets: () => call('/support/tickets'),
+  createTicket: (subject, message, email) => call('/support/tickets', { method: 'POST', body: { subject, message, email } }),
+  integrations: () => call('/integrations'),
+  connectIntegration: (provider, account, connected = true) =>
+    call('/integrations/connect', { method: 'POST', body: { provider, account, connected } }),
   // Admin
   adminUsers: () => call('/admin/users'),
   adminCredits: (userId, monthlyDelta, topupDelta, reason) =>
@@ -103,6 +113,8 @@ function mockState() {
     },
     usage: [],
     teasers: {},
+    runs: [],
+    tickets: [],
     // A few seeded users so the admin portal has rows to manage.
     adminUsers: [
       { userId: 'u_amy', email: 'amy@startup.sg', name: 'Amy Tan', tier: 'pro', monthlyCredits: 1450, topupCredits: 300, hasSubscription: true },
@@ -170,6 +182,44 @@ async function mock(path, { method, body }) {
     return { user: u ? withTotal(u) : null };
   }
 
+  // ── In-app features (mock) ────────────────────────────────────────────────
+  if (path === '/chat') {
+    const cost = CREDIT_COSTS.ai_chat ?? 2;
+    if (mockTotal(s.user) < cost) throw new ApiError(402, { error: 'insufficient_credits', creditsRemaining: mockTotal(s.user), creditsNeeded: cost, tier: s.user.tier, topUpAvailable: true });
+    const fromMonthly = Math.min(s.user.monthlyCredits || 0, cost);
+    s.user.monthlyCredits -= fromMonthly;
+    s.user.topupCredits = (s.user.topupCredits || 0) - (cost - fromMonthly);
+    s.usage.unshift({ ts: new Date().toISOString(), tool: 'chatbot', delta: -cost, balanceAfter: mockTotal(s.user) });
+    saveMock(s);
+    const last = (body.messages || []).slice(-1)[0]?.content || '';
+    const conns = s.user.integrations || {};
+    const ctx = Object.keys(conns).map((p) => integrationSummary(p, conns[p].account)).join(' ');
+    const reply = ctx
+      ? `Based on your connected data — ${ctx} Ask me to break any of it down further, or about any tool. (demo reply)`
+      : `Happy to help with "${last.slice(0, 60)}". Connect GSC/GA4/Google Ads under Integrations and I can answer questions about your own numbers too. (demo reply)`;
+    return { reply, creditsUsed: cost, creditsRemaining: mockTotal(s.user) };
+  }
+  if (path === '/me/runs') return { runs: s.runs.map(({ result, inputs, ...slim }) => slim) };
+  if (path.startsWith('/me/runs/')) {
+    const id = decodeURIComponent(path.split('/me/runs/')[1]);
+    const run = s.runs.find((r) => r.runId === id);
+    return run ? { run } : (() => { throw new ApiError(404, { error: 'Run not found' }); })();
+  }
+  if (path === '/support/tickets' && method === 'GET') return { tickets: s.tickets };
+  if (path === '/support/tickets' && method === 'POST') {
+    const ticket = { userId: 'mock', ticketId: new Date().toISOString(), id: 'TKT-' + Math.random().toString(36).slice(2, 8).toUpperCase(), email: body.email || s.user.email, subject: body.subject, message: body.message, status: 'open', ts: new Date().toISOString() };
+    s.tickets.unshift(ticket); saveMock(s);
+    return { ticket };
+  }
+  if (path === '/integrations' && method === 'GET') return { providers: INTEGRATIONS, connected: s.user.integrations || {} };
+  if (path === '/integrations/connect') {
+    s.user.integrations = { ...(s.user.integrations || {}) };
+    if (body.connected === false) delete s.user.integrations[body.provider];
+    else s.user.integrations[body.provider] = { connected: true, account: body.account || '', connectedAt: new Date().toISOString() };
+    saveMock(s);
+    return { connected: s.user.integrations };
+  }
+
   if (path.startsWith('/run/')) {
     const toolId = path.split('/').pop();
     const tool = TOOLS.find((t) => t.id === toolId);
@@ -200,8 +250,13 @@ async function mock(path, { method, body }) {
       s.user.topupCredits = (s.user.topupCredits || 0) - (cost - fromMonthly);
       s.usage.unshift({ ts: new Date().toISOString(), tool: tool.id, delta: -cost, balanceAfter: mockTotal(s.user) });
     }
+    // Persist the run so the History page can re-open it (mirrors the backend).
+    const runId = new Date().toISOString() + '#' + Math.random().toString(36).slice(2, 8);
+    const preview = result.text ? result.text.slice(0, 90) : Array.isArray(result.rows) ? `${result.rows.length} rows` : result.html ? 'report' : '';
+    s.runs.unshift({ runId, tool: tool.id, toolName: tool.name, ts: new Date().toISOString(), preview, creditsUsed: used, inputs: body, result });
+    s.runs = s.runs.slice(0, 200);
     saveMock(s);
-    return { tool: tool.id, teaser, result, creditsUsed: used, creditsRemaining: mockTotal(s.user) };
+    return { tool: tool.id, teaser, result, creditsUsed: used, creditsRemaining: mockTotal(s.user), runId };
   }
 
   throw new ApiError(404, { error: 'not found' });
@@ -209,6 +264,30 @@ async function mock(path, { method, body }) {
 
 function mockResult(tool, body, teaser, tier) {
   const subject = body?.input || body?.url || 'your brand';
+  // Integrations → the user's own connected Google data (or a connect prompt).
+  if (tool.integration) {
+    const conn = (mockState().user.integrations || {})[tool.integration];
+    if (!conn?.connected) return { needsConnect: tool.integration, text: `Connect your ${tool.name} account under Integrations to use this tool.` };
+    return integrationResult(tool.integration, { ...body, input: body.input || conn.account });
+  }
+  // Content Checker / AI Content Optimiser return HTML reports.
+  if (tool.id === 'content-check') {
+    return { html: `<div style="display:flex;gap:8px;margin-bottom:14px"><div style="border:1px solid #e2e8f0;border-radius:10px;padding:8px 12px"><div style="font-size:11px;color:#64748b">READABILITY</div><div style="font-size:18px;font-weight:700">84 · Easy</div></div><div style="border:1px solid #e2e8f0;border-radius:10px;padding:8px 12px"><div style="font-size:11px;color:#64748b">ISSUES</div><div style="font-size:18px;font-weight:700">2</div></div></div><h3 style="font-weight:700">Issues — 2</h3><div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:8px 0"><strong>grammar</strong> · <span style="color:#b91c1c;text-decoration:line-through">you're items</span> → <span style="color:#16a34a">your items</span></div><div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:8px 0"><strong>compliance</strong><p style="color:#475569;margin:6px 0">Avoid the superlative "cheapest".</p></div>` };
+  }
+  if (tool.id === 'content-writer') {
+    return { html: `<h3 style="font-weight:700">QA agent findings — 8 agents</h3>${['Branding Check', 'Legal & Compliance', 'Language & Readability', 'Length & Sufficiency', 'Formatting', 'Flow & Cohesion', 'FAQs', 'Schema Markup'].map((l) => `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:8px 0"><strong>${l}</strong> <span style="background:#eef2ff;color:#4f46e5;border-radius:999px;padding:1px 8px;font-size:11px">score 8</span><p style="color:#475569;margin:6px 0">In production this is the live agent analysis with concrete, applyable suggestions.</p></div>`).join('')}` };
+  }
+  if (tool.id === 'time-to-rank') {
+    const kws = String(body.input || 'keyword').split(/[\n,]+/).map((s) => s.trim()).filter(Boolean).slice(0, 6);
+    const times = ['0-3 months', '3-6 months', '6-9 months', '9-12 months'];
+    return { rows: kws.map((k, i) => ({ keyword: k, volume: 5400 - i * 600, difficulty: 18 + i * 12, cpc: `S$${(1.5 + i * 0.6).toFixed(2)}`, timeToRank: times[Math.min(i, 3)] })) };
+  }
+  if (tool.id === 'anchor-cleaner') {
+    return { html: `<h3 style="font-weight:700">Anchor audit — ${subject}</h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px"><div style="border:1px solid #e2e8f0;border-radius:10px;padding:8px 12px"><div style="font-size:11px;color:#64748b">HEALTH</div><div style="font-size:18px;font-weight:700">72/100</div></div><div style="border:1px solid #e2e8f0;border-radius:10px;padding:8px 12px"><div style="font-size:11px;color:#64748b">INTERNAL LINKS</div><div style="font-size:18px;font-weight:700">34</div></div><div style="border:1px solid #e2e8f0;border-radius:10px;padding:8px 12px"><div style="font-size:11px;color:#64748b">GENERIC</div><div style="font-size:18px;font-weight:700;color:#dc2626">5</div></div></div><h4 style="font-weight:700">Anchors to fix — 6 of 34</h4><p style="color:#475569">In production this lists each over-optimised, generic or broken internal anchor with a fix + priority.</p>` };
+  }
+  if (tool.id === 'perf-marketing') {
+    return { html: `<div style="border-left:3px solid #4f46e5;background:#f8fafc;padding:10px 14px;border-radius:0 8px 8px 0;margin-bottom:16px">For ${subject}, focus budget on high-intent search first, then layer Meta for retargeting. (sample)</div><h3 style="font-weight:700">Estimated budget range (SGD)</h3><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><div style="flex:1;min-width:120px;border:1px solid #e2e8f0;border-top:3px solid #16a34a;border-radius:10px;padding:10px"><div style="font-size:11px;color:#64748b">CONSERVATIVE</div><div style="font-size:18px;font-weight:700">S$3,000</div></div><div style="flex:1;min-width:120px;border:1px solid #e2e8f0;border-top:3px solid #2563eb;border-radius:10px;padding:10px"><div style="font-size:11px;color:#64748b">RECOMMENDED</div><div style="font-size:18px;font-weight:700">S$6,000</div></div><div style="flex:1;min-width:120px;border:1px solid #e2e8f0;border-top:3px solid #ea580c;border-radius:10px;padding:10px"><div style="font-size:11px;color:#64748b">AGGRESSIVE</div><div style="font-size:18px;font-weight:700">S$12,000</div></div></div><h3 style="font-weight:700">Recommended channel mix</h3><div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:8px 0"><strong>Google Search Ads</strong> <span style="background:#16a34a;color:#fff;border-radius:999px;padding:1px 8px;font-size:11px">High</span> — 60%</div><div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:8px 0"><strong>Meta Ads (Facebook/Instagram)</strong> <span style="background:#d97706;color:#fff;border-radius:999px;padding:1px 8px;font-size:11px">Medium</span> — 40%</div>` };
+  }
   // Tools whose real upstream returns ready HTML.
   if (tool.id === 'persona' || tool.id === 'landing-audit' || tool.id === 'media-plan') {
     if (teaser) return { teaserMessage: `Unlock the full ${tool.name} with Pro`, detailsLocked: true };

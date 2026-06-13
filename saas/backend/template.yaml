@@ -37,6 +37,8 @@ Globals:
       Variables:
         USERS_TABLE: !Ref UsersTable
         LEDGER_TABLE: !Ref LedgerTable
+        RUNS_TABLE: !Ref RunsTable
+        TICKETS_TABLE: !Ref TicketsTable
         APP_ORIGIN: !Ref AppOrigin
         JWT_SECRET: !Ref JwtSecret
 
@@ -67,6 +69,30 @@ Resources:
       KeySchema:
         - { AttributeName: userId, KeyType: HASH }
         - { AttributeName: ts, KeyType: RANGE }
+
+  # Saved tool runs (re-openable history). SK is time-first so newest sorts top.
+  RunsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: userId, AttributeType: S }
+        - { AttributeName: runId, AttributeType: S }
+      KeySchema:
+        - { AttributeName: userId, KeyType: HASH }
+        - { AttributeName: runId, KeyType: RANGE }
+
+  # Support tickets.
+  TicketsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: userId, AttributeType: S }
+        - { AttributeName: ticketId, AttributeType: S }
+      KeySchema:
+        - { AttributeName: userId, KeyType: HASH }
+        - { AttributeName: ticketId, KeyType: RANGE }
 
   # ── HTTP API + JWT (Lambda) authorizer ──────────────────────────────────
   Api:
@@ -152,6 +178,7 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref RunsTable }
       # Function URL bypasses API Gateway's hard 30s integration limit for
       # long-running tools (strategy engine, persona, forensic audit). JWT is
       # verified inside the handler; CORS is handled by the handler too.
@@ -191,6 +218,27 @@ Resources:
         Topup: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/topup, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Portal: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/portal, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Webhook: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/webhook, Method: POST } }
+
+  # ── In-app features (authed): chat, support, run history, integrations ──
+  AppFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .build/app/
+      Handler: index.handler
+      Timeout: 60
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref RunsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref TicketsTable }
+      Events:
+        Chat: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /chat, Method: POST, TimeoutInMillis: 60000, Auth: { Authorizer: JwtAuthorizer } } }
+        Runs: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/runs, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        Run: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/me/runs/{runId}', Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        TicketsList: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /support/tickets, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        TicketCreate: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /support/tickets, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        Integrations: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /integrations, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        IntegrationConnect: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /integrations/connect, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
 
   # ── Admin portal API (authed + ADMIN_EMAILS allowlist) ──────────────────
   AdminFn:

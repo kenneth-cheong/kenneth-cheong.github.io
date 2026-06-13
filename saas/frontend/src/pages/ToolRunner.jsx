@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { toolById, inputsFor, CREDIT_COSTS, PLANS, tierMeets } from '@shared/catalog.mjs';
 import { api, ApiError } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -9,13 +9,16 @@ export default function ToolRunner() {
   const { toolId } = useParams();
   const { user, setCredits } = useAuth();
   const tool = toolById(toolId);
+  const location = useLocation();
   const fields = useMemo(() => (tool ? inputsFor(tool) : []), [tool]);
-  // Seed form state with each field's default.
+  // Seed form state with each field's default, or with a re-opened run's inputs.
+  const seeded = location.state?.values;
   const [values, setValues] = useState(() =>
-    Object.fromEntries(fields.map((f) => [f.name, f.default || '']))
+    Object.fromEntries(fields.map((f) => [f.name, seeded?.[f.name] ?? f.default ?? '']))
   );
   const [busy, setBusy] = useState(false);
-  const [out, setOut] = useState(null);
+  // A run re-opened from History arrives with its saved result already attached.
+  const [out, setOut] = useState(location.state?.result ? { result: location.state.result } : null);
   const [modal, setModal] = useState(null);
 
   if (!tool) return <p>Unknown tool.</p>;
@@ -193,6 +196,16 @@ function Field({ field, value, onChange }) {
 function Result({ out, tool }) {
   if (out.error) return <p className="mt-6 text-red-600">⚠ {out.error}</p>;
   const r = out.result || {};
+
+  // Integration tools return a connect prompt until the provider is linked.
+  if (r.needsConnect) {
+    return (
+      <div className="mt-6 card p-6 text-center">
+        <p className="text-slate-600">{r.text || 'Connect your account to use this tool.'}</p>
+        <Link to="/integrations" className="btn-primary mt-3 inline-block">Connect in Integrations →</Link>
+      </div>
+    );
+  }
 
   return (
     <div className="mt-6">

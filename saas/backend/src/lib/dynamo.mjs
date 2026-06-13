@@ -16,6 +16,8 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
 export const TABLES = {
   users: process.env.USERS_TABLE,
   ledger: process.env.LEDGER_TABLE,
+  runs: process.env.RUNS_TABLE,
+  tickets: process.env.TICKETS_TABLE,
 };
 
 export async function getUser(userId) {
@@ -187,6 +189,74 @@ export async function listLedger(userId, limit = 100) {
     })
   );
   return Items || [];
+}
+
+// ── Run history ──────────────────────────────────────────────────────────────
+// One row per tool run so users can re-open past results. Sort key is time-first
+// so a query (ScanIndexForward:false) returns newest first. Results can be large
+// (HTML reports), so the list view reads a slim projection.
+export async function saveRun({ userId, tool, toolName, inputs, result, creditsUsed = 0 }) {
+  const ts = new Date().toISOString();
+  const runId = `${ts}#${Math.random().toString(36).slice(2, 8)}`;
+  const preview = result?.text ? result.text.slice(0, 90)
+    : Array.isArray(result?.rows) ? `${result.rows.length} rows`
+    : result?.html ? 'report' : '';
+  await ddb.send(new PutCommand({
+    TableName: TABLES.runs,
+    Item: { userId, runId, tool, toolName: toolName || tool, inputs: inputs || {}, result: result || {}, preview, creditsUsed, ts },
+  }));
+  return { runId, ts };
+}
+
+export async function listRuns(userId, limit = 100) {
+  const { Items } = await ddb.send(new QueryCommand({
+    TableName: TABLES.runs,
+    KeyConditionExpression: 'userId = :u',
+    ExpressionAttributeValues: { ':u': userId },
+    // Slim projection for the list — omit the full `result` + `inputs` payloads.
+    ProjectionExpression: 'userId, runId, tool, toolName, preview, creditsUsed, ts',
+    ScanIndexForward: false,
+    Limit: limit,
+  }));
+  return Items || [];
+}
+
+export async function getRun(userId, runId) {
+  const { Item } = await ddb.send(new GetCommand({ TableName: TABLES.runs, Key: { userId, runId } }));
+  return Item || null;
+}
+
+// ── Support tickets ──────────────────────────────────────────────────────────
+export async function createTicket({ userId, email, subject, message }) {
+  const ts = new Date().toISOString();
+  const ticketId = `${ts}#${Math.random().toString(36).slice(2, 8)}`;
+  const item = { userId, ticketId, id: 'TKT-' + Math.random().toString(36).slice(2, 8).toUpperCase(), email: email || '', subject, message, status: 'open', ts };
+  await ddb.send(new PutCommand({ TableName: TABLES.tickets, Item: item }));
+  return item;
+}
+
+export async function listTickets(userId, limit = 100) {
+  const { Items } = await ddb.send(new QueryCommand({
+    TableName: TABLES.tickets,
+    KeyConditionExpression: 'userId = :u',
+    ExpressionAttributeValues: { ':u': userId },
+    ScanIndexForward: false,
+    Limit: limit,
+  }));
+  return Items || [];
+}
+
+// ── Integrations connection state (stored on the user record) ────────────────
+// In production `connect` completes the Google OAuth handshake and stores the
+// refresh token; here we record the connected account id the user supplies.
+export async function setIntegration({ userId, provider, account, connected }) {
+  const user = await getUser(userId);
+  if (!user) throw new Error('User not found');
+  const integrations = { ...(user.integrations || {}) };
+  if (connected === false) delete integrations[provider];
+  else integrations[provider] = { connected: true, account: account || '', connectedAt: new Date().toISOString() };
+  await putUser({ ...user, integrations, updatedAt: new Date().toISOString() });
+  return integrations;
 }
 
 export { ddb };

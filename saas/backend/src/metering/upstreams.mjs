@@ -15,7 +15,21 @@ export const UPSTREAMS = {
   serpCompetitors: 'https://itzj193chl.execute-api.ap-southeast-1.amazonaws.com/serpCompetitors',
   ahrefsProxy: 'https://b8cyd5ed90.execute-api.ap-southeast-1.amazonaws.com/new',
   checkContent: 'https://mmyvj7yj11.execute-api.ap-southeast-1.amazonaws.com/checkContent',
+  // Content Pillar Framework uses its own Lambda (action 'pillar_framework').
+  contentPillar: 'https://j4aca9hcmh.execute-api.ap-southeast-1.amazonaws.com/contentPillar',
+  // Content Checker pre-parsers: brand-guide PDFs + reference-URL pages.
+  pdfParser: 'https://i3oxhgicub.execute-api.ap-southeast-1.amazonaws.com/pdfParser',
+  contentParsing: 'https://0i0g9xfy63.execute-api.ap-southeast-1.amazonaws.com/contentParsing',
+  // Time to Rank: live SERP + LLM time-to-rank recommendation.
+  serpLite: 'https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite',
+  kwRecommendations: 'https://pkbguam62a.execute-api.ap-southeast-1.amazonaws.com/kwRecommendationsStructured',
+  // Anchor Text Cleaner: raw page HTML fetch.
+  getHtml: 'https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml',
+  // Performance Marketing Audit: paid-media opportunity analysis.
+  performanceMarketing: 'https://4gupr9vio3.execute-api.ap-southeast-1.amazonaws.com',
   aiMentions: 'https://y0ypcivaz1.execute-api.ap-southeast-1.amazonaws.com/aiMentions',
+  // Domain → ranking-keyword map, used to seed AI-visibility discovery prompts.
+  keywordsForSite: 'https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite',
   geoOnPageAnalysis: 'https://fhan3l5vta.execute-api.ap-southeast-1.amazonaws.com/geoOnPageAnalysis',
   personaGenerator: 'https://tyqj3fni7h.execute-api.ap-southeast-1.amazonaws.com/personaGenerator',
   mediaPlanGenerator: 'https://h8ih2vc2xi.execute-api.ap-southeast-1.amazonaws.com/mediaPlanGenerator',
