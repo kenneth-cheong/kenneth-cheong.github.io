@@ -186,16 +186,24 @@ async function oauthCallback(event) {
     if (q.error) throw new Error(q.error);
     const st = verifyOAuthState(q.state);
     const tok = await exchangeCode(q.code, oauthRedirectUri(event));
-    let account = '';
-    if (tok.access_token) account = await detectAccount(st.provider, tok.access_token);
     // Only persist defined token fields (a re-consent may omit refresh_token).
     const tokens = {};
     if (tok.refresh_token) tokens.refreshToken = tok.refresh_token;
     if (tok.access_token) tokens.accessToken = tok.access_token;
     if (tok.expires_in) tokens.expiresAt = Date.now() + Number(tok.expires_in) * 1000;
     if (tok.scope) tokens.scope = tok.scope;
-    await setIntegration({ userId: st.sub, provider: st.provider, account, connected: true, tokens });
-    return redirect(`${APP_ORIGIN}/integrations?connected=${st.provider}`);
+
+    // One Google consent grants the GSC + GA4 + Ads scopes, so connect all three
+    // at once. Preserve any property/account the user already picked; only auto-
+    // pick a default for a source that doesn't have one yet. Each source keeps
+    // its own account, so they can point at different properties/accounts.
+    const existing = (await getUser(st.sub))?.integrations || {};
+    for (const provider of ['gsc', 'ga4', 'google-ads']) {
+      let account = existing[provider]?.account || '';
+      if (!account && tok.access_token) account = await detectAccount(provider, tok.access_token);
+      await setIntegration({ userId: st.sub, provider, account, connected: true, tokens });
+    }
+    return redirect(`${APP_ORIGIN}/integrations?connected=google`);
   } catch (e) {
     console.error('oauth_callback_error', e.message);
     return redirect(`${APP_ORIGIN}/integrations?error=oauth`);
