@@ -7,6 +7,7 @@ import { useProjects } from '../context/ProjectContext.jsx';
 import UpgradeModal from '../components/UpgradeModal.jsx';
 import ResultSections from '../components/ResultSections.jsx';
 import SchemaResult from '../components/SchemaResult.jsx';
+import SortableTable from '../components/SortableTable.jsx';
 import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
 import { startToolTour, hasSeen, markSeen } from '../lib/tours.js';
 import { Lock, Compass, Sparkles, AlertTriangle } from 'lucide-react';
@@ -347,44 +348,12 @@ function ResultBtn({ children, onClick }) {
 
 // Sortable table with per-column formatting + badges.
 function ResultTable({ rows }) {
-  const cols = Object.keys(rows[0] || {});
-  const [sort, setSort] = useState({ col: null, dir: 1 });
-  const numericCol = (c) => rows.every((r) => r[c] === '' || r[c] == null || /^[\d.,$%\sSA-]+$/.test(String(r[c])) === false ? false : !Number.isNaN(parseFloat(String(r[c]).replace(/[^0-9.-]/g, ''))));
-
-  const sorted = useMemo(() => {
-    if (!sort.col) return rows;
-    const num = numericCol(sort.col);
-    return [...rows].sort((a, b) => {
-      const av = a[sort.col], bv = b[sort.col];
-      const cmp = num ? (parseFloat(String(av).replace(/[^0-9.-]/g, '')) || 0) - (parseFloat(String(bv).replace(/[^0-9.-]/g, '')) || 0) : String(av).localeCompare(String(bv));
-      return cmp * sort.dir;
-    });
-  }, [rows, sort]);
-
-  const onSort = (c) => setSort((s) => ({ col: c, dir: s.col === c ? -s.dir : 1 }));
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm">
-        <thead className="text-slate-400">
-          <tr>
-            {cols.map((c) => (
-              <th key={c} onClick={() => onSort(c)} className="cursor-pointer select-none pb-2 pr-4 capitalize hover:text-slate-600">
-                {c}{sort.col === c && <span> {sort.dir > 0 ? '▲' : '▼'}</span>}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((row, i) => (
-            <tr key={i} className={`border-t border-slate-100 ${i % 2 ? 'bg-slate-50/50' : ''}`}>
-              {cols.map((c) => <td key={c} className="py-1.5 pr-4">{cell(c, row[c])}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  const columns = Object.keys(rows[0] || {}).map((c) => ({
+    key: c,
+    label: c, // upstream keys are already cased (e.g. "CPC") — don't humanise
+    render: (row) => cell(c, row[c]),
+  }));
+  return <SortableTable columns={columns} rows={rows} />;
 }
 
 const TONE = { red: 'bg-red-100 text-red-700', amber: 'bg-amber-100 text-amber-700', green: 'bg-green-100 text-green-700', blue: 'bg-blue-100 text-blue-700', slate: 'bg-slate-100 text-slate-600' };

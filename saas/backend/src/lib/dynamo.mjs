@@ -324,16 +324,22 @@ export async function listNotifications(userId, limit = 50) {
 }
 
 export async function markNotificationsRead(userId) {
+  // `read` is a DynamoDB reserved word — it MUST be aliased via
+  // ExpressionAttributeNames in both the filter and the update, otherwise the
+  // service rejects the request with a 400 ValidationException.
   const { Items } = await ddb.send(new QueryCommand({
     TableName: TABLES.notifications,
     KeyConditionExpression: 'userId = :u',
-    FilterExpression: 'read = :f',
+    FilterExpression: '#read = :f',
+    ExpressionAttributeNames: { '#read': 'read' },
     ExpressionAttributeValues: { ':u': userId, ':f': false },
     Limit: 100,
   }));
   await Promise.all((Items || []).map((n) => ddb.send(new UpdateCommand({
     TableName: TABLES.notifications, Key: { userId, notifId: n.notifId },
-    UpdateExpression: 'SET read = :t', ExpressionAttributeValues: { ':t': true },
+    UpdateExpression: 'SET #read = :t',
+    ExpressionAttributeNames: { '#read': 'read' },
+    ExpressionAttributeValues: { ':t': true },
   }))));
   return (Items || []).length;
 }

@@ -54,3 +54,14 @@ customHeaders:
           base-uri 'self';
           form-action 'self' https://accounts.google.com;
           object-src 'none'
+      # index.html (served at every SPA route) must revalidate so a redeploy's
+      # new chunk hashes are picked up — a cached HTML pointing at deleted
+      # /assets/*.js chunks causes "failed to fetch module" → blank page.
+      - key: 'Cache-Control'
+        value: 'no-cache'
+  # Hashed build assets are content-addressed — safe to cache forever (overrides
+  # the no-cache above for /assets/* only).
+  - pattern: '/assets/**'
+    headers:
+      - key: 'Cache-Control'
+        value: 'public, max-age=31536000, immutable'

@@ -1,5 +1,6 @@
 import LineChart from './LineChart.jsx';
 import TrendChart from './TrendChart.jsx';
+import SortableTable from './SortableTable.jsx';
 import { copyText, toast } from '../lib/ui.js';
 
 // Themed renderer for the structured `sections` result format. Replaces the
@@ -93,16 +94,6 @@ function CodeBlock({ title, filename, content }) {
 }
 
 function Table({ columns, rows }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm">
-        <thead className="text-slate-400"><tr>{columns.map((c) => <th key={c} className="pb-2 pr-4 capitalize">{c}</th>)}</tr></thead>
-        <tbody>{rows.map((r, i) => (
-          <tr key={i} className={`border-t border-slate-100 ${i % 2 ? 'bg-slate-50/50' : ''}`}>
-            {columns.map((c) => <td key={c} className="py-1.5 pr-4">{String(r[c] ?? '—')}</td>)}
-          </tr>))}
-        </tbody>
-      </table>
-    </div>
-  );
+  const cols = columns.map((c) => ({ key: c, label: c, render: (r) => String(r[c] ?? '—') }));
+  return <SortableTable columns={cols} rows={rows} />;
 }

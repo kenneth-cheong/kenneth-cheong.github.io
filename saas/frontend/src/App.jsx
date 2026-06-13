@@ -7,16 +7,38 @@ import Dashboard from './pages/Dashboard.jsx';
 
 // Route-level code-splitting — keeps the initial bundle small; heavier pages
 // (tool runner, reports, admin) load on demand.
-const ToolRunner = lazy(() => import('./pages/ToolRunner.jsx'));
-const Pricing = lazy(() => import('./pages/Pricing.jsx'));
-const Account = lazy(() => import('./pages/Account.jsx'));
-const Usage = lazy(() => import('./pages/Usage.jsx'));
-const Admin = lazy(() => import('./pages/Admin.jsx'));
-const History = lazy(() => import('./pages/History.jsx'));
-const Support = lazy(() => import('./pages/Support.jsx'));
-const Integrations = lazy(() => import('./pages/Integrations.jsx'));
-const Projects = lazy(() => import('./pages/Projects.jsx'));
-const Tracking = lazy(() => import('./pages/Tracking.jsx'));
+//
+// After a redeploy, hashed chunk filenames change. A user holding a stale
+// index.html requests an old chunk that no longer exists → the dynamic import
+// rejects ("Failed to fetch dynamically imported module") and the route renders
+// blank. lazyWithReload catches that and force-reloads ONCE to pull the fresh
+// index.html + chunk names (guarded against a reload loop via sessionStorage).
+function lazyWithReload(factory) {
+  const KEY = 'dm_chunk_reloaded';
+  return lazy(() =>
+    factory()
+      .then((m) => { sessionStorage.removeItem(KEY); return m; })
+      .catch((err) => {
+        if (!sessionStorage.getItem(KEY)) {
+          sessionStorage.setItem(KEY, '1');
+          window.location.reload();
+          return new Promise(() => {}); // never resolves — the page is reloading
+        }
+        throw err; // already reloaded once; surface the real error
+      })
+  );
+}
+
+const ToolRunner = lazyWithReload(() => import('./pages/ToolRunner.jsx'));
+const Pricing = lazyWithReload(() => import('./pages/Pricing.jsx'));
+const Account = lazyWithReload(() => import('./pages/Account.jsx'));
+const Usage = lazyWithReload(() => import('./pages/Usage.jsx'));
+const Admin = lazyWithReload(() => import('./pages/Admin.jsx'));
+const History = lazyWithReload(() => import('./pages/History.jsx'));
+const Support = lazyWithReload(() => import('./pages/Support.jsx'));
+const Integrations = lazyWithReload(() => import('./pages/Integrations.jsx'));
+const Projects = lazyWithReload(() => import('./pages/Projects.jsx'));
+const Tracking = lazyWithReload(() => import('./pages/Tracking.jsx'));
 
 const Loading = () => <div className="grid min-h-[40vh] place-items-center text-slate-400">Loading…</div>;
 

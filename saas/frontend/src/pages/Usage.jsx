@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { toolById, PLANS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
+import SortableTable from '../components/SortableTable.jsx';
 
 export default function Usage() {
   const { user } = useAuth();
@@ -24,24 +25,20 @@ export default function Usage() {
       </div>
 
       <div className="card mt-6 overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-500">
-            <tr><th className="px-4 py-2">When</th><th className="px-4 py-2">Tool</th><th className="px-4 py-2 text-right">Credits</th><th className="px-4 py-2 text-right">Balance</th></tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">No usage yet — run a tool to see it here.</td></tr>
-            )}
-            {rows.map((r, i) => (
-              <tr key={i} className="border-t border-slate-100">
-                <td className="px-4 py-2 text-slate-500">{fmtWhen(r)}</td>
-                <td className="px-4 py-2">{toolById(r.tool)?.name || r.tool}</td>
-                <td className="px-4 py-2 text-right font-medium text-red-500">{r.delta}</td>
-                <td className="px-4 py-2 text-right text-slate-500">{r.balanceAfter}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <SortableTable
+          rows={rows}
+          emptyText="No usage yet — run a tool to see it here."
+          columns={[
+            { key: 'when', label: 'When', accessor: (r) => r.at || String(r.ts || '').split('#')[0],
+              render: (r) => <span className="text-slate-500">{fmtWhen(r)}</span> },
+            { key: 'tool', label: 'Tool', accessor: (r) => toolById(r.tool)?.name || r.tool,
+              render: (r) => toolById(r.tool)?.name || r.tool },
+            { key: 'delta', label: 'Credits', align: 'right', numeric: true,
+              render: (r) => <span className="font-medium text-red-500">{r.delta}</span> },
+            { key: 'balanceAfter', label: 'Balance', align: 'right', numeric: true,
+              render: (r) => <span className="text-slate-500">{r.balanceAfter}</span> },
+          ]}
+        />
       </div>
     </div>
   );
