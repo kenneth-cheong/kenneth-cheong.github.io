@@ -25,8 +25,12 @@ export default function ToolRunner() {
   const unlocked = tierMeets(user.tier, tool.minTier);
   const cost = CREDIT_COSTS[tool.cost] ?? 0;
   const set = (name, v) => setValues((s) => ({ ...s, [name]: v }));
-  // Every required field must be filled before the run button enables.
-  const ready = fields.every((f) => !f.required || String(values[f.name] || '').trim());
+  // A field with `showWhen` only renders when another field has a matching value
+  // (e.g. schema type-specific fields, keyword-analysis mode-specific fields).
+  const isVisible = (f) => !f.showWhen || (f.showWhen.in || []).includes(values[f.showWhen.field]);
+  const shown = fields.filter(isVisible);
+  // Every visible required field must be filled before the run button enables.
+  const ready = shown.every((f) => !f.required || String(values[f.name] || '').trim());
 
   async function run() {
     setBusy(true);
@@ -68,7 +72,7 @@ export default function ToolRunner() {
 
       <div className="card mt-6 p-5">
         <div className="space-y-4">
-          {fields.map((f) => (
+          {shown.map((f) => (
             <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} />
           ))}
         </div>

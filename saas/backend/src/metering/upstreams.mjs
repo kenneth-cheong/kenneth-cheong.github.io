@@ -9,6 +9,9 @@ export const UPSTREAMS = {
   claudeBridge: 'https://2zsxqwth46.execute-api.ap-southeast-1.amazonaws.com/claude',
   aiOptimiser: 'https://0oes56fj4l.execute-api.ap-southeast-1.amazonaws.com/aiOptimiser',
   mangoolsKeywords: 'https://gr8ar6zc4e.execute-api.ap-southeast-1.amazonaws.com/mangoolsKeywords',
+  // Keyword Analysis modes: seed-based suggestions + a domain's ranking keywords.
+  similarKeywords: 'https://lgvdhcs4t2.execute-api.ap-southeast-1.amazonaws.com/similarKeywords',
+  rankingKeywords: 'https://0dqny7l5y9.execute-api.ap-southeast-1.amazonaws.com/rankingKeywords',
   rankChecker: 'https://v5bizygr4m.execute-api.ap-southeast-1.amazonaws.com/rankChecker',
   dataforseoCrawler: 'https://ak9qsl9wgi.execute-api.ap-southeast-1.amazonaws.com/dataforseoCrawler',
   onPageContentRecommendations: 'https://pkkz2e02ch.execute-api.ap-southeast-1.amazonaws.com/onPageContentRecommendations',

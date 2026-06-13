@@ -34,7 +34,7 @@ export default function Usage() {
             )}
             {rows.map((r, i) => (
               <tr key={i} className="border-t border-slate-100">
-                <td className="px-4 py-2 text-slate-500">{new Date(r.ts).toLocaleString()}</td>
+                <td className="px-4 py-2 text-slate-500">{fmtWhen(r)}</td>
                 <td className="px-4 py-2">{toolById(r.tool)?.name || r.tool}</td>
                 <td className="px-4 py-2 text-right font-medium text-red-500">{r.delta}</td>
                 <td className="px-4 py-2 text-right text-slate-500">{r.balanceAfter}</td>
@@ -45,6 +45,14 @@ export default function Usage() {
       </div>
     </div>
   );
+}
+
+// Ledger sort keys look like "2026-06-13T..#1#schema"; prefer the clean `at`,
+// else take the ISO prefix before the first '#'.
+function fmtWhen(r) {
+  const iso = r.at || String(r.ts || '').split('#')[0];
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
 }
 
 function Stat({ label, value }) {

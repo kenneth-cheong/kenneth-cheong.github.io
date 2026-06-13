@@ -23,3 +23,14 @@ export function signRefresh(user) {
 export function verify(token) {
   return jwt.verify(token, SECRET, { issuer: 'digimetrics-saas' });
 }
+
+// Short-lived signed state for the Google OAuth round-trip (ties the public
+// callback back to the user who started it).
+export function signOAuthState(userId, provider) {
+  return jwt.sign({ sub: userId, provider, typ: 'oauth' }, SECRET, { expiresIn: '15m', issuer: 'digimetrics-saas' });
+}
+export function verifyOAuthState(token) {
+  const t = jwt.verify(token, SECRET, { issuer: 'digimetrics-saas' });
+  if (t.typ !== 'oauth') throw new Error('bad oauth state');
+  return t;
+}

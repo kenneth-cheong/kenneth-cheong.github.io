@@ -18,7 +18,10 @@ export const TABLES = {
   ledger: process.env.LEDGER_TABLE,
   runs: process.env.RUNS_TABLE,
   tickets: process.env.TICKETS_TABLE,
+  notifications: process.env.NOTIFICATIONS_TABLE,
 };
+
+const rid = () => Math.random().toString(36).slice(2, 8);
 
 export async function getUser(userId) {
   const { Item } = await ddb.send(
@@ -63,7 +66,9 @@ async function writeLedger({ userId, delta, balanceAfter, action, tool, meta = {
       TableName: TABLES.ledger,
       Item: {
         userId,
+        // Sort key is time-first + disambiguated; `at` is the clean ISO for display.
         ts: `${now}#${Math.abs(delta)}#${tool || action}`,
+        at: now,
         action,
         tool: tool || null,
         delta,
@@ -226,18 +231,85 @@ export async function getRun(userId, runId) {
   return Item || null;
 }
 
-// ── Support tickets ──────────────────────────────────────────────────────────
-export async function createTicket({ userId, email, subject, message }) {
+// ── Support tickets (threaded) ───────────────────────────────────────────────
+export async function createTicket({ userId, userEmail, additionalEmails = [], subject, message, attachments = [] }) {
   const ts = new Date().toISOString();
-  const ticketId = `${ts}#${Math.random().toString(36).slice(2, 8)}`;
-  const item = { userId, ticketId, id: 'TKT-' + Math.random().toString(36).slice(2, 8).toUpperCase(), email: email || '', subject, message, status: 'open', ts };
+  const ticketId = `${ts}#${rid()}`;
+  const item = {
+    userId, ticketId, id: 'TKT-' + rid().toUpperCase(),
+    userEmail: userEmail || '', additionalEmails,
+    subject, status: 'open', ts, lastActivityAt: ts,
+    messages: [{ id: 'm_' + rid(), author: 'user', authorEmail: userEmail || '', body: message, attachments, ts }],
+  };
   await ddb.send(new PutCommand({ TableName: TABLES.tickets, Item: item }));
   return item;
+}
+
+export async function getTicket(userId, ticketId) {
+  const { Item } = await ddb.send(new GetCommand({ TableName: TABLES.tickets, Key: { userId, ticketId } }));
+  return Item || null;
+}
+
+export async function addTicketMessage({ userId, ticketId, author, authorEmail, body, attachments = [], status }) {
+  const t = await getTicket(userId, ticketId);
+  if (!t) throw new Error('Ticket not found');
+  const msg = { id: 'm_' + rid(), author, authorEmail: authorEmail || '', body, attachments, ts: new Date().toISOString() };
+  const messages = [...(t.messages || []), msg];
+  const newStatus = status || (author === 'user' ? 'open' : 'answered');
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.tickets, Key: { userId, ticketId },
+    UpdateExpression: 'SET messages = :m, lastActivityAt = :la, #s = :st',
+    ExpressionAttributeNames: { '#s': 'status' },
+    ExpressionAttributeValues: { ':m': messages, ':la': msg.ts, ':st': newStatus },
+  }));
+  return { ticket: { ...t, messages, status: newStatus, lastActivityAt: msg.ts }, message: msg };
+}
+
+export async function setTicketStatus(userId, ticketId, status) {
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.tickets, Key: { userId, ticketId },
+    UpdateExpression: 'SET #s = :st, lastActivityAt = :la',
+    ExpressionAttributeNames: { '#s': 'status' },
+    ExpressionAttributeValues: { ':st': status, ':la': new Date().toISOString() },
+  }));
 }
 
 export async function listTickets(userId, limit = 100) {
   const { Items } = await ddb.send(new QueryCommand({
     TableName: TABLES.tickets,
+    KeyConditionExpression: 'userId = :u',
+    ExpressionAttributeValues: { ':u': userId },
+    ProjectionExpression: 'userId, ticketId, id, subject, #s, ts, lastActivityAt',
+    ExpressionAttributeNames: { '#s': 'status' },
+    ScanIndexForward: false,
+    Limit: limit,
+  }));
+  return Items || [];
+}
+
+/** All non-closed tickets (scan) — used by the inactivity auto-close job. */
+export async function scanOpenTickets() {
+  const { Items } = await ddb.send(new ScanCommand({
+    TableName: TABLES.tickets,
+    FilterExpression: '#s <> :closed',
+    ExpressionAttributeNames: { '#s': 'status' },
+    ExpressionAttributeValues: { ':closed': 'closed' },
+  }));
+  return Items || [];
+}
+
+// ── In-platform notifications ────────────────────────────────────────────────
+export async function addNotification({ userId, title, body, ticketId }) {
+  const ts = new Date().toISOString();
+  await ddb.send(new PutCommand({
+    TableName: TABLES.notifications,
+    Item: { userId, notifId: `${ts}#${rid()}`, title, body: body || '', ticketId: ticketId || null, read: false, ts },
+  }));
+}
+
+export async function listNotifications(userId, limit = 50) {
+  const { Items } = await ddb.send(new QueryCommand({
+    TableName: TABLES.notifications,
     KeyConditionExpression: 'userId = :u',
     ExpressionAttributeValues: { ':u': userId },
     ScanIndexForward: false,
@@ -246,17 +318,52 @@ export async function listTickets(userId, limit = 100) {
   return Items || [];
 }
 
+export async function markNotificationsRead(userId) {
+  const { Items } = await ddb.send(new QueryCommand({
+    TableName: TABLES.notifications,
+    KeyConditionExpression: 'userId = :u',
+    FilterExpression: 'read = :f',
+    ExpressionAttributeValues: { ':u': userId, ':f': false },
+    Limit: 100,
+  }));
+  await Promise.all((Items || []).map((n) => ddb.send(new UpdateCommand({
+    TableName: TABLES.notifications, Key: { userId, notifId: n.notifId },
+    UpdateExpression: 'SET read = :t', ExpressionAttributeValues: { ':t': true },
+  }))));
+  return (Items || []).length;
+}
+
 // ── Integrations connection state (stored on the user record) ────────────────
 // In production `connect` completes the Google OAuth handshake and stores the
 // refresh token; here we record the connected account id the user supplies.
-export async function setIntegration({ userId, provider, account, connected }) {
+export async function setIntegration({ userId, provider, account, connected, tokens }) {
   const user = await getUser(userId);
   if (!user) throw new Error('User not found');
   const integrations = { ...(user.integrations || {}) };
-  if (connected === false) delete integrations[provider];
-  else integrations[provider] = { connected: true, account: account || '', connectedAt: new Date().toISOString() };
+  if (connected === false) {
+    delete integrations[provider];
+  } else {
+    const prev = integrations[provider] || {};
+    integrations[provider] = {
+      ...prev,
+      connected: true,
+      account: account != null && account !== '' ? account : (prev.account || ''),
+      connectedAt: new Date().toISOString(),
+      ...(tokens || {}), // refreshToken / accessToken / expiresAt / scope (only defined keys)
+    };
+  }
   await putUser({ ...user, integrations, updatedAt: new Date().toISOString() });
-  return integrations;
+  // Never leak OAuth tokens back to the client.
+  return redactIntegrations(integrations);
+}
+
+/** Strip OAuth tokens before returning integration state to the frontend. */
+export function redactIntegrations(integrations = {}) {
+  const out = {};
+  for (const [k, v] of Object.entries(integrations)) {
+    out[k] = { connected: !!v.connected, account: v.account || '', connectedAt: v.connectedAt };
+  }
+  return out;
 }
 
 export { ddb };

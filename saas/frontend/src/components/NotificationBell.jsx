@@ -1,0 +1,72 @@
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { api } from '../lib/api.js';
+
+// In-platform notifications (ticket replies, ticket closed, etc.). Polls lightly
+// and opens the related ticket on click.
+export default function NotificationBell() {
+  const [items, setItems] = useState([]);
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const navigate = useNavigate();
+  const unread = items.filter((n) => !n.read).length;
+
+  const load = () => api.notifications().then((d) => setItems(d.notifications || [])).catch(() => {});
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 60000); // refresh once a minute
+    return () => clearInterval(t);
+  }, []);
+
+  // Close the dropdown on outside click.
+  useEffect(() => {
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
+
+  async function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && unread) {
+      try { await api.markNotificationsRead(); setItems((xs) => xs.map((n) => ({ ...n, read: true }))); } catch { /* ignore */ }
+    }
+  }
+
+  function go(n) {
+    setOpen(false);
+    if (n.ticketId) navigate(`/support/${encodeURIComponent(n.ticketId)}`);
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={toggle} className="relative text-xl text-slate-500 hover:text-slate-800" title="Notifications">
+        🔔
+        {unread > 0 && (
+          <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="absolute right-0 z-40 mt-2 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+          <div className="border-b border-slate-100 px-4 py-2 text-sm font-semibold">Notifications</div>
+          <div className="max-h-80 overflow-y-auto">
+            {items.length === 0 && <div className="px-4 py-6 text-center text-sm text-slate-400">No notifications.</div>}
+            {items.map((n) => (
+              <button
+                key={n.notifId}
+                onClick={() => go(n)}
+                className="block w-full border-b border-slate-50 px-4 py-2.5 text-left hover:bg-slate-50"
+              >
+                <div className="text-sm text-slate-800">{n.title}</div>
+                {n.body && <div className="truncate text-xs text-slate-500">{n.body}</div>}
+                <div className="mt-0.5 text-[11px] text-slate-400">{new Date(n.ts).toLocaleString()}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

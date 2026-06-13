@@ -86,9 +86,22 @@ export const api = {
   chat: (messages) => call('/chat', { method: 'POST', body: { messages } }),
   runs: () => call('/me/runs'),
   run: (runId) => call(`/me/runs/${encodeURIComponent(runId)}`),
+  // Notifications
+  notifications: () => call('/me/notifications'),
+  markNotificationsRead: () => call('/me/notifications/read', { method: 'POST' }),
+  // Support tickets (threaded + attachments)
   tickets: () => call('/support/tickets'),
-  createTicket: (subject, message, email) => call('/support/tickets', { method: 'POST', body: { subject, message, email } }),
+  ticket: (ticketId) => call(`/support/tickets/${encodeURIComponent(ticketId)}`),
+  createTicket: (subject, message, additionalEmails = [], attachments = []) =>
+    call('/support/tickets', { method: 'POST', body: { subject, message, additionalEmails, attachments } }),
+  replyTicket: (ticketId, body, attachments = []) =>
+    call(`/support/tickets/${encodeURIComponent(ticketId)}/reply`, { method: 'POST', body: { body, attachments } }),
+  closeTicket: (ticketId) => call(`/support/tickets/${encodeURIComponent(ticketId)}/close`, { method: 'POST' }),
+  uploadAttachment: ({ name, contentType, data }) =>
+    call('/support/attachments', { method: 'POST', body: { name, contentType, data } }),
+  // Integrations (Google OAuth)
   integrations: () => call('/integrations'),
+  authorizeIntegration: (provider) => call(`/integrations/authorize?provider=${encodeURIComponent(provider)}`),
   connectIntegration: (provider, account, connected = true) =>
     call('/integrations/connect', { method: 'POST', body: { provider, account, connected } }),
   // Admin
@@ -115,6 +128,7 @@ function mockState() {
     teasers: {},
     runs: [],
     tickets: [],
+    notifications: [],
     // A few seeded users so the admin portal has rows to manage.
     adminUsers: [
       { userId: 'u_amy', email: 'amy@startup.sg', name: 'Amy Tan', tier: 'pro', monthlyCredits: 1450, topupCredits: 300, hasSubscription: true },
@@ -205,17 +219,64 @@ async function mock(path, { method, body }) {
     const run = s.runs.find((r) => r.runId === id);
     return run ? { run } : (() => { throw new ApiError(404, { error: 'Run not found' }); })();
   }
-  if (path === '/support/tickets' && method === 'GET') return { tickets: s.tickets };
+  // ── Notifications (mock) ──────────────────────────────────────────────────
+  if (path === '/me/notifications') return { notifications: s.notifications || [] };
+  if (path === '/me/notifications/read') { (s.notifications || []).forEach((n) => { n.read = true; }); saveMock(s); return { ok: true }; }
+
+  // ── Support (mock) ────────────────────────────────────────────────────────
+  if (path === '/support/attachments') {
+    // Echo a data URL so pasted/uploaded images render inline offline.
+    const url = body.data && String(body.data).startsWith('data:') ? body.data : `https://example.com/${body.name || 'file'}`;
+    return { attachment: { url, name: body.name || 'attachment', contentType: body.contentType || '', size: 0 } };
+  }
+  if (path === '/support/tickets' && method === 'GET') return { tickets: s.tickets.map(({ messages, ...t }) => t) };
   if (path === '/support/tickets' && method === 'POST') {
-    const ticket = { userId: 'mock', ticketId: new Date().toISOString(), id: 'TKT-' + Math.random().toString(36).slice(2, 8).toUpperCase(), email: body.email || s.user.email, subject: body.subject, message: body.message, status: 'open', ts: new Date().toISOString() };
-    s.tickets.unshift(ticket); saveMock(s);
+    const ts = new Date().toISOString();
+    const ticket = {
+      userId: 'mock', ticketId: `${ts}#${Math.random().toString(36).slice(2, 8)}`, id: 'TKT-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
+      userEmail: s.user.email, additionalEmails: body.additionalEmails || [], subject: body.subject, status: 'open', ts, lastActivityAt: ts,
+      messages: [{ id: 'm_' + Math.random().toString(36).slice(2, 8), author: 'user', authorEmail: s.user.email, body: body.message, attachments: body.attachments || [], ts }],
+    };
+    s.tickets.unshift(ticket);
+    (s.notifications = s.notifications || []).unshift({ notifId: `${ts}#n`, title: `Ticket ${ticket.id} received`, body: body.subject, ticketId: ticket.ticketId, read: false, ts });
+    saveMock(s);
     return { ticket };
   }
-  if (path === '/integrations' && method === 'GET') return { providers: INTEGRATIONS, connected: s.user.integrations || {} };
+  if (path.startsWith('/support/tickets/') && path.endsWith('/reply')) {
+    const id = decodeURIComponent(path.split('/support/tickets/')[1].split('/')[0]);
+    const t = s.tickets.find((x) => x.ticketId === id);
+    if (!t) throw new ApiError(404, { error: 'Ticket not found' });
+    const ts = new Date().toISOString();
+    t.messages.push({ id: 'm_' + Math.random().toString(36).slice(2, 8), author: 'user', authorEmail: s.user.email, body: body.body, attachments: body.attachments || [], ts });
+    t.status = 'open'; t.lastActivityAt = ts; saveMock(s);
+    return { ticket: t };
+  }
+  if (path.startsWith('/support/tickets/') && path.endsWith('/close')) {
+    const id = decodeURIComponent(path.split('/support/tickets/')[1].split('/')[0]);
+    const t = s.tickets.find((x) => x.ticketId === id);
+    if (t) { t.status = 'closed'; saveMock(s); }
+    return { ok: true };
+  }
+  if (path.startsWith('/support/tickets/') && method === 'GET') {
+    const id = decodeURIComponent(path.split('/support/tickets/')[1]);
+    const t = s.tickets.find((x) => x.ticketId === id);
+    if (!t) throw new ApiError(404, { error: 'Ticket not found' });
+    return { ticket: t };
+  }
+
+  // ── Integrations (mock — no real Google; "connect" instantly) ─────────────
+  if (path === '/integrations' && method === 'GET') return { providers: INTEGRATIONS, connected: s.user.integrations || {}, oauthReady: false };
+  if (path.startsWith('/integrations/authorize')) {
+    const provider = new URLSearchParams((path.split('?')[1] || '')).get('provider');
+    s.user.integrations = { ...(s.user.integrations || {}) };
+    s.user.integrations[provider] = { connected: true, account: 'demo-account', connectedAt: new Date().toISOString() };
+    saveMock(s);
+    return { url: `${location.origin}/integrations?connected=${provider}` };
+  }
   if (path === '/integrations/connect') {
     s.user.integrations = { ...(s.user.integrations || {}) };
     if (body.connected === false) delete s.user.integrations[body.provider];
-    else s.user.integrations[body.provider] = { connected: true, account: body.account || '', connectedAt: new Date().toISOString() };
+    else s.user.integrations[body.provider] = { connected: true, account: body.account || s.user.integrations[body.provider]?.account || '', connectedAt: new Date().toISOString() };
     saveMock(s);
     return { connected: s.user.integrations };
   }
@@ -276,6 +337,13 @@ function mockResult(tool, body, teaser, tier) {
   }
   if (tool.id === 'content-writer') {
     return { html: `<h3 style="font-weight:700">QA agent findings — 8 agents</h3>${['Branding Check', 'Legal & Compliance', 'Language & Readability', 'Length & Sufficiency', 'Formatting', 'Flow & Cohesion', 'FAQs', 'Schema Markup'].map((l) => `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:8px 0"><strong>${l}</strong> <span style="background:#eef2ff;color:#4f46e5;border-radius:999px;padding:1px 8px;font-size:11px">score 8</span><p style="color:#475569;margin:6px 0">In production this is the live agent analysis with concrete, applyable suggestions.</p></div>`).join('')}` };
+  }
+  if (tool.id === 'schema') {
+    const obj = { '@context': 'https://schema.org', '@type': body.type || 'LocalBusiness', name: body.name || 'Acme Corp' };
+    if (body.url) obj.url = body.url;
+    if (body.telephone) obj.telephone = body.telephone;
+    const block = `<script type="application/ld+json">\n${JSON.stringify(obj, null, 2)}\n</script>`.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    return { html: `<p style="color:#475569;margin:0 0 8px">Paste this into your page's &lt;head&gt;:</p><pre style="background:#0f172a;color:#e2e8f0;padding:12px;border-radius:10px;overflow:auto;font-size:12px">${block}</pre>` };
   }
   if (tool.id === 'time-to-rank') {
     const kws = String(body.input || 'keyword').split(/[\n,]+/).map((s) => s.trim()).filter(Boolean).slice(0, 6);

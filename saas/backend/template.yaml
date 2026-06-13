@@ -26,6 +26,28 @@ Parameters:
     Type: String
     Default: tom@mediaone.co,june@mediaone.co,kenneth@mediaone.co
     Description: Comma-separated allowlist of admin emails (access to /admin/*).
+  GoogleClientSecret:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: Google OAuth client secret (for GSC / GA4 / Ads integrations).
+  GoogleAdsDeveloperToken:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: Google Ads API developer token (optional — Ads falls back without it).
+  SesFrom:
+    Type: String
+    Default: ''
+    Description: Verified SES "from" address for ticket emails (empty disables email).
+  SesSupport:
+    Type: String
+    Default: ''
+    Description: Inbox alerted when a user opens/replies to a ticket.
+  AutoCloseDays:
+    Type: String
+    Default: '7'
+    Description: Days of inactivity before a support ticket auto-closes.
 
 Globals:
   Function:
@@ -39,6 +61,7 @@ Globals:
         LEDGER_TABLE: !Ref LedgerTable
         RUNS_TABLE: !Ref RunsTable
         TICKETS_TABLE: !Ref TicketsTable
+        NOTIFICATIONS_TABLE: !Ref NotificationsTable
         APP_ORIGIN: !Ref AppOrigin
         JWT_SECRET: !Ref JwtSecret
 
@@ -82,7 +105,7 @@ Resources:
         - { AttributeName: userId, KeyType: HASH }
         - { AttributeName: runId, KeyType: RANGE }
 
-  # Support tickets.
+  # Support tickets (threaded — messages stored inline on the item).
   TicketsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -93,6 +116,46 @@ Resources:
       KeySchema:
         - { AttributeName: userId, KeyType: HASH }
         - { AttributeName: ticketId, KeyType: RANGE }
+
+  # In-platform notifications (ticket replies, closes, etc.).
+  NotificationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: userId, AttributeType: S }
+        - { AttributeName: notifId, AttributeType: S }
+      KeySchema:
+        - { AttributeName: userId, KeyType: HASH }
+        - { AttributeName: notifId, KeyType: RANGE }
+
+  # Ticket attachments (screenshots / files). Unguessable keys, public-read GET.
+  AttachmentsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      OwnershipControls:
+        Rules: [{ ObjectOwnership: BucketOwnerEnforced }]
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods: [GET]
+            AllowedOrigins: ['*']
+            AllowedHeaders: ['*']
+
+  AttachmentsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AttachmentsBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub '${AttachmentsBucket.Arn}/attachments/*'
 
   # ── HTTP API + JWT (Lambda) authorizer ──────────────────────────────────
   Api:
@@ -175,6 +238,9 @@ Resources:
       Environment:
         Variables:
           GATEWAY_SECRET: !Ref GatewaySecret
+          GOOGLE_CLIENT_ID: !Ref GoogleClientId
+          GOOGLE_CLIENT_SECRET: !Ref GoogleClientSecret
+          GOOGLE_ADS_DEVELOPER_TOKEN: !Ref GoogleAdsDeveloperToken
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
@@ -226,19 +292,68 @@ Resources:
       CodeUri: .build/app/
       Handler: index.handler
       Timeout: 60
+      Environment:
+        Variables:
+          ADMIN_EMAILS: !Ref AdminEmails
+          GOOGLE_CLIENT_ID: !Ref GoogleClientId
+          GOOGLE_CLIENT_SECRET: !Ref GoogleClientSecret
+          GOOGLE_ADS_DEVELOPER_TOKEN: !Ref GoogleAdsDeveloperToken
+          GOOGLE_OAUTH_REDIRECT: !Sub 'https://${Api}.execute-api.${AWS::Region}.amazonaws.com/oauth/callback'
+          ATTACHMENTS_BUCKET: !Ref AttachmentsBucket
+          SES_FROM: !Ref SesFrom
+          SES_SUPPORT: !Ref SesSupport
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
         - DynamoDBCrudPolicy: { TableName: !Ref RunsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref TicketsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref NotificationsTable }
+        - S3CrudPolicy: { BucketName: !Ref AttachmentsBucket }
+        - Statement:
+            - Effect: Allow
+              Action: [ses:SendEmail, ses:SendRawEmail]
+              Resource: '*'
       Events:
         Chat: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /chat, Method: POST, TimeoutInMillis: 60000, Auth: { Authorizer: JwtAuthorizer } } }
         Runs: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/runs, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Run: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/me/runs/{runId}', Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        Notifications: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/notifications, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        NotificationsRead: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/notifications/read, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         TicketsList: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /support/tickets, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         TicketCreate: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /support/tickets, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        TicketGet: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/support/tickets/{ticketId}', Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        TicketReply: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/support/tickets/{ticketId}/reply', Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        TicketClose: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/support/tickets/{ticketId}/close', Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        Attachments: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /support/attachments, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Integrations: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /integrations, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        IntegrationAuthorize: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /integrations/authorize, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         IntegrationConnect: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /integrations/connect, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        # Public — identity is carried in the signed OAuth state.
+        OAuthCallback: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /oauth/callback, Method: GET } }
+
+  # ── Scheduled: auto-close inactive support tickets (daily) ──────────────
+  CloseFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .build/close/
+      Handler: index.handler
+      Timeout: 120
+      Environment:
+        Variables:
+          AUTO_CLOSE_DAYS: !Ref AutoCloseDays
+          SES_FROM: !Ref SesFrom
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref TicketsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref NotificationsTable }
+        - Statement:
+            - Effect: Allow
+              Action: [ses:SendEmail, ses:SendRawEmail]
+              Resource: '*'
+      Events:
+        Daily:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 day)
 
   # ── Admin portal API (authed + ADMIN_EMAILS allowlist) ──────────────────
   AdminFn:

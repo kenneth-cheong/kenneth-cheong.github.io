@@ -115,23 +115,8 @@ export const ADAPTERS = {
     },
   },
 
-  // ── Keyword Analysis → mangoolsKeywords ─────────────────────────────────
-  'keyword-analysis': {
-    request(body) {
-      return { keywords: parseList(body.input).slice(0, 25), location: body.location || 'Singapore', language: body.language || 'English' };
-    },
-    response(raw) {
-      const map = unwrap(raw);
-      const rows = Object.entries(map).map(([keyword, m]) => ({
-        keyword,
-        volume: m.search_volume ?? m.volume ?? 0,
-        difficulty: m.difficulty ?? m.competition ?? 0,
-        cpc: m.cpc != null ? `S$${Number(m.cpc).toFixed(2)}` : '—',
-      }));
-      rows.sort((a, b) => b.volume - a.volume);
-      return { rows };
-    },
-  },
+  // Keyword Analysis is a multi-mode composite (metrics / similar / ranking /
+  // from-webpage) handled in the gateway (keywordAnalysisRun) — no adapter here.
 
   // ── On-Page Optimisation → onPageContentRecommendations ─────────────────
   // out: [ { current_value, suggested_value, rationale } ]

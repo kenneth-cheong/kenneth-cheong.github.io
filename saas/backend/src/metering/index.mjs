@@ -15,7 +15,7 @@
 import { getUser, putUser, spendCredits, totalCredits, saveRun } from '../lib/dynamo.mjs';
 import { UPSTREAMS } from './upstreams.mjs';
 import { ADAPTERS, parseStrategyJson } from './adapters.mjs';
-import { integrationResult } from '../../../shared/connectors.mjs';
+import { fetchIntegration } from '../lib/google.mjs';
 import {
   TOOLS,
   CREDIT_COSTS,
@@ -210,7 +210,11 @@ async function postUpstream(url, payload) {
 async function callUpstream(tool, body) {
   // Integrations pull the user's own connected Google data (no upstream proxy).
   if (tool.integration) return integrationsRun(tool, body);
-  // Pure-client tools (e.g. schema builder) have no upstream.
+  // Schema Generator: deterministic JSON-LD builder (no upstream).
+  if (tool.id === 'schema') return schemaRun(body);
+  // Keyword Analysis: metrics / similar / ranking / from-webpage modes.
+  if (tool.id === 'keyword-analysis') return keywordAnalysisRun(body);
+  // Pure-client tools have no upstream.
   if (!tool.upstream) return { clientOnly: true };
   // The Strategy Engine is a two-step composite (generate → recommendations).
   if (tool.id === 'strategy-engine') return strategyEngineRun(body);
@@ -399,12 +403,14 @@ function pageIssues(p) {
 }
 
 // ── Integrations: the user's own connected Google data (GSC / GA4 / Ads) ──────
-function integrationsRun(tool, body) {
+// Calls the live Google API with the user's stored OAuth token (refreshing as
+// needed), falling back to seeded data if OAuth isn't configured.
+async function integrationsRun(tool, body) {
   const conn = body._integrations?.[tool.integration];
   if (!conn?.connected) {
     return { needsConnect: tool.integration, text: `Connect your ${tool.name} account under Integrations to use this tool.` };
   }
-  const { rows, summary } = integrationResult(tool.integration, { ...body, input: body.input || conn.account });
+  const { rows, summary } = await fetchIntegration(tool.integration, conn, { ...body, input: body.input || conn.account });
   return { rows, summary };
 }
 
@@ -798,6 +804,90 @@ function renderChecker(summary, issues) {
   return `${summaryHtml}<h3 style="margin:0 0 6px;font-weight:700">Issues <span style="font-weight:400;color:#64748b">— ${issues.length}</span></h3>${rows || '<p style="color:#16a34a">No issues found. 🎉</p>'}`;
 }
 
+// ── Schema Generator: deterministic JSON-LD builder (mirrors the agency) ──────
+function schemaRun(body) {
+  const type = (body.type || 'LocalBusiness').trim();
+  const schema = { '@context': 'https://schema.org', '@type': type };
+  const set = (k, v) => { if (v != null && String(v).trim() !== '') schema[k] = String(v).trim(); };
+  for (const k of ['name', 'url', 'description', 'image', 'logo', 'telephone', 'address', 'priceRange', 'openingHours', 'brand', 'sku', 'author', 'datePublished', 'jobTitle']) set(k, body[k]);
+
+  if (body.sameAs) { const u = splitItems(body.sameAs); if (u.length) schema.sameAs = u.length === 1 ? u[0] : u; }
+  if (body.offers_price) {
+    schema.offers = { '@type': 'Offer', price: String(body.offers_price), priceCurrency: (body.offers_priceCurrency || 'SGD').trim() };
+    if (body.offers_availability) schema.offers.availability = `https://schema.org/${body.offers_availability}`;
+  }
+  if (body.rating_value) schema.aggregateRating = { '@type': 'AggregateRating', ratingValue: String(body.rating_value), reviewCount: String(body.rating_count || 0) };
+  if (type === 'FAQPage' && body.faq) {
+    const items = String(body.faq).split('\n').map((l) => l.split('|')).filter((p) => p[0]?.trim() && p[1]?.trim())
+      .map(([q, a]) => ({ '@type': 'Question', name: q.trim(), acceptedAnswer: { '@type': 'Answer', text: a.trim() } }));
+    if (items.length) schema.mainEntity = items;
+  }
+  if (type === 'BreadcrumbList' && body.breadcrumb) {
+    const items = String(body.breadcrumb).split('\n').map((l) => l.split('|')).filter((p) => p[0]?.trim() && p[1]?.trim())
+      .map(([n, u], i) => ({ '@type': 'ListItem', position: i + 1, name: n.trim(), item: u.trim() }));
+    if (items.length) schema.itemListElement = items;
+  }
+  const json = JSON.stringify(schema, null, 2);
+  const html = `<p style="color:#475569;margin:0 0 8px">Paste this into your page's &lt;head&gt;:</p>`
+    + `<pre style="background:#0f172a;color:#e2e8f0;padding:12px;border-radius:10px;overflow:auto;font-size:12px;line-height:1.5">${esc(`<script type="application/ld+json">\n${json}\n</script>`)}</pre>`;
+  return { html, text: json };
+}
+
+// ── Keyword Analysis: metrics / similar / ranking / from-webpage ──────────────
+async function keywordAnalysisRun(body) {
+  const mode = body.mode || 'Keyword metrics';
+  const location = body.location || 'Singapore';
+  const language = body.language || 'English';
+  const user = body._email || 'saas';
+
+  if (/similar/i.test(mode)) {
+    const keywords = splitItems(body.input).slice(0, 25);
+    if (!keywords.length) throw new Error('Add at least one seed keyword.');
+    const map = deepBody(await postUpstream(UPSTREAMS.similarKeywords, { keywords, location, language, user }));
+    return { rows: kwRows(map, ['volume', 'difficulty', 'cpc']) };
+  }
+  if (/ranking/i.test(mode)) {
+    const target = cleanDomain(body.target || body.input);
+    if (!target) throw new Error('A domain is required.');
+    const map = deepBody(await postUpstream(UPSTREAMS.rankingKeywords, { target, location, user }));
+    return { rows: kwRows(map, ['volume', 'rank', 'difficulty', 'traffic']) };
+  }
+  if (/webpage/i.test(mode)) {
+    const target = (body.target || body.input || '').trim();
+    if (!target) throw new Error('A page URL is required.');
+    const map = deepBody(await postUpstream(UPSTREAMS.keywordsForSite, { location, language, target, skip_ai: false }));
+    return { rows: kwRows(map, ['volume', 'difficulty', 'intent', 'reason']) };
+  }
+  // Default: keyword metrics (mangoolsKeywords)
+  const keywords = splitItems(body.input).slice(0, 25);
+  if (!keywords.length) throw new Error('Add at least one keyword.');
+  const map = deepBody(await postUpstream(UPSTREAMS.mangoolsKeywords, { keywords, location, language }));
+  return { rows: kwRows(map, ['volume', 'difficulty', 'cpc']) };
+}
+
+function cleanDomain(u) {
+  return String(u || '').replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0].trim();
+}
+
+/** Shape a { keyword: {metrics} } map into rows with the requested columns. */
+function kwRows(map, cols) {
+  if (!map || typeof map !== 'object') return [];
+  const rows = Object.entries(map).map(([keyword, m]) => {
+    m = m || {};
+    const row = { keyword };
+    if (cols.includes('volume')) row.volume = m.search_volume ?? m.search_vol ?? m.volume ?? 0;
+    if (cols.includes('difficulty')) row.difficulty = m.difficulty ?? m.competition ?? m.seo ?? '—';
+    if (cols.includes('cpc')) row.cpc = m.cpc != null ? `S$${Number(m.cpc).toFixed(2)}` : '—';
+    if (cols.includes('rank')) row.rank = m.rank ?? m.best_position ?? '—';
+    if (cols.includes('traffic')) row.traffic = m.traffic ?? '—';
+    if (cols.includes('intent')) row.intent = m.search_intent ?? m.intent ?? '—';
+    if (cols.includes('reason')) row.reason = m.reason_for_choosing ?? m.reason ?? '';
+    return row;
+  });
+  rows.sort((a, b) => (Number(b.volume) || 0) - (Number(a.volume) || 0));
+  return rows;
+}
+
 // ── Time to Rank: keyword metrics + SERP + LLM time-to-rank forecast ──────────
 async function timeToRankRun(body) {
   const keywords = splitItems(body.input).slice(0, 8);
@@ -1013,7 +1103,7 @@ function deepBody(raw) {
 
 // Exposed for unit tests (orchestration is otherwise unreachable without a full
 // authed event). Not used by the handler path.
-export const __test = { callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt };
+export const __test = { callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt };
 
 /**
  * AI endpoints return token usage; convert to actual credits so a tiny caption

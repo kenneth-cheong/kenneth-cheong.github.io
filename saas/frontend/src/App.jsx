@@ -11,7 +11,6 @@ import ToolRunner from './pages/ToolRunner.jsx';
 import History from './pages/History.jsx';
 import Support from './pages/Support.jsx';
 import Integrations from './pages/Integrations.jsx';
-import ChatDrawer from './components/ChatDrawer.jsx';
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -40,9 +39,9 @@ export default function App() {
         <Route path="/support" element={<Support />} />
         <Route path="/integrations" element={<Integrations />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/support/:ticketId" element={<Support />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      <ChatDrawer />
     </Layout>
   );
 }

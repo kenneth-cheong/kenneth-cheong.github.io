@@ -191,7 +191,7 @@ export const TOOLS = [
     desc: 'Channel mix, budget split & opportunities for a paid-media plan.' },
 
   // ── Strategy Engine (flagship: auto SEO action-plan generator) ────────────
-  { id: 'strategy-engine', name: 'Digimetrics Strategy Engine', category: 'SEO', minTier: 'pro',
+  { id: 'strategy-engine', name: 'SEO Strategy', category: 'SEO', minTier: 'pro',
     cost: 'ai_long', upstream: 'strategyEngine', slow: true,
     desc: 'Auto-generates a keyword strategy with prioritised SEO action plans.' },
 
@@ -234,7 +234,11 @@ const LANGUAGES = ['English', 'Chinese', 'Malay'];
 
 export const INPUTS = {
   'keyword-analysis': [
-    { name: 'input', label: 'Keywords', type: 'tags', placeholder: 'add a keyword and press Enter', required: true },
+    { name: 'mode', label: 'Mode', type: 'select', options: ['Keyword metrics', 'Similar keywords (from seed)', 'Ranking keywords (for a domain)', 'Keywords from a webpage'], default: 'Keyword metrics' },
+    { name: 'input', label: 'Keywords', type: 'tags', placeholder: 'add a keyword and press Enter', required: true,
+      showWhen: { field: 'mode', in: ['Keyword metrics', 'Similar keywords (from seed)'] } },
+    { name: 'target', label: 'Domain or page URL', type: 'url', placeholder: 'https://example.com', required: true,
+      showWhen: { field: 'mode', in: ['Ranking keywords (for a domain)', 'Keywords from a webpage'] } },
     { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
     { name: 'language', label: 'Language', type: 'select', options: LANGUAGES, default: 'English' },
   ],
@@ -274,7 +278,33 @@ export const INPUTS = {
     { name: 'input', label: 'Domain', type: 'text', placeholder: 'example.com', required: true },
     { name: 'mode', label: 'Analysis scope', type: 'select', options: ['domain', 'host', 'url'], default: 'domain' },
   ],
-  schema: [{ name: 'input', label: 'What is this page about?', type: 'textarea', placeholder: 'e.g. a product page for trail running shoes', required: true }],
+  // Visual JSON-LD builder — fields surface by the chosen schema type (showWhen).
+  schema: [
+    { name: 'type', label: 'Schema type', type: 'select', default: 'LocalBusiness',
+      options: ['LocalBusiness', 'Organization', 'Product', 'Service', 'Article', 'FAQPage', 'Person', 'WebSite', 'BreadcrumbList', 'Event', 'Recipe', 'Review', 'Course', 'JobPosting', 'SoftwareApplication', 'VideoObject'] },
+    { name: 'name', label: 'Name', type: 'text', placeholder: 'Acme Corp', required: true },
+    { name: 'url', label: 'URL', type: 'url', placeholder: 'https://example.com' },
+    { name: 'description', label: 'Description', type: 'textarea', placeholder: 'Short description' },
+    { name: 'image', label: 'Image URL', type: 'url', placeholder: 'https://example.com/photo.jpg' },
+    { name: 'logo', label: 'Logo URL', type: 'url', placeholder: 'https://example.com/logo.png', showWhen: { field: 'type', in: ['Organization'] } },
+    { name: 'telephone', label: 'Telephone', type: 'text', placeholder: '+65 6555 5555', showWhen: { field: 'type', in: ['LocalBusiness', 'Organization', 'Service'] } },
+    { name: 'address', label: 'Address', type: 'text', placeholder: '123 Main St, Singapore', showWhen: { field: 'type', in: ['LocalBusiness', 'Organization', 'Event'] } },
+    { name: 'priceRange', label: 'Price range', type: 'text', placeholder: '$$', showWhen: { field: 'type', in: ['LocalBusiness'] } },
+    { name: 'openingHours', label: 'Opening hours', type: 'text', placeholder: 'Mo-Fr 09:00-18:00', showWhen: { field: 'type', in: ['LocalBusiness'] } },
+    { name: 'sameAs', label: 'Social profiles (one URL per line)', type: 'textarea', placeholder: 'https://facebook.com/acme\nhttps://linkedin.com/company/acme', showWhen: { field: 'type', in: ['LocalBusiness', 'Organization', 'Person'] } },
+    { name: 'brand', label: 'Brand', type: 'text', placeholder: 'Acme', showWhen: { field: 'type', in: ['Product'] } },
+    { name: 'sku', label: 'SKU', type: 'text', placeholder: 'SW3000-B', showWhen: { field: 'type', in: ['Product'] } },
+    { name: 'offers_price', label: 'Price', type: 'number', placeholder: '49.99', showWhen: { field: 'type', in: ['Product'] } },
+    { name: 'offers_priceCurrency', label: 'Currency', type: 'text', default: 'SGD', showWhen: { field: 'type', in: ['Product'] } },
+    { name: 'offers_availability', label: 'Availability', type: 'select', options: ['InStock', 'OutOfStock', 'PreOrder', 'Discontinued'], default: 'InStock', showWhen: { field: 'type', in: ['Product'] } },
+    { name: 'rating_value', label: 'Rating value', type: 'number', placeholder: '4.5', showWhen: { field: 'type', in: ['Product', 'Review'] } },
+    { name: 'rating_count', label: 'Review count', type: 'number', placeholder: '128', showWhen: { field: 'type', in: ['Product', 'Review'] } },
+    { name: 'author', label: 'Author', type: 'text', placeholder: 'Jane Smith', showWhen: { field: 'type', in: ['Article', 'Recipe', 'Review'] } },
+    { name: 'datePublished', label: 'Date published', type: 'text', placeholder: 'YYYY-MM-DD', showWhen: { field: 'type', in: ['Article'] } },
+    { name: 'jobTitle', label: 'Job title', type: 'text', placeholder: 'Architect', showWhen: { field: 'type', in: ['Person'] } },
+    { name: 'faq', label: 'FAQs — "Question | Answer" per line', type: 'textarea', placeholder: 'Do you ship overseas? | Yes, worldwide.\nWhat is the return policy? | 30 days.', showWhen: { field: 'type', in: ['FAQPage'] } },
+    { name: 'breadcrumb', label: 'Breadcrumb — "Name | URL" per line', type: 'textarea', placeholder: 'Home | https://example.com\nShop | https://example.com/shop', showWhen: { field: 'type', in: ['BreadcrumbList'] } },
+  ],
 
   // Mirrors the agency's luxury_copy form (text/select fields; file uploads omitted).
   caption: [

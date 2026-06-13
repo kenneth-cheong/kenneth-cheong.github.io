@@ -1,35 +1,43 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api.js';
 
 const TOOL_FOR = { gsc: 'gsc', ga4: 'ga4', 'google-ads': 'google-ads' };
 
-// Connect Google data sources. Production completes a real OAuth handshake; here
-// connecting records the account id you enter so the tools + assistant light up.
+// Connect Google data sources via OAuth. Clicking Connect redirects to Google's
+// consent screen; the backend stores the refresh token and bounces back here.
 export default function Integrations() {
   const [providers, setProviders] = useState([]);
   const [connected, setConnected] = useState({});
-  const [drafts, setDrafts] = useState({});
   const [busy, setBusy] = useState(null);
+  const [params, setParams] = useSearchParams();
 
+  const load = () => api.integrations().then((d) => { setProviders(d.providers || []); setConnected(d.connected || {}); }).catch(() => {});
+  useEffect(() => { load(); }, []);
+
+  const justConnected = params.get('connected');
+  const oauthError = params.get('error');
   useEffect(() => {
-    api.integrations().then((d) => { setProviders(d.providers || []); setConnected(d.connected || {}); }).catch(() => {});
-  }, []);
+    if (justConnected || oauthError) {
+      load();
+      const t = setTimeout(() => setParams({}, { replace: true }), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [justConnected, oauthError]);
 
   async function connect(id) {
     setBusy(id);
     try {
-      const { connected: c } = await api.connectIntegration(id, drafts[id] || '');
-      setConnected(c);
-    } finally { setBusy(null); }
+      const { url } = await api.authorizeIntegration(id);
+      window.location.href = url; // → Google consent (mock returns a same-origin URL)
+    } catch (e) {
+      setBusy(null);
+      alert(e.message || 'Could not start Google sign-in.');
+    }
   }
   async function disconnect(id) {
     setBusy(id);
-    try {
-      const { connected: c } = await api.connectIntegration(id, '', false);
-      setConnected(c);
-    } finally { setBusy(null); }
+    try { const { connected: c } = await api.connectIntegration(id, '', false); setConnected(c); } finally { setBusy(null); }
   }
 
   return (
@@ -40,12 +48,16 @@ export default function Integrations() {
         queryable by the assistant.
       </p>
 
+      {justConnected && <div className="mt-4 rounded-lg bg-green-50 px-4 py-2 text-sm text-green-700">✓ Connected {justConnected}. You can now run its tool.</div>}
+      {oauthError && <div className="mt-4 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">⚠ Google sign-in failed. Please try again.</div>}
+
       <div className="mt-6 space-y-3">
         {providers.map((p) => {
           const conn = connected[p.id];
           return (
             <div key={p.id} className="card p-5">
               <div className="flex flex-wrap items-center gap-3">
+                <div className="grid h-9 w-9 place-items-center rounded-lg bg-slate-100 font-bold text-slate-500">G</div>
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold">{p.name}</div>
                   <div className="text-sm text-slate-500">{p.blurb}</div>
@@ -56,22 +68,12 @@ export default function Integrations() {
                       ✓ Connected{conn.account ? ` · ${conn.account}` : ''}
                     </span>
                     <Link to={`/tool/${TOOL_FOR[p.id]}`} className="btn-primary px-3 py-1.5 text-sm">Open tool</Link>
-                    <button onClick={() => disconnect(p.id)} disabled={busy === p.id} className="text-sm text-slate-500 hover:text-slate-800">
-                      Disconnect
-                    </button>
+                    <button onClick={() => disconnect(p.id)} disabled={busy === p.id} className="text-sm text-slate-500 hover:text-slate-800">Disconnect</button>
                   </>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <input
-                      value={drafts[p.id] || ''}
-                      onChange={(e) => setDrafts((d) => ({ ...d, [p.id]: e.target.value }))}
-                      placeholder={p.id === 'gsc' ? 'https://example.com' : p.id === 'ga4' ? 'GA4 property id' : 'Ads account id'}
-                      className="w-44 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
-                    />
-                    <button onClick={() => connect(p.id)} disabled={busy === p.id} className="btn-primary px-3 py-1.5 text-sm">
-                      {busy === p.id ? '…' : 'Connect'}
-                    </button>
-                  </div>
+                  <button onClick={() => connect(p.id)} disabled={busy === p.id} className="btn-primary px-3 py-1.5 text-sm">
+                    {busy === p.id ? 'Redirecting…' : 'Connect with Google'}
+                  </button>
                 )}
               </div>
             </div>

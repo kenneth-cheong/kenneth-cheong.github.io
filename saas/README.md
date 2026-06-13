@@ -52,6 +52,27 @@ sam deploy --guided      # prompts for GoogleClientId, JwtSecret, Stripe keys, e
 Point the Stripe webhook (`/billing/webhook`) at the deployed URL and put the signing
 secret into the `StripeWebhookSecret` parameter.
 
+#### Google integrations (GSC / GA4 / Ads) — optional but enables real data
+
+The Integrations tools fall back to seeded demo data until OAuth is configured.
+To go live:
+
+1. In Google Cloud Console, create an **OAuth 2.0 Client (Web)** and enable the
+   Search Console API, Analytics Data API, and (optionally) Google Ads API.
+2. Add the redirect URI `https://<ApiUrl>/oauth/callback`.
+3. Pass `GoogleClientId` + `GoogleClientSecret` to `sam deploy`
+   (and `GoogleAdsDeveloperToken` if you want live Ads — otherwise Ads stays on
+   demo data). The template wires `GOOGLE_OAUTH_REDIRECT` automatically.
+
+Without these, Connect still works in the UI but tools return seeded data.
+
+#### Support emails (optional)
+
+Ticket reply + auto-close emails go through SES. Verify a sender and pass
+`SesFrom` (the "from" address) and `SesSupport` (your support inbox). Left empty,
+in-platform notifications still work; email is simply skipped. `AutoCloseDays`
+(default 7) controls the daily inactivity auto-close job.
+
 ### 2. Frontend (AWS Amplify Hosting)
 
 1. Amplify Console → **New app → Host web app** → connect this repo.
