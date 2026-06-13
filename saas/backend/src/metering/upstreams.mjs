@@ -41,6 +41,14 @@ export const UPSTREAMS = {
   // Domain → ranking-keyword map, used to seed AI-visibility discovery prompts.
   keywordsForSite: 'https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite',
   geoOnPageAnalysis: 'https://fhan3l5vta.execute-api.ap-southeast-1.amazonaws.com/geoOnPageAnalysis',
+  // GEO+SEO Forensic Audit — the same probes index.html's autoFillForensicAudit() fires.
+  // Site data: title/desc/h1-h2/schema/spam/backlinks (DataForSEO on-page snapshot).
+  forensicSiteData: 'https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new',
+  mozAuthority: 'https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new',
+  pageSpeed: 'https://7vkudwlzhh.execute-api.ap-southeast-1.amazonaws.com/webpageAudit',
+  sslCheck: 'https://2kxt49bwp1.execute-api.ap-southeast-1.amazonaws.com/checkSsl',
+  gtmetrix: 'https://y5830908vh.execute-api.ap-southeast-1.amazonaws.com/gtmetrix',
+  copyscape: 'https://tg6m9b7gsj.execute-api.ap-southeast-1.amazonaws.com/plagarismCheck',
   personaGenerator: 'https://tyqj3fni7h.execute-api.ap-southeast-1.amazonaws.com/personaGenerator',
   mediaPlanGenerator: 'https://h8ih2vc2xi.execute-api.ap-southeast-1.amazonaws.com/mediaPlanGenerator',
   auditLandingPage: 'https://llufeecqoe.execute-api.ap-southeast-1.amazonaws.com/auditLandingPage',

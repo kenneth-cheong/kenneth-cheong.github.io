@@ -170,7 +170,7 @@ export const TOOLS = [
     desc: 'Rewrite content to get picked up + cited by AI tools.' },
   { id: 'forensic-audit', name: 'GEO+SEO Forensic Audit', category: 'AI Visibility', minTier: 'pro',
     cost: 'forensic_audit', upstream: 'dataforseoCrawler', slow: true,
-    desc: 'Deep SEO + GEO readiness check across 50+ factors.',
+    desc: 'Deep SEO + GEO audit: SSL, speed, backlinks, structured data, llms.txt, AI-bot access & more — with a health score and prioritised fix list.',
     teaser: { reveal: 'summary-only' } },
 
   // ── Ads & Strategy ────────────────────────────────────────────────────────

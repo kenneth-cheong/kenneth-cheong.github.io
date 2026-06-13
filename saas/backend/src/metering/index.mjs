@@ -245,7 +245,9 @@ async function callUpstreamRaw(tool, body) {
   // The Strategy Engine is a two-step composite (generate → recommendations).
   if (tool.id === 'strategy-engine') return strategyEngineRun(body);
   // DataForSEO crawl is async: initiate → poll get_results until done.
-  if (tool.id === 'technical-seo' || tool.id === 'forensic-audit') return crawlRun(body, tool);
+  if (tool.id === 'technical-seo') return crawlRun(body, tool);
+  // GEO+SEO Forensic Audit: fan out ~30 probes, score them, build a remediation plan.
+  if (tool.id === 'forensic-audit') return forensicAuditRun(body);
   // AI-visibility is multi-step: derive prompts → verify_mentions → poll snapshot.
   if (tool.id === 'ai-discovery' || tool.id === 'ai-mentions') return aiVisibilityRun(body);
   // Backlinks Explorer fans out across summary + referring domains + anchors.
@@ -312,7 +314,106 @@ async function strategyEngineRun(body) {
   } catch (e) {
     console.error('strategy_recommendations_failed', e.message); // best-effort
   }
-  return { html: renderStrategy(strategies, recommended, recs) };
+
+  // Enrich every strategy's target keywords with real Vol/KD (mangoolsKeywords)
+  // and the domain's current Rank (serpCompetitors) — mirrors the metric table
+  // index.html paints into its strategy grid. Best-effort: a failure here just
+  // leaves the metric cells as "—" rather than failing the whole run.
+  let metricMap = {}, rankMap = {};
+  try {
+    const location = body.location || 'Singapore';
+    const language = body.language || 'English';
+    const domain = (body.domain || body.url || '').trim();
+    const keywords = collectStrategyKeywords(strategies).slice(0, 60);
+    if (keywords.length) {
+      [metricMap, rankMap] = await Promise.all([
+        fetchKeywordMetrics(keywords, location, language),
+        domain
+          ? fetchKeywordRanks(keywords.slice(0, 40), domain, location, language, body._email || 'saas')
+          : Promise.resolve({}),
+      ]);
+    }
+  } catch (e) {
+    console.error('strategy_enrichment_failed', e.message); // best-effort
+  }
+
+  return { html: renderStrategy(strategies, recommended, recs, metricMap, rankMap) };
+}
+
+// ── Keyword enrichment for the strategy grid ──────────────────────────────────
+const cleanKw = (s) => String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+const strategyBaseDomain = (u) => String(u ?? '').trim().toLowerCase()
+  .replace(/^https?:\/\//, '').replace(/^www\./, '').split(/[/?#]/)[0];
+function chunkArr(arr, n) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+  return out;
+}
+function unwrapBody(raw) {
+  return raw && raw.body !== undefined
+    ? (typeof raw.body === 'string' ? safeParse(raw.body) : raw.body)
+    : raw;
+}
+// Gather unique target keywords across all strategies, from both the flat
+// `target_keywords` list and any `keyword_data.semantic_clusters[].keywords`.
+function collectStrategyKeywords(strategies) {
+  const set = new Set();
+  for (const s of strategies || []) {
+    const kd = s.keyword_data || s.keyword_analysis;
+    if (kd && Array.isArray(kd.semantic_clusters)) {
+      for (const c of kd.semantic_clusters)
+        if (Array.isArray(c.keywords))
+          for (const k of c.keywords) if (k && String(k).trim()) set.add(String(k).trim());
+    }
+    const tk = s.target_keywords;
+    if (Array.isArray(tk)) {
+      for (const k of tk) if (k && String(k).trim()) set.add(String(k).trim());
+    } else if (typeof tk === 'string') {
+      for (const k of tk.split(/,\s*|\n/)) if (k && k.trim()) set.add(k.trim());
+    }
+  }
+  return Array.from(set);
+}
+// Vol/KD via mangoolsKeywords (chunks of 20, in parallel). Returns { kw: {vol,diff} }.
+async function fetchKeywordMetrics(keywords, location, language) {
+  const map = {};
+  await Promise.all(chunkArr(keywords, 20).map(async (c) => {
+    try {
+      const data = unwrapBody(await postUpstream(UPSTREAMS.mangoolsKeywords, { keywords: c, location, language }));
+      if (data && typeof data === 'object') {
+        for (const kw of Object.keys(data)) {
+          const e = data[kw];
+          if (e && typeof e === 'object')
+            map[cleanKw(kw)] = { vol: e.search_volume ?? e.volume ?? 0, diff: e.difficulty ?? e.competition ?? 0 };
+        }
+      }
+    } catch (err) { console.error('strategy_metrics_chunk_failed', err.message); }
+  }));
+  return map;
+}
+// Current rank via serpCompetitors (chunks of 5). Keeps only rows whose domain
+// matches the target. Returns { kw: position }.
+async function fetchKeywordRanks(keywords, domain, location, language, email) {
+  const map = {};
+  const targetBase = strategyBaseDomain(domain);
+  if (!targetBase) return map;
+  await Promise.all(chunkArr(keywords, 5).map(async (c, i) => {
+    try {
+      const data = unwrapBody(await postUpstream(UPSTREAMS.serpCompetitors, {
+        id: `strat_rank_${i}_${email}`, user: email, keywords: c, location, language,
+      }));
+      if (!data || typeof data !== 'object') return;
+      for (const dom of Object.keys(data)) {
+        const cb = strategyBaseDomain(dom);
+        if (cb && (cb.includes(targetBase) || targetBase.includes(cb))) {
+          const ranks = data[dom];
+          if (ranks && typeof ranks === 'object')
+            for (const kw of Object.keys(ranks)) map[cleanKw(kw)] = ranks[kw];
+        }
+      }
+    } catch (err) { console.error('strategy_rank_chunk_failed', err.message); }
+  }));
+  return map;
 }
 
 function strategiesFrom(raw) {
@@ -330,35 +431,142 @@ function recsFrom(raw) {
 }
 
 const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-function renderStrategy(strategies, recommended, recs) {
-  const prio = (p) => ({ high: '#dc2626', medium: '#d97706', low: '#16a34a' }[String(p).toLowerCase()] || '#64748b');
-  const stratRows = strategies.map((s) => `
-    <tr style="border-top:1px solid #e2e8f0">
-      <td style="padding:8px;font-weight:600">${s === recommended ? '★ ' : ''}${esc(s.name)}</td>
-      <td style="padding:8px;color:#475569">${esc(s.focus_area || s.focus)}</td>
-      <td style="padding:8px;color:#475569">${esc((s.target_keywords || []).slice(0, 6).join(', '))}</td>
-    </tr>`).join('');
+function renderStrategy(strategies, recommended, recs, metricMap = {}, rankMap = {}) {
+  const volFmt = (v) => (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(v || '0'));
+
+  // Per-strategy keyword table with enriched Vol / KD / Rank columns.
+  const kwTable = (keywords) => {
+    const kws = (Array.isArray(keywords) ? keywords : String(keywords || '').split(/,\s*|\n/))
+      .map((k) => String(k).trim()).filter(Boolean);
+    if (!kws.length) return '<p style="color:#94a3b8;font-size:12px;margin:6px 0">No target keywords.</p>';
+    const rows = kws.map((kw) => {
+      const c = cleanKw(kw);
+      const m = metricMap[c];
+      const r = rankMap[c];
+      const vol = m ? volFmt(m.vol) : '—';
+      const diff = m ? (m.diff || 0) : '—';
+      const dCol = m ? (m.diff > 50 ? '#ef4444' : m.diff > 30 ? '#f59e0b' : '#10b981') : '#94a3b8';
+      const hasRank = r !== undefined && r !== null;
+      const rTxt = hasRank ? (r <= 100 ? r : '100+') : '—';
+      const rCol = hasRank ? (r <= 10 ? '#10b981' : r <= 30 ? '#f59e0b' : '#6366f1') : '#94a3b8';
+      return `<tr style="border-top:1px solid #f1f5f9">
+        <td style="padding:7px 10px;color:#334155;font-weight:600">${esc(kw)}</td>
+        <td style="padding:7px 6px;text-align:center;color:${m ? '#10b981' : '#94a3b8'};font-weight:700">${vol}</td>
+        <td style="padding:7px 6px;text-align:center;color:${dCol};font-weight:700">${diff}</td>
+        <td style="padding:7px 6px;text-align:center;color:${rCol};font-weight:700">${rTxt}</td>
+      </tr>`;
+    }).join('');
+    return `<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+      <thead><tr style="background:#004a99;color:#fff;text-align:left">
+        <th style="padding:8px 10px;font-weight:700">Target keyword</th>
+        <th style="padding:8px 6px;text-align:center;font-weight:700;width:54px">Vol</th>
+        <th style="padding:8px 6px;text-align:center;font-weight:700;width:48px">KD</th>
+        <th style="padding:8px 6px;text-align:center;font-weight:700;width:54px">Rank</th>
+      </tr></thead><tbody>${rows}</tbody></table>`;
+  };
+
+  const field = (label, val) => val
+    ? `<div style="margin-top:8px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b">${label}</div><div style="font-size:13px;color:#334155;line-height:1.5">${esc(val)}</div></div>`
+    : '';
+  const stratCards = strategies.map((s) => {
+    const isRec = s === recommended;
+    const ttr = s.time_to_rank
+      ? (String(s.time_to_rank).toLowerCase().includes('month') ? s.time_to_rank : `${s.time_to_rank} months`)
+      : '';
+    return `<div style="border:1px solid ${isRec ? '#bfdbfe' : '#e2e8f0'};border-radius:12px;padding:14px 16px;margin:10px 0;background:${isRec ? '#f0f9ff' : '#fff'}">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <strong style="font-size:15px;color:#0f172a">${isRec ? '★ ' : ''}${esc(s.name)}</strong>
+        ${isRec ? '<span style="background:#3b82f6;color:#fff;border-radius:999px;padding:2px 10px;font-size:10px;font-weight:700">RECOMMENDED</span>' : ''}
+      </div>
+      ${field('Core keyword theme', s.focus_area || s.focus)}
+      ${field('Content approach', s.content_approach)}
+      ${field('Expected impact', s.expected_impact)}
+      ${field('Est. time to rank', ttr)}
+      <div style="margin-top:10px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b">Target keywords</div>${kwTable(s.target_keywords)}</div>
+    </div>`;
+  }).join('');
+
   const strengths = (recs.strengths || []).map((x) => `
     <li style="margin:6px 0"><strong>${esc(x.title)}</strong> — <span style="color:#475569">${esc(x.detail || x.description)}</span></li>`).join('');
-  const recCards = (recs.recommendations || []).map((r) => `
-    <div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:8px 0">
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <strong>${esc(r.title)}</strong>
-        ${r.priority ? `<span style="background:${prio(r.priority)};color:#fff;border-radius:999px;padding:1px 8px;font-size:11px;text-transform:uppercase">${esc(r.priority)}</span>` : ''}
-        ${r.effort ? `<span style="background:#f1f5f9;color:#475569;border-radius:999px;padding:1px 8px;font-size:11px">effort: ${esc(r.effort)}</span>` : ''}
+
+  // Recommendations grouped into the same four categories as index.html, with a
+  // priority stats banner and impact/effort/rationale per card.
+  const CATS = [
+    { key: 'Content', label: 'Content Strategy', color: '#6366f1', bg: '#eef2ff', emoji: '📝' },
+    { key: 'Technical SEO', label: 'Technical SEO', color: '#0ea5e9', bg: '#e0f2fe', emoji: '🔧' },
+    { key: 'Performance', label: 'Performance', color: '#f59e0b', bg: '#fef3c7', emoji: '⚡' },
+    { key: 'Domain & Trust', label: 'Domain & Trust', color: '#10b981', bg: '#d1fae5', emoji: '🛡️' },
+  ];
+  const recList = (recs.recommendations || []).filter(Boolean);
+  const grouped = Object.fromEntries(CATS.map((c) => [c.key, []]));
+  for (const r of recList) {
+    const raw = String(r.category || 'Content');
+    const cat = CATS.find((c) => raw.toLowerCase().includes(c.key.toLowerCase())) || CATS[0];
+    grouped[cat.key].push(r);
+  }
+  const prioRank = { high: 1, medium: 2, low: 3 };
+  const PRC = { high: { badge: '#ef4444' }, medium: { badge: '#f59e0b' }, low: { badge: '#10b981' } };
+  const IMP = { high: '#ef4444', medium: '#f59e0b', low: '#10b981' };
+  const EFF = { high: '#f43f5e', medium: '#8b5cf6', low: '#3b82f6' };
+  const count = (p) => recList.filter((r) => String(r.priority || '').toLowerCase() === p).length;
+  const activeCats = CATS.filter((c) => grouped[c.key].length).length;
+
+  const statBox = (n, label, c1, c2, border, txt) =>
+    `<div style="flex:1;min-width:110px;background:linear-gradient(135deg,${c1},${c2});border:1px solid ${border};border-radius:12px;padding:12px 16px"><div style="font-size:1.4rem;font-weight:900;color:${txt};line-height:1">${n}</div><div style="font-size:.65rem;font-weight:700;color:${txt};text-transform:uppercase;letter-spacing:.05em">${label}</div></div>`;
+  const statsBanner = recList.length ? `<div style="display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 6px">
+    ${statBox(count('high'), 'High priority', '#fef2f2', '#fee2e2', '#fecaca', '#991b1b')}
+    ${statBox(count('medium'), 'Medium priority', '#fffbeb', '#fef3c7', '#fde68a', '#92400e')}
+    ${statBox(count('low'), 'Low priority', '#f0fdf4', '#dcfce7', '#bbf7d0', '#065f46')}
+    ${statBox(activeCats, 'Focus areas', '#f8fafc', '#f1f5f9', '#e2e8f0', '#1e293b')}
+  </div>` : '';
+
+  const chip = (label, val, col) =>
+    `<div style="display:flex;align-items:center;gap:6px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:4px 9px"><span style="width:8px;height:8px;border-radius:50%;background:${col}"></span><span style="font-size:.65rem;font-weight:700;color:#475569;text-transform:uppercase">${label}</span><span style="font-size:.7rem;font-weight:800;color:${col}">${esc(val)}</span></div>`;
+  const recCard = (r, idx) => {
+    const pc = PRC[String(r.priority || 'Medium').toLowerCase()] || PRC.medium;
+    const impKey = String(r.impact || 'Medium').toLowerCase();
+    const effKey = String(r.effort || 'Medium').toLowerCase();
+    const task = r.task || r.title || `Recommendation ${idx + 1}`;
+    const rationale = r.rationale || 'Part of the strategic roadmap';
+    return `<div style="border:1px solid #e2e8f0;border-left:5px solid ${pc.badge};border-radius:12px;padding:12px 14px;margin:8px 0;background:#fff">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;flex-wrap:wrap">
+        <strong style="font-size:14px;color:#0f172a">${esc(task)}</strong>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          ${r.priority ? `<span style="background:${pc.badge};color:#fff;border-radius:999px;padding:2px 9px;font-size:10px;font-weight:800;text-transform:uppercase">${esc(r.priority)}</span>` : ''}
+          <span style="background:#f1f5f9;color:#475569;border-radius:999px;padding:2px 9px;font-size:10px;font-weight:700">#${idx + 1}</span>
+        </div>
       </div>
-      <p style="color:#475569;margin:6px 0">${esc(r.description)}</p>
-      ${Array.isArray(r.action_items) && r.action_items.length ? `<ul style="margin:6px 0 0;padding-left:18px">${r.action_items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>` : ''}
-    </div>`).join('');
+      ${r.description ? `<p style="color:#334155;margin:8px 0;font-size:13px;line-height:1.55">${esc(r.description)}</p>` : ''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:stretch">
+        ${chip('Impact', r.impact || 'Medium', IMP[impKey] || '#f59e0b')}
+        ${chip('Effort', r.effort || 'Medium', EFF[effKey] || '#8b5cf6')}
+        <div style="flex:1;min-width:180px;display:flex;gap:6px;background:#fafafa;border:1px solid #e2e8f0;border-radius:8px;padding:4px 9px"><span style="font-size:.72rem;color:#64748b;line-height:1.45">💡 <strong style="color:#475569">Rationale:</strong> ${esc(rationale)}</span></div>
+      </div>
+      ${Array.isArray(r.action_items) && r.action_items.length ? `<ul style="margin:8px 0 0;padding-left:18px;font-size:13px;color:#475569">${r.action_items.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>` : ''}
+    </div>`;
+  };
+
+  let recSections = '';
+  let runningIdx = 0;
+  for (const c of CATS) {
+    const items = grouped[c.key].slice().sort(
+      (a, b) => (prioRank[String(a.priority || '').toLowerCase()] || 9) - (prioRank[String(b.priority || '').toLowerCase()] || 9)
+    );
+    if (!items.length) continue;
+    recSections += `<div style="display:flex;align-items:center;gap:10px;margin:18px 0 6px;padding:10px 14px;background:${c.bg};border-left:4px solid ${c.color};border-radius:10px">
+      <span style="font-size:1rem">${c.emoji}</span>
+      <span style="font-weight:800;color:#1e293b;font-size:14px">${c.label}</span>
+      <span style="margin-left:auto;font-weight:800;color:${c.color}">${items.length}</span>
+    </div>`;
+    recSections += items.map((r) => recCard(r, runningIdx++)).join('');
+  }
 
   return `
-    <h3 style="margin:0 0 6px;font-weight:700">Keyword strategy options</h3>
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
-      <thead><tr style="text-align:left;color:#64748b"><th style="padding:8px">Strategy</th><th style="padding:8px">Focus</th><th style="padding:8px">Top keywords</th></tr></thead>
-      <tbody>${stratRows}</tbody>
-    </table>
-    ${strengths ? `<h3 style="margin:18px 0 6px;font-weight:700">✅ What you're doing well</h3><ul style="margin:0;padding-left:18px;font-size:13px">${strengths}</ul>` : ''}
-    ${recCards ? `<h3 style="margin:18px 0 6px;font-weight:700">🎯 Prioritised action plan <span style="font-weight:400;color:#64748b">— for “${esc(recommended.name)}”</span></h3>${recCards}` : ''}`;
+    <h3 style="margin:0 0 6px;font-weight:700;font-size:16px">Keyword strategy options</h3>
+    <p style="margin:0;color:#64748b;font-size:12px">Vol = monthly search volume · KD = keyword difficulty · Rank = your current position</p>
+    ${stratCards}
+    ${strengths ? `<h3 style="margin:18px 0 6px;font-weight:700;font-size:16px">✅ What you're doing well</h3><ul style="margin:0;padding-left:18px;font-size:13px">${strengths}</ul>` : ''}
+    ${recList.length ? `<h3 style="margin:18px 0 6px;font-weight:700;font-size:16px">🎯 Prioritised action plan <span style="font-weight:400;color:#64748b">— ${recList.length} actions for “${esc(recommended.name)}”</span></h3>${statsBanner}${recSections}` : ''}`;
 }
 
 // ── Technical SEO / Forensic Audit: DataForSEO async crawl ────────────────────
@@ -426,6 +634,434 @@ function pageIssues(p) {
   if ((p.status_code || 0) >= 400) n++;
   if (p.checks && p.checks.is_https === false) n++;
   return n;
+}
+
+// ── GEO+SEO Forensic Audit ────────────────────────────────────────────────────
+// Server-side port of index.html's autoFillForensicAudit(): fan out the same
+// ~30 probes in parallel, normalise them into the `d` shape, then reuse the
+// agency's exact recommendation / severity / health-score logic. Returns a
+// themed `sections` report plus a compact `summary` (used by the teaser path).
+async function forensicAuditRun(body) {
+  let target = (body.input || body.url || '').trim();
+  if (!target) throw new Error('A website URL is required.');
+  if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
+  let u;
+  try { u = new URL(target); } catch { throw new Error('Invalid URL format.'); }
+
+  const rootDomain = u.origin;                       // https://www.example.com
+  const domain = u.hostname;                         // www.example.com
+  const baseDomain = domain.replace(/^www\./, '');   // example.com
+  const httpUrl = 'http://' + domain;
+  const notFoundPath = `${rootDomain}/fa-audit-404-check-${Date.now()}`;
+
+  const withTimeout = (p, ms) =>
+    Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+  const tryJson = (url, payload, ms) => withTimeout(postUpstream(url, payload), ms).catch(() => null);
+  // getHtml returns { body: "<html>" }; postUpstream may pass it through or
+  // unwrap an envelope to the raw string — handle both, never throw.
+  const getHtmlBody = (path, ms) =>
+    withTimeout(postUpstream(UPSTREAMS.getHtml, { url: path }), ms)
+      .then((r) => (typeof r === 'string' ? r : (r && typeof r.body === 'string' ? r.body : '')))
+      .catch(() => '');
+
+  // Kick everything off in parallel. GTmetrix + the internal-duplication crawl
+  // are the long poles; the rest resolve in well under 30s.
+  const homeHtmlP = getHtmlBody(rootDomain, 30000);
+  const copyscapeP = homeHtmlP.then((html) => {
+    const text = faStripHtml(html).slice(0, 5000);
+    if (text.length < 100) return null;
+    return tryJson(UPSTREAMS.copyscape, { text }, 30000);
+  });
+
+  const [
+    siteRes, mozRes, psmRes, psdRes, sslRes, gtRes, ahrefsRes,
+    homeHtml, robotsBody, llmsBody, llmsFullBody, notFoundBody, httpBody,
+    copyscapeRaw, sitelinerItems,
+  ] = await Promise.all([
+    tryJson(UPSTREAMS.forensicSiteData, { url: baseDomain }, 25000),
+    tryJson(UPSTREAMS.mozAuthority, { domain: baseDomain }, 25000),
+    tryJson(UPSTREAMS.pageSpeed, { url: rootDomain }, 60000),
+    tryJson(UPSTREAMS.pageSpeed, { url: rootDomain, strategy: 'desktop' }, 60000),
+    tryJson(UPSTREAMS.sslCheck, { url: domain }, 20000),
+    tryJson(UPSTREAMS.gtmetrix, { url: rootDomain }, 75000),
+    tryJson(UPSTREAMS.ahrefsProxy, { endpoint: 'overview', params: { target: baseDomain } }, 25000),
+    homeHtmlP,
+    getHtmlBody(rootDomain + '/robots.txt', 20000),
+    getHtmlBody(rootDomain + '/llms.txt', 15000),
+    getHtmlBody(rootDomain + '/llms-full.txt', 15000),
+    getHtmlBody(notFoundPath, 15000),
+    getHtmlBody(httpUrl, 15000),
+    copyscapeP,
+    faSitelinerCrawl(rootDomain, 110000),
+  ]);
+
+  // ── Normalise everything into the `d` shape generateForensicRecommendations expects ──
+  const d = {
+    url: target, client: body.client || '', date: '',
+    ssl: null, da: null, psd: null, psm: null, gtmetrix: '', copyscape: null,
+    ga4: '', gsc: '', metatitle: '', metadesc: '', robots: '', custom404: '',
+    cdn: '', uptime: '', siteliner: null, h1: null, h2: null, sitemap: '',
+    https: '', structdata: '', semantic: '', llmblock: '', llmstxt: '', llmsfull: '',
+    cms: '', backlinks: null, refdomains: null, orgkw: null, spam: null,
+    // Screaming-Frog CSV fields aren't available without a manual upload — leave
+    // null so no false findings are raised.
+    duptitles: null, dupdescs: null, unoptmeta: null, canonical: null,
+    hreflang: null, multislash: null, sf404: null, sderrors: null,
+    rankmath: '', wordfence: '', notes: '',
+  };
+
+  // 1. Site data (title / desc / h1-h2 / schema / spam / backlinks)
+  if (siteRes) {
+    if (siteRes.title) d.metatitle = String(siteRes.title);
+    if (siteRes.description) d.metadesc = String(siteRes.description);
+    if (siteRes.backlinks_spam_score != null) d.spam = Number(siteRes.backlinks_spam_score);
+    const toCount = (v) => (Array.isArray(v) ? v.length : (v !== '' && v != null ? Number(v) : null));
+    const h1c = toCount(siteRes.h1), h2c = toCount(siteRes.h2);
+    if (h1c != null && !Number.isNaN(h1c)) d.h1 = h1c;
+    if (h2c != null && !Number.isNaN(h2c)) d.h2 = h2c;
+    if (siteRes.schema && siteRes.schema !== 'None') d.structdata = 'Yes';
+    if (siteRes.backlinks != null) d.backlinks = Number(siteRes.backlinks);
+    if (siteRes.referring_domains != null) d.refdomains = Number(siteRes.referring_domains);
+  }
+
+  // Backlinks / ref domains / organic keywords — prefer Ahrefs, fall back to site data.
+  const ah = ahrefsRes?.domain || ahrefsRes || {};
+  if (ah.backlinks != null) d.backlinks = Number(ah.backlinks);
+  if (ah.referring_domains != null) d.refdomains = Number(ah.referring_domains);
+  if (ah.org_keywords != null) d.orgkw = Number(ah.org_keywords);
+  const backlinksSource = (ah.backlinks != null || ah.referring_domains != null) ? 'Ahrefs' : (siteRes?.backlinks != null ? 'DataForSEO' : null);
+
+  // 2. Moz Domain Authority
+  if (mozRes?.domain_authority != null) d.da = Number(mozRes.domain_authority);
+
+  // 3. PageSpeed (mobile) + sitemap presence
+  const parsePS = (v) => { if (v == null) return null; const n = parseInt(String(v), 10); return Number.isNaN(n) ? null : n; };
+  if (psmRes) {
+    const psm = parsePS(psmRes.pagespeed);
+    if (psm != null) d.psm = psm;
+    d.sitemap = psmRes.sitemap && psmRes.sitemap !== 'Not Found' ? 'Present' : 'Missing';
+  }
+  // 4. PageSpeed (desktop)
+  if (psdRes) { const psd = parsePS(psdRes.pagespeed); if (psd != null) d.psd = psd; }
+
+  // 5. SSL
+  if (sslRes) d.ssl = (sslRes.message && String(sslRes.message).toLowerCase().includes('valid')) ? 'pass' : 'fail';
+
+  // 6. GTmetrix grade
+  const grade = gtRes?.data?.attributes?.gtmetrix_grade;
+  if (grade) d.gtmetrix = grade;
+
+  // 7. Homepage HTML — GA4 / CDN / semantic / CMS / plugins / structured data / H1-H2 fallback
+  faParseHomeHtml(homeHtml, d);
+
+  // 8. robots.txt + LLM-bot block check
+  faParseRobots(robotsBody, d);
+
+  // 9. llms.txt / llms-full.txt
+  d.llmstxt = faValidTxt(llmsBody) ? 'Present' : 'Missing';
+  d.llmsfull = faValidTxt(llmsFullBody) ? 'Present' : 'Missing';
+
+  // 10. Custom 404
+  {
+    const b = (notFoundBody || '').trim();
+    d.custom404 = (b.length > 400 && !b.toLowerCase().includes('cannot get') && b.includes('<')) ? 'Configured' : 'Not Configured';
+  }
+  // 11. HTTP → HTTPS redirect
+  {
+    const b = (httpBody || '').trim();
+    const works = b.length > 500 && b.toLowerCase().includes('https');
+    d.https = works ? 'Yes' : (d.ssl === 'pass' ? 'Yes' : 'No');
+  }
+
+  // 12. Copyscape (external duplicate %) — postUpstream already unwrapped the envelope.
+  if (copyscapeRaw && copyscapeRaw.originality_score !== undefined) {
+    d.copyscape = Math.max(0, Math.round(100 - Number(copyscapeRaw.originality_score)));
+  }
+
+  // 13. Internal duplication (Siteliner-equivalent) from the crawl
+  if (Array.isArray(sitelinerItems) && sitelinerItems.length) {
+    const dup = sitelinerItems.filter((i) => i.duplicate_content === true).length;
+    d.siteliner = Math.round((dup / sitelinerItems.length) * 100);
+  }
+
+  // ── Recommendations + severity + health score (agency logic, ported verbatim) ──
+  const recs = generateForensicRecommendations(d);
+  recs.forEach((r) => { r.severity = faSeverityFor(r); });
+  recs.sort((a, b) => FA_SEV_ORDER[a.severity] - FA_SEV_ORDER[b.severity]);
+  const score = faComputeHealthScore(d, recs);
+  const sevCounts = { critical: 0, warning: 0, opportunity: 0 };
+  recs.forEach((r) => { sevCounts[r.severity]++; });
+
+  const summary = {
+    healthScore: score,
+    issues: recs.length,
+    critical: sevCounts.critical,
+    warning: sevCounts.warning,
+    opportunity: sevCounts.opportunity,
+    domainAuthority: d.da,
+    pageSpeedMobile: d.psm,
+    pageSpeedDesktop: d.psd,
+    ssl: d.ssl,
+    structuredData: d.structdata || null,
+    llmsTxt: d.llmstxt || null,
+    backlinks: d.backlinks,
+    spamScore: d.spam,
+    pagesCrawled: Array.isArray(sitelinerItems) ? sitelinerItems.length : 0,
+  };
+
+  return { sections: faSections(d, recs, score, sevCounts, backlinksSource), summary };
+}
+
+/** DataForSEO async crawl used only for the internal-duplication ratio. */
+async function faSitelinerCrawl(url, maxWaitMs) {
+  try {
+    const init = await postUpstream(UPSTREAMS.dataforseoCrawler, { action: 'initiate', url, max_pages: 20, max_depth: 2 });
+    const taskId = init?.tasks?.[0]?.id;
+    if (!taskId) return null;
+    const deadline = Date.now() + maxWaitMs;
+    while (Date.now() < deadline) {
+      await sleep(5000);
+      let result;
+      try {
+        const res = await postUpstream(UPSTREAMS.dataforseoCrawler, { action: 'get_results', task_id: taskId, limit: 200 });
+        result = res?.tasks?.[0]?.result?.[0];
+      } catch { continue; }
+      if (!result) continue;
+      if (result.crawl_progress && result.crawl_progress !== 'in_progress') return result.items || [];
+    }
+  } catch { /* fall through */ }
+  return null;
+}
+
+/** Strip tags/scripts/styles to approximate visible page text (for Copyscape). */
+function faStripHtml(html) {
+  return String(html || '')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** True if a fetched .txt body is a real text file (not HTML / an error page). */
+function faValidTxt(body) {
+  const t = (body || '').trim();
+  return t.length > 20 && !t.toLowerCase().startsWith('error') &&
+    !t.includes('<?xml') && !t.includes('<!DOCTYPE') && !t.includes('<html');
+}
+
+/** Homepage HTML heuristics — mirrors the DOM checks in autoFillForensicAudit. */
+function faParseHomeHtml(html, d) {
+  if (!html || html.length < 200) return;
+  const lc = html.toLowerCase();
+  const count = (re) => (html.match(re) || []).length;
+
+  if (d.h1 == null) d.h1 = count(/<h1[\s>]/gi);
+  if (d.h2 == null) d.h2 = count(/<h2[\s>]/gi);
+
+  const semFound = ['<header', '<footer', '<main', '<nav'].filter((t) => lc.includes(t)).length;
+  d.semantic = semFound >= 2 ? 'Yes' : 'No';
+
+  d.ga4 = (lc.includes('gtag') || lc.includes('googletagmanager')) ? 'Connected' : 'Not Connected';
+
+  if (lc.includes('rank-math') || lc.includes('rankmath')) d.rankmath = 'Installed';
+  if (lc.includes('wordfence') || lc.includes('wfvt_') || lc.includes('wf-fingerprint')) d.wordfence = 'Installed';
+
+  const cdnPatterns = ['cloudflare', 'cloudfront.net', 'fastly.net', 'akamai', 'stackpath',
+    'cdn-cgi', '__cf_bm', 'bunnycdn', 'keycdn', 'maxcdn', 'edgecastcdn', 'cdn.jsdelivr', 'cdnjs.cloudflare'];
+  d.cdn = cdnPatterns.some((p) => lc.includes(p)) ? 'Yes' : 'No';
+
+  if (lc.includes('application/ld+json')) d.structdata = 'Yes';
+  else if (!d.structdata) d.structdata = 'No';
+
+  if (!d.metatitle) { const m = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i); if (m) d.metatitle = m[1].trim(); }
+  if (!d.metadesc) { const m = html.match(/<meta[^>]+name=["']description["'][^>]*content=["']([^"']*)["']/i); if (m) d.metadesc = m[1].trim(); }
+
+  let cms = '';
+  if (lc.includes('/wp-content/') || lc.includes('/wp-includes/') || lc.includes('wp-json')) cms = 'WordPress';
+  else if (lc.includes('wixstatic.com') || lc.includes('wix.com')) cms = 'Wix';
+  else if (lc.includes('cdn.shopify.com') || lc.includes('shopify')) cms = 'Shopify';
+  else if (lc.includes('squarespace.com') || lc.includes('squarespace-cdn.com')) cms = 'Squarespace';
+  else if (lc.includes('webflow.com') || lc.includes('.webflow.io')) cms = 'Webflow';
+  else if (lc.includes('hs-scripts.com') || lc.includes('js.hs-analytics.net')) cms = 'HubSpot CMS';
+  else if (lc.includes('drupal')) cms = 'Drupal';
+  else if (lc.includes('/components/com_') || lc.includes('joomla')) cms = 'Joomla';
+  else if (lc.includes('bigcommerce.com')) cms = 'BigCommerce';
+  else if (lc.includes('magento')) cms = 'Magento';
+  else if (lc.includes('ghost.io') || lc.includes('ghost.org')) cms = 'Ghost';
+  if (cms) d.cms = cms;
+}
+
+/** robots.txt presence + whether it blocks AI crawlers. */
+function faParseRobots(robotsBody, d) {
+  const robots = (robotsBody || '').trim();
+  const lc = robots.toLowerCase();
+  const hasUserAgent = lc.includes('user-agent:');
+  const isHtml = lc.includes('<!doctype') || lc.includes('<html') || lc.includes('<?xml');
+  const isErr = lc.startsWith('error') || lc.includes('not found') || lc.includes('internal server error');
+  const ok = robots.length > 10 && (hasUserAgent || (!isHtml && !isErr));
+  d.robots = ok ? 'Pass' : 'Missing';
+  if (!ok) { d.llmblock = 'No'; return; }
+  const bots = ['gptbot', 'claudebot', 'oai-searchbot', 'perplexitybot', 'anthropic-ai'];
+  let agent = '', blocked = false;
+  for (const line of robots.split('\n')) {
+    const l = line.trim().toLowerCase();
+    if (l.startsWith('user-agent:')) agent = l.replace('user-agent:', '').trim();
+    else if (l.startsWith('disallow:') && bots.some((b) => agent.includes(b)) && l.replace('disallow:', '').trim() === '/') { blocked = true; break; }
+  }
+  d.llmblock = blocked ? 'Yes' : 'No';
+}
+
+// ── Forensic recommendation engine (ported verbatim from index.html) ──────────
+function generateForensicRecommendations(d) {
+  const recs = [];
+  const add = (error, action, checkKey = null) => recs.push({ error, action, checkKey });
+
+  if (d.ssl === 'fail') add('Invalid SSL Certificate', 'Client to renew SSL certificate', 'ssl');
+  if (d.psd !== null && d.psd < 90) add(`Poor Desktop Page Speed (score: ${d.psd})`, 'Developer to minify bloated CSS or JS components and serve images in .webp format to reduce page load time. Additional plugins may be required for cache purposes', 'psd');
+  if (d.psm !== null && d.psm < 90) add(`Poor Mobile Page Speed (score: ${d.psm})`, 'Developer to minify bloated CSS or JS components and serve images in .webp format to reduce page load time. Additional plugins may be required for cache purposes', 'psm');
+  if (d.gtmetrix && d.gtmetrix !== 'A') add(`GTmetrix Grade ${d.gtmetrix} (Not Grade A)`, 'Developer to improve the core web vitals', 'gtmetrix');
+  if (d.copyscape !== null && d.copyscape > 15) add(`High Duplicate Content (${d.copyscape}%)`, 'MediaOne can assist with the write up to rephrase the duplicate content', 'copyscape');
+  if (d.robots === 'Missing') add('robots.txt Does Not Exist', 'Developer to create robots.txt and add sitemap URL into robots.txt', 'robots');
+  if (d.robots === 'Fail') add('robots.txt Missing Sitemap URL', 'Developer to add sitemap URL in robots.txt', 'robots');
+  if (d.custom404 === 'Not Configured') add('No Custom 404 Error Page', "Developer to create a '404 Error' page with a home page button", 'custom404');
+  if (d.cdn === 'No') add('No CDN Implemented', 'Developer to set up CDN. We recommend Cloudflare, but developer can choose any other CDN that serves similar function', 'html');
+  if (d.uptime === 'Not Monitoring') add('Uptimerobot Property Not Created', 'Developer to create Uptimerobot property to monitor site uptime');
+  if (d.siteliner !== null && d.siteliner > 15) add(`High Internal Duplicate Content (${d.siteliner}%)`, 'MediaOne can assist with the write up to rephrase the duplicate content');
+  if (d.sitemap === 'Missing') add('XML Sitemap Missing', 'Developer will create a sitemap and submit it to Google Search Console', 'sitemap');
+  if (d.sitemap === 'Not Submitted in GSC') add('Sitemap Not Submitted in GSC', 'Developer to ensure the sitemap is submitted in Google Search Console', 'sitemap');
+  if (d.sitemap === 'Has / Error in GSC') add('Sitemap Has "/" Error in GSC', 'Developer to ensure the sitemap is submitted in GSC and delete "/" error in GSC (if any)', 'sitemap');
+  if (d.sitemap === 'Not Formatted Properly') add('Sitemap Not Formatted Properly', 'Developer to ensure that the sitemap is formatted correctly', 'sitemap');
+  if (d.https === 'No') add('HTTP to HTTPS Redirect Not Configured', 'Developer to 301 redirect http:// URLs to https://', 'https');
+  if (!d.metatitle) add('Missing Meta Title', 'MediaOne will address the meta titles for targeted pages in the On Page Recommendation document. Client may provide the meta titles for other pages and MediaOne can assist with implementing them', 'sitedata');
+  if (!d.metadesc) add('Missing Meta Description', 'MediaOne will address the meta descriptions for targeted pages in the On Page Recommendation document. Client may provide the meta descriptions for other pages and MediaOne can assist with implementing them', 'sitedata');
+  if (d.duptitles !== null && d.duptitles > 0) add(`${d.duptitles} Duplicate Title Tags Found`, 'MediaOne will address the meta titles for targeted pages in the On Page Recommendation document. Client may provide the meta titles for other pages and MediaOne can assist with implementing them');
+  if (d.dupdescs !== null && d.dupdescs > 0) add(`${d.dupdescs} Duplicate Meta Descriptions Found`, 'MediaOne will address the meta descriptions for targeted pages in the On Page Recommendation document. Client may provide the meta descriptions for other pages and MediaOne can assist with implementing them');
+  if (d.unoptmeta !== null && d.unoptmeta > 0) add(`${d.unoptmeta} Unoptimised Meta Tags Found`, 'MediaOne will address the meta titles and descriptions for targeted pages in the On Page Recommendation document');
+  if (d.canonical !== null && d.canonical > 0) add(`${d.canonical} Canonical Tag Issues Found`, 'Developer to canonicalise targeted pages');
+  if (d.hreflang !== null && d.hreflang > 0) add(`${d.hreflang} Hreflang Tag Issues Found`, 'Developer to implement en-SG hreflang tagging: (1) Open header.php in the active theme, (2) Add <link rel="alternate" href="[websiteURL]" hreflang="en-sg" /> before the closing </head> tag, (3) Save the file');
+  if (d.multislash !== null && d.multislash > 0) add(`${d.multislash} Multiple Slash URL Issues Found`, 'Developer to redirect multiple slash URLs to single slash (e.g. https://www.example.com// → https://www.example.com/). MediaOne will also remove the multiple slash URLs from sitemap.xml');
+  if (d.sf404 !== null && d.sf404 > 0) add(`${d.sf404} Broken Links (404) Detected`, 'Developer to remove these pages from sitemap.xml and fix or redirect all broken links to relevant live pages');
+  if (d.ga4 === 'Not Connected') add('No Data Flowing into GA4', 'Developer will assist with the GA4 tagging and ensure data is flowing into GA4', 'html');
+  if (d.ga4 === 'No Access') add('No Access to Google Analytics 4', 'Client to provide access to GA4');
+  if (d.gsc === 'No Access') add('No Access to Google Search Console', 'Client to give GSC access first. After which, MediaOne will ensure the sitemap is submitted in GSC and delete "/" error in GSC (if any)');
+  if (d.structdata === 'No') add('No Structured Data Markup', 'MediaOne will be recommending relevant structured data on specific pages to enhance how your pages show up for GEO during On-page recommendations', 'html');
+  if (d.sderrors !== null && d.sderrors > 0) add(`${d.sderrors} Structured Data Errors Detected`, 'MediaOne will be reviewing structured data with errors on specific pages to enhance how your pages show up for GEO during On-page recommendations');
+  if (d.llmblock === 'Yes') add('LLM Bots Blocked in robots.txt', 'MediaOne to check & fix the robots.txt to ensure that the website does not block LLM bots', 'robots');
+  if (d.llmstxt === 'Missing') add('llms.txt File Missing', 'MediaOne to check, create and install llms.txt', 'llmstxt');
+  if (d.llmsfull === 'Missing') add('llms-full.txt File Missing', 'MediaOne to check, create and install llms-full.txt', 'llmsfull');
+  if (d.semantic === 'Partial') add('Website is Partly Semantic HTML', 'MediaOne to check and provide the semantic HTML structure for developers to deploy', 'html');
+  if (d.semantic === 'No') add('Website is Not Semantic HTML Optimised', 'MediaOne to check and provide the full semantic HTML structure for developers to deploy', 'html');
+  if (d.spam !== null && d.spam > 30) add(`High Spam Score (${d.spam}%)`, 'Audit backlink profile and disavow toxic links via Google Search Console', 'backlinks');
+  const rmMissing = d.rankmath === 'Not Installed';
+  const wfMissing = d.wordfence === 'Not Installed';
+  if (rmMissing || wfMissing) {
+    const missing = [rmMissing && 'Rank Math', wfMissing && 'Wordfence'].filter(Boolean).join(' and ');
+    add(`${missing} Plugin(s) Not Installed`, 'MediaOne to install Rank Math (but turn off schema markup generation) and Wordfence plugins to enhance SEO management and strengthen website security monitoring', 'html');
+  }
+  if (d.h1 !== null && d.h1 === 0) add('Missing H1 Tag', "Add a single H1 heading that clearly describes the page's primary topic", 'html');
+  if (d.h1 !== null && d.h1 > 1) add(`Multiple H1 Tags (${d.h1} found)`, 'Reduce H1 tags to one per page to maintain clear heading hierarchy', 'html');
+  return recs;
+}
+
+const FA_SEV_ORDER = { critical: 0, warning: 1, opportunity: 2 };
+const FA_SEV_LABEL = { critical: 'Critical', warning: 'Warning', opportunity: 'Opportunity' };
+
+function faSeverityFor(rec) {
+  const e = (rec.error || '').toLowerCase();
+  const k = (rec.checkKey || '').toLowerCase();
+  if (/invalid ssl|ssl certificate/.test(e)) return 'critical';
+  if (/not installed|wordfence|rank math/.test(e)) return 'critical';
+  if (/ga4|analytics 4|search console/.test(e)) return 'critical';
+  if (/duplicate content/.test(e)) return 'critical';
+  if (/broken link|canonical tag issue|structured data errors/.test(e)) return 'critical';
+  if (/high spam score/.test(e)) return 'critical';
+  if (/llms?\.txt|llms-full|llm bots|semantic|structured data markup|no structured data/.test(e)) return 'opportunity';
+  if (k === 'llmstxt' || k === 'llmsfull') return 'opportunity';
+  return 'warning';
+}
+
+function faComputeHealthScore(d, recs) {
+  let score = 100;
+  recs.forEach((r) => {
+    const s = r.severity || faSeverityFor(r);
+    score -= s === 'critical' ? 12 : s === 'warning' ? 6 : 3;
+  });
+  if (d.ssl === 'fail') score -= 5;
+  if (d.psd !== null && d.psd < 50) score -= 4;
+  if (d.psm !== null && d.psm < 50) score -= 4;
+  if (d.spam !== null && d.spam > 30) score -= 4;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+/** Build the themed `sections` report for the forensic audit. */
+function faSections(d, recs, score, sevCounts, backlinksSource) {
+  const dash = '—';
+  const scoreTone = score >= 80 ? 'green' : score >= 50 ? 'amber' : 'red';
+  const num = (v) => (v == null ? dash : Number(v).toLocaleString());
+
+  const sslTone = d.ssl === 'pass' ? 'green' : d.ssl === 'fail' ? 'red' : 'slate';
+  const psTone = (v) => (v == null ? 'slate' : v >= 90 ? 'green' : v >= 50 ? 'amber' : 'red');
+  const daTone = d.da == null ? 'slate' : d.da >= 50 ? 'green' : d.da >= 30 ? 'amber' : 'red';
+  const gtTone = !d.gtmetrix ? 'slate' : ['A', 'B'].includes(d.gtmetrix) ? 'green' : d.gtmetrix === 'C' ? 'amber' : 'red';
+  const ga4Tone = d.ga4 === 'Connected' ? 'green' : d.ga4 ? 'red' : 'slate';
+  const sitemapTone = d.sitemap === 'Present' ? 'green' : d.sitemap ? 'red' : 'slate';
+  const httpsTone = d.https === 'Yes' ? 'green' : d.https === 'No' ? 'red' : 'slate';
+  const sdTone = d.structdata === 'Yes' ? 'green' : d.structdata === 'No' ? 'red' : 'slate';
+  const llmTone = d.llmstxt === 'Present' ? 'green' : d.llmstxt === 'Missing' ? 'red' : 'slate';
+  const spamTone = d.spam == null ? 'slate' : d.spam > 30 ? 'red' : d.spam > 15 ? 'amber' : 'green';
+  const copyTone = d.copyscape == null ? 'slate' : d.copyscape > 15 ? 'red' : 'green';
+  const sitelinerTone = d.siteliner == null ? 'slate' : d.siteliner > 15 ? 'red' : 'green';
+
+  const sections = [
+    { type: 'heading', text: `GEO+SEO Forensic Audit — ${d.url}` },
+    { type: 'stats', items: [
+      { label: 'Health score', value: `${score}/100`, tone: scoreTone },
+      { label: 'Critical', value: sevCounts.critical, tone: sevCounts.critical ? 'red' : 'green' },
+      { label: 'Warning', value: sevCounts.warning, tone: sevCounts.warning ? 'amber' : 'green' },
+      { label: 'Opportunity', value: sevCounts.opportunity, tone: sevCounts.opportunity ? 'blue' : 'green' },
+      { label: 'Total issues', value: recs.length, tone: recs.length === 0 ? 'green' : recs.length < 5 ? 'amber' : 'red' },
+    ] },
+    { type: 'stats', title: 'Key metrics', items: [
+      { label: 'SSL', value: d.ssl === 'pass' ? 'Pass' : d.ssl === 'fail' ? 'Fail' : dash, tone: sslTone },
+      { label: 'Domain Authority', value: d.da ?? dash, tone: daTone },
+      { label: 'PageSpeed Desktop', value: d.psd ?? dash, tone: psTone(d.psd) },
+      { label: 'PageSpeed Mobile', value: d.psm ?? dash, tone: psTone(d.psm) },
+      { label: 'GTmetrix Grade', value: d.gtmetrix || dash, tone: gtTone },
+      { label: 'GA4', value: d.ga4 || dash, tone: ga4Tone },
+      { label: 'Sitemap', value: d.sitemap || dash, tone: sitemapTone },
+      { label: 'HTTPS Redirect', value: d.https || dash, tone: httpsTone },
+      { label: 'Structured Data', value: d.structdata || dash, tone: sdTone },
+      { label: 'Semantic HTML', value: d.semantic || dash, tone: d.semantic === 'Yes' ? 'green' : d.semantic ? 'red' : 'slate' },
+      { label: 'LLM bots blocked', value: d.llmblock || dash, tone: d.llmblock === 'Yes' ? 'red' : d.llmblock ? 'green' : 'slate' },
+      { label: 'llms.txt', value: d.llmstxt || dash, tone: llmTone },
+      { label: 'llms-full.txt', value: d.llmsfull || dash, tone: d.llmsfull === 'Present' ? 'green' : d.llmsfull === 'Missing' ? 'red' : 'slate' },
+      { label: 'CMS', value: d.cms || dash, tone: 'slate' },
+      { label: 'Copyscape dup %', value: d.copyscape == null ? dash : `${d.copyscape}%`, tone: copyTone },
+      { label: 'Internal dup %', value: d.siteliner == null ? dash : `${d.siteliner}%`, tone: sitelinerTone },
+      { label: 'Backlinks', value: num(d.backlinks) + (backlinksSource ? ` · ${backlinksSource}` : ''), tone: 'slate' },
+      { label: 'Referring domains', value: num(d.refdomains), tone: 'slate' },
+      { label: 'Organic keywords', value: num(d.orgkw), tone: 'slate' },
+      { label: 'Spam score', value: d.spam == null ? dash : `${d.spam}%`, tone: spamTone },
+    ] },
+  ];
+
+  if (recs.length) {
+    sections.push({
+      type: 'table',
+      title: `Prioritised action plan — ${recs.length} ${recs.length === 1 ? 'issue' : 'issues'}`,
+      columns: ['#', 'Severity', 'Issue', 'Recommended action'],
+      rows: recs.map((r, i) => ({
+        '#': i + 1,
+        Severity: FA_SEV_LABEL[r.severity],
+        Issue: r.error,
+        'Recommended action': r.action,
+      })),
+    });
+  } else {
+    sections.push({ type: 'callout', text: 'No issues detected across the audited factors. 🎉' });
+  }
+  return sections;
 }
 
 // ── Integrations: the user's own connected Google data (GSC / GA4 / Ads) ──────
@@ -1093,7 +1729,7 @@ function deepBody(raw) {
 
 // Exposed for unit tests (orchestration is otherwise unreachable without a full
 // authed event). Not used by the handler path.
-export const __test = { callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing };
+export const __test = { callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml };
 
 /**
  * AI endpoints return token usage; convert to actual credits so a tiny caption
