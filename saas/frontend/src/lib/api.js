@@ -408,11 +408,18 @@ function mockResult(tool, body, teaser, tier) {
     return { html: `<h3 style="font-weight:700">QA agent findings — 8 agents</h3>${['Branding Check', 'Legal & Compliance', 'Language & Readability', 'Length & Sufficiency', 'Formatting', 'Flow & Cohesion', 'FAQs', 'Schema Markup'].map((l) => `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:8px 0"><strong>${l}</strong> <span style="background:#eef2ff;color:#4f46e5;border-radius:999px;padding:1px 8px;font-size:11px">score 8</span><p style="color:#475569;margin:6px 0">In production this is the live agent analysis with concrete, applyable suggestions.</p></div>`).join('')}` };
   }
   if (tool.id === 'schema') {
+    // Mirror the real backend: return the bare JSON-LD as `text` (the
+    // SchemaResult card renders + validates it).
     const obj = { '@context': 'https://schema.org', '@type': body.type || 'LocalBusiness', name: body.name || 'Acme Corp' };
     if (body.url) obj.url = body.url;
+    if (body.description) obj.description = body.description;
     if (body.telephone) obj.telephone = body.telephone;
-    const block = `<script type="application/ld+json">\n${JSON.stringify(obj, null, 2)}\n</script>`.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-    return { html: `<p style="color:#475569;margin:0 0 8px">Paste this into your page's &lt;head&gt;:</p><pre style="background:#0f172a;color:#e2e8f0;padding:12px;border-radius:10px;overflow:auto;font-size:12px">${block}</pre>` };
+    if (body.address) obj.address = body.address;
+    if (body.priceRange) obj.priceRange = body.priceRange;
+    if (body.offers_price) obj.offers = { '@type': 'Offer', price: String(body.offers_price), priceCurrency: body.offers_priceCurrency || 'SGD' };
+    if (body.rating_value) obj.aggregateRating = { '@type': 'AggregateRating', ratingValue: String(body.rating_value), reviewCount: String(body.rating_count || 0) };
+    const json = JSON.stringify(obj, null, 2);
+    return { text: json };
   }
   if (tool.id === 'time-to-rank') {
     const kws = String(body.input || 'keyword').split(/[\n,]+/).map((s) => s.trim()).filter(Boolean).slice(0, 6);

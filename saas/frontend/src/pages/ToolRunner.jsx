@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import UpgradeModal from '../components/UpgradeModal.jsx';
 import ResultSections from '../components/ResultSections.jsx';
+import SchemaResult from '../components/SchemaResult.jsx';
 import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
 
 const CONFIRM_AT = 25; // credits — confirm before running pricey tools
@@ -197,6 +198,7 @@ function Result({ out, tool, project, user }) {
     );
   }
 
+  const isSchema = tool.id === 'schema' && r.text;
   const hasContent = r.text || r.preview || r.html || (r.rows && r.rows.length) || (r.sections && r.sections.length);
   const sectionTable = r.sections && firstTable(r.sections);
 
@@ -226,10 +228,16 @@ function Result({ out, tool, project, user }) {
           </div>
         )}
 
-        {r.text && <pre className="whitespace-pre-wrap text-sm text-slate-700">{r.text}</pre>}
-        {r.preview && <pre className="whitespace-pre-wrap text-sm text-slate-500">{r.preview}</pre>}
-        {r.sections && r.sections.length > 0 && <ResultSections sections={r.sections} />}
-        {r.html && <div className="dm-report max-w-none text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: r.html }} />}
+        {isSchema ? (
+          <SchemaResult json={r.text} />
+        ) : (
+          <>
+            {r.text && <pre className="whitespace-pre-wrap text-sm text-slate-700">{r.text}</pre>}
+            {r.preview && <pre className="whitespace-pre-wrap text-sm text-slate-500">{r.preview}</pre>}
+            {r.sections && r.sections.length > 0 && <ResultSections sections={r.sections} />}
+            {r.html && <div className="dm-report max-w-none text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: r.html }} />}
+          </>
+        )}
 
         {r.rows && r.rows.length > 0 && <ResultTable rows={r.rows} />}
 
