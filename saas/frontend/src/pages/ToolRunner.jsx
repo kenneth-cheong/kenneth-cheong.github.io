@@ -291,6 +291,11 @@ function Result({ out, tool, project, user }) {
 
       <div className="card p-5">
         <PrintHeader tool={tool} project={project} user={user} />
+        {out.failed && (
+          <div className="dm-no-print mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+            This run didn’t complete — no credits were charged.
+          </div>
+        )}
         {out.teaser && (
           <div className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
             {r.teaserMessage || 'Preview only — upgrade to see everything.'}

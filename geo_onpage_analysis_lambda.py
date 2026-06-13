@@ -75,6 +75,11 @@ SCHEMA MAXIMIZATION: You must suggest EVERY relevant schema type possible for th
 - Consider this checklist: Organization, Product, Service, FAQPage, HowTo, LocalBusiness, BreadcrumbList, Article, VideoObject, ImageObject, Review, AggregateRating, SoftwareApplication, Event, Person, JobPosting.
 - Use nested relationships (e.g., 'mainEntity', 'itemListElement', 'hasPart') where appropriate to create a rich semantic graph.
 
+IMPORTANT — keep the response COMPACT so it is complete, valid JSON (never truncated):
+- Include at most 6 items in any array (recommended_terms, topic_clusters, entities, faq_suggestions, linking_table, quotable_statements, etc.).
+- Keep each optimized chunk rewrite under 120 words.
+- Be terse in all "text" insight fields (one sentence each).
+
 Output your analysis in strictly JSON format:
 {{
   "page_metadata": {{
@@ -121,11 +126,9 @@ Output your analysis in strictly JSON format:
   }},
   "optimized_chunks": [
     {{
-      "original": "The exact original text chunk from ORIGINAL TEXT CHUNKS.",
-      "optimized": "The GEO-optimized, citation-worthy version."
+      "optimized": "The GEO-optimized, citation-worthy rewrite of this chunk (do NOT echo the original text back)."
     }}
   ],
-  "optimized_content": "Final consolidated optimized content.",
   "schema_markup": [
     {{
        "status": "existing|improved|new",
@@ -145,18 +148,29 @@ Output your analysis in strictly JSON format:
             },
             json={
                 "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 4096,
+                "max_tokens": 12000,
                 "system": "You are a specialized GEO (Generative Engine Optimisation) analyst. You help websites rank in AI-generated search results through semantic, entity, and structural optimization. Return ONLY valid JSON.",
                 "messages": [{"role": "user", "content": analysis_prompt}]
-            }
+            },
+            timeout=120  # bound the call so a slow/hung response can't run out the Lambda clock
         )
         response.raise_for_status()
         result = response.json()
-        analysis_data = json.loads(result['content'][0]['text'])
+        # Claude sometimes wraps JSON in ```json fences or adds a trailing note.
+        # Find the first '{' and decode just the first JSON object, ignoring any
+        # leading/trailing prose or fence the model adds around it.
+        raw_text = result['content'][0]['text']
+        start = raw_text.find('{')
+        if start == -1:
+            raise ValueError("No JSON object in model response")
+        analysis_data, _ = json.JSONDecoder().raw_decode(raw_text[start:])
 
-        # Verify internal linking URLs
+        # Verify internal linking URLs. These are sequential, network-bound HEAD/GET
+        # calls; cap how many we check and use a tight timeout so a page with many
+        # suggested links can't run the Lambda out of time (links beyond the cap are
+        # left unverified rather than blocking the whole response).
         if 'internal_linking' in analysis_data and 'linking_table' in analysis_data['internal_linking']:
-            for link in analysis_data['internal_linking']['linking_table']:
+            for link in analysis_data['internal_linking']['linking_table'][:12]:
                 target_url = link.get('target_url')
                 if not target_url:
                     continue
@@ -169,9 +183,9 @@ Output your analysis in strictly JSON format:
                         test_url = target_url
 
                     # Check HTTP status code
-                    res = requests.head(test_url, timeout=3, allow_redirects=True, headers={'User-Agent': 'Mozilla/5.0'})
+                    res = requests.head(test_url, timeout=2, allow_redirects=True, headers={'User-Agent': 'Mozilla/5.0'})
                     if res.status_code >= 400 and res.status_code != 405:
-                        res = requests.get(test_url, timeout=3, allow_redirects=True, headers={'User-Agent': 'Mozilla/5.0'})
+                        res = requests.get(test_url, timeout=2, allow_redirects=True, headers={'User-Agent': 'Mozilla/5.0'})
                     
                     if res.status_code < 400:
                         link['url_status'] = 'exists'
@@ -180,9 +194,11 @@ Output your analysis in strictly JSON format:
                 except Exception as e:
                     link['url_status'] = 'missing'
 
+        print(f"[geo] parsed OK — {len(json.dumps(analysis_data))} bytes, keys={list(analysis_data.keys())}")
         return success_response(analysis_data)
 
     except Exception as e:
+        print(f"[geo] handler error: {repr(e)}")
         return error_response(str(e))
 
 def scrape_page(url):
@@ -331,16 +347,17 @@ def extract_text_chunks(html_str):
     if text and len(text) > 30:
         chunks.append(text)
     
-    # Limit to ~8 chunks to avoid exceeding token limits
-    if len(chunks) > 8:
-        # Merge smallest chunks or just take the first 8
-        chunks = chunks[:8]
-    
+    # Limit to ~3 chunks. Each chunk costs input tokens AND a full prose rewrite in
+    # the output; this is the single biggest output-size lever, so capping it keeps
+    # the AI response complete (no truncation) and fast.
+    if len(chunks) > 3:
+        chunks = chunks[:3]
+
     # If no heading-based chunks were found, split by paragraphs
     if not chunks:
         full_text = soup.get_text(separator='\n', strip=True)
         paragraphs = [p.strip() for p in full_text.split('\n\n') if p.strip() and len(p.strip()) > 30]
-        chunks = paragraphs[:8]
+        chunks = paragraphs[:3]
     
     return chunks
 

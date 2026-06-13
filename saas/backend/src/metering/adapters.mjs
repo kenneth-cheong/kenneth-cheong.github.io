@@ -156,7 +156,9 @@ export const ADAPTERS = {
           sections.push({ type: 'list', title, items: items.map((i) => String(i)) });
         }
       }
-      return sections.length ? { sections } : { text: 'No ad copy returned.' };
+      // No usable copy → treat as a non-billable soft failure (spec §6.2/6.4)
+      // rather than charging for an empty/errored generation.
+      return sections.length ? { sections } : { _failed: true, text: 'No ad copy was generated — no credits were charged. Please try again.' };
     },
   },
 

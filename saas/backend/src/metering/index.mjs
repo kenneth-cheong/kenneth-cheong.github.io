@@ -130,19 +130,26 @@ export const handler = async (event) => {
     return serverError('The tool backend failed. No credits were charged.');
   }
 
+  // ── Soft-failure gate (spec §6.2–6.4): some upstreams return HTTP 200 with an
+  // error payload (e.g. "couldn't fetch the homepage") rather than throwing.
+  // Surface the message but NEVER charge for it — credits are only for results.
+  const softFailed = isSoftFailure(result);
+  if (result && typeof result === 'object') delete result._failed; // strip internal flag from client payload
+  const charge = willCharge && !softFailed;
+
   // ── Partial-results shaping for teaser / capped free tier ─────────────────
   let payload = result;
-  if (teaser) {
+  if (teaser && !softFailed) {
     payload = applyTeaser(tool, result);
     await markTeaserUsed(user, tool.id);
-  } else if (tool.freeCap && user.tier === 'free') {
+  } else if (tool.freeCap && user.tier === 'free' && !softFailed) {
     payload = capRows(tool, result, tool.freeCap);
   }
 
   // ── Reconcile credits from actual usage ───────────────────────────────────
   let creditsUsed = 0;
   let creditsRemaining = totalCredits(user);
-  if (willCharge) {
+  if (charge) {
     creditsUsed = reconcileCost(tool, result, fullCost);
     const spent = await spendCredits({
       userId: user.userId,
@@ -165,11 +172,12 @@ export const handler = async (event) => {
   } catch (e) { console.error('save_run_failed', tool.id, e.message); }
 
   // Structured metric line (CloudWatch Logs Insights / metric filters).
-  console.log(JSON.stringify({ metric: 'tool_run', tool: tool.id, ms: Date.now() - t0, creditsUsed, cached: !!result?.cached, teaser }));
+  console.log(JSON.stringify({ metric: 'tool_run', tool: tool.id, ms: Date.now() - t0, creditsUsed, cached: !!result?.cached, teaser, softFailed }));
 
   return ok({
     tool: tool.id,
-    teaser,
+    teaser: teaser && !softFailed,
+    failed: softFailed,
     result: payload,
     creditsUsed,
     creditsRemaining,
@@ -195,29 +203,77 @@ function splitItems(v) {
     .filter((s) => s && !seen.has(s) && seen.add(s));
 }
 
-/** POST to an upstream, unwrapping the { statusCode, body } proxy envelope. */
-async function postUpstream(url, payload) {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      // Shared secret so the (eventually private) upstream trusts the gateway.
-      'x-gateway-secret': process.env.GATEWAY_SECRET || '',
-    },
-    body: JSON.stringify(payload),
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`upstream ${res.status}: ${text.slice(0, 300)}`);
-  let raw;
-  try {
-    raw = JSON.parse(text);
-  } catch {
-    raw = text; // plain text / HTML
+// Per-upstream resilience config for backends that hit transient 503s/timeouts
+// under load (spec §6.5). Only FAST tools are retried in-process — a slow
+// generator (media-plan ~150s) can't fit retries inside the 180s Lambda budget,
+// so it relies on the generous default timeout instead.
+const FLAKY = {
+  contentPillar: { retries: 2, timeoutMs: 60000 },      // Content Pillar Framework — fast; safe to retry
+  // GEO On-Page legitimately runs ~50–90s (it rewrites page content via Claude),
+  // so it gets a long timeout and NO in-process retry — the transient-503 root
+  // cause (a CPU-starved 128MB backend) is fixed at the Lambda, not here.
+  geoOnPageAnalysis: { retries: 0, timeoutMs: 170000 },
+};
+const FLAKY_BY_URL = Object.fromEntries(
+  Object.entries(FLAKY).map(([k, v]) => [UPSTREAMS[k], v])
+);
+const RETRYABLE_STATUS = new Set([429, 502, 503, 504]);
+
+/**
+ * POST to an upstream, unwrapping the { statusCode, body } proxy envelope.
+ * Adds an AbortController timeout and exponential-backoff retry on transient
+ * failures (auto-applied to FLAKY backends; override via opts).
+ */
+async function postUpstream(url, payload, opts = {}) {
+  const cfg = FLAKY_BY_URL[url] || {};
+  const timeoutMs = opts.timeoutMs ?? cfg.timeoutMs ?? 170000; // < 180s Lambda cap
+  const retries = opts.retries ?? cfg.retries ?? 0;
+
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt) await sleep(Math.min(4000, 500 * 2 ** (attempt - 1)) + Math.floor(Math.random() * 250));
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Shared secret so the (eventually private) upstream trusts the gateway.
+          'x-gateway-secret': process.env.GATEWAY_SECRET || '',
+        },
+        body: JSON.stringify(payload),
+        signal: ac.signal,
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        if (attempt < retries && RETRYABLE_STATUS.has(res.status)) {
+          lastErr = new Error(`upstream ${res.status}`);
+          continue;
+        }
+        throw new Error(`upstream ${res.status}: ${text.slice(0, 300)}`);
+      }
+      let raw;
+      try {
+        raw = JSON.parse(text);
+      } catch {
+        raw = text; // plain text / HTML
+      }
+      if (raw && typeof raw === 'object' && raw.statusCode !== undefined && raw.body !== undefined) {
+        raw = typeof raw.body === 'string' ? safeParse(raw.body) : raw.body;
+      }
+      return raw;
+    } catch (err) {
+      lastErr = err;
+      // Aborted (timeout) or network-level failure → retry if budget remains.
+      const transient = err.name === 'AbortError' || /fetch failed|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket|network|upstream 5\d\d|upstream 429/i.test(err.message || '');
+      if (attempt < retries && transient) continue;
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   }
-  if (raw && typeof raw === 'object' && raw.statusCode !== undefined && raw.body !== undefined) {
-    raw = typeof raw.body === 'string' ? safeParse(raw.body) : raw.body;
-  }
-  return raw;
+  throw lastErr;
 }
 
 // Deterministic-ish data tools whose results we cache (TTL seconds). Live/AI
@@ -236,7 +292,7 @@ async function callUpstream(tool, body) {
   const hit = await getCache(key).catch(() => null);
   if (hit) return { ...hit, cached: true };
   const res = await callUpstreamRaw(tool, body);
-  putCache(key, res, ttl).catch(() => {}); // best-effort
+  if (!isSoftFailure(res)) putCache(key, res, ttl).catch(() => {}); // never cache a soft failure
   return res;
 }
 
@@ -300,6 +356,16 @@ function safeParse(s) {
   try { return JSON.parse(s); } catch { return s; }
 }
 
+/**
+ * Did the upstream return a "soft failure" — an HTTP-200 result that is really
+ * an error (couldn't fetch a page, backend exception, empty generation)? Such
+ * results are shown to the user but must never be billed (spec §6.2–6.4).
+ * Runners and normalize() opt in by setting `_failed: true`.
+ */
+function isSoftFailure(result) {
+  return !!(result && typeof result === 'object' && result._failed === true);
+}
+
 /** Best-effort: turn an arbitrary upstream payload into { rows | text | html }. */
 function normalize(raw) {
   if (raw == null) return { text: '(no response)' };
@@ -310,8 +376,13 @@ function normalize(raw) {
   const t = raw.result ?? raw.content ?? raw.message ?? raw.summary ?? raw.answer;
   if (typeof t === 'string') return isHtml(t) ? { html: t } : { text: t };
   if (Array.isArray(raw.items)) return { rows: raw.items };
-  // Surface upstream error objects clearly instead of as silent empties.
-  if (raw.errorMessage || raw.error) return { text: `⚠ Upstream error: ${raw.errorMessage || raw.error}` };
+  // Upstream returned a 200 with an error payload (e.g. a Python stack trace —
+  // spec §6.2). NEVER echo it to the user; log the detail server-side, return a
+  // clean message, and flag it non-billable (spec §6.4).
+  if (raw.errorMessage || raw.error) {
+    console.error('upstream_soft_error', String(raw.errorMessage || raw.error).slice(0, 500));
+    return { _failed: true, text: 'The tool backend returned an error — no credits were charged. Please try again in a moment.' };
+  }
   return { text: JSON.stringify(raw, null, 2) };
 }
 
@@ -634,7 +705,8 @@ async function mediaPlanRun(body) {
   if (personaHtml) parts.push(`<h3 style="margin-top:18px;font-weight:700">Generated personas</h3><div>${personaHtml}</div>`);
   if (funnelHtml) parts.push(funnelHtml);
   const html = parts.filter(Boolean).join('\n');
-  return { html: html || '<p>No media plan was generated. Please try again.</p>' };
+  if (!html) return { _failed: true, html: '<p>No media plan was generated — no credits were charged. Please try again.</p>' };
+  return { html };
 }
 
 // Friendly channel names (tags or comma string) → upstream adFormats flags.
@@ -1920,7 +1992,8 @@ async function aiDiscoveryRun(body) {
     getHtmlBody(root + '/llms-full.txt', 12000),
   ]);
   if (!homeHtml || homeHtml.length < 200) {
-    return { sections: [{ type: 'callout', text: 'Could not fetch the homepage to assess AI discoverability. Check the URL.' }] };
+    // §6.3: graceful failure must not be billed.
+    return { _failed: true, sections: [{ type: 'callout', text: 'Could not fetch the homepage to assess AI discoverability. Check the URL — no credits were charged.' }] };
   }
 
   const d = {};

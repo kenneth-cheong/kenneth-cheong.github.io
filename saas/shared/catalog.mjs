@@ -166,7 +166,7 @@ export const TOOLS = [
     cost: 'ai_short', upstream: 'aiOptimiser',
     desc: 'Crawl your site, check AI-readiness (existing llms.txt, robots/AI-bot access, key pages) and generate a spec-compliant llms.txt + llms-full.txt with recommendations.' },
   { id: 'geo-onpage', name: 'GEO On-Page Optimisation', category: 'AI Visibility', minTier: 'pro',
-    cost: 'ai_long', upstream: 'geoOnPageAnalysis',
+    cost: 'ai_long', upstream: 'geoOnPageAnalysis', slow: true,
     desc: 'Rewrite content to get picked up + cited by AI tools.' },
   { id: 'forensic-audit', name: 'GEO+SEO Forensic Audit', category: 'AI Visibility', minTier: 'pro',
     cost: 'forensic_audit', upstream: 'dataforseoCrawler', slow: true,
