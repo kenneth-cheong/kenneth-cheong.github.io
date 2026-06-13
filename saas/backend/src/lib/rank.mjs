@@ -13,5 +13,10 @@ export async function rankPosition({ keyword, target, location, language = 'Engl
     raw = typeof raw.body === 'string' ? JSON.parse(raw.body) : raw.body;
   }
   const pos = typeof raw === 'number' ? raw : (raw?.position ?? raw?.rank ?? (typeof raw === 'object' ? raw?.body?.position : null));
-  return Number(pos) || 0;
+  const n = Number(pos);
+  // The upstream returns a sentinel (e.g. 999) when the target isn't found in
+  // the checked SERP depth. Normalise anything outside 1–100 to 0 = "not
+  // ranking" so the UI shows "—" and the chart skips the point (LineChart filters
+  // v > 0) instead of plotting a #999 spike that wrecks the scale.
+  return Number.isFinite(n) && n >= 1 && n <= 100 ? n : 0;
 }
