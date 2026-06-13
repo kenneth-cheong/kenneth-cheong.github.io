@@ -1,33 +1,45 @@
 // ─────────────────────────────────────────────────────────────────────────
-// Google OAuth + live data fetchers for the Integrations tools.
+// Google OAuth + live data for the Integrations tools — mirrors index.html.
 //
-//   Connect flow:  authUrl() → user consents → exchangeCode() → store refresh
-//   token on the user.  Per run:  fetchIntegration() refreshes an access token
-//   and calls the live Google API, falling back to the seeded connectors if
-//   OAuth isn't configured, the user isn't connected, or the API call fails.
+// Matches the agency app exactly:
+//   • Same OAuth client id + scopes.
+//   • Token exchange/refresh via the agency `googleAuth` Lambda (it holds the
+//     client secret), so the SaaS needs no GOOGLE_CLIENT_SECRET.
+//   • GSC: direct Search Console API. GA4 + Ads: the agency `gscIntegration`
+//     and `googleAds` Lambdas (which carry the Ads developer token).
 //
-// Required env (set in template.yaml / SSM):
-//   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_OAUTH_REDIRECT
-//   GOOGLE_ADS_DEVELOPER_TOKEN (optional — Ads falls back without it)
+// Everything degrades to seeded connector data when a call fails / isn't set,
+// so the product is always usable.
 // ─────────────────────────────────────────────────────────────────────────
+import { UPSTREAMS } from '../metering/upstreams.mjs';
 import { integrationResult } from '../../../shared/connectors.mjs';
 
-const SCOPES = {
-  gsc: 'https://www.googleapis.com/auth/webmasters.readonly',
-  ga4: 'https://www.googleapis.com/auth/analytics.readonly',
-  'google-ads': 'https://www.googleapis.com/auth/adwords',
-};
+// Same client as index.html unless overridden.
+const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com';
+const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+const REDIRECT = process.env.GOOGLE_OAUTH_REDIRECT || '';
+const ADS_DEV_TOKEN = process.env.GOOGLE_ADS_DEVELOPER_TOKEN || '';
+const ADS_LOGIN_CID = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID || '';
+
+// The unified scope set index.html requests (one consent for all products).
+export const GOOGLE_SCOPES = [
+  'https://www.googleapis.com/auth/webmasters.readonly',
+  'https://www.googleapis.com/auth/indexing',
+  'https://www.googleapis.com/auth/analytics.readonly',
+  'https://www.googleapis.com/auth/adwords',
+  'openid', 'email', 'profile',
+].join(' ');
 
 export function oauthConfigured() {
-  return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_OAUTH_REDIRECT);
+  return !!(CLIENT_ID && REDIRECT);
 }
 
 export function authUrl(provider, state) {
   const params = new URLSearchParams({
-    client_id: process.env.GOOGLE_CLIENT_ID,
-    redirect_uri: process.env.GOOGLE_OAUTH_REDIRECT,
+    client_id: CLIENT_ID,
+    redirect_uri: REDIRECT,
     response_type: 'code',
-    scope: `openid email ${SCOPES[provider] || ''}`.trim(),
+    scope: GOOGLE_SCOPES,
     access_type: 'offline',
     include_granted_scopes: 'true',
     prompt: 'consent',
@@ -36,45 +48,49 @@ export function authUrl(provider, state) {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
+async function postJson(url, body) {
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const text = await res.text();
+  let j; try { j = JSON.parse(text); } catch { j = text; }
+  if (j && typeof j === 'object' && j.statusCode !== undefined && j.body !== undefined) {
+    j = typeof j.body === 'string' ? JSON.parse(j.body) : j.body;
+  }
+  if (!res.ok) throw new Error(`${url.split('/').pop()} ${res.status}`);
+  return j;
+}
+
 export async function exchangeCode(code) {
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      code,
-      client_id: process.env.GOOGLE_CLIENT_ID,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: process.env.GOOGLE_OAUTH_REDIRECT,
-      grant_type: 'authorization_code',
-    }),
-  });
-  if (!res.ok) throw new Error(`token exchange failed: ${res.status}`);
-  return res.json(); // { access_token, refresh_token, expires_in, scope, ... }
+  // Prefer direct exchange when a secret is configured; else reuse the agency
+  // Lambda (which holds the secret), exactly as index.html's code flow does.
+  if (CLIENT_SECRET) {
+    const res = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ code, client_id: CLIENT_ID, client_secret: CLIENT_SECRET, redirect_uri: REDIRECT, grant_type: 'authorization_code' }),
+    });
+    if (!res.ok) throw new Error(`token exchange ${res.status}`);
+    return res.json();
+  }
+  return postJson(UPSTREAMS.googleAuth, { action: 'google_token_exchange', code, client_id: CLIENT_ID, redirect_uri: REDIRECT });
 }
 
 async function refreshAccessToken(refreshToken) {
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      refresh_token: refreshToken,
-      client_id: process.env.GOOGLE_CLIENT_ID,
-      client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      grant_type: 'refresh_token',
-    }),
-  });
-  if (!res.ok) throw new Error(`token refresh failed: ${res.status}`);
-  return res.json(); // { access_token, expires_in, ... }
+  if (CLIENT_SECRET) {
+    const res = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ refresh_token: refreshToken, client_id: CLIENT_ID, client_secret: CLIENT_SECRET, grant_type: 'refresh_token' }),
+    });
+    if (!res.ok) throw new Error(`token refresh ${res.status}`);
+    return res.json();
+  }
+  return postJson(UPSTREAMS.googleAuth, { action: 'google_refresh_token', refresh_token: refreshToken, client_id: CLIENT_ID });
 }
 
-/** A valid access token for a connection (refreshes via the stored refresh token). */
 async function accessTokenFor(conn) {
   if (conn.accessToken && conn.expiresAt && Date.now() < conn.expiresAt - 60_000) return conn.accessToken;
   const t = await refreshAccessToken(conn.refreshToken);
   return t.access_token;
 }
 
-// Date helpers — Google APIs want YYYY-MM-DD ranges.
 function dayRange(range) {
   const days = range === 'Last 7 days' ? 7 : range === 'Last 3 months' ? 90 : 28;
   const end = new Date();
@@ -83,52 +99,46 @@ function dayRange(range) {
   return { startDate: fmt(start), endDate: fmt(end) };
 }
 const pct = (n) => `${(n * 100).toFixed(1)}%`;
+const money = (n) => `S$${Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-// ── GSC: Search Console Search Analytics ──────────────────────────────────────
+// ── GSC: direct Search Console API (as index.html) ────────────────────────────
 async function liveGsc(conn, body) {
   const token = await accessTokenFor(conn);
   const site = (body.input || conn.account || '').trim();
   if (!site) throw new Error('no site');
-  const dim = body.dimension === 'page' ? 'page' : body.dimension === 'country' ? 'country' : body.dimension === 'device' ? 'device' : 'query';
+  const dim = ['page', 'country', 'device'].includes(body.dimension) ? body.dimension : 'query';
   const { startDate, endDate } = dayRange(body.range);
-  const res = await fetch(`https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+  const res = await fetch(`https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ startDate, endDate, dimensions: [dim], rowLimit: 25 }),
   });
   if (!res.ok) throw new Error(`gsc ${res.status}`);
   const data = await res.json();
   const rows = (data.rows || []).map((r) => ({
-    [dim]: r.keys?.[0] ?? '—',
-    clicks: r.clicks ?? 0,
-    impressions: r.impressions ?? 0,
-    ctr: pct(r.ctr ?? 0),
-    position: (r.position ?? 0).toFixed(1),
+    [dim]: r.keys?.[0] ?? '—', clicks: r.clicks ?? 0, impressions: r.impressions ?? 0,
+    ctr: pct(r.ctr ?? 0), position: (r.position ?? 0).toFixed(1),
   }));
   const clicks = rows.reduce((a, r) => a + (r.clicks || 0), 0);
   const impressions = rows.reduce((a, r) => a + (r.impressions || 0), 0);
   return { rows, summary: { clicks, impressions, ctr: pct(clicks / (impressions || 1)), avgPosition: rows.length ? (rows.reduce((a, r) => a + Number(r.position), 0) / rows.length).toFixed(1) : '0' } };
 }
 
-// ── GA4: Analytics Data API runReport ─────────────────────────────────────────
+// ── GA4: agency gscIntegration Lambda (ga4RunReport) ──────────────────────────
 async function liveGa4(conn, body) {
   const token = await accessTokenFor(conn);
-  const property = (body.input || conn.account || '').replace(/^properties\//, '').trim();
-  if (!property) throw new Error('no property');
+  const propertyId = (body.input || conn.account || '').replace(/^properties\//, '').trim();
+  if (!propertyId) throw new Error('no property');
   const dimName = body.dimension === 'page' ? 'pagePath' : body.dimension === 'country' ? 'country' : body.dimension === 'device' ? 'deviceCategory' : 'sessionDefaultChannelGroup';
   const { startDate, endDate } = dayRange(body.range);
-  const res = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${property}:runReport`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+  const data = await postJson(UPSTREAMS.gscIntegration, {
+    action: 'ga4RunReport', propertyId, access_token: token,
+    payload: {
       dateRanges: [{ startDate, endDate }],
       dimensions: [{ name: dimName }],
       metrics: [{ name: 'sessions' }, { name: 'totalUsers' }, { name: 'engagedSessions' }, { name: 'conversions' }],
       limit: 25,
-    }),
+    },
   });
-  if (!res.ok) throw new Error(`ga4 ${res.status}`);
-  const data = await res.json();
   const rows = (data.rows || []).map((r) => ({
     [body.dimension || 'channel']: r.dimensionValues?.[0]?.value ?? '—',
     sessions: Number(r.metricValues?.[0]?.value || 0),
@@ -140,66 +150,82 @@ async function liveGa4(conn, body) {
   return { rows, summary: { sessions: sum('sessions'), users: sum('users'), engagedSessions: sum('engagedSessions'), conversions: sum('conversions') } };
 }
 
-// ── Google Ads: GAQL searchStream (needs an approved developer token) ─────────
+// ── Google Ads: agency googleAds Lambda (GAQL) ────────────────────────────────
 async function liveAds(conn, body) {
-  const devToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
-  if (!devToken) throw new Error('no ads dev token');
-  const token = await accessTokenFor(conn);
+  if (!ADS_DEV_TOKEN) throw new Error('no ads dev token');
+  await accessTokenFor(conn); // ensure auth is valid (Lambda holds the actual call)
   const customerId = String(body.input || conn.account || '').replace(/[^0-9]/g, '');
   if (!customerId) throw new Error('no customer id');
-  const dur = body.range === 'Last 7 days' ? 'LAST_7_DAYS' : body.range === 'Last 3 months' ? 'LAST_90_DAYS' : 'LAST_30_DAYS';
-  const query = `SELECT campaign.name, metrics.impressions, metrics.clicks, metrics.ctr, metrics.cost_micros, metrics.conversions FROM campaign WHERE segments.date DURING ${dur} ORDER BY metrics.cost_micros DESC LIMIT 25`;
-  const res = await fetch(`https://googleads.googleapis.com/v17/customers/${customerId}/googleAds:searchStream`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'developer-token': devToken, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query }),
+  const { startDate, endDate } = dayRange(body.range);
+  const query = `SELECT campaign.name, metrics.impressions, metrics.clicks, metrics.ctr, metrics.cost_micros, metrics.conversions FROM campaign WHERE segments.date BETWEEN '${startDate}' AND '${endDate}' ORDER BY metrics.cost_micros DESC LIMIT 25`;
+  const data = await postJson(UPSTREAMS.googleAds, {
+    query, customer_id: customerId, login_customer_id: ADS_LOGIN_CID, developer_token: ADS_DEV_TOKEN,
   });
-  if (!res.ok) throw new Error(`ads ${res.status}`);
-  const chunks = await res.json();
-  const results = (Array.isArray(chunks) ? chunks : [chunks]).flatMap((c) => c.results || []);
-  const money = (m) => `S$${(Number(m || 0) / 1e6).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const results = Array.isArray(data?.results) ? data.results : (Array.isArray(data) ? data.flatMap((c) => c.results || []) : []);
   const rows = results.map((r) => {
-    const cost = Number(r.metrics?.costMicros || 0) / 1e6;
+    const cost = Number(r.metrics?.costMicros || r.metrics?.cost_micros || 0) / 1e6;
     const conv = Number(r.metrics?.conversions || 0);
     return {
       campaign: r.campaign?.name || '—',
       impressions: Number(r.metrics?.impressions || 0),
       clicks: Number(r.metrics?.clicks || 0),
       ctr: pct(Number(r.metrics?.ctr || 0)),
-      cost: money(r.metrics?.costMicros),
-      conversions: conv,
-      cpa: conv ? `S$${(cost / conv).toFixed(2)}` : '—',
+      cost: money(cost), conversions: conv, cpa: conv ? money(cost / conv) : '—',
     };
   });
-  const cost = results.reduce((a, r) => a + Number(r.metrics?.costMicros || 0) / 1e6, 0);
+  const cost = rows.reduce((a, r) => a + (Number(String(r.cost).replace(/[^0-9.]/g, '')) || 0), 0);
   const conv = rows.reduce((a, r) => a + (r.conversions || 0), 0);
-  return { rows, summary: { cost: money(cost * 1e6), clicks: rows.reduce((a, r) => a + r.clicks, 0), conversions: conv, cpa: conv ? `S$${(cost / conv).toFixed(2)}` : '—' } };
+  return { rows, summary: { cost: money(cost), clicks: rows.reduce((a, r) => a + r.clicks, 0), conversions: conv, cpa: conv ? money(cost / conv) : '—' } };
 }
 
-/**
- * Live integration data, with a graceful fallback to seeded connector data so
- * the product stays usable when OAuth isn't configured or a call fails.
- */
 export async function fetchIntegration(provider, conn, body) {
   try {
-    if (!oauthConfigured() || !conn?.refreshToken) throw new Error('not connected');
-    if (provider === 'gsc') return await liveGsc(conn, body);
-    if (provider === 'ga4') return await liveGa4(conn, body);
-    if (provider === 'google-ads') return await liveAds(conn, body);
+    // Live when we have a usable token: a fresh browser access token (GSI token
+    // flow, as index.html uses) OR a stored refresh token (server OAuth).
+    const usable = conn?.connected && (conn.accessToken || (oauthConfigured() && conn.refreshToken));
+    if (!usable) throw new Error('not connected');
+    let res;
+    if (provider === 'gsc') res = await liveGsc(conn, body);
+    else if (provider === 'ga4') res = await liveGa4(conn, body);
+    else if (provider === 'google-ads') res = await liveAds(conn, body);
+    if (res) return { ...res, source: 'live' };
   } catch (e) {
     console.warn('integration_live_fallback', provider, e.message);
   }
-  return integrationResult(provider, body);
+  // `source: 'demo'` lets the UI flag seeded data clearly.
+  return { ...integrationResult(provider, body), source: 'demo' };
 }
 
-/** Best-effort: detect a default account id right after connecting. */
+// ── Account/property/customer discovery (for the picker) ──────────────────────
+export async function listAccounts(provider, conn) {
+  const token = await accessTokenFor(conn);
+  if (provider === 'gsc') {
+    const r = await fetch('https://www.googleapis.com/webmasters/v3/sites', { headers: { Authorization: `Bearer ${token}` } });
+    const d = await r.json();
+    return (d.siteEntry || [])
+      .filter((s) => ['siteFullUser', 'siteOwner'].includes(s.permissionLevel))
+      .map((s) => ({ id: s.siteUrl, label: s.siteUrl }));
+  }
+  if (provider === 'ga4') {
+    const d = await postJson(UPSTREAMS.gscIntegration, { action: 'ga4ListProperties', access_token: token });
+    return (d.accountSummaries || []).flatMap((a) => (a.propertySummaries || []).map((p) => ({
+      id: p.property, label: `${p.displayName} (${p.property})`,
+    })));
+  }
+  if (provider === 'google-ads') {
+    const d = await postJson(UPSTREAMS.gscIntegration, { action: 'adsListCustomers', access_token: token, developerToken: ADS_DEV_TOKEN, loginCustomerId: ADS_LOGIN_CID });
+    return (d.results || []).filter((r) => r.customerClient && !r.customerClient.manager).map((r) => ({
+      id: String(r.customerClient.clientCustomer || '').replace('customers/', ''),
+      label: `${r.customerClient.descriptiveName || 'Account'} (${String(r.customerClient.clientCustomer || '').replace('customers/', '')})`,
+    }));
+  }
+  return [];
+}
+
+/** Best-effort default account right after connecting. */
 export async function detectAccount(provider, accessToken) {
   try {
-    if (provider === 'gsc') {
-      const r = await fetch('https://searchconsole.googleapis.com/webmasters/v3/sites', { headers: { Authorization: `Bearer ${accessToken}` } });
-      const d = await r.json();
-      return (d.siteEntry || []).find((s) => s.permissionLevel !== 'siteUnverifiedUser')?.siteUrl || (d.siteEntry || [])[0]?.siteUrl || '';
-    }
-  } catch { /* ignore */ }
-  return '';
+    const list = await listAccounts(provider, { accessToken, expiresAt: Date.now() + 600_000 });
+    return list[0]?.id || '';
+  } catch { return ''; }
 }

@@ -11,7 +11,7 @@ import {
 import { UPSTREAMS } from '../metering/upstreams.mjs';
 import { CREDIT_COSTS, INTEGRATIONS } from '../../../shared/catalog.mjs';
 import { integrationSummary } from '../../../shared/connectors.mjs';
-import { oauthConfigured, authUrl, exchangeCode, detectAccount } from '../lib/google.mjs';
+import { oauthConfigured, authUrl, exchangeCode, detectAccount, listAccounts } from '../lib/google.mjs';
 import { signOAuthState, verifyOAuthState } from '../lib/jwt.mjs';
 import { putAttachment } from '../lib/s3.mjs';
 import { sendEmail, SUPPORT_INBOX } from '../lib/email.mjs';
@@ -69,7 +69,7 @@ export const handler = async (event) => {
       const message = (body.message || '').trim();
       if (!subject || !message) return badRequest('Subject and message are required.');
       const additionalEmails = (body.additionalEmails || []).map((e) => String(e).trim()).filter(Boolean).slice(0, 10);
-      const ticket = await createTicket({ userId: user.userId, userEmail: user.email, additionalEmails, subject, message, attachments: body.attachments || [] });
+      const ticket = await createTicket({ userId: user.userId, userEmail: user.email, additionalEmails, category: body.category, subject, message, attachments: body.attachments || [] });
       await addNotification({ userId: user.userId, title: `Ticket ${ticket.id} received`, body: subject, ticketId: ticket.ticketId });
       if (SUPPORT_INBOX) await sendEmail({ to: SUPPORT_INBOX, subject: `New ticket ${ticket.id}: ${subject}`, text: `${user.email} opened a ticket.\n\n${message}` });
       return ok({ ticket });
@@ -100,6 +100,13 @@ export const handler = async (event) => {
     // ── Integrations (Google OAuth) ───────────────────────────────────────────
     if (method === 'GET' && path.endsWith('/integrations')) {
       return ok({ providers: INTEGRATIONS, connected: redactIntegrations(user.integrations), oauthReady: oauthConfigured() });
+    }
+    if (method === 'GET' && path.endsWith('/integrations/accounts')) {
+      const provider = (event.queryStringParameters || {}).provider;
+      const conn = (user.integrations || {})[provider];
+      if (!conn?.connected) return ok({ accounts: [] });
+      try { return ok({ accounts: await listAccounts(provider, conn) }); }
+      catch (e) { return ok({ accounts: [], error: e.message }); }
     }
     if (method === 'GET' && path.endsWith('/integrations/authorize')) {
       const provider = (event.queryStringParameters || {}).provider;

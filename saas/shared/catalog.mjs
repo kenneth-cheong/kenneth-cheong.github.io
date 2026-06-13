@@ -211,6 +211,47 @@ export const TOOLS = [
 
 export const CATEGORIES = ['SEO', 'Content', 'AI Visibility', 'Strategy', 'Integrations'];
 
+/** Per-category icon + accent colour for the dashboard + tool cards. */
+export const CATEGORY_META = {
+  SEO: { icon: '🔍', color: '#2563eb' },
+  Content: { icon: '✍️', color: '#7c3aed' },
+  'AI Visibility': { icon: '🤖', color: '#0891b2' },
+  Strategy: { icon: '🎯', color: '#ea580c' },
+  Integrations: { icon: '🔗', color: '#16a34a' },
+};
+
+/** One-click sample inputs per tool ("Try an example"). */
+export const EXAMPLES = {
+  'keyword-analysis': { mode: 'Keyword metrics', input: 'self storage singapore, storage units', location: 'Singapore', language: 'English' },
+  'rank-checker': { input: 'self storage singapore', target: 'extraspaceasia.com.sg', location: 'Singapore' },
+  'time-to-rank': { domain: 'https://www.extraspaceasia.com.sg', input: 'self storage singapore', location: 'Singapore', language: 'English' },
+  'anchor-cleaner': { input: 'https://www.extraspaceasia.com.sg/personal-storage/', keyword: 'self storage' },
+  'technical-seo': { input: 'https://www.extraspaceasia.com.sg', maxPages: '10', maxDepth: '4' },
+  onpage: { input: 'https://www.extraspaceasia.com.sg/personal-storage/', keywords: 'self storage, storage units' },
+  competitors: { input: 'self storage singapore', location: 'Singapore', language: 'English' },
+  backlinks: { input: 'extraspaceasia.com.sg', mode: 'domain' },
+  schema: { type: 'LocalBusiness', name: 'Acme Storage', url: 'https://acme.sg', telephone: '+65 6555 5555', address: '1 Main St, Singapore' },
+  caption: { input: 'New climate-controlled storage units just launched', brand: 'Acme Storage', platform: 'Instagram', tone: 'Friendly', language: 'English' },
+  'content-writer': { mode: 'Optimise existing content', input: 'Self storage in Singapore is useful. We have units. Contact us.', keyword: 'self storage singapore', analysis: 'Verify & QA (8 agents)' },
+  'content-check': { input: "Self storage is the cheapest way to store you're items. We offer alot of unit sizes.", keyword: 'self storage singapore' },
+  pillars: { input: 'eco-friendly self storage brand', businessModel: 'B2C', objectives: 'Brand authority', audienceType: 'Individual consumers' },
+  'ai-discovery': { input: 'Extra Space Asia', url: 'https://www.extraspaceasia.com.sg', location: 'Singapore' },
+  'ai-mentions': { input: 'Extra Space Asia', url: 'https://www.extraspaceasia.com.sg', location: 'Singapore' },
+  'llms-txt': { input: 'https://www.extraspaceasia.com.sg' },
+  'geo-onpage': { input: 'https://www.extraspaceasia.com.sg/personal-storage/', prompts: 'Where can I find self storage in Singapore?', brand: 'Extra Space Asia', market: 'Singapore' },
+  'forensic-audit': { input: 'https://www.extraspaceasia.com.sg' },
+  persona: { input: 'https://www.extraspaceasia.com.sg' },
+  'media-plan': { input: 'Launch awareness + leads for a Singapore self-storage brand', budget: 'S$8,000', location: 'Singapore', objectives: 'Increase brand awareness and generate enquiries' },
+  'landing-audit': { input: 'https://www.extraspaceasia.com.sg/personal-storage/', keyword: 'self storage singapore' },
+  'sem-copy': { input: 'https://www.extraspaceasia.com.sg', format: 'Google Search', country: 'Singapore', language: 'English', tone: 'Professional' },
+  'perf-marketing': { input: 'https://acme-dental.sg', category: 'Dental clinic — Invisalign & implants', country: 'Singapore', audience: 'Adults 25-45 considering Invisalign', budget: 'S$6,000', objectives: 'qualified leads' },
+  'strategy-engine': { domain: 'https://acme.sg', input: 'A Singapore self-storage operator targeting urban renters and SMEs', objective: 'Lead Generation', location: 'Singapore' },
+};
+
+export function exampleFor(toolId) {
+  return EXAMPLES[toolId] || null;
+}
+
 /** Providers the user can connect (OAuth) to unlock the Integrations tools. */
 export const INTEGRATIONS = [
   { id: 'gsc', name: 'Google Search Console', blurb: 'Search clicks, impressions, CTR & position.' },

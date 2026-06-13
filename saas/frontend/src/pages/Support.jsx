@@ -3,6 +3,18 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
+const CATEGORIES = [
+  'Billing & credits',
+  'Account & login',
+  'Tool not working / bug',
+  'Integrations & data (GSC / GA4 / Ads)',
+  'Results quality / how-to',
+  'Feature request',
+  'Other',
+];
+
+const openAssistant = () => window.dispatchEvent(new Event('dm:open-chat'));
+
 // Read a File/Blob as a data URL, upload it, and return the stored attachment.
 async function uploadFile(file) {
   const data = await new Promise((res, rej) => {
@@ -15,8 +27,7 @@ async function uploadFile(file) {
   return attachment;
 }
 
-// Attachment row: thumbnails for images, a chip for other files.
-function Attachments({ items, onRemove }) {
+function Attachments({ items, onRemove, light }) {
   if (!items?.length) return null;
   return (
     <div className="mt-2 flex flex-wrap gap-2">
@@ -25,11 +36,9 @@ function Attachments({ items, onRemove }) {
           {/(png|jpe?g|gif|webp)$/i.test(a.url) || (a.contentType || '').startsWith('image/') ? (
             <a href={a.url} target="_blank" rel="noreferrer"><img src={a.url} alt={a.name} className="h-16 w-16 rounded-lg border border-slate-200 object-cover" /></a>
           ) : (
-            <a href={a.url} target="_blank" rel="noreferrer" className="block rounded-lg border border-slate-200 px-3 py-2 text-xs text-brand-600">📎 {a.name}</a>
+            <a href={a.url} target="_blank" rel="noreferrer" className={`block rounded-lg border px-3 py-2 text-xs ${light ? 'border-white/40 text-white' : 'border-slate-200 text-brand-600'}`}>📎 {a.name}</a>
           )}
-          {onRemove && (
-            <button type="button" onClick={() => onRemove(i)} className="absolute -right-1.5 -top-1.5 grid h-4 w-4 place-items-center rounded-full bg-slate-700 text-[10px] text-white">×</button>
-          )}
+          {onRemove && <button type="button" onClick={() => onRemove(i)} className="absolute -right-1.5 -top-1.5 grid h-4 w-4 place-items-center rounded-full bg-slate-700 text-[10px] text-white">×</button>}
         </div>
       ))}
     </div>
@@ -37,26 +46,26 @@ function Attachments({ items, onRemove }) {
 }
 
 // Composer (textarea + file upload + paste-to-attach), reused by create & reply.
-function Composer({ value, onChange, attachments, setAttachments, placeholder }) {
+function Composer({ value, onChange, attachments, setAttachments, placeholder, onSubmit }) {
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   async function add(files) {
     const list = [...files].filter(Boolean);
     if (!list.length) return;
     setUploading(true);
-    try {
-      const uploaded = await Promise.all(list.map(uploadFile));
-      setAttachments((a) => [...a, ...uploaded]);
-    } catch { /* ignore failed upload */ } finally { setUploading(false); }
+    try { const up = await Promise.all(list.map(uploadFile)); setAttachments((a) => [...a, ...up]); } catch { /* ignore */ } finally { setUploading(false); }
   }
   function onPaste(e) {
     const imgs = [...(e.clipboardData?.items || [])].filter((it) => it.type.startsWith('image/')).map((it) => it.getAsFile());
     if (imgs.length) { e.preventDefault(); add(imgs); }
   }
+  function onKey(e) {
+    if (onSubmit && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); onSubmit(); }
+  }
   return (
     <div>
       <textarea
-        rows={3} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} onPaste={onPaste}
+        rows={3} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} onPaste={onPaste} onKeyDown={onKey}
         className="w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-brand-500 focus:outline-none"
       />
       <Attachments items={attachments} onRemove={(i) => setAttachments((a) => a.filter((_, j) => j !== i))} />
@@ -80,11 +89,25 @@ function statusPill(status) {
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium uppercase ${map[status] || 'bg-slate-100 text-slate-500'}`}>{status}</span>;
 }
 
+function AssistantNudge() {
+  return (
+    <div className="mt-6 flex items-center gap-3 rounded-xl border border-brand-200 bg-brand-50/60 p-4">
+      <span className="text-2xl">💬</span>
+      <div className="flex-1">
+        <div className="font-semibold text-brand-800">Need a quick answer? Ask the assistant first.</div>
+        <div className="text-sm text-slate-600">It replies instantly, knows every tool, and can read your connected Search Console / GA4 / Ads data — most questions don't need a ticket.</div>
+      </div>
+      <button onClick={openAssistant} className="btn-primary whitespace-nowrap px-3 py-1.5 text-sm">Ask the assistant</button>
+    </div>
+  );
+}
+
 function TicketList() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [tickets, setTickets] = useState([]);
   const [subject, setSubject] = useState('');
+  const [category, setCategory] = useState(CATEGORIES[0]);
   const [message, setMessage] = useState('');
   const [emails, setEmails] = useState('');
   const [attachments, setAttachments] = useState([]);
@@ -100,24 +123,33 @@ function TicketList() {
     setBusy(true); setNote(null);
     try {
       const additionalEmails = emails.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
-      const { ticket } = await api.createTicket(subject.trim(), message.trim(), additionalEmails, attachments);
+      const { ticket } = await api.createTicket(subject.trim(), message.trim(), { additionalEmails, attachments, category });
       navigate(`/support/${encodeURIComponent(ticket.ticketId)}`);
-    } catch (err) {
-      setNote({ err: true, text: err.message });
-    } finally { setBusy(false); }
+    } catch (err) { setNote({ err: true, text: err.message }); } finally { setBusy(false); }
   }
 
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="text-2xl font-bold">Support</h1>
-      <p className="mt-1 text-slate-600">Open a ticket and our team will follow up. Track replies here and in your notifications.</p>
+      <p className="mt-1 text-slate-600">Open a ticket and our team will follow up. Track the conversation here and in your notifications.</p>
+
+      <AssistantNudge />
 
       <form onSubmit={submit} className="card mt-6 space-y-4 p-5">
-        <label className="block">
-          <span className="text-sm font-medium text-slate-700">Subject *</span>
-          <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Short summary"
-            className="mt-1.5 w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-brand-500 focus:outline-none" />
-        </label>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700">Category</span>
+            <select value={category} onChange={(e) => setCategory(e.target.value)}
+              className="mt-1.5 w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-brand-500 focus:outline-none">
+              {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-sm font-medium text-slate-700">Subject *</span>
+            <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Short summary"
+              className="mt-1.5 w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-brand-500 focus:outline-none" />
+          </label>
+        </div>
         <div>
           <span className="text-sm font-medium text-slate-700">Message *</span>
           <div className="mt-1.5"><Composer value={message} onChange={setMessage} attachments={attachments} setAttachments={setAttachments} placeholder="Describe the issue… paste a screenshot if it helps." /></div>
@@ -130,7 +162,7 @@ function TicketList() {
         </label>
         <div className="flex items-center justify-between">
           {note ? <span className={`text-sm ${note.err ? 'text-red-600' : 'text-green-600'}`}>{note.text}</span> : <span />}
-          <button className="btn-primary" disabled={busy}>{busy ? 'Submitting…' : 'Submit ticket'}</button>
+          <button className="btn-primary" disabled={busy}>{busy ? 'Submitting…' : 'Start ticket'}</button>
         </div>
       </form>
 
@@ -141,7 +173,7 @@ function TicketList() {
           <Link key={t.ticketId} to={`/support/${encodeURIComponent(t.ticketId)}`} className="card flex items-center gap-3 p-4 transition hover:border-brand-300">
             <div className="min-w-0 flex-1">
               <div className="font-semibold">{t.subject}</div>
-              <div className="text-xs text-slate-400">{t.id} · {new Date(t.lastActivityAt || t.ts).toLocaleString()}</div>
+              <div className="text-xs text-slate-400">{t.id}{t.category ? ` · ${t.category}` : ''} · {new Date(t.lastActivityAt || t.ts).toLocaleString()}</div>
             </div>
             {statusPill(t.status)}
             <span className="text-brand-500">Open →</span>
@@ -152,17 +184,19 @@ function TicketList() {
   );
 }
 
+// Chat-style conversation view: bubbles + a sticky composer at the bottom.
 function TicketDetail({ ticketId }) {
   const [ticket, setTicket] = useState(null);
   const [reply, setReply] = useState('');
   const [attachments, setAttachments] = useState([]);
   const [busy, setBusy] = useState(false);
+  const threadRef = useRef(null);
 
   const load = () => api.ticket(ticketId).then((d) => setTicket(d.ticket)).catch(() => setTicket(false));
   useEffect(() => { load(); }, [ticketId]);
+  useEffect(() => { if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight; }, [ticket]);
 
-  async function send(e) {
-    e.preventDefault();
+  async function send() {
     if (!reply.trim() && !attachments.length) return;
     setBusy(true);
     try {
@@ -179,38 +213,42 @@ function TicketDetail({ ticketId }) {
   if (!ticket) return <p className="text-slate-400">Loading…</p>;
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto flex h-[calc(100vh-9rem)] max-w-3xl flex-col">
       <Link to="/support" className="text-sm text-slate-500 hover:text-slate-800">← All tickets</Link>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-bold">{ticket.subject}</h1>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <h1 className="text-xl font-bold">{ticket.subject}</h1>
         {statusPill(ticket.status)}
+        {ticket.category && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{ticket.category}</span>}
         <span className="text-xs text-slate-400">{ticket.id}</span>
         {ticket.status !== 'closed' && <button onClick={close} disabled={busy} className="ml-auto text-sm text-slate-500 hover:text-slate-800">Close ticket</button>}
       </div>
-      {ticket.additionalEmails?.length > 0 && (
-        <p className="mt-1 text-xs text-slate-400">Also alerting: {ticket.additionalEmails.join(', ')}</p>
-      )}
+      {ticket.additionalEmails?.length > 0 && <p className="mt-1 text-xs text-slate-400">Also alerting: {ticket.additionalEmails.join(', ')}</p>}
 
-      <div className="mt-5 space-y-3">
-        {(ticket.messages || []).map((m) => (
-          <div key={m.id} className={`card p-4 ${m.author === 'agent' ? 'border-brand-200 bg-brand-50/40' : ''}`}>
-            <div className="flex items-center gap-2 text-xs text-slate-400">
-              <span className="font-semibold text-slate-600">{m.author === 'agent' ? 'Support' : 'You'}</span>
-              <span>· {new Date(m.ts).toLocaleString()}</span>
+      {/* Conversation */}
+      <div ref={threadRef} className="mt-3 flex-1 space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-4">
+        {(ticket.messages || []).map((m) => {
+          const mine = m.author !== 'agent';
+          return (
+            <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 ${mine ? 'rounded-br-sm bg-brand-600 text-white' : 'rounded-bl-sm bg-white text-slate-800 shadow-sm ring-1 ring-slate-200'}`}>
+                <div className={`mb-0.5 text-[11px] ${mine ? 'text-white/70' : 'text-slate-400'}`}>{mine ? 'You' : 'Support'} · {new Date(m.ts).toLocaleString()}</div>
+                {m.body && <div className="whitespace-pre-wrap text-sm">{m.body}</div>}
+                <Attachments items={m.attachments} light={mine} />
+              </div>
             </div>
-            {m.body && <p className="mt-1.5 whitespace-pre-wrap text-sm text-slate-700">{m.body}</p>}
-            <Attachments items={m.attachments} />
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      <form onSubmit={send} className="card mt-4 p-4">
-        <Composer value={reply} onChange={setReply} attachments={attachments} setAttachments={setAttachments}
-          placeholder={ticket.status === 'closed' ? 'Reply to reopen this ticket…' : 'Write a reply… paste a screenshot if it helps.'} />
-        <div className="mt-3 flex justify-end">
-          <button className="btn-primary" disabled={busy}>{busy ? 'Sending…' : 'Send reply'}</button>
+      {/* Composer */}
+      <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+        <Composer value={reply} onChange={setReply} attachments={attachments} setAttachments={setAttachments} onSubmit={send}
+          placeholder={ticket.status === 'closed' ? 'Reply to reopen this ticket…' : 'Type a message…  (⌘/Ctrl + Enter to send)'} />
+        <div className="mt-2 flex items-center justify-between">
+          <button onClick={openAssistant} className="text-xs font-medium text-brand-600 hover:text-brand-700">💬 Ask the assistant instead</button>
+          <button onClick={send} className="btn-primary" disabled={busy}>{busy ? 'Sending…' : 'Send'}</button>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

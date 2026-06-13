@@ -92,8 +92,8 @@ export const api = {
   // Support tickets (threaded + attachments)
   tickets: () => call('/support/tickets'),
   ticket: (ticketId) => call(`/support/tickets/${encodeURIComponent(ticketId)}`),
-  createTicket: (subject, message, additionalEmails = [], attachments = []) =>
-    call('/support/tickets', { method: 'POST', body: { subject, message, additionalEmails, attachments } }),
+  createTicket: (subject, message, opts = {}) =>
+    call('/support/tickets', { method: 'POST', body: { subject, message, additionalEmails: opts.additionalEmails || [], attachments: opts.attachments || [], category: opts.category } }),
   replyTicket: (ticketId, body, attachments = []) =>
     call(`/support/tickets/${encodeURIComponent(ticketId)}/reply`, { method: 'POST', body: { body, attachments } }),
   closeTicket: (ticketId) => call(`/support/tickets/${encodeURIComponent(ticketId)}/close`, { method: 'POST' }),
@@ -101,6 +101,7 @@ export const api = {
     call('/support/attachments', { method: 'POST', body: { name, contentType, data } }),
   // Integrations (Google OAuth)
   integrations: () => call('/integrations'),
+  integrationAccounts: (provider) => call(`/integrations/accounts?provider=${encodeURIComponent(provider)}`),
   authorizeIntegration: (provider) => call(`/integrations/authorize?provider=${encodeURIComponent(provider)}`),
   connectIntegration: (provider, account, connected = true) =>
     call('/integrations/connect', { method: 'POST', body: { provider, account, connected } }),
@@ -234,7 +235,7 @@ async function mock(path, { method, body }) {
     const ts = new Date().toISOString();
     const ticket = {
       userId: 'mock', ticketId: `${ts}#${Math.random().toString(36).slice(2, 8)}`, id: 'TKT-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
-      userEmail: s.user.email, additionalEmails: body.additionalEmails || [], subject: body.subject, status: 'open', ts, lastActivityAt: ts,
+      userEmail: s.user.email, additionalEmails: body.additionalEmails || [], category: body.category || 'Other', subject: body.subject, status: 'open', ts, lastActivityAt: ts,
       messages: [{ id: 'm_' + Math.random().toString(36).slice(2, 8), author: 'user', authorEmail: s.user.email, body: body.message, attachments: body.attachments || [], ts }],
     };
     s.tickets.unshift(ticket);
@@ -266,6 +267,17 @@ async function mock(path, { method, body }) {
 
   // ── Integrations (mock — no real Google; "connect" instantly) ─────────────
   if (path === '/integrations' && method === 'GET') return { providers: INTEGRATIONS, connected: s.user.integrations || {}, oauthReady: false };
+  if (path.startsWith('/integrations/accounts')) {
+    const provider = new URLSearchParams((path.split('?')[1] || '')).get('provider');
+    const conn = (s.user.integrations || {})[provider];
+    if (!conn?.connected) return { accounts: [] };
+    const samples = {
+      gsc: [{ id: 'https://acme.co/', label: 'https://acme.co/' }, { id: 'sc-domain:acme.co', label: 'sc-domain:acme.co' }],
+      ga4: [{ id: 'properties/123456789', label: 'Acme Website (properties/123456789)' }],
+      'google-ads': [{ id: '1234567890', label: 'Acme Ads (1234567890)' }],
+    };
+    return { accounts: samples[provider] || [] };
+  }
   if (path.startsWith('/integrations/authorize')) {
     const provider = new URLSearchParams((path.split('?')[1] || '')).get('provider');
     s.user.integrations = { ...(s.user.integrations || {}) };

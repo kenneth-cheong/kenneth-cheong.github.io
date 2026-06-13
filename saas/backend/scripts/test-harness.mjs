@@ -70,8 +70,19 @@ async function runTool(toolId, body) {
   if (!tool) throw new Error(`Unknown tool: ${toolId}`);
   body._email = 'tester@local';
   body.url = body.url || body.input;
-  // Harness demo: treat integration tools as already-connected so they return data.
-  if (tool.integration) body._integrations = { [tool.integration]: { connected: true, account: body.input || 'demo-account' } };
+  // Integration tools: if the browser passed a live Google access token (from
+  // the Connect Google button), use it for a REAL API call; else seeded data.
+  if (tool.integration) {
+    body._integrations = {
+      [tool.integration]: {
+        connected: true,
+        account: body.input || 'demo-account',
+        accessToken: body.__googleToken || undefined,
+        expiresAt: body.__googleExpiry || undefined,
+      },
+    };
+    delete body.__googleToken; delete body.__googleExpiry;
+  }
   if (tool.fanout) {
     const items = splitItems(body[tool.fanout]).slice(0, 50);
     if (!items.length) throw new Error('Add at least one keyword.');
@@ -126,12 +137,15 @@ const PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>Digimetric
   header b{font-size:16px} header .sp{flex:1}
   header button{background:#1e293b;color:#cbd5e1;border:0;border-radius:8px;padding:7px 12px;font:inherit;cursor:pointer}
   header button.on{background:var(--b);color:#fff}
-  .wrap{display:grid;grid-template-columns:260px 1fr;min-height:calc(100vh - 50px)}
-  nav{border-right:1px solid #e2e8f0;background:#fff;overflow:auto;max-height:calc(100vh - 50px)}
-  nav h4{margin:14px 16px 4px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#64748b}
-  nav a{display:block;padding:7px 16px;cursor:pointer;color:#0f172a;text-decoration:none}
-  nav a:hover{background:#f1f5f9} nav a.active{background:#eef2ff;color:var(--b);font-weight:600;border-right:2px solid var(--b)}
-  main{padding:24px 28px;overflow:auto;max-height:calc(100vh - 50px)}
+  /* top nav: category pills + tool pills */
+  #toolbar{background:#fff;border-bottom:1px solid #e2e8f0;padding:10px 20px;position:sticky;top:0;z-index:10}
+  #cats{display:flex;flex-wrap:wrap;gap:6px}
+  #cats button{background:#f1f5f9;color:#475569;border:0;border-radius:999px;padding:6px 14px;font:inherit;font-weight:600;cursor:pointer}
+  #cats button.on{background:var(--b);color:#fff}
+  #tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  #tools button{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer;color:#0f172a}
+  #tools button:hover{border-color:var(--b)} #tools button.on{background:#eef2ff;border-color:var(--b);color:var(--b);font-weight:600}
+  main{padding:24px 28px;max-width:980px;margin:0 auto}
   h1{margin:0 0 4px;font-size:20px} .desc{color:#475569;margin:0 0 6px}
   .meta{font-size:12px;color:#64748b;margin-bottom:16px}
   .pill{display:inline-block;background:#eef2ff;color:var(--b);border-radius:999px;padding:1px 8px;margin-right:6px;font-weight:600}
@@ -149,6 +163,9 @@ const PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>Digimetric
   .hrow{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 14px;margin-bottom:8px;cursor:pointer;max-width:840px;display:flex;gap:12px;align-items:center}
   .hrow:hover{border-color:var(--b)} .hrow .t{font-weight:600} .hrow .s{color:#64748b;font-size:12px}
   /* chat drawer */
+  /* page shifts left when chat opens, so chat sits BESIDE content (not over it) */
+  #page{transition:margin-right .2s}
+  body.chat-open #page{margin-right:380px}
   #chat{position:fixed;top:0;right:-380px;width:380px;height:100vh;background:#fff;border-left:1px solid #e2e8f0;box-shadow:-8px 0 24px rgba(0,0,0,.06);transition:right .2s;display:flex;flex-direction:column;z-index:20}
   #chat.open{right:0}
   #chat .ch{padding:12px 16px;background:#0f172a;color:#fff;font-weight:600;display:flex;align-items:center}
@@ -159,16 +176,20 @@ const PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>Digimetric
   .msg.a{align-self:flex-start;background:#f1f5f9;color:#0f172a;border-bottom-left-radius:3px}
   #chatform{display:flex;gap:8px;padding:12px;border-top:1px solid #e2e8f0}
   #chatform input{flex:1} #chatform button{background:var(--b);color:#fff;border:0;border-radius:8px;padding:0 14px;cursor:pointer}
-</style></head><body>
+</style><script src="https://accounts.google.com/gsi/client" async defer></script></head><body>
+<div id="page">
 <header>
   <b>Digimetrics SaaS</b>
   <button id="b_tools" class="on" onclick="setView('tools')">Tools</button>
   <button id="b_history" onclick="setView('history')">History</button>
   <button id="b_support" onclick="setView('support')">Support</button>
   <span class="sp"></span>
+  <button id="b_gconnect" onclick="connectGoogle()" title="Connect your Google account for live GSC / GA4 / Ads data">🔗 Connect Google</button>
   <button id="b_chat" onclick="toggleChat()">💬 Chat</button>
 </header>
-<div class="wrap"><nav id="nav"></nav><main id="main"></main></div>
+<div id="toolbar"><div id="cats"></div><div id="tools"></div></div>
+<main id="main"></main>
+</div>
 <aside id="chat">
   <div class="ch">Support assistant <span class="x" onclick="toggleChat()">✕</span></div>
   <div id="thread"></div>
@@ -177,27 +198,36 @@ const PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>Digimetric
 <script>
 const CATALOG = ${JSON.stringify(CATALOG)};
 const CATEGORIES = ${JSON.stringify(CATEGORIES)};
-const nav = document.getElementById('nav'), main = document.getElementById('main');
-let current = null, view = 'tools';
+const cats = document.getElementById('cats'), toolsRow = document.getElementById('tools'), main = document.getElementById('main');
+let current = null, view = 'tools', activeCat = CATEGORIES[0];
 
-for (const cat of CATEGORIES) {
-  const h = document.createElement('h4'); h.textContent = cat; nav.appendChild(h);
-  for (const t of CATALOG.filter(x=>x.category===cat)) {
-    const a = document.createElement('a'); a.textContent = t.name; a.dataset.id = t.id;
-    a.onclick = () => { setView('tools'); select(t.id); }; nav.appendChild(a);
+function buildCats(){
+  cats.innerHTML='';
+  for(const cat of CATEGORIES){
+    const b=document.createElement('button'); b.textContent=cat;
+    b.onclick=()=>{ setView('tools'); selectCat(cat); };
+    b.classList.toggle('on', cat===activeCat); cats.appendChild(b);
+  }
+}
+function selectCat(cat){
+  activeCat=cat; buildCats(); toolsRow.innerHTML='';
+  for(const t of CATALOG.filter(x=>x.category===cat)){
+    const b=document.createElement('button'); b.textContent=t.name; b.dataset.id=t.id;
+    b.onclick=()=>select(t.id); b.classList.toggle('on', current&&current.id===t.id); toolsRow.appendChild(b);
   }
 }
 function setView(v){
   view=v;
   for(const b of ['tools','history','support']) document.getElementById('b_'+b).classList.toggle('on', b===v);
-  nav.style.display = v==='tools' ? '' : 'none';
+  document.getElementById('toolbar').style.display = v==='tools' ? '' : 'none';
   if(v==='tools') render();
   else if(v==='history') renderHistory();
   else renderSupport();
 }
 function select(id){
   current = CATALOG.find(t=>t.id===id);
-  [...nav.querySelectorAll('a')].forEach(a=>a.classList.toggle('active', a.dataset.id===id));
+  activeCat = current.category;
+  selectCat(activeCat);
   render();
 }
 function field(f, val){
@@ -220,11 +250,29 @@ function render(prefill, savedResult){
   document.getElementById('form').onsubmit=run;
   if(savedResult){ document.getElementById('out').innerHTML='<div style="font-size:12px;color:#64748b;margin-bottom:6px">re-opened from history</div>'+renderResult(savedResult); }
 }
+// ── Google OAuth (client-side token flow, exactly like index.html) ──
+const G_CLIENT_ID='1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com';
+const G_SCOPES='https://www.googleapis.com/auth/webmasters.readonly https://www.googleapis.com/auth/analytics.readonly https://www.googleapis.com/auth/adwords email';
+let gTokenClient=null; window.__gToken=null; window.__gExpiry=0;
+function connectGoogle(){
+  if(!(window.google&&google.accounts&&google.accounts.oauth2)){ alert('Google library still loading — try again in a second.'); return; }
+  if(!gTokenClient){
+    gTokenClient=google.accounts.oauth2.initTokenClient({ client_id:G_CLIENT_ID, scope:G_SCOPES, callback:(resp)=>{
+      if(resp&&resp.access_token){ window.__gToken=resp.access_token; window.__gExpiry=Date.now()+((resp.expires_in||3600)*1000);
+        const b=document.getElementById('b_gconnect'); b.textContent='✓ Google connected'; b.classList.add('on');
+      } else { alert('Google sign-in failed: '+(resp&&resp.error||'unknown')); }
+    }, error_callback:(err)=>alert('Google sign-in error: '+(err&&err.type||'unknown')+'. Make sure this origin is an authorized JavaScript origin on the OAuth client.') });
+  }
+  gTokenClient.requestAccessToken({ prompt: window.__gToken?'':'consent' });
+}
 async function run(e){
   e.preventDefault();
   const btn=document.getElementById('run'), out=document.getElementById('out');
   const body={};
   for(const f of current.fields){ const el=document.getElementById('f_'+f.name); if(el) body[f.name]=el.value; }
+  if(current.category==='Integrations'&&window.__gToken&&Date.now()<window.__gExpiry){
+    body.__googleToken=window.__gToken; body.__googleExpiry=window.__gExpiry;
+  }
   btn.disabled=true; btn.innerHTML='<span class="spin"></span>Running…'; out.innerHTML='';
   const t0=Date.now();
   try{
@@ -295,8 +343,10 @@ async function loadTickets(){
 const chatMsgs=[];
 function toggleChat(){
   const c=document.getElementById('chat'); c.classList.toggle('open');
-  document.getElementById('b_chat').classList.toggle('on', c.classList.contains('open'));
-  if(c.classList.contains('open')&&!chatMsgs.length){ pushMsg('a','Hi! I\\'m your Digimetrics assistant. Ask me about any tool, or how to get started.'); }
+  const open=c.classList.contains('open');
+  document.body.classList.toggle('chat-open', open);   // shifts #page beside the chat
+  document.getElementById('b_chat').classList.toggle('on', open);
+  if(open&&!chatMsgs.length){ pushMsg('a','Hi! I\\'m your Digimetrics assistant. Ask me about any tool, or how to get started.'); }
 }
 function pushMsg(role,content){
   chatMsgs.push({role:role==='u'?'user':'assistant',content});

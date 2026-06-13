@@ -36,6 +36,10 @@ Parameters:
     NoEcho: true
     Default: ''
     Description: Google Ads API developer token (optional — Ads falls back without it).
+  GoogleAdsLoginCustomerId:
+    Type: String
+    Default: ''
+    Description: Google Ads manager (MCC) login-customer-id used for Ads API calls.
   SesFrom:
     Type: String
     Default: ''
@@ -241,6 +245,7 @@ Resources:
           GOOGLE_CLIENT_ID: !Ref GoogleClientId
           GOOGLE_CLIENT_SECRET: !Ref GoogleClientSecret
           GOOGLE_ADS_DEVELOPER_TOKEN: !Ref GoogleAdsDeveloperToken
+          GOOGLE_ADS_LOGIN_CUSTOMER_ID: !Ref GoogleAdsLoginCustomerId
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
@@ -298,6 +303,7 @@ Resources:
           GOOGLE_CLIENT_ID: !Ref GoogleClientId
           GOOGLE_CLIENT_SECRET: !Ref GoogleClientSecret
           GOOGLE_ADS_DEVELOPER_TOKEN: !Ref GoogleAdsDeveloperToken
+          GOOGLE_ADS_LOGIN_CUSTOMER_ID: !Ref GoogleAdsLoginCustomerId
           GOOGLE_OAUTH_REDIRECT: !Sub 'https://${Api}.execute-api.${AWS::Region}.amazonaws.com/oauth/callback'
           ATTACHMENTS_BUCKET: !Ref AttachmentsBucket
           SES_FROM: !Ref SesFrom
@@ -326,6 +332,7 @@ Resources:
         TicketClose: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/support/tickets/{ticketId}/close', Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Attachments: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /support/attachments, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Integrations: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /integrations, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        IntegrationAccounts: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /integrations/accounts, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         IntegrationAuthorize: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /integrations/authorize, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         IntegrationConnect: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /integrations/connect, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         # Public — identity is carried in the signed OAuth state.

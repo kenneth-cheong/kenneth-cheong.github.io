@@ -232,12 +232,12 @@ export async function getRun(userId, runId) {
 }
 
 // ── Support tickets (threaded) ───────────────────────────────────────────────
-export async function createTicket({ userId, userEmail, additionalEmails = [], subject, message, attachments = [] }) {
+export async function createTicket({ userId, userEmail, additionalEmails = [], category, subject, message, attachments = [] }) {
   const ts = new Date().toISOString();
   const ticketId = `${ts}#${rid()}`;
   const item = {
     userId, ticketId, id: 'TKT-' + rid().toUpperCase(),
-    userEmail: userEmail || '', additionalEmails,
+    userEmail: userEmail || '', additionalEmails, category: category || 'Other',
     subject, status: 'open', ts, lastActivityAt: ts,
     messages: [{ id: 'm_' + rid(), author: 'user', authorEmail: userEmail || '', body: message, attachments, ts }],
   };
@@ -279,7 +279,7 @@ export async function listTickets(userId, limit = 100) {
     TableName: TABLES.tickets,
     KeyConditionExpression: 'userId = :u',
     ExpressionAttributeValues: { ':u': userId },
-    ProjectionExpression: 'userId, ticketId, id, subject, #s, ts, lastActivityAt',
+    ProjectionExpression: 'userId, ticketId, id, subject, category, #s, ts, lastActivityAt',
     ExpressionAttributeNames: { '#s': 'status' },
     ScanIndexForward: false,
     Limit: limit,

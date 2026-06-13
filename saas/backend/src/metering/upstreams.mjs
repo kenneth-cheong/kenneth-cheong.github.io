@@ -30,6 +30,13 @@ export const UPSTREAMS = {
   getHtml: 'https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml',
   // Performance Marketing Audit: paid-media opportunity analysis.
   performanceMarketing: 'https://4gupr9vio3.execute-api.ap-southeast-1.amazonaws.com',
+  // Google integrations — reuse the agency's proven Lambdas (same as index.html):
+  //   gscIntegration → ga4ListProperties / ga4RunReport / adsListCustomers
+  //   googleAds      → GAQL search
+  //   googleAuth     → google_token_exchange / google_refresh_token (holds secret)
+  gscIntegration: 'https://v5gyq2sqdd.execute-api.ap-southeast-1.amazonaws.com/gscIntegration',
+  googleAds: 'https://j4aca9hcmh.execute-api.ap-southeast-1.amazonaws.com/googleAds',
+  googleAuth: 'https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday',
   aiMentions: 'https://y0ypcivaz1.execute-api.ap-southeast-1.amazonaws.com/aiMentions',
   // Domain → ranking-keyword map, used to seed AI-visibility discovery prompts.
   keywordsForSite: 'https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite',

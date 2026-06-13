@@ -52,19 +52,27 @@ sam deploy --guided      # prompts for GoogleClientId, JwtSecret, Stripe keys, e
 Point the Stripe webhook (`/billing/webhook`) at the deployed URL and put the signing
 secret into the `StripeWebhookSecret` parameter.
 
-#### Google integrations (GSC / GA4 / Ads) — optional but enables real data
+#### Google integrations (GSC / GA4 / Ads) — wired exactly like the agency app
 
-The Integrations tools fall back to seeded demo data until OAuth is configured.
+The Integrations work the same way `index.html` does and **reuse the agency's
+existing Lambdas**, so you inherit their working credentials:
+- GSC → direct Search Console API with the user's token.
+- GA4 → agency `gscIntegration` Lambda (`ga4ListProperties` / `ga4RunReport`).
+- Ads → agency `gscIntegration` (`adsListCustomers`) + `googleAds` (GAQL).
+- Token exchange/refresh → agency `googleAuth` Lambda (it holds the client
+  secret), so **no `GoogleClientSecret` is required**.
+
 To go live:
+1. Use the agency's OAuth client id as `GoogleClientId` (the default in
+   `google.mjs` already matches it).
+2. In that Google project, add the redirect URI `https://<ApiUrl>/oauth/callback`
+   to the OAuth client's **Authorized redirect URIs**.
+3. For live Ads, pass `GoogleAdsDeveloperToken` + `GoogleAdsLoginCustomerId`
+   (the agency's MCC values). Without them, Ads stays on demo data.
 
-1. In Google Cloud Console, create an **OAuth 2.0 Client (Web)** and enable the
-   Search Console API, Analytics Data API, and (optionally) Google Ads API.
-2. Add the redirect URI `https://<ApiUrl>/oauth/callback`.
-3. Pass `GoogleClientId` + `GoogleClientSecret` to `sam deploy`
-   (and `GoogleAdsDeveloperToken` if you want live Ads — otherwise Ads stays on
-   demo data). The template wires `GOOGLE_OAUTH_REDIRECT` automatically.
-
-Without these, Connect still works in the UI but tools return seeded data.
+The tools fall back to seeded data whenever a call fails or OAuth isn't set up,
+so Connect always works in the UI. After connecting, the Integrations page lists
+the user's accessible **sites / GA4 properties / Ads accounts** to pick from.
 
 #### Support emails (optional)
 

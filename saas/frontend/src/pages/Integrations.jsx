@@ -64,9 +64,7 @@ export default function Integrations() {
                 </div>
                 {conn?.connected ? (
                   <>
-                    <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
-                      ✓ Connected{conn.account ? ` · ${conn.account}` : ''}
-                    </span>
+                    <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">✓ Connected</span>
                     <Link to={`/tool/${TOOL_FOR[p.id]}`} className="btn-primary px-3 py-1.5 text-sm">Open tool</Link>
                     <button onClick={() => disconnect(p.id)} disabled={busy === p.id} className="text-sm text-slate-500 hover:text-slate-800">Disconnect</button>
                   </>
@@ -76,10 +74,47 @@ export default function Integrations() {
                   </button>
                 )}
               </div>
+              {conn?.connected && <AccountPicker provider={p.id} current={conn.account} onSaved={load} />}
             </div>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+const LABELS = { gsc: 'Property', ga4: 'GA4 property', 'google-ads': 'Ads account' };
+
+// Lists the accounts/properties the connected Google user can access and lets
+// them pick the default one the tools should pull (mirrors index.html's picker).
+function AccountPicker({ provider, current, onSaved }) {
+  const [accounts, setAccounts] = useState(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { api.integrationAccounts(provider).then((d) => setAccounts(d.accounts || [])).catch(() => setAccounts([])); }, [provider]);
+
+  async function choose(id) {
+    if (!id || id === current) return;
+    setSaving(true);
+    try { await api.connectIntegration(provider, id, true); onSaved(); } finally { setSaving(false); }
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+      <span className="text-xs font-medium text-slate-500">{LABELS[provider] || 'Account'}:</span>
+      {accounts === null ? (
+        <span className="text-xs text-slate-400">loading…</span>
+      ) : accounts.length ? (
+        <select
+          value={current || ''} disabled={saving}
+          onChange={(e) => choose(e.target.value)}
+          className="max-w-sm rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
+        >
+          <option value="" disabled>Select…</option>
+          {accounts.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+        </select>
+      ) : (
+        <span className="text-xs text-slate-400">{current || 'No accessible accounts found.'}</span>
+      )}
     </div>
   );
 }
