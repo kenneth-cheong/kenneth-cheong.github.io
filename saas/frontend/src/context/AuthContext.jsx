@@ -17,7 +17,7 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  // Restore session on load (mock token or stored JWT).
+  // Restore session on load from the stored JWT.
   useEffect(() => {
     (async () => {
       if (localStorage.getItem('dm_access')) await refresh();
@@ -36,7 +36,6 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     setToken(null);
     setRefreshToken(null);
-    localStorage.removeItem('dm_mock');
     setUser(null);
   }, []);
 

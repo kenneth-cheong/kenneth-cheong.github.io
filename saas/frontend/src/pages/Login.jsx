@@ -1,15 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 
-const MOCK = import.meta.env.VITE_MOCK === '1' || !import.meta.env.VITE_API_BASE;
-
 export default function Login() {
   const { loginWithGoogle } = useAuth();
   const btnRef = useRef(null);
 
-  // Render the real Google Sign-In button when not in mock mode.
+  // Render the Google Sign-In button and wire its credential to our auth.
   useEffect(() => {
-    if (MOCK || !window.google) return;
+    if (!window.google) return;
     window.google.accounts.id.initialize({
       client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
       callback: (resp) => loginWithGoogle(resp.credential),
@@ -29,19 +27,6 @@ export default function Login() {
         <div className="card mt-8 p-6">
           <p className="mb-4 text-sm font-medium text-slate-700">Sign in to start with 30 free credits</p>
           <div className="flex justify-center" ref={btnRef} />
-          {MOCK && (
-            <button
-              className="btn-primary w-full"
-              onClick={() => loginWithGoogle('demo')}
-            >
-              Continue (demo mode)
-            </button>
-          )}
-          {MOCK && (
-            <p className="mt-3 text-xs text-slate-400">
-              Running with a mock backend — no AWS required. Tools return sample data.
-            </p>
-          )}
         </div>
       </div>
     </div>
