@@ -55,7 +55,7 @@ export const PLANS = {
     trackedKeywords: 250,
     popular: true,
     blurb: 'The serious operator plan. AI Visibility + ad integrations.',
-    highlights: ['2,000 credits / month', '10 projects', 'AI Visibility (GEO) suite', 'Google / Meta / GA4 integrations', '250 tracked keywords', 'Advanced AI model (Sonnet)'],
+    highlights: ['2,000 credits / month', '10 projects', 'AI Visibility (GEO) suite', 'Google / Meta / GA4 integrations', '250 tracked keywords', 'Advanced AI model'],
   },
   expert: {
     id: 'expert',
