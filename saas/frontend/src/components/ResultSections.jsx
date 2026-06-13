@@ -112,15 +112,42 @@ function StatCard({ it }) {
   );
 }
 
-// ── Lists → chips (short terms), pass/fail rows (✓/✗), or a styled list ──────
+// ── Lists → chips, pass/fail rows (✓/✗), value-bar breakdowns, or a list ─────
 const STATUS_RE = /^\s*([✓✗])\s*/;
+// "label: 1,234" / "label: 12.5" → a labelled numeric distribution row.
+const KV_RE = /^\s*(.+?):\s*([\d][\d,]*(?:\.\d+)?)\s*$/;
 const stripBullet = (s) => String(s).replace(/^\s*[•\-–]\s*/, '');
 
 function ListSection({ s }) {
   const items = (s.items || []).map((x) => (x == null ? '' : String(x))).filter(Boolean);
   if (!items.length) return null;
   const allStatus = items.every((x) => STATUS_RE.test(x));
-  const allChips = !allStatus && items.every((x) => x.length <= 44 && !x.includes(':') && !STATUS_RE.test(x));
+  const kv = items.map((x) => {
+    const m = x.match(KV_RE);
+    return m ? { label: m[1].trim(), raw: m[2], value: parseFloat(m[2].replace(/,/g, '')) } : null;
+  });
+  const allKV = !allStatus && items.length >= 2 && kv.every((k) => k && Number.isFinite(k.value));
+  const allChips = !allStatus && !allKV && items.every((x) => x.length <= 44 && !x.includes(':') && !STATUS_RE.test(x));
+
+  // Numeric distribution (link types, TLDs, countries…) → proportional bars.
+  if (allKV) {
+    const max = Math.max(...kv.map((k) => k.value), 1);
+    return (
+      <Block title={s.title}>
+        <div className="space-y-1.5">
+          {kv.map((k, i) => (
+            <div key={i} className="flex items-center gap-3 text-sm">
+              <span className="w-36 shrink-0 truncate text-slate-600" title={k.label}>{k.label}</span>
+              <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-gradient-to-r from-brand-400 to-brand-600" style={{ width: `${Math.max(2, (k.value / max) * 100)}%` }} />
+              </div>
+              <span className="w-16 shrink-0 text-right font-semibold tabular-nums text-slate-700">{k.raw}</span>
+            </div>
+          ))}
+        </div>
+      </Block>
+    );
+  }
 
   if (allStatus) {
     return (
