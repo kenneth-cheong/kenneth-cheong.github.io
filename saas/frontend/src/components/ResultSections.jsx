@@ -1,4 +1,5 @@
 import LineChart from './LineChart.jsx';
+import TrendChart from './TrendChart.jsx';
 import { copyText, toast } from '../lib/ui.js';
 
 // Themed renderer for the structured `sections` result format. Replaces the
@@ -35,7 +36,8 @@ function Section({ s }) {
         </ul>
       </div>
     );
-    case 'chart': return <div>{s.title && <H>{s.title}</H>}<LineChart data={s.data} /></div>;
+    // `series` → multi-line trend (integrations); legacy `data` → rank LineChart.
+    case 'chart': return <div>{s.title && <H>{s.title}</H>}{Array.isArray(s.series) ? <TrendChart series={s.series} /> : <LineChart data={s.data} />}</div>;
     case 'cards': return <div>{s.title && <H>{s.title}</H>}<div className="space-y-2">{s.items.map((c, i) => <Card key={i} c={c} />)}</div></div>;
     case 'table': return <div>{s.title && <H>{s.title}</H>}<Table columns={s.columns} rows={s.rows} /></div>;
     case 'code': return <CodeBlock title={s.title} filename={s.filename} content={s.content} />;

@@ -9,6 +9,7 @@ import ExplainMenu from './ExplainMenu.jsx';
 import ProjectSelector from './ProjectSelector.jsx';
 import { useMediaQuery } from '../lib/ui.js';
 import { PLANS } from '@shared/catalog.mjs';
+import { startPlatformTour, hasSeen, markSeen } from '../lib/tours.js';
 
 // Core workflow links stay in the top bar; account/meta links live in the
 // right-side account dropdown so the row never overflows.
@@ -35,6 +36,14 @@ export default function Layout({ children }) {
   const [acctOpen, setAcctOpen] = useState(false);
   const [ask, setAsk] = useState(null);
   const wide = useMediaQuery('(min-width: 768px)');
+
+  // First visit ever → auto-run the platform tour once the dashboard has painted.
+  useEffect(() => {
+    if (hasSeen('platform')) return;
+    if (window.location.pathname !== '/') return;
+    const t = setTimeout(() => { if (!hasSeen('platform')) { markSeen('platform'); startPlatformTour(); } }, 900);
+    return () => clearTimeout(t);
+  }, []);
 
   // Let any page open the assistant (Support CTA) or ask it about something
   // (the right-click "Explain this" menu).
@@ -66,7 +75,7 @@ export default function Layout({ children }) {
               <span className="hidden sm:inline">Digimetrics</span>
             </Link>
             <nav className="hidden min-w-0 gap-1 md:flex">
-              {primaryNav.map((n) => <NavLink key={n.to} to={n.to} end={n.end} className={linkCls}>{n.label}</NavLink>)}
+              {primaryNav.map((n) => <NavLink key={n.to} to={n.to} end={n.end} data-tour={`nav-${n.to}`} className={linkCls}>{n.label}</NavLink>)}
             </nav>
             <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
               <ProjectSelector />
@@ -74,15 +83,27 @@ export default function Layout({ children }) {
               <NotificationBell />
               <button
                 onClick={() => setChatOpen((o) => !o)}
+                data-tour="assistant"
                 className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${chatOpen ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
               >
                 💬<span className="hidden lg:inline"> Assistant</span>
+              </button>
+
+              <button
+                onClick={startPlatformTour}
+                data-tour="help"
+                title="Take the platform tour"
+                aria-label="Take the platform tour"
+                className="hidden h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-sm font-bold text-slate-600 hover:bg-slate-200 sm:grid"
+              >
+                ?
               </button>
 
               {/* Account dropdown (desktop) — holds Account/Usage/Pricing/Support/Admin + Sign out */}
               <div className="relative hidden md:block">
                 <button
                   onClick={() => setAcctOpen((o) => !o)}
+                  data-tour="account-menu"
                   className="flex items-center gap-1.5 rounded-lg py-1 pl-1 pr-1.5 hover:bg-slate-100"
                   aria-label="Account menu"
                 >

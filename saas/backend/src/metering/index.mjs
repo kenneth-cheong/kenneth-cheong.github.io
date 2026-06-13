@@ -244,12 +244,24 @@ async function callUpstreamRaw(tool, body) {
   if (!tool.upstream) return { clientOnly: true };
   // The Strategy Engine is a two-step composite (generate → recommendations).
   if (tool.id === 'strategy-engine') return strategyEngineRun(body);
+  // Competitors: SERP overlap fan-out → rank table + AI insights.
+  if (tool.id === 'competitors') return competitorsRun(body);
+  // GEO On-Page: geoOnPageAnalysis returns JSON → render the structured report.
+  if (tool.id === 'geo-onpage') return geoOnpageRun(body);
+  // Caption: generate N diverse variations (rotating index + temperature).
+  if (tool.id === 'caption') return captionRun(body);
+  // Media Plan: plan + auto-personas + marketing funnel composite.
+  if (tool.id === 'media-plan') return mediaPlanRun(body);
+  // On-Page: extract page elements → meta/heading recs + content recs + images.
+  if (tool.id === 'onpage') return onpageRun(body);
   // DataForSEO crawl is async: initiate → poll get_results until done.
   if (tool.id === 'technical-seo') return crawlRun(body, tool);
   // GEO+SEO Forensic Audit: fan out ~30 probes, score them, build a remediation plan.
   if (tool.id === 'forensic-audit') return forensicAuditRun(body);
   // AI-visibility is multi-step: derive prompts → verify_mentions → poll snapshot.
-  if (tool.id === 'ai-discovery' || tool.id === 'ai-mentions') return aiVisibilityRun(body);
+  // AI Mentions: are you cited in AI answers? AI Discovery: technical GEO-readiness.
+  if (tool.id === 'ai-mentions') return aiVisibilityRun(body);
+  if (tool.id === 'ai-discovery') return aiDiscoveryRun(body);
   // Backlinks Explorer fans out across summary + referring domains + anchors.
   if (tool.id === 'backlinks') return backlinksRun(body);
   // AI Content Optimiser: optional draft → run the multi-agent QA suite.
@@ -431,6 +443,410 @@ function recsFrom(raw) {
   let d = raw;
   if (typeof raw?.result === 'string') { const p = parseStrategyJson(raw.result); if (p) d = p; }
   return { strengths: d?.strengths || [], recommendations: d?.recommendations || [] };
+}
+
+// ── Competitors Identifier: SERP overlap table + AI insights ──────────────────
+// index.html dumped serpCompetitors' { domain: { keyword: rank } } straight into
+// a table; the SaaS adapter left it unadapted so it rendered as a raw JSON blob.
+// Fan out in small batches (avoids upstream 504s), then render a position matrix
+// plus a best-effort `competitor_insights` LLM pass.
+async function competitorsRun(body) {
+  const keywords = String(body.input || '').split(/[\n,]+/).map((s) => s.trim()).filter(Boolean).slice(0, 20);
+  if (!keywords.length) throw new Error('Enter at least one keyword to find competitors.');
+  const location = body.location || 'Singapore';
+  const language = body.language || 'English';
+  const email = body._email || 'saas-user';
+
+  const merged = {};
+  for (const batch of chunkArr(keywords, 3)) {
+    try {
+      const data = unwrapBody(await postUpstream(UPSTREAMS.serpCompetitors, {
+        id: `comp_${email}_${batch.join('|')}`, user: email, keywords: batch, location, language,
+      }));
+      if (data && typeof data === 'object') {
+        for (const dom of Object.keys(data)) merged[dom] = Object.assign(merged[dom] || {}, data[dom] || {});
+      }
+    } catch (e) { console.error('competitors_batch_failed', e.message); }
+  }
+
+  const domains = Object.keys(merged);
+  if (!domains.length) {
+    return { sections: [{ type: 'callout', text: 'No competitors found ranking for these keywords. Try broader or different keywords.' }] };
+  }
+  // Most-overlapping competitors first.
+  domains.sort((a, b) => Object.keys(merged[b]).length - Object.keys(merged[a]).length);
+
+  const sections = [
+    { type: 'heading', text: `Competitors for: ${keywords.join(', ')}` },
+    { type: 'stats', items: [
+      { label: 'Competitors found', value: domains.length, tone: 'blue' },
+      { label: 'Keywords analysed', value: keywords.length, tone: 'slate' },
+    ] },
+  ];
+
+  // Position matrix when the keyword set is small enough to be columns; else a
+  // compact joined "positions" column.
+  if (keywords.length <= 8) {
+    const columns = ['Competitor', ...keywords];
+    const rows = domains.map((d) => {
+      const row = { Competitor: d };
+      for (const kw of keywords) { const r = merged[d][kw]; row[kw] = (r == null) ? '—' : `#${r}`; }
+      return row;
+    });
+    sections.push({ type: 'table', title: 'SERP position overlap', columns, rows });
+  } else {
+    const rows = domains.map((d) => ({
+      Competitor: d,
+      'Keyword positions': Object.entries(merged[d]).map(([kw, r]) => `${kw} #${r}`).join(', '),
+      'Keywords ranked': Object.keys(merged[d]).length,
+    }));
+    sections.push({ type: 'table', title: 'SERP position overlap', columns: ['Competitor', 'Keyword positions', 'Keywords ranked'], rows });
+  }
+
+  // Best-effort AI insights (same monday lambda, action competitor_insights).
+  try {
+    const summary = domains
+      .map((d) => `- ${d}: ${Object.entries(merged[d]).map(([kw, r]) => `"${kw}" #${r}`).join(', ') || 'manually added'}`)
+      .join('\n');
+    const raw = await postUpstream(UPSTREAMS.strategyEngine, {
+      action: 'competitor_insights',
+      targetDomain: (body.domain || body.url || '').trim(),
+      location, summary, keywords: keywords.join(', '),
+    });
+    const items = parseInsightsArray(raw).map((it) => {
+      const isInsight = String(it.type || '').toLowerCase() === 'insight';
+      const prio = String(it.priority || 'medium').toLowerCase();
+      return {
+        title: it.title || '',
+        badge: isInsight ? 'Insight' : (prio === 'high' ? 'High' : prio === 'low' ? 'Low' : 'Medium'),
+        badgeTone: isInsight ? 'blue' : (prio === 'high' ? 'red' : prio === 'low' ? 'green' : 'amber'),
+        body: it.detail || '',
+      };
+    });
+    if (items.length) sections.push({ type: 'cards', title: '💡 Competitive insights & recommendations', items });
+  } catch (e) { console.error('competitor_insights_failed', e.message); }
+
+  return { sections };
+}
+
+// Pull a JSON array out of an LLM response that may be fenced/truncated.
+function parseInsightsArray(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(raw?.insights)) return raw.insights;
+  let txt = typeof raw === 'string' ? raw : (raw?.result || raw?.reply || raw?.text || '');
+  if (!txt) return [];
+  let clean = String(txt).trim();
+  const m = clean.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (m) clean = m[1];
+  const fa = clean.indexOf('['), la = clean.lastIndexOf(']');
+  if (fa !== -1 && la > fa) clean = clean.slice(fa, la + 1);
+  try { const p = JSON.parse(clean); return Array.isArray(p) ? p : []; } catch { return []; }
+}
+
+// ── Caption Generator: N diverse variations ───────────────────────────────────
+// index.html generates up to 10 variations (rotating variationIndex + rising
+// temperature); the SaaS adapter hardcoded a single call. Restore multi-variation
+// (capped at 5 to keep the ai_short credit economics sane) + a style sample.
+async function captionRun(body) {
+  const count = Math.min(Math.max(parseInt(body.count, 10) || 3, 1), 5);
+  const base = ADAPTERS.caption.request(body);
+  const sampleText = (body.sampleText || '').trim();
+  const pick = (raw) => {
+    const d = deepBody(raw);
+    return typeof d === 'string' ? d : (d?.result || d?.text || d?.content || d?.response || '');
+  };
+  const variations = await Promise.all(Array.from({ length: count }, (_, i) =>
+    postUpstream(UPSTREAMS.aiOptimiser, { ...base, variationIndex: i, sampleText, settings: { temperature: 0.75 + i * 0.02 } })
+      .then(pick).catch(() => '')
+  ));
+  const clean = variations.map((v) => String(v || '').trim()).filter(Boolean);
+  if (!clean.length) return { text: 'No caption generated. Please try again.' };
+  if (clean.length === 1) return { text: clean[0] };
+  return { text: clean.map((v, i) => `━━━ Variation ${i + 1} ━━━\n\n${v}`).join('\n\n\n') };
+}
+
+// ── Media Plan: plan + auto-personas + marketing funnel ───────────────────────
+// index.html collected ~20 inputs, auto-generated 3 personas when none were
+// given, then appended a 5-stage marketing funnel. The SaaS adapter mapped only
+// a handful of fields and dropped both the persona + funnel sections. The
+// upstream tolerates string inputs, so we skip the contentParsing scrape and
+// pass the brief straight through; personas + funnel are best-effort.
+async function mediaPlanRun(body) {
+  const brief = (body.input || '').trim();
+  const personasIn = (body.customerPersonas || '').trim();
+
+  // Auto-generate 3 personas when none provided (mirrors index.html).
+  let personaRaw = null, personaHtml = '';
+  if (!personasIn) {
+    try {
+      personaRaw = await postUpstream(UPSTREAMS.personaGenerator, {
+        data: brief, manual: (body.manual || '').trim(), existing_personas: [], num_personas: 3,
+      });
+      const pb = personaRaw?.body ?? personaRaw;
+      personaHtml = typeof pb === 'string' ? pb : '';
+    } catch (e) { console.error('media_plan_persona_failed', e.message); }
+  }
+
+  const data = {
+    webpagesInput: brief,
+    manualInput: brief,
+    budget: (body.budget || '').trim(),
+    mediaPlanStartDate: (body.startDate || '').trim(),
+    mediaPlanEndDate: (body.endDate || '').trim(),
+    organisationalObjectives: (body.objectives || '').trim(),
+    mediaPlanLocation: (body.location || 'Singapore').trim(),
+    mediaPlanTargetAudience: (body.targetAudience || '').trim(),
+    mediaPlanCustomerPersonas: personasIn || personaRaw || '',
+    mediaPlanTouchpoints: (body.touchpoints || '').trim(),
+    mediaPlanContentStrategy: (body.contentStrategy || '').trim(),
+    mediaPlanLandingPages: (body.landingPages || '').trim(),
+    mediaPlanCta: (body.cta || '').trim(),
+    mediaPlanProductService: (body.productService || '').trim(),
+    mediaPlanKpis: (body.kpis || '').trim(),
+    mediaPlanCompetitiveAnalysis: (body.competitiveAnalysis || '').trim(),
+    mediaPlanCompliance: (body.compliance || '').trim(),
+    mediaPlanTechnologyPlan: (body.technologyPlan || '').trim(),
+    mediaPlanAnalyticsReporting: (body.analyticsReporting || '').trim(),
+    adFormats: parseAdFormats(body.channels),
+  };
+
+  const mpRaw = await postUpstream(UPSTREAMS.mediaPlanGenerator, data);
+  const mpHtml = typeof mpRaw === 'string' ? mpRaw : (mpRaw?.html || mpRaw?.body || '');
+
+  // Marketing funnel (best-effort): merge persona + plan payloads like index.html.
+  let funnelHtml = '';
+  try {
+    const asObj = (raw, htmlStr) => (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : { body: htmlStr };
+    const fraw = await postUpstream(UPSTREAMS.generateFunnel, Object.assign({}, asObj(personaRaw, personaHtml), asObj(mpRaw, mpHtml)));
+    let f = fraw?.body ?? fraw;
+    if (typeof f === 'string') { try { f = JSON.parse(f); } catch { f = null; } }
+    if (f && typeof f === 'object') funnelHtml = renderFunnel(f);
+  } catch (e) { console.error('media_plan_funnel_failed', e.message); }
+
+  const parts = [mpHtml];
+  if (personaHtml) parts.push(`<h3 style="margin-top:18px;font-weight:700">Generated personas</h3><div>${personaHtml}</div>`);
+  if (funnelHtml) parts.push(funnelHtml);
+  const html = parts.filter(Boolean).join('\n');
+  return { html: html || '<p>No media plan was generated. Please try again.</p>' };
+}
+
+// Friendly channel names (tags or comma string) → upstream adFormats flags.
+// Empty selection defaults to all-on (matches the prior SaaS behaviour).
+function parseAdFormats(channels) {
+  const list = Array.isArray(channels) ? channels : String(channels || '').split(/[\n,]+/);
+  const set = list.map((c) => String(c).trim().toLowerCase()).filter(Boolean);
+  if (!set.length) return { googleSearch: true, performanceMax: true, googleDisplay: true, fbIg: true, linkedIn: true, tikTok: true };
+  const has = (...keys) => set.some((c) => keys.some((k) => c.includes(k)));
+  return {
+    googleSearch: has('google search', 'search'),
+    performanceMax: has('performance max', 'pmax', 'performance'),
+    googleDisplay: has('google display', 'display'),
+    fbIg: has('facebook', 'instagram', 'meta', 'fb', 'ig'),
+    linkedIn: has('linkedin'),
+    tikTok: has('tiktok', 'tik tok'),
+  };
+}
+
+function renderFunnel(f) {
+  const stages = ['Awareness', 'Discovery', 'Consideration', 'Conversion', 'Retention'];
+  const cards = stages.map((st) => {
+    const raw = f[st];
+    const items = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+    if (!items.length) return '';
+    return `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin:8px 0">
+      <strong style="color:#0f172a">${st}</strong>
+      <ul style="margin:6px 0 0;padding-left:18px;color:#475569;font-size:13px">${items.map((i) => `<li>${esc(String(i))}</li>`).join('')}</ul>
+    </div>`;
+  }).join('');
+  return cards ? `<h3 style="margin-top:18px;font-weight:700">Marketing funnel</h3>${cards}` : '';
+}
+
+// ── On-Page Optimisation: extract → meta/heading recs + content recs + images ──
+// index.html ran 5 sub-analyses; the SaaS adapter shipped only the content
+// recommender. Restore the page extraction (getImages) → meta/heading
+// recommendations (onPageRecommendations) pipeline alongside the content recs.
+async function onpageRun(body) {
+  const url = (body.input || body.url || '').trim();
+  if (!url) throw new Error('A page URL is required.');
+  const keywords = String(body.keywords || '').split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+
+  // 1. Extract page elements (headings, meta, images).
+  let extraction = {};
+  try { extraction = deepBody(await postUpstream(UPSTREAMS.getImages, { url, keywords })) || {}; }
+  catch (e) { console.error('onpage_extract_failed', e.message); }
+
+  // 2. Meta + heading recommendations (strip image_data — Claude token budget;
+  //    inject placeholders so missing H1/H2 get a fresh suggestion).
+  let recs = {};
+  if (keywords.length) {
+    try {
+      const { image_data, _source, ...dataForRec } = extraction;
+      if (dataForRec.headings) {
+        for (const lvl of ['h1', 'h2']) {
+          if (!dataForRec.headings[lvl]?.length) dataForRec.headings[lvl] = [`[MISSING — suggest a new ${lvl.toUpperCase()} heading based on the content and target keywords]`];
+        }
+      }
+      recs = deepBody(await postUpstream(UPSTREAMS.onPageRecommendations, { data: dataForRec, keywords })) || {};
+    } catch (e) { console.error('onpage_recs_failed', e.message); }
+  }
+
+  // 3. Content recommendations (the originally-wired endpoint).
+  let contentRows = [];
+  try {
+    const craw = await postUpstream(UPSTREAMS.onPageContentRecommendations, { url, keywords });
+    const arr = Array.isArray(craw) ? craw : deepBody(craw);
+    contentRows = (Array.isArray(arr) ? arr : []).map((r) => ({
+      Element: r.element || r.field || '—', Current: r.current_value ?? '—', Suggested: r.suggested_value ?? '—', Why: r.rationale ?? '',
+    }));
+  } catch (e) { console.error('onpage_content_failed', e.message); }
+
+  const sections = sectionsOnpage(url, recs, extraction, contentRows);
+  if (sections.length <= 1) return { text: 'No on-page recommendations were returned. Check the URL and target keywords.' };
+  return { sections };
+}
+
+function sectionsOnpage(url, recs, extraction, contentRows) {
+  const out = [{ type: 'heading', text: `On-page optimisation — ${url}` }];
+  const metaItem = (label, o) => (o && (o.suggested_value || o.current_value))
+    ? { Item: label, Current: o.current_value || '—', Suggested: o.suggested_value || '—', Rationale: o.rationale || '' } : null;
+  const metaRows = [metaItem('Meta title', recs.meta_title), metaItem('Meta description', recs.meta_description), metaItem('Canonical URL', recs.canonical_url)].filter(Boolean);
+  if (metaRows.length) out.push({ type: 'table', title: 'Meta & canonical', columns: ['Item', 'Current', 'Suggested', 'Rationale'], rows: metaRows });
+
+  const headRows = [];
+  for (const lvl of ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']) {
+    for (const h of (recs.headings?.[lvl] || [])) {
+      if (!h || (!h.suggested_value && !h.current_value)) continue;
+      headRows.push({ Level: lvl.toUpperCase(), Current: h.current_value || '—', Suggested: h.suggested_value || '—', Rationale: h.rationale || '' });
+    }
+  }
+  if (headRows.length) out.push({ type: 'table', title: 'Headings (H1–H6)', columns: ['Level', 'Current', 'Suggested', 'Rationale'], rows: headRows });
+
+  // Current alt text per image (AI-suggested alt is a separate vision pass).
+  const imgs = (extraction.image_data || [])
+    .map((it) => { const src = Object.keys(it)[0]; return { src, alt: it[src] }; })
+    .filter((x) => x.src && /^https?:/.test(x.src));
+  if (imgs.length) out.push({ type: 'table', title: `Images — alt text (${imgs.length})`, columns: ['Image', 'Current alt'],
+    rows: imgs.slice(0, 30).map((x) => ({ Image: x.src.split('/').pop().slice(0, 60), 'Current alt': x.alt || '(missing)' })) });
+
+  if (contentRows.length) out.push({ type: 'table', title: 'Content recommendations', columns: ['Element', 'Current', 'Suggested', 'Why'], rows: contentRows });
+  return out;
+}
+
+// ── GEO On-Page Optimisation: render geoOnPageAnalysis' structured JSON ────────
+// The upstream returns JSON (not HTML), so the pass-through adapter dumped the
+// whole object as a text blob. Render the 5-part report + assets as sections.
+async function geoOnpageRun(body) {
+  const a = ADAPTERS['geo-onpage'];
+  const raw = await postUpstream(UPSTREAMS.geoOnPageAnalysis, a.request(body));
+  const data = unwrapBody(raw);
+  if (!data || typeof data !== 'object') return normalize(raw);
+  if (data.error) throw new Error(data.error);
+  return { sections: renderGeoOnpage(data, (body.input || body.url || '').trim()) };
+}
+
+// Normalise a GEO insight list (items may be strings or { positive, text }) into
+// ✓/✗-prefixed strings for a `list` section.
+function geoInsightLines(arr) {
+  return (arr || []).map((p) => {
+    if (p && typeof p === 'object') return `${p.positive === false ? '✗' : '✓'} ${p.text ?? ''}`;
+    return `• ${p}`;
+  }).filter((s) => s.trim().length > 2);
+}
+
+function renderGeoOnpage(data, url) {
+  const tone = (s) => (s > 70 ? 'green' : s > 40 ? 'amber' : 'red');
+  const sections = [{ type: 'heading', text: `GEO On-Page Optimisation${url ? ` — ${url}` : ''}` }];
+
+  const ve = data.vector_embedding || {};
+  const eo = data.entity_optimization || {};
+  const cs = data.content_structure || {};
+  const il = data.internal_linking || {};
+  const cw = data.citation_worthiness || {};
+  const overall = data.overall_score || 0;
+
+  sections.push({ type: 'stats', items: [
+    { label: 'Overall score', value: `${overall}%`, tone: tone(overall) },
+    { label: 'Vector embedding', value: `${ve.score || 0}%`, tone: tone(ve.score || 0) },
+    { label: 'Entity optimisation', value: `${eo.score || 0}%`, tone: tone(eo.score || 0) },
+    { label: 'Content structure', value: `${cs.score || 0}%`, tone: tone(cs.score || 0) },
+    { label: 'Internal linking', value: `${il.score || 0}%`, tone: tone(il.score || 0) },
+    { label: 'Citation-worthiness', value: `${cw.score || 0}%`, tone: tone(cw.score || 0) },
+  ] });
+
+  // Page metadata: existing vs proposed.
+  const pm = data.page_metadata || {};
+  const metaRows = [
+    { Field: 'Canonical', Existing: pm.existing_canonical_url || '—', Proposed: '—' },
+    { Field: 'Meta title', Existing: pm.existing_meta_title || '—', Proposed: data.proposed_meta_title || '—' },
+    { Field: 'Meta description', Existing: pm.existing_meta_description || '—', Proposed: data.proposed_meta_description || '—' },
+  ];
+  sections.push({ type: 'table', title: 'Page metadata', columns: ['Field', 'Existing', 'Proposed'], rows: metaRows });
+
+  // Part 1 — Vector embedding.
+  if (Array.isArray(ve.recommended_terms) && ve.recommended_terms.length)
+    sections.push({ type: 'list', title: `Recommended terms to include (semantic coverage ${ve.semantic_coverage || 0}%)`, items: ve.recommended_terms });
+  if (Array.isArray(ve.topic_clusters) && ve.topic_clusters.length)
+    sections.push({ type: 'list', title: 'Topic clusters', items: ve.topic_clusters });
+  const veInsights = geoInsightLines([...(ve.strengths || []), ...(ve.missing_elements || []), ...(ve.insights || [])]);
+  if (veInsights.length) sections.push({ type: 'list', title: 'Vector embedding notes', items: veInsights });
+
+  // Part 2 — Entity optimisation.
+  if (Array.isArray(eo.entities) && eo.entities.length) {
+    sections.push({
+      type: 'table', title: 'Primary entities',
+      columns: ['#', 'Name', 'Type', 'Status'],
+      rows: eo.entities.map((e, i) => ({ '#': i + 1, Name: e.name || '—', Type: e.type || '—', Status: e.status === 'found' ? 'Found' : 'Add' })),
+    });
+  }
+  if (Array.isArray(eo.eeat_signals) && eo.eeat_signals.length)
+    sections.push({ type: 'list', title: 'E-E-A-T signals', items: eo.eeat_signals.map((s) => `${s.present ? '✓' : '✗'} ${s.signal}`) });
+  const eoInsights = geoInsightLines(eo.insights);
+  if (eoInsights.length) sections.push({ type: 'list', title: 'Entity notes', items: eoInsights });
+
+  // Part 3 — Content structure & FAQ.
+  if (Array.isArray(cs.heading_hierarchy) && cs.heading_hierarchy.length) {
+    sections.push({
+      type: 'table', title: 'Heading hierarchy',
+      columns: ['Level', 'Heading', 'Status'],
+      rows: cs.heading_hierarchy.map((h) => ({ Level: h.level || '—', Heading: h.text || '—', Status: h.status === 'found' ? 'Found' : 'Add' })),
+    });
+  }
+  if (Array.isArray(cs.faq_suggestions) && cs.faq_suggestions.length)
+    sections.push({ type: 'list', title: 'Suggested FAQ', items: cs.faq_suggestions.map((f) => `Q: ${f.question} — A: ${f.answer_preview || ''}`) });
+  const csInsights = geoInsightLines(cs.insights);
+  if (csInsights.length) sections.push({ type: 'list', title: 'Content structure notes', items: csInsights });
+
+  // Part 4 — Internal linking.
+  if (Array.isArray(il.linking_table) && il.linking_table.length) {
+    sections.push({
+      type: 'table', title: 'Internal linking plan',
+      columns: ['Anchor text', 'Target URL', 'Status'],
+      rows: il.linking_table.map((l) => ({ 'Anchor text': l.anchor_text || '—', 'Target URL': l.target_url || '—', Status: l.url_status === 'missing' ? 'Needs creation' : 'OK' })),
+    });
+  }
+  const ilInsights = geoInsightLines(il.insights);
+  if (ilInsights.length) sections.push({ type: 'list', title: 'Internal linking notes', items: ilInsights });
+
+  // Part 5 — Citation-worthiness.
+  if (Array.isArray(cw.quotable_statements) && cw.quotable_statements.length)
+    sections.push({ type: 'list', title: 'Quotable statements to add', items: cw.quotable_statements.map((q) => `“${q.statement}”${q.topic ? ` — ${q.topic}` : ''}`) });
+  const cwInsights = geoInsightLines(cw.insights);
+  if (cwInsights.length) sections.push({ type: 'list', title: 'Citation-worthiness notes', items: cwInsights });
+
+  // Assets — optimised content + schema markup.
+  const optimised = Array.isArray(data.optimized_chunks) && data.optimized_chunks.length
+    ? data.optimized_chunks.map((c, i) => `# Chunk ${i + 1}\n${c.optimized || ''}`).join('\n\n')
+    : (data.optimized_content || '');
+  if (optimised && optimised.trim())
+    sections.push({ type: 'code', title: 'Optimised content', filename: 'optimised-content.txt', content: optimised });
+  if (data.schema_markup) {
+    let sm = data.schema_markup;
+    const arr = Array.isArray(sm) ? sm : [sm];
+    const jsonLd = arr.length && arr[0] && arr[0].json_ld ? arr.map((x) => x.json_ld) : arr;
+    sections.push({ type: 'code', title: 'Schema markup (JSON-LD)', filename: 'schema.jsonld', content: JSON.stringify(jsonLd, null, 2) });
+  }
+
+  return sections;
 }
 
 const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
@@ -1245,7 +1661,41 @@ async function integrationsRun(tool, body) {
   if (!live?.rows) {
     return { needsConnect: tool.integration, text: `We couldn’t pull live ${tool.name} data — reconnect your account under Integrations to continue.` };
   }
-  return { rows: live.rows, summary: live.summary, source: live.source };
+  // Summary cards + trend chart render above the (sortable) breakdown table -
+  // the dashboard layout index.html uses, not a bare table.
+  return {
+    sections: integrationSections(tool.integration, live.summary || {}, live.series || []),
+    rows: live.rows, summary: live.summary, source: live.source,
+  };
+}
+
+// Build the stat-card + trend-chart sections for an integration pull. The
+// breakdown stays a top-level `rows` table (sortable, formatted) so it isn't
+// rendered twice. Chart is omitted when no day-series came back.
+function integrationSections(provider, summary, series) {
+  const num = (v) => (v == null ? '\u2014' : Number(v).toLocaleString());
+  const stat = (label, value) => ({ label, value: value ?? '\u2014' });
+  const sections = [];
+  if (provider === 'gsc') {
+    sections.push({ type: 'stats', items: [stat('Clicks', num(summary.clicks)), stat('Impressions', num(summary.impressions)), stat('CTR', summary.ctr), stat('Avg position', summary.avgPosition)] });
+    pushTrend(sections, 'Clicks & impressions over time', series, [{ key: 'clicks', label: 'Clicks', color: '#2563eb' }, { key: 'impressions', label: 'Impressions', color: '#a855f7' }]);
+  } else if (provider === 'ga4') {
+    sections.push({ type: 'stats', items: [stat('Sessions', num(summary.sessions)), stat('Users', num(summary.users)), stat('Engaged', num(summary.engagedSessions)), stat('Conversions', num(summary.conversions))] });
+    pushTrend(sections, 'Sessions & users over time', series, [{ key: 'sessions', label: 'Sessions', color: '#2563eb' }, { key: 'users', label: 'Users', color: '#10b981' }]);
+  } else if (provider === 'google-ads') {
+    sections.push({ type: 'stats', items: [stat('Cost', summary.cost), stat('Clicks', num(summary.clicks)), stat('Conversions', num(summary.conversions)), stat('CPA', summary.cpa)] });
+    pushTrend(sections, 'Cost & clicks over time', series, [{ key: 'cost', label: 'Cost (S$)', color: '#2563eb' }, { key: 'clicks', label: 'Clicks', color: '#f59e0b' }]);
+  }
+  return sections;
+}
+
+// Turn a day-series into a multi-line `chart` section; drop all-zero series.
+function pushTrend(sections, title, series, defs) {
+  if (!Array.isArray(series) || !series.length) return;
+  const built = defs
+    .map((d) => ({ label: d.label, color: d.color, points: series.map((p) => ({ date: p.date, value: Number(p[d.key]) || 0 })) }))
+    .filter((s) => s.points.some((p) => p.value > 0));
+  if (built.length) sections.push({ type: 'chart', title, series: built });
 }
 
 // ── Backlinks Explorer: DataForSEO backlinks (summary + ref domains + anchors) ─
@@ -1259,15 +1709,25 @@ async function backlinksRun(body) {
   const post = (action, extra = {}) => postUpstream(url, { action, target, mode, ...extra });
   const result0 = (res) => res?.tasks?.[0]?.result?.[0];
 
-  const [summaryRes, refRes, anchorRes] = await Promise.all([
+  const [summaryRes, refRes, anchorRes, listRes, brokenRes, histRes] = await Promise.all([
     post('backlinks_summary').catch(() => null),
     post('referring_domains', { limit: 100 }).catch(() => null),
     post('anchors', { limit: 100 }).catch(() => null),
+    post('backlinks_list', { limit: 100 }).catch(() => null),
+    post('broken_backlinks', { limit: 100, offset: 0 }).catch(() => null),
+    post('backlinks_history').catch(() => null),
   ]);
 
   const s = result0(summaryRes) || {};
-  const refDomains = (result0(refRes)?.items || []).slice(0, 15);
-  const anchors = (result0(anchorRes)?.items || []).slice(0, 15);
+  const refDomains = (result0(refRes)?.items || []).slice(0, 50);
+  const anchors = (result0(anchorRes)?.items || []).slice(0, 50);
+  const backlinks = (result0(listRes)?.items || []).slice(0, 50);
+  const brokenResult = result0(brokenRes) || {};
+  const broken = (brokenResult.items || []).slice(0, 50);
+  const brokenTotal = brokenResult.total_count ?? broken.length;
+  const history = (result0(histRes)?.items || [])
+    .filter((it) => it && it.date)
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
   const summary = {
     backlinks: s.backlinks ?? null,
@@ -1276,16 +1736,29 @@ async function backlinksRun(body) {
     spamScore: s.backlinks_spam_score ?? null,
     brokenBacklinks: s.broken_backlinks ?? null,
     referringIps: s.referring_ips ?? null,
+    types: s.referring_links_types || null,
+    attributes: s.referring_links_attributes || null,
+    countries: s.referring_links_countries || null,
+    platforms: s.referring_links_platform_types || null,
+    tld: s.referring_links_tld || null,
   };
-  if (summary.backlinks == null && !refDomains.length && !anchors.length) {
+  if (summary.backlinks == null && !refDomains.length && !anchors.length && !backlinks.length) {
     return { text: 'No backlinks data was returned for this target. Check the domain and analysis scope.' };
   }
-  return { sections: sectionsBacklinks(target, mode, summary, refDomains, anchors), summary };
+  return { sections: sectionsBacklinks(target, mode, summary, refDomains, anchors, backlinks, broken, brokenTotal, history), summary };
 }
 
-function sectionsBacklinks(target, mode, s, refDomains, anchors) {
+function sectionsBacklinks(target, mode, s, refDomains, anchors, backlinks = [], broken = [], brokenTotal = 0, history = []) {
   const n = (v) => (v == null ? '—' : Number(v).toLocaleString());
   const isNofollow = (a) => a && (a.nofollow || a.sponsored || a.ugc);
+  const shortUrl = (u) => String(u || '').replace(/^https?:\/\//i, '').replace(/\/$/, '');
+  // Top-6 breakdown of a DataForSEO {key: count} map → a list section.
+  const breakdown = (title, obj) => {
+    if (!obj || typeof obj !== 'object') return null;
+    const items = Object.entries(obj).filter(([k]) => k !== '').sort((a, b) => b[1] - a[1]).slice(0, 6)
+      .map(([k, v]) => `${k}: ${Number(v).toLocaleString()}`);
+    return items.length ? { type: 'list', title, items } : null;
+  };
   const out = [
     { type: 'heading', text: `Backlink profile — ${target} (${mode})` },
     { type: 'stats', items: [
@@ -1297,10 +1770,24 @@ function sectionsBacklinks(target, mode, s, refDomains, anchors) {
       { label: 'Referring IPs', value: n(s.referringIps) },
     ] },
   ];
-  if (refDomains.length) out.push({ type: 'table', title: 'Top referring domains', columns: ['Domain', 'Rank', 'Backlinks', 'First seen', 'Type'],
+  for (const sec of [
+    breakdown('Link types', s.types),
+    breakdown('Link attributes', s.attributes),
+    breakdown('Top countries', s.countries),
+    breakdown('Platform types', s.platforms),
+    breakdown('TLD distribution', s.tld),
+  ]) if (sec) out.push(sec);
+
+  if (refDomains.length) out.push({ type: 'table', title: `Top referring domains (${refDomains.length})`, columns: ['Domain', 'Rank', 'Backlinks', 'First seen', 'Type'],
     rows: refDomains.map((d) => ({ Domain: d.domain, Rank: d.rank ?? '—', Backlinks: n(d.backlinks), 'First seen': String(d.first_seen || '').slice(0, 10) || '—', Type: isNofollow(d.referring_links_attributes) ? 'nofollow' : 'dofollow' })) });
-  if (anchors.length) out.push({ type: 'table', title: 'Top anchors', columns: ['Anchor', 'Backlinks', 'Ref. domains', 'First seen'],
+  if (anchors.length) out.push({ type: 'table', title: `Top anchors (${anchors.length})`, columns: ['Anchor', 'Backlinks', 'Ref. domains', 'First seen'],
     rows: anchors.map((a) => ({ Anchor: a.anchor || '(image / no text)', Backlinks: n(a.backlinks), 'Ref. domains': n(a.referring_domains), 'First seen': String(a.first_seen || '').slice(0, 10) || '—' })) });
+  if (backlinks.length) out.push({ type: 'table', title: `Backlinks (${backlinks.length})`, columns: ['From', 'Anchor', 'To', 'Follow', 'Rank'],
+    rows: backlinks.map((b) => ({ From: shortUrl(b.url_from), Anchor: b.anchor || '(no text)', To: shortUrl(b.url_to), Follow: b.dofollow ? 'dofollow' : 'nofollow', Rank: b.rank ?? '—' })) });
+  if (broken.length) out.push({ type: 'table', title: `Broken backlinks${brokenTotal ? ` — ${Number(brokenTotal).toLocaleString()} total` : ''}`, columns: ['From', 'To', 'Status', 'Rank'],
+    rows: broken.map((b) => ({ From: shortUrl(b.url_from), To: shortUrl(b.url_to), Status: b.url_to_status_code ?? '—', Rank: b.rank ?? '—' })) });
+  if (history.length) out.push({ type: 'table', title: 'Backlink history (monthly)', columns: ['Month', 'Backlinks', 'Ref. domains', 'New', 'Lost', 'Broken'],
+    rows: history.slice(-16).map((h) => ({ Month: String(h.date).slice(0, 7), Backlinks: n(h.backlinks), 'Ref. domains': n(h.referring_domains), New: h.new_backlinks != null ? `+${n(h.new_backlinks)}` : '—', Lost: h.lost_backlinks != null ? `−${n(h.lost_backlinks)}` : '—', Broken: n(h.broken_backlinks) })) });
   return out;
 }
 
@@ -1309,6 +1796,74 @@ function sectionsBacklinks(target, mode, s, refDomains, anchors) {
 // verify_mentions per prompt × model → poll Bright Data snapshots → summarise.
 const AI_MODELS = ['gpt-4o-mini', 'claude-haiku-4-5', 'perplexity'];
 const AI_MODEL_LABEL = { 'gpt-4o-mini': 'GPT-4o', 'claude-haiku-4-5': 'Claude', perplexity: 'Perplexity' };
+
+// ── AI Discovery Audit: technical GEO-readiness ───────────────────────────────
+// index.html's runDiscoveryAudit was a technical audit (gauge + ~25 checks), but
+// the SaaS wired ai-discovery to the *mentions* engine, duplicating ai-mentions.
+// Re-frame it as a focused GEO-readiness audit, reusing the forensic HTML/robots
+// parsers (no heavy SEO-perf probes — those belong to forensic-audit).
+async function aiDiscoveryRun(body) {
+  let target = (body.url || body.input || '').trim();
+  if (!target) throw new Error('A website URL is required.');
+  if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
+  let u;
+  try { u = new URL(target); } catch { throw new Error('Invalid URL format.'); }
+  const root = u.origin;
+
+  const getHtmlBody = (path, ms) =>
+    Promise.race([postUpstream(UPSTREAMS.getHtml, { url: path }), new Promise((_, r) => setTimeout(() => r(new Error('timeout')), ms))])
+      .then((r) => (typeof r === 'string' ? r : (r && typeof r.body === 'string' ? r.body : '')))
+      .catch(() => '');
+
+  const [homeHtml, robotsBody, llmsBody, llmsFullBody] = await Promise.all([
+    getHtmlBody(root, 25000),
+    getHtmlBody(root + '/robots.txt', 15000),
+    getHtmlBody(root + '/llms.txt', 12000),
+    getHtmlBody(root + '/llms-full.txt', 12000),
+  ]);
+  if (!homeHtml || homeHtml.length < 200) {
+    return { sections: [{ type: 'callout', text: 'Could not fetch the homepage to assess AI discoverability. Check the URL.' }] };
+  }
+
+  const d = {};
+  faParseHomeHtml(homeHtml, d);
+  faParseRobots(robotsBody, d);
+  const llmstxt = faValidTxt(llmsBody);
+  const llmsfull = faValidTxt(llmsFullBody);
+
+  const checks = [
+    { factor: 'llms.txt file', pass: llmstxt, fix: 'Create an llms.txt so AI assistants can index your key pages (use the llms.txt Generator).' },
+    { factor: 'llms-full.txt file', pass: llmsfull, fix: 'Add an llms-full.txt with expanded page content for richer AI context.' },
+    { factor: 'AI crawlers allowed', pass: d.llmblock !== 'Yes', fix: 'robots.txt blocks AI bots (GPTBot/ClaudeBot/etc.) — unblock them so you can be cited.' },
+    { factor: 'Structured data (JSON-LD)', pass: d.structdata === 'Yes', fix: 'Add JSON-LD schema (Organization/Product/FAQ) so AI tools can parse your entities.' },
+    { factor: 'Semantic HTML', pass: d.semantic === 'Yes', fix: 'Use semantic landmarks (header/main/nav/footer) so AI can structure your content.' },
+    { factor: 'Meta title', pass: !!d.metatitle, fix: 'Add a descriptive <title> — AI answers often quote it.' },
+    { factor: 'Meta description', pass: !!d.metadesc, fix: 'Add a meta description summarising the page for AI snippets.' },
+    { factor: 'H1 heading', pass: d.h1 > 0, fix: 'Add a single clear H1 stating the page topic.' },
+    { factor: 'robots.txt present', pass: d.robots === 'Pass', fix: 'Add a robots.txt with your sitemap so crawlers (incl. AI) discover pages.' },
+  ];
+  const passed = checks.filter((c) => c.pass).length;
+  const score = Math.round((passed / checks.length) * 100);
+  const tone = score >= 80 ? 'green' : score >= 50 ? 'amber' : 'red';
+  const fails = checks.filter((c) => !c.pass);
+
+  const sections = [
+    { type: 'heading', text: `AI Discovery audit — ${u.hostname}` },
+    { type: 'stats', items: [
+      { label: 'GEO readiness', value: `${score}%`, tone },
+      { label: 'Checks passed', value: `${passed}/${checks.length}`, tone: passed === checks.length ? 'green' : 'amber' },
+      { label: 'llms.txt', value: llmstxt ? 'Present' : 'Missing', tone: llmstxt ? 'green' : 'red' },
+      { label: 'AI bots', value: d.llmblock === 'Yes' ? 'Blocked' : 'Allowed', tone: d.llmblock === 'Yes' ? 'red' : 'green' },
+      { label: 'Structured data', value: d.structdata === 'Yes' ? 'Yes' : 'No', tone: d.structdata === 'Yes' ? 'green' : 'red' },
+      { label: 'CMS', value: d.cms || '—', tone: 'slate' },
+    ] },
+    { type: 'table', title: 'Discoverability checklist', columns: ['Factor', 'Status'],
+      rows: checks.map((c) => ({ Factor: c.factor, Status: c.pass ? '✓ Pass' : '✗ Fix' })) },
+  ];
+  if (fails.length) sections.push({ type: 'list', title: '🎯 Prioritised fixes', items: fails.map((c) => `${c.factor}: ${c.fix}`) });
+  else sections.push({ type: 'callout', text: 'Your site covers the core AI-discoverability factors. 🎉' });
+  return { sections };
+}
 
 async function aiVisibilityRun(body) {
   const brand = (body.input || '').trim();
@@ -1723,12 +2278,18 @@ async function timeToRankRun(body) {
       if (hit) timeToRank = hit[0];
     } catch { /* fall through to heuristic */ }
     if (!timeToRank) timeToRank = difficultyToTime(difficulty);
+    // Per-keyword LLM rationale (index.html's "Reasoning & Recommendations").
+    let reasoning = '';
+    try {
+      reasoning = String(deepBody(await postUpstream(UPSTREAMS.reasonForKwSelection, { keyword, location, language, target: domain })) ?? '').trim();
+    } catch { /* best-effort — leave blank */ }
     return {
       keyword,
       volume: m.search_volume ?? m.volume ?? '—',
       difficulty: difficulty ?? '—',
       cpc: m.cpc != null ? `S$${Number(m.cpc).toFixed(2)}` : '—',
       timeToRank,
+      reasoning: reasoning || '—',
     };
   }));
   rows.sort((a, b) => (Number(b.volume) || 0) - (Number(a.volume) || 0));
@@ -1776,7 +2337,72 @@ async function anchorCleanerRun(body) {
   health = Math.max(0, Math.round(health));
 
   const flagged = classified.filter((a) => a.priority !== 'KEEP');
-  return { sections: sectionsAnchors(target, { total, exact, generic, empty, overOpt, health }, flagged) };
+  const sections = sectionsAnchors(target, { total, exact, generic, empty, overOpt, health }, flagged);
+
+  // Inbound audit (best-effort, bounded): which other pages link to this URL?
+  try {
+    const inbound = await anchorInboundAudit(target, host, keyword, kwTokens);
+    if (inbound) {
+      const good = inbound.found.filter((f) => f.priority === 'KEEP').length;
+      sections.push({ type: 'heading', text: 'Inbound internal links' });
+      sections.push({ type: 'stats', items: [
+        { label: 'Pages sampled', value: inbound.pagesChecked },
+        { label: 'Inbound links found', value: inbound.found.length, tone: inbound.found.length ? 'green' : 'amber' },
+        { label: 'Well-optimised', value: good, tone: good ? 'green' : undefined },
+      ] });
+      if (inbound.found.length) {
+        sections.push({ type: 'table', title: 'Pages linking to this URL', columns: ['Source page', 'Anchor', 'Status'],
+          rows: inbound.found.slice(0, 50).map((f) => ({ 'Source page': f.source, Anchor: f.text || '(empty)', Status: f.status })) });
+      } else {
+        sections.push({ type: 'callout', text: 'No inbound internal links to this page were found among the sampled pages. Add contextual links from related pages to strengthen it.' });
+      }
+    }
+  } catch (e) { console.error('anchor_inbound_failed', e.message); }
+
+  return { sections };
+}
+
+// Bounded inbound audit: sample internal pages (homepage links, capped) and find
+// anchors pointing at `target`. Not a full-site crawl — kept bounded so a single
+// synchronous run stays within the slow-tool timeout.
+async function anchorInboundAudit(target, host, keyword, kwTokens) {
+  let root = '';
+  try { root = new URL(target).origin; } catch { return null; }
+  const norm = (href, base) => {
+    try { const u = new URL(href, base); return (u.hostname.replace(/^www\./, '') + u.pathname.replace(/\/$/, '')).toLowerCase(); }
+    catch { return ''; }
+  };
+  const targetKey = norm(target, root);
+
+  const fetchHtml = (url, ms) =>
+    Promise.race([postUpstream(UPSTREAMS.getHtml, { url }), new Promise((_, r) => setTimeout(() => r(new Error('timeout')), ms))])
+      .then((raw) => (typeof raw === 'string' ? raw : (raw?.body || raw?.html || '')))
+      .catch(() => '');
+
+  const homeHtml = await fetchHtml(root, 20000);
+  if (!homeHtml) return null;
+
+  const candidates = [];
+  const seen = new Set([targetKey]);
+  for (const a of extractAnchors(homeHtml, host)) {
+    let abs = '';
+    try { abs = new URL(a.href, root).href; } catch { continue; }
+    const key = norm(abs, root);
+    if (!key || seen.has(key)) continue;
+    seen.add(key); candidates.push(abs);
+    if (candidates.length >= 10) break;
+  }
+  if (!candidates.length) return null;
+
+  const found = [];
+  await Promise.all(candidates.map(async (page) => {
+    const html = await fetchHtml(page, 12000);
+    if (!html) return;
+    for (const a of extractAnchors(html, host)) {
+      if (norm(a.href, page) === targetKey) found.push({ source: page, text: a.text, ...classifyAnchor(a.text, keyword, kwTokens) });
+    }
+  }));
+  return { pagesChecked: candidates.length, found };
 }
 
 function extractAnchors(html, host) {

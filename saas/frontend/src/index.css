@@ -12,14 +12,24 @@
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition;
   }
+  /* index.html primary action: solid blue with a soft brand-tinted shadow. */
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50;
+    @apply btn bg-brand-600 text-white shadow-sm shadow-brand-600/20 hover:bg-brand-700 disabled:opacity-50 disabled:shadow-none;
   }
   .btn-ghost {
     @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
   }
+  /* index.html metric/cockpit card resting state: 1px slate border, soft
+     radius, faint shadow. Hover-lift is opt-in via .card-hover (tiles/rows). */
   .card {
-    @apply rounded-xl border border-slate-200 bg-white shadow-sm;
+    @apply rounded-2xl border border-slate-200 bg-white shadow-sm;
+  }
+  .card-hover {
+    @apply transition duration-300 hover:-translate-y-0.5 hover:border-brand-500 hover:shadow-lift;
+  }
+  /* Inputs/selects/textareas — index.html's blue focus ring. */
+  .field {
+    @apply w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm transition focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/10;
   }
   .blur-locked {
     @apply pointer-events-none select-none blur-sm opacity-60;
@@ -28,6 +38,55 @@
 
 /* Right-click "Explain this" — highlight the element being asked about. */
 .dm-explain-hl { outline: 2px solid #4f46e5 !important; outline-offset: 2px; border-radius: 8px; }
+
+/* ── Guided tours (driver.js), brand-themed via .dm-tour ──────────────────── */
+.driver-popover.dm-tour {
+  border-radius: 16px;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.22);
+  max-width: 420px;
+  padding: 18px 18px 14px;
+  font-family: '"Plus Jakarta Sans"', 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+.driver-popover.dm-tour .driver-popover-title { font-size: 16px; font-weight: 700; color: #0f172a; }
+.driver-popover.dm-tour .driver-popover-description { color: #334155; font-size: 13px; line-height: 1.5; }
+.driver-popover.dm-tour .driver-popover-progress-text { color: #94a3b8; font-size: 11px; font-weight: 600; }
+.driver-popover.dm-tour .driver-popover-footer button {
+  text-shadow: none; border-radius: 8px; font-weight: 600; font-size: 13px;
+  padding: 5px 12px; border: 1px solid #e2e8f0; background: #fff; color: #475569;
+}
+.driver-popover.dm-tour .driver-popover-footer button:hover { background: #f8fafc; }
+.driver-popover.dm-tour .driver-popover-next-btn {
+  background: #2563eb !important; border-color: #2563eb !important; color: #fff !important;
+}
+.driver-popover.dm-tour .driver-popover-next-btn:hover { background: #1d4ed8 !important; }
+
+/* Example-payload styling inside tour popovers. */
+.dm-tour .dm-ex-lead { margin: 0 0 8px; font-weight: 600; color: #1e293b; }
+.dm-tour .dm-ex-note { margin: 8px 0 0; font-size: 12px; color: #64748b; }
+.dm-tour .dm-ex-muted { color: #94a3b8; }
+.dm-tour .dm-ex-stats { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.dm-tour .dm-ex-stat { border: 1px solid #e2e8f0; border-radius: 9px; padding: 5px 9px; min-width: 78px; }
+.dm-tour .dm-ex-stat span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #94a3b8; }
+.dm-tour .dm-ex-stat b { font-size: 14px; color: #0f172a; }
+.dm-tour .dm-ex-stat.t-green b { color: #16a34a; } .dm-tour .dm-ex-stat.t-amber b { color: #d97706; } .dm-tour .dm-ex-stat.t-red b { color: #dc2626; }
+.dm-tour .dm-ex-scroll { overflow-x: auto; margin: 8px 0; }
+.dm-tour table.dm-ex-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.dm-tour .dm-ex-tbl th { text-align: left; color: #94a3b8; font-weight: 600; padding: 0 8px 4px 0; white-space: nowrap; }
+.dm-tour .dm-ex-tbl td { padding: 4px 8px 4px 0; border-top: 1px solid #f1f5f9; color: #334155; white-space: nowrap; }
+.dm-tour .dm-ex-badge { display: inline-block; border-radius: 999px; padding: 1px 7px; font-size: 11px; font-weight: 600; }
+.dm-tour .dm-ex-badge.t-green { background: #dcfce7; color: #166534; }
+.dm-tour .dm-ex-badge.t-amber { background: #fef3c7; color: #92400e; }
+.dm-tour .dm-ex-badge.t-red { background: #fee2e2; color: #991b1b; }
+.dm-tour .dm-ex-badge.t-blue { background: #dbeafe; color: #1e40af; }
+.dm-tour .dm-ex-badge.t-slate { background: #f1f5f9; color: #475569; }
+.dm-tour .dm-ex-codewrap { margin: 8px 0; border-radius: 10px; overflow: hidden; border: 1px solid #1e293b; }
+.dm-tour .dm-ex-codebar { background: #1e293b; color: #94a3b8; font-size: 11px; padding: 4px 10px; font-family: ui-monospace, monospace; }
+.dm-tour pre.dm-ex-code { margin: 0; background: #0f172a; color: #e2e8f0; padding: 10px; font-size: 11px; line-height: 1.5; overflow: auto; max-height: 200px; font-family: ui-monospace, monospace; }
+.dm-tour .dm-ex-card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 10px; margin: 6px 0; font-size: 12px; color: #334155; }
+.dm-tour .dm-ex-card b { color: #0f172a; }
+.dm-tour .dm-ex-list { font-size: 12px; color: #334155; margin: 8px 0 0; }
+.dm-tour .dm-ex-list ul { margin: 4px 0 0; padding-left: 16px; }
+.dm-tour .dm-ex-list li { margin: 3px 0; }
 
 /* Server-rendered report HTML — keep tables tidy inside the result card. */
 .dm-report table { width: 100%; border-collapse: collapse; }

@@ -7,7 +7,7 @@ export default function ProjectSelector() {
   const navigate = useNavigate();
   if (!projects.length) {
     return (
-      <button onClick={() => navigate('/projects')} className="hidden rounded-lg border border-dashed border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:border-brand-300 hover:text-brand-600 sm:inline">
+      <button onClick={() => navigate('/projects')} data-tour="project-selector" className="hidden rounded-lg border border-dashed border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:border-brand-300 hover:text-brand-600 sm:inline">
         + Project
       </button>
     );
@@ -16,6 +16,7 @@ export default function ProjectSelector() {
     <select
       value={activeId || ''}
       onChange={(e) => { if (e.target.value === '__manage') navigate('/projects'); else setActive(e.target.value); }}
+      data-tour="project-selector"
       className="hidden max-w-[10rem] rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 focus:border-brand-500 focus:outline-none sm:block"
       title="Active project — runs are saved to it"
     >

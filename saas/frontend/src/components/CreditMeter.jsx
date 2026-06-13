@@ -11,7 +11,7 @@ export default function CreditMeter() {
   const low = user.credits <= max * 0.2;
 
   return (
-    <Link to="/usage" className="group flex items-center gap-3" title="View usage">
+    <Link to="/usage" data-tour="credits" className="group flex items-center gap-3" title="View usage">
       <span className="text-lg">⚡</span>
       <div className="w-32">
         <div className="flex justify-between text-xs font-medium text-slate-500">

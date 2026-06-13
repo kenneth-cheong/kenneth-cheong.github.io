@@ -35,6 +35,7 @@ export default function Dashboard() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search tools…"
+          data-tour="search"
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none sm:w-64"
         />
       </div>
@@ -53,7 +54,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="mt-6 flex flex-wrap gap-2">
+      <div className="mt-6 flex flex-wrap gap-2" data-tour="categories">
         {['All', ...CATEGORIES].map((c) => (
           <button
             key={c}

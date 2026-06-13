@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { toolById, inputsFor, exampleFor, CREDIT_COSTS, PLANS, tierMeets } from '@shared/catalog.mjs';
 import { api, ApiError } from '../lib/api.js';
@@ -8,6 +8,7 @@ import UpgradeModal from '../components/UpgradeModal.jsx';
 import ResultSections from '../components/ResultSections.jsx';
 import SchemaResult from '../components/SchemaResult.jsx';
 import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
+import { startToolTour, hasSeen, markSeen } from '../lib/tours.js';
 
 const CONFIRM_AT = 25; // credits — confirm before running pricey tools
 
@@ -28,9 +29,22 @@ export default function ToolRunner() {
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState(location.state?.result ? { result: location.state.result } : null);
   const [modal, setModal] = useState(null);
+  const shownRef = useRef([]); // latest visible fields, for the auto-started tour
 
   // Reset the form + result when navigating between tools (same route component).
   useEffect(() => { setValues(seedValues()); setOut(location.state?.result ? { result: location.state.result } : null); /* eslint-disable-next-line */ }, [toolId]);
+
+  // First tool a user ever opens → auto-run that tool's guided tour, once.
+  useEffect(() => {
+    if (!tool || hasSeen('tool:any')) return;
+    const t = setTimeout(() => {
+      if (hasSeen('tool:any')) return;
+      markSeen('tool:any');
+      startToolTour(tool, shownRef.current);
+    }, 700);
+    return () => clearTimeout(t);
+    /* eslint-disable-next-line */
+  }, [toolId]);
 
   if (!tool) return <p>Unknown tool.</p>;
   const unlocked = tierMeets(user.tier, tool.minTier);
@@ -38,6 +52,7 @@ export default function ToolRunner() {
   const set = (name, v) => setValues((s) => ({ ...s, [name]: v }));
   const isVisible = (f) => !f.showWhen || (f.showWhen.in || []).includes(values[f.showWhen.field]);
   const shown = fields.filter(isVisible);
+  shownRef.current = shown;
   const ready = shown.every((f) => !f.required || String(values[f.name] || '').trim());
   const example = exampleFor(tool.id);
 
@@ -47,16 +62,16 @@ export default function ToolRunner() {
     toast('Example filled in', 'info');
   }
 
-  async function run() {
+  async function run(vals = values) {
     if (unlocked && cost >= CONFIRM_AT && !window.confirm(`This run costs ${cost} credits. Continue?`)) return;
     setBusy(true);
     setOut(null);
     try {
-      const res = await api.runTool(tool.id, { ...values, url: values.url || values.input, projectId: activeId || undefined }, tool.slow);
+      const res = await api.runTool(tool.id, { ...vals, url: vals.url || vals.input, projectId: activeId || undefined }, tool.slow);
       setOut(res);
       if (typeof res.creditsRemaining === 'number') setCredits(res.creditsRemaining);
       if (res.creditsUsed > 0) toast(`−${res.creditsUsed} credit${res.creditsUsed > 1 ? 's' : ''} · ${res.creditsRemaining} left`, 'info');
-      saveLastInput(tool.id, values);
+      saveLastInput(tool.id, vals);
       pushRecent(tool.id);
     } catch (e) {
       if (e instanceof ApiError && (e.status === 402 || e.status === 403)) {
@@ -75,6 +90,14 @@ export default function ToolRunner() {
       <div className="mt-3 flex items-center gap-3">
         <h1 className="text-2xl font-bold">{tool.name}</h1>
         {!unlocked && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold uppercase text-amber-700">🔒 {PLANS[tool.minTier].name}</span>}
+        <button
+          type="button"
+          onClick={() => startToolTour(tool, shown)}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:border-brand-300 hover:text-brand-600"
+          title="Guided walkthrough with a real example"
+        >
+          🧭 Tour
+        </button>
       </div>
       <p className="mt-1 text-slate-600">{tool.desc}</p>
 
@@ -91,15 +114,26 @@ export default function ToolRunner() {
           ))}
         </div>
         <div className="mt-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 text-xs text-slate-400">
+          <div className="flex items-center gap-3 text-xs text-slate-400" data-tour="tool-actions">
             <span>{cost === 0 ? 'Free to run' : `Costs ${cost} credit${cost > 1 ? 's' : ''}`}</span>
             {example && <button type="button" onClick={fillExample} className="font-medium text-brand-600 hover:text-brand-700">Try an example</button>}
           </div>
-          <button className="btn-primary" disabled={busy || !ready} onClick={run}>
+          <button className="btn-primary" disabled={busy || !ready} onClick={() => run()} data-tour="tool-run">
             {busy ? (tool.slow ? 'Generating…' : 'Running…') : unlocked ? 'Run tool' : 'Run preview'}
           </button>
         </div>
       </div>
+
+      {/* Live re-pivot for integration dashboards — change range/breakdown and
+          re-pull in place (integration pulls are free), like index.html. */}
+      {tool.integration && unlocked && (out || busy) && (
+        <RepivotBar
+          fields={shown.filter((f) => f.type === 'select')}
+          values={values}
+          busy={busy}
+          onChange={(name, v) => { const nv = { ...values, [name]: v }; setValues(nv); run(nv); }}
+        />
+      )}
 
       {busy && tool.slow && <SlowProgress tool={tool} />}
       {out && !busy && <Result out={out} tool={tool} project={active} user={user} />}
@@ -331,6 +365,31 @@ function cell(col, val) {
   return s;
 }
 
+// Results-level controls for integration tools — re-pivot (range / breakdown)
+// without scrolling back to the form. Mirrors index.html's dashboard selectors.
+function RepivotBar({ fields, values, busy, onChange }) {
+  if (!fields.length) return null;
+  return (
+    <div className="dm-no-print mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">View</span>
+      {fields.map((f) => (
+        <label key={f.name} className="flex items-center gap-1.5 text-sm text-slate-600">
+          <span className="text-xs text-slate-500">{f.label}</span>
+          <select
+            value={values[f.name]}
+            disabled={busy}
+            onChange={(e) => onChange(f.name, e.target.value)}
+            className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm transition focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/10 disabled:opacity-50"
+          >
+            {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </label>
+      ))}
+      {busy && <span className="flex items-center gap-1.5 text-xs text-slate-400"><span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />updating…</span>}
+    </div>
+  );
+}
+
 // ── Form fields ───────────────────────────────────────────────────────────────
 function TagInput({ value, onChange, placeholder }) {
   const [draft, setDraft] = useState('');
@@ -345,7 +404,7 @@ function TagInput({ value, onChange, placeholder }) {
 
   return (
     <div className="mt-1.5">
-      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-300 p-2 focus-within:border-brand-500">
+      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-300 p-2 transition focus-within:border-brand-600 focus-within:ring-4 focus-within:ring-brand-600/10">
         {tags.map((t) => (
           <span key={t} className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
             {t}
@@ -372,7 +431,7 @@ function TagInput({ value, onChange, placeholder }) {
         <div className="mt-2">
           <textarea autoFocus rows={5} value={draft} onChange={(e) => setDraft(e.target.value)}
             placeholder={'Paste or type one keyword per line…\nrunning shoes\ntrail shoes\nmarathon gear'}
-            className="w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-brand-500 focus:outline-none" />
+            className="field" />
           <div className="mt-1.5 flex gap-2">
             <button type="button" className="btn-primary px-3 py-1.5 text-xs" onClick={() => { merge(draft); setBulk(false); }}>Add keywords</button>
             <button type="button" className="btn-ghost px-3 py-1.5 text-xs" onClick={() => { setDraft(''); setBulk(false); }}>Cancel</button>
@@ -388,9 +447,9 @@ function TagInput({ value, onChange, placeholder }) {
 }
 
 function Field({ field, value, onChange, autoFocus }) {
-  const base = 'mt-1.5 w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-brand-500 focus:outline-none';
+  const base = 'field mt-1.5';
   return (
-    <label className="block">
+    <label className="block" data-tour-field={field.name}>
       <span className="text-sm font-medium text-slate-700">
         {field.label}{field.required && <span className="text-slate-400"> *</span>}
       </span>

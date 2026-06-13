@@ -124,7 +124,24 @@ async function liveGsc(conn, body) {
   }));
   const clicks = rows.reduce((a, r) => a + (r.clicks || 0), 0);
   const impressions = rows.reduce((a, r) => a + (r.impressions || 0), 0);
-  return { rows, summary: { clicks, impressions, ctr: pct(clicks / (impressions || 1)), avgPosition: rows.length ? (rows.reduce((a, r) => a + Number(r.position), 0) / rows.length).toFixed(1) : '0' } };
+  // Second pull: a day-by-day series for the trend chart (as index.html draws).
+  // Best-effort — a failed trend must not sink the breakdown.
+  const series = await gscSeries(token, site, startDate, endDate).catch((e) => { console.warn('gsc_series_failed', e.message); return []; });
+  return { rows, series, summary: { clicks, impressions, ctr: pct(clicks / (impressions || 1)), avgPosition: rows.length ? (rows.reduce((a, r) => a + Number(r.position), 0) / rows.length).toFixed(1) : '0' } };
+}
+
+// Clicks/impressions per day for the GSC trend chart.
+async function gscSeries(token, site, startDate, endDate) {
+  const res = await fetch(`https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ startDate, endDate, dimensions: ['date'], rowLimit: 90 }),
+  });
+  if (!res.ok) throw new Error(`gsc-series ${res.status}`);
+  const data = await res.json();
+  return (data.rows || [])
+    .map((r) => ({ date: r.keys?.[0], clicks: r.clicks ?? 0, impressions: r.impressions ?? 0 }))
+    .filter((r) => r.date)
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 // ── GA4: agency gscIntegration Lambda (ga4RunReport) ──────────────────────────
@@ -151,7 +168,26 @@ async function liveGa4(conn, body) {
     conversions: Number(r.metricValues?.[3]?.value || 0),
   }));
   const sum = (k) => rows.reduce((a, r) => a + (r[k] || 0), 0);
-  return { rows, summary: { sessions: sum('sessions'), users: sum('users'), engagedSessions: sum('engagedSessions'), conversions: sum('conversions') } };
+  const series = await ga4Series(token, propertyId, startDate, endDate).catch((e) => { console.warn('ga4_series_failed', e.message); return []; });
+  return { rows, series, summary: { sessions: sum('sessions'), users: sum('users'), engagedSessions: sum('engagedSessions'), conversions: sum('conversions') } };
+}
+
+// Sessions/users per day for the GA4 trend chart.
+async function ga4Series(token, propertyId, startDate, endDate) {
+  const data = await postJson(UPSTREAMS.gscIntegration, {
+    action: 'ga4RunReport', propertyId, access_token: token,
+    payload: {
+      dateRanges: [{ startDate, endDate }],
+      dimensions: [{ name: 'date' }],
+      metrics: [{ name: 'sessions' }, { name: 'totalUsers' }],
+      orderBys: [{ dimension: { dimensionName: 'date' } }],
+      limit: 365,
+    },
+  });
+  return (data.rows || []).map((r) => {
+    const d = r.dimensionValues?.[0]?.value || ''; // GA4 returns YYYYMMDD
+    return { date: `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`, sessions: Number(r.metricValues?.[0]?.value || 0), users: Number(r.metricValues?.[1]?.value || 0) };
+  }).filter((r) => r.date.length === 10).sort((a, b) => a.date.localeCompare(b.date));
 }
 
 // ── Google Ads: agency googleAds Lambda (GAQL) ────────────────────────────────
@@ -179,7 +215,26 @@ async function liveAds(conn, body) {
   });
   const cost = rows.reduce((a, r) => a + (Number(String(r.cost).replace(/[^0-9.]/g, '')) || 0), 0);
   const conv = rows.reduce((a, r) => a + (r.conversions || 0), 0);
-  return { rows, summary: { cost: money(cost), clicks: rows.reduce((a, r) => a + r.clicks, 0), conversions: conv, cpa: conv ? money(cost / conv) : '—' } };
+  const series = await adsSeries(customerId, startDate, endDate).catch((e) => { console.warn('ads_series_failed', e.message); return []; });
+  return { rows, series, summary: { cost: money(cost), clicks: rows.reduce((a, r) => a + r.clicks, 0), conversions: conv, cpa: conv ? money(cost / conv) : '—' } };
+}
+
+// Cost/clicks per day for the Ads trend chart — GAQL segments by date across all
+// campaigns, so sum each metric per day.
+async function adsSeries(customerId, startDate, endDate) {
+  const query = `SELECT segments.date, metrics.cost_micros, metrics.clicks FROM campaign WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'`;
+  const data = await postJson(UPSTREAMS.googleAds, { query, customer_id: customerId, login_customer_id: ADS_LOGIN_CID, developer_token: ADS_DEV_TOKEN });
+  const results = Array.isArray(data?.results) ? data.results : (Array.isArray(data) ? data.flatMap((c) => c.results || []) : []);
+  const byDate = new Map();
+  for (const r of results) {
+    const date = r.segments?.date;
+    if (!date) continue;
+    const cur = byDate.get(date) || { date, cost: 0, clicks: 0 };
+    cur.cost += Number(r.metrics?.costMicros || r.metrics?.cost_micros || 0) / 1e6;
+    cur.clicks += Number(r.metrics?.clicks || 0);
+    byDate.set(date, cur);
+  }
+  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
 export async function fetchIntegration(provider, conn, body) {

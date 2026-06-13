@@ -130,15 +130,33 @@ export const ADAPTERS = {
       input: (body.input || '').trim(),
       tone: (body.tone || 'professional').toLowerCase(),
       language: (body.language || 'English').trim().toLowerCase(),
-      type: SEM_FORMATS[body.format] || 'google-responsive-search-ads',
+      // Map a friendly label → slug; pass a raw slug through; only fall back to
+      // Google RSA for genuinely unknown values — never silently mis-generate.
+      type: SEM_FORMATS[body.format] || (/-ads$/.test(String(body.format || '')) ? body.format : 'google-responsive-search-ads'),
       model: 'claude-haiku-4-5',
     }),
     response(raw) {
       const groups = unwrap(raw);
-      const text = Object.entries(groups)
-        .map(([cat, items]) => `## ${cat}\n` + (Array.isArray(items) ? items.map((i) => `- ${typeof i === 'string' ? i : JSON.stringify(i)}`).join('\n') : ''))
-        .join('\n\n');
-      return { text: text || 'No ad copy returned.' };
+      const titleCase = (s) => String(s).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+      const sections = [];
+      for (const [cat, items] of Object.entries(groups)) {
+        if (!Array.isArray(items) || !items.length) continue;
+        const title = titleCase(cat);
+        // Object rows (e.g. sitelinks) → a table of their fields; strings → a list.
+        if (items.every((i) => i && typeof i === 'object')) {
+          const keys = [...new Set(items.flatMap((o) => Object.keys(o)))];
+          const cols = keys.map(titleCase);
+          const rows = items.map((o) => {
+            const r = {};
+            keys.forEach((k, i) => { const v = o[k]; r[cols[i]] = v && typeof v === 'object' ? JSON.stringify(v) : (v ?? '—'); });
+            return r;
+          });
+          sections.push({ type: 'table', title, columns: cols, rows });
+        } else {
+          sections.push({ type: 'list', title, items: items.map((i) => String(i)) });
+        }
+      }
+      return sections.length ? { sections } : { text: 'No ad copy returned.' };
     },
   },
 
@@ -258,8 +276,13 @@ const SEM_FORMATS = {
   'Google Performance Max': 'google-performance-max-ads',
   'Google Display': 'google-display-ads',
   'Meta Image': 'meta-image-ads',
+  'Meta Video': 'meta-video-ads',
   'Meta Carousel': 'meta-carousel-ads',
+  'Meta Collection': 'meta-collection-ads',
   'LinkedIn Image': 'linkedin-image-ads',
+  'LinkedIn Carousel': 'linkedin-carousel-ads',
+  'LinkedIn Video': 'linkedin-video-ads',
+  'LinkedIn Click to Message': 'linkedin-click-to-message-ads',
 };
 
 // ── helpers ──────────────────────────────────────────────────────────────

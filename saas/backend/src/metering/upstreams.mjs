@@ -15,6 +15,9 @@ export const UPSTREAMS = {
   rankChecker: 'https://v5bizygr4m.execute-api.ap-southeast-1.amazonaws.com/rankChecker',
   dataforseoCrawler: 'https://ak9qsl9wgi.execute-api.ap-southeast-1.amazonaws.com/dataforseoCrawler',
   onPageContentRecommendations: 'https://pkkz2e02ch.execute-api.ap-southeast-1.amazonaws.com/onPageContentRecommendations',
+  // On-Page: page element extraction (headings/meta/images) + meta & heading recs.
+  getImages: 'https://udjdc333m9.execute-api.ap-southeast-1.amazonaws.com/getImages',
+  onPageRecommendations: 'https://vwmqqj251d.execute-api.ap-southeast-1.amazonaws.com/onPageRecommendations',
   serpCompetitors: 'https://itzj193chl.execute-api.ap-southeast-1.amazonaws.com/serpCompetitors',
   ahrefsProxy: 'https://b8cyd5ed90.execute-api.ap-southeast-1.amazonaws.com/new',
   checkContent: 'https://mmyvj7yj11.execute-api.ap-southeast-1.amazonaws.com/checkContent',
@@ -26,6 +29,8 @@ export const UPSTREAMS = {
   // Time to Rank: live SERP + LLM time-to-rank recommendation.
   serpLite: 'https://8k6r15rg4m.execute-api.ap-southeast-1.amazonaws.com/serpLite',
   kwRecommendations: 'https://pkbguam62a.execute-api.ap-southeast-1.amazonaws.com/kwRecommendationsStructured',
+  // Time to Rank: per-keyword LLM rationale for why a keyword was selected.
+  reasonForKwSelection: 'https://cdahvw5qi7.execute-api.ap-southeast-1.amazonaws.com/reasonForKwSelection',
   // Anchor Text Cleaner: raw page HTML fetch.
   getHtml: 'https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml',
   // Performance Marketing Audit: paid-media opportunity analysis.
@@ -51,6 +56,8 @@ export const UPSTREAMS = {
   copyscape: 'https://tg6m9b7gsj.execute-api.ap-southeast-1.amazonaws.com/plagarismCheck',
   personaGenerator: 'https://tyqj3fni7h.execute-api.ap-southeast-1.amazonaws.com/personaGenerator',
   mediaPlanGenerator: 'https://h8ih2vc2xi.execute-api.ap-southeast-1.amazonaws.com/mediaPlanGenerator',
+  // Media Plan: marketing-funnel stages (Awareness → Retention) generator.
+  generateFunnel: 'https://dpjtg2sr30.execute-api.ap-southeast-1.amazonaws.com/generateFunnel',
   auditLandingPage: 'https://llufeecqoe.execute-api.ap-southeast-1.amazonaws.com/auditLandingPage',
   auditLandingPageDirect: 'https://7eehmzk9e0.execute-api.ap-southeast-1.amazonaws.com/auditLandingPageDirectWeb',
   generateSemGoogle: 'https://bztsly2z89.execute-api.ap-southeast-1.amazonaws.com/generateSemGoogle',
