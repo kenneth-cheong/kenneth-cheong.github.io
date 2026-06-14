@@ -84,8 +84,12 @@ Resources:
   # ── Data ────────────────────────────────────────────────────────────────
   UsersTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - { AttributeName: userId, AttributeType: S }
         - { AttributeName: stripeCustomerId, AttributeType: S }
@@ -99,8 +103,12 @@ Resources:
 
   LedgerTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - { AttributeName: userId, AttributeType: S }
         - { AttributeName: ts, AttributeType: S }
@@ -111,8 +119,12 @@ Resources:
   # Saved tool runs (re-openable history). SK is time-first so newest sorts top.
   RunsTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - { AttributeName: userId, AttributeType: S }
         - { AttributeName: runId, AttributeType: S }
@@ -123,8 +135,12 @@ Resources:
   # Support tickets (threaded — messages stored inline on the item).
   TicketsTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - { AttributeName: userId, AttributeType: S }
         - { AttributeName: ticketId, AttributeType: S }
@@ -135,8 +151,12 @@ Resources:
   # Projects — group runs/keywords/integrations by site.
   ProjectsTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - { AttributeName: userId, AttributeType: S }
         - { AttributeName: projectId, AttributeType: S }
@@ -147,8 +167,12 @@ Resources:
   # Tracked keywords — rank position history per (project, keyword).
   TrackedTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - { AttributeName: userId, AttributeType: S }
         - { AttributeName: trackId, AttributeType: S }
@@ -159,8 +183,12 @@ Resources:
   # Assistant chat conversations — full message thread per (user, conversation).
   ConversationsTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - { AttributeName: userId, AttributeType: S }
         - { AttributeName: conversationId, AttributeType: S }
@@ -184,8 +212,12 @@ Resources:
   # In-platform notifications (ticket replies, closes, etc.).
   NotificationsTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - { AttributeName: userId, AttributeType: S }
         - { AttributeName: notifId, AttributeType: S }
@@ -196,6 +228,8 @@ Resources:
   # Ticket attachments (screenshots / files). Unguessable keys, public-read GET.
   AttachmentsBucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       OwnershipControls:
         Rules: [{ ObjectOwnership: BucketOwnerEnforced }]
@@ -363,6 +397,8 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
+        # Stripe-event idempotency markers live in the Cache table.
+        - DynamoDBCrudPolicy: { TableName: !Ref CacheTable }
       Events:
         Checkout: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/checkout, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Topup: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/topup, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }

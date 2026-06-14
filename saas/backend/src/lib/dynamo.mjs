@@ -151,6 +151,116 @@ export async function grantTopupCredits({ userId, amount, action = 'topup', meta
   return res.Attributes.topupCredits;
 }
 
+// ── Stripe webhook idempotency ───────────────────────────────────────────────
+// Stripe delivers at-least-once and retries on any non-2xx, so the same event id
+// can arrive multiple times. We claim each event id once (conditional write into
+// the Cache table, 30-day TTL); a duplicate claim signals "already processed".
+const STRIPE_EVENT_TTL = 60 * 60 * 24 * 30; // 30 days
+/** Returns true if this event id was newly claimed (process it), false if seen. */
+export async function claimStripeEvent(eventId) {
+  if (!eventId) return true;
+  try {
+    await ddb.send(new PutCommand({
+      TableName: TABLES.cache,
+      Item: { key: `stripe_evt:${eventId}`, expireAt: Math.floor(Date.now() / 1000) + STRIPE_EVENT_TTL },
+      ConditionExpression: 'attribute_not_exists(#k)',
+      ExpressionAttributeNames: { '#k': 'key' },
+    }));
+    return true;
+  } catch (e) {
+    if (e.name === 'ConditionalCheckFailedException') return false;
+    throw e;
+  }
+}
+/** Release a claimed event so Stripe's retry can reprocess it (call on failure). */
+export async function releaseStripeEvent(eventId) {
+  if (!eventId) return;
+  try { await ddb.send(new DeleteCommand({ TableName: TABLES.cache, Key: { key: `stripe_evt:${eventId}` } })); }
+  catch (e) { console.error('release_stripe_event', eventId, e.message); }
+}
+
+// ── Atomic subscription/credit mutations (webhook) ───────────────────────────
+// These touch ONLY the specific attributes (tier/credits/periodEnd) via
+// UpdateCommand so a concurrent spendCredits — or other fields like topupCredits,
+// teasers, integrations — is never clobbered by a whole-item put.
+
+/** Billing-cycle anchor: set tier + hard-reset the monthly allowance. */
+export async function resetMonthlyAllowance({ userId, tier, monthlyCredits, periodEnd = null, previousCredits = 0 }) {
+  const res = await ddb.send(new UpdateCommand({
+    TableName: TABLES.users, Key: { userId },
+    UpdateExpression: 'SET #tier = :t, credits = :c, periodEnd = :p, updatedAt = :now',
+    ExpressionAttributeNames: { '#tier': 'tier' },
+    ExpressionAttributeValues: { ':t': tier, ':c': monthlyCredits, ':p': periodEnd, ':now': new Date().toISOString() },
+    ReturnValues: 'ALL_NEW',
+  }));
+  const a = res.Attributes;
+  await writeLedger({ userId, delta: monthlyCredits - previousCredits, balanceAfter: (a.credits || 0) + (a.topupCredits || 0), action: 'monthly_reset', meta: { tier } });
+  return a;
+}
+
+/** Tier change (upgrade): set tier and top the monthly bucket up to the new
+ * allowance, atomically (optimistic lock so a concurrent spend isn't lost). */
+export async function applyTierChange({ userId, tier, monthlyCredits }) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const user = await getUser(userId);
+    if (!user) return null;
+    const prev = user.credits || 0;
+    const credits = Math.max(prev, monthlyCredits);
+    try {
+      const res = await ddb.send(new UpdateCommand({
+        TableName: TABLES.users, Key: { userId },
+        UpdateExpression: 'SET #tier = :t, credits = :c, updatedAt = :now',
+        ConditionExpression: 'attribute_not_exists(credits) OR credits = :oc',
+        ExpressionAttributeNames: { '#tier': 'tier' },
+        ExpressionAttributeValues: { ':t': tier, ':c': credits, ':oc': prev, ':now': new Date().toISOString() },
+        ReturnValues: 'ALL_NEW',
+      }));
+      const a = res.Attributes;
+      await writeLedger({ userId, delta: credits - prev, balanceAfter: (a.credits || 0) + (a.topupCredits || 0), action: 'tier_change', meta: { tier } });
+      return a;
+    } catch (e) { if (e.name !== 'ConditionalCheckFailedException') throw e; }
+  }
+  throw new Error('tier_change_contention');
+}
+
+/** Subscription cancelled → drop to free and clamp credits down to the free
+ * allowance, atomically (optimistic lock). */
+export async function applyDowngrade({ userId, monthlyCredits }) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const user = await getUser(userId);
+    if (!user) return null;
+    const prev = user.credits || 0;
+    const credits = Math.min(prev, monthlyCredits);
+    try {
+      const res = await ddb.send(new UpdateCommand({
+        TableName: TABLES.users, Key: { userId },
+        UpdateExpression: 'SET #tier = :t, credits = :c, updatedAt = :now',
+        ConditionExpression: 'attribute_not_exists(credits) OR credits = :oc',
+        ExpressionAttributeNames: { '#tier': 'tier' },
+        ExpressionAttributeValues: { ':t': 'free', ':c': credits, ':oc': prev, ':now': new Date().toISOString() },
+        ReturnValues: 'ALL_NEW',
+      }));
+      const a = res.Attributes;
+      await writeLedger({ userId, delta: credits - prev, balanceAfter: (a.credits || 0) + (a.topupCredits || 0), action: 'subscription_cancelled', meta: { tier: 'free' } });
+      return a;
+    } catch (e) { if (e.name !== 'ConditionalCheckFailedException') throw e; }
+  }
+  throw new Error('downgrade_contention');
+}
+
+/** Link a Stripe customer id to a user on first purchase (atomic, set-once). */
+export async function linkStripeCustomer(userId, customerId) {
+  if (!customerId) return;
+  try {
+    await ddb.send(new UpdateCommand({
+      TableName: TABLES.users, Key: { userId },
+      UpdateExpression: 'SET stripeCustomerId = :c, updatedAt = :now',
+      ConditionExpression: 'attribute_not_exists(stripeCustomerId)',
+      ExpressionAttributeValues: { ':c': customerId, ':now': new Date().toISOString() },
+    }));
+  } catch (e) { if (e.name !== 'ConditionalCheckFailedException') throw e; /* already linked */ }
+}
+
 /** Admin-only: list every user (Scan — fine at MVP volume). */
 export async function listAllUsers(limit = 200) {
   const { Items } = await ddb.send(new ScanCommand({ TableName: TABLES.users, Limit: limit }));
