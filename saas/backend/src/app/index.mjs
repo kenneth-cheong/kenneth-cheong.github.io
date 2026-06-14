@@ -32,6 +32,15 @@ import { rateLimit, APP_LIMITS } from '../lib/ratelimit.mjs';
 const APP_ORIGIN = process.env.APP_ORIGIN || '';
 const redirect = (url) => ({ statusCode: 302, headers: { Location: url }, body: '' });
 const seg = (path, after) => decodeURIComponent((path.split(after)[1] || '').split('/')[0] || '');
+
+// Coarse health of an integration pull, derived from the saved run preview
+// (same heuristic as the History page): 'issue' | 'empty' | 'ok'.
+function pullStatus(preview) {
+  const p = String(preview || '').toLowerCase().trim();
+  if (/couldn.?t|could not|unable|fail|error|reconnect|not connected|disconnect/.test(p)) return 'issue';
+  if (/^0 rows?\b|^0$/.test(p)) return 'empty';
+  return 'ok';
+}
 // OAuth redirect URI, derived from the API's own request domain so the template
 // needn't reference the API resource (that ref caused a CFN circular dependency).
 // Same value in /integrations/authorize and /oauth/callback, so Google's exact-
@@ -268,7 +277,18 @@ export const handler = async (event) => {
 
     // ── Integrations (Google OAuth) ───────────────────────────────────────────
     if (method === 'GET' && path.endsWith('/integrations')) {
-      return ok({ providers: INTEGRATIONS, connected: redactIntegrations(user.integrations), oauthReady: oauthConfigured() });
+      // Last-pull health per source, derived from the most recent run of each
+      // integration tool (newest-first), so the UI can flag "data flowing" vs
+      // "no data / failed" beyond just "account selected".
+      const lastPull = {};
+      try {
+        const recent = await listRuns(user.userId, 100);
+        for (const pid of ['gsc', 'ga4', 'google-ads']) {
+          const r = recent.find((x) => x.tool === pid);
+          if (r) lastPull[pid] = { status: pullStatus(r.preview), at: r.ts };
+        }
+      } catch { /* best-effort */ }
+      return ok({ providers: INTEGRATIONS, connected: redactIntegrations(user.integrations), oauthReady: oauthConfigured(), lastPull });
     }
     if (method === 'GET' && path.endsWith('/integrations/accounts')) {
       const provider = (event.queryStringParameters || {}).provider;

@@ -17,10 +17,11 @@ const NO_ACCOUNTS = {
 export default function Integrations() {
   const [providers, setProviders] = useState([]);
   const [connected, setConnected] = useState({});
+  const [lastPull, setLastPull] = useState({});
   const [busy, setBusy] = useState(false);
   const [params, setParams] = useSearchParams();
 
-  const load = () => api.integrations().then((d) => { setProviders(d.providers || []); setConnected(d.connected || {}); }).catch(() => {});
+  const load = () => api.integrations().then((d) => { setProviders(d.providers || []); setConnected(d.connected || {}); setLastPull(d.lastPull || {}); }).catch(() => {});
   useEffect(() => { load(); }, []);
 
   const justConnected = params.get('connected');
@@ -99,6 +100,7 @@ export default function Integrations() {
                   : <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Pick an account</span>}
                 <Link to={`/tool/${TOOL_FOR[p.id]}`} className="btn-ghost px-3 py-1.5 text-sm">Open tool</Link>
               </div>
+              <PullHealth pull={lastPull[p.id]} />
               <AccountPicker provider={p.id} current={connected[p.id]?.account} onSaved={load} />
             </div>
           ))}
@@ -108,6 +110,32 @@ export default function Integrations() {
           Not connected yet — sign in above to choose your Search Console property, GA4 property and Ads account.
         </p>
       )}
+    </div>
+  );
+}
+
+function ago(iso) {
+  if (!iso) return '';
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 3600) return `${Math.floor(s / 60) || 1}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
+// Health of the most recent pull for this source — surfaces "data flowing" vs
+// "no data" / "failed" so a selected-but-broken source is obvious.
+function PullHealth({ pull }) {
+  const m = {
+    ok: { dot: 'bg-green-500', text: 'Data flowing', cls: 'text-slate-500' },
+    empty: { dot: 'bg-amber-500', text: 'Last pull returned no data', cls: 'text-amber-700' },
+    issue: { dot: 'bg-red-500', text: 'Last pull failed — try Reconnect', cls: 'text-red-600' },
+  }[pull?.status];
+  if (!m) return null;
+  return (
+    <div className="mt-2 flex items-center gap-1.5 text-xs">
+      <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} aria-hidden />
+      <span className={m.cls}>{m.text}</span>
+      {pull.at && <span className="text-slate-300">· {ago(pull.at)}</span>}
     </div>
   );
 }
