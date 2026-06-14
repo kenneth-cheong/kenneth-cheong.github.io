@@ -428,6 +428,10 @@ async function assistantReply(user, messages) {
     'opens the tool. Use ids ONLY from the Tools list below (never invent one), prefer free/low-cost ' +
     'tools the user\'s tier can run, and don\'t write raw URLs or markdown links. Example: ' +
     '"To find low-competition keywords, try [[tool:keyword-analysis]]."\n\n' +
+    'QUICK ACTIONS (use sparingly, only when the user clearly wants to act): to add a keyword to their ' +
+    'rank tracking, write [[action:track|<keyword>]]; if you cannot resolve their issue, offer ' +
+    '[[action:ticket|<short subject>]] to open a support ticket. These render as confirm buttons. Never ' +
+    'invent data or claim an action is done — the button performs it after the user confirms.\n\n' +
     `Tools you can recommend (id — name [min tier, credits]: what it does):\n${TOOL_CATALOG}\n\n` +
     `Here is everything known about this user (their own data — safe to share with them):\n${context}\n\n` +
     `Conversation so far:\n${history}\n\nAssistant:`;

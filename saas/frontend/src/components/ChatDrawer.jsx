@@ -1,32 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { api, ApiError } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useProjects } from '../context/ProjectContext.jsx';
 import { CREDIT_COSTS, toolById } from '@shared/catalog.mjs';
+import { toast } from '../lib/ui.js';
 import { X, Plus, History, Trash2, ArrowLeft, ArrowRight } from 'lucide-react';
 
 const COST = CREDIT_COSTS.ai_chat ?? 2;
 const GREETING = { role: 'assistant', content: "Hi! I'm your Digimetrics assistant. Ask me about any tool, how to get started, or your connected Search Console / GA4 / Ads numbers." };
 
-// Render an assistant message, turning [[tool:<id>]] tokens into clickable
-// "open tool" chips that navigate to the tool (and close the drawer).
-function renderMessage(text, onToolClick) {
-  const re = /\[\[tool:([a-z0-9-]+)\]\]/gi;
+// Render an assistant message, turning [[tool:id]] / [[go:path|label]] /
+// [[action:verb|arg]] tokens into clickable chips (chipFor builds each one).
+const TOKEN_RE = /\[\[(tool|action|go):([^\]]+)\]\]/gi;
+function renderMessage(text, chipFor) {
   const out = [];
   let last = 0, m, k = 0;
-  while ((m = re.exec(text)) !== null) {
+  while ((m = TOKEN_RE.exec(text)) !== null) {
     if (m.index > last) out.push(text.slice(last, m.index));
-    const tool = toolById(m[1]);
-    if (tool) {
-      out.push(
-        <button key={`t${k++}`} onClick={() => onToolClick(tool.id)}
-          className="mx-0.5 my-0.5 inline-flex items-center gap-1 rounded-full bg-brand-600 px-2.5 py-0.5 align-middle text-xs font-semibold text-white hover:bg-brand-700">
-          {tool.name} <ArrowRight size={12} aria-hidden />
-        </button>
-      );
-    } else {
-      out.push(m[0]); // unknown id — leave as-is
-    }
+    out.push(chipFor(m[1].toLowerCase(), m[2], k++) ?? m[0]);
     last = m.index + m[0].length;
   }
   if (last < text.length) out.push(text.slice(last));
@@ -49,8 +41,44 @@ function ago(iso) {
 // server-side: start a new one or reopen past ones from the history list.
 export default function ChatDrawer({ open, onClose, width = 384, ask }) {
   const { setCredits } = useAuth();
+  const { active, activeId } = useProjects();
   const navigate = useNavigate();
-  const openTool = (id) => { onClose?.(); navigate(`/tool/${id}`); };
+  const location = useLocation();
+  const go = (path) => { onClose?.(); navigate(path); };
+
+  async function trackKeyword(kw) {
+    if (!activeId || !active?.domain) { toast('Create a project with a domain first to track keywords.', 'info'); go('/projects'); return; }
+    if (!window.confirm(`Track “${kw}” for ${active.domain}?`)) return;
+    try { await api.addTracked(kw, active.domain, 'Singapore', activeId); toast(`Now tracking “${kw}”`, 'success'); }
+    catch (e) { toast(e.message, 'error'); }
+  }
+
+  // Build a clickable chip for an assistant token (tool / go / action).
+  function chipFor(type, raw, key) {
+    const chip = (label, onClick) => (
+      <button key={`c${key}`} onClick={onClick}
+        className="mx-0.5 my-0.5 inline-flex items-center gap-1 rounded-full bg-brand-600 px-2.5 py-0.5 align-middle text-xs font-semibold text-white hover:bg-brand-700">
+        {label} <ArrowRight size={12} aria-hidden />
+      </button>
+    );
+    if (type === 'tool') { const t = toolById(raw.trim()); return t ? chip(t.name, () => go(`/tool/${t.id}`)) : null; }
+    if (type === 'go') { const [path, label] = raw.split('|'); return chip(label?.trim() || path.trim(), () => go(path.trim())); }
+    if (type === 'action') {
+      const [verb, ...rest] = raw.split('|');
+      const arg = rest.join('|').trim();
+      if (verb.trim() === 'track' && arg) return chip(`Track “${arg}”`, () => trackKeyword(arg));
+      if (verb.trim() === 'ticket') return chip('Open a support ticket', () => go('/support'));
+    }
+    return null;
+  }
+
+  // Starter prompts shown on a fresh chat — adapt to where the user is.
+  const suggestions = useMemo(() => {
+    const p = location.pathname;
+    if (p.startsWith('/tool/')) return ['How do I use this tool?', 'What will the results tell me?', 'Is there a cheaper way to do this?'];
+    if (p === '/' || p === '') return ['How do I get more visitors?', 'What should I work on first?', 'Audit my website', 'Which tool fits my goal?'];
+    return ['How do I get more visitors?', 'Explain my latest result', "What's included in my plan?"];
+  }, [location.pathname]);
   const [msgs, setMsgs] = useState([GREETING]);
   const [conversationId, setConversationId] = useState(null);
   const [draft, setDraft] = useState('');
@@ -188,10 +216,20 @@ export default function ChatDrawer({ open, onClose, width = 384, ask }) {
                     : 'rounded-bl-sm bg-slate-100 text-slate-800'
                 }`}
               >
-                {m.role === 'assistant' ? renderMessage(m.content, openTool) : m.content}
+                {m.role === 'assistant' ? renderMessage(m.content, chipFor) : m.content}
               </div>
             ))}
             {busy && <div className="w-16 rounded-2xl rounded-bl-sm bg-slate-100 px-3 py-2 text-sm text-slate-400">…</div>}
+            {msgs.length <= 1 && !busy && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {suggestions.map((s) => (
+                  <button key={s} onClick={() => submit(s)}
+                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-left text-xs font-medium text-slate-600 hover:border-brand-300 hover:text-brand-700">
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <form onSubmit={send} className="flex items-center gap-2 border-t border-slate-100 p-2">
