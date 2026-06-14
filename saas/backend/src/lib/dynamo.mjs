@@ -772,15 +772,67 @@ export async function putCache(key, value, ttlSeconds) {
 }
 
 /** Invalidate all of a user's refresh tokens ("sign out everywhere") by bumping
- * their token version. Returns the new version. */
+ * their token version + clearing the session registry. Returns the new version. */
 export async function bumpTokenVersion(userId) {
   const res = await ddb.send(new UpdateCommand({
     TableName: TABLES.users, Key: { userId },
-    UpdateExpression: 'ADD tokenVersion :one SET updatedAt = :now',
+    UpdateExpression: 'ADD tokenVersion :one SET updatedAt = :now REMOVE sessions',
     ExpressionAttributeValues: { ':one': 1, ':now': new Date().toISOString() },
     ReturnValues: 'UPDATED_NEW',
   }));
   return res.Attributes?.tokenVersion ?? 0;
+}
+
+// ── Concurrent-session cap (anti account-sharing) ────────────────────────────
+// Active sessions are tracked on the user record (tiny list, capped). All writes
+// touch ONLY the `sessions` attribute so they never clobber credits etc.
+export const MAX_SESSIONS = 3;
+
+/** Register a new login session, evicting the oldest beyond MAX_SESSIONS. */
+export async function addSession({ userId, sid, device, ip }) {
+  const user = await getUser(userId);
+  if (!user) return [];
+  const now = new Date().toISOString();
+  const list = (user.sessions || []).filter((s) => s.sid !== sid);
+  list.push({ sid, device: device || 'Unknown device', ip: ip || '', createdAt: now, lastSeenAt: now });
+  list.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))); // newest first
+  const sessions = list.slice(0, MAX_SESSIONS); // keep the newest N → oldest evicted
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.users, Key: { userId },
+    UpdateExpression: 'SET sessions = :s, updatedAt = :now',
+    ExpressionAttributeValues: { ':s': sessions, ':now': now },
+  }));
+  return sessions;
+}
+
+/** True if sid is still an active session; bumps its lastSeenAt (best-effort). */
+export async function validateSession(userId, sid) {
+  const user = await getUser(userId);
+  if (!user) return false;
+  const sessions = user.sessions || [];
+  const idx = sessions.findIndex((s) => s.sid === sid);
+  if (idx === -1) return false;
+  sessions[idx] = { ...sessions[idx], lastSeenAt: new Date().toISOString() };
+  try {
+    await ddb.send(new UpdateCommand({
+      TableName: TABLES.users, Key: { userId },
+      UpdateExpression: 'SET sessions = :s',
+      ExpressionAttributeValues: { ':s': sessions },
+    }));
+  } catch { /* touch is best-effort */ }
+  return true;
+}
+
+/** Revoke a single session (sign out one device). */
+export async function revokeSession(userId, sid) {
+  const user = await getUser(userId);
+  if (!user) return;
+  const sessions = (user.sessions || []).filter((s) => s.sid !== sid);
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.users, Key: { userId },
+    UpdateExpression: 'SET sessions = :s, updatedAt = :now',
+    ExpressionAttributeValues: { ':s': sessions, ':now': new Date().toISOString() },
+  }));
 }
 
 // ── Account data export + erasure (GDPR portability / right to be forgotten) ──

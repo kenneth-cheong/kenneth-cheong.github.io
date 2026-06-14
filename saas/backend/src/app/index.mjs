@@ -10,7 +10,7 @@ import {
   addNotification, listNotifications, markNotificationsRead,
   createProject, listProjects, deleteProject,
   addTracked, listTracked, countTracked, removeTracked, appendSnapshot, mergeSnapshots,
-  exportAllUserData, deleteAllUserData, bumpTokenVersion,
+  exportAllUserData, deleteAllUserData, bumpTokenVersion, revokeSession,
 } from '../lib/dynamo.mjs';
 import { rankPosition, rankHistory } from '../lib/rank.mjs';
 import { UPSTREAMS } from '../metering/upstreams.mjs';
@@ -102,9 +102,10 @@ export const handler = async (event) => {
       return ok({ reply, conversationId, creditsUsed: cost, creditsRemaining: spent.total });
     }
 
-    // ── Sessions: revoke all refresh tokens ("sign out everywhere") ───────────
+    // ── Sessions: revoke one device (body.sid) or all ("sign out everywhere") ──
     if (method === 'POST' && path.endsWith('/me/sessions/revoke')) {
-      await bumpTokenVersion(user.userId);
+      if (body.sid) { await revokeSession(user.userId, body.sid); return ok({ ok: true }); }
+      await bumpTokenVersion(user.userId); // clears the whole session registry too
       return ok({ ok: true });
     }
 

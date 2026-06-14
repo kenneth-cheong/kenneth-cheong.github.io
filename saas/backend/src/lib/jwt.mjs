@@ -13,13 +13,14 @@ export function signAccess(user) {
   );
 }
 
-export function signRefresh(user) {
-  // `tv` (token version) lets us revoke all refresh tokens at once: bump the
-  // user's tokenVersion and any older refresh token stops validating.
-  return jwt.sign({ sub: user.userId, typ: 'refresh', tv: user.tokenVersion || 0 }, SECRET, {
-    expiresIn: REFRESH_TTL,
-    issuer: 'digimetrics-saas',
-  });
+export function signRefresh(user, sid) {
+  // `tv` (token version) lets us revoke all refresh tokens at once. `sid` ties
+  // the token to a registered session so we can cap concurrent devices.
+  return jwt.sign(
+    { sub: user.userId, typ: 'refresh', tv: user.tokenVersion || 0, ...(sid ? { sid } : {}) },
+    SECRET,
+    { expiresIn: REFRESH_TTL, issuer: 'digimetrics-saas' }
+  );
 }
 
 export function verify(token) {

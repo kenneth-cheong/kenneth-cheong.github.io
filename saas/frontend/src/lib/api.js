@@ -76,6 +76,7 @@ export const api = {
   exportData: () => call('/me/export'),
   deleteAccount: () => call('/me/delete', { method: 'POST' }),
   revokeSessions: () => call('/me/sessions/revoke', { method: 'POST' }),
+  revokeSession: (sid) => call('/me/sessions/revoke', { method: 'POST', body: { sid } }),
   // Slow tools (catalog `slow:true`) route through the Function URL to dodge
   // the 30s API Gateway limit; everything else uses the normal API.
   runTool: (toolId, input, slow = false) =>

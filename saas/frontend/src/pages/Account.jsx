@@ -17,7 +17,12 @@ export default function Account() {
   const [delText, setDelText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [revoking, setRevoking] = useState(false);
+  const [sessions, setSessions] = useState(null);
   const plan = PLANS[user.tier];
+  // The current device's session id lives in the refresh token (decode locally).
+  const currentSid = (() => {
+    try { return JSON.parse(atob((localStorage.getItem('dm_refresh') || '').split('.')[1])).sid; } catch { return null; }
+  })();
 
   // Returning from Stripe Checkout / top-up → pull the fresh tier + credits.
   useEffect(() => {
@@ -25,6 +30,13 @@ export default function Account() {
   }, [params, refresh]);
 
   useEffect(() => { api.invoices().then((d) => setDocs(d.documents || [])).catch(() => setDocs([])); }, []);
+  useEffect(() => { api.me().then((d) => setSessions(d.user?.sessions || [])).catch(() => setSessions([])); }, []);
+
+  async function revokeDevice(sid) {
+    setSessions((s) => (s || []).filter((x) => x.sid !== sid));
+    try { await api.revokeSession(sid); if (sid === currentSid) logout(); }
+    catch (e) { toast(e.message, 'error'); }
+  }
 
   async function buyTopup(packId) {
     setTopupBusy(packId);
@@ -183,6 +195,34 @@ export default function Account() {
         </div>
       </div>
 
+      {/* ── Active devices (concurrent-session cap) ────────────────────── */}
+      <div className="card mt-4 p-5">
+        <h2 className="font-bold">Active devices</h2>
+        <p className="mt-1 text-sm text-slate-500">You can be signed in on up to 3 devices. Signing in on a 4th signs out the oldest.</p>
+        {sessions === null ? (
+          <p className="mt-3 text-sm text-slate-400">Loading…</p>
+        ) : sessions.length === 0 ? (
+          <p className="mt-3 text-sm text-slate-400">No tracked sessions yet — sign in again to register this device.</p>
+        ) : (
+          <ul className="mt-3 divide-y divide-slate-100">
+            {sessions.map((s) => (
+              <li key={s.sid} className="flex items-center gap-3 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-slate-800">
+                    {s.device || 'Unknown device'}
+                    {s.sid === currentSid && <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">This device</span>}
+                  </div>
+                  <div className="text-xs text-slate-400">{s.ip ? `${s.ip} · ` : ''}active {ago(s.lastSeenAt)}</div>
+                </div>
+                <button onClick={() => revokeDevice(s.sid)} className="text-sm text-slate-400 hover:text-red-600">
+                  {s.sid === currentSid ? 'Sign out' : 'Revoke'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       {/* ── Your data (export + delete) ────────────────────────────────── */}
       <div className="card mt-4 p-5">
         <h2 className="font-bold">Your data</h2>
@@ -222,6 +262,15 @@ export default function Account() {
       )}
     </div>
   );
+}
+
+function ago(iso) {
+  if (!iso) return 'recently';
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
 }
 
 function money(amountCents, currency) {

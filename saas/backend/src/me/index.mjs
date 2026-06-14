@@ -34,6 +34,7 @@ export const handler = async (event) => {
         hasSubscription: !!user.stripeCustomerId,
         pastDue: !!user.pastDue, // surfaced as an "update card" banner in the UI
         isAdmin: isStaff(user),
+        sessions: (user.sessions || []).map((s) => ({ sid: s.sid, device: s.device, ip: s.ip, lastSeenAt: s.lastSeenAt, createdAt: s.createdAt })),
       },
       plan: { ...plan },
     });

@@ -4,8 +4,9 @@
 //
 // Keeps the existing Google Sign-In, but we mint our OWN JWTs so every other
 // endpoint is gated by our authorizer and tied to the user/credits record.
+import { randomUUID } from 'node:crypto';
 import { OAuth2Client } from 'google-auth-library';
-import { getUser, putUser, getProvision, deleteProvision } from '../lib/dynamo.mjs';
+import { getUser, putUser, getProvision, deleteProvision, addSession, validateSession } from '../lib/dynamo.mjs';
 import { signAccess, signRefresh, verify } from '../lib/jwt.mjs';
 import { PLANS } from '../../../shared/catalog.mjs';
 import { ok, badRequest, unauthorized, tooManyRequests, parseBody } from '../lib/http.mjs';
@@ -13,6 +14,15 @@ import { rateLimit, AUTH_LIMITS } from '../lib/ratelimit.mjs';
 import { isStaff } from '../lib/admin.mjs';
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+// A friendly device label from the User-Agent, for the "Active sessions" list.
+function deviceLabel(ua = '') {
+  const b = /Edg/.test(ua) ? 'Edge' : /OPR|Opera/.test(ua) ? 'Opera' : /Chrome/.test(ua) ? 'Chrome'
+    : /Firefox/.test(ua) ? 'Firefox' : /Safari/.test(ua) ? 'Safari' : 'Browser';
+  const o = /iPhone|iPad/.test(ua) ? 'iOS' : /Android/.test(ua) ? 'Android' : /Macintosh|Mac OS/.test(ua) ? 'macOS'
+    : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : '';
+  return o ? `${b} on ${o}` : b;
+}
 
 export const handler = async (event) => {
   const path = event.rawPath || event.requestContext?.http?.path || '';
@@ -24,11 +34,12 @@ export const handler = async (event) => {
   const rl = await rateLimit('auth', ip, AUTH_LIMITS);
   if (!rl.allowed) return tooManyRequests(rl.retryAfter);
 
+  const ua = event.headers?.['user-agent'] || event.headers?.['User-Agent'] || '';
   if (path.endsWith('/refresh')) return handleRefresh(body);
-  return handleGoogle(body);
+  return handleGoogle(body, { ip, device: deviceLabel(ua) });
 };
 
-async function handleGoogle({ idToken }) {
+async function handleGoogle({ idToken }, meta = {}) {
   if (!idToken) return badRequest('idToken required');
 
   let payload;
@@ -85,9 +96,13 @@ async function handleGoogle({ idToken }) {
     await deleteProvision(payload.email);
   }
 
+  // Register this login as a session (caps concurrent devices; oldest evicted).
+  const sid = randomUUID();
+  await addSession({ userId: user.userId, sid, device: meta.device, ip: meta.ip });
+
   return ok({
     accessToken: signAccess(user),
-    refreshToken: signRefresh(user),
+    refreshToken: signRefresh(user, sid),
     user: publicUser(user),
   });
 }
@@ -105,6 +120,11 @@ async function handleRefresh({ refreshToken }) {
   if (!user) return unauthorized('User not found');
   // Reject refresh tokens issued before a "sign out everywhere" / revocation.
   if ((claims.tv || 0) !== (user.tokenVersion || 0)) return unauthorized('Session expired — please sign in again.');
+  // Enforce the device cap: a session-bound token must still be registered.
+  // (Legacy tokens minted before sessions existed carry no sid → grandfathered.)
+  if (claims.sid && !(await validateSession(user.userId, claims.sid))) {
+    return unauthorized('Signed out — this account is signed in on too many devices.');
+  }
   return ok({ accessToken: signAccess(user), user: publicUser(user) });
 }
 
