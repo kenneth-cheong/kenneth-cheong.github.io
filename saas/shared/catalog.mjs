@@ -222,6 +222,75 @@ export const CATEGORY_META = {
   Integrations: { color: '#16a34a' },
 };
 
+// ── Beginner mode ────────────────────────────────────────────────────────────
+// Goal-first entry: beginners think in outcomes, not tool names. Each goal maps
+// to a curated set of tools (first = the recommended starting tool), or routes
+// straight to a page via `to`. `icon` is a lucide name resolved in the frontend.
+export const GOALS = [
+  { id: 'visitors', label: 'Get more visitors', icon: 'TrendingUp',
+    desc: 'Find keywords and fix what holds your rankings back.',
+    tools: ['keyword-analysis', 'rank-checker', 'technical-seo', 'onpage', 'strategy-engine'] },
+  { id: 'health', label: 'Check my site’s health', icon: 'Stethoscope',
+    desc: 'A full audit with a score and a prioritised fix list.',
+    tools: ['forensic-audit', 'technical-seo', 'landing-audit'] },
+  { id: 'content', label: 'Create content', icon: 'PenLine',
+    desc: 'Write posts, captions and content plans that rank.',
+    tools: ['content-writer', 'caption', 'pillars', 'content-check'] },
+  { id: 'rankings', label: 'Track my Google rankings', icon: 'LineChart', to: '/tracking',
+    desc: 'Watch your keyword positions over time.',
+    tools: ['rank-checker'] },
+  { id: 'ai-visibility', label: 'Show up in AI answers', icon: 'Sparkles',
+    desc: 'Get cited by ChatGPT, Gemini & Perplexity.',
+    tools: ['ai-discovery', 'geo-onpage', 'llms-txt'] },
+  { id: 'competitors', label: 'Size up competitors', icon: 'Swords',
+    desc: 'See who you’re up against and how you compare.',
+    tools: ['competitors', 'backlinks'] },
+  { id: 'my-data', label: 'See my Google data', icon: 'BarChart3', to: '/integrations',
+    desc: 'Your Search Console, Analytics & Ads in one place.',
+    tools: ['gsc', 'ga4', 'google-ads'] },
+];
+
+/** Plain-English name/description shown in Simple mode (overrides the pro label). */
+export const SIMPLE_NAMES = {
+  'technical-seo': { name: 'Website health check', desc: 'Scan your site for broken links, missing tags and speed issues.' },
+  onpage: { name: 'Improve a page', desc: 'See how to make a page outrank the competition.' },
+  'anchor-cleaner': { name: 'Fix your link wording', desc: 'Check the words you use for links on a page.' },
+  'geo-onpage': { name: 'Get found by AI', desc: 'Rewrite a page so ChatGPT & friends cite it.' },
+  'forensic-audit': { name: 'Full site audit', desc: 'Deep check of your SEO + AI readiness, with a score and fixes.' },
+  'llms-txt': { name: 'AI access file', desc: 'Create the file that tells AI tools how to read your site.' },
+  schema: { name: 'Rich result builder', desc: 'Make your Google listing show extra info (stars, prices…).' },
+  'strategy-engine': { name: 'SEO game plan', desc: 'Get a prioritised list of what to do to rank.' },
+  'content-writer': { name: 'Write content', desc: 'Write or improve a page, then auto-check the quality.' },
+  pillars: { name: 'Content plan', desc: 'A map of topics and angles to post about.' },
+  gsc: { name: 'My Google search stats', desc: 'Clicks, impressions and positions from Google.' },
+  ga4: { name: 'My website visitors', desc: 'Visitors, sessions and conversions from Analytics.' },
+  'google-ads': { name: 'My Google Ads', desc: 'Spend, clicks and cost-per-result from Ads.' },
+  'sem-copy': { name: 'Write my ads', desc: 'Generate Google / Meta / LinkedIn ad copy.' },
+  persona: { name: 'Know my audience', desc: 'Build audience profiles from your website.' },
+  'media-plan': { name: 'Plan my ad budget', desc: 'A channel + budget plan for your campaigns.' },
+  competitors: { name: 'Find my competitors', desc: 'See who you share keywords with.' },
+  'landing-audit': { name: 'Check a landing page', desc: 'Will this page convert visitors? Find out.' },
+};
+
+/** Jargon → plain definition, for hover tooltips (Simple mode + result labels). */
+export const GLOSSARY = {
+  CTR: 'Click-through rate — the % of people who clicked after seeing you in search.',
+  Impressions: 'How many times your site showed up in search results.',
+  Clicks: 'How many people clicked through to your site.',
+  Position: 'Your average ranking spot in Google (1 = top).',
+  'Avg Position': 'Your average ranking spot in Google (1 = top).',
+  Difficulty: 'How hard it is to rank for this keyword (higher = harder).',
+  Volume: 'How many people search this term each month.',
+  CPC: 'Cost per click if you advertised on this keyword.',
+  CPA: 'Cost per acquisition — what you pay for each conversion.',
+  Sessions: 'Visits to your site (one person can visit several times).',
+  Users: 'The number of distinct people who visited.',
+  Conversions: 'Desired actions completed (sign-ups, sales, enquiries…).',
+  Backlinks: 'Links from other websites pointing to yours.',
+  SERP: 'Search engine results page — what Google shows for a search.',
+  GEO: 'Generative Engine Optimisation — getting cited by AI chatbots.',
+};
+
 /** One-click sample inputs per tool ("Try an example"). */
 export const EXAMPLES = {
   'keyword-analysis': { mode: 'Keyword metrics', input: 'self storage singapore, storage units', location: 'Singapore', language: 'English' },

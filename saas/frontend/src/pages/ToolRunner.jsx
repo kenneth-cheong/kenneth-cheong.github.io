@@ -28,7 +28,17 @@ export default function ToolRunner() {
   const seedValues = () => {
     const fromHistory = location.state?.values;
     const last = fromHistory ? {} : (loadLastInput(toolId) || {});
-    return Object.fromEntries(fields.map((f) => [f.name, fromHistory?.[f.name] ?? last[f.name] ?? f.default ?? '']));
+    // Smart default: prefill a tool's URL/domain field from the active project so
+    // beginners don't have to know/paste their own site each time.
+    const dom = (active?.domain || '').trim();
+    const prefill = (f) => {
+      if (!dom) return '';
+      const bare = dom.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+      if (f.type === 'url') return /^https?:\/\//.test(dom) ? dom : `https://${bare}`;
+      if (f.name === 'domain' || f.name === 'website') return bare;
+      return '';
+    };
+    return Object.fromEntries(fields.map((f) => [f.name, fromHistory?.[f.name] ?? last[f.name] ?? f.default ?? prefill(f)]));
   };
   const [values, setValues] = useState(seedValues);
   const [busy, setBusy] = useState(false);
@@ -273,6 +283,14 @@ function Result({ out, tool, project, user }) {
   const hasContent = r.text || r.preview || r.html || (r.rows && r.rows.length) || (r.sections && r.sections.length);
   const sectionTable = r.sections && firstTable(r.sections);
 
+  // Plain-English explainer: hand the result to the assistant ("what does this
+  // mean + what do I do"). Reuses the dm:ask event the right-click menu fires.
+  const explain = () => {
+    const text = copyableOf(r).slice(0, 4000);
+    const prompt = `I just ran the "${tool.name}" tool. In plain, simple English (explain any jargon), tell me: 1) what these results mean, 2) what's good and what's a problem, and 3) the top 3 things I should do next.\n\nHere are the results:\n${text}`;
+    window.dispatchEvent(new CustomEvent('dm:ask', { detail: { text: prompt } }));
+  };
+
   return (
     <div className="mt-6">
       <div className="dm-no-print mb-2 flex items-center gap-2">
@@ -281,7 +299,11 @@ function Result({ out, tool, project, user }) {
           <span className="text-xs text-slate-400">used {out.creditsUsed} · {out.creditsRemaining} left</span>
         )}
         {hasContent && (
-          <div className="ml-auto flex gap-1.5">
+          <div className="ml-auto flex items-center gap-1.5">
+            <button onClick={explain} title={`Ask the assistant to explain this in plain English (${CREDIT_COSTS.ai_chat ?? 2} credits)`}
+              className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700">
+              <Sparkles size={13} aria-hidden /> Explain this
+            </button>
             {/* One canonical CSV: prefer the top-level rows, else the first table
                 section (previously both could render → two identical "CSV" buttons). */}
             {r.rows && r.rows.length > 0
