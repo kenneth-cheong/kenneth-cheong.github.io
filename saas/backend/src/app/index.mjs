@@ -4,6 +4,7 @@
 import {
   getUser, totalCredits, spendCredits,
   listRuns, getRun,
+  saveConversation, listConversations, getConversation, deleteConversation,
   createTicket, getTicket, addTicketMessage, setTicketStatus, listTickets, listAllTickets,
   setIntegration, redactIntegrations,
   addNotification, listNotifications, markNotificationsRead,
@@ -53,6 +54,18 @@ export const handler = async (event) => {
 
   try {
     // ── Assistant chat ──────────────────────────────────────────────────────
+    // Conversation history (list / open / delete) — checked before the /chat
+    // POST so the more specific paths win.
+    if (method === 'GET' && path.endsWith('/chat/conversations')) {
+      return ok({ conversations: await listConversations(user.userId) });
+    }
+    if (method === 'POST' && path.endsWith('/chat/conversations/delete')) {
+      await deleteConversation(user.userId, body.conversationId); return ok({ ok: true });
+    }
+    if (method === 'GET' && path.includes('/chat/conversations/')) {
+      const conv = await getConversation(user.userId, seg(path, '/chat/conversations/'));
+      return conv ? ok({ conversation: conv }) : badRequest('Conversation not found');
+    }
     if (method === 'POST' && path.endsWith('/chat')) {
       const cost = CREDIT_COSTS.ai_chat ?? 2;
       if (totalCredits(user) < cost) {
@@ -63,7 +76,15 @@ export const handler = async (event) => {
         .map((m) => ({ ...m, content: clampStr(m?.content, 8000) }));
       const reply = await assistantReply(user, messages);
       const spent = await spendCredits({ userId: user.userId, cost, action: 'chat', tool: 'chatbot' });
-      return ok({ reply, creditsUsed: cost, creditsRemaining: spent.total });
+      // Persist the thread (incl. this reply) so it shows in history. Best-effort
+      // — a storage hiccup must not fail the chat the user already paid for.
+      let conversationId = body.conversationId || null;
+      try {
+        const thread = [...messages, { role: 'assistant', content: reply }]
+          .slice(-60).map((m) => ({ role: m.role, content: clampStr(m?.content, 4000) }));
+        ({ conversationId } = await saveConversation({ userId: user.userId, conversationId, messages: thread }));
+      } catch (e) { console.error('conversation_save', e.message); }
+      return ok({ reply, conversationId, creditsUsed: cost, creditsRemaining: spent.total });
     }
 
     // ── Run history ─────────────────────────────────────────────────────────

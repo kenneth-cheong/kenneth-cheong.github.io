@@ -24,6 +24,7 @@ export const TABLES = {
   projects: process.env.PROJECTS_TABLE,
   cache: process.env.CACHE_TABLE,
   tracked: process.env.TRACKED_TABLE,
+  conversations: process.env.CONVERSATIONS_TABLE,
 };
 
 const rid = () => Math.random().toString(36).slice(2, 8);
@@ -277,6 +278,60 @@ export async function listRuns(userId, limit = 100) {
 export async function getRun(userId, runId) {
   const { Item } = await ddb.send(new GetCommand({ TableName: TABLES.runs, Key: { userId, runId } }));
   return Item || null;
+}
+
+// ── Assistant chat conversations (persisted thread per user) ─────────────────
+const convTitle = (messages) => {
+  const first = (messages || []).find((m) => m?.role === 'user' && m.content);
+  const t = String(first?.content || 'New conversation').trim().replace(/\s+/g, ' ');
+  return t.length > 60 ? t.slice(0, 60) + '…' : t;
+};
+
+/**
+ * Upsert a conversation. New id is minted (timestamp-prefixed → newest-first)
+ * when `conversationId` is absent. `messages` is the full thread to store
+ * (caller bounds size). Title is derived from the first user turn once and kept.
+ */
+export async function saveConversation({ userId, conversationId, messages = [], title }) {
+  const now = new Date().toISOString();
+  let createdAt = now;
+  if (conversationId) {
+    const existing = await getConversation(userId, conversationId);
+    if (existing) { createdAt = existing.createdAt || now; title = title || existing.title; }
+  } else {
+    conversationId = `${now}#${rid()}`;
+  }
+  const lastAssistant = [...messages].reverse().find((m) => m?.role === 'assistant');
+  const preview = String(lastAssistant?.content || '').slice(0, 120);
+  const item = {
+    userId, conversationId,
+    title: title || convTitle(messages),
+    messages, preview, msgCount: messages.length,
+    createdAt, updatedAt: now,
+  };
+  await ddb.send(new PutCommand({ TableName: TABLES.conversations, Item: item }));
+  return { conversationId, title: item.title, updatedAt: now };
+}
+
+export async function listConversations(userId, limit = 50) {
+  const { Items } = await ddb.send(new QueryCommand({
+    TableName: TABLES.conversations,
+    KeyConditionExpression: 'userId = :u',
+    ExpressionAttributeValues: { ':u': userId },
+    ProjectionExpression: 'userId, conversationId, title, preview, msgCount, createdAt, updatedAt',
+    ScanIndexForward: false, // newest first (conversationId is timestamp-prefixed)
+    Limit: limit,
+  }));
+  return Items || [];
+}
+
+export async function getConversation(userId, conversationId) {
+  const { Item } = await ddb.send(new GetCommand({ TableName: TABLES.conversations, Key: { userId, conversationId } }));
+  return Item || null;
+}
+
+export async function deleteConversation(userId, conversationId) {
+  await ddb.send(new DeleteCommand({ TableName: TABLES.conversations, Key: { userId, conversationId } }));
 }
 
 // ── Support tickets (threaded) ───────────────────────────────────────────────

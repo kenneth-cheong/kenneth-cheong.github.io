@@ -76,6 +76,7 @@ Globals:
         PROJECTS_TABLE: !Ref ProjectsTable
         CACHE_TABLE: !Ref CacheTable
         TRACKED_TABLE: !Ref TrackedTable
+        CONVERSATIONS_TABLE: !Ref ConversationsTable
         APP_ORIGIN: !Ref AppOrigin
         JWT_SECRET: !Ref JwtSecret
 
@@ -154,6 +155,18 @@ Resources:
       KeySchema:
         - { AttributeName: userId, KeyType: HASH }
         - { AttributeName: trackId, KeyType: RANGE }
+
+  # Assistant chat conversations — full message thread per (user, conversation).
+  ConversationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: userId, AttributeType: S }
+        - { AttributeName: conversationId, AttributeType: S }
+      KeySchema:
+        - { AttributeName: userId, KeyType: HASH }
+        - { AttributeName: conversationId, KeyType: RANGE }
 
   # Upstream result cache (self-expiring via TTL on `expireAt`).
   CacheTable:
@@ -384,6 +397,7 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref NotificationsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref ProjectsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref TrackedTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref ConversationsTable }
         # Rate-limit counters live in the Cache table (lib/ratelimit.mjs).
         - DynamoDBCrudPolicy: { TableName: !Ref CacheTable }
         - S3CrudPolicy: { BucketName: !Ref AttachmentsBucket }
@@ -393,6 +407,9 @@ Resources:
               Resource: '*'
       Events:
         Chat: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /chat, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        ConversationsList: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /chat/conversations, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        ConversationDelete: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /chat/conversations/delete, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        ConversationGet: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/chat/conversations/{conversationId}', Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Runs: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/runs, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Run: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/me/runs/{runId}', Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Projects: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /projects, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }

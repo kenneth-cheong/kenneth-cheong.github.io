@@ -470,6 +470,15 @@ export function startToolTour(tool, fields) {
     },
   });
 
+  steps.push({
+    popover: {
+      title: 'Confused by a result? Just ask',
+      description:
+        lead('<b>Right-click</b> any result, card or row and the assistant will explain it in plain English — or tell you what to do about it.') +
+        note('Want only one number or phrase explained? <b>Highlight just that text first</b>, then right-click — it’ll focus on exactly what you selected.'),
+    },
+  });
+
   run(steps, { onDone: () => markSeen(`tool:${tool.id}`) });
 }
 
@@ -501,7 +510,15 @@ export function startPlatformTour() {
     { element: '[data-tour="nav-/tracking"]', popover: { title: 'Rank tracking', description: 'Add keywords and we’ll track their Google positions over time — no need to re-run by hand.', side: 'bottom', align: 'start' } },
     { element: '[data-tour="nav-/integrations"]', popover: { title: 'Connect your Google data', description: 'One click connects Search Console, GA4 and Google Ads. Those tools then cost 0 credits — it’s your data.', side: 'bottom', align: 'start' } },
     { element: '[data-tour="nav-/history"]', popover: { title: 'History', description: 'Every run is saved here. Re-open any result, or re-run it with one click.', side: 'bottom', align: 'start' } },
-    { element: '[data-tour="assistant"]', popover: { title: 'AI assistant', description: 'Ask it anything — it can see your account context, explain a result, or recommend the right tool.', side: 'bottom', align: 'end' } },
+    { element: '[data-tour="assistant"]', popover: { title: 'AI assistant', description: 'Ask it anything — it can see your account context, explain a result, or recommend the right tool. Start a new chat or reopen past ones from the history list.', side: 'bottom', align: 'end' } },
+    {
+      popover: {
+        title: 'Ask about anything on screen',
+        description:
+          lead('<b>Right-click</b> any result, card or table row to ask the assistant to explain it — or what to do about it.') +
+          note('Only want one figure or phrase explained? <b>Highlight that text first</b>, then right-click, and it’ll explain just your selection.'),
+      },
+    },
     { element: '[data-tour="account-menu"]', popover: { title: 'Account, billing & support', description: 'Your plan, usage, pricing and support tickets live in here.', side: 'bottom', align: 'end' } },
     {
       popover: {

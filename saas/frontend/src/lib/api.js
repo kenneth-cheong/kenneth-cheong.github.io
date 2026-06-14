@@ -83,7 +83,10 @@ export const api = {
   portal: () => call('/billing/portal', { method: 'POST' }),
   invoices: () => call('/billing/invoices'),
   // In-app features: assistant chat, run history, support, integrations.
-  chat: (messages) => call('/chat', { method: 'POST', body: { messages } }),
+  chat: (messages, conversationId) => call('/chat', { method: 'POST', body: { messages, conversationId } }),
+  conversations: () => call('/chat/conversations'),
+  conversation: (id) => call(`/chat/conversations/${encodeURIComponent(id)}`),
+  deleteConversation: (id) => call('/chat/conversations/delete', { method: 'POST', body: { conversationId: id } }),
   runs: () => call('/me/runs'),
   run: (runId) => call(`/me/runs/${encodeURIComponent(runId)}`),
   // Notifications
