@@ -9,19 +9,10 @@ Parameters:
     Default: http://localhost:5173
   GoogleClientId:
     Type: String
-  JwtSecret:
-    Type: String
-    NoEcho: true
-  StripeSecretKey:
-    Type: String
-    NoEcho: true
-  StripeWebhookSecret:
-    Type: String
-    NoEcho: true
-  GatewaySecret:
-    Type: String
-    NoEcho: true
-    Description: Shared secret the metering gateway sends to upstream tool Lambdas.
+  # JwtSecret, StripeSecretKey, StripeWebhookSecret, GatewaySecret and
+  # GoogleAdsDeveloperToken were migrated to Secrets Manager (digimetrics-saas/*)
+  # and are now referenced via {{resolve:secretsmanager:...}} dynamic references —
+  # no longer plaintext CFN parameters.
   AdminEmails:
     Type: String
     Default: tom@mediaone.co,june@mediaone.co,kenneth@mediaone.co
@@ -31,11 +22,6 @@ Parameters:
     NoEcho: true
     Default: ''
     Description: Google OAuth client secret (for GSC / GA4 / Ads integrations).
-  GoogleAdsDeveloperToken:
-    Type: String
-    NoEcho: true
-    Default: ''
-    Description: Google Ads API developer token (optional — Ads falls back without it).
   GoogleAdsLoginCustomerId:
     Type: String
     Default: ''
@@ -78,7 +64,7 @@ Globals:
         TRACKED_TABLE: !Ref TrackedTable
         CONVERSATIONS_TABLE: !Ref ConversationsTable
         APP_ORIGIN: !Ref AppOrigin
-        JWT_SECRET: !Ref JwtSecret
+        JWT_SECRET: '{{resolve:secretsmanager:digimetrics-saas/jwt-secret:SecretString}}'
 
 Resources:
   # ── Data ────────────────────────────────────────────────────────────────
@@ -245,6 +231,15 @@ Resources:
             AllowedOrigins: ['*']
             AllowedHeaders: ['*']
 
+  # ── Secrets ──────────────────────────────────────────────────────────────
+  # Backend secrets live in Secrets Manager (digimetrics-saas/<name>), referenced
+  # by the function env vars via {{resolve:secretsmanager:...}} dynamic references
+  # — no longer plaintext CFN parameters. The secret resources were created by an
+  # earlier transitional deploy and kept (DeletionPolicy: Retain), so they're now
+  # managed out-of-band. GoogleClientSecret is the lone exception (empty in this
+  # deployment → still a plaintext param; migrate it if Google OAuth is enabled).
+  # NOTE: a fresh stack deploy must pre-create these 5 secrets first.
+
   # ── HTTP API + JWT (Lambda) authorizer ──────────────────────────────────
   Api:
     Type: AWS::Serverless::HttpApi
@@ -339,10 +334,10 @@ Resources:
       Timeout: 180
       Environment:
         Variables:
-          GATEWAY_SECRET: !Ref GatewaySecret
+          GATEWAY_SECRET: '{{resolve:secretsmanager:digimetrics-saas/gateway-secret:SecretString}}'
           GOOGLE_CLIENT_ID: !Ref GoogleClientId
           GOOGLE_CLIENT_SECRET: !Ref GoogleClientSecret
-          GOOGLE_ADS_DEVELOPER_TOKEN: !Ref GoogleAdsDeveloperToken
+          GOOGLE_ADS_DEVELOPER_TOKEN: '{{resolve:secretsmanager:digimetrics-saas/google-ads-developer-token:SecretString}}'
           GOOGLE_ADS_LOGIN_CUSTOMER_ID: !Ref GoogleAdsLoginCustomerId
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
@@ -373,8 +368,8 @@ Resources:
       Handler: index.handler
       Environment:
         Variables:
-          STRIPE_SECRET_KEY: !Ref StripeSecretKey
-          STRIPE_WEBHOOK_SECRET: !Ref StripeWebhookSecret
+          STRIPE_SECRET_KEY: '{{resolve:secretsmanager:digimetrics-saas/stripe-secret-key:SecretString}}'
+          STRIPE_WEBHOOK_SECRET: '{{resolve:secretsmanager:digimetrics-saas/stripe-webhook-secret:SecretString}}'
           PRICE_STARTER_MONTHLY: !Sub '{{resolve:ssm:/saas/price/starter/monthly}}'
           PRICE_STARTER_ANNUAL: !Sub '{{resolve:ssm:/saas/price/starter/annual}}'
           PRICE_PRO_MONTHLY: !Sub '{{resolve:ssm:/saas/price/pro/monthly}}'
@@ -408,7 +403,7 @@ Resources:
           ADMIN_EMAILS: !Ref AdminEmails
           GOOGLE_CLIENT_ID: !Ref GoogleClientId
           GOOGLE_CLIENT_SECRET: !Ref GoogleClientSecret
-          GOOGLE_ADS_DEVELOPER_TOKEN: !Ref GoogleAdsDeveloperToken
+          GOOGLE_ADS_DEVELOPER_TOKEN: '{{resolve:secretsmanager:digimetrics-saas/google-ads-developer-token:SecretString}}'
           GOOGLE_ADS_LOGIN_CUSTOMER_ID: !Ref GoogleAdsLoginCustomerId
           # OAuth redirect URI is derived at runtime from the request domain (see
           # app handler) — referencing ${Api} here created a circular dependency.
