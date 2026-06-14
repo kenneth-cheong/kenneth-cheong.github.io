@@ -36,10 +36,11 @@ export const UPSTREAMS = {
   // Performance Marketing Audit: paid-media opportunity analysis.
   performanceMarketing: 'https://4gupr9vio3.execute-api.ap-southeast-1.amazonaws.com',
   // Google integrations — reuse the agency's proven Lambdas (same as index.html):
-  //   gscIntegration → ga4ListProperties / ga4RunReport / adsListCustomers
-  //   googleAds      → GAQL search
+  //   gscIntegration → ga4ListProperties / ga4RunReport / adsListCustomers / adsSearchStream (GAQL)
   //   googleAuth     → google_token_exchange / google_refresh_token (holds secret)
   gscIntegration: 'https://v5gyq2sqdd.execute-api.ap-southeast-1.amazonaws.com/gscIntegration',
+  // DEPRECATED: this standalone endpoint 403s for server-side calls. Ads GAQL now
+  // runs as the user via gscIntegration→adsSearchStream (see lib/google.mjs adsGaql).
   googleAds: 'https://j4aca9hcmh.execute-api.ap-southeast-1.amazonaws.com/googleAds',
   googleAuth: 'https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday',
   aiMentions: 'https://y0ypcivaz1.execute-api.ap-southeast-1.amazonaws.com/aiMentions',

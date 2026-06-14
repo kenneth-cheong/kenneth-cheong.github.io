@@ -353,21 +353,36 @@ async function ga4Series(token, propertyId, startDate, endDate) {
 // ── Google Ads: agency googleAds Lambda (GAQL) ────────────────────────────────
 async function liveAds(conn, body) {
   if (!ADS_DEV_TOKEN) throw new Error('no ads dev token');
-  await accessTokenFor(conn); // ensure auth is valid (Lambda holds the actual call)
+  // Run GAQL AS THE USER (their access token) through the gscIntegration Lambda's
+  // adsSearchStream action — exactly like index.html's fetchAdsGAQL. The old
+  // standalone googleAds endpoint (UPSTREAMS.googleAds) returns API-Gateway 403
+  // for server-side calls, so the pull never reached Google.
+  const token = await accessTokenFor(conn);
   const customerId = String(body.input || conn.account || '').replace(/[^0-9]/g, '');
   if (!customerId) throw new Error('no customer id');
   const { startDate, endDate } = dayRange(body.range);
-  const main = await adsBreakdown(customerId, startDate, endDate);
-  const series = await adsSeries(customerId, startDate, endDate).catch((e) => { console.warn('ads_series_failed', e.message); return []; });
-  const deltas = await adsDeltas(customerId, body, main.raw).catch((e) => { console.warn('ads_compare_failed', e.message); return null; });
+  const main = await adsBreakdown(customerId, startDate, endDate, token);
+  const series = await adsSeries(customerId, startDate, endDate, token).catch((e) => { console.warn('ads_series_failed', e.message); return []; });
+  const deltas = await adsDeltas(customerId, body, main.raw, token).catch((e) => { console.warn('ads_compare_failed', e.message); return null; });
   const { cost, clicks, conversions } = main.raw;
   return { rows: main.rows, series, deltas, summary: { cost: money(cost), clicks, conversions, cpa: conversions ? money(cost / conversions) : '—' } };
 }
 
-async function adsBreakdown(customerId, startDate, endDate) {
+// Run a GAQL query as the user via gscIntegration → adsSearchStream (mirrors
+// index.html). Returns the flattened result rows; throws on an upstream error.
+async function adsGaql(query, customerId, token) {
+  const data = await postJson(UPSTREAMS.gscIntegration, {
+    action: 'adsSearchStream', customerId, access_token: token,
+    developerToken: ADS_DEV_TOKEN, loginCustomerId: ADS_LOGIN_CID,
+    payload: { query: query.trim() },
+  });
+  if (data && !Array.isArray(data) && data.error) throw new Error(typeof data.error === 'object' ? JSON.stringify(data.error) : String(data.error));
+  return Array.isArray(data?.results) ? data.results : (Array.isArray(data) ? data.flatMap((c) => c.results || []) : []);
+}
+
+async function adsBreakdown(customerId, startDate, endDate, token) {
   const query = `SELECT campaign.name, metrics.impressions, metrics.clicks, metrics.ctr, metrics.cost_micros, metrics.conversions FROM campaign WHERE segments.date BETWEEN '${startDate}' AND '${endDate}' ORDER BY metrics.cost_micros DESC LIMIT 25`;
-  const data = await postJson(UPSTREAMS.googleAds, { query, customer_id: customerId, login_customer_id: ADS_LOGIN_CID, developer_token: ADS_DEV_TOKEN });
-  const results = Array.isArray(data?.results) ? data.results : (Array.isArray(data) ? data.flatMap((c) => c.results || []) : []);
+  const results = await adsGaql(query, customerId, token);
   const rows = results.map((r) => {
     const cost = Number(r.metrics?.costMicros || r.metrics?.cost_micros || 0) / 1e6;
     const conv = Number(r.metrics?.conversions || 0);
@@ -385,11 +400,11 @@ async function adsBreakdown(customerId, startDate, endDate) {
   return { rows, raw: { cost, clicks, conversions } };
 }
 
-async function adsDeltas(customerId, body, cur) {
+async function adsDeltas(customerId, body, cur, token) {
   const code = compareCode(body.compare);
   if (code === 'none') return null;
   const { startDate, endDate } = comparisonRange(body.range, code);
-  const prev = (await adsBreakdown(customerId, startDate, endDate)).raw;
+  const prev = (await adsBreakdown(customerId, startDate, endDate, token)).raw;
   const curCpa = cur.conversions ? cur.cost / cur.conversions : 0;
   const prevCpa = prev.conversions ? prev.cost / prev.conversions : 0;
   return { cost: pctChange(cur.cost, prev.cost), clicks: pctChange(cur.clicks, prev.clicks), conversions: pctChange(cur.conversions, prev.conversions), cpa: pctChange(curCpa, prevCpa) };
@@ -397,10 +412,9 @@ async function adsDeltas(customerId, body, cur) {
 
 // Cost/clicks per day for the Ads trend chart — GAQL segments by date across all
 // campaigns, so sum each metric per day.
-async function adsSeries(customerId, startDate, endDate) {
+async function adsSeries(customerId, startDate, endDate, token) {
   const query = `SELECT segments.date, metrics.cost_micros, metrics.clicks FROM campaign WHERE segments.date BETWEEN '${startDate}' AND '${endDate}'`;
-  const data = await postJson(UPSTREAMS.googleAds, { query, customer_id: customerId, login_customer_id: ADS_LOGIN_CID, developer_token: ADS_DEV_TOKEN });
-  const results = Array.isArray(data?.results) ? data.results : (Array.isArray(data) ? data.flatMap((c) => c.results || []) : []);
+  const results = await adsGaql(query, customerId, token);
   const byDate = new Map();
   for (const r of results) {
     const date = r.segments?.date;
