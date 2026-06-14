@@ -516,6 +516,31 @@ Resources:
           Properties:
             Schedule: rate(1 day)
 
+  # ── Streaming assistant chat (Anthropic Messages API, Haiku) ────────────
+  # Public RESPONSE_STREAM Function URL — JWT is verified in-handler. Streams
+  # tokens to the browser; charges ai_chat + persists the thread after.
+  ChatStreamFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .build/chatstream/
+      Handler: index.handler
+      Timeout: 120
+      Environment:
+        Variables:
+          ANTHROPIC_KEY: '{{resolve:secretsmanager:digimetrics-saas/anthropic-key:SecretString}}'
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref ConversationsTable }
+      FunctionUrlConfig:
+        AuthType: NONE
+        InvokeMode: RESPONSE_STREAM
+        Cors:
+          AllowOrigins: ['*']
+          AllowMethods: [POST]
+          AllowHeaders: [authorization, content-type]
+          ExposeHeaders: [x-conversation-id]
+
   # ── Admin portal API (authed + ADMIN_EMAILS allowlist) ──────────────────
   AdminFn:
     Type: AWS::Serverless::Function
@@ -773,3 +798,6 @@ Outputs:
   RunUrl:
     Description: Function URL for slow tools (set as VITE_RUN_URL in the frontend).
     Value: !GetAtt MeteringFnUrl.FunctionUrl
+  ChatStreamUrl:
+    Description: Streaming chat Function URL (set as VITE_CHAT_STREAM_URL in the frontend).
+    Value: !GetAtt ChatStreamFnUrl.FunctionUrl

@@ -14,12 +14,8 @@ import {
 } from '../lib/dynamo.mjs';
 import { rankPosition, rankHistory } from '../lib/rank.mjs';
 import { UPSTREAMS } from '../metering/upstreams.mjs';
-import { CREDIT_COSTS, INTEGRATIONS, PLANS, TOOLS } from '../../../shared/catalog.mjs';
-
-// Compact catalog the assistant uses to recommend the right tool for a goal.
-const TOOL_CATALOG = TOOLS
-  .map((t) => `${t.id} — ${t.name} [${t.minTier}, ${CREDIT_COSTS[t.cost] ?? 0}cr]: ${t.desc}`)
-  .join('\n');
+import { CREDIT_COSTS, INTEGRATIONS, PLANS } from '../../../shared/catalog.mjs';
+import { buildChatSystem } from '../lib/assistant.mjs';
 import { integrationSummary } from '../../../shared/connectors.mjs';
 import { oauthConfigured, authUrl, exchangeCode, detectAccount, listAccounts } from '../lib/google.mjs';
 import { signOAuthState, verifyOAuthState } from '../lib/jwt.mjs';
@@ -412,29 +408,9 @@ async function notifyReply(ownerId, ticket, text) {
 }
 
 async function assistantReply(user, messages) {
-  const context = await buildUserContext(user);
+  const system = await buildChatSystem(user);
   const history = (messages || []).slice(-10).map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n');
-  const userPrompt =
-    "Reply ONLY with the assistant's next chat message. Keep it short and conversational " +
-    '(2–5 sentences), NO markdown, NO headings, NO tables, NO bullet lists, NO preamble.\n\n' +
-    'You are the in-app assistant for Digimetrics, a self-serve SEO + AI-content + AI-visibility ' +
-    'SaaS. Be helpful and brief. You can answer questions about the user\'s OWN account, plan, ' +
-    'credits/billing, projects (campaigns), tracked-keyword rankings, recent tool runs, and connected ' +
-    'integrations using the context below — quote the real numbers, don\'t invent. For billing changes ' +
-    '(upgrade, cancel, refunds) point them to the Pricing or Account page. If you cannot resolve an ' +
-    'issue, suggest opening a support ticket.\n\n' +
-    'RECOMMEND TOOLS: when a tool would help the user reach their goal, recommend the best 1–2 and ' +
-    'link each by writing [[tool:<id>]] inline — the app renders that token as a clickable button that ' +
-    'opens the tool. Use ids ONLY from the Tools list below (never invent one), prefer free/low-cost ' +
-    'tools the user\'s tier can run, and don\'t write raw URLs or markdown links. Example: ' +
-    '"To find low-competition keywords, try [[tool:keyword-analysis]]."\n\n' +
-    'QUICK ACTIONS (use sparingly, only when the user clearly wants to act): to add a keyword to their ' +
-    'rank tracking, write [[action:track|<keyword>]]; if you cannot resolve their issue, offer ' +
-    '[[action:ticket|<short subject>]] to open a support ticket. These render as confirm buttons. Never ' +
-    'invent data or claim an action is done — the button performs it after the user confirms.\n\n' +
-    `Tools you can recommend (id — name [min tier, credits]: what it does):\n${TOOL_CATALOG}\n\n` +
-    `Here is everything known about this user (their own data — safe to share with them):\n${context}\n\n` +
-    `Conversation so far:\n${history}\n\nAssistant:`;
+  const userPrompt = `${system}\n\nConversation so far:\n${history}\n\nAssistant:`;
   const res = await fetch(UPSTREAMS.aiOptimiser, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'content_freeform', userPrompt }),
@@ -444,65 +420,4 @@ async function assistantReply(user, messages) {
   let raw; try { raw = JSON.parse(text); } catch { raw = text; }
   if (raw && typeof raw === 'object' && raw.body !== undefined) raw = typeof raw.body === 'string' ? JSON.parse(raw.body) : raw.body;
   return (typeof raw === 'string' ? raw : (raw.result || raw.text || raw.content || '')) || '(no reply)';
-}
-
-// Assemble a compact, factual snapshot of the user's account so the assistant
-// can answer "how many credits do I have / what's my plan / how is X ranking"
-// without inventing numbers. Everything here is the user's own data.
-async function buildUserContext(user) {
-  const fmtDate = (iso) => { try { return new Date(iso).toISOString().slice(0, 10); } catch { return '—'; } };
-  const plan = PLANS[user.tier] || PLANS.free;
-  const monthly = user.credits || 0;
-  const topup = user.topupCredits || 0;
-
-  // Pull the data-backed sections in parallel; degrade gracefully if a table
-  // is missing (e.g. the local harness) so chat never hard-fails.
-  const [projects, tracked, runs] = await Promise.all([
-    listProjects(user.userId).catch(() => []),
-    listTracked(user.userId).catch(() => []),
-    listRuns(user.userId, 6).catch(() => []),
-  ]);
-
-  const lines = [];
-  lines.push('ACCOUNT');
-  lines.push(`- Name: ${user.name || '—'} (${user.email || '—'})`);
-  lines.push(`- Plan: ${plan.name}${plan.priceMonthly ? ` (S$${plan.priceMonthly}/mo)` : ' (free)'}`);
-  lines.push(`- Member since: ${fmtDate(user.createdAt)}`);
-  if (isStaff(user)) lines.push('- Role: admin');
-
-  lines.push('', 'CREDITS & BILLING');
-  lines.push(`- Balance: ${monthly + topup} credits (${monthly} monthly + ${topup} top-up)`);
-  lines.push(`- Monthly allowance: ${plan.monthlyCredits} credits/cycle (unused monthly credits expire; top-ups roll over)`);
-  if (user.periodEnd) lines.push(`- Plan renews / resets on: ${fmtDate(user.periodEnd)}`);
-  if (user.tier === 'free') lines.push('- On the free plan — upgrade on the Pricing page for more credits and features.');
-  lines.push('- Top-ups available from S$15 (300 credits) on the Account page; they never expire.');
-
-  const conns = user.integrations || {};
-  const intg = Object.keys(conns).map((p) => integrationSummary(p, conns[p].account)).filter(Boolean);
-  lines.push('', `INTEGRATIONS (${intg.length})`);
-  if (intg.length) for (const s of intg) lines.push(`- ${s}`);
-  else lines.push('- None connected. Connect Google Search Console / GA4 / Google Ads on the Integrations page.');
-
-  lines.push('', `PROJECTS / CAMPAIGNS (${projects.length} of ${plan.projects} allowed)`);
-  if (projects.length) for (const p of projects.slice(0, 15)) lines.push(`- ${p.name}${p.domain ? ` — ${p.domain}` : ''}`);
-  else lines.push('- No projects yet. Create one on the Projects page to group runs and tracked keywords.');
-
-  lines.push('', `TRACKED KEYWORDS (${tracked.length} of ${plan.trackedKeywords} allowed)`);
-  if (tracked.length) {
-    for (const t of tracked.slice(0, 20)) {
-      const h = t.history || [];
-      const pos = h.length ? h[h.length - 1].position : null;
-      lines.push(`- "${t.keyword}"${t.domain ? ` (${t.domain})` : ''}: ${pos ? `#${pos}` : 'not yet checked'}`);
-    }
-  } else if (plan.trackedKeywords === 0) {
-    lines.push('- Keyword tracking is a paid feature — available on Starter and above.');
-  } else {
-    lines.push('- None tracked yet. Add keywords on the Tracking page.');
-  }
-
-  lines.push('', 'RECENT TOOL RUNS');
-  if (runs.length) for (const r of runs) lines.push(`- ${r.toolName || r.tool || 'Tool'} — ${fmtDate(r.ts)}${r.creditsUsed ? ` (${r.creditsUsed} credits)` : ''}`);
-  else lines.push('- No tool runs yet.');
-
-  return lines.join('\n');
 }
