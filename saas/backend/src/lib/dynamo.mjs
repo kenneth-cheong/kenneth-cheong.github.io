@@ -771,6 +771,18 @@ export async function putCache(key, value, ttlSeconds) {
   }));
 }
 
+/** Invalidate all of a user's refresh tokens ("sign out everywhere") by bumping
+ * their token version. Returns the new version. */
+export async function bumpTokenVersion(userId) {
+  const res = await ddb.send(new UpdateCommand({
+    TableName: TABLES.users, Key: { userId },
+    UpdateExpression: 'ADD tokenVersion :one SET updatedAt = :now',
+    ExpressionAttributeValues: { ':one': 1, ':now': new Date().toISOString() },
+    ReturnValues: 'UPDATED_NEW',
+  }));
+  return res.Attributes?.tokenVersion ?? 0;
+}
+
 // ── Account data export + erasure (GDPR portability / right to be forgotten) ──
 
 /** Gather everything we hold about a user into one JSON-able object. OAuth

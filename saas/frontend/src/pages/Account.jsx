@@ -16,6 +16,7 @@ export default function Account() {
   const [confirmDel, setConfirmDel] = useState(false);
   const [delText, setDelText] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [revoking, setRevoking] = useState(false);
   const plan = PLANS[user.tier];
 
   // Returning from Stripe Checkout / top-up → pull the fresh tier + credits.
@@ -66,6 +67,14 @@ export default function Account() {
       await api.deleteAccount();
       logout(); // clears tokens + user → app redirects to the sign-in screen
     } catch (e) { toast(e.message, 'error'); setDeleting(false); }
+  }
+
+  async function signOutEverywhere() {
+    setRevoking(true);
+    try {
+      await api.revokeSessions();
+      logout(); // invalidates other devices' refresh tokens; sign out here too
+    } catch (e) { toast(e.message, 'error'); setRevoking(false); }
   }
 
   return (
@@ -184,8 +193,10 @@ export default function Account() {
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <button onClick={exportData} disabled={exporting} className="btn-ghost">{exporting ? 'Preparing…' : 'Export my data'}</button>
+          <button onClick={signOutEverywhere} disabled={revoking} className="btn-ghost">{revoking ? 'Signing out…' : 'Sign out everywhere'}</button>
           <button onClick={() => { setDelText(''); setConfirmDel(true); }} className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">Delete account</button>
         </div>
+        <p className="mt-2 text-xs text-slate-400">“Sign out everywhere” ends sessions on all your other devices.</p>
       </div>
 
       {confirmDel && (

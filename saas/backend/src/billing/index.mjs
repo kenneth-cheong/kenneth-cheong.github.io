@@ -13,9 +13,18 @@ import {
   setPastDue, debitTopupCredits,
 } from '../lib/dynamo.mjs';
 import { PLANS, topupById } from '../../../shared/catalog.mjs';
-import { ok, badRequest, unauthorized, json, parseBody, claims } from '../lib/http.mjs';
+import { ok, badRequest, unauthorized, tooManyRequests, json, parseBody, claims } from '../lib/http.mjs';
+import { rateLimit } from '../lib/ratelimit.mjs';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+// Per-user budget for the Stripe-session-creating routes (checkout/topup/portal)
+// so a client can't spam Stripe API calls. Generous — never bothers real users.
+const BILLING_LIMITS = [{ n: 15, seconds: 60 }, { n: 80, seconds: 3600 }];
+async function billingThrottle(userId) {
+  const rl = await rateLimit('billing', userId, BILLING_LIMITS);
+  return rl.allowed ? null : tooManyRequests(rl.retryAfter);
+}
 
 // Stripe Price IDs live in env so the same code works in test + live mode.
 // Format: PRICE_<TIER>_<INTERVAL>, plus PRICE_TOPUP.
@@ -80,6 +89,7 @@ async function handleInvoices(event) {
 async function handleCheckout(event) {
   const c = claims(event);
   if (!c?.userId) return unauthorized();
+  const throttled = await billingThrottle(c.userId); if (throttled) return throttled;
   const { tier, interval = 'monthly' } = parseBody(event);
   const price = priceId(tier, interval);
   if (!price) return badRequest('Unknown tier/interval');
@@ -103,6 +113,7 @@ async function handleCheckout(event) {
 async function handleTopup(event) {
   const c = claims(event);
   if (!c?.userId) return unauthorized();
+  const throttled = await billingThrottle(c.userId); if (throttled) return throttled;
   const { packId } = parseBody(event);
   const pack = topupById(packId);
   if (!pack) return badRequest('Unknown top-up pack');
@@ -127,6 +138,7 @@ async function handleTopup(event) {
 async function handlePortal(event) {
   const c = claims(event);
   if (!c?.userId) return unauthorized();
+  const throttled = await billingThrottle(c.userId); if (throttled) return throttled;
   const user = await getUser(c.userId);
   if (!user?.stripeCustomerId) return badRequest('No subscription yet');
   const session = await stripe.billingPortal.sessions.create({

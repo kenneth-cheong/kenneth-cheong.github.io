@@ -14,7 +14,9 @@ export function signAccess(user) {
 }
 
 export function signRefresh(user) {
-  return jwt.sign({ sub: user.userId, typ: 'refresh' }, SECRET, {
+  // `tv` (token version) lets us revoke all refresh tokens at once: bump the
+  // user's tokenVersion and any older refresh token stops validating.
+  return jwt.sign({ sub: user.userId, typ: 'refresh', tv: user.tokenVersion || 0 }, SECRET, {
     expiresIn: REFRESH_TTL,
     issuer: 'digimetrics-saas',
   });

@@ -10,7 +10,7 @@ import {
   addNotification, listNotifications, markNotificationsRead,
   createProject, listProjects, deleteProject,
   addTracked, listTracked, countTracked, removeTracked, appendSnapshot, mergeSnapshots,
-  exportAllUserData, deleteAllUserData,
+  exportAllUserData, deleteAllUserData, bumpTokenVersion,
 } from '../lib/dynamo.mjs';
 import { rankPosition, rankHistory } from '../lib/rank.mjs';
 import { UPSTREAMS } from '../metering/upstreams.mjs';
@@ -91,6 +91,12 @@ export const handler = async (event) => {
         ({ conversationId } = await saveConversation({ userId: user.userId, conversationId, messages: thread }));
       } catch (e) { console.error('conversation_save', e.message); }
       return ok({ reply, conversationId, creditsUsed: cost, creditsRemaining: spent.total });
+    }
+
+    // ── Sessions: revoke all refresh tokens ("sign out everywhere") ───────────
+    if (method === 'POST' && path.endsWith('/me/sessions/revoke')) {
+      await bumpTokenVersion(user.userId);
+      return ok({ ok: true });
     }
 
     // ── Account data export + deletion (GDPR) ─────────────────────────────────

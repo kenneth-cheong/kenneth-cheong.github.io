@@ -103,6 +103,8 @@ async function handleRefresh({ refreshToken }) {
   }
   const user = await getUser(claims.sub);
   if (!user) return unauthorized('User not found');
+  // Reject refresh tokens issued before a "sign out everywhere" / revocation.
+  if ((claims.tv || 0) !== (user.tokenVersion || 0)) return unauthorized('Session expired — please sign in again.');
   return ok({ accessToken: signAccess(user), user: publicUser(user) });
 }
 
