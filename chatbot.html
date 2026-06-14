@@ -9393,6 +9393,9 @@
             - If the user says "yes" or "proceed", then use the relevant tools.
             When a user asks about "chats", "conversations", or "what was said in [space]", ALWAYS use the search_messages_standard tool with 'orderBy': 'CREATE_TIME_DESC' to get the NEWEST messages first. Avoid using 'list_messages' as it returns old archive messages from years ago.`;
 
+            // Volatile, frequently-changing context is accumulated separately so it can be
+            // appended AFTER the cached instruction block, keeping the cache prefix stable.
+            let dynamicContext = '';
             if (syncedContext) {
                 let contextObj;
                 try {
@@ -9429,7 +9432,7 @@
                         if (hasBoardSelection) {
                             delete contextObj.campaigns;
                             delete contextObj.total_matching_campaigns;
-                            system += "\n\nFOCUS MODE: You are focused on specific campaign boards. The summary board data has been removed to save tokens. Use your 'monday_graphql' tool to search these specific boards for items and details.";
+                            dynamicContext += "\n\nFOCUS MODE: You are focused on specific campaign boards. The summary board data has been removed to save tokens. Use your 'monday_graphql' tool to search these specific boards for items and details.";
                         } else if (contextObj.campaigns) {
                             // Keep key columns so Claude can answer status/CSM/type queries without tool calls
                             contextObj.campaigns = contextObj.campaigns.slice(0, 100).map(item => ({
@@ -9458,25 +9461,35 @@
                         .map(s => `  - ${s.title} (domain: ${s.url}, site_id: ${s.id})`)
                         .join('\n');
                     if (seRankingCampaigns) {
-                        system += `\n\n=== SE RANKING CAMPAIGNS (USE THESE SITE IDs FOR get_seranking_report) ===\n${seRankingCampaigns}\n=== END SE RANKING CAMPAIGNS ===`;
+                        dynamicContext += `\n\n=== SE RANKING CAMPAIGNS (USE THESE SITE IDs FOR get_seranking_report) ===\n${seRankingCampaigns}\n=== END SE RANKING CAMPAIGNS ===`;
                     }
                 }
 
                 // Surface Drive documents explicitly so they aren't lost in the JSON blob.
                 if (contextObj && Array.isArray(contextObj.drive_documents) && contextObj.drive_documents.length > 0) {
                     const driveFolders = [...new Set(contextObj.drive_documents.map(d => d.folder))];
-                    system += `\n\n=== GOOGLE DRIVE DOCUMENTS ===\nThe user selected ${driveFolders.length} Drive folder(s) (${driveFolders.join(', ')}) containing ${contextObj.drive_documents.length} document(s). Their extracted text is in SYNCED CONTEXT under "drive_documents" (fields: folder, file, type, content). Use this content directly to answer questions about the user's Drive files.\n=== END GOOGLE DRIVE DOCUMENTS ===`;
+                    dynamicContext += `\n\n=== GOOGLE DRIVE DOCUMENTS ===\nThe user selected ${driveFolders.length} Drive folder(s) (${driveFolders.join(', ')}) containing ${contextObj.drive_documents.length} document(s). Their extracted text is in SYNCED CONTEXT under "drive_documents" (fields: folder, file, type, content). Use this content directly to answer questions about the user's Drive files.\n=== END GOOGLE DRIVE DOCUMENTS ===`;
                 }
 
-                system += `\n\nSYNCED CONTEXT:\n${contextStr}`;
+                dynamicContext += `\n\nSYNCED CONTEXT:\n${contextStr}`;
             }
 
-            // Hard ceiling: ~120k chars ≈ 30k tokens — keeps total prompt safely under 200k
+            // Hard ceiling: ~120k chars ≈ 30k tokens — keeps total prompt safely under 200k.
+            // Split for prompt caching: the stable instruction block carries the cache breakpoint;
+            // the volatile dynamicContext follows it uncached, so a re-sync or board-selection
+            // change no longer invalidates the cached instruction prefix.
             const SYSTEM_CHAR_LIMIT = 120000;
             if (system.length > SYSTEM_CHAR_LIMIT) {
-                console.warn(`[CLAUDE] System prompt too large (${system.length} chars) — truncating to ${SYSTEM_CHAR_LIMIT}`);
-                system = system.substring(0, SYSTEM_CHAR_LIMIT) + '\n...[context truncated to fit token limits]';
+                console.warn(`[CLAUDE] Base instructions too large (${system.length} chars) — truncating to ${SYSTEM_CHAR_LIMIT}`);
+                system = system.substring(0, SYSTEM_CHAR_LIMIT) + '\n...[instructions truncated to fit token limits]';
             }
+            const _dynRoom = Math.max(0, SYSTEM_CHAR_LIMIT - system.length);
+            if (dynamicContext.length > _dynRoom) {
+                console.warn(`[CLAUDE] Synced context too large (${dynamicContext.length} chars) — truncating to ${_dynRoom}`);
+                dynamicContext = dynamicContext.substring(0, _dynRoom) + '\n...[context truncated to fit token limits]';
+            }
+            const systemBlocks = [{ type: "text", text: system, cache_control: { type: "ephemeral" } }];
+            if (dynamicContext) systemBlocks.push({ type: "text", text: dynamicContext });
 
             try {
                 // Prepare final content with attachments if present
@@ -9577,10 +9590,23 @@
                 }
 
                 // Log payload sizes before every send for debugging
-                const _dbgSys = system.length;
+                const _dbgSys = system.length + dynamicContext.length;
                 const _dbgMsg = JSON.stringify(history).length;
                 const _dbgSC  = (localStorage.getItem('syncedContext') || '').length;
                 console.log(`[PAYLOAD] system=${_dbgSys} chars (~${Math.round(_dbgSys/4)} tokens) | messages=${_dbgMsg} chars (~${Math.round(_dbgMsg/4)} tokens) | syncedContext=${_dbgSC} chars`);
+
+                // Cache the conversation prefix: tag the final turn's last content block so
+                // multi-turn chats reuse the prior history instead of reprocessing it each turn.
+                const messagesPayload = history.map((m, i) => {
+                    if (i !== history.length - 1) return m;
+                    const blocks = Array.isArray(m.content)
+                        ? m.content.map(b => ({ ...b }))
+                        : [{ type: "text", text: m.content }];
+                    if (blocks.length) {
+                        blocks[blocks.length - 1] = { ...blocks[blocks.length - 1], cache_control: { type: "ephemeral" } };
+                    }
+                    return { ...m, content: blocks };
+                });
 
                 _chatAbortController = new AbortController();
                 const res = await fetch(MONDAY_LAMBDA_URL, {
@@ -9589,8 +9615,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action: 'claude_chat_with_tools',
-                        system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
-                        messages: history,
+                        system: systemBlocks,
+                        messages: messagesPayload,
                         model: 'claude-haiku-4-5',
                         max_tokens: 4096,
                         monday_api_key: localStorage.getItem('mondayApiKey'),
@@ -9684,7 +9710,7 @@
                     console.error("Claude Error:", error);
                     const isTooLong = /too long|token.*limit|context.*limit|maximum.*token/i.test(error.message);
                     if (isTooLong) {
-                        const _eSys = system.length;
+                        const _eSys = system.length + dynamicContext.length;
                         const _eMsg = JSON.stringify(history).length;
                         const _eSC  = (localStorage.getItem('syncedContext') || '').length;
                         const errEl = document.createElement('div');
