@@ -10,6 +10,7 @@ import {
   getUser, getUserByStripeCustomer, grantTopupCredits,
   claimStripeEvent, releaseStripeEvent,
   resetMonthlyAllowance, applyTierChange, applyDowngrade, linkStripeCustomer,
+  setPastDue, debitTopupCredits,
 } from '../lib/dynamo.mjs';
 import { PLANS, topupById } from '../../../shared/catalog.mjs';
 import { ok, badRequest, unauthorized, json, parseBody, claims } from '../lib/http.mjs';
@@ -162,21 +163,32 @@ async function handleWebhook(event) {
       case 'invoice.paid':
         await onInvoicePaid(stripeEvent.data.object);
         break;
+      case 'invoice.payment_failed':
+        await onPaymentFailed(stripeEvent.data.object);
+        break;
       case 'customer.subscription.updated':
         await onSubscriptionUpdated(stripeEvent.data.object);
         break;
       case 'customer.subscription.deleted':
         await onSubscriptionDeleted(stripeEvent.data.object);
         break;
+      case 'charge.refunded':
+        await onChargeRefunded(stripeEvent.data.object);
+        break;
+      case 'charge.dispute.created':
+        // Surface for manual review; alarms pick up the error-log line.
+        console.error('stripe_dispute_created', stripeEvent.data.object?.id, stripeEvent.data.object?.amount);
+        break;
       default:
         break; // ignore everything else
     }
   } catch (err) {
     // Processing failed after claiming — release the claim so Stripe's retry can
-    // reprocess, and return 500 so Stripe knows to retry.
+    // reprocess, then re-throw so the invocation registers as a Lambda error
+    // (BillingFn errors alarm) and API Gateway returns 5xx → Stripe retries.
     await releaseStripeEvent(stripeEvent.id);
     console.error('stripe_webhook_failed', stripeEvent.type, stripeEvent.id, err.message);
-    return json(500, { error: 'processing_failed' });
+    throw err;
   }
   return ok({ received: true });
 }
@@ -204,6 +216,11 @@ async function onCheckoutComplete(session) {
 
 // Billing-cycle anchor: set tier + RESET the monthly credit allowance.
 async function onInvoicePaid(invoice) {
+  // Only the cycle-anchoring invoices reset the allowance. Proration / one-off
+  // invoices (billing_reason 'subscription_update', 'manual', etc.) must NOT
+  // wipe a user's mid-cycle balance back to full.
+  const reason = invoice.billing_reason;
+  if (reason && reason !== 'subscription_create' && reason !== 'subscription_cycle') return;
   const user = await getUserByStripeCustomer(invoice.customer);
   if (!user) return;
   const price = invoice.lines?.data?.[0]?.price?.id;
@@ -234,4 +251,31 @@ async function onSubscriptionDeleted(sub) {
   const user = await getUserByStripeCustomer(sub.customer);
   if (!user) return;
   await applyDowngrade({ userId: user.userId, monthlyCredits: PLANS.free.monthlyCredits });
+}
+
+// Failed renewal/charge → flag the account past-due (keeps tier for now so Stripe
+// dunning can recover; subscription.deleted handles eventual cancel).
+async function onPaymentFailed(invoice) {
+  const user = await getUserByStripeCustomer(invoice.customer);
+  if (!user) return;
+  await setPastDue(user.userId, true);
+  console.error('stripe_payment_failed', user.userId, invoice.id);
+}
+
+// Refunded charge → claw back any top-up credits that charge granted. We map the
+// refunded charge back to its Checkout Session (which carries the credit amount).
+async function onChargeRefunded(charge) {
+  if (!charge.payment_intent) return;
+  let credits = 0, userId = null;
+  try {
+    const sessions = await stripe.checkout.sessions.list({ payment_intent: charge.payment_intent, limit: 1 });
+    const session = sessions.data?.[0];
+    if (session?.metadata?.type === 'topup') {
+      credits = parseInt(session.metadata.credits, 10) || 0;
+      userId = session.client_reference_id || session.metadata.userId || null;
+    }
+  } catch (e) { console.error('refund_session_lookup', charge.id, e.message); }
+  if (userId && credits > 0) {
+    await debitTopupCredits({ userId, amount: credits, action: 'topup_refund', meta: { chargeId: charge.id } });
+  }
 }

@@ -72,8 +72,10 @@ async function writeLedger({ userId, delta, balanceAfter, action, tool, meta = {
       TableName: TABLES.ledger,
       Item: {
         userId,
-        // Sort key is time-first + disambiguated; `at` is the clean ISO for display.
-        ts: `${now}#${Math.abs(delta)}#${tool || action}`,
+        // Sort key is time-first + a random suffix so two same-millisecond writes
+        // (concurrent spends / fan-out) never overwrite each other; `at` is the
+        // clean ISO for display.
+        ts: `${now}#${Math.abs(delta)}#${tool || action}#${rid()}`,
         at: now,
         action,
         tool: tool || null,
@@ -184,11 +186,12 @@ export async function releaseStripeEvent(eventId) {
 // UpdateCommand so a concurrent spendCredits — or other fields like topupCredits,
 // teasers, integrations — is never clobbered by a whole-item put.
 
-/** Billing-cycle anchor: set tier + hard-reset the monthly allowance. */
+/** Billing-cycle anchor: set tier + hard-reset the monthly allowance, and clear
+ * any past-due flag (a paid invoice means the account is current again). */
 export async function resetMonthlyAllowance({ userId, tier, monthlyCredits, periodEnd = null, previousCredits = 0 }) {
   const res = await ddb.send(new UpdateCommand({
     TableName: TABLES.users, Key: { userId },
-    UpdateExpression: 'SET #tier = :t, credits = :c, periodEnd = :p, updatedAt = :now',
+    UpdateExpression: 'SET #tier = :t, credits = :c, periodEnd = :p, updatedAt = :now REMOVE pastDue',
     ExpressionAttributeNames: { '#tier': 'tier' },
     ExpressionAttributeValues: { ':t': tier, ':c': monthlyCredits, ':p': periodEnd, ':now': new Date().toISOString() },
     ReturnValues: 'ALL_NEW',
@@ -196,6 +199,73 @@ export async function resetMonthlyAllowance({ userId, tier, monthlyCredits, peri
   const a = res.Attributes;
   await writeLedger({ userId, delta: monthlyCredits - previousCredits, balanceAfter: (a.credits || 0) + (a.topupCredits || 0), action: 'monthly_reset', meta: { tier } });
   return a;
+}
+
+/** Flag/clear an account as past-due (failed payment). Atomic, single attribute. */
+export async function setPastDue(userId, value) {
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.users, Key: { userId },
+    UpdateExpression: value ? 'SET pastDue = :v, updatedAt = :now' : 'REMOVE pastDue SET updatedAt = :now',
+    ExpressionAttributeValues: value ? { ':v': true, ':now': new Date().toISOString() } : { ':now': new Date().toISOString() },
+  }));
+}
+
+/** Claw back top-up credits on a refund/dispute (atomic, floored at 0). */
+export async function debitTopupCredits({ userId, amount, action = 'topup_refund', meta = {} }) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const user = await getUser(userId);
+    if (!user) return null;
+    const topup = user.topupCredits || 0;
+    const newTopup = Math.max(0, topup - amount);
+    if (newTopup === topup) return user; // nothing to claw back
+    try {
+      const res = await ddb.send(new UpdateCommand({
+        TableName: TABLES.users, Key: { userId },
+        UpdateExpression: 'SET topupCredits = :n, updatedAt = :now',
+        ConditionExpression: 'topupCredits = :o',
+        ExpressionAttributeValues: { ':n': newTopup, ':o': topup, ':now': new Date().toISOString() },
+        ReturnValues: 'ALL_NEW',
+      }));
+      const a = res.Attributes;
+      await writeLedger({ userId, delta: newTopup - topup, balanceAfter: (a.credits || 0) + (a.topupCredits || 0), action, meta });
+      return a;
+    } catch (e) { if (e.name !== 'ConditionalCheckFailedException') throw e; }
+  }
+  throw new Error('debit_contention');
+}
+
+/** Full paginated scan of the users table (for the monthly free-tier refill). */
+export async function scanAllUsers() {
+  const out = [];
+  let ExclusiveStartKey;
+  do {
+    const res = await ddb.send(new ScanCommand({ TableName: TABLES.users, ExclusiveStartKey }));
+    out.push(...(res.Items || []));
+    ExclusiveStartKey = res.LastEvaluatedKey;
+  } while (ExclusiveStartKey);
+  return out;
+}
+
+/** Free-tier monthly refill — atomic + idempotent per period via a condition on
+ * `freeRefillAt` so overlapping daily runs can't double-refill. Returns the new
+ * item, or null if it was already refilled for this period. */
+export async function refillFreeTier({ userId, monthlyCredits, nextAt, seenAt }) {
+  const now = new Date().toISOString();
+  try {
+    const res = await ddb.send(new UpdateCommand({
+      TableName: TABLES.users, Key: { userId },
+      UpdateExpression: 'SET credits = :c, freeRefillAt = :next, updatedAt = :now',
+      ConditionExpression: 'attribute_not_exists(freeRefillAt) OR freeRefillAt = :seen',
+      ExpressionAttributeValues: { ':c': monthlyCredits, ':next': nextAt, ':now': now, ':seen': seenAt ?? '∅' },
+      ReturnValues: 'ALL_NEW',
+    }));
+    const a = res.Attributes;
+    await writeLedger({ userId, delta: 0, balanceAfter: (a.credits || 0) + (a.topupCredits || 0), action: 'monthly_reset_free', meta: { monthlyCredits } });
+    return a;
+  } catch (e) {
+    if (e.name === 'ConditionalCheckFailedException') return null;
+    throw e;
+  }
 }
 
 /** Tier change (upgrade): set tier and top the monthly bucket up to the new

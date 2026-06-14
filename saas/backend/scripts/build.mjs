@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const FUNCTIONS = ['authorizer', 'auth', 'me', 'metering', 'billing', 'admin', 'app', 'close', 'track'];
+const FUNCTIONS = ['authorizer', 'auth', 'me', 'metering', 'billing', 'admin', 'app', 'close', 'track', 'refill'];
 
 await rm(path.join(root, '.build'), { recursive: true, force: true });
 
