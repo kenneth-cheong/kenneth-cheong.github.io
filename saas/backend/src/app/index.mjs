@@ -408,7 +408,8 @@ async function notifyReply(ownerId, ticket, text) {
 }
 
 async function assistantReply(user, messages) {
-  const system = await buildChatSystem(user);
+  const query = [...(messages || [])].reverse().find((m) => m.role === 'user')?.content || '';
+  const system = await buildChatSystem(user, query);
   const history = (messages || []).slice(-10).map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n');
   const userPrompt = `${system}\n\nConversation so far:\n${history}\n\nAssistant:`;
   const res = await fetch(UPSTREAMS.aiOptimiser, {

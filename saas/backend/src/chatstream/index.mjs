@@ -43,7 +43,8 @@ export const handler = aws.streamifyResponse(async (event, responseStream) => {
   if (!msgs.length) return json(400, { error: 'Nothing to send.' });
 
   const conversationId = body.conversationId || `${new Date().toISOString()}#${Math.random().toString(36).slice(2, 8)}`;
-  const system = await buildChatSystem(user);
+  const query = [...msgs].reverse().find((m) => m.role === 'user')?.content || '';
+  const system = await buildChatSystem(user, query);
 
   // ── Stream ──
   const rs = aws.HttpResponseStream.from(responseStream, {

@@ -4,6 +4,7 @@
 // behaviourally identical.
 import { listProjects, listTracked, listRuns } from './dynamo.mjs';
 import { isStaff } from './admin.mjs';
+import { retrieveKb } from './kb.mjs';
 import { CREDIT_COSTS, PLANS, TOOLS } from '../../../shared/catalog.mjs';
 import { integrationSummary } from '../../../shared/connectors.mjs';
 
@@ -90,9 +91,13 @@ export async function buildUserContext(user) {
   return lines.join('\n');
 }
 
-/** Full system prompt for the chat (rules + tool catalog + this user's context). */
-export async function buildChatSystem(user) {
+/** Full system prompt for the chat (rules + tool catalog + retrieved help KB +
+ *  this user's context). `query` is the latest user message, used to pull the
+ *  most relevant knowledge-base entries to ground the answer. */
+export async function buildChatSystem(user, query = '') {
   const context = await buildUserContext(user);
+  const help = retrieveKb(query);
   return `${CHAT_RULES}\n\nTools you can recommend (id — name [min tier, credits]: what it does):\n${TOOL_CATALOG}\n\n` +
+    `HELP / KNOWLEDGE BASE (authoritative — use these facts for how-to & policy questions; don't invent):\n${help}\n\n` +
     `Here is everything known about this user (their own data — safe to share with them):\n${context}`;
 }
