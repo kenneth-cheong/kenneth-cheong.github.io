@@ -14,7 +14,12 @@ import {
 } from '../lib/dynamo.mjs';
 import { rankPosition, rankHistory } from '../lib/rank.mjs';
 import { UPSTREAMS } from '../metering/upstreams.mjs';
-import { CREDIT_COSTS, INTEGRATIONS, PLANS } from '../../../shared/catalog.mjs';
+import { CREDIT_COSTS, INTEGRATIONS, PLANS, TOOLS } from '../../../shared/catalog.mjs';
+
+// Compact catalog the assistant uses to recommend the right tool for a goal.
+const TOOL_CATALOG = TOOLS
+  .map((t) => `${t.id} — ${t.name} [${t.minTier}, ${CREDIT_COSTS[t.cost] ?? 0}cr]: ${t.desc}`)
+  .join('\n');
 import { integrationSummary } from '../../../shared/connectors.mjs';
 import { oauthConfigured, authUrl, exchangeCode, detectAccount, listAccounts } from '../lib/google.mjs';
 import { signOAuthState, verifyOAuthState } from '../lib/jwt.mjs';
@@ -410,14 +415,20 @@ async function assistantReply(user, messages) {
   const context = await buildUserContext(user);
   const history = (messages || []).slice(-10).map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n');
   const userPrompt =
-    "Reply ONLY with the assistant's next chat message. Hard rules: 2–4 short sentences max, " +
-    'plain conversational text, NO markdown, NO headings, NO tables, NO bullet lists, NO preamble.\n\n' +
+    "Reply ONLY with the assistant's next chat message. Keep it short and conversational " +
+    '(2–5 sentences), NO markdown, NO headings, NO tables, NO bullet lists, NO preamble.\n\n' +
     'You are the in-app assistant for Digimetrics, a self-serve SEO + AI-content + AI-visibility ' +
     'SaaS. Be helpful and brief. You can answer questions about the user\'s OWN account, plan, ' +
     'credits/billing, projects (campaigns), tracked-keyword rankings, recent tool runs, and connected ' +
     'integrations using the context below — quote the real numbers, don\'t invent. For billing changes ' +
     '(upgrade, cancel, refunds) point them to the Pricing or Account page. If you cannot resolve an ' +
     'issue, suggest opening a support ticket.\n\n' +
+    'RECOMMEND TOOLS: when a tool would help the user reach their goal, recommend the best 1–2 and ' +
+    'link each by writing [[tool:<id>]] inline — the app renders that token as a clickable button that ' +
+    'opens the tool. Use ids ONLY from the Tools list below (never invent one), prefer free/low-cost ' +
+    'tools the user\'s tier can run, and don\'t write raw URLs or markdown links. Example: ' +
+    '"To find low-competition keywords, try [[tool:keyword-analysis]]."\n\n' +
+    `Tools you can recommend (id — name [min tier, credits]: what it does):\n${TOOL_CATALOG}\n\n` +
     `Here is everything known about this user (their own data — safe to share with them):\n${context}\n\n` +
     `Conversation so far:\n${history}\n\nAssistant:`;
   const res = await fetch(UPSTREAMS.aiOptimiser, {

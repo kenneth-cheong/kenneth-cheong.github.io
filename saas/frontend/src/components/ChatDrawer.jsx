@@ -1,12 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { CREDIT_COSTS } from '@shared/catalog.mjs';
-import { X, Plus, History, Trash2, ArrowLeft } from 'lucide-react';
+import { CREDIT_COSTS, toolById } from '@shared/catalog.mjs';
+import { X, Plus, History, Trash2, ArrowLeft, ArrowRight } from 'lucide-react';
 
 const COST = CREDIT_COSTS.ai_chat ?? 2;
 const GREETING = { role: 'assistant', content: "Hi! I'm your Digimetrics assistant. Ask me about any tool, how to get started, or your connected Search Console / GA4 / Ads numbers." };
+
+// Render an assistant message, turning [[tool:<id>]] tokens into clickable
+// "open tool" chips that navigate to the tool (and close the drawer).
+function renderMessage(text, onToolClick) {
+  const re = /\[\[tool:([a-z0-9-]+)\]\]/gi;
+  const out = [];
+  let last = 0, m, k = 0;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const tool = toolById(m[1]);
+    if (tool) {
+      out.push(
+        <button key={`t${k++}`} onClick={() => onToolClick(tool.id)}
+          className="mx-0.5 my-0.5 inline-flex items-center gap-1 rounded-full bg-brand-600 px-2.5 py-0.5 align-middle text-xs font-semibold text-white hover:bg-brand-700">
+          {tool.name} <ArrowRight size={12} aria-hidden />
+        </button>
+      );
+    } else {
+      out.push(m[0]); // unknown id — leave as-is
+    }
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
 
 // Relative "time ago" for the history list.
 function ago(iso) {
@@ -24,6 +49,8 @@ function ago(iso) {
 // server-side: start a new one or reopen past ones from the history list.
 export default function ChatDrawer({ open, onClose, width = 384, ask }) {
   const { setCredits } = useAuth();
+  const navigate = useNavigate();
+  const openTool = (id) => { onClose?.(); navigate(`/tool/${id}`); };
   const [msgs, setMsgs] = useState([GREETING]);
   const [conversationId, setConversationId] = useState(null);
   const [draft, setDraft] = useState('');
@@ -161,7 +188,7 @@ export default function ChatDrawer({ open, onClose, width = 384, ask }) {
                     : 'rounded-bl-sm bg-slate-100 text-slate-800'
                 }`}
               >
-                {m.content}
+                {m.role === 'assistant' ? renderMessage(m.content, openTool) : m.content}
               </div>
             ))}
             {busy && <div className="w-16 rounded-2xl rounded-bl-sm bg-slate-100 px-3 py-2 text-sm text-slate-400">…</div>}
