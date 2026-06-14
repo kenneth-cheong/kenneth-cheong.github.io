@@ -62,7 +62,10 @@ export default function SiteAudit() {
     const results = await Promise.all(runnable.map(async (a) => {
       const t = toolById(a.id);
       try {
-        const resp = await api.runTool(a.id, a.input(site), !!t.slow && !!RUN_URL);
+        // Always prefer the Function URL (180s) for audit checks — several take
+        // longer than the 30s API-Gateway cap, which would 504 the browser while
+        // the Lambda finishes (and still charges). RUN_URL routes around that.
+        const resp = await api.runTool(a.id, a.input(site), !!RUN_URL);
         if (typeof resp.creditsRemaining === 'number') setCredits(resp.creditsRemaining);
         const r = resp.result || {};
         if (r.error || r.needsConnect) { setStatus(a.id, 'fail'); return null; }
