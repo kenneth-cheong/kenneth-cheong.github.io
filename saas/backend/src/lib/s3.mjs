@@ -1,22 +1,32 @@
 // Support-ticket attachment storage. Uploads (base64 from the client — pasted or
-// chosen screenshots/files) are streamed through the Lambda to S3 and served
-// from unguessable public-read keys. @aws-sdk/client-s3 ships with the nodejs20
-// Lambda runtime (externalised by the bundler).
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+// chosen screenshots/files) are streamed through the Lambda to a PRIVATE S3
+// bucket. Objects are never public; they're served via short-lived presigned GET
+// URLs minted on read, so a leaked/stale URL expires quickly.
+// @aws-sdk/client-s3 ships with the nodejs20 runtime (externalised by the
+// bundler); the presigner is bundled (see scripts/build.mjs).
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const s3 = new S3Client({});
 const BUCKET = process.env.ATTACHMENTS_BUCKET;
-const REGION = process.env.AWS_REGION || 'ap-southeast-1';
 const MAX_BYTES = 8 * 1024 * 1024; // 8MB cap
+const URL_TTL = 600; // presigned GET validity (seconds)
 
 const EXT = {
   'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp',
   'application/pdf': 'pdf', 'text/plain': 'txt',
 };
 
+/** A short-lived presigned GET URL for a stored attachment key. */
+export async function signAttachmentUrl(key) {
+  if (!BUCKET || !key) return null;
+  return getSignedUrl(s3, new GetObjectCommand({ Bucket: BUCKET, Key: key }), { expiresIn: URL_TTL });
+}
+
 /**
  * Store one attachment. `dataBase64` may be a raw base64 string or a data URL.
- * Returns { url, name, contentType, size }.
+ * Returns { key, url, name, contentType, size } — `key` is persisted on the
+ * ticket; `url` is a presigned GET for immediate preview (re-signed on read).
  */
 export async function putAttachment({ userId, name, contentType, dataBase64 }) {
   if (!BUCKET) throw new Error('Attachments are not configured on this deployment.');
@@ -29,14 +39,27 @@ export async function putAttachment({ userId, name, contentType, dataBase64 }) {
   const ct = contentType || 'application/octet-stream';
   const ext = EXT[ct] || (name && name.includes('.') ? name.split('.').pop().slice(0, 5) : 'bin');
   const key = `attachments/${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-  await s3.send(new PutObjectCommand({
-    Bucket: BUCKET, Key: key, Body: buf, ContentType: ct,
-    CacheControl: 'public, max-age=31536000',
-  }));
+  await s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: buf, ContentType: ct }));
   return {
-    url: `https://${BUCKET}.s3.${REGION}.amazonaws.com/${key}`,
+    key,
+    url: await signAttachmentUrl(key),
     name: name || key.split('/').pop(),
     contentType: ct,
     size: buf.length,
   };
+}
+
+/**
+ * Refresh every attachment URL on a ticket's message thread with a freshly
+ * signed GET (the stored `url` is stale/expired). Mutates and returns the ticket.
+ * Legacy attachments with no `key` (pre-private-bucket) keep their stored url.
+ */
+export async function signTicketAttachments(ticket) {
+  if (!ticket?.messages) return ticket;
+  for (const msg of ticket.messages) {
+    for (const att of (msg.attachments || [])) {
+      if (att.key) att.url = await signAttachmentUrl(att.key);
+    }
+  }
+  return ticket;
 }

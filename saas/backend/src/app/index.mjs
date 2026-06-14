@@ -17,7 +17,7 @@ import { CREDIT_COSTS, INTEGRATIONS, PLANS } from '../../../shared/catalog.mjs';
 import { integrationSummary } from '../../../shared/connectors.mjs';
 import { oauthConfigured, authUrl, exchangeCode, detectAccount, listAccounts } from '../lib/google.mjs';
 import { signOAuthState, verifyOAuthState } from '../lib/jwt.mjs';
-import { putAttachment } from '../lib/s3.mjs';
+import { putAttachment, signTicketAttachments } from '../lib/s3.mjs';
 import { sendEmail, SUPPORT_INBOX } from '../lib/email.mjs';
 import { isStaff } from '../lib/admin.mjs';
 import { ok, badRequest, unauthorized, paymentRequired, tooManyRequests, parseBody, claims, preflight, isEmail, clampStr } from '../lib/http.mjs';
@@ -213,7 +213,8 @@ export const handler = async (event) => {
       // Admins can open any user's ticket by passing the owner's id.
       const owner = (isStaff(user) && event.queryStringParameters?.ownerUserId) || user.userId;
       const ticket = await getTicket(owner, seg(path, '/support/tickets/'));
-      return ticket ? ok({ ticket }) : badRequest('Ticket not found');
+      // Mint fresh presigned URLs for attachments (private bucket — stored urls expire).
+      return ticket ? ok({ ticket: await signTicketAttachments(ticket) }) : badRequest('Ticket not found');
     }
     if (method === 'POST' && path.includes('/reply')) {
       const ticketId = seg(path, '/support/tickets/');

@@ -24,8 +24,19 @@ for (const fn of FUNCTIONS) {
     platform: 'node',
     format: 'esm',
     target: 'node20',
-    // The AWS SDK v3 ships with the Lambda nodejs20 runtime — don't bundle it.
-    external: ['@aws-sdk/*'],
+    // The big AWS SDK v3 clients ship with the nodejs20 runtime — keep them
+    // external. But bundle the smaller utils (e.g. @aws-sdk/s3-request-presigner
+    // and its signing helpers), which are NOT guaranteed in the runtime.
+    plugins: [{
+      name: 'aws-sdk-external',
+      setup(b) {
+        b.onResolve({ filter: /^@aws-sdk\// }, (args) => (
+          /^@aws-sdk\/(client-|lib-)/.test(args.path)
+            ? { path: args.path, external: true }
+            : undefined // bundle util-*, s3-request-presigner, signature-v4*, etc.
+        ));
+      },
+    }],
     // Some deps (jsonwebtoken, google-auth-library) use CommonJS `require`.
     banner: { js: "import{createRequire as ___cr}from'module';const require=___cr(import.meta.url);" },
     logLevel: 'info',

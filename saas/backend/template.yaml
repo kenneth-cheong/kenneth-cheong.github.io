@@ -225,7 +225,8 @@ Resources:
         - { AttributeName: userId, KeyType: HASH }
         - { AttributeName: notifId, KeyType: RANGE }
 
-  # Ticket attachments (screenshots / files). Unguessable keys, public-read GET.
+  # Ticket attachments (screenshots / files). PRIVATE — objects are served only
+  # via short-lived presigned GET URLs the app mints on read (see lib/s3.mjs).
   AttachmentsBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
@@ -234,26 +235,15 @@ Resources:
       OwnershipControls:
         Rules: [{ ObjectOwnership: BucketOwnerEnforced }]
       PublicAccessBlockConfiguration:
-        BlockPublicAcls: false
-        BlockPublicPolicy: false
-        IgnorePublicAcls: false
-        RestrictPublicBuckets: false
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
       CorsConfiguration:
         CorsRules:
           - AllowedMethods: [GET]
             AllowedOrigins: ['*']
             AllowedHeaders: ['*']
-
-  AttachmentsBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref AttachmentsBucket
-      PolicyDocument:
-        Statement:
-          - Effect: Allow
-            Principal: '*'
-            Action: s3:GetObject
-            Resource: !Sub '${AttachmentsBucket.Arn}/attachments/*'
 
   # ── HTTP API + JWT (Lambda) authorizer ──────────────────────────────────
   Api:
