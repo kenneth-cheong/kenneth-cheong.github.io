@@ -9,10 +9,14 @@ import SortableTable from '../components/SortableTable.jsx';
 // include the full result): empty/0-rows → No data; error-ish text → Issue.
 function statusOf(r) {
   const p = (r.preview || '').toLowerCase().trim();
-  if (!p || /^0 rows\b|^0 \b|^no\b/.test(p)) return { label: 'No data', cls: 'bg-slate-100 text-slate-500' };
-  if (/couldn.?t|could not|unable|fail|error|reconnect|not connected|disconnect|no .*data/.test(p)) {
+  // Error-ish text first (e.g. "couldn't pull live data — reconnect…").
+  if (/couldn.?t|could not|unable|fail|error|reconnect|not connected|disconnect/.test(p)) {
     return { label: 'Issue', cls: 'bg-amber-100 text-amber-700' };
   }
+  // An explicit zero-row count is genuinely empty. (An empty preview just means
+  // the result format — e.g. `sections` — isn't captured in the preview, so we
+  // treat it as OK rather than mislabel a successful content run.)
+  if (/^0 rows?\b|^0$/.test(p)) return { label: 'No data', cls: 'bg-slate-100 text-slate-500' };
   return { label: 'OK', cls: 'bg-green-100 text-green-700' };
 }
 
