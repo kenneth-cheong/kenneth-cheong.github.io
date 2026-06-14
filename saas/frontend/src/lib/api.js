@@ -115,8 +115,10 @@ export const api = {
   // Keyword tracking
   tracking: (projectId) => call(`/tracking${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
   addTracked: (keyword, domain, location, projectId) => call('/tracking', { method: 'POST', body: { keyword, domain, location, projectId } }),
+  addTrackedBulk: (keywords, domain, location, projectId) => call('/tracking', { method: 'POST', body: { keywords, domain, location, projectId } }),
   removeTracked: (trackId) => call('/tracking/delete', { method: 'POST', body: { trackId } }),
   refreshTracking: (projectId, trackId) => call('/tracking/refresh', { method: 'POST', body: { projectId, trackId } }),
+  backfillTracking: (projectId, trackId) => call('/tracking/refresh', { method: 'POST', body: { projectId, trackId, backfill: true } }),
   // Integrations (Google OAuth)
   integrations: () => call('/integrations'),
   integrationAccounts: (provider) => call(`/integrations/accounts?provider=${encodeURIComponent(provider)}`),

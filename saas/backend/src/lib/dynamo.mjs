@@ -476,18 +476,47 @@ export async function removeTracked(userId, trackId) {
   await ddb.send(new DeleteCommand({ TableName: TABLES.tracked, Key: { userId, trackId } }));
 }
 export async function scanTracked() { const { Items } = await ddb.send(new ScanCommand({ TableName: TABLES.tracked })); return Items || []; }
-/** Append today's rank position (one point per day; last 120 kept). */
-export async function appendSnapshot(userId, trackId, position) {
+/** Append today's rank position + ranking URL (one point per day; last 120 kept). */
+export async function appendSnapshot(userId, trackId, position, url = null) {
   const { Item } = await ddb.send(new GetCommand({ TableName: TABLES.tracked, Key: { userId, trackId } }));
   if (!Item) return;
   const date = new Date().toISOString().slice(0, 10);
   const history = (Item.history || []).filter((h) => h.date !== date);
-  history.push({ date, position });
+  const point = { date, position };
+  if (url) point.url = url;
+  history.push(point);
   history.sort((a, b) => a.date.localeCompare(b.date));
   await ddb.send(new UpdateCommand({
     TableName: TABLES.tracked, Key: { userId, trackId },
-    UpdateExpression: 'SET history = :h, lastPosition = :p, updatedAt = :t',
-    ExpressionAttributeValues: { ':h': history.slice(-120), ':p': position, ':t': new Date().toISOString() },
+    UpdateExpression: 'SET history = :h, lastPosition = :p, lastUrl = :u, updatedAt = :t',
+    ExpressionAttributeValues: { ':h': history.slice(-120), ':p': position, ':u': url || '', ':t': new Date().toISOString() },
+  }));
+}
+
+/**
+ * Merge backfilled historical points (dated, possibly older than today) into a
+ * keyword's history without clobbering existing live points. lastPosition/lastUrl
+ * track the most-recent date overall after the merge.
+ */
+export async function mergeSnapshots(userId, trackId, points) {
+  if (!points || !points.length) return;
+  const { Item } = await ddb.send(new GetCommand({ TableName: TABLES.tracked, Key: { userId, trackId } }));
+  if (!Item) return;
+  const map = new Map();
+  for (const h of (Item.history || [])) map.set(h.date, h);
+  // Backfill only fills gaps — never overwrite a date we already checked live.
+  for (const p of points) {
+    if (!p.date || map.has(p.date)) continue;
+    const pt = { date: p.date, position: p.position };
+    if (p.url) pt.url = p.url;
+    map.set(p.date, pt);
+  }
+  const history = [...map.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-120);
+  const last = history[history.length - 1] || {};
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.tracked, Key: { userId, trackId },
+    UpdateExpression: 'SET history = :h, lastPosition = :p, lastUrl = :u, updatedAt = :t',
+    ExpressionAttributeValues: { ':h': history, ':p': last.position ?? 0, ':u': last.url || '', ':t': new Date().toISOString() },
   }));
 }
 

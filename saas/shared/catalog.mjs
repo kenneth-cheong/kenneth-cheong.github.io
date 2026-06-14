@@ -90,6 +90,7 @@ export const CREDIT_COSTS = {
   ai_long: 5, // article write/optimise, strategy, persona set, media plan
   keyword_lookup: 1, // per batch (≤10 keywords) with volume + difficulty
   rank_check: 1, // per keyword × location
+  rank_backfill: 3, // per keyword — historical dated SERP snapshots (DataForSEO Labs)
   crawl: 2, // per 10 pages
   backlinks: 5, // per domain report
   page_analysis: 5, // landing page / SEM website analysis

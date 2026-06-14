@@ -8,8 +8,8 @@ export const handler = async () => {
   let updated = 0;
   for (const t of all) {
     try {
-      const pos = await rankPosition({ keyword: t.keyword, target: t.domain, location: t.location });
-      await appendSnapshot(t.userId, t.trackId, pos);
+      const { position, url } = await rankPosition({ keyword: t.keyword, target: t.domain, location: t.location });
+      await appendSnapshot(t.userId, t.trackId, position, url);
       updated++;
     } catch (e) { console.error('track_failed', t.trackId, e.message); }
   }

@@ -8,9 +8,9 @@ import {
   setIntegration, redactIntegrations,
   addNotification, listNotifications, markNotificationsRead,
   createProject, listProjects, deleteProject,
-  addTracked, listTracked, countTracked, removeTracked, appendSnapshot,
+  addTracked, listTracked, countTracked, removeTracked, appendSnapshot, mergeSnapshots,
 } from '../lib/dynamo.mjs';
-import { rankPosition } from '../lib/rank.mjs';
+import { rankPosition, rankHistory } from '../lib/rank.mjs';
 import { UPSTREAMS } from '../metering/upstreams.mjs';
 import { CREDIT_COSTS, INTEGRATIONS, PLANS } from '../../../shared/catalog.mjs';
 import { integrationSummary } from '../../../shared/connectors.mjs';
@@ -95,27 +95,70 @@ export const handler = async (event) => {
     if (method === 'POST' && path.endsWith('/tracking/refresh')) {
       const tracked = await listTracked(user.userId, body.projectId);
       const targets = body.trackId ? tracked.filter((t) => t.trackId === body.trackId) : tracked;
-      for (const t of targets) {
-        try { await appendSnapshot(user.userId, t.trackId, await rankPosition({ keyword: t.keyword, target: t.domain, location: t.location })); }
-        catch (e) { console.error('track_refresh', t.trackId, e.message); }
+
+      // ── Historical backfill (billable) — pull past dated SERP snapshots and
+      // merge them in. Charges rank_backfill credits per keyword; the client
+      // confirms the cost before calling. Bill only keywords we actually fetch.
+      if (body.backfill) {
+        if (!targets.length) return badRequest('No keywords to backfill.');
+        const per = CREDIT_COSTS.rank_backfill;
+        const need = per * targets.length;
+        const have = await totalCredits(user.userId);
+        if (have < need) return badRequest(`Backfilling ${targets.length} keyword${targets.length > 1 ? 's' : ''} costs ${need} credits — you have ${have}. Top up or select fewer keywords.`);
+        let charged = 0;
+        for (let i = 0; i < targets.length; i += 5) {
+          await Promise.all(targets.slice(i, i + 5).map(async (t) => {
+            try {
+              const points = await rankHistory({ keyword: t.keyword, target: t.domain, location: t.location });
+              await mergeSnapshots(user.userId, t.trackId, points);
+              await spendCredits({ userId: user.userId, cost: per, action: 'rank_backfill', tool: 'keyword-tracking', meta: { keyword: t.keyword } });
+              charged += per;
+            } catch (e) { console.error('track_backfill', t.trackId, e.message); }
+          }));
+        }
+        return ok({ tracked: await listTracked(user.userId, body.projectId), charged });
+      }
+
+      // ── Live refresh (free) — check today's position in small parallel
+      // batches so a big keyword set still finishes inside the Lambda timeout.
+      for (let i = 0; i < targets.length; i += 8) {
+        await Promise.all(targets.slice(i, i + 8).map(async (t) => {
+          try { const { position, url } = await rankPosition({ keyword: t.keyword, target: t.domain, location: t.location }); await appendSnapshot(user.userId, t.trackId, position, url); }
+          catch (e) { console.error('track_refresh', t.trackId, e.message); }
+        }));
       }
       return ok({ tracked: await listTracked(user.userId, body.projectId) });
     }
     if (method === 'POST' && path.endsWith('/tracking')) {
       const limit = PLANS[user.tier]?.trackedKeywords ?? 0;
-      if ((await countTracked(user.userId)) >= limit) {
-        return badRequest(limit === 0 ? 'Keyword tracking is a paid feature — upgrade to start tracking.' : `Your plan tracks up to ${limit} keywords. Upgrade for more.`);
-      }
+      const current = await countTracked(user.userId);
       // Tracking lives under a project: require one the user actually owns.
       if (!body.projectId) return badRequest('Create a project first — keywords are tracked under a project.');
       const projects = await listProjects(user.userId);
       if (!projects.some((p) => p.projectId === body.projectId)) return badRequest('That project no longer exists.');
-      const keyword = (body.keyword || '').trim();
       const domain = (body.domain || '').trim();
+
+      // ── Bulk add (one record per keyword, no initial check — the user/daily
+      // job fills positions via refresh, keeping this request fast). ──────────
+      if (Array.isArray(body.keywords)) {
+        if (!domain) return badRequest('A domain is required.');
+        const kws = [...new Set(body.keywords.map((k) => String(k).trim()).filter(Boolean))].slice(0, 100);
+        if (!kws.length) return badRequest('Add at least one keyword.');
+        if (current + kws.length > limit) {
+          return badRequest(limit === 0 ? 'Keyword tracking is a paid feature — upgrade to start tracking.' : `Your plan tracks up to ${limit} keywords — you have ${current}, so you can add ${Math.max(0, limit - current)} more.`);
+        }
+        await Promise.all(kws.map((keyword) => addTracked({ userId: user.userId, projectId: body.projectId, keyword, domain, location: body.location })));
+        return ok({ tracked: await listTracked(user.userId, body.projectId) });
+      }
+
+      // ── Single add (seeds an initial data point so the chart isn't empty). ──
+      if (current >= limit) {
+        return badRequest(limit === 0 ? 'Keyword tracking is a paid feature — upgrade to start tracking.' : `Your plan tracks up to ${limit} keywords. Upgrade for more.`);
+      }
+      const keyword = (body.keyword || '').trim();
       if (!keyword || !domain) return badRequest('A keyword and domain are required.');
       const item = await addTracked({ userId: user.userId, projectId: body.projectId, keyword, domain, location: body.location });
-      // Seed an initial data point so the chart isn't empty.
-      try { await appendSnapshot(user.userId, item.trackId, await rankPosition({ keyword, target: domain, location: body.location })); } catch { /* best-effort */ }
+      try { const { position, url } = await rankPosition({ keyword, target: domain, location: body.location }); await appendSnapshot(user.userId, item.trackId, position, url); } catch { /* best-effort */ }
       return ok({ tracked: (await listTracked(user.userId, body.projectId)).find((t) => t.trackId === item.trackId) || item });
     }
 
