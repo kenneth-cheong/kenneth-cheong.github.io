@@ -10,12 +10,15 @@ export default function Account() {
   const [params] = useSearchParams();
   const [busy, setBusy] = useState(false);
   const [topupBusy, setTopupBusy] = useState(null);
+  const [docs, setDocs] = useState(null);
   const plan = PLANS[user.tier];
 
   // Returning from Stripe Checkout / top-up → pull the fresh tier + credits.
   useEffect(() => {
     if (params.get('checkout') === 'success' || params.get('topup') === 'success') refresh();
   }, [params, refresh]);
+
+  useEffect(() => { api.invoices().then((d) => setDocs(d.documents || [])).catch(() => setDocs([])); }, []);
 
   async function buyTopup(packId) {
     setTopupBusy(packId);
@@ -92,6 +95,33 @@ export default function Account() {
         )}
       </div>
 
+      {/* ── Invoices & receipts ───────────────────────────────────────── */}
+      {docs && docs.length > 0 && (
+        <div className="card mt-4 p-5">
+          <h2 className="font-bold">Invoices &amp; receipts</h2>
+          <p className="mt-1 text-sm text-slate-500">Your subscription invoices and one-time top-up receipts.</p>
+          <div className="mt-4 divide-y divide-slate-100">
+            {docs.map((d) => (
+              <div key={d.id} className="flex items-center gap-3 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-slate-800">
+                    {d.type === 'invoice' ? (d.number || 'Invoice') : 'Receipt'}
+                    <span className="font-normal text-slate-400"> · {d.description}</span>
+                  </div>
+                  <div className="text-xs text-slate-400">{new Date(d.created * 1000).toLocaleDateString()}</div>
+                </div>
+                <span className="text-sm font-semibold tabular-nums">{money(d.amount, d.currency)}</span>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${d.status === 'paid' || d.status === 'succeeded' ? 'bg-green-100 text-green-700' : d.status === 'refunded' ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'}`}>{d.status}</span>
+                <div className="flex gap-2">
+                  {d.pdf && <a href={d.pdf} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand-600 hover:text-brand-700">Download</a>}
+                  {d.url && <a href={d.url} target="_blank" rel="noreferrer" className="text-sm font-medium text-slate-500 hover:text-slate-800">{d.pdf ? 'View' : 'Receipt'}</a>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Credit top-ups (overage) ──────────────────────────────────── */}
       <div className="card mt-4 p-5">
         <h2 className="font-bold">Need more credits?</h2>
@@ -117,4 +147,12 @@ export default function Account() {
       </div>
     </div>
   );
+}
+
+function money(amountCents, currency) {
+  try {
+    return ((amountCents || 0) / 100).toLocaleString(undefined, { style: 'currency', currency: (currency || 'sgd').toUpperCase() });
+  } catch {
+    return `${((amountCents || 0) / 100).toFixed(2)} ${(currency || '').toUpperCase()}`;
+  }
 }

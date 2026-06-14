@@ -32,8 +32,45 @@ export const handler = async (event) => {
   if (path.endsWith('/checkout')) return handleCheckout(event);
   if (path.endsWith('/topup')) return handleTopup(event);
   if (path.endsWith('/portal')) return handlePortal(event);
+  if (path.endsWith('/invoices')) return handleInvoices(event);
   return badRequest('Unknown billing route');
 };
+
+// List the customer's billing documents: subscription invoices (with PDF +
+// hosted page) and standalone top-up charges (with a receipt URL).
+async function handleInvoices(event) {
+  const c = claims(event);
+  if (!c?.userId) return unauthorized();
+  const user = await getUser(c.userId);
+  if (!user?.stripeCustomerId) return ok({ documents: [] });
+  const customer = user.stripeCustomerId;
+
+  const [invoices, charges] = await Promise.all([
+    stripe.invoices.list({ customer, limit: 24 }),
+    stripe.charges.list({ customer, limit: 24 }),
+  ]);
+
+  const documents = [];
+  for (const i of invoices.data) {
+    documents.push({
+      id: i.id, type: 'invoice', number: i.number,
+      created: i.created, amount: i.amount_paid ?? i.total, currency: i.currency,
+      status: i.status, pdf: i.invoice_pdf, url: i.hosted_invoice_url,
+      description: i.lines?.data?.[0]?.description || 'Subscription',
+    });
+  }
+  for (const ch of charges.data) {
+    if (ch.invoice || ch.status !== 'succeeded') continue; // subscription charges already show as their invoice
+    documents.push({
+      id: ch.id, type: 'receipt',
+      created: ch.created, amount: ch.amount, currency: ch.currency,
+      status: ch.refunded ? 'refunded' : 'paid', url: ch.receipt_url,
+      description: ch.description || 'Credit top-up',
+    });
+  }
+  documents.sort((a, b) => b.created - a.created);
+  return ok({ documents });
+}
 
 async function handleCheckout(event) {
   const c = claims(event);

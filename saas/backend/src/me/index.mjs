@@ -4,7 +4,7 @@
 import { getUser, listLedger, totalCredits } from '../lib/dynamo.mjs';
 import { PLANS } from '../../../shared/catalog.mjs';
 import { ok, unauthorized, claims } from '../lib/http.mjs';
-import { isAdmin } from '../lib/admin.mjs';
+import { isStaff } from '../lib/admin.mjs';
 
 export const handler = async (event) => {
   const c = claims(event);
@@ -31,7 +31,7 @@ export const handler = async (event) => {
       topupCredits: user.topupCredits || 0,
       periodEnd: user.periodEnd,
       hasSubscription: !!user.stripeCustomerId,
-      isAdmin: isAdmin(user.email),
+      isAdmin: isStaff(user),
     },
     plan: { ...plan },
   });

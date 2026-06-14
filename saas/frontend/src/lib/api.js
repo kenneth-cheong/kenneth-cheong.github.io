@@ -81,6 +81,7 @@ export const api = {
   checkout: (tier, interval) => call('/billing/checkout', { method: 'POST', body: { tier, interval } }),
   topup: (packId) => call('/billing/topup', { method: 'POST', body: { packId } }),
   portal: () => call('/billing/portal', { method: 'POST' }),
+  invoices: () => call('/billing/invoices'),
   // In-app features: assistant chat, run history, support, integrations.
   chat: (messages) => call('/chat', { method: 'POST', body: { messages } }),
   runs: () => call('/me/runs'),
@@ -98,6 +99,15 @@ export const api = {
   closeTicket: (ticketId) => call(`/support/tickets/${encodeURIComponent(ticketId)}/close`, { method: 'POST' }),
   uploadAttachment: ({ name, contentType, data }) =>
     call('/support/attachments', { method: 'POST', body: { name, contentType, data } }),
+  // Admin support console — list/view/reply/close ANY user's ticket (server
+  // verifies the caller is an admin; reply is posted as the support agent).
+  adminTickets: () => call('/support/tickets?all=1'),
+  adminTicket: (ownerUserId, ticketId) =>
+    call(`/support/tickets/${encodeURIComponent(ticketId)}?ownerUserId=${encodeURIComponent(ownerUserId)}`),
+  adminReplyTicket: (ownerUserId, ticketId, body, attachments = []) =>
+    call(`/support/tickets/${encodeURIComponent(ticketId)}/reply`, { method: 'POST', body: { body, attachments, asAgent: true, ownerUserId } }),
+  adminCloseTicket: (ownerUserId, ticketId) =>
+    call(`/support/tickets/${encodeURIComponent(ticketId)}/close`, { method: 'POST', body: { ownerUserId } }),
   // Projects
   projects: () => call('/projects'),
   createProject: (name, domain) => call('/projects', { method: 'POST', body: { name, domain } }),
@@ -115,6 +125,8 @@ export const api = {
     call('/integrations/connect', { method: 'POST', body: { provider, account, connected } }),
   // Admin
   adminUsers: () => call('/admin/users'),
+  adminCreateUser: ({ email, name, role, tier, credits, sendInvite }) =>
+    call('/admin/users', { method: 'POST', body: { email, name, role, tier, credits, sendInvite } }),
   adminCredits: (userId, monthlyDelta, topupDelta, reason) =>
     call('/admin/credits', { method: 'POST', body: { userId, monthlyDelta, topupDelta, reason } }),
   adminTier: (userId, tier) => call('/admin/tier', { method: 'POST', body: { userId, tier } }),

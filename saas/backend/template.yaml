@@ -354,6 +354,7 @@ Resources:
         Checkout: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/checkout, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Topup: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/topup, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Portal: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/portal, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        Invoices: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/invoices, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Webhook: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /billing/webhook, Method: POST } }
 
   # ── In-app features (authed): chat, support, run history, integrations ──
@@ -464,11 +465,17 @@ Resources:
       Environment:
         Variables:
           ADMIN_EMAILS: !Ref AdminEmails
+          SES_FROM: !Ref SesFrom
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
+        - Statement:
+            - Effect: Allow
+              Action: [ses:SendEmail, ses:SendRawEmail]
+              Resource: '*'
       Events:
         Users: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/users, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        UserCreate: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/users, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Credits: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/credits, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Tier: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/tier, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
 

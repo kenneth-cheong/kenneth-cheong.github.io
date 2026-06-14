@@ -5,12 +5,12 @@
 // Keeps the existing Google Sign-In, but we mint our OWN JWTs so every other
 // endpoint is gated by our authorizer and tied to the user/credits record.
 import { OAuth2Client } from 'google-auth-library';
-import { getUser, putUser } from '../lib/dynamo.mjs';
+import { getUser, putUser, getProvision, deleteProvision } from '../lib/dynamo.mjs';
 import { signAccess, signRefresh, verify } from '../lib/jwt.mjs';
 import { PLANS } from '../../../shared/catalog.mjs';
 import { ok, badRequest, unauthorized, tooManyRequests, parseBody } from '../lib/http.mjs';
 import { rateLimit, AUTH_LIMITS } from '../lib/ratelimit.mjs';
-import { isAdmin } from '../lib/admin.mjs';
+import { isStaff } from '../lib/admin.mjs';
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -69,6 +69,22 @@ async function handleGoogle({ idToken }) {
     await putUser(user);
   }
 
+  // Link an admin-provisioned account (invite-by-email): apply the role / plan /
+  // starting credits set in the admin "Create user" UI, then consume the invite.
+  const provision = await getProvision(payload.email);
+  if (provision) {
+    user = {
+      ...user,
+      role: provision.role || user.role,
+      tier: provision.tier || user.tier,
+      credits: Number.isFinite(provision.credits) ? provision.credits : user.credits,
+      name: user.name || provision.name,
+      updatedAt: new Date().toISOString(),
+    };
+    await putUser(user);
+    await deleteProvision(payload.email);
+  }
+
   return ok({
     accessToken: signAccess(user),
     refreshToken: signRefresh(user),
@@ -101,6 +117,6 @@ function publicUser(u) {
     monthlyCredits: u.credits || 0,
     topupCredits: u.topupCredits || 0,
     periodEnd: u.periodEnd,
-    isAdmin: isAdmin(u.email),
+    isAdmin: isStaff(u),
   };
 }

@@ -4,7 +4,7 @@
 import {
   getUser, totalCredits, spendCredits,
   listRuns, getRun,
-  createTicket, getTicket, addTicketMessage, setTicketStatus, listTickets,
+  createTicket, getTicket, addTicketMessage, setTicketStatus, listTickets, listAllTickets,
   setIntegration, redactIntegrations,
   addNotification, listNotifications, markNotificationsRead,
   createProject, listProjects, deleteProject,
@@ -18,7 +18,7 @@ import { oauthConfigured, authUrl, exchangeCode, detectAccount, listAccounts } f
 import { signOAuthState, verifyOAuthState } from '../lib/jwt.mjs';
 import { putAttachment } from '../lib/s3.mjs';
 import { sendEmail, SUPPORT_INBOX } from '../lib/email.mjs';
-import { isAdmin } from '../lib/admin.mjs';
+import { isStaff } from '../lib/admin.mjs';
 import { ok, badRequest, unauthorized, paymentRequired, tooManyRequests, parseBody, claims, preflight, isEmail, clampStr } from '../lib/http.mjs';
 import { rateLimit, APP_LIMITS } from '../lib/ratelimit.mjs';
 
@@ -140,9 +140,15 @@ export const handler = async (event) => {
       if (SUPPORT_INBOX) await sendEmail({ to: SUPPORT_INBOX, subject: `New ticket ${ticket.id}: ${subject}`, text: `${user.email} opened a ticket.\n\n${message}` });
       return ok({ ticket });
     }
-    if (method === 'GET' && path.endsWith('/support/tickets')) return ok({ tickets: await listTickets(user.userId, 100) });
+    if (method === 'GET' && path.endsWith('/support/tickets')) {
+      // Admin support console: every user's tickets. Otherwise just the caller's.
+      if (event.queryStringParameters?.all && isStaff(user)) return ok({ tickets: await listAllTickets(), admin: true });
+      return ok({ tickets: await listTickets(user.userId, 100) });
+    }
     if (method === 'GET' && path.includes('/support/tickets/')) {
-      const ticket = await getTicket(user.userId, seg(path, '/support/tickets/'));
+      // Admins can open any user's ticket by passing the owner's id.
+      const owner = (isStaff(user) && event.queryStringParameters?.ownerUserId) || user.userId;
+      const ticket = await getTicket(owner, seg(path, '/support/tickets/'));
       return ticket ? ok({ ticket }) : badRequest('Ticket not found');
     }
     if (method === 'POST' && path.includes('/reply')) {
@@ -150,7 +156,7 @@ export const handler = async (event) => {
       const text = clampStr((body.body || '').trim(), 10000);
       if (!text && !(body.attachments || []).length) return badRequest('Reply cannot be empty.');
       // Admins may answer another user's ticket (author = agent → notifies owner).
-      const asAgent = !!body.asAgent && isAdmin(user.email);
+      const asAgent = !!body.asAgent && isStaff(user);
       const ownerId = asAgent && body.ownerUserId ? body.ownerUserId : user.userId;
       const author = asAgent ? 'agent' : 'user';
       const { ticket } = await addTicketMessage({ userId: ownerId, ticketId, author, authorEmail: user.email, body: text, attachments: body.attachments || [] });
@@ -159,7 +165,9 @@ export const handler = async (event) => {
       return ok({ ticket });
     }
     if (method === 'POST' && path.includes('/close')) {
-      await setTicketStatus(user.userId, seg(path, '/support/tickets/'), 'closed');
+      // Admins can close any user's ticket by passing the owner's id.
+      const owner = (isStaff(user) && body.ownerUserId) || user.userId;
+      await setTicketStatus(owner, seg(path, '/support/tickets/'), 'closed');
       return ok({ ok: true });
     }
 
@@ -283,7 +291,7 @@ async function buildUserContext(user) {
   lines.push(`- Name: ${user.name || '—'} (${user.email || '—'})`);
   lines.push(`- Plan: ${plan.name}${plan.priceMonthly ? ` (S$${plan.priceMonthly}/mo)` : ' (free)'}`);
   lines.push(`- Member since: ${fmtDate(user.createdAt)}`);
-  if (isAdmin(user.email)) lines.push('- Role: admin');
+  if (isStaff(user)) lines.push('- Role: admin');
 
   lines.push('', 'CREDITS & BILLING');
   lines.push(`- Balance: ${monthly + topup} credits (${monthly} monthly + ${topup} top-up)`);

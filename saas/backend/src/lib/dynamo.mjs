@@ -188,6 +188,36 @@ export async function adminSetTier({ userId, tier, monthlyCredits, adminEmail })
   return getUser(userId);
 }
 
+// ── Admin-provisioned accounts (invite-by-email) ─────────────────────────────
+// Stored in the Users table under a `pending:<email>` key. On the person's first
+// Google sign-in with that email, auth links it onto their real google:<sub>
+// record (applying role/tier/credits) and deletes the provision.
+const provisionId = (email) => `pending:${String(email || '').trim().toLowerCase()}`;
+
+export async function createProvision({ email, name, role = 'client', tier = 'free', credits, invitedBy }) {
+  const now = new Date().toISOString();
+  const item = {
+    userId: provisionId(email),
+    provision: true,
+    email: String(email).trim(),
+    name: name || '',
+    role: role === 'staff' ? 'staff' : 'client',
+    tier,
+    credits: Number.isFinite(credits) ? credits : 0,
+    topupCredits: 0,
+    status: 'invited',
+    invitedBy: invitedBy || null,
+    createdAt: now,
+  };
+  await putUser(item);
+  return item;
+}
+
+export async function getProvision(email) { return getUser(provisionId(email)); }
+export async function deleteProvision(email) {
+  await ddb.send(new DeleteCommand({ TableName: TABLES.users, Key: { userId: provisionId(email) } }));
+}
+
 export async function listLedger(userId, limit = 100) {
   const { Items } = await ddb.send(
     new QueryCommand({
@@ -205,6 +235,19 @@ export async function listLedger(userId, limit = 100) {
 // One row per tool run so users can re-open past results. Sort key is time-first
 // so a query (ScanIndexForward:false) returns newest first. Results can be large
 // (HTML reports), so the list view reads a slim projection.
+// Best-effort "what was this run about" — the primary URL/domain/keyword from the
+// inputs, normalised to a hostname when it's a URL. Stored so run history can be
+// grouped by target webpage/domain without loading every run's full inputs.
+function deriveTarget(inputs = {}) {
+  const raw = String(inputs.url || inputs.domain || inputs.target || inputs.website || inputs.input || '').trim();
+  if (!raw) return '';
+  try {
+    return new URL(raw.startsWith('http') ? raw : `https://${raw}`).hostname.replace(/^www\./, '');
+  } catch {
+    return raw.length > 60 ? `${raw.slice(0, 60)}…` : raw;
+  }
+}
+
 export async function saveRun({ userId, tool, toolName, inputs, result, creditsUsed = 0, projectId = null }) {
   const ts = new Date().toISOString();
   const runId = `${ts}#${Math.random().toString(36).slice(2, 8)}`;
@@ -213,7 +256,7 @@ export async function saveRun({ userId, tool, toolName, inputs, result, creditsU
     : result?.html ? 'report' : '';
   await ddb.send(new PutCommand({
     TableName: TABLES.runs,
-    Item: { userId, runId, tool, toolName: toolName || tool, inputs: inputs || {}, result: result || {}, preview, creditsUsed, projectId, ts },
+    Item: { userId, runId, tool, toolName: toolName || tool, inputs: inputs || {}, result: result || {}, preview, target: deriveTarget(inputs), creditsUsed, projectId, ts },
   }));
   return { runId, ts };
 }
@@ -224,7 +267,7 @@ export async function listRuns(userId, limit = 100) {
     KeyConditionExpression: 'userId = :u',
     ExpressionAttributeValues: { ':u': userId },
     // Slim projection for the list — omit the full `result` + `inputs` payloads.
-    ProjectionExpression: 'userId, runId, tool, toolName, preview, creditsUsed, projectId, ts',
+    ProjectionExpression: 'userId, runId, tool, toolName, preview, target, creditsUsed, projectId, ts',
     ScanIndexForward: false,
     Limit: limit,
   }));
@@ -290,6 +333,19 @@ export async function listTickets(userId, limit = 100) {
     Limit: limit,
   }));
   return Items || [];
+}
+
+/** Every ticket across all users (scan) — for the admin support console.
+ *  Returns summary fields only, newest activity first. */
+export async function listAllTickets(limit = 500) {
+  const { Items } = await ddb.send(new ScanCommand({
+    TableName: TABLES.tickets,
+    ProjectionExpression: 'userId, ticketId, id, subject, category, #s, userEmail, ts, lastActivityAt',
+    ExpressionAttributeNames: { '#s': 'status' },
+  }));
+  return (Items || [])
+    .sort((a, b) => String(b.lastActivityAt || b.ts).localeCompare(String(a.lastActivityAt || a.ts)))
+    .slice(0, limit);
 }
 
 /** All non-closed tickets (scan) — used by the inactivity auto-close job. */
