@@ -141,7 +141,7 @@ function TicketList() {
           <label className="block">
             <span className="text-sm font-medium text-slate-700">Category</span>
             <select value={category} onChange={(e) => setCategory(e.target.value)}
-              className="mt-1.5 w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-brand-500 focus:outline-none">
+              className="dm-select mt-1.5 w-full rounded-lg border border-slate-300 py-2.5 pl-2.5 pr-9 text-sm focus:border-brand-500 focus:outline-none">
               {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
             </select>
           </label>

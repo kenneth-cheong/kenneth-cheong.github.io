@@ -90,7 +90,7 @@ function AdminUsers() {
                 : <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">Active</span>) },
             { key: 'tier', label: 'Tier', accessor: (u) => TIER_ORDER.indexOf(u.tier),
               render: (u) => (
-                <select value={u.tier} onChange={(e) => setTier(u, e.target.value)} className="rounded border border-slate-300 px-2 py-1 text-sm">
+                <select value={u.tier} onChange={(e) => setTier(u, e.target.value)} className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm">
                   {TIER_ORDER.map((t) => <option key={t} value={t}>{PLANS[t].name}</option>)}
                 </select>) },
             { key: 'monthlyCredits', label: 'Monthly', align: 'right', numeric: true, render: (u) => (u.monthlyCredits ?? 0).toLocaleString() },
@@ -297,7 +297,7 @@ function CreateUserDialog({ onClose, onCreated }) {
         <div className="mt-3 grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-slate-700">Plan</label>
-            <select value={tier} onChange={(e) => setTier(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm">
+            <select value={tier} onChange={(e) => setTier(e.target.value)} className="dm-select mt-1 w-full rounded-lg border border-slate-300 py-2 pl-2 pr-8 text-sm">
               {TIER_ORDER.map((t) => <option key={t} value={t}>{PLANS[t].name} — {PLANS[t].monthlyCredits.toLocaleString()} cr</option>)}
             </select>
           </div>

@@ -424,7 +424,7 @@ function RepivotBar({ fields, values, busy, onChange }) {
             value={values[f.name]}
             disabled={busy}
             onChange={(e) => onChange(f.name, e.target.value)}
-            className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm transition focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/10 disabled:opacity-50"
+            className="dm-select rounded-lg border border-slate-300 bg-white py-1 pl-2 pr-7 text-sm transition focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/10 disabled:opacity-50"
           >
             {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
           </select>
@@ -582,7 +582,7 @@ function Field({ field, value, onChange, autoFocus, provider }) {
       ) : field.type === 'textarea' ? (
         <textarea autoFocus={autoFocus} rows={3} value={value} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} className={base} />
       ) : field.type === 'select' ? (
-        <select autoFocus={autoFocus} value={value} onChange={(e) => onChange(e.target.value)} className={base}>
+        <select autoFocus={autoFocus} value={value} onChange={(e) => onChange(e.target.value)} className={`${base} dm-select pr-9`}>
           {field.options.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
       ) : (

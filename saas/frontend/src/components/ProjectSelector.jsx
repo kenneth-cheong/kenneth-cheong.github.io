@@ -17,7 +17,7 @@ export default function ProjectSelector() {
       value={activeId || ''}
       onChange={(e) => { if (e.target.value === '__manage') navigate('/projects'); else setActive(e.target.value); }}
       data-tour="project-selector"
-      className="hidden max-w-[10rem] rounded-lg border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 focus:border-brand-500 focus:outline-none sm:block"
+      className="dm-select hidden max-w-[10rem] rounded-lg border border-slate-300 py-1.5 pl-2 pr-7 text-xs font-medium text-slate-700 focus:border-brand-500 focus:outline-none sm:block"
       title="Active project — runs are saved to it"
     >
       {projects.map((p) => <option key={p.projectId} value={p.projectId}>{p.name}</option>)}

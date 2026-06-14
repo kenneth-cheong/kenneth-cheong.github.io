@@ -7,19 +7,21 @@ export default function CreditMeter() {
   const { user } = useAuth();
   if (!user) return null;
   const max = PLANS[user.tier].monthlyCredits;
+  const total = user.credits || 0;             // total spendable (monthly + top-up)
   const topup = user.topupCredits || 0;
-  const pct = Math.max(0, Math.min(100, (user.credits / Math.max(max, user.credits)) * 100));
-  const low = user.credits <= max * 0.2;
+  const monthly = Math.max(0, total - topup);  // monthly bucket left (consistent with the fresh total)
+  const pct = Math.max(0, Math.min(100, (total / Math.max(max, total, 1)) * 100));
+  const low = total <= max * 0.2;
+  const renews = user.periodEnd
+    ? new Date(user.periodEnd).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : null;
 
   return (
-    <Link to="/usage" data-tour="credits" className="group flex items-center gap-3" title="View usage">
+    <Link to="/usage" data-tour="credits" className="group relative flex items-center gap-3">
       <Zap size={18} className="text-amber-500" aria-hidden />
       <div className="w-32">
         <div className="flex justify-between text-xs font-medium text-slate-500">
-          <span className={low ? 'text-amber-600' : ''}>
-            {user.credits.toLocaleString()}
-            {topup > 0 && <span className="text-brand-500"> (+{topup.toLocaleString()})</span>}
-          </span>
+          <span className={low ? 'text-amber-600' : ''}>{total.toLocaleString()}</span>
           <span>{max.toLocaleString()}</span>
         </div>
         <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-slate-200">
@@ -28,6 +30,26 @@ export default function CreditMeter() {
             style={{ width: `${pct}%` }}
           />
         </div>
+      </div>
+
+      {/* Hover breakdown — explains the monthly vs top-up split at a glance. */}
+      <div className="pointer-events-none absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-3 text-left text-xs opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
+        <div className="flex justify-between py-0.5">
+          <span className="text-slate-500">Monthly left</span>
+          <span className="font-semibold text-slate-800">{monthly.toLocaleString()} / {max.toLocaleString()}</span>
+        </div>
+        {topup > 0 && (
+          <div className="flex justify-between py-0.5">
+            <span className="text-slate-500">Top-up (rolls over)</span>
+            <span className="font-semibold text-brand-600">+{topup.toLocaleString()}</span>
+          </div>
+        )}
+        <div className="mt-1 flex justify-between border-t border-slate-100 pt-1.5">
+          <span className="text-slate-500">Total spendable</span>
+          <span className="font-bold text-slate-900">{total.toLocaleString()}</span>
+        </div>
+        {renews && <div className="mt-1.5 text-slate-400">Monthly credits renew {renews}</div>}
+        <div className="mt-1.5 font-medium text-brand-600">View usage →</div>
       </div>
     </Link>
   );

@@ -128,7 +128,7 @@ function AccountPicker({ provider, current, onSaved }) {
         <select
           value={current || ''} disabled={saving}
           onChange={(e) => choose(e.target.value)}
-          className="min-w-0 max-w-full flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
+          className="dm-select min-w-0 max-w-full flex-1 rounded-lg border border-slate-300 py-1.5 pl-2.5 pr-8 text-sm focus:border-brand-500 focus:outline-none"
         >
           <option value="" disabled>Select…</option>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
