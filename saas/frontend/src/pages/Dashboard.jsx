@@ -11,6 +11,19 @@ import { getRecent } from '../lib/ui.js';
 
 const GOAL_ICON = { TrendingUp, Stethoscope, PenLine, LineChart, Sparkles, Swords, BarChart3 };
 
+// The setup checklist's "first action" step, tailored to the goal the user
+// picked in the welcome flow — so step 2 matches what they said they want.
+// `connect` steps complete on a Google connection; the rest on any tool run.
+const GOAL_STEPS = {
+  visitors: { title: 'Find your first keywords', body: 'See volume & difficulty for terms you want to rank for.', to: '/tool/keyword-analysis', cta: 'Find keywords' },
+  health: { title: 'Run a site health check', body: 'Get a scored report and a prioritised fix list.', to: '/audit', cta: 'Run check' },
+  content: { title: 'Write your first content', body: 'Draft a post, caption or plan that ranks.', to: '/tool/content-writer', cta: 'Start writing' },
+  rankings: { title: 'Track a keyword', body: 'Watch a keyword’s Google position over time.', to: '/tracking', cta: 'Track one' },
+  'ai-visibility': { title: 'Check your AI visibility', body: 'See if ChatGPT, Gemini & Perplexity cite you.', to: '/tool/ai-discovery', cta: 'Check now' },
+  competitors: { title: 'Size up a competitor', body: 'See who you’re up against and how you compare.', to: '/tool/competitors', cta: 'Compare' },
+  'my-data': { title: 'Connect Google', body: 'Pull your Search Console / GA4 / Ads data.', to: '/integrations', cta: 'Connect', connect: true },
+};
+
 // Plain-language overrides for Simple mode (beginners), pro labels otherwise.
 const display = (t, simple) => (simple && SIMPLE_NAMES[t.id] ? { ...t, ...SIMPLE_NAMES[t.id] } : t);
 
@@ -33,14 +46,16 @@ export default function Dashboard() {
   const setView = (m) => { setMode(m); localStorage.setItem('dm_view_mode', m); setActiveGoal(null); };
 
   // Arriving from the welcome flow with ?goal=<id> → open that goal in Simple
-  // mode, then strip the param so a refresh doesn't re-pin it.
+  // mode, then strip the param so a refresh doesn't re-pin it. Keyed on the
+  // param value (not mount) because the dashboard is already mounted under the
+  // welcome overlay when it navigates here, so a mount-only effect never fires.
+  const goalParam = params.get('goal');
   useEffect(() => {
-    const g = params.get('goal');
-    if (g && GOALS.some((x) => x.id === g)) {
-      setMode('simple'); setActiveGoal(g);
-      params.delete('goal'); setParams(params, { replace: true });
+    if (goalParam && GOALS.some((x) => x.id === goalParam)) {
+      setMode('simple'); setActiveGoal(goalParam);
+      const next = new URLSearchParams(params); next.delete('goal'); setParams(next, { replace: true });
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [goalParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [showOnboard, setShowOnboard] = useState(() => !user.onboarding?.dismissedChecklist && localStorage.getItem('dm_onboard_done') !== '1');
   const dismissOnboard = () => { setShowOnboard(false); localStorage.setItem('dm_onboard_done', '1'); setOnboarding({ dismissedChecklist: true }); };
@@ -56,12 +71,20 @@ export default function Dashboard() {
   const goalTools = goal ? goal.tools.map(toolById).filter(Boolean) : [];
   const Card = (t) => <ToolCard key={t.id} tool={display(t, simple)} userTier={user.tier} />;
 
-  // Onboarding checklist — real progress, shown until dismissed.
+  // Onboarding checklist — real progress, shown until dismissed. The middle
+  // "first action" step is goal-aware: it reflects the goal chosen in the
+  // welcome flow (falling back to a generic "run a tool" step).
+  const chosenGoal = user.onboarding?.goal;
+  const gStep = GOAL_STEPS[chosenGoal];
+  const actionStep = gStep
+    ? { ...gStep, done: gStep.connect ? googleConnected : getRecent().length > 0 }
+    : { done: getRecent().length > 0, title: 'Run your first tool', body: 'Try Keyword Analysis — it’s free.', to: '/tool/keyword-analysis', cta: 'Try it' };
   const steps = [
     { done: projects.length > 0, title: 'Create a project', body: 'Group a site’s runs and data.', to: '/projects', cta: 'New project' },
-    { done: getRecent().length > 0, title: 'Run your first tool', body: 'Try Keyword Analysis — it’s free.', to: '/tool/keyword-analysis', cta: 'Try it' },
+    actionStep,
     { done: googleConnected, title: 'Connect Google', body: 'Pull your Search Console / GA4 / Ads data.', to: '/integrations', cta: 'Connect' },
-  ];
+  // Drop a duplicate (e.g. the 'my-data' goal step IS "Connect Google").
+  ].filter((s, i, arr) => arr.findIndex((x) => x.to === s.to) === i);
   const allDone = steps.every((s) => s.done);
 
   return (
