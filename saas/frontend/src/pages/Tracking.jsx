@@ -176,6 +176,11 @@ export default function Tracking() {
               const hist = inPeriod(t.history);
               const tr = trend(hist);
               const unranked = t.lastPosition < 1 && t.history?.length;
+              // Only plot when there are ≥2 real (ranking) points in the period;
+              // otherwise the keyword stays a compact one-line row.
+              const points = (hist || []).filter((p) => p.position >= 1);
+              const hasChart = points.length >= 2;
+              const noData = !t.history?.length;
               return (
                 <div key={t.trackId} className="card p-4">
                   <div className="flex items-center gap-3">
@@ -190,14 +195,13 @@ export default function Tracking() {
                       )}
                     </div>
                     <div className="text-right">
-                      <div className={`text-lg font-bold ${unranked ? 'text-slate-400' : ''}`}>{posLabel(t)}</div>
+                      <div className={`text-lg font-bold ${unranked || noData ? 'text-slate-400' : ''}`}>{posLabel(t)}</div>
                       {tr && tr.n > 0 && <div className={`text-xs font-medium ${tr.cls}`}>{tr.dir} {tr.n}</div>}
+                      {noData && <div className="text-[11px] text-slate-300">checking…</div>}
                     </div>
                     <button onClick={() => remove(t.trackId)} className="text-sm text-slate-400 hover:text-red-600">Remove</button>
                   </div>
-                  {hist?.length > 0
-                    ? <div className="mt-2"><LineChart data={hist} /></div>
-                    : <div className="mt-2 rounded-lg bg-slate-50 py-3 text-center text-xs text-slate-400">{t.history?.length ? 'No checks in this period.' : 'Awaiting first position check…'}</div>}
+                  {hasChart && <div className="mt-2"><LineChart data={hist} /></div>}
                 </div>
               );
             })}

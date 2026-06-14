@@ -282,8 +282,11 @@ function Result({ out, tool, project, user }) {
         )}
         {hasContent && (
           <div className="ml-auto flex gap-1.5">
-            {r.rows && r.rows.length > 0 && <ResultBtn onClick={() => downloadCsv(r.rows, `${tool.id}.csv`)}>CSV</ResultBtn>}
-            {sectionTable && <ResultBtn onClick={() => downloadCsv(sectionTable.rows, `${tool.id}.csv`)}>CSV</ResultBtn>}
+            {/* One canonical CSV: prefer the top-level rows, else the first table
+                section (previously both could render → two identical "CSV" buttons). */}
+            {r.rows && r.rows.length > 0
+              ? <ResultBtn onClick={() => downloadCsv(r.rows, `${tool.id}.csv`)}>CSV</ResultBtn>
+              : sectionTable && <ResultBtn onClick={() => downloadCsv(sectionTable.rows, `${tool.id}.csv`)}>CSV</ResultBtn>}
             <ResultBtn onClick={() => copyText(copyableOf(r))}>Copy</ResultBtn>
             <ResultBtn onClick={() => window.print()}>Print</ResultBtn>
           </div>

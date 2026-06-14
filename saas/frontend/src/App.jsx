@@ -47,7 +47,20 @@ const Loading = () => <div className="grid min-h-[40vh] place-items-center text-
 export default function App() {
   const { user, loading } = useAuth();
 
-  if (loading) return <div className="grid min-h-screen place-items-center text-slate-400">Loading…</div>;
+  if (loading) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-gradient-to-b from-brand-50 to-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="grid h-12 w-12 animate-pulse place-items-center rounded-2xl bg-brand-600 text-2xl font-bold text-white shadow-sm">D</div>
+          <div className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-400 [animation-delay:-0.2s]" />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-400 [animation-delay:-0.1s]" />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-400" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (
