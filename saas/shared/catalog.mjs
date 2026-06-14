@@ -349,8 +349,24 @@ export function toolById(id) {
 // textarea | url | select | number. `options` for selects.
 // Full names — the upstream Lambdas (DataForSEO / Mangools / SERP) match these
 // exactly, so the form must submit "Singapore", not a "SG" code.
-const LOCATIONS = ['Singapore', 'Malaysia', 'United States', 'United Kingdom', 'Australia', 'Global'];
-const LANGUAGES = ['English', 'Chinese', 'Malay'];
+// Locations + languages offered in the tool forms. Every value is an exact
+// DataForSEO location_name / language_name (verified against their API) so the
+// upstreams accept it as-is. ("Global" is an app-special handled per-tool.)
+const LOCATIONS = [
+  'Singapore', 'Malaysia', 'Indonesia', 'Thailand', 'Philippines', 'Vietnam', 'India',
+  'Hong Kong', 'Taiwan', 'China', 'Japan', 'South Korea',
+  'United Arab Emirates', 'Saudi Arabia',
+  'Australia', 'New Zealand',
+  'United States', 'Canada', 'Brazil', 'Mexico',
+  'United Kingdom', 'Ireland', 'Germany', 'France', 'Spain', 'Italy', 'Netherlands', 'Switzerland', 'Sweden',
+  'South Africa',
+  'Global',
+];
+const LANGUAGES = [
+  'English', 'Chinese (Simplified)', 'Chinese (Traditional)', 'Malay', 'Indonesian',
+  'Thai', 'Vietnamese', 'Filipino', 'Tamil', 'Hindi', 'Japanese', 'Korean', 'Arabic',
+  'Spanish', 'French', 'German', 'Portuguese', 'Italian', 'Dutch', 'Russian',
+];
 
 export const INPUTS = {
   'keyword-analysis': [
