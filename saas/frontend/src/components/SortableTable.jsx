@@ -25,6 +25,7 @@ export default function SortableTable({
   zebra = true,
   emptyText,
   className = '',
+  onRowClick, // optional: makes each row clickable
 }) {
   const cols = useMemo(() => {
     const base = columns || Object.keys(rows[0] || {}).map((k) => ({ key: k }));
@@ -86,7 +87,11 @@ export default function SortableTable({
             <tr><td colSpan={cols.length} className="px-3 py-8 text-center text-slate-400">{emptyText}</td></tr>
           )}
           {sorted.map((row, i) => (
-            <tr key={rowKey ? rowKey(row, i) : i} className={`border-t border-slate-100 transition-colors hover:bg-brand-50/40 ${zebra && i % 2 ? 'bg-slate-50/50' : ''}`}>
+            <tr
+              key={rowKey ? rowKey(row, i) : i}
+              onClick={onRowClick ? () => onRowClick(row) : undefined}
+              className={`border-t border-slate-100 transition-colors hover:bg-brand-50/40 ${zebra && i % 2 ? 'bg-slate-50/50' : ''} ${onRowClick ? 'cursor-pointer' : ''}`}
+            >
               {cols.map((c) => (
                 <td key={c.key} className={`px-3 py-2 ${c.align === 'right' ? 'text-right' : ''}`}>
                   {c.render ? c.render(row, i) : (accessorOf(c)(row) ?? '—')}

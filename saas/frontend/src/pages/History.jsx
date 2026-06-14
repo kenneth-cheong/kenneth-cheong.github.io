@@ -3,6 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { toolById } from '@shared/catalog.mjs';
 import { api } from '../lib/api.js';
 import { useProjects } from '../context/ProjectContext.jsx';
+import SortableTable from '../components/SortableTable.jsx';
+
+// Derive a coarse run status from the saved preview (the list projection doesn't
+// include the full result): empty/0-rows → No data; error-ish text → Issue.
+function statusOf(r) {
+  const p = (r.preview || '').toLowerCase().trim();
+  if (!p || /^0 rows\b|^0 \b|^no\b/.test(p)) return { label: 'No data', cls: 'bg-slate-100 text-slate-500' };
+  if (/couldn.?t|could not|unable|fail|error|reconnect|not connected|disconnect|no .*data/.test(p)) {
+    return { label: 'Issue', cls: 'bg-amber-100 text-amber-700' };
+  }
+  return { label: 'OK', cls: 'bg-green-100 text-green-700' };
+}
 
 // Every tool run is saved server-side; clicking one re-opens it in the tool
 // with the original inputs and the saved result (no re-run, no extra credits).
@@ -51,31 +63,37 @@ export default function History() {
     }
   }
 
-  const RunRow = (r) => (
-    <button
-      key={r.runId}
-      onClick={() => open(r.runId)}
-      disabled={opening === r.runId}
-      className="card flex w-full items-center gap-4 p-4 text-left transition hover:border-brand-300 disabled:opacity-60"
-    >
-      <div className="min-w-0 flex-1">
-        <div className="font-semibold">{toolById(r.tool)?.name || r.toolName || r.tool}</div>
-        <div className="truncate text-sm text-slate-500">
-          {new Date(r.ts).toLocaleString()}
-          {groupBy !== 'target' && r.target ? ` · ${r.target}` : ''}
-          {r.preview ? ` · ${r.preview}` : ''}
-          {projName(r.projectId) ? ` · ${projName(r.projectId)}` : ''}
-        </div>
-      </div>
-      {r.creditsUsed > 0 && <span className="text-xs text-slate-400">{r.creditsUsed} cr</span>}
-      <span className="text-brand-500">{opening === r.runId ? '…' : 'Open →'}</span>
-    </button>
+  const columns = [
+    { key: 'tool', label: 'Tool', accessor: (r) => toolById(r.tool)?.name || r.toolName || r.tool,
+      render: (r) => <span className="font-medium text-slate-800">{toolById(r.tool)?.name || r.toolName || r.tool}</span> },
+    { key: 'target', label: 'Target', accessor: (r) => r.target || '',
+      render: (r) => (r.target ? <span className="text-slate-600">{r.target}</span> : <span className="text-slate-300">—</span>) },
+    { key: 'status', label: 'Status', accessor: (r) => statusOf(r).label,
+      render: (r) => { const s = statusOf(r); return <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${s.cls}`}>{s.label}</span>; } },
+    { key: 'ts', label: 'When', accessor: (r) => r.ts,
+      render: (r) => <span className="whitespace-nowrap text-slate-500">{new Date(r.ts).toLocaleString()}</span> },
+    { key: 'project', label: 'Project', accessor: (r) => projName(r.projectId) || '',
+      render: (r) => (projName(r.projectId) ? <span className="text-slate-500">{projName(r.projectId)}</span> : <span className="text-slate-300">—</span>) },
+    { key: 'creditsUsed', label: 'Credits', align: 'right', numeric: true,
+      render: (r) => (r.creditsUsed > 0 ? r.creditsUsed : <span className="text-slate-300">—</span>) },
+    { key: 'open', label: '', sortable: false, align: 'right',
+      render: (r) => <span className="whitespace-nowrap text-brand-500">{opening === r.runId ? '…' : 'Open →'}</span> },
+  ];
+
+  const Table = ({ rows }) => (
+    <SortableTable
+      columns={columns}
+      rows={rows}
+      rowKey={(r) => r.runId}
+      onRowClick={(r) => open(r.runId)}
+      maxHeight="none"
+    />
   );
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-5xl">
       <h1 className="text-2xl font-bold">Run history</h1>
-      <p className="mt-1 text-slate-600">Every tool run is saved here. Open one to revisit the result and the exact inputs.</p>
+      <p className="mt-1 text-slate-600">Every tool run is saved here. Click a row to revisit the result and the exact inputs.</p>
 
       <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
         {active && (
@@ -104,12 +122,12 @@ export default function History() {
         <div className="card mt-6 p-8 text-center text-slate-400">No runs yet — run a tool and it'll appear here.</div>
       )}
 
-      {/* Flat list */}
+      {/* Flat sortable table */}
       {groups === null && visible?.length > 0 && (
-        <div className="mt-6 space-y-2">{visible.map(RunRow)}</div>
+        <div className="mt-6"><Table rows={visible} /></div>
       )}
 
-      {/* Grouped by tool or target domain */}
+      {/* Grouped by tool or target domain — a table per bucket */}
       {groups !== null && (
         <div className="mt-6 space-y-6">
           {groups.map((g) => (
@@ -119,7 +137,7 @@ export default function History() {
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{g.runs.length} run{g.runs.length === 1 ? '' : 's'}</span>
                 {g.credits > 0 && <span className="text-xs text-slate-400">{g.credits} cr</span>}
               </div>
-              <div className="space-y-2">{g.runs.map(RunRow)}</div>
+              <Table rows={g.runs} />
             </div>
           ))}
         </div>
