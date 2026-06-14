@@ -84,7 +84,7 @@ function Gauge({ pct, stroke }) {
   const r = 24, C = 2 * Math.PI * r;
   const off = C * (1 - Math.max(0, Math.min(100, pct)) / 100);
   return (
-    <svg width="60" height="60" viewBox="0 0 60 60" className="block">
+    <svg width="60" height="60" viewBox="0 0 60 60" className="block" role="img" aria-label={`${pct}%`}>
       <circle cx="30" cy="30" r={r} fill="none" stroke="#e2e8f0" strokeWidth="6" />
       <circle cx="30" cy="30" r={r} fill="none" stroke={stroke} strokeWidth="6" strokeLinecap="round"
         strokeDasharray={C} strokeDashoffset={off} transform="rotate(-90 30 30)" />

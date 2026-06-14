@@ -5,6 +5,11 @@ import { api } from '../lib/api.js';
 
 const TOOL_FOR = { gsc: 'gsc', ga4: 'ga4', 'google-ads': 'google-ads' };
 const LABELS = { gsc: 'Search Console property', ga4: 'GA4 property', 'google-ads': 'Google Ads account' };
+const NO_ACCOUNTS = {
+  gsc: 'No Search Console sites on this Google account.',
+  ga4: 'No GA4 properties on this Google account.',
+  'google-ads': 'No Google Ads accounts on this Google account.',
+};
 
 // One Google sign-in connects Search Console, Analytics and Ads (the consent
 // grants all three scopes). Each source then has its own property/account
@@ -89,6 +94,9 @@ export default function Integrations() {
                   <div className="font-semibold">{p.name}</div>
                   <div className="text-sm text-slate-500">{p.blurb}</div>
                 </div>
+                {connected[p.id]?.account
+                  ? <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700"><Check size={12} aria-hidden /> Active</span>
+                  : <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Pick an account</span>}
                 <Link to={`/tool/${TOOL_FOR[p.id]}`} className="btn-ghost px-3 py-1.5 text-sm">Open tool</Link>
               </div>
               <AccountPicker provider={p.id} current={connected[p.id]?.account} onSaved={load} />
@@ -134,8 +142,8 @@ function AccountPicker({ provider, current, onSaved }) {
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
         </select>
       ) : (
-        <span className="flex items-center gap-2 text-xs text-slate-400">
-          {current || 'No accessible accounts found.'}
+        <span className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+          {current || NO_ACCOUNTS[provider] || 'No accessible accounts found.'}
           <button onClick={fetchAccounts} className="font-medium text-brand-600 hover:text-brand-700">Refresh</button>
         </span>
       )}

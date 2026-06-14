@@ -15,7 +15,8 @@ export default function Toaster() {
 
   const tone = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-slate-800' };
   return (
-    <div className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2">
+    <div role="status" aria-live="polite" aria-atomic="true"
+      className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2">
       {items.map((t) => (
         <div key={t.id} className={`rounded-lg px-4 py-2 text-sm font-medium text-white shadow-lg ${tone[t.type] || tone.info}`}>
           {t.msg}

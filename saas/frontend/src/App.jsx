@@ -49,7 +49,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div className="grid min-h-screen place-items-center bg-gradient-to-b from-brand-50 to-white">
+      <div role="status" aria-label="Loading Digimetrics" className="grid min-h-screen place-items-center bg-gradient-to-b from-brand-50 to-white">
         <div className="flex flex-col items-center gap-4">
           <div className="grid h-12 w-12 animate-pulse place-items-center rounded-2xl bg-brand-600 text-2xl font-bold text-white shadow-sm">D</div>
           <div className="flex items-center gap-1.5">
