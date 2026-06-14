@@ -162,6 +162,14 @@ export default function Layout({ children }) {
             </nav>
           )}
         </header>
+        {user?.pastDue && (
+          <div className="border-b border-amber-200 bg-amber-50">
+            <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 py-2.5 text-sm text-amber-800">
+              <span>⚠️ Your last payment failed — update your card to keep your plan active.</span>
+              <Link to="/account" className="ml-auto font-semibold text-amber-900 underline">Update billing</Link>
+            </div>
+          </div>
+        )}
         <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
       </div>
 

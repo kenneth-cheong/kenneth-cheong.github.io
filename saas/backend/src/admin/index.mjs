@@ -16,11 +16,12 @@ import {
 import { PLANS } from '../../../shared/catalog.mjs';
 import { isAdmin, isStaff } from '../lib/admin.mjs';
 import { sendEmail } from '../lib/email.mjs';
-import { ok, badRequest, unauthorized, json, parseBody, claims, isEmail } from '../lib/http.mjs';
+import { ok, badRequest, unauthorized, serverError, json, parseBody, claims, isEmail } from '../lib/http.mjs';
 
 const APP_ORIGIN = process.env.APP_ORIGIN || '';
 
 export const handler = async (event) => {
+  try {
   const c = claims(event);
   if (!c?.userId) return unauthorized();
   const me = await getUser(c.userId);
@@ -77,6 +78,10 @@ export const handler = async (event) => {
   }
 
   return badRequest('Unknown admin route');
+  } catch (err) {
+    console.error('admin_error', err);
+    return serverError('Something went wrong. Please try again.');
+  }
 };
 
 function shape(u) {

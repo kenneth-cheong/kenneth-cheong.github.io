@@ -1,10 +1,11 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import Layout from './components/Layout.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import { Terms, Privacy } from './pages/Legal.jsx';
+import NotFound from './pages/NotFound.jsx';
 
 // Route-level code-splitting — keeps the initial bundle small; heavier pages
 // (tool runner, reports, admin) load on demand.
@@ -77,7 +78,7 @@ export default function App() {
           <Route path="/admin" element={<Admin />} />
           <Route path="/legal/terms" element={<Terms />} />
           <Route path="/legal/privacy" element={<Privacy />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
     </Layout>

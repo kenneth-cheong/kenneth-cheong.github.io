@@ -26,7 +26,7 @@ import Stripe from 'stripe';
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 import { sendEmail, SUPPORT_INBOX } from '../lib/email.mjs';
 import { isStaff } from '../lib/admin.mjs';
-import { ok, badRequest, unauthorized, paymentRequired, tooManyRequests, parseBody, claims, preflight, isEmail, clampStr } from '../lib/http.mjs';
+import { ok, badRequest, unauthorized, paymentRequired, tooManyRequests, serverError, parseBody, claims, preflight, isEmail, clampStr } from '../lib/http.mjs';
 import { rateLimit, APP_LIMITS } from '../lib/ratelimit.mjs';
 
 const APP_ORIGIN = process.env.APP_ORIGIN || '';
@@ -287,8 +287,10 @@ export const handler = async (event) => {
     return badRequest('Unknown route');
   } catch (err) {
     if (err.code === 'insufficient_credits') return paymentRequired({ creditsRemaining: totalCredits(user), tier: user.tier, topUpAvailable: true });
+    // Log the detail server-side; return a generic message so internal errors
+    // (DynamoDB validation, upstream URLs, etc.) never leak to the client.
     console.error('app_error', method, path, err);
-    return badRequest(err.message || 'Request failed');
+    return serverError('Something went wrong. Please try again.');
   }
 };
 
