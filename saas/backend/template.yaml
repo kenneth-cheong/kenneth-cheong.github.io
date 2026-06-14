@@ -737,6 +737,34 @@ Resources:
       TreatMissingData: notBreaching
       AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref 'AWS::NoValue']
 
+  # Stripe dispute/chargeback → the webhook logs `stripe_dispute_created`; turn
+  # that log line into a metric + alarm so it's surfaced (disputes have tight
+  # response windows). References BillingFn's existing log group by name.
+  DisputeMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${BillingFn}'
+      FilterPattern: '"stripe_dispute_created"'
+      MetricTransformations:
+        - MetricName: StripeDisputes
+          MetricNamespace: Digimetrics/Billing
+          MetricValue: '1'
+          DefaultValue: 0
+
+  DisputeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: A Stripe dispute/chargeback was opened — review in Stripe immediately.
+      Namespace: Digimetrics/Billing
+      MetricName: StripeDisputes
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref 'AWS::NoValue']
+
 Outputs:
   ApiUrl:
     Description: Base URL for the SaaS API (set as VITE_API_BASE in the frontend).
