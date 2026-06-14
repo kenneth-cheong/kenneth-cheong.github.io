@@ -3,6 +3,9 @@
 const BASE = import.meta.env.VITE_API_BASE || '';
 // Lambda Function URL for slow (>30s) tools — bypasses the API Gateway 30s cap.
 const RUN_URL = import.meta.env.VITE_RUN_URL || '';
+// Lambda RESPONSE_STREAM Function URL for the streaming assistant chat.
+const CHAT_STREAM_URL = import.meta.env.VITE_CHAT_STREAM_URL || '';
+export const chatStreamAvailable = !!CHAT_STREAM_URL;
 
 let accessToken = localStorage.getItem('dm_access') || null;
 let refreshToken = localStorage.getItem('dm_refresh') || null;
@@ -66,6 +69,35 @@ async function call(path, { method = 'GET', body, auth = true, base, _retried = 
   }
   if (!res.ok) throw new ApiError(res.status, payload);
   return payload;
+}
+
+// Streaming chat: POSTs to the streaming Function URL and calls onDelta(text)
+// as tokens arrive. Returns { conversationId, reply }. Refreshes the access
+// token once on 401/403; throws ApiError on non-2xx so the caller can fall back.
+export async function chatStream(messages, conversationId, onDelta, _retried = false) {
+  const res = await fetch(CHAT_STREAM_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+    body: JSON.stringify({ messages, conversationId }),
+  });
+  if ((res.status === 401 || res.status === 403) && !_retried && (await tryRefresh())) {
+    return chatStream(messages, conversationId, onDelta, true);
+  }
+  if (!res.ok || !res.body) {
+    const payload = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, payload);
+  }
+  const conversationIdOut = res.headers.get('x-conversation-id') || conversationId;
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let reply = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    const chunk = dec.decode(value, { stream: true });
+    if (chunk) { reply += chunk; onDelta?.(chunk); }
+  }
+  return { conversationId: conversationIdOut, reply };
 }
 
 export const api = {

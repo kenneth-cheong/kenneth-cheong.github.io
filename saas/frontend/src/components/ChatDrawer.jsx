@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { api, ApiError } from '../lib/api.js';
+import { api, ApiError, chatStream, chatStreamAvailable } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { CREDIT_COSTS, toolById } from '@shared/catalog.mjs';
@@ -40,7 +40,7 @@ function ago(iso) {
 // the user's connected GSC / GA4 / Google Ads data. Conversations persist
 // server-side: start a new one or reopen past ones from the history list.
 export default function ChatDrawer({ open, onClose, width = 384, ask }) {
-  const { setCredits } = useAuth();
+  const { user, setCredits } = useAuth();
   const { active, activeId } = useProjects();
   const navigate = useNavigate();
   const location = useLocation();
@@ -90,6 +90,8 @@ export default function ChatDrawer({ open, onClose, width = 384, ask }) {
   const msgsRef = useRef(msgs); msgsRef.current = msgs;
   const askedRef = useRef(null);
 
+  const OUT_OF_CREDITS = "You're out of credits — top up or upgrade to keep chatting.";
+
   async function submit(text) {
     text = String(text || '').trim();
     if (!text || busy) return;
@@ -97,15 +99,40 @@ export default function ChatDrawer({ open, onClose, width = 384, ask }) {
     setMsgs(next);
     setDraft('');
     setBusy(true);
+
+    // ── Streaming path (token-by-token) — falls back to buffered chat on error. ──
+    if (chatStreamAvailable) {
+      setMsgs((m) => [...m, { role: 'assistant', content: '' }]); // bubble we stream into
+      let acc = '';
+      try {
+        const { conversationId: cid } = await chatStream(next, conversationId, (delta) => {
+          acc += delta;
+          setMsgs((m) => { const c = m.slice(); c[c.length - 1] = { role: 'assistant', content: acc }; return c; });
+        });
+        if (cid) setConversationId(cid);
+        setCredits(Math.max(0, (user?.credits || 0) - COST)); // stream can't return the balance; correct on next /me
+        setBusy(false);
+        return;
+      } catch (err) {
+        // Drop the empty placeholder; show 402 or fall through to the fallback.
+        setMsgs((m) => (m.length && m[m.length - 1].role === 'assistant' && !m[m.length - 1].content ? m.slice(0, -1) : m));
+        if (err instanceof ApiError && err.status === 402) {
+          setMsgs((m) => [...m, { role: 'assistant', content: OUT_OF_CREDITS }]);
+          setBusy(false);
+          return;
+        }
+        // otherwise fall through to the non-streaming fallback below
+      }
+    }
+
+    // ── Buffered fallback (also the path when streaming isn't configured) ──
     try {
       const { reply, creditsRemaining, conversationId: cid } = await api.chat(next, conversationId);
       setMsgs((m) => [...m, { role: 'assistant', content: reply }]);
       if (cid) setConversationId(cid);
       if (typeof creditsRemaining === 'number') setCredits(creditsRemaining);
     } catch (err) {
-      const msg = err instanceof ApiError && err.status === 402
-        ? "You're out of credits — top up or upgrade to keep chatting."
-        : `Error: ${err.message}`;
+      const msg = err instanceof ApiError && err.status === 402 ? OUT_OF_CREDITS : `Error: ${err.message}`;
       setMsgs((m) => [...m, { role: 'assistant', content: msg }]);
     } finally {
       setBusy(false);
@@ -219,7 +246,7 @@ export default function ChatDrawer({ open, onClose, width = 384, ask }) {
                 {m.role === 'assistant' ? renderMessage(m.content, chipFor) : m.content}
               </div>
             ))}
-            {busy && <div className="w-16 rounded-2xl rounded-bl-sm bg-slate-100 px-3 py-2 text-sm text-slate-400">…</div>}
+            {busy && msgs[msgs.length - 1]?.role === 'user' && <div className="w-16 rounded-2xl rounded-bl-sm bg-slate-100 px-3 py-2 text-sm text-slate-400">…</div>}
             {msgs.length <= 1 && !busy && (
               <div className="flex flex-wrap gap-2 pt-1">
                 {suggestions.map((s) => (
