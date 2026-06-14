@@ -33,6 +33,15 @@ const APP_ORIGIN = process.env.APP_ORIGIN || '';
 const redirect = (url) => ({ statusCode: 302, headers: { Location: url }, body: '' });
 const seg = (path, after) => decodeURIComponent((path.split(after)[1] || '').split('/')[0] || '');
 
+// Lenient JSON extraction from an LLM reply (strips code fences / prose around it).
+function parseJsonLoose(s) {
+  if (!s) return null;
+  let t = String(s).trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+  const a = t.indexOf('{'), b = t.lastIndexOf('}');
+  if (a === -1 || b === -1) return null;
+  try { return JSON.parse(t.slice(a, b + 1)); } catch { return null; }
+}
+
 // Coarse health of an integration pull, derived from the saved run preview
 // (same heuristic as the History page): 'issue' | 'empty' | 'ok'.
 function pullStatus(preview) {
@@ -125,6 +134,41 @@ export const handler = async (event) => {
       try { await deleteUserAttachments(user.userId); } catch (e) { console.error('delete_attachments', e.message); }
       await deleteAllUserData(user.userId);
       return ok({ deleted: true });
+    }
+
+    // ── Site Health Check: synthesise several tool results into one scored,
+    // beginner-friendly report (the sub-tools are run + charged client-side). ──
+    if (method === 'POST' && path.endsWith('/audit/synthesize')) {
+      const cost = CREDIT_COSTS.ai_short ?? 1;
+      if (totalCredits(user) < cost) return paymentRequired({ creditsRemaining: totalCredits(user), creditsNeeded: cost, tier: user.tier, topUpAvailable: true });
+      const url = clampStr(body.url || '', 200);
+      const inputs = (Array.isArray(body.inputs) ? body.inputs : []).slice(0, 8);
+      if (!inputs.length) return badRequest('Nothing to summarise.');
+      const blocks = inputs.map((i) => `## ${clampStr(i.name || i.tool || 'Check', 80)}\n${clampStr(i.text || '', 2500)}`).join('\n\n');
+      const userPrompt =
+        `You are an SEO + AI-visibility expert writing a BEGINNER-friendly website health report for ${url || 'a website'}. ` +
+        'Using the tool outputs below, return ONLY valid JSON (no markdown, no code fence) with EXACTLY this shape:\n' +
+        '{"score": <0-100 integer overall health>, "grade": "<A|B|C|D|F>", "summary": "<2 plain-English sentences, no jargon>", ' +
+        '"areas": [{"name": "<short>", "score": <0-100>, "status": "<good|fair|poor>", "note": "<one short line>"}], ' +
+        '"fixes": [{"title": "<short action>", "priority": "<high|medium|low>", "why": "<one short line, plain English>"}]}\n' +
+        'Rules: 4-6 areas; 5-8 fixes ordered highest-priority first; plain English (explain any term); be specific to the findings.\n\n' +
+        `Tool outputs:\n${blocks}`;
+      let aiText = '';
+      try {
+        const res = await fetch(UPSTREAMS.aiOptimiser, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'content_freeform', userPrompt }),
+        });
+        const t = await res.text();
+        if (!res.ok) throw new Error('ai_unavailable');
+        let raw; try { raw = JSON.parse(t); } catch { raw = t; }
+        if (raw && typeof raw === 'object' && raw.body !== undefined) raw = typeof raw.body === 'string' ? JSON.parse(raw.body) : raw.body;
+        aiText = typeof raw === 'string' ? raw : (raw.result || raw.text || raw.content || '');
+      } catch { return serverError('Could not generate the audit summary — please try again.'); }
+      const report = parseJsonLoose(aiText);
+      if (!report || typeof report.score === 'undefined') return serverError('Could not parse the audit summary — please try again.');
+      const spent = await spendCredits({ userId: user.userId, cost, action: 'audit_synthesis', tool: 'site-audit' });
+      return ok({ report, creditsUsed: cost, creditsRemaining: spent.total });
     }
 
     // ── Run history ─────────────────────────────────────────────────────────

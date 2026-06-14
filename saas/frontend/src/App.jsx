@@ -41,6 +41,7 @@ const Support = lazyWithReload(() => import('./pages/Support.jsx'));
 const Integrations = lazyWithReload(() => import('./pages/Integrations.jsx'));
 const Projects = lazyWithReload(() => import('./pages/Projects.jsx'));
 const Tracking = lazyWithReload(() => import('./pages/Tracking.jsx'));
+const SiteAudit = lazyWithReload(() => import('./pages/SiteAudit.jsx'));
 
 const Loading = () => <div className="grid min-h-[40vh] place-items-center text-slate-400">Loading…</div>;
 
@@ -81,6 +82,7 @@ export default function App() {
           <Route path="/tool/:toolId" element={<ToolRunner />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/tracking" element={<Tracking />} />
+          <Route path="/audit" element={<SiteAudit />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/account" element={<Account />} />
           <Route path="/usage" element={<Usage />} />

@@ -111,7 +111,7 @@ export default function Dashboard() {
             <section className="mt-8">
               <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">What do you want to do?</h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {GOALS.map((g) => <GoalCard key={g.id} goal={g} onClick={() => (g.to && g.tools.length <= 1 ? navigate(g.to) : setActiveGoal(g.id))} />)}
+                {GOALS.map((g) => <GoalCard key={g.id} goal={g} onClick={() => (g.to ? navigate(g.to) : setActiveGoal(g.id))} />)}
               </div>
             </section>
             {recent.length > 0 && (

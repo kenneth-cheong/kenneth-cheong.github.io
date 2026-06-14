@@ -72,6 +72,8 @@ export const api = {
   loginGoogle: (idToken) => call('/auth/google', { method: 'POST', body: { idToken }, auth: false }),
   me: () => call('/me'),
   usage: () => call('/me/usage'),
+  // Site Health Check — synthesise several tool results into one scored report.
+  auditSynthesize: (url, inputs) => call('/audit/synthesize', { method: 'POST', body: { url, inputs } }),
   // GDPR: export everything we hold, or permanently delete the account.
   exportData: () => call('/me/export'),
   deleteAccount: () => call('/me/delete', { method: 'POST' }),

@@ -230,7 +230,7 @@ export const GOALS = [
   { id: 'visitors', label: 'Get more visitors', icon: 'TrendingUp',
     desc: 'Find keywords and fix what holds your rankings back.',
     tools: ['keyword-analysis', 'rank-checker', 'technical-seo', 'onpage', 'strategy-engine'] },
-  { id: 'health', label: 'Check my site’s health', icon: 'Stethoscope',
+  { id: 'health', label: 'Check my site’s health', icon: 'Stethoscope', to: '/audit',
     desc: 'A full audit with a score and a prioritised fix list.',
     tools: ['forensic-audit', 'technical-seo', 'landing-audit'] },
   { id: 'content', label: 'Create content', icon: 'PenLine',
@@ -248,6 +248,14 @@ export const GOALS = [
   { id: 'my-data', label: 'See my Google data', icon: 'BarChart3', to: '/integrations',
     desc: 'Your Search Console, Analytics & Ads in one place.',
     tools: ['gsc', 'ga4', 'google-ads'] },
+];
+
+// The one-click "Site Health Check" runs these tools and synthesises a single
+// scored report. Each item: tool id + how to build its input from the site URL.
+export const AUDIT_TOOLS = [
+  { id: 'technical-seo', label: 'Technical health', input: (url) => ({ input: url, maxPages: '10', maxDepth: '3' }) },
+  { id: 'landing-audit', label: 'Page quality', input: (url) => ({ input: url }) },
+  { id: 'llms-txt', label: 'AI readiness', input: (url) => ({ input: url }) },
 ];
 
 /** Plain-English name/description shown in Simple mode (overrides the pro label). */
