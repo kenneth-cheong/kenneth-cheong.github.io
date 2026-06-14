@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AUDIT_TOOLS, toolById, tierMeets, CREDIT_COSTS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -35,6 +35,12 @@ export default function SiteAudit() {
   const [steps, setSteps] = useState(null); // [{id,label,status}]
   const [report, setReport] = useState(null);
   const [running, setRunning] = useState(false);
+
+  // Prefill the site from the active project once it loads (it may arrive after mount).
+  useEffect(() => {
+    if (!url && active?.domain) setUrl(/^https?:\/\//.test(active.domain) ? active.domain : `https://${active.domain.replace(/^https?:\/\//, '')}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
 
   // Which audit tools this tier can actually run; others are skipped.
   const runnable = AUDIT_TOOLS.filter((a) => { const t = toolById(a.id); return t && tierMeets(user.tier, t.minTier); });
