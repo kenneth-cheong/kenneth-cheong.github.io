@@ -437,6 +437,8 @@ Resources:
         MeExport: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/export, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         MeDelete: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/delete, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         MeRevokeSessions: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/sessions/revoke, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        MeAccess: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/access, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        MeAccessRespond: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/access/respond, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         AuditSynthesize: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /audit/synthesize, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Run: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/me/runs/{runId}', Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Projects: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /projects, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
@@ -554,6 +556,10 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
+        # Consent-gated activity view: read a user's runs + conversations, notify them.
+        - DynamoDBCrudPolicy: { TableName: !Ref RunsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref ConversationsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref NotificationsTable }
         - Statement:
             - Effect: Allow
               Action: [ses:SendEmail, ses:SendRawEmail]
@@ -563,6 +569,10 @@ Resources:
         UserCreate: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/users, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Credits: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/credits, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Tier: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/tier, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        AccessGet: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/access, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        AccessRequest: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/access, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        Activity: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/activity, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        Usage: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/usage, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
 
   # ── Observability: SNS topic + CloudWatch alarms ────────────────────────
   # The topic (and email subscription) only exist when AlarmEmail is set; the

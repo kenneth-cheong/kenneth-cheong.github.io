@@ -461,6 +461,39 @@ export async function getRun(userId, runId) {
   return Item || null;
 }
 
+// Aggregate per-tool usage COUNTS for a user (operational/billing metadata —
+// tool name, run count, credits spent, last used). Paginates the whole runs
+// partition with a minimal projection; carries no inputs/results so it's safe
+// to expose to staff without a consent grant (counts ≠ content).
+export async function toolUsageCounts(userId) {
+  const byTool = new Map();
+  let total = 0, totalCreditsSpent = 0;
+  let ExclusiveStartKey;
+  do {
+    const { Items, LastEvaluatedKey } = await ddb.send(new QueryCommand({
+      TableName: TABLES.runs,
+      KeyConditionExpression: 'userId = :u',
+      ExpressionAttributeValues: { ':u': userId },
+      ProjectionExpression: 'tool, toolName, creditsUsed, ts',
+      ExclusiveStartKey,
+    }));
+    for (const r of Items || []) {
+      const key = r.tool || r.toolName || 'unknown';
+      const cur = byTool.get(key) || { tool: key, toolName: r.toolName || key, count: 0, credits: 0, lastUsed: null };
+      cur.count += 1;
+      cur.credits += Number(r.creditsUsed) || 0;
+      if (r.ts && (!cur.lastUsed || r.ts > cur.lastUsed)) cur.lastUsed = r.ts;
+      if (r.toolName && cur.toolName === key) cur.toolName = r.toolName;
+      byTool.set(key, cur);
+      total += 1;
+      totalCreditsSpent += Number(r.creditsUsed) || 0;
+    }
+    ExclusiveStartKey = LastEvaluatedKey;
+  } while (ExclusiveStartKey);
+  const tools = [...byTool.values()].sort((a, b) => b.count - a.count);
+  return { tools, totalRuns: total, totalCreditsSpent };
+}
+
 // ── Assistant chat conversations (persisted thread per user) ─────────────────
 const convTitle = (messages) => {
   const first = (messages || []).find((m) => m?.role === 'user' && m.content);
@@ -833,6 +866,53 @@ export async function revokeSession(userId, sid) {
     UpdateExpression: 'SET sessions = :s, updatedAt = :now',
     ExpressionAttributeValues: { ':s': sessions, ':now': new Date().toISOString() },
   }));
+}
+
+// ── Consent-gated admin access ───────────────────────────────────────────────
+// Staff can only view a user's tool usage / conversations AFTER the user grants
+// access. Grants live on the user record (touched atomically). A granted request
+// is time-boxed and the user can revoke it any time.
+const ACCESS_TTL_DAYS = 7;
+
+/** Staff requests access to a user's activity → a pending grant + notify them. */
+export async function requestAccess({ userId, requestedBy, reason }) {
+  const user = await getUser(userId);
+  if (!user) return null;
+  const grant = { id: rid(), status: 'pending', requestedBy: requestedBy || 'staff', reason: String(reason || '').slice(0, 300), requestedAt: new Date().toISOString() };
+  const grants = [grant, ...(user.accessGrants || [])].slice(0, 15);
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.users, Key: { userId },
+    UpdateExpression: 'SET accessGrants = :g, updatedAt = :now',
+    ExpressionAttributeValues: { ':g': grants, ':now': new Date().toISOString() },
+  }));
+  return grant;
+}
+
+/** User responds to a request: grant (time-boxed), deny, or revoke. */
+export async function respondAccess({ userId, id, action, days = ACCESS_TTL_DAYS }) {
+  const user = await getUser(userId);
+  if (!user) return null;
+  const now = new Date().toISOString();
+  const status = action === 'grant' ? 'granted' : action === 'deny' ? 'denied' : 'revoked';
+  const grants = (user.accessGrants || []).map((g) => (g.id === id
+    ? { ...g, status, decidedAt: now, expiresAt: status === 'granted' ? new Date(Date.now() + days * 86400000).toISOString() : null }
+    : g));
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.users, Key: { userId },
+    UpdateExpression: 'SET accessGrants = :g, updatedAt = :now',
+    ExpressionAttributeValues: { ':g': grants, ':now': now },
+  }));
+  return grants.find((g) => g.id === id) || null;
+}
+
+/** The active (granted, non-expired) access grant on a user, or null. */
+export function activeAccess(user) {
+  const now = new Date().toISOString();
+  return (user?.accessGrants || []).find((g) => g.status === 'granted' && (!g.expiresAt || g.expiresAt > now)) || null;
+}
+
+export async function listAccessGrants(userId) {
+  return (await getUser(userId))?.accessGrants || [];
 }
 
 // ── Account data export + erasure (GDPR portability / right to be forgotten) ──

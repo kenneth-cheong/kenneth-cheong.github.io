@@ -11,6 +11,7 @@ import {
   createProject, listProjects, deleteProject,
   addTracked, listTracked, countTracked, removeTracked, appendSnapshot, mergeSnapshots,
   exportAllUserData, deleteAllUserData, bumpTokenVersion, revokeSession,
+  listAccessGrants, respondAccess,
 } from '../lib/dynamo.mjs';
 import { rankPosition, rankHistory } from '../lib/rank.mjs';
 import { UPSTREAMS } from '../metering/upstreams.mjs';
@@ -110,6 +111,16 @@ export const handler = async (event) => {
         ({ conversationId } = await saveConversation({ userId: user.userId, conversationId, messages: thread }));
       } catch (e) { console.error('conversation_save', e.message); }
       return ok({ reply, conversationId, creditsUsed: cost, creditsRemaining: spent.total });
+    }
+
+    // ── Consent: list + respond to staff data-access requests ────────────────
+    if (method === 'GET' && path.endsWith('/me/access')) {
+      return ok({ grants: await listAccessGrants(user.userId) });
+    }
+    if (method === 'POST' && path.endsWith('/me/access/respond')) {
+      const action = ['grant', 'deny', 'revoke'].includes(body.action) ? body.action : null;
+      if (!body.id || !action) return badRequest('id and action are required.');
+      return ok({ grant: await respondAccess({ userId: user.userId, id: body.id, action }) });
     }
 
     // ── Sessions: revoke one device (body.sid) or all ("sign out everywhere") ──

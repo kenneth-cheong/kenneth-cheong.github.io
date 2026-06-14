@@ -18,6 +18,7 @@ export default function Account() {
   const [deleting, setDeleting] = useState(false);
   const [revoking, setRevoking] = useState(false);
   const [sessions, setSessions] = useState(null);
+  const [grants, setGrants] = useState(null);
   const plan = PLANS[user.tier];
   // The current device's session id lives in the refresh token (decode locally).
   const currentSid = (() => {
@@ -31,6 +32,16 @@ export default function Account() {
 
   useEffect(() => { api.invoices().then((d) => setDocs(d.documents || [])).catch(() => setDocs([])); }, []);
   useEffect(() => { api.me().then((d) => setSessions(d.user?.sessions || [])).catch(() => setSessions([])); }, []);
+  useEffect(() => { api.accessRequests().then((d) => setGrants(d.grants || [])).catch(() => setGrants([])); }, []);
+
+  async function answerAccess(id, action) {
+    setGrants((g) => (g || []).map((x) => (x.id === id ? { ...x, status: action === 'grant' ? 'granted' : action === 'deny' ? 'denied' : 'revoked' } : x)));
+    try {
+      await api.respondAccess(id, action);
+      toast(action === 'grant' ? 'Access granted for 7 days.' : action === 'revoke' ? 'Access revoked.' : 'Request denied.', 'success');
+    } catch (e) { toast(e.message, 'error'); }
+  }
+  const liveGrants = (grants || []).filter((g) => g.status === 'pending' || (g.status === 'granted' && (!g.expiresAt || g.expiresAt > new Date().toISOString())));
 
   async function revokeDevice(sid) {
     setSessions((s) => (s || []).filter((x) => x.sid !== sid));
@@ -222,6 +233,36 @@ export default function Account() {
           </ul>
         )}
       </div>
+
+      {/* ── Data access requests (consent-gated admin access) ──────────── */}
+      {liveGrants.length > 0 && (
+        <div className="card mt-4 p-5">
+          <h2 className="font-bold">Data access requests</h2>
+          <p className="mt-1 text-sm text-slate-500">Support can view your tool usage and chatbot conversations only if you allow it. Approvals last 7 days — you can revoke anytime.</p>
+          <ul className="mt-3 divide-y divide-slate-100">
+            {liveGrants.map((g) => (
+              <li key={g.id} className="flex flex-wrap items-center gap-3 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-slate-800">
+                    {g.requestedBy || 'Support'}{g.reason ? <span className="font-normal text-slate-500"> — “{g.reason}”</span> : ''}
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    {g.status === 'pending' ? `Requested ${ago(g.requestedAt)}` : `Allowed · expires ${new Date(g.expiresAt).toLocaleDateString()}`}
+                  </div>
+                </div>
+                {g.status === 'pending' ? (
+                  <div className="flex gap-2">
+                    <button onClick={() => answerAccess(g.id, 'grant')} className="btn-primary px-3 py-1.5 text-sm">Allow 7 days</button>
+                    <button onClick={() => answerAccess(g.id, 'deny')} className="btn-ghost px-3 py-1.5 text-sm">Deny</button>
+                  </div>
+                ) : (
+                  <button onClick={() => answerAccess(g.id, 'revoke')} className="text-sm text-slate-400 hover:text-red-600">Revoke access</button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* ── Your data (export + delete) ────────────────────────────────── */}
       <div className="card mt-4 p-5">

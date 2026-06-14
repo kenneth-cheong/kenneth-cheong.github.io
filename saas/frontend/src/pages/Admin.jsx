@@ -39,6 +39,7 @@ function AdminUsers() {
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
+  const [activityUser, setActivityUser] = useState(null);
 
   useEffect(() => { load(); }, []);
   async function load() {
@@ -101,12 +102,218 @@ function AdminUsers() {
                   <button className="btn-ghost px-2 py-1 text-xs" onClick={() => adjust(u, 'monthly')}>± Monthly</button>
                   <button className="btn-ghost px-2 py-1 text-xs" onClick={() => adjust(u, 'topup')}>± Top-up</button>
                 </div>) },
+            { key: 'activity', label: 'Activity', sortable: false, render: (u) => (
+                u.status === 'invited'
+                  ? <span className="text-xs text-slate-300">—</span>
+                  : <button className="btn-ghost px-2 py-1 text-xs" onClick={() => setActivityUser(u)}>View</button>) },
           ]}
         />
       </div>
       <p className="mt-3 text-xs text-slate-400">
         Tier changes reset the monthly allowance to that plan's amount; top-up credits are untouched. All adjustments are written to the credit ledger.
       </p>
+      {activityUser && <AdminUserActivity user={activityUser} onClose={() => setActivityUser(null)} />}
+    </div>
+  );
+}
+
+// ── Consent-gated activity viewer ─────────────────────────────────────────────
+// Staff can only see a user's runs + conversations while that user has an ACTIVE
+// grant (they approve it under Account → Data access). Until then we show the
+// request flow. The server enforces this too — the UI just mirrors the gate.
+function AdminUserActivity({ user, onClose }) {
+  const [grants, setGrants] = useState(null);   // null = loading
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [runs, setRuns] = useState(null);
+  const [convos, setConvos] = useState(null);
+  const [openConvo, setOpenConvo] = useState(null);
+  const [usage, setUsage] = useState(null);   // per-tool counts (ungated)
+
+  const active = (grants || []).find((g) => g.status === 'granted' && (!g.expiresAt || new Date(g.expiresAt) > new Date()));
+  const pending = (grants || []).find((g) => g.status === 'pending');
+
+  async function loadGrants() {
+    setErr('');
+    try { const { grants } = await api.adminAccessStatus(user.userId); setGrants(grants || []); }
+    catch (e) { setGrants([]); setErr(e?.payload?.error || 'Could not load access status.'); }
+  }
+  useEffect(() => { loadGrants(); }, [user.userId]);
+
+  // Tool-usage counts are operational metadata — load them regardless of consent.
+  useEffect(() => {
+    let live = true;
+    api.adminUsage(user.userId).then((d) => live && setUsage(d)).catch(() => live && setUsage({ tools: [], totalRuns: 0 }));
+    return () => { live = false; };
+  }, [user.userId]);
+
+  // Once a grant is active, pull the user's activity.
+  useEffect(() => {
+    if (!active) return;
+    let live = true;
+    api.adminActivity(user.userId, 'runs').then((d) => live && setRuns(d.runs || [])).catch(() => live && setRuns([]));
+    api.adminActivity(user.userId, 'conversations').then((d) => live && setConvos(d.conversations || [])).catch(() => live && setConvos([]));
+    return () => { live = false; };
+  }, [active, user.userId]);
+
+  async function request() {
+    setBusy(true); setErr('');
+    try { await api.adminRequestAccess(user.userId, reason.trim()); await loadGrants(); }
+    catch (e) { setErr(e?.payload?.error || 'Could not send the request.'); }
+    finally { setBusy(false); }
+  }
+
+  async function openConversation(id) {
+    setOpenConvo({ id, loading: true });
+    try { const { conversation } = await api.adminActivity(user.userId, 'conversation', id); setOpenConvo({ id, conversation }); }
+    catch { setOpenConvo({ id, error: true }); }
+  }
+
+  return (
+    <div onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+      <div onClick={(e) => e.stopPropagation()} className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl border border-slate-200 bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-100 p-4">
+          <div>
+            <h3 className="text-base font-bold">Activity · {user.name || user.email}</h3>
+            <p className="text-xs text-slate-400">{user.email}</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700" aria-label="Close">✕</button>
+        </div>
+
+        <div className="overflow-y-auto p-4">
+          {err && <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
+
+          {/* Tool-usage counts — always visible (operational metadata, no content). */}
+          {!openConvo && (
+            <section className="mb-5">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-slate-700">Tool usage</h4>
+                {usage && <span className="text-xs text-slate-400">{(usage.totalRuns || 0).toLocaleString()} runs · {(usage.totalCreditsSpent || 0).toLocaleString()} credits</span>}
+              </div>
+              {usage === null ? <p className="mt-2 text-sm text-slate-400">Loading…</p>
+                : usage.tools.length === 0 ? <p className="mt-2 text-sm text-slate-400">No tool runs yet.</p>
+                : (
+                  <table className="mt-2 w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
+                        <th className="pb-1 font-medium">Tool</th>
+                        <th className="pb-1 text-right font-medium">Runs</th>
+                        <th className="pb-1 text-right font-medium">Credits</th>
+                        <th className="pb-1 text-right font-medium">Last used</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {usage.tools.map((t) => (
+                        <tr key={t.tool} className="border-b border-slate-50">
+                          <td className="py-1.5 font-medium text-slate-700">{t.toolName || t.tool}</td>
+                          <td className="py-1.5 text-right font-semibold tabular-nums">{(t.count || 0).toLocaleString()}</td>
+                          <td className="py-1.5 text-right text-slate-500 tabular-nums">{(t.credits || 0).toLocaleString()}</td>
+                          <td className="py-1.5 text-right whitespace-nowrap text-xs text-slate-400">{t.lastUsed ? fmtWhen(t.lastUsed) : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              <p className="mt-2 text-[11px] text-slate-400">Usage counts are always visible. Opening run details or conversations below requires the user’s consent.</p>
+            </section>
+          )}
+
+          {grants === null && <p className="text-sm text-slate-400">Loading…</p>}
+
+          {/* No active grant → request flow. */}
+          {grants !== null && !active && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <div className="flex items-start gap-2">
+                <span className="text-lg">🔒</span>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-900">Consent required for details</p>
+                  <p className="mt-1 text-sm text-amber-800">
+                    Run details and conversation contents need the user’s permission. Send a request and they’ll
+                    approve it under <span className="font-medium">Account → Data access</span>. Grants last 7 days.
+                  </p>
+                  {pending
+                    ? <p className="mt-3 rounded-lg bg-white/70 px-3 py-2 text-sm text-amber-900">
+                        ⏳ Request pending since {fmtWhen(pending.requestedAt)} — waiting for the user to allow it.
+                      </p>
+                    : (
+                      <div className="mt-3">
+                        <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (shown to the user, optional)"
+                          className="w-full rounded-lg border border-amber-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none" />
+                        <button onClick={request} disabled={busy} className="btn-primary mt-2 px-3 py-2 text-sm disabled:opacity-50">
+                          {busy ? 'Sending…' : 'Request access'}
+                        </button>
+                      </div>
+                    )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Active grant → show runs + conversations. */}
+          {active && !openConvo && (
+            <div className="space-y-5">
+              <p className="rounded-lg bg-green-50 px-3 py-2 text-xs text-green-800">
+                ✓ Access granted{active.expiresAt ? ` until ${fmtWhen(active.expiresAt)}` : ''}. Every view is logged.
+              </p>
+
+              <section>
+                <h4 className="text-sm font-semibold text-slate-700">Recent tool runs</h4>
+                {runs === null ? <p className="mt-2 text-sm text-slate-400">Loading…</p>
+                  : runs.length === 0 ? <p className="mt-2 text-sm text-slate-400">No runs yet.</p>
+                  : (
+                    <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
+                      {runs.map((r) => (
+                        <div key={r.runId} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-1.5 text-sm">
+                          <span className="font-medium text-slate-700">{r.toolName || r.tool}</span>
+                          <span className="whitespace-nowrap text-xs text-slate-400">{fmtWhen(r.ts)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+              </section>
+
+              <section>
+                <h4 className="text-sm font-semibold text-slate-700">Assistant conversations</h4>
+                {convos === null ? <p className="mt-2 text-sm text-slate-400">Loading…</p>
+                  : convos.length === 0 ? <p className="mt-2 text-sm text-slate-400">No conversations yet.</p>
+                  : (
+                    <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
+                      {convos.map((c) => (
+                        <button key={c.conversationId} onClick={() => openConversation(c.conversationId)}
+                          className="flex w-full items-center justify-between rounded-lg border border-slate-100 px-3 py-1.5 text-left text-sm hover:bg-slate-50">
+                          <span className="truncate font-medium text-slate-700">{c.title || '(untitled)'}</span>
+                          <span className="ml-2 whitespace-nowrap text-xs text-slate-400">{fmtWhen(c.updatedAt || c.createdAt)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+              </section>
+            </div>
+          )}
+
+          {/* Conversation drill-down. */}
+          {active && openConvo && (
+            <div>
+              <button onClick={() => setOpenConvo(null)} className="text-sm text-slate-500 hover:text-slate-800">← Conversations</button>
+              {openConvo.loading && <p className="mt-3 text-sm text-slate-400">Loading…</p>}
+              {openConvo.error && <p className="mt-3 text-sm text-red-600">Could not load this conversation.</p>}
+              {openConvo.conversation && (
+                <div className="mt-3 space-y-3">
+                  {(openConvo.conversation.messages || []).map((m, i) => (
+                    <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm ${m.role === 'user' ? 'rounded-br-sm bg-brand-600 text-white' : 'rounded-bl-sm bg-slate-100 text-slate-800'}`}>
+                        <div className={`mb-0.5 text-[11px] ${m.role === 'user' ? 'text-white/70' : 'text-slate-400'}`}>{m.role === 'user' ? 'User' : 'Assistant'}</div>
+                        <div className="whitespace-pre-wrap">{typeof m.content === 'string' ? m.content : (m.content || []).map((b) => b.text || '').join('')}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -111,6 +111,15 @@ export const api = {
   deleteAccount: () => call('/me/delete', { method: 'POST' }),
   revokeSessions: () => call('/me/sessions/revoke', { method: 'POST' }),
   revokeSession: (sid) => call('/me/sessions/revoke', { method: 'POST', body: { sid } }),
+  // Consent-gated admin access: the user lists/answers staff requests; staff
+  // request access + view activity ONLY while the user has an active grant.
+  accessRequests: () => call('/me/access'),
+  respondAccess: (id, action) => call('/me/access/respond', { method: 'POST', body: { id, action } }),
+  adminRequestAccess: (userId, reason) => call('/admin/access', { method: 'POST', body: { userId, reason } }),
+  adminAccessStatus: (userId) => call(`/admin/access?userId=${encodeURIComponent(userId)}`),
+  // Per-tool usage counts — operational metadata, visible without a grant.
+  adminUsage: (userId) => call(`/admin/usage?userId=${encodeURIComponent(userId)}`),
+  adminActivity: (userId, kind, id) => call(`/admin/activity?userId=${encodeURIComponent(userId)}&kind=${kind}${id ? `&id=${encodeURIComponent(id)}` : ''}`),
   // Slow tools (catalog `slow:true`) route through the Function URL to dodge
   // the 30s API Gateway limit; everything else uses the normal API.
   runTool: (toolId, input, slow = false) =>
