@@ -10,6 +10,7 @@ import {
   addNotification, listNotifications, markNotificationsRead,
   createProject, listProjects, deleteProject,
   addTracked, listTracked, countTracked, removeTracked, appendSnapshot, mergeSnapshots,
+  exportAllUserData, deleteAllUserData,
 } from '../lib/dynamo.mjs';
 import { rankPosition, rankHistory } from '../lib/rank.mjs';
 import { UPSTREAMS } from '../metering/upstreams.mjs';
@@ -17,7 +18,12 @@ import { CREDIT_COSTS, INTEGRATIONS, PLANS } from '../../../shared/catalog.mjs';
 import { integrationSummary } from '../../../shared/connectors.mjs';
 import { oauthConfigured, authUrl, exchangeCode, detectAccount, listAccounts } from '../lib/google.mjs';
 import { signOAuthState, verifyOAuthState } from '../lib/jwt.mjs';
-import { putAttachment, signTicketAttachments } from '../lib/s3.mjs';
+import { putAttachment, signTicketAttachments, deleteUserAttachments } from '../lib/s3.mjs';
+import Stripe from 'stripe';
+
+// Only used by account deletion (to cancel an active subscription so a deleted
+// account isn't billed). Null when no key is configured.
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 import { sendEmail, SUPPORT_INBOX } from '../lib/email.mjs';
 import { isStaff } from '../lib/admin.mjs';
 import { ok, badRequest, unauthorized, paymentRequired, tooManyRequests, parseBody, claims, preflight, isEmail, clampStr } from '../lib/http.mjs';
@@ -85,6 +91,24 @@ export const handler = async (event) => {
         ({ conversationId } = await saveConversation({ userId: user.userId, conversationId, messages: thread }));
       } catch (e) { console.error('conversation_save', e.message); }
       return ok({ reply, conversationId, creditsUsed: cost, creditsRemaining: spent.total });
+    }
+
+    // ── Account data export + deletion (GDPR) ─────────────────────────────────
+    if (method === 'GET' && path.endsWith('/me/export')) {
+      return ok(await exportAllUserData(user.userId));
+    }
+    if (method === 'POST' && path.endsWith('/me/delete')) {
+      // Cancel any active Stripe subscription first, so a deleted account isn't
+      // billed again. Invoice history is kept on the Stripe customer for tax.
+      if (user.stripeCustomerId && stripe) {
+        try {
+          const subs = await stripe.subscriptions.list({ customer: user.stripeCustomerId, status: 'active', limit: 20 });
+          for (const s of subs.data) { try { await stripe.subscriptions.cancel(s.id); } catch (e) { console.error('delete_cancel_sub', s.id, e.message); } }
+        } catch (e) { console.error('delete_stripe', e.message); }
+      }
+      try { await deleteUserAttachments(user.userId); } catch (e) { console.error('delete_attachments', e.message); }
+      await deleteAllUserData(user.userId);
+      return ok({ deleted: true });
     }
 
     // ── Run history ─────────────────────────────────────────────────────────

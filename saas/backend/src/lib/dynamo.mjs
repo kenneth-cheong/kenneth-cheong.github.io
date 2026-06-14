@@ -8,6 +8,7 @@ import {
   QueryCommand,
   ScanCommand,
   DeleteCommand,
+  BatchWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { encrypt } from './crypto.mjs';
 
@@ -768,6 +769,55 @@ export async function putCache(key, value, ttlSeconds) {
     TableName: TABLES.cache,
     Item: { key, value, expireAt: Math.floor(Date.now() / 1000) + ttlSeconds },
   }));
+}
+
+// ── Account data export + erasure (GDPR portability / right to be forgotten) ──
+
+/** Gather everything we hold about a user into one JSON-able object. OAuth
+ * tokens are redacted (they're encrypted secrets, not user-portable data). */
+export async function exportAllUserData(userId) {
+  const user = await getUser(userId);
+  const [ledger, runs, tickets, notifications, projects, tracked, conversations] = await Promise.all([
+    listLedger(userId, 1000), listRuns(userId, 1000), listTickets(userId, 1000),
+    listNotifications(userId, 1000), listProjects(userId, 1000), listTracked(userId),
+    listConversations(userId, 1000),
+  ]);
+  const { integrations, ...profile } = user || {}; // drop OAuth tokens
+  return { exportedAt: new Date().toISOString(), profile, ledger, runs, tickets, notifications, projects, tracked, conversations };
+}
+
+/** Hard-delete every row we hold for a user across all tables, then the user
+ * record itself. Caller handles S3 attachments + Stripe separately. */
+export async function deleteAllUserData(userId) {
+  const tables = [
+    [TABLES.ledger, 'ts'],
+    [TABLES.runs, 'runId'],
+    [TABLES.tickets, 'ticketId'],
+    [TABLES.notifications, 'notifId'],
+    [TABLES.projects, 'projectId'],
+    [TABLES.tracked, 'trackId'],
+    [TABLES.conversations, 'conversationId'],
+  ];
+  for (const [TableName, rk] of tables) {
+    let ExclusiveStartKey;
+    do {
+      const res = await ddb.send(new QueryCommand({
+        TableName,
+        KeyConditionExpression: '#u = :u',
+        ProjectionExpression: '#u, #rk',
+        ExpressionAttributeNames: { '#u': 'userId', '#rk': rk },
+        ExpressionAttributeValues: { ':u': userId },
+        ExclusiveStartKey,
+      }));
+      const items = res.Items || [];
+      for (let i = 0; i < items.length; i += 25) {
+        const batch = items.slice(i, i + 25).map((it) => ({ DeleteRequest: { Key: { userId, [rk]: it[rk] } } }));
+        if (batch.length) await ddb.send(new BatchWriteCommand({ RequestItems: { [TableName]: batch } }));
+      }
+      ExclusiveStartKey = res.LastEvaluatedKey;
+    } while (ExclusiveStartKey);
+  }
+  await ddb.send(new DeleteCommand({ TableName: TABLES.users, Key: { userId } }));
 }
 
 export { ddb };

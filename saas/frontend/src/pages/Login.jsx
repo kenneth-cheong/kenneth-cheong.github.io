@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
 export default function Login() {
@@ -28,6 +29,11 @@ export default function Login() {
           <p className="mb-4 text-sm font-medium text-slate-700">Sign in to start with 30 free credits</p>
           <div className="flex justify-center" ref={btnRef} />
         </div>
+        <p className="mt-4 text-xs text-slate-400">
+          By continuing you agree to our{' '}
+          <Link to="/legal/terms" className="text-brand-600 hover:text-brand-700">Terms</Link> and{' '}
+          <Link to="/legal/privacy" className="text-brand-600 hover:text-brand-700">Privacy Policy</Link>.
+        </p>
       </div>
     </div>
   );

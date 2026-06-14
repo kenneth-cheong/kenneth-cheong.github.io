@@ -72,6 +72,9 @@ export const api = {
   loginGoogle: (idToken) => call('/auth/google', { method: 'POST', body: { idToken }, auth: false }),
   me: () => call('/me'),
   usage: () => call('/me/usage'),
+  // GDPR: export everything we hold, or permanently delete the account.
+  exportData: () => call('/me/export'),
+  deleteAccount: () => call('/me/delete', { method: 'POST' }),
   // Slow tools (catalog `slow:true`) route through the Function URL to dodge
   // the 30s API Gateway limit; everything else uses the normal API.
   runTool: (toolId, input, slow = false) =>

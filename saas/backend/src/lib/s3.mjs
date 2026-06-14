@@ -4,7 +4,7 @@
 // URLs minted on read, so a leaked/stale URL expires quickly.
 // @aws-sdk/client-s3 ships with the nodejs20 runtime (externalised by the
 // bundler); the presigner is bundled (see scripts/build.mjs).
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const s3 = new S3Client({});
@@ -47,6 +47,18 @@ export async function putAttachment({ userId, name, contentType, dataBase64 }) {
     contentType: ct,
     size: buf.length,
   };
+}
+
+/** Delete every attachment a user owns (account erasure). Best-effort. */
+export async function deleteUserAttachments(userId) {
+  if (!BUCKET) return;
+  let ContinuationToken;
+  do {
+    const list = await s3.send(new ListObjectsV2Command({ Bucket: BUCKET, Prefix: `attachments/${userId}/`, ContinuationToken }));
+    const objects = (list.Contents || []).map((o) => ({ Key: o.Key }));
+    if (objects.length) await s3.send(new DeleteObjectsCommand({ Bucket: BUCKET, Delete: { Objects: objects } }));
+    ContinuationToken = list.IsTruncated ? list.NextContinuationToken : undefined;
+  } while (ContinuationToken);
 }
 
 /**

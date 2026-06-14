@@ -408,6 +408,8 @@ Resources:
           # OAuth redirect URI is derived at runtime from the request domain (see
           # app handler) — referencing ${Api} here created a circular dependency.
           ATTACHMENTS_BUCKET: !Ref AttachmentsBucket
+          # Account deletion cancels the user's active Stripe subscription.
+          STRIPE_SECRET_KEY: '{{resolve:secretsmanager:digimetrics-saas/stripe-secret-key:SecretString}}'
           SES_FROM: !Ref SesFrom
           SES_SUPPORT: !Ref SesSupport
       Policies:
@@ -432,6 +434,8 @@ Resources:
         ConversationDelete: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /chat/conversations/delete, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         ConversationGet: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/chat/conversations/{conversationId}', Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Runs: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/runs, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        MeExport: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/export, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        MeDelete: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/delete, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Run: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/me/runs/{runId}', Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Projects: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /projects, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         ProjectCreate: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /projects, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }

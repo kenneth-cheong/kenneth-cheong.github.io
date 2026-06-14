@@ -4,13 +4,18 @@ import { PartyPopper, Zap } from 'lucide-react';
 import { PLANS, TOPUP_PACKS, CURRENCY } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
+import { toast } from '../lib/ui.js';
 
 export default function Account() {
-  const { user, refresh } = useAuth();
+  const { user, refresh, logout } = useAuth();
   const [params] = useSearchParams();
   const [busy, setBusy] = useState(false);
   const [topupBusy, setTopupBusy] = useState(null);
   const [docs, setDocs] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [delText, setDelText] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const plan = PLANS[user.tier];
 
   // Returning from Stripe Checkout / top-up → pull the fresh tier + credits.
@@ -38,6 +43,29 @@ export default function Account() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function exportData() {
+    setExporting(true);
+    try {
+      const data = await api.exportData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `digimetrics-data-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setExporting(false); }
+  }
+
+  async function deleteAccount() {
+    setDeleting(true);
+    try {
+      await api.deleteAccount();
+      logout(); // clears tokens + user → app redirects to the sign-in screen
+    } catch (e) { toast(e.message, 'error'); setDeleting(false); }
   }
 
   return (
@@ -145,6 +173,42 @@ export default function Account() {
           ))}
         </div>
       </div>
+
+      {/* ── Your data (export + delete) ────────────────────────────────── */}
+      <div className="card mt-4 p-5">
+        <h2 className="font-bold">Your data</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Download everything we hold about you, or permanently delete your account. See our{' '}
+          <Link to="/legal/privacy" className="text-brand-600 hover:text-brand-700">Privacy Policy</Link> and{' '}
+          <Link to="/legal/terms" className="text-brand-600 hover:text-brand-700">Terms</Link>.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button onClick={exportData} disabled={exporting} className="btn-ghost">{exporting ? 'Preparing…' : 'Export my data'}</button>
+          <button onClick={() => { setDelText(''); setConfirmDel(true); }} className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">Delete account</button>
+        </div>
+      </div>
+
+      {confirmDel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !deleting && setConfirmDel(false)}>
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-red-600">Delete your account?</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              This permanently deletes your profile, run history, projects, tracked keywords, conversations, support tickets and credit history.
+              {user.hasSubscription && ' Your active subscription will be cancelled.'} This cannot be undone.
+            </p>
+            <p className="mt-3 text-sm text-slate-600">Type <strong>DELETE</strong> to confirm:</p>
+            <input value={delText} onChange={(e) => setDelText(e.target.value)} placeholder="DELETE"
+              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-red-400 focus:outline-none" />
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setConfirmDel(false)} disabled={deleting} className="btn-ghost text-sm">Cancel</button>
+              <button onClick={deleteAccount} disabled={deleting || delText !== 'DELETE'}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                {deleting ? 'Deleting…' : 'Delete forever'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

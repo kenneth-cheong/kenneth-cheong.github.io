@@ -4,6 +4,7 @@ import { useAuth } from './context/AuthContext.jsx';
 import Layout from './components/Layout.jsx';
 import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
+import { Terms, Privacy } from './pages/Legal.jsx';
 
 // Route-level code-splitting — keeps the initial bundle small; heavier pages
 // (tool runner, reports, admin) load on demand.
@@ -50,6 +51,9 @@ export default function App() {
   if (!user) {
     return (
       <Routes>
+        {/* Legal pages are public — reachable before sign-in. */}
+        <Route path="/legal/terms" element={<Terms />} />
+        <Route path="/legal/privacy" element={<Privacy />} />
         <Route path="*" element={<Login />} />
       </Routes>
     );
@@ -71,6 +75,8 @@ export default function App() {
           <Route path="/support/:ticketId" element={<Support />} />
           <Route path="/integrations" element={<Integrations />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/legal/terms" element={<Terms />} />
+          <Route path="/legal/privacy" element={<Privacy />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
