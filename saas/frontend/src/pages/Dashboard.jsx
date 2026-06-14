@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Clock, Check, TrendingUp, Stethoscope, PenLine, LineChart, Sparkles, Swords, BarChart3, ChevronRight } from 'lucide-react';
 import { TOOLS, CATEGORIES, GOALS, SIMPLE_NAMES, toolById, tierMeets } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -15,9 +15,10 @@ const GOAL_ICON = { TrendingUp, Stethoscope, PenLine, LineChart, Sparkles, Sword
 const display = (t, simple) => (simple && SIMPLE_NAMES[t.id] ? { ...t, ...SIMPLE_NAMES[t.id] } : t);
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, setOnboarding } = useAuth();
   const { projects } = useProjects();
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('All');
   const [activeGoal, setActiveGoal] = useState(null);
@@ -31,7 +32,18 @@ export default function Dashboard() {
   const simple = mode === 'simple';
   const setView = (m) => { setMode(m); localStorage.setItem('dm_view_mode', m); setActiveGoal(null); };
 
-  const [showOnboard, setShowOnboard] = useState(() => localStorage.getItem('dm_onboard_done') !== '1');
+  // Arriving from the welcome flow with ?goal=<id> → open that goal in Simple
+  // mode, then strip the param so a refresh doesn't re-pin it.
+  useEffect(() => {
+    const g = params.get('goal');
+    if (g && GOALS.some((x) => x.id === g)) {
+      setMode('simple'); setActiveGoal(g);
+      params.delete('goal'); setParams(params, { replace: true });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [showOnboard, setShowOnboard] = useState(() => !user.onboarding?.dismissedChecklist && localStorage.getItem('dm_onboard_done') !== '1');
+  const dismissOnboard = () => { setShowOnboard(false); localStorage.setItem('dm_onboard_done', '1'); setOnboarding({ dismissedChecklist: true }); };
   useEffect(() => { api.integrations().then((d) => setGoogleConnected(Object.values(d.connected || {}).some((c) => c?.connected))).catch(() => {}); }, []);
 
   const match = (t) => q === '' || (t.name + t.desc + (SIMPLE_NAMES[t.id]?.name || '')).toLowerCase().includes(q.toLowerCase());
@@ -86,7 +98,7 @@ export default function Dashboard() {
         <div className="mt-6 rounded-xl border border-brand-200 bg-brand-50/60 p-5">
           <div className="flex items-start justify-between">
             <h2 className="font-semibold text-brand-800">Get set up — {steps.filter((s) => s.done).length}/{steps.length} done</h2>
-            <button onClick={() => { setShowOnboard(false); localStorage.setItem('dm_onboard_done', '1'); }} className="text-sm text-slate-400 hover:text-slate-700">Dismiss</button>
+            <button onClick={dismissOnboard} className="text-sm text-slate-400 hover:text-slate-700">Dismiss</button>
           </div>
           <ol className="mt-3 grid gap-3 sm:grid-cols-3">
             {steps.map((s, i) => <Step key={i} n={i + 1} {...s} />)}

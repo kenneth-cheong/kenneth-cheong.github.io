@@ -106,6 +106,8 @@ export const api = {
   usage: () => call('/me/usage'),
   // Site Health Check — synthesise several tool results into one scored report.
   auditSynthesize: (url, inputs) => call('/audit/synthesize', { method: 'POST', body: { url, inputs } }),
+  // First-run onboarding state (welcome flow, chosen goal, dismissed checklist).
+  setOnboarding: (patch) => call('/me/onboarding', { method: 'POST', body: patch }),
   // GDPR: export everything we hold, or permanently delete the account.
   exportData: () => call('/me/export'),
   deleteAccount: () => call('/me/delete', { method: 'POST' }),

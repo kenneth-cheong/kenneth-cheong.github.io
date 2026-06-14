@@ -44,6 +44,19 @@ export function fmtNum(v) {
   return Number.isFinite(n) && /^[\d.,-]+$/.test(String(v).trim()) ? n.toLocaleString() : v;
 }
 
+// ── Onboarding ───────────────────────────────────────────────────────────────
+// Show the first-run welcome only to genuinely new accounts that haven't been
+// welcomed yet. Gating on account age (server `createdAt`) cleanly excludes all
+// existing users — they never created onboarding state, so without this they'd
+// all see the welcome on next load. 24h window catches a real first session.
+const NEW_ACCOUNT_MS = 24 * 60 * 60 * 1000;
+export function needsWelcome(user) {
+  if (!user || user.onboarding?.welcomed) return false;
+  if (!user.createdAt) return false; // legacy account with no timestamp → never new
+  const age = Date.now() - new Date(user.createdAt).getTime();
+  return Number.isFinite(age) && age >= 0 && age < NEW_ACCOUNT_MS;
+}
+
 // Recently-used tools (most recent first, capped).
 const RECENT_KEY = 'dm_recent_tools';
 export function pushRecent(toolId) {

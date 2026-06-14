@@ -11,7 +11,7 @@ import {
   createProject, listProjects, deleteProject,
   addTracked, listTracked, countTracked, removeTracked, appendSnapshot, mergeSnapshots,
   exportAllUserData, deleteAllUserData, bumpTokenVersion, revokeSession,
-  listAccessGrants, respondAccess,
+  listAccessGrants, respondAccess, updateOnboarding,
 } from '../lib/dynamo.mjs';
 import { rankPosition, rankHistory } from '../lib/rank.mjs';
 import { UPSTREAMS } from '../metering/upstreams.mjs';
@@ -111,6 +111,19 @@ export const handler = async (event) => {
         ({ conversationId } = await saveConversation({ userId: user.userId, conversationId, messages: thread }));
       } catch (e) { console.error('conversation_save', e.message); }
       return ok({ reply, conversationId, creditsUsed: cost, creditsRemaining: spent.total });
+    }
+
+    // ── Onboarding: persist first-run state (welcome, chosen goal, checklist) ──
+    // Whitelisted keys only — this endpoint can't be used to write arbitrary
+    // user fields. Returns the merged onboarding object for the client to cache.
+    if (method === 'POST' && path.endsWith('/me/onboarding')) {
+      const patch = {};
+      if (typeof body.welcomed === 'boolean') patch.welcomed = body.welcomed;
+      if (typeof body.dismissedChecklist === 'boolean') patch.dismissedChecklist = body.dismissedChecklist;
+      if (typeof body.seenPlatformTour === 'boolean') patch.seenPlatformTour = body.seenPlatformTour;
+      if (body.goal === null || typeof body.goal === 'string') patch.goal = body.goal ? clampStr(body.goal, 40) : null;
+      if (!Object.keys(patch).length) return badRequest('Nothing to update.');
+      return ok({ onboarding: await updateOnboarding(user.userId, patch) });
     }
 
     // ── Consent: list + respond to staff data-access requests ────────────────

@@ -37,6 +37,24 @@ export async function getUser(userId) {
   return Item || null;
 }
 
+// Merge a partial patch into the user's `onboarding` map (welcome flow, chosen
+// goal, dismissed checklist, seen platform tour). Durable + cross-device so
+// first-run state survives a localStorage wipe or a second device. `onboarding`
+// is a map, so this is a read-modify-write to avoid clobbering sibling keys.
+export async function updateOnboarding(userId, patch = {}) {
+  const now = new Date().toISOString();
+  const user = await getUser(userId);
+  if (!user) return null;
+  const onboarding = { ...(user.onboarding || {}), ...patch, updatedAt: now };
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.users,
+    Key: { userId },
+    UpdateExpression: 'SET onboarding = :o, updatedAt = :u',
+    ExpressionAttributeValues: { ':o': onboarding, ':u': now },
+  }));
+  return onboarding;
+}
+
 export async function getUserByStripeCustomer(customerId) {
   const { Items } = await ddb.send(
     new QueryCommand({

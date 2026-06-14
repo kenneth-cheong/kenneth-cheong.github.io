@@ -7,7 +7,8 @@ import NotificationBell from './NotificationBell.jsx';
 import Toaster from './Toaster.jsx';
 import ExplainMenu from './ExplainMenu.jsx';
 import ProjectSelector from './ProjectSelector.jsx';
-import { useMediaQuery } from '../lib/ui.js';
+import Welcome from './Welcome.jsx';
+import { useMediaQuery, needsWelcome } from '../lib/ui.js';
 import { PLANS } from '@shared/catalog.mjs';
 import { startPlatformTour, hasSeen, markSeen } from '../lib/tours.js';
 import { Menu, MessageCircle, HelpCircle, ChevronDown } from 'lucide-react';
@@ -30,20 +31,29 @@ const menuNav = [
 const CHAT_W = 384; // px — must match ChatDrawer width on desktop
 
 export default function Layout({ children }) {
-  const { user, logout } = useAuth();
+  const { user, logout, setOnboarding } = useAuth();
   const [chatOpen, setChatOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [acctOpen, setAcctOpen] = useState(false);
   const [ask, setAsk] = useState(null);
   const wide = useMediaQuery('(min-width: 768px)');
+  // Shows automatically for brand-new accounts; `?welcome=1` re-opens it anytime
+  // (lets anyone replay the intro — tours were otherwise one-shot).
+  const [forceWelcome, setForceWelcome] = useState(() => new URLSearchParams(window.location.search).has('welcome'));
+  const showWelcome = forceWelcome || needsWelcome(user);
 
-  // First visit ever → auto-run the platform tour once the dashboard has painted.
+  // After the welcome flow is done → auto-run the platform tour once the
+  // dashboard has painted. Chained behind the welcome so the two never stack;
+  // `seenPlatformTour` is also tracked server-side so it survives a new device.
   useEffect(() => {
-    if (hasSeen('platform')) return;
+    if (showWelcome) return;                                  // wait until welcome is dismissed
+    if (hasSeen('platform') || user?.onboarding?.seenPlatformTour) return;
     if (window.location.pathname !== '/') return;
-    const t = setTimeout(() => { if (!hasSeen('platform')) { markSeen('platform'); startPlatformTour(); } }, 900);
+    const t = setTimeout(() => {
+      if (!hasSeen('platform')) { markSeen('platform'); setOnboarding({ seenPlatformTour: true }); startPlatformTour(); }
+    }, 900);
     return () => clearTimeout(t);
-  }, []);
+  }, [showWelcome]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Let any page open the assistant (Support CTA) or ask it about something
   // (the right-click "Explain this" menu).
@@ -176,6 +186,7 @@ export default function Layout({ children }) {
       <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} width={wide ? CHAT_W : '100%'} ask={ask} />
       <ExplainMenu />
       <Toaster />
+      {showWelcome && <Welcome onDone={() => setForceWelcome(false)} />}
     </>
   );
 }

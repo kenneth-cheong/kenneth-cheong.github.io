@@ -44,8 +44,19 @@ export function AuthProvider({ children }) {
     setUser((u) => (u ? { ...u, credits } : u));
   }, []);
 
+  // Persist first-run onboarding state server-side (durable + cross-device) and
+  // optimistically patch the local user so the UI updates immediately. Failures
+  // are swallowed — onboarding is best-effort and must never block the app.
+  const setOnboarding = useCallback(async (patch) => {
+    setUser((u) => (u ? { ...u, onboarding: { ...(u.onboarding || {}), ...patch } } : u));
+    try {
+      const { onboarding } = await api.setOnboarding(patch);
+      if (onboarding) setUser((u) => (u ? { ...u, onboarding } : u));
+    } catch { /* best-effort; local patch already applied */ }
+  }, []);
+
   return (
-    <AuthCtx.Provider value={{ user, loading, loginWithGoogle, logout, refresh, setCredits }}>
+    <AuthCtx.Provider value={{ user, loading, loginWithGoogle, logout, refresh, setCredits, setOnboarding }}>
       {children}
     </AuthCtx.Provider>
   );

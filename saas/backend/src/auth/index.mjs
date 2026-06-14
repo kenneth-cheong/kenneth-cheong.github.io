@@ -140,5 +140,7 @@ function publicUser(u) {
     topupCredits: u.topupCredits || 0,
     periodEnd: u.periodEnd,
     isAdmin: isStaff(u),
+    createdAt: u.createdAt,            // drives "is this a brand-new account" in the UI
+    onboarding: u.onboarding || null,  // welcome flow / chosen goal / dismissed checklist
   };
 }
