@@ -46,8 +46,10 @@ APIFY_TOKEN  = os.environ.get('APIFY_TOKEN', '')
 REGION       = os.environ.get('AWS_REGION', 'ap-southeast-1')
 JOBS_TABLE   = os.environ.get('SMA_JOBS_TABLE', 'sma_jobs')
 SNAP_TABLE   = os.environ.get('SMA_SNAP_TABLE', 'sma_snapshots')
+CACHE_TABLE  = os.environ.get('SMA_CACHE_TABLE', 'sma_apify_cache')
 HAIKU_MODEL  = 'claude-haiku-4-5-20251001'
-JOB_TTL_SECS = 6 * 3600
+JOB_TTL_SECS   = 6 * 3600
+CACHE_TTL_SECS = 30 * 86400        # 30-day Apify cache to cut scrape cost
 
 CORS = {
     'Access-Control-Allow-Origin':  '*',
@@ -108,6 +110,7 @@ def handle_start(body):
     competitors = body.get('competitors') or []     # list of {platform, handle}
     brand      = (body.get('brand_name') or body.get('domain') or 'brand').strip()
 
+    cached_n = 0
     runs = {}
     for p in platforms:
         handle = (handles.get(p) or '').strip()
@@ -115,6 +118,10 @@ def handle_start(body):
             continue
         actor = ACTORS.get(p)
         if not actor:
+            continue
+        if _cache_get(p, handle) is not None:          # fresh (<30d) → skip the scrape
+            runs[p] = {'handle': handle, 'cached': True, 'role': 'client'}
+            cached_n += 1
             continue
         run = _apify_start(actor, _build_input(p, handle))
         if run:
@@ -129,9 +136,14 @@ def handle_start(body):
         actor = ACTORS.get(p)
         if not (p and handle and actor):
             continue
+        name = c.get('name') or handle
+        if _cache_get(p, handle) is not None:
+            comp_runs.append({'platform': p, 'handle': handle, 'name': name, 'cached': True})
+            cached_n += 1
+            continue
         run = _apify_start(actor, _build_input(p, handle))
         if run:
-            comp_runs.append({'platform': p, 'handle': handle, 'name': c.get('name') or handle,
+            comp_runs.append({'platform': p, 'handle': handle, 'name': name,
                               'run_id': run['id'], 'dataset_id': run.get('defaultDatasetId')})
 
     if not runs and not comp_runs:
@@ -151,7 +163,7 @@ def handle_start(body):
     })
 
     return {'jobId': job_id, 'platforms': list(runs.keys()),
-            'competitors': len(comp_runs)}
+            'competitors': len(comp_runs), 'cached': cached_n}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -275,12 +287,14 @@ def handle_poll(body):
 
     runs      = item.get('runs') or {}
     comp_runs = item.get('comp_runs') or []
-    all_run_ids = [r['run_id'] for r in runs.values()] + [c['run_id'] for c in comp_runs]
-    statuses = {rid: _apify_status(rid) for rid in all_run_ids}
+    # Only live (non-cached) runs have a run_id and need polling.
+    live_ids = [r['run_id'] for r in runs.values() if r.get('run_id')] + \
+               [c['run_id'] for c in comp_runs if c.get('run_id')]
+    statuses = {rid: _apify_status(rid) for rid in live_ids}
     done = sum(1 for s in statuses.values() if s in TERMINAL)
-    total = len(statuses) or 1
+    total = len(live_ids)
 
-    if done < total:
+    if total and done < total:
         return {'status': 'running', 'progress': {'done': done, 'total': total}}
 
     # All runs terminal → start the async finalize exactly once.
@@ -305,24 +319,35 @@ def handle_finalize(body):
         runs      = item.get('runs') or {}
         comp_runs = item.get('comp_runs') or []
         brand     = item.get('brand') or 'brand'
-        all_run_ids = [r['run_id'] for r in runs.values()] + [c['run_id'] for c in comp_runs]
-        statuses = {rid: _apify_status(rid) for rid in all_run_ids}
+        live_ids = [r['run_id'] for r in runs.values() if r.get('run_id')] + \
+                   [c['run_id'] for c in comp_runs if c.get('run_id')]
+        statuses = {rid: _apify_status(rid) for rid in live_ids}
+
+        def _metrics_for(platform, r):
+            """Cache hit → reuse stored metrics; else fetch the dataset, extract,
+            and write to the 30-day cache so the next audit skips the scrape."""
+            if r.get('cached'):
+                return _cache_get(platform, r.get('handle')) or _empty_metrics(), 'cache'
+            ok = statuses.get(r.get('run_id')) == 'SUCCEEDED'
+            items = _apify_items(r.get('dataset_id')) if ok else []
+            m = _extract(platform, items)
+            if items:
+                _cache_put(platform, r.get('handle'), m)
+            return m, ('apify' if items else 'empty')
 
         client_metrics = {}
         for p, r in runs.items():
-            items = _apify_items(r.get('dataset_id')) if statuses.get(r['run_id']) == 'SUCCEEDED' else []
-            m = _extract(p, items)
+            m, src = _metrics_for(p, r)
             m['handle'] = r.get('handle')
-            m['found']  = bool(items)
+            m['found']  = src != 'empty'
             m = _add_growth(brand, p, m)
             client_metrics[p] = m
 
         competitor_metrics = []
         for c in comp_runs:
-            items = _apify_items(c.get('dataset_id')) if statuses.get(c['run_id']) == 'SUCCEEDED' else []
-            m = _extract(c['platform'], items)
+            m, src = _metrics_for(c['platform'], c)
             competitor_metrics.append({
-                'name': c.get('name'), 'platform': c['platform'], 'found': bool(items),
+                'name': c.get('name'), 'platform': c['platform'], 'found': src != 'empty',
                 'followers': m.get('followers'), 'engagement_rate': m.get('engagement_rate'),
                 'posts_per_week': m.get('posts_per_week'),
                 'days_since_last_post': m.get('days_since_last_post'),
@@ -759,6 +784,35 @@ def _narrate(brand, client_metrics, competitor_metrics, brand_health, indicators
 # ──────────────────────────────────────────────────────────────────────────────
 def _jobs():  return boto3.resource('dynamodb', region_name=REGION).Table(JOBS_TABLE)
 def _snaps(): return boto3.resource('dynamodb', region_name=REGION).Table(SNAP_TABLE)
+def _cache(): return boto3.resource('dynamodb', region_name=REGION).Table(CACHE_TABLE)
+
+
+# 30-day Apify cache, keyed by platform#handle and shared across client +
+# competitor lookups so repeat audits skip (and don't pay for) the scrape.
+def _cache_key(platform, handle):
+    return f'{platform}#{(handle or "").strip().lstrip("@").rstrip("/").lower()}'
+
+
+def _cache_get(platform, handle):
+    try:
+        item = _cache().get_item(Key={'ckey': _cache_key(platform, handle)}).get('Item')
+        if item and item.get('metrics') and int(item.get('ttl', 0)) > int(time.time()):
+            return json.loads(item['metrics'])
+    except Exception:
+        pass
+    return None
+
+
+def _cache_put(platform, handle, metrics):
+    try:
+        _cache().put_item(Item={
+            'ckey': _cache_key(platform, handle),
+            'metrics': json.dumps(metrics, default=str),
+            'cached_at': int(time.time()),
+            'ttl': int(time.time()) + CACHE_TTL_SECS,
+        })
+    except Exception:
+        pass
 
 
 def _num(v):
