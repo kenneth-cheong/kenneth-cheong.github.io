@@ -3,8 +3,52 @@ import os
 import re
 import time
 import requests
+import boto3
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
+
+# ── Shared Caption Learnings (DynamoDB) ───────────────────────────────────────
+_CG_LEARNINGS_TABLE = 'cg_learnings'
+_CG_WORKSPACE_ID    = 'digimetrics_cg'
+
+def _cg_table():
+    return boto3.resource('dynamodb', region_name='ap-southeast-1').Table(_CG_LEARNINGS_TABLE)
+
+def handle_learnings(action, event):
+    CORS = {
+        'Access-Control-Allow-Origin':  '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'OPTIONS,POST',
+    }
+    try:
+        table = _cg_table()
+        if action == 'learnings_list':
+            resp  = table.query(
+                KeyConditionExpression=boto3.dynamodb.conditions.Key('workspace_id').eq(_CG_WORKSPACE_ID)
+            )
+            items = resp.get('Items', [])
+            # Sort newest-first by id (timestamp-based)
+            items.sort(key=lambda x: int(x.get('id', 0)), reverse=True)
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'items': items})}
+
+        elif action == 'learnings_upsert':
+            entry = event.get('entry', {})
+            if not entry or not entry.get('id') or not entry.get('text'):
+                return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Missing entry id or text'})}
+            entry['workspace_id'] = _CG_WORKSPACE_ID
+            entry['id']           = str(entry['id'])
+            table.put_item(Item=entry)
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True})}
+
+        elif action == 'learnings_delete':
+            item_id = str(event.get('id', ''))
+            if not item_id:
+                return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Missing id'})}
+            table.delete_item(Key={'workspace_id': _CG_WORKSPACE_ID, 'id': item_id})
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True})}
+
+    except Exception as e:
+        return {'statusCode': 500, 'headers': CORS, 'body': json.dumps({'error': str(e)})}
 
 
 # ==============================================================================
@@ -1817,6 +1861,9 @@ def lambda_handler(event, context):
         # ── Non-AI actions ─────────────────────────────────────────────────
         if action == 'fetch_seo_feeds':
             return fetch_seo_feeds_handler(event)
+
+        if action in ('learnings_list', 'learnings_upsert', 'learnings_delete'):
+            return handle_learnings(action, event)
 
         # ── Optimiser prompts (migrated from client) ───────────────────────
         # Build the prompt server-side from structured params, then run it
