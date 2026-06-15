@@ -717,6 +717,7 @@ def build_structured_prompt(action, body):
         language           = (f.get('language') or '').lower()
         previous_captions  = body.get('previousCaptions', []) or []
         has_images         = bool(body.get('images'))
+        brand_learnings    = [str(l) for l in (f.get('brandLearnings') or []) if l and str(l).strip()]
 
         # Resolve the platform playbook + formatting controls from the brief.
         spec = PLATFORM_SPECS[_platform_key(content_type_label)]
@@ -919,6 +920,12 @@ def build_structured_prompt(action, body):
                 + "\n\n"
                 if previous_captions else ''
             )
+            + (
+                "BRAND LEARNINGS — notes from past interactions with this brand. Apply them where relevant:\n"
+                + "\n".join(f"• {l}" for l in brand_learnings[:30])
+                + "\n\n"
+                if brand_learnings else ''
+            )
             + "WRITING RULES — apply every rule without exception:\n"
             "1. NEVER open with the brand name or a phrase like \"At [Brand], we believe...\" — "
             "lead instead with an atmospheric, sensory observation about the subject matter itself.\n"
@@ -970,6 +977,11 @@ def build_structured_prompt(action, body):
                 "\nHASHTAGS: provide them in the hashtags array for posting as the FIRST COMMENT. Do NOT put hashtags inside the caption text itself.\n"
                 if ht_placement == 'first-comment' else
                 "\nHASHTAGS: provide them in the hashtags array AND include them inline at the end of the caption text, per the platform norm above.\n"
+            )
+            + (
+                "\nEMOJIS: Use emojis throughout the caption — scatter them naturally in the copy to enhance tone and energy. This is required.\n"
+                if f.get('emojis') == 'yes' else
+                "\nEMOJIS: Do NOT use any emojis anywhere in the caption.\n"
             )
             + (f"\nHOOK STYLE (overrides the variation angle for line one): {hook_directive}\n" if hook_directive else "")
             + (
