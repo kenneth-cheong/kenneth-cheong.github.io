@@ -76,9 +76,19 @@ export default function Dashboard() {
   // welcome flow (falling back to a generic "run a tool" step).
   const chosenGoal = user.onboarding?.goal;
   const gStep = GOAL_STEPS[chosenGoal];
+  // A step pointing at a specific tool (/tool/<id>) completes only when THAT
+  // tool has been run — so "Find your first keywords" needs the keyword tool,
+  // not just any tool. Non-tool steps (audit, tracking) keep "any tool run"
+  // since they have no per-tool signal in the recents list.
+  const ranTools = getRecent();
+  const stepDone = (step) => {
+    if (step.connect) return googleConnected;
+    const toolId = step.to?.startsWith('/tool/') ? step.to.slice('/tool/'.length) : null;
+    return toolId ? ranTools.includes(toolId) : ranTools.length > 0;
+  };
   const actionStep = gStep
-    ? { ...gStep, done: gStep.connect ? googleConnected : getRecent().length > 0 }
-    : { done: getRecent().length > 0, title: 'Run your first tool', body: 'Try Keyword Analysis — it’s free.', to: '/tool/keyword-analysis', cta: 'Try it' };
+    ? { ...gStep, done: stepDone(gStep) }
+    : { done: ranTools.length > 0, title: 'Run your first tool', body: 'Try Keyword Analysis — it’s free.', to: '/tool/keyword-analysis', cta: 'Try it' };
   const steps = [
     { done: projects.length > 0, title: 'Create a project', body: 'Group a site’s runs and data.', to: '/projects', cta: 'New project' },
     actionStep,
