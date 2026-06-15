@@ -705,6 +705,65 @@
         .tts-speak-btn:hover { opacity: 1; }
         .tts-speak-btn.speaking { opacity: 1; color: var(--accent-orange); }
 
+        /* Per-message actions: copy / regenerate / edit (ported from dashboard chat) */
+        .msg-action-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 2px 4px;
+            font-size: 0.72rem;
+            color: inherit;
+            opacity: 0;
+            border-radius: 4px;
+            line-height: 1;
+            transition: opacity 0.15s;
+        }
+        .message:hover .msg-action-btn { opacity: 0.5; }
+        .msg-action-btn:hover { opacity: 1 !important; }
+        /* Touch devices have no hover — keep the actions faintly visible */
+        @media (hover: none) {
+            .msg-action-btn { opacity: 0.4; }
+        }
+
+        /* Structured tool chips in the tool-log summary */
+        .tool-chip {
+            display: inline-block;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 999px;
+            padding: 1px 8px;
+            margin: 1px 3px 1px 0;
+            font-size: 0.66rem;
+            font-weight: 600;
+            color: #475569;
+            white-space: nowrap;
+        }
+
+        /* Jump-to-latest pill — appears when new messages land off-screen */
+        .chat-area { position: relative; }
+        #jumpToLatest {
+            display: none;
+            position: absolute;
+            bottom: 86px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 30;
+            background: var(--primary-navy, #1e3a8a);
+            color: #fff;
+            border: none;
+            border-radius: 999px;
+            padding: 7px 16px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.3);
+            align-items: center;
+            gap: 6px;
+        }
+        #jumpToLatest.visible { display: inline-flex; animation: jumpPillIn 0.2s ease both; }
+        @keyframes jumpPillIn { from { opacity: 0; } to { opacity: 1; } }
+        #jumpToLatest:hover { filter: brightness(1.15); }
+
         .tts-reading {
             background: rgba(234, 88, 12, 0.08) !important;
             outline: 1px solid rgba(234, 88, 12, 0.2);
@@ -3442,7 +3501,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2021</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2022</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3474,6 +3533,9 @@
                     </button>
                     <button class="btn btn-outline" id="ttsToggleBtn" onclick="toggleTTS()" title="Audio — auto-speak bot responses" aria-label="Audio" style="opacity:0.5;">
                         <i class="fas fa-volume-xmark" id="ttsIcon"></i>
+                    </button>
+                    <button class="btn btn-outline" id="ttsStopBtn" onclick="stopAllTts()" title="Stop speaking" aria-label="Stop speaking" style="display:none; color:var(--accent-orange);">
+                        <i class="fas fa-stop"></i>
                     </button>
                     <div class="header-overflow-wrap">
                         <button class="btn btn-outline" id="tourBtn" onclick="toggleOverflowMenu(event)"
@@ -4291,6 +4353,10 @@
                     <span class="time">Just now</span>
                 </div>
             </div>
+
+            <button id="jumpToLatest" onclick="cbScrollChatToBottom(true)" title="Jump to latest message">
+                <i class="fas fa-arrow-down"></i> New messages
+            </button>
 
             <div class="typing" id="typingIndicator">
                 <div class="typing-bubble">
@@ -9022,7 +9088,7 @@
             return "";
         }
 
-        async function handleClaudeMessage(text) {
+        async function handleClaudeMessage(text, opts = {}) {
             const input = document.getElementById('userInput');
             const syncedContext = localStorage.getItem('syncedContext');
 
@@ -9041,7 +9107,8 @@
                 }
             }
 
-            addMessage("user", text, null, enrichedAttachments);
+            // Regenerate re-sends an existing user turn, so the bubble already exists.
+            if (!opts.skipUserBubble) addMessage("user", text, null, enrichedAttachments);
             const activeAttachments = enrichedAttachments;
             removeAttachment();
 
@@ -9601,12 +9668,17 @@
                 });
 
                 _chatAbortController = new AbortController();
-                const res = await fetch(MONDAY_LAMBDA_URL, {
+                const progressId = (window.crypto && crypto.randomUUID)
+                    ? crypto.randomUUID()
+                    : `p_${Date.now()}_${Math.floor(Math.random() * 1e9)}`;
+                cbStartProgressPoll(progressId);
+                const res = await cbFetchWithRetry(MONDAY_LAMBDA_URL, {
                     signal: _chatAbortController.signal,
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action: 'claude_chat_with_tools',
+                        progress_id: progressId,
                         system: systemBlocks,
                         messages: messagesPayload,
                         model: 'claude-haiku-4-5',
@@ -9725,6 +9797,7 @@
                 }
             } finally {
                 _chatAbortController = null;
+                if (_progressPollTimer) { clearInterval(_progressPollTimer); _progressPollTimer = null; }
                 showTyping(false);
             }
         }
@@ -9891,10 +9964,17 @@
             const speakBtnHtml = sender === 'bot'
                 ? `<button class="tts-speak-btn" title="Speak this message" onclick="speakText(this.dataset.text, this, this.closest('.message').querySelector('.msg-content'))" data-text=${JSON.stringify(cleanText)}><i class="fas fa-volume-high"></i></button>`
                 : '';
+            const actionBtnsHtml = sender === 'bot'
+                ? `<button class="msg-action-btn" title="Copy message" onclick="cbCopyMessage(this)"><i class="fas fa-copy"></i></button>` +
+                  `<button class="msg-action-btn" title="Regenerate response" onclick="cbRegenerateMessage(this)"><i class="fas fa-rotate-right"></i></button>`
+                : `<button class="msg-action-btn" title="Edit & resend" onclick="cbEditMessage(this)"><i class="fas fa-pen"></i></button>`;
             msg.innerHTML = `
                 <div class="msg-content">${thinkingHtml}${htmlContent}${attachmentHtml}${toolHtml}</div>
-                <span class="time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${durationHtml}${speakBtnHtml}</span>
+                <span class="time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${durationHtml}${actionBtnsHtml}${speakBtnHtml}</span>
             `;
+            // Raw text kept on the node so copy / regenerate / edit use the original
+            // Markdown source rather than the rendered (and possibly mutated) HTML.
+            msg._rawText = cleanText;
             list.appendChild(msg);
             if (sender === 'bot' && !isRestoring) {
                 const convoActive = window.VoiceConvo && VoiceConvo.isActive();
@@ -9906,9 +9986,9 @@
                 }
             }
             renderChartsInElement(msg);
-            setTimeout(() => {
-                list.scrollTop = list.scrollHeight;
-            }, 50);
+            // User-sent messages always snap to bottom; bot replies respect the
+            // reader's scroll position and surface a "jump to latest" pill instead.
+            cbScrollChatToBottom(sender === 'user');
         }
 
         // ── Diagram & Chart Rendering ─────────────────────────────────────────
@@ -10438,7 +10518,8 @@
             window.speechSynthesis.cancel();
             _ttsCleanup();
             ttsEnabled = !ttsEnabled;
-            localStorage.setItem('tts_enabled', ttsEnabled);
+            // Intentionally NOT persisted: auto-speak must not survive a reload,
+            // otherwise the page starts narrating on its own (auto-narrate bug).
             const btn = document.getElementById('ttsToggleBtn');
             const icon = document.getElementById('ttsIcon');
             btn.style.opacity = ttsEnabled ? '1' : '0.5';
@@ -10514,9 +10595,16 @@
             speakText('Testing one two three. This is how your voice sounds at the current speed.', null, null);
         }
 
+        // Show/hide the header "stop speaking" button while TTS is active.
+        function _ttsUpdateStopBtn(speaking) {
+            const btn = document.getElementById('ttsStopBtn');
+            if (btn) btn.style.display = speaking ? '' : 'none';
+        }
+
         function _ttsCleanup() {
             if (_ttsReadingEl) { _ttsReadingEl.classList.remove('tts-reading'); _ttsReadingEl = null; }
             if (_ttsCurrentBtn) { _ttsCurrentBtn.classList.remove('speaking'); _ttsCurrentBtn = null; }
+            _ttsUpdateStopBtn(false);
         }
 
         // Called when playback finishes naturally (or errors out). Lets the
@@ -10621,6 +10709,7 @@
             }
 
             if (btnEl) { btnEl.classList.add('speaking'); _ttsCurrentBtn = btnEl; }
+            _ttsUpdateStopBtn(true);
             utter.onend = _ttsFinish;
             utter.onerror = _ttsFinish;
             window.speechSynthesis.speak(utter);
@@ -10633,12 +10722,137 @@
 
         let _typingTimer = null;
         let _chatAbortController = null;
+        let _progressPollTimer = null;
 
         function stopResponse() {
             if (_chatAbortController) {
                 _chatAbortController.abort();
                 _chatAbortController = null;
             }
+        }
+
+        // One automatic retry on network-level failures (offline blip, DNS, reset).
+        // HTTP errors don't throw from fetch, and user aborts are never retried.
+        async function cbFetchWithRetry(url, options, retries = 1) {
+            for (;;) {
+                try {
+                    return await fetch(url, options);
+                } catch (e) {
+                    if (e.name === 'AbortError' || retries <= 0) throw e;
+                    retries--;
+                    console.warn('[CHAT] Network error, retrying once…', e);
+                    const statusEl = document.getElementById('typingStatus');
+                    if (statusEl) statusEl.textContent = '🔌 Connection hiccup — retrying…';
+                    await new Promise(r => setTimeout(r, 1500));
+                }
+            }
+        }
+
+        // Poll the Lambda for real tool progress while a response is generating.
+        // Replaces the guessed status rotation as soon as real events arrive.
+        function cbStartProgressPoll(progressId) {
+            if (_progressPollTimer) { clearInterval(_progressPollTimer); _progressPollTimer = null; }
+            let polling = false;
+            _progressPollTimer = setInterval(async () => {
+                if (polling) return; // don't stack requests if the Lambda is slow
+                polling = true;
+                try {
+                    const r = await fetch(MONDAY_LAMBDA_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'get_chat_progress', progress_id: progressId })
+                    });
+                    const raw = await r.json();
+                    const d = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+                    if (d && d.label) {
+                        // Real progress arrived — stop the guessed rotation for good
+                        if (_typingTimer) { clearInterval(_typingTimer); _typingTimer = null; }
+                        const statusEl = document.getElementById('typingStatus');
+                        if (statusEl) {
+                            const n = Array.isArray(d.events) ? d.events.length : 0;
+                            statusEl.textContent = `⚙️ ${d.label}${n > 1 ? ` · ${n} tool calls` : ''}`;
+                            statusEl.style.opacity = '1';
+                        }
+                    }
+                } catch (e) { /* progress is best-effort — never break the chat over it */ }
+                finally { polling = false; }
+            }, 2500);
+        }
+
+        // ── Scroll management: stick to bottom only while the reader is there ──
+        let _cbStickToBottom = true;
+
+        function cbToggleJumpPill(show) {
+            const pill = document.getElementById('jumpToLatest');
+            if (pill) pill.classList.toggle('visible', !!show);
+        }
+
+        function cbScrollChatToBottom(force = false) {
+            const list = document.getElementById('messageList');
+            if (!list) return;
+            if (force || _cbStickToBottom) {
+                setTimeout(() => {
+                    list.scrollTop = list.scrollHeight;
+                    _cbStickToBottom = true;
+                    cbToggleJumpPill(false);
+                }, 50);
+            } else {
+                cbToggleJumpPill(true);
+            }
+        }
+
+        (function initCbScrollWatch() {
+            const list = document.getElementById('messageList');
+            if (!list) return;
+            list.addEventListener('scroll', function () {
+                _cbStickToBottom = (this.scrollHeight - this.scrollTop - this.clientHeight) < 140;
+                if (_cbStickToBottom) cbToggleJumpPill(false);
+            });
+        })();
+
+        // ── Per-message actions: copy, regenerate, edit & resend ──
+        function cbCopyMessage(btn) {
+            const msg = btn.closest('.message');
+            if (!msg) return;
+            const textToCopy = msg._rawText || msg.querySelector('.msg-content')?.innerText || '';
+            navigator.clipboard.writeText(textToCopy).then(
+                () => showToast('Copied to clipboard', 'success'),
+                () => showToast('Copy failed — your browser blocked clipboard access', 'warning')
+            );
+        }
+
+        function cbRegenerateMessage(btn) {
+            if (_chatAbortController) { showToast('Wait for the current response to finish', 'warning'); return; }
+            const msg = btn.closest('.message');
+            if (!msg) return;
+            const botMsgs = document.querySelectorAll('#messageList .message.bot:not(#welcomeMessage)');
+            if (botMsgs[botMsgs.length - 1] !== msg) {
+                showToast('Only the latest response can be regenerated', 'warning');
+                return;
+            }
+            // Find the user message this response answered
+            let prev = msg.previousElementSibling;
+            while (prev && !(prev.classList && prev.classList.contains('message') && prev.classList.contains('user'))) {
+                prev = prev.previousElementSibling;
+            }
+            const userText = prev ? (prev._rawText || prev.querySelector('.msg-content')?.innerText || '').trim() : '';
+            if (!userText) { showToast('No user message found to regenerate from', 'warning'); return; }
+            msg.remove();
+            for (let i = chatHistory.length - 1; i >= 0; i--) {
+                if (chatHistory[i].role === 'assistant') { chatHistory.splice(i, 1); break; }
+            }
+            try { localStorage.setItem('chatbot_history', JSON.stringify(chatHistory)); } catch (e) {}
+            handleClaudeMessage(userText, { skipUserBubble: true });
+        }
+
+        function cbEditMessage(btn) {
+            const msg = btn.closest('.message');
+            const input = document.getElementById('userInput');
+            if (!msg || !input || input.disabled) return;
+            input.value = (msg._rawText || msg.querySelector('.msg-content')?.innerText || '').trim();
+            input.style.height = 'auto';
+            input.style.height = input.scrollHeight + 'px';
+            input.focus();
         }
 
         function getStatusSteps(msg) {
@@ -10765,10 +10979,7 @@
             }
 
             if (show) {
-                setTimeout(() => {
-                    const list = document.getElementById('messageList');
-                    if (list) list.scrollTop = list.scrollHeight;
-                }, 50);
+                cbScrollChatToBottom();
             }
         }
 
