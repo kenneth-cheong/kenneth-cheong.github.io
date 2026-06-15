@@ -2923,6 +2923,7 @@
             filtered.forEach(i => {
                 if (kind === 'overdue' && i.status === 'overdue') add(i);
                 else if (kind === 'escalations' && _campaignEscalated(camps[i.bId])) add(i);
+                else if (kind === 'kwbehind' && _campaignKwBehind(i.bId)) add(i);
             });
             state.selectedStaffNames = match;
             updateFilteredUI();
@@ -3100,6 +3101,8 @@
             const mgrWorkload = filtered.length;
             const mgrOverdue = filtered.filter(i => i.status === 'overdue').length;
             const mgrEscalations = mgrCampList.filter(_campaignEscalated).length;
+            const mgrKwBehind = mgrCampList.filter(c => _campaignKwBehind(c.id)).length;
+            const mgrAnyKw = mgrCampList.some(c => _kwTargets()[c.id]);
             const mgrHealth = { green: 0, amber: 0, orange: 0, red: 0 };
             mgrCampList.forEach(c => { mgrHealth[_successSignal(c).key]++; });
 
@@ -3121,8 +3124,8 @@
                     ${mgrKpi(mgrOverdue, 'Overdue', mgrOverdue ? 'var(--danger)' : 'var(--success)', mgrOverdue ? "managerDrill('overdue')" : '', mgrOverdue ? 'Drill down to staff with overdue items' : '')}
                     ${mgrKpi(mgrEscalations, 'Escalations', mgrEscalations ? '#f97316' : 'var(--success)', mgrEscalations ? "managerDrill('escalations')" : '', mgrEscalations ? 'Drill down to staff on escalated campaigns' : '')}
                     ${mgrKpi(mgrCampList.length, 'Campaigns', 'var(--text)')}
-                    ${pendingTile('NPS', '<i class="fas fa-face-smile"></i> NPS')}
-                    ${pendingTile('KW Page-1', '<i class="fas fa-bullseye"></i> KW Page-1')}
+                    ${_satisfactionTileHtml()}
+                    ${mgrAnyKw ? mgrKpi(mgrKwBehind, 'Behind on KW', mgrKwBehind ? 'var(--warning)' : 'var(--success)', mgrKwBehind ? "managerDrill('kwbehind')" : '', mgrKwBehind ? 'Drill down to staff on campaigns behind keyword pace' : '') : pendingTile('KW Page-1', '<i class="fas fa-bullseye"></i> KW Page-1')}
                 </div>
                 <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;">
                     <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;">Campaign health</span>
@@ -3156,6 +3159,7 @@
             });
             gridHtml += '</div>';
             gridContainer.innerHTML = summaryHtml + (sortedStaff.length ? gridHtml : '<div style="padding:40px; text-align:center; color:var(--muted)">No staff data found matching your filters.</div>');
+            cbLoadSatisfaction(); // fills the satisfaction tile once data arrives
 
             // Render Details Table for Selected Staff
             let tableHtml = '';
@@ -3286,6 +3290,80 @@
             return { score, label: band.label, color: band.color, key: band.key };
         }
 
+        // ── Keyword Page-1 pacing (Step 8 roadmap flag logic) ────────────────────
+        // Per-campaign targets are entered by the consultant and kept in localStorage.
+        // (No automated board→domain→ranking feed exists, so targets are entered manually;
+        //  the rankingKeywords endpoint can later replace the manual 'current %'.)
+        function _kwTargets() { try { return JSON.parse(localStorage.getItem('cbKwTargets') || '{}'); } catch (_) { return {}; } }
+        function _saveKwTargets(o) { try { localStorage.setItem('cbKwTargets', JSON.stringify(o)); } catch (_) {} }
+
+        // Compare actual % keywords on Page 1 to the linear target pace for this month.
+        // e.g. 30% target by month 6, 20% reached by month 5 → expected 25% → 5pt gap → orange.
+        function _keywordPace(t) {
+            if (!t || t.target == null || t.current == null || !t.monthTotal) return null;
+            const target = +t.target, current = +t.current;
+            const mNow = Math.max(0, +t.monthNow || 0), mTot = Math.max(1, +t.monthTotal || 1);
+            const expected = Math.round(target * Math.min(1, mNow / mTot));
+            const gap = expected - current; // positive ⇒ behind pace
+            let key, label, color;
+            if (gap <= 0)      { key = 'green';  label = 'On pace';           color = 'var(--success)'; }
+            else if (gap <= 8) { key = 'orange'; label = 'Behind pace';       color = 'var(--warning)'; }
+            else               { key = 'red';    label = 'Critically behind'; color = 'var(--danger)';  }
+            return { target, current, expected, gap, mNow, mTot, key, label, color };
+        }
+        function _campaignKwBehind(bId) { const p = _keywordPace(_kwTargets()[bId]); return p && (p.key === 'orange' || p.key === 'red'); }
+
+        function cbEditKwTarget(bId) { state.kwEditing = bId; renderConsultantView(getFilteredItems()); }
+        function cbCancelKwTarget() { state.kwEditing = null; renderConsultantView(getFilteredItems()); }
+        function cbSaveKwTarget(bId) {
+            const g = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+            const o = _kwTargets();
+            o[bId] = {
+                target:     Math.max(0, Math.min(100, +g('kw-target-' + bId) || 0)),
+                current:    Math.max(0, Math.min(100, +g('kw-current-' + bId) || 0)),
+                monthNow:   Math.max(0, +g('kw-mnow-' + bId) || 0),
+                monthTotal: Math.max(1, +g('kw-mtot-' + bId) || 6),
+            };
+            _saveKwTargets(o);
+            state.kwEditing = null;
+            renderConsultantView(getFilteredItems());
+        }
+        function cbClearKwTarget(bId) { const o = _kwTargets(); delete o[bId]; _saveKwTargets(o); state.kwEditing = null; renderConsultantView(getFilteredItems()); }
+
+        // ── Client satisfaction (Manager dashboard) — live from clientSatisfaction lambda ──
+        // Agency Google rating + support CSAT. Fetched once, cached on state, tile updated in place.
+        const SATISFACTION_ENDPOINT = 'https://ign1ggoqo9.execute-api.ap-southeast-1.amazonaws.com';
+        async function cbLoadSatisfaction() {
+            if (state.satisfaction || state._satLoading) return;
+            state._satLoading = true;
+            try {
+                const r = await fetch(SATISFACTION_ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'all' }) });
+                let d = await r.json();
+                if (d && typeof d.body === 'string') { try { d = JSON.parse(d.body); } catch (_) {} }
+                state.satisfaction = d || {};
+            } catch (e) { state.satisfaction = { error: e.message }; }
+            state._satLoading = false;
+            cbUpdateSatisfactionTile();
+        }
+        function _satisfactionTileHtml() {
+            const s = state.satisfaction;
+            const base = 'id="mgr-sat-tile" style="flex:1;min-width:112px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;"';
+            if (!s) return `<div ${base} title="Loading client satisfaction…"><div style="font-size:1.05rem;font-weight:800;color:var(--muted);line-height:1;"><i class="fas fa-spinner fa-spin"></i></div><div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:5px;">Satisfaction…</div></div>`;
+            const gm = s.google_maps || {};
+            const sr = s.support_ratings || {};
+            const csat = (sr && (sr.csat != null ? sr.csat : (sr.average != null ? sr.average : null)));
+            if (gm.rating != null) {
+                const col = gm.rating >= 4.5 ? 'var(--success)' : gm.rating >= 4 ? '#eab308' : 'var(--warning)';
+                const csatLine = csat != null ? ` · CSAT ${csat}` : '';
+                return `<div ${base.replace('id="mgr-sat-tile"', 'id="mgr-sat-tile"')} title="Agency Google rating from ${gm.total_reviews || '?'} reviews${csat != null ? ' · support CSAT included' : ''}">
+                    <div style="font-size:1.4rem;font-weight:800;color:${col};line-height:1;">${gm.rating} <span style="font-size:0.9rem;">★</span></div>
+                    <div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:5px;">Satisfaction · ${gm.total_reviews || 0} reviews${csatLine}</div>
+                </div>`;
+            }
+            return `<div ${base} title="Satisfaction source returned no rating"><div style="font-size:1.05rem;font-weight:800;color:var(--muted);line-height:1;"><i class="fas fa-face-smile"></i></div><div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:5px;">Satisfaction n/a</div></div>`;
+        }
+        function cbUpdateSatisfactionTile() { const el = document.getElementById('mgr-sat-tile'); if (el) el.outerHTML = _satisfactionTileHtml(); }
+
         function renderConsultantView(filtered) {
             const container = document.getElementById('consultant-container');
             if (!container) return;
@@ -3341,6 +3419,8 @@
             const avgScore = signals.length ? Math.round(signals.reduce((s, x) => s + x.score, 0) / signals.length) : 0;
             const atRisk = signals.filter(s => s.score < 70).length;
             const avgColor = avgScore >= 70 ? 'var(--success)' : avgScore >= 40 ? 'var(--warning)' : 'var(--danger)';
+            const kwBehind = camps.filter(c => _campaignKwBehind(c.id)).length;
+            const anyKwTargets = camps.some(c => _kwTargets()[c.id]);
 
             const kpiFilter = state.consultantKpiFilter || null;
             const kpi = (val, lab, color, fkey) => {
@@ -3364,7 +3444,7 @@
                 ${kpi(avgScore + '%', 'Avg pacing health', avgColor)}
                 ${kpi(atRisk, 'Campaigns at risk', atRisk ? 'var(--warning)' : 'var(--success)', atRisk ? 'risk' : '')}
                 ${pendingTileC('NPS', '<i class="fas fa-face-smile"></i> NPS')}
-                ${pendingTileC('KW Page-1', '<i class="fas fa-bullseye"></i> KW Page-1')}
+                ${anyKwTargets ? kpi(kwBehind, 'Behind on KW', kwBehind ? 'var(--warning)' : 'var(--success)', kwBehind ? 'kwbehind' : '') : pendingTileC('KW Page-1', '<i class="fas fa-bullseye"></i> KW Page-1')}
             </div>`;
 
             // KPI drill-down: narrow the campaign cards below to the clicked metric.
@@ -3372,8 +3452,9 @@
             if (kpiFilter === 'overdue') visibleCamps = camps.filter(c => c.counts.overdue > 0);
             else if (kpiFilter === 'approvals') visibleCamps = camps.filter(c => c.items.some(i => _cbApprovalStatus(i.itemStatus) || _cbApprovalStatus(i.masterCsmStatus) || _cbApprovalStatus(i.csmCampaignStatus)));
             else if (kpiFilter === 'risk') visibleCamps = camps.filter(c => _successSignal(c).score < 80);
+            else if (kpiFilter === 'kwbehind') visibleCamps = camps.filter(c => _campaignKwBehind(c.id));
             if (kpiFilter) {
-                const flabel = { overdue: 'with overdue items', approvals: 'awaiting approval', risk: 'needing attention' }[kpiFilter] || '';
+                const flabel = { overdue: 'with overdue items', approvals: 'awaiting approval', risk: 'needing attention', kwbehind: 'behind on keyword Page-1 pace' }[kpiFilter] || '';
                 html += `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);border-radius:10px;margin-bottom:14px;font-size:13px;color:var(--text);">
                     <i class="fas fa-filter" style="color:var(--primary);"></i> Showing ${visibleCamps.length} campaign(s) ${flabel}.
                     <button onclick="consultantDrill('${kpiFilter}')" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:3px 10px;cursor:pointer;font-size:12px;">Clear filter</button>
@@ -3415,6 +3496,35 @@
                     </div>`;
                 }).join('');
 
+                // Keyword Page-1 pacing flag + inline target editor.
+                const kwT = _kwTargets()[c.id];
+                const pace = _keywordPace(kwT);
+                const editingKw = state.kwEditing === c.id;
+                let kwRow;
+                if (editingKw) {
+                    const dv = (k, d) => (kwT && kwT[k] != null ? kwT[k] : d);
+                    kwRow = `<div style="background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.25);border-radius:8px;padding:10px 12px;margin:10px 0;">
+                        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Keyword Page-1 target</div>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
+                            <label style="font-size:11px;color:var(--muted);">Target %<br><input id="kw-target-${c.id}" type="number" min="0" max="100" value="${dv('target', '')}" style="width:70px;"></label>
+                            <label style="font-size:11px;color:var(--muted);">Current %<br><input id="kw-current-${c.id}" type="number" min="0" max="100" value="${dv('current', '')}" style="width:70px;"></label>
+                            <label style="font-size:11px;color:var(--muted);">Month<br><input id="kw-mnow-${c.id}" type="number" min="0" value="${dv('monthNow', '')}" style="width:60px;"></label>
+                            <label style="font-size:11px;color:var(--muted);">of<br><input id="kw-mtot-${c.id}" type="number" min="1" value="${dv('monthTotal', 6)}" style="width:60px;"></label>
+                            <button onclick="cbSaveKwTarget('${c.id}')" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:700;">Save</button>
+                            <button onclick="cbCancelKwTarget()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;">Cancel</button>
+                            ${kwT ? `<button onclick="cbClearKwTarget('${c.id}')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:11px;margin-left:auto;">Remove</button>` : ''}
+                        </div>
+                    </div>`;
+                } else if (pace) {
+                    kwRow = `<div style="display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-left:3px solid ${pace.color};border-radius:8px;padding:8px 11px;margin:10px 0;">
+                        <span style="width:9px;height:9px;border-radius:50%;background:${pace.color};flex-shrink:0;"></span>
+                        <span style="font-size:12px;color:var(--text);"><b style="color:${pace.color};">KW Page-1: ${pace.label}</b> — ${pace.current}% on Page 1 vs ${pace.target}% target <span style="color:var(--muted);">(expected ~${pace.expected}% by month ${pace.mNow}/${pace.mTot}${pace.gap > 0 ? `, ${pace.gap}pt behind` : ''})</span></span>
+                        <button onclick="cbEditKwTarget('${c.id}')" title="Edit target" style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;"><i class="fas fa-pen"></i></button>
+                    </div>`;
+                } else {
+                    kwRow = `<div style="margin:10px 0;"><button onclick="cbEditKwTarget('${c.id}')" style="background:none;border:1px dashed var(--border);color:var(--muted);border-radius:8px;padding:7px 11px;cursor:pointer;font-size:12px;"><i class="fas fa-bullseye" style="margin-right:5px;opacity:.7;"></i>Set keyword Page-1 target</button></div>`;
+                }
+
                 html += `
                 <div style="background:var(--surface);border:1px solid var(--border);border-left:4px solid ${sig.color};border-radius:12px;padding:16px;margin-bottom:14px;">
                     <div style="display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;">
@@ -3450,6 +3560,8 @@
                         ${c.counts.soon > 0 ? `<span class="board-tag soon">${c.counts.soon} due soon</span>` : ''}
                         ${approvals.length ? `<span class="board-tag" style="background:rgba(245,158,11,0.12);color:var(--warning);border:1px solid rgba(245,158,11,0.3);">${approvals.length} awaiting approval</span>` : ''}
                     </div>
+
+                    ${kwRow}
 
                     <!-- Next recommended action (drill-down leaf) -->
                     ${next ? `<div style="display:flex;align-items:center;gap:8px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:8px;padding:8px 11px;margin-bottom:10px;">
