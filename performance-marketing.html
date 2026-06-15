@@ -67,6 +67,12 @@
   @media (max-width:720px){ .grid2,.grid3,.two,.tiles3{grid-template-columns:1fr;} }
   .foot { text-align:center; color:#94a3b8; font-size:0.75rem; margin-top:26px; }
   .disclaimer { font-size:0.72rem; color:#94a3b8; margin-top:10px; }
+  .btn.secondary { background:#fff; color:var(--brand); border:1px solid #c7d2fe; box-shadow:none; }
+  .autofill-status { display:none; margin-top:12px; font-size:0.85rem; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  .autofill-status.ok { color:#16a34a; }
+  .manual-link { display:inline-block; margin-top:12px; font-size:0.82rem; color:var(--muted); cursor:pointer; text-decoration:underline; }
+  .manual-link:hover { color:var(--brand); }
+  .ai-note { background:#eef2ff; border:1px solid #c7d2fe; border-radius:10px; padding:10px 13px; font-size:0.8rem; color:#4338ca; display:flex; align-items:center; gap:8px; margin-bottom:16px; }
 </style>
 </head>
 <body>
@@ -79,52 +85,61 @@
 
   <!-- INPUT -->
   <div class="card" id="inputCard">
-    <div class="card-title"><i class="fas fa-clipboard-list"></i> Prospect inputs <span class="sub">* required</span></div>
+    <div class="card-title"><i class="fas fa-link"></i> Just paste a URL <span class="sub">AI fills in the rest from the website</span></div>
     <div class="field">
       <label for="pmWebsite">Website URL <span class="req">*</span></label>
       <input type="text" id="pmWebsite" placeholder="https://client.com">
     </div>
-    <div class="grid2">
-      <div class="field">
-        <label for="pmCategory">Business category / what they sell <span class="req">*</span></label>
-        <input type="text" id="pmCategory" placeholder="e.g. Dental clinic — Invisalign &amp; implants">
+    <button class="btn" id="pmAutofillBtn" onclick="autofillFromWebsite()"><i class="fas fa-wand-magic-sparkles"></i> Analyse website &amp; auto-fill</button>
+    <div class="autofill-status" id="pmAutofillStatus"></div>
+    <div class="err" id="pmAutofillError"></div>
+    <span class="manual-link" id="pmManualLink" onclick="revealDetails(true)">or fill in the details manually</span>
+
+    <!-- DETAILS — populated by AI, editable, revealed after auto-fill or via manual link -->
+    <div id="pmDetails" style="display:none; margin-top:18px; border-top:1px solid var(--line); padding-top:18px;">
+      <div class="ai-note" id="pmAiNote" style="display:none;"><i class="fas fa-circle-info"></i> These were filled in by AI from the website. Review and tweak anything before generating.</div>
+      <div class="grid2">
+        <div class="field">
+          <label for="pmCategory">Business category / what they sell <span class="req">*</span></label>
+          <input type="text" id="pmCategory" placeholder="e.g. Dental clinic — Invisalign &amp; implants">
+        </div>
+        <div class="field">
+          <label for="pmCountry">Target country / market</label>
+          <input type="text" id="pmCountry" value="Singapore">
+        </div>
       </div>
       <div class="field">
-        <label for="pmCountry">Target country / market</label>
-        <input type="text" id="pmCountry" value="Singapore">
+        <label for="pmAudience">Target audience <span class="req">*</span></label>
+        <textarea id="pmAudience" placeholder="Who are the customers? Age, location, intent, B2B/B2C…"></textarea>
       </div>
-    </div>
-    <div class="field">
-      <label for="pmAudience">Target audience <span class="req">*</span></label>
-      <textarea id="pmAudience" placeholder="Who are the customers? Age, location, intent, B2B/B2C…"></textarea>
-    </div>
-    <div class="grid2">
+      <div class="grid2">
+        <div class="field">
+          <label for="pmBudget">Monthly budget</label>
+          <input type="text" id="pmBudget" placeholder="e.g. S$5,000 (optional — we'll suggest a range)">
+        </div>
+        <div class="field">
+          <label for="pmObjectives">Campaign objectives / goals <span class="req">*</span></label>
+          <input type="text" id="pmObjectives" placeholder="e.g. Generate qualified leads / online sales / awareness">
+        </div>
+      </div>
       <div class="field">
-        <label for="pmBudget">Monthly budget</label>
-        <input type="text" id="pmBudget" placeholder="e.g. S$5,000 (optional — we'll suggest a range)">
+        <label>Platforms they currently use <span style="font-weight:500;color:#94a3b8;">(optional)</span></label>
+        <div class="platforms" id="pmPlatforms">
+          <label class="pf"><input type="checkbox" value="Google Search Ads"> Google Search Ads</label>
+          <label class="pf"><input type="checkbox" value="Google Demand Gen / Display"> Google Demand Gen / Display</label>
+          <label class="pf"><input type="checkbox" value="Meta Ads (Facebook/Instagram)"> Meta Ads (FB/IG)</label>
+          <label class="pf"><input type="checkbox" value="TikTok Ads"> TikTok Ads</label>
+          <label class="pf"><input type="checkbox" value="LinkedIn Ads"> LinkedIn Ads</label>
+          <label class="pf"><input type="checkbox" value="YouTube Ads"> YouTube Ads</label>
+        </div>
       </div>
       <div class="field">
-        <label for="pmObjectives">Campaign objectives / goals <span class="req">*</span></label>
-        <input type="text" id="pmObjectives" placeholder="e.g. Generate qualified leads / online sales / awareness">
+        <label for="pmRfqNotes">RFQ / discussion notes <span style="font-weight:500;color:#94a3b8;">(optional)</span></label>
+        <textarea id="pmRfqNotes" placeholder="Anything the prospect mentioned — pain points, competitors, timing, constraints…"></textarea>
       </div>
+      <button class="btn" id="pmGenerateBtn" onclick="generatePerformanceMarketing()"><i class="fas fa-magic"></i> Generate Opportunity Analysis</button>
+      <div class="err" id="pmError"></div>
     </div>
-    <div class="field">
-      <label>Platforms they currently use <span style="font-weight:500;color:#94a3b8;">(optional)</span></label>
-      <div class="platforms" id="pmPlatforms">
-        <label class="pf"><input type="checkbox" value="Google Search Ads"> Google Search Ads</label>
-        <label class="pf"><input type="checkbox" value="Google Demand Gen / Display"> Google Demand Gen / Display</label>
-        <label class="pf"><input type="checkbox" value="Meta Ads (Facebook/Instagram)"> Meta Ads (FB/IG)</label>
-        <label class="pf"><input type="checkbox" value="TikTok Ads"> TikTok Ads</label>
-        <label class="pf"><input type="checkbox" value="LinkedIn Ads"> LinkedIn Ads</label>
-        <label class="pf"><input type="checkbox" value="YouTube Ads"> YouTube Ads</label>
-      </div>
-    </div>
-    <div class="field">
-      <label for="pmRfqNotes">RFQ / discussion notes <span style="font-weight:500;color:#94a3b8;">(optional)</span></label>
-      <textarea id="pmRfqNotes" placeholder="Anything the prospect mentioned — pain points, competitors, timing, constraints…"></textarea>
-    </div>
-    <button class="btn" id="pmGenerateBtn" onclick="generatePerformanceMarketing()"><i class="fas fa-magic"></i> Generate Opportunity Analysis</button>
-    <div class="err" id="pmError"></div>
     <div class="disclaimer">Starter analysis is directional and based on category benchmarks — it does not read the client's ad accounts. Use the Pro audit (with Google/Meta/GA4 data) for account-level diagnosis.</div>
   </div>
 
@@ -141,9 +156,196 @@
 
 <script>
 const PM_ENDPOINT = 'https://4gupr9vio3.execute-api.ap-southeast-1.amazonaws.com';
+const AI_ENDPOINT = 'https://0oes56fj4l.execute-api.ap-southeast-1.amazonaws.com/aiOptimiser';
+const GETHTML_ENDPOINT = 'https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml';
 let pmBudgetChart = null;
 
 function _esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ---- AI auto-fill from website -------------------------------------------
+// Reuses the aiOptimiser `strategy_url_research` action, which reads the
+// website itself and returns a structured business profile. We map that onto
+// the Starter fields, then let the user review/edit before generating.
+
+function _pmTimeout(p, ms){
+  return Promise.race([p, new Promise((_, rej)=>setTimeout(()=>rej(new Error('timeout after '+ms+'ms')), ms))]);
+}
+
+// Turn raw page HTML into clean, signal-dense text for the model. Pulls the
+// title + meta/OG descriptions (which carry strong business signal but no inner
+// text), then the stripped body, capped at the 80k the lambda accepts.
+function _pmExtractText(html){
+  if(!html || typeof html !== 'string') return '';
+  const grab = (re)=>{ const m = html.match(re); return m ? m[1].trim() : ''; };
+  const title = grab(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const desc  = grab(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["']/i)
+             || grab(/<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["']/i);
+  const ogt   = grab(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']*)["']/i);
+  const ogd   = grab(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']*)["']/i);
+  const bodyText = html
+    .replace(/<script[\s\S]*?<\/script>/gi,' ')
+    .replace(/<style[\s\S]*?<\/style>/gi,' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi,' ')
+    .replace(/<!--[\s\S]*?-->/g,' ')
+    .replace(/<[^>]+>/g,' ')
+    .replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>')
+    .replace(/&#0?39;|&apos;/gi,"'").replace(/&quot;/gi,'"')
+    .replace(/\s+/g,' ').trim();
+  const parts = [];
+  if(title) parts.push('TITLE: ' + title);
+  if(desc)  parts.push('META DESCRIPTION: ' + desc);
+  if(ogt && ogt !== title) parts.push('OG TITLE: ' + ogt);
+  if(ogd && ogd !== desc)  parts.push('OG DESCRIPTION: ' + ogd);
+  if(bodyText) parts.push('PAGE TEXT: ' + bodyText);
+  return parts.join('\n').slice(0, 80000);
+}
+
+async function _pmScrape(url){
+  try {
+    const r = await _pmTimeout(fetch(GETHTML_ENDPOINT, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ url })
+    }), 20000);
+    if(!r.ok) return '';
+    const j = await r.json();
+    return _pmExtractText(j && j.body);
+  } catch(e){
+    return ''; // fall back to letting the model fetch the page
+  }
+}
+
+function _pmParseLambda(data){
+  if(data && data.body !== undefined){
+    if(typeof data.body === 'string'){ try { return JSON.parse(data.body); } catch(e){ return data.body; } }
+    return data.body;
+  }
+  return data;
+}
+
+function _pmExtractJson(rawText){
+  if(!rawText || typeof rawText !== 'string') return null;
+  let clean = rawText.trim();
+  if(clean.includes('```')){
+    const m = clean.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    clean = m ? m[1] : clean.replace(/```(?:json)?/g,'').replace(/```/g,'');
+  }
+  const fb = clean.indexOf('{'), lb = clean.lastIndexOf('}');
+  if(fb === -1 || lb <= fb) return null;
+  clean = clean.substring(fb, lb+1);
+  try { return JSON.parse(clean); } catch(e){
+    let temp = clean.trim();
+    for(let i=0;i<30;i++){
+      try { return JSON.parse(temp); } catch(e2){
+        const msg = (e2.message||'').toLowerCase();
+        if(msg.includes('unexpected end') || msg.includes('unterminated')) temp += ']}}'; else break;
+      }
+    }
+  }
+  return null;
+}
+
+function _pmField(val){
+  if(!val) return '';
+  if(typeof val === 'string') return val;
+  if(Array.isArray(val)) return val.map(v=>_pmField(v)).filter(Boolean).join('. ');
+  if(typeof val === 'object') return val.description || val.text || val.value || val.name || Object.values(val).find(x=>typeof x==='string') || '';
+  return String(val);
+}
+
+const _PM_OBJECTIVE_LABELS = {
+  lead_generation:'Generate qualified leads',
+  brand_authority:'Build brand authority',
+  local_visibility:'Improve local visibility',
+  ecommerce_revenue:'Drive e-commerce revenue / online sales',
+  service_enquiries:'Increase service enquiries',
+  niche_dominance:'Dominate the niche'
+};
+function _pmObjectives(arr){
+  if(!Array.isArray(arr)) return _pmField(arr);
+  return arr.map(o=>_PM_OBJECTIVE_LABELS[o] || String(o).replace(/_/g,' ')).join(', ');
+}
+
+function revealDetails(focus){
+  document.getElementById('pmDetails').style.display = 'block';
+  document.getElementById('pmManualLink').style.display = 'none';
+  if(focus){
+    const c = document.getElementById('pmCategory');
+    if(c) c.focus();
+  }
+}
+
+async function autofillFromWebsite(){
+  const btn = document.getElementById('pmAutofillBtn');
+  const status = document.getElementById('pmAutofillStatus');
+  const errEl = document.getElementById('pmAutofillError');
+  const input = document.getElementById('pmWebsite').value.trim();
+  errEl.style.display = 'none';
+
+  if(!input){
+    errEl.textContent = 'Please enter the website URL first.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const isUrl = input.includes('.') || input.startsWith('http');
+  const canonicalUrl = isUrl ? (input.startsWith('http') ? input : 'https://' + input) : null;
+
+  const original = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Reading the website…';
+  status.className = 'autofill-status';
+  status.style.display = 'flex';
+
+  try {
+    // 1) Scrape the page ourselves — faster + cheaper than the model fetching it.
+    //    On failure, `scraped` is '' and we let the model fetch the page instead.
+    status.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Reading ' + _esc(input) + '…';
+    const scraped = await _pmScrape(canonicalUrl || input);
+
+    let data = null;
+    const MAX_ATTEMPTS = 3;
+    for(let attempt=1; attempt<=MAX_ATTEMPTS; attempt++){
+      status.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> ' +
+        (attempt>1 ? 'Retrying (attempt ' + attempt + ' of ' + MAX_ATTEMPTS + ')…' : 'Building the profile…');
+      const resp = await fetch(AI_ENDPOINT, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ action:'strategy_url_research', input, canonicalUrl, _scraped_content: scraped || undefined })
+      });
+      if(!resp.ok) throw new Error('Request failed ('+resp.status+')');
+      const raw = await resp.json();
+      const body = _pmParseLambda(raw);
+      const text = (body && (body.result || body.reply)) || '';
+      data = _pmExtractJson(text);
+      if(data) break;
+    }
+
+    if(!data) throw new Error("Couldn't read a usable profile from that site. Try the full URL, or fill the details in manually.");
+
+    // Map the research profile onto the Starter fields (editable).
+    if(data.client_profile) document.getElementById('pmCategory').value = _pmField(data.client_profile);
+    if(data.target_audience) document.getElementById('pmAudience').value = _pmField(data.target_audience);
+    const obj = _pmObjectives(data.objectives);
+    if(obj) document.getElementById('pmObjectives').value = obj;
+    if(data.market_context){
+      const notes = document.getElementById('pmRfqNotes');
+      if(!notes.value.trim()) notes.value = 'Market context: ' + _pmField(data.market_context);
+    }
+
+    revealDetails(false);
+    document.getElementById('pmAiNote').style.display = 'flex';
+    status.className = 'autofill-status ok';
+    status.innerHTML = '<i class="fas fa-check-circle"></i> Done — review the fields below, then generate.';
+    document.getElementById('pmDetails').scrollIntoView({behavior:'smooth', block:'start'});
+  } catch(e){
+    status.style.display = 'none';
+    errEl.textContent = 'Auto-fill failed: ' + e.message;
+    errEl.style.display = 'block';
+    revealDetails(false); // let them fill manually as a fallback
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
+}
 
 async function generatePerformanceMarketing(){
   const btn = document.getElementById('pmGenerateBtn');
