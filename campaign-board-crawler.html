@@ -2913,6 +2913,21 @@
             updateFilteredUI();
         }
 
+        // Manager summary drill-down: select the staff behind an overdue / escalation KPI.
+        function managerDrill(kind) {
+            const filtered = getFilteredItems();
+            const camps = {};
+            filtered.forEach(i => { (camps[i.bId] = camps[i.bId] || { items: [] }).items.push(i); });
+            const match = new Set();
+            const add = i => i.people.forEach(p => { if (!p.toLowerCase().includes('deleted')) match.add(p); });
+            filtered.forEach(i => {
+                if (kind === 'overdue' && i.status === 'overdue') add(i);
+                else if (kind === 'escalations' && _campaignEscalated(camps[i.bId])) add(i);
+            });
+            state.selectedStaffNames = match;
+            updateFilteredUI();
+        }
+
         function todayEsc(s) {
             return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
@@ -3074,6 +3089,49 @@
                 return b.maxPriority - a.maxPriority;
             });
 
+            // ── Manager summary: workload · overdue · escalations · health distribution ──
+            const mgrCamps = {};
+            filtered.forEach(i => {
+                if (!mgrCamps[i.bId]) mgrCamps[i.bId] = { id: i.bId, name: i.bName, items: [], counts: { overdue: 0, soon: 0, v2w: 0 } };
+                mgrCamps[i.bId].items.push(i);
+                mgrCamps[i.bId].counts[i.status === '2w' ? 'v2w' : i.status]++;
+            });
+            const mgrCampList = Object.values(mgrCamps);
+            const mgrWorkload = filtered.length;
+            const mgrOverdue = filtered.filter(i => i.status === 'overdue').length;
+            const mgrEscalations = mgrCampList.filter(_campaignEscalated).length;
+            const mgrHealth = { green: 0, amber: 0, orange: 0, red: 0 };
+            mgrCampList.forEach(c => { mgrHealth[_successSignal(c).key]++; });
+
+            const mgrKpi = (val, lab, color, onclick, title) => `
+                <div ${onclick ? `onclick="${onclick}"` : ''} title="${title || ''}" style="flex:1;min-width:104px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;${onclick ? 'cursor:pointer;' : ''}">
+                    <div style="font-size:1.5rem;font-weight:800;color:${color};line-height:1;">${val}</div>
+                    <div style="font-size:11px;color:var(--muted);font-weight:600;margin-top:4px;">${lab}${onclick ? ' <i class="fas fa-up-right-from-square" style="font-size:9px;opacity:.5;"></i>' : ''}</div>
+                </div>`;
+            const statusChip = (n, label, color) => `<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:${color};"><span style="width:9px;height:9px;border-radius:50%;background:${color};display:inline-block;"></span>${n} ${label}</span>`;
+            const pendingTile = (label, icon) => `
+                <div title="${label} — connect a data source" style="flex:1;min-width:112px;background:var(--surface);border:1px dashed var(--border);border-radius:12px;padding:12px 14px;opacity:.75;">
+                    <div style="font-size:1.05rem;font-weight:800;color:var(--muted);line-height:1;">${icon}</div>
+                    <div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:5px;">${label}: source pending</div>
+                </div>`;
+
+            const summaryHtml = `
+                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+                    ${mgrKpi(mgrWorkload, 'Open items', 'var(--text)')}
+                    ${mgrKpi(mgrOverdue, 'Overdue', mgrOverdue ? 'var(--danger)' : 'var(--success)', mgrOverdue ? "managerDrill('overdue')" : '', mgrOverdue ? 'Drill down to staff with overdue items' : '')}
+                    ${mgrKpi(mgrEscalations, 'Escalations', mgrEscalations ? '#f97316' : 'var(--success)', mgrEscalations ? "managerDrill('escalations')" : '', mgrEscalations ? 'Drill down to staff on escalated campaigns' : '')}
+                    ${mgrKpi(mgrCampList.length, 'Campaigns', 'var(--text)')}
+                    ${pendingTile('NPS', '<i class="fas fa-face-smile"></i> NPS')}
+                    ${pendingTile('KW Page-1', '<i class="fas fa-bullseye"></i> KW Page-1')}
+                </div>
+                <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;">
+                    <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;">Campaign health</span>
+                    ${statusChip(mgrHealth.green, 'On track', 'var(--success)')}
+                    ${statusChip(mgrHealth.amber, 'Watch', '#eab308')}
+                    ${statusChip(mgrHealth.orange, 'At risk', 'var(--warning)')}
+                    ${statusChip(mgrHealth.red, 'Critical', 'var(--danger)')}
+                </div>`;
+
             // Render Grid
             let gridHtml = '<div class="staff-grid">';
             sortedStaff.forEach(s => {
@@ -3097,7 +3155,7 @@
                 `;
             });
             gridHtml += '</div>';
-            gridContainer.innerHTML = gridHtml || '<div style="padding:40px; text-align:center; color:var(--muted)">No staff data found matching your filters.</div>';
+            gridContainer.innerHTML = summaryHtml + (sortedStaff.length ? gridHtml : '<div style="padding:40px; text-align:center; color:var(--muted)">No staff data found matching your filters.</div>');
 
             // Render Details Table for Selected Staff
             let tableHtml = '';
@@ -3171,7 +3229,14 @@
         //  per campaign, the timeline, pacing/success signal, open deliverables,
         //  approvals waiting, and the single next recommended action.
         // ════════════════════════════════════════════════════════════════════════
+        // Consultant KPI drill-down: toggle a filter on the campaign cards below.
+        function consultantDrill(kind) {
+            state.consultantKpiFilter = (state.consultantKpiFilter === kind) ? null : kind;
+            renderConsultantView(getFilteredItems());
+        }
+
         function setConsultant(name) {
+            state.consultantKpiFilter = null;
             state.consultantName = name || '';
             renderConsultantView(getFilteredItems());
         }
@@ -3192,6 +3257,21 @@
             return { hasDates: true, start, end, pctElapsed: pct, daysRemaining, label: `${dates[0]} → ${dates[1]}` };
         }
 
+        // Severity-graded health band (green → amber → orange → red) shared by both dashboards.
+        function _healthBand(score) {
+            if (score >= 80) return { key: 'green',  label: 'On track', color: 'var(--success)' };
+            if (score >= 60) return { key: 'amber',  label: 'Watch',    color: '#eab308' };
+            if (score >= 40) return { key: 'orange', label: 'At risk',  color: 'var(--warning)' };
+            return                  { key: 'red',    label: 'Critical', color: 'var(--danger)' };
+        }
+
+        // True when a campaign shows escalation / risk signals in its summary or CSM status.
+        function _campaignEscalated(camp) {
+            return camp.items.some(i =>
+                /blocked|urgent|critical|delayed|issue|problem|escalat|stall|behind/i.test(i.masterTechSummary || '') ||
+                /risk|delay|hold|stuck|behind|escalat/i.test(i.masterCsmStatus || i.csmCampaignStatus || ''));
+        }
+
         // Pacing / success-likelihood signal from near-term deliverable health + risk signals.
         function _successSignal(camp) {
             const total = camp.items.length || 1;
@@ -3202,11 +3282,8 @@
             const csm = camp.items[0]?.masterCsmStatus || camp.items[0]?.csmCampaignStatus || '';
             if (/risk|delay|hold|stuck|behind|escalat/i.test(csm)) score -= 10;
             score = Math.max(0, Math.min(100, score));
-            let label, color;
-            if (score >= 70)      { label = 'Likely on track'; color = 'var(--success)'; }
-            else if (score >= 40) { label = 'At risk';         color = 'var(--warning)'; }
-            else                  { label = 'Likely to slip';  color = 'var(--danger)';  }
-            return { score, label, color };
+            const band = _healthBand(score);
+            return { score, label: band.label, color: band.color, key: band.key };
         }
 
         function renderConsultantView(filtered) {
@@ -3265,24 +3342,46 @@
             const atRisk = signals.filter(s => s.score < 70).length;
             const avgColor = avgScore >= 70 ? 'var(--success)' : avgScore >= 40 ? 'var(--warning)' : 'var(--danger)';
 
-            const kpi = (val, lab, color) => `
-                <div style="flex:1;min-width:110px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;">
+            const kpiFilter = state.consultantKpiFilter || null;
+            const kpi = (val, lab, color, fkey) => {
+                const active = fkey && kpiFilter === fkey;
+                return `<div ${fkey ? `onclick="consultantDrill('${fkey}')"` : ''} title="${fkey ? 'Click to filter campaigns below' : ''}" style="flex:1;min-width:110px;background:var(--surface);border:1px solid ${active ? 'var(--primary)' : 'var(--border)'};border-radius:12px;padding:12px 14px;${fkey ? 'cursor:pointer;' : ''}${active ? 'box-shadow:0 0 0 1px var(--primary);' : ''}">
                     <div style="font-size:1.5rem;font-weight:800;color:${color};line-height:1;">${val}</div>
-                    <div style="font-size:11px;color:var(--muted);font-weight:600;margin-top:4px;">${lab}</div>
+                    <div style="font-size:11px;color:var(--muted);font-weight:600;margin-top:4px;">${lab}${fkey ? ` <i class="fas fa-filter" style="font-size:9px;opacity:${active ? '.9' : '.4'};"></i>` : ''}</div>
+                </div>`;
+            };
+            const pendingTileC = (label, icon) => `<div title="${label} — connect a data source" style="flex:1;min-width:112px;background:var(--surface);border:1px dashed var(--border);border-radius:12px;padding:12px 14px;opacity:.75;">
+                    <div style="font-size:1.05rem;font-weight:800;color:var(--muted);line-height:1;">${icon}</div>
+                    <div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:5px;">${label}: source pending</div>
                 </div>`;
 
             let html = picker;
             html += `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
                 ${kpi(camps.length, 'Campaigns', 'var(--text)')}
                 ${kpi(totDeliverables, 'Open deliverables', 'var(--text)')}
-                ${kpi(totOverdue, 'Overdue', totOverdue ? 'var(--danger)' : 'var(--success)')}
-                ${kpi(totApprovals, 'Awaiting approval', totApprovals ? 'var(--warning)' : 'var(--muted)')}
+                ${kpi(totOverdue, 'Overdue', totOverdue ? 'var(--danger)' : 'var(--success)', totOverdue ? 'overdue' : '')}
+                ${kpi(totApprovals, 'Awaiting approval', totApprovals ? 'var(--warning)' : 'var(--muted)', totApprovals ? 'approvals' : '')}
                 ${kpi(avgScore + '%', 'Avg pacing health', avgColor)}
-                ${kpi(atRisk, 'Campaigns at risk', atRisk ? 'var(--warning)' : 'var(--success)')}
+                ${kpi(atRisk, 'Campaigns at risk', atRisk ? 'var(--warning)' : 'var(--success)', atRisk ? 'risk' : '')}
+                ${pendingTileC('NPS', '<i class="fas fa-face-smile"></i> NPS')}
+                ${pendingTileC('KW Page-1', '<i class="fas fa-bullseye"></i> KW Page-1')}
             </div>`;
 
+            // KPI drill-down: narrow the campaign cards below to the clicked metric.
+            let visibleCamps = camps;
+            if (kpiFilter === 'overdue') visibleCamps = camps.filter(c => c.counts.overdue > 0);
+            else if (kpiFilter === 'approvals') visibleCamps = camps.filter(c => c.items.some(i => _cbApprovalStatus(i.itemStatus) || _cbApprovalStatus(i.masterCsmStatus) || _cbApprovalStatus(i.csmCampaignStatus)));
+            else if (kpiFilter === 'risk') visibleCamps = camps.filter(c => _successSignal(c).score < 80);
+            if (kpiFilter) {
+                const flabel = { overdue: 'with overdue items', approvals: 'awaiting approval', risk: 'needing attention' }[kpiFilter] || '';
+                html += `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);border-radius:10px;margin-bottom:14px;font-size:13px;color:var(--text);">
+                    <i class="fas fa-filter" style="color:var(--primary);"></i> Showing ${visibleCamps.length} campaign(s) ${flabel}.
+                    <button onclick="consultantDrill('${kpiFilter}')" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:3px 10px;cursor:pointer;font-size:12px;">Clear filter</button>
+                </div>`;
+            }
+
             // Per-campaign cards.
-            camps.forEach(c => {
+            visibleCamps.forEach(c => {
                 const sig = _successSignal(c);
                 const tl = _consultantTimeline(c.items[0]?.masterTimeline);
                 const masterName = c.items[0]?.masterName;
