@@ -359,20 +359,21 @@ export function toolById(id) {
 // Locations + languages offered in the tool forms. Every value is an exact
 // DataForSEO location_name / language_name (verified against their API) so the
 // upstreams accept it as-is. ("Global" is an app-special handled per-tool.)
+// Alphabetical so the dropdowns scan top-to-bottom; 'Global' is pinned first as
+// it is an app-special "worldwide" option, not a country.
 const LOCATIONS = [
-  'Singapore', 'Malaysia', 'Indonesia', 'Thailand', 'Philippines', 'Vietnam', 'India',
-  'Hong Kong', 'Taiwan', 'China', 'Japan', 'South Korea',
-  'United Arab Emirates', 'Saudi Arabia',
-  'Australia', 'New Zealand',
-  'United States', 'Canada', 'Brazil', 'Mexico',
-  'United Kingdom', 'Ireland', 'Germany', 'France', 'Spain', 'Italy', 'Netherlands', 'Switzerland', 'Sweden',
-  'South Africa',
   'Global',
+  'Australia', 'Brazil', 'Canada', 'China', 'France', 'Germany', 'Hong Kong',
+  'India', 'Indonesia', 'Ireland', 'Italy', 'Japan', 'Malaysia', 'Mexico',
+  'Netherlands', 'New Zealand', 'Philippines', 'Saudi Arabia', 'Singapore',
+  'South Africa', 'South Korea', 'Spain', 'Sweden', 'Switzerland', 'Taiwan',
+  'Thailand', 'United Arab Emirates', 'United Kingdom', 'United States', 'Vietnam',
 ];
 const LANGUAGES = [
-  'English', 'Chinese (Simplified)', 'Chinese (Traditional)', 'Malay', 'Indonesian',
-  'Thai', 'Vietnamese', 'Filipino', 'Tamil', 'Hindi', 'Japanese', 'Korean', 'Arabic',
-  'Spanish', 'French', 'German', 'Portuguese', 'Italian', 'Dutch', 'Russian',
+  'Arabic', 'Chinese (Simplified)', 'Chinese (Traditional)', 'Dutch', 'English',
+  'Filipino', 'French', 'German', 'Hindi', 'Indonesian', 'Italian', 'Japanese',
+  'Korean', 'Malay', 'Portuguese', 'Russian', 'Spanish', 'Tamil', 'Thai',
+  'Vietnamese',
 ];
 
 export const INPUTS = {
