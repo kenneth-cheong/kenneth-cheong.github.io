@@ -322,9 +322,14 @@ def handle_finalize(body):
             items = _apify_items(c.get('dataset_id')) if statuses.get(c['run_id']) == 'SUCCEEDED' else []
             m = _extract(c['platform'], items)
             competitor_metrics.append({
-                'name': c.get('name'), 'platform': c['platform'],
+                'name': c.get('name'), 'platform': c['platform'], 'found': bool(items),
                 'followers': m.get('followers'), 'engagement_rate': m.get('engagement_rate'),
                 'posts_per_week': m.get('posts_per_week'),
+                'days_since_last_post': m.get('days_since_last_post'),
+                'avg_likes': m.get('avg_likes'), 'avg_comments': m.get('avg_comments'),
+                'avg_video_views': m.get('avg_video_views'),
+                'content_mix': m.get('content_mix'), 'top_hashtags': m.get('top_hashtags'),
+                'top_posts': m.get('top_posts'),
             })
 
         brand_health = fetch_brand_health(item.get('domain'), brand, item.get('location') or 'Singapore')
@@ -459,6 +464,8 @@ def _collect_posts(platform, items, head):
             'views':    _num(_g(p, 'videoViewCount', 'playCount', 'views', 'viewCount')),
             'type':     _post_type(p),
             'hashtags': re.findall(r'#(\w+)', text),
+            'text':     ' '.join(text.split())[:160],
+            'url':      _g(p, 'url', 'webVideoUrl', 'postUrl', 'link', 'videoUrl', default=''),
         })
     return out
 
@@ -503,6 +510,12 @@ def _metrics_from(followers, following, verified, bio, link, category, pfp, post
         med = statistics.median(eng_vals) or 1
         top_vs_median = round(max(eng_vals) / med, 1)
 
+    top_posts = [
+        {'text': p.get('text', ''), 'type': p['type'], 'likes': p['likes'],
+         'comments': p['comments'], 'views': p['views'], 'url': p.get('url', '')}
+        for p in sorted(posts, key=lambda p: (p['likes'] or 0) + (p['comments'] or 0), reverse=True)[:3]
+    ]
+
     hashtags = [h for p in posts for h in p['hashtags']]
     completeness = {
         'bio': bool(bio), 'link': bool(link), 'verified': verified,
@@ -520,7 +533,7 @@ def _metrics_from(followers, following, verified, bio, link, category, pfp, post
         'content_mix': mix, 'top_vs_median': top_vs_median,
         'hashtag_count': len(set(hashtags)), 'top_hashtags': _top(hashtags, 8),
         'profile_completeness': {'score': comp_score, **completeness},
-        'post_sample': len(posts),
+        'post_sample': len(posts), 'top_posts': top_posts,
     }
 
 
@@ -532,7 +545,7 @@ def _empty_metrics():
             'top_vs_median': None, 'hashtag_count': 0, 'top_hashtags': [],
             'profile_completeness': {'score': 0, 'bio': False, 'link': False,
                                      'verified': False, 'pfp': False, 'category': False},
-            'post_sample': 0}
+            'post_sample': 0, 'top_posts': []}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -701,7 +714,7 @@ def _narrate(brand, client_metrics, competitor_metrics, brand_health, indicators
         'overall_health': 'Developing',
         'overall_score': None,
         'executive_summary': 'Audit data collected. Connect the Anthropic key for a written analysis.',
-        'strengths': [], 'gaps': [], 'action_plan': [],
+        'strengths': [], 'gaps': [], 'action_plan': [], 'competitor_insights': {},
     }
     if not api_key:
         return fallback
@@ -714,9 +727,13 @@ def _narrate(brand, client_metrics, competitor_metrics, brand_health, indicators
         '"overall_score":0-100,'
         '"executive_summary":"2-3 sentences",'
         '"strengths":["..."],"gaps":["..."],'
-        '"action_plan":[{"priority":"high|medium|low","action":"...","expected_impact":"..."}]}\n'
-        "Base every claim on the numbers. Keep arrays to 3-5 items.\n\nAUDIT DATA:\n"
-        + json.dumps(facts, default=str)[:12000]
+        '"action_plan":[{"priority":"high|medium|low","action":"...","expected_impact":"..."}],'
+        '"competitor_insights":{"doing_better":["..."],"content_gaps":["..."],"tactics_to_copy":["..."]}}\n'
+        "Base every claim on the numbers. Keep arrays to 3-5 items. Only fill "
+        "competitor_insights if the competitors array is non-empty (compare their "
+        "engagement, cadence, content mix, hashtags and top posts to the brand's); "
+        "otherwise return it as empty arrays.\n\nAUDIT DATA:\n"
+        + json.dumps(facts, default=str)[:16000]
         + (("\n\nADDITIONAL CONTEXT the user uploaded (briefs, analytics, brand docs) "
             "— use it to sharpen the verdict, goals and action plan:\n" + extra_context[:8000])
            if extra_context else "")
@@ -725,7 +742,7 @@ def _narrate(brand, client_metrics, competitor_metrics, brand_health, indicators
         r = requests.post('https://api.anthropic.com/v1/messages',
                           headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01',
                                    'content-type': 'application/json'},
-                          json={'model': HAIKU_MODEL, 'max_tokens': 1400,
+                          json={'model': HAIKU_MODEL, 'max_tokens': 2000,
                                 'messages': [{'role': 'user', 'content': prompt}]},
                           timeout=60)
         txt = ''.join(b.get('text', '') for b in (r.json().get('content') or [])
