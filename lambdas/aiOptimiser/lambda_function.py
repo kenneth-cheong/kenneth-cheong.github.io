@@ -765,6 +765,8 @@ def build_structured_prompt(action, body):
             user_parts.append(f"INSTRUCTION:\n{instructions}")
             user_parts.append(
                 "Do not invent facts, figures, prices, or offers that are not already in the current content. "
+                "Preserve the EXACT capitalisation, spacing, and spelling of the brand name and any proper nouns "
+                "already in the content — never lowercase or restyle them. "
                 "Avoid em dashes (—); use commas, full stops, or short sentences instead."
             )
             user_parts.append(
@@ -979,6 +981,14 @@ def build_structured_prompt(action, body):
                 "\nGROUNDING: use only facts, figures, prices, and offers that appear in this brief, the attachments, "
                 "or the image. Never invent statistics, claims, or promotions. Honour every Constraint / Mandatory exactly. "
                 "Avoid em dashes (—); use commas or full stops instead.\n"
+            )
+            + (
+                f"\nBRAND NAME LOCK — HIGHEST PRIORITY, overrides all styling rules above: write the brand name "
+                f"EXACTLY as \"{f.get('brandName')}\" every single time it appears — identical capitalisation, "
+                "spacing, and punctuation, character for character. Do NOT lowercase it, change its capitalisation, "
+                "split or join its words, or restyle it, even when the caption otherwise uses lowercase or all-caps "
+                "styling. The brand name is a proper noun and keeps its exact form always.\n"
+                if f.get('brandName') else ''
             )
             + "\n" + _luxury_output_contract(spec)
         )
