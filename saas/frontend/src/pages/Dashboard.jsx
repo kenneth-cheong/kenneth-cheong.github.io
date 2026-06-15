@@ -133,7 +133,7 @@ export default function Dashboard() {
             <h2 className="font-semibold text-brand-800">Get set up — {steps.filter((s) => s.done).length}/{steps.length} done</h2>
             <button onClick={dismissOnboard} className="text-sm text-slate-400 hover:text-slate-700">Dismiss</button>
           </div>
-          <ol className="mt-3 grid gap-3 sm:grid-cols-3">
+          <ol className="dm-steps-grid mt-3">
             {steps.map((s, i) => <Step key={i} n={i + 1} {...s} />)}
           </ol>
         </div>
@@ -149,13 +149,13 @@ export default function Dashboard() {
             {goal.to && (
               <Link to={goal.to} className="btn-primary mt-3 inline-block">Open {goal.label.toLowerCase()} →</Link>
             )}
-            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{goalTools.map(Card)}</div>
+            <div className="dm-card-grid mt-4">{goalTools.map(Card)}</div>
           </section>
         ) : (
           <>
             <section className="mt-8">
               <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">What do you want to do?</h2>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="dm-card-grid">
                 {GOALS.map((g) => <GoalCard key={g.id} goal={g} onClick={() => (g.to ? navigate(g.to) : setActiveGoal(g.id))} />)}
               </div>
             </section>
@@ -187,7 +187,7 @@ export default function Dashboard() {
               return <Section key={c} title={c} icon={<CategoryIcon category={c} size={14} />}>{tools.map((t) => Card(t))}</Section>;
             })
           ) : (
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="dm-card-grid mt-6">
               {filtered.length === 0 && <p className="text-slate-400">No tools match “{q}”.</p>}
               {filtered.map((t) => Card(t))}
             </div>
@@ -228,7 +228,7 @@ function Section({ title, icon, children }) {
   return (
     <section className="mt-8">
       <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-500">{icon}{title}</h2>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
+      <div className="dm-card-grid">{children}</div>
     </section>
   );
 }

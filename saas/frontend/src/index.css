@@ -44,6 +44,33 @@
   }
 }
 
+/* Container-query grids — column count follows the *content* width, not the
+   viewport. This matters because the assistant panel eats into the main column
+   (Layout sets marginRight to the panel width): when the user widens the panel,
+   the cards reflow to fewer columns instead of being crushed. `.dm-main` is the
+   query container (set on <main>); the grids below query its inline size. */
+.dm-main { container-type: inline-size; container-name: dm-main; }
+
+.dm-card-grid { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
+@container dm-main (min-width: 520px) {
+  .dm-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container dm-main (min-width: 800px) {
+  .dm-card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.dm-steps-grid { display: grid; gap: 0.75rem; grid-template-columns: minmax(0, 1fr); }
+@container dm-main (min-width: 560px) {
+  .dm-steps-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* Fallback for browsers without container-query support (very old): approximate
+   with the previous viewport breakpoints so the layout never collapses to 1 col. */
+@supports not (container-type: inline-size) {
+  @media (min-width: 640px) { .dm-card-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } .dm-steps-grid { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+  @media (min-width: 1024px) { .dm-card-grid { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+}
+
 /* Accessibility: always show a visible focus ring for KEYBOARD users, even on
    elements that set `focus:outline-none` for mouse focus. Scoped to :focus-visible
    so it never appears on click/tap. */

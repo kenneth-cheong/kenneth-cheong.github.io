@@ -28,7 +28,13 @@ const menuNav = [
   { to: '/support', label: 'Support' },
 ];
 
-const CHAT_W = 384; // px — must match ChatDrawer width on desktop
+// User-resizable assistant panel. 384px is the default; drag the panel's left
+// edge to change it (ChatDrawer reports new widths via onResize). The width is
+// shared with the page margin below so content always tracks the panel.
+const CHAT_W_DEFAULT = 384;
+const CHAT_W_MIN = 320;
+const CHAT_W_MAX = 720;
+const clampChatW = (w) => Math.min(CHAT_W_MAX, Math.max(CHAT_W_MIN, Math.round(w)));
 
 export default function Layout({ children }) {
   const { user, logout, setOnboarding } = useAuth();
@@ -37,6 +43,12 @@ export default function Layout({ children }) {
   const [acctOpen, setAcctOpen] = useState(false);
   const [ask, setAsk] = useState(null);
   const wide = useMediaQuery('(min-width: 768px)');
+  // Persisted, user-adjustable width for the assistant panel (desktop only).
+  const [chatW, setChatW] = useState(() => {
+    const saved = Number(localStorage.getItem('dm:chatWidth'));
+    return clampChatW(Number.isFinite(saved) && saved > 0 ? saved : CHAT_W_DEFAULT);
+  });
+  useEffect(() => { localStorage.setItem('dm:chatWidth', String(chatW)); }, [chatW]);
   // Shows automatically for brand-new accounts; `?welcome=1` re-opens it anytime
   // (lets anyone replay the intro — tours were otherwise one-shot).
   const [forceWelcome, setForceWelcome] = useState(() => new URLSearchParams(window.location.search).has('welcome'));
@@ -74,7 +86,7 @@ export default function Layout({ children }) {
     <>
       {/* On desktop the page shifts left so chat sits beside content; on mobile
           the chat is a full-screen sheet, so no shift. */}
-      <div className="min-h-screen transition-[margin] duration-200" style={{ marginRight: chatOpen && wide ? CHAT_W : 0 }}>
+      <div className="min-h-screen transition-[margin] duration-200" style={{ marginRight: chatOpen && wide ? chatW : 0 }}>
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
             <button className="md:hidden" onClick={() => setMenuOpen((o) => !o)} aria-label="Menu">
@@ -180,10 +192,16 @@ export default function Layout({ children }) {
             </div>
           </div>
         )}
-        <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+        <main className="dm-main mx-auto max-w-6xl px-4 py-8">{children}</main>
       </div>
 
-      <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} width={wide ? CHAT_W : '100%'} ask={ask} />
+      <ChatDrawer
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        width={wide ? chatW : '100%'}
+        onResize={wide ? (w) => setChatW(clampChatW(w)) : undefined}
+        ask={ask}
+      />
       <ExplainMenu />
       <Toaster />
       {showWelcome && <Welcome onDone={() => setForceWelcome(false)} />}

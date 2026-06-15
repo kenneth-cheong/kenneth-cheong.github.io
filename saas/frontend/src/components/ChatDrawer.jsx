@@ -39,7 +39,7 @@ function ago(iso) {
 // when open). Each reply costs `ai_chat` credits and the bot can answer about
 // the user's connected GSC / GA4 / Google Ads data. Conversations persist
 // server-side: start a new one or reopen past ones from the history list.
-export default function ChatDrawer({ open, onClose, width = 384, ask }) {
+export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }) {
   const { user, setCredits } = useAuth();
   const { active, activeId } = useProjects();
   const navigate = useNavigate();
@@ -184,6 +184,32 @@ export default function ChatDrawer({ open, onClose, width = 384, ask }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ask]);
 
+  // Drag the left edge to resize. The panel is fixed to the right, so the new
+  // width is simply the distance from the cursor to the right edge of the
+  // viewport. Layout owns/clamps/persists the actual value via onResize.
+  function startResize(e) {
+    if (!onResize) return;
+    e.preventDefault();
+    const move = (ev) => {
+      const x = ev.touches ? ev.touches[0].clientX : ev.clientX;
+      onResize(window.innerWidth - x);
+    };
+    const stop = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', stop);
+      window.removeEventListener('touchmove', move);
+      window.removeEventListener('touchend', stop);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', stop);
+    window.addEventListener('touchmove', move, { passive: false });
+    window.addEventListener('touchend', stop);
+  }
+
   if (!open) return null;
 
   return (
@@ -191,6 +217,19 @@ export default function ChatDrawer({ open, onClose, width = 384, ask }) {
       className="fixed right-0 top-0 z-30 flex h-screen flex-col border-l border-slate-200 bg-white shadow-xl"
       style={{ width }}
     >
+      {onResize && (
+        <div
+          onMouseDown={startResize}
+          onTouchStart={startResize}
+          title="Drag to resize"
+          aria-label="Resize assistant panel"
+          role="separator"
+          aria-orientation="vertical"
+          className="group absolute left-0 top-0 z-10 h-full w-1.5 -translate-x-1/2 cursor-col-resize"
+        >
+          <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors group-hover:bg-brand-400" />
+        </div>
+      )}
       <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-900 px-4 py-3 text-white">
         <span className="font-semibold">Assistant</span>
         <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs">{COST} credits / message</span>

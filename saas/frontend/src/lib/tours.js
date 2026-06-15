@@ -67,8 +67,8 @@ const badge = (t, tone) => `<span class="dm-ex-badge t-${tone || 'slate'}">${t}<
 const card = (title, body) => `<div class="dm-ex-card"><b>${title}</b><div>${body}</div></div>`;
 
 // ── REAL example outputs, one per tool ───────────────────────────────────────
-// Grounded in the catalog's worked example (Extra Space Asia / "self storage
-// singapore") and the actual result shapes the tools return.
+// Grounded in the catalog's worked example (Acme / "project management
+// software") and the actual result shapes the tools return.
 export const OUTPUT_EXAMPLES = {
   // ── SEO ────────────────────────────────────────────────────────────────────
   'keyword-analysis':
@@ -76,26 +76,26 @@ export const OUTPUT_EXAMPLES = {
     table(
       ['Keyword', 'Volume', 'Diff.', 'CPC', 'Intent'],
       [
-        ['self storage singapore', '5,700', badge('28', 'green'), 'S$5.21', badge('Commercial', 'blue')],
-        ['storage units', '2,300', badge('41', 'amber'), 'S$3.80', badge('Commercial', 'blue')],
-        ['cheap storage', '1,000', badge('22', 'green'), 'S$2.40', badge('Transactional', 'blue')],
+        ['project management software', '12,100', badge('28', 'green'), '$4.80', badge('Commercial', 'blue')],
+        ['team task tracker', '5,400', badge('41', 'amber'), '$3.20', badge('Commercial', 'blue')],
+        ['free project management tool', '3,600', badge('22', 'green'), '$2.10', badge('Transactional', 'blue')],
       ]
     ) +
     note('Export the full list as CSV — green difficulty = easiest wins.'),
 
   'rank-checker':
     lead('Your live SERP position for each keyword × location, with a position-history sparkline.') +
-    chips([['self storage singapore', '#4', 'green'], ['storage units', '#11', 'amber'], ['cheap storage', '#27', 'red']]) +
-    note('<b>Current position: #4</b> for extraspaceasia.com.sg in Singapore — up 3 spots in 28 days.'),
+    chips([['project management software', '#4', 'green'], ['task management tools', '#11', 'amber'], ['team productivity app', '#27', 'red']]) +
+    note('<b>Current position: #4</b> for acme.com — up 3 spots in 28 days.'),
 
   'time-to-rank':
     lead('A realistic forecast of how long each keyword takes to reach page one, from its difficulty and your authority.') +
     table(
       ['Keyword', 'Volume', 'Diff.', 'Time to rank'],
       [
-        ['storage units singapore', '5,700', badge('28', 'green'), badge('3–6 months', 'green')],
-        ['self storage singapore', '5,700', badge('28', 'amber'), badge('6–9 months', 'amber')],
-        ['climate controlled storage', '4,348', badge('46', 'red'), badge('9–12 months', 'red')],
+        ['project management software', '12,100', badge('28', 'green'), badge('3–6 months', 'green')],
+        ['team collaboration tools', '8,100', badge('32', 'amber'), badge('6–9 months', 'amber')],
+        ['enterprise task manager', '3,600', badge('46', 'red'), badge('9–12 months', 'red')],
       ]
     ),
 
@@ -104,9 +104,9 @@ export const OUTPUT_EXAMPLES = {
     table(
       ['Anchor text', 'Issue', 'Fix'],
       [
-        ['"self storage self storage"', badge('Over-optimised', 'red'), 'Vary to "browse storage units"'],
+        ['"project management project management"', badge('Over-optimised', 'red'), 'Vary to "explore our features"'],
         ['"click here"', badge('Generic', 'amber'), 'Describe the destination'],
-        ['"personal-storage"', badge('Broken (404)', 'red'), 'Update or remove link'],
+        ['"old-pricing"', badge('Broken (404)', 'red'), 'Update or remove link'],
       ]
     ),
 
@@ -127,9 +127,9 @@ export const OUTPUT_EXAMPLES = {
     table(
       ['Element', 'Current', 'Suggested'],
       [
-        ['Title', 'Storage | Extra Space', 'Self Storage Singapore — Units from S$39/mo | Extra Space Asia'],
-        ['H1', 'Our Storage', 'Affordable Self Storage Units in Singapore'],
-        ['Meta', '—', 'Climate-controlled self storage across 14 Singapore locations…'],
+        ['Title', 'Features | Acme', 'Best Project Management Software for Teams — Free Trial | Acme'],
+        ['H1', 'Our Features', 'Powerful Project Management Tools for Growing Teams'],
+        ['Meta', '—', 'Streamline your workflow with Acme — task tracking, team collaboration…'],
       ]
     ),
 
@@ -138,9 +138,9 @@ export const OUTPUT_EXAMPLES = {
     table(
       ['Competitor', 'Shared keywords', 'Avg. position'],
       [
-        ['storefriendly.com.sg', '142', '#6'],
-        ['lockandstore.com', '98', '#9'],
-        ['workandstore.sg', '61', '#12'],
+        ['taskflow.com', '142', '#6'],
+        ['teamhub.io', '98', '#9'],
+        ['projecto.com', '61', '#12'],
       ]
     ),
 
@@ -150,9 +150,9 @@ export const OUTPUT_EXAMPLES = {
     table(
       ['Referring domain', 'Links', 'Type'],
       [
-        ['businesstimes.com.sg', '34', badge('Dofollow', 'green')],
-        ['sgsme.sg', '21', badge('Dofollow', 'green')],
-        ['directory.sg', '120', badge('Nofollow', 'slate')],
+        ['techcrunch.com', '34', badge('Dofollow', 'green')],
+        ['forbes.com', '21', badge('Dofollow', 'green')],
+        ['g2.com', '120', badge('Nofollow', 'slate')],
       ]
     ),
 
@@ -163,10 +163,10 @@ export const OUTPUT_EXAMPLES = {
 {
   "@context": "https://schema.org",
   "@type": "LocalBusiness",
-  "name": "Acme Storage",
-  "url": "https://acme.sg",
-  "telephone": "+65 6555 5555",
-  "address": "1 Main St, Singapore",
+  "name": "Acme Corp",
+  "url": "https://acme.com",
+  "telephone": "+1 555 555 5555",
+  "address": "123 Main St, New York",
   "priceRange": "$$"
 }
 </script>`,
@@ -178,9 +178,9 @@ export const OUTPUT_EXAMPLES = {
     table(
       ['Strategy', 'Focus', 'Target keywords'],
       [
-        [`${badge('Top pick', 'green')} Capture high-intent local demand`, 'Service pages', 'self storage singapore, storage units…'],
-        ['Own the "cheap storage" cluster', 'Comparison content', 'cheap storage, affordable storage…'],
-        ['Build business-storage authority', 'Blog + case studies', 'business storage, document storage…'],
+        [`${badge('Top pick', 'green')} Capture high-intent product demand`, 'Feature pages', 'project management software, task manager…'],
+        ['Own the "free tool" cluster', 'Comparison content', 'free project management, best free tools…'],
+        ['Build team-productivity authority', 'Blog + case studies', 'team productivity, remote collaboration…'],
       ]
     ),
 
@@ -189,7 +189,7 @@ export const OUTPUT_EXAMPLES = {
     lead('Platform-tuned caption variations, ready to paste — with hooks, emojis and hashtags.') +
     card(
       'Instagram · Variation 1',
-      'Your stuff deserves better than “under the bed”. New climate-controlled units just dropped — cool, dry, and yours from S$39/mo. Tap to claim yours.<br><span class="dm-ex-muted">#SelfStorage #SingaporeLiving #DeclutterYourLife</span>'
+      'Your team deserves better tools. New dashboard features just dropped — smarter, faster, and ready to use. Start your free trial today.<br><span class=”dm-ex-muted”>#ProductManagement #TeamWork #GetThingsDone</span>'
     ) +
     note('Generate up to 5 variations per run, each in your chosen tone + language.'),
 
@@ -197,9 +197,9 @@ export const OUTPUT_EXAMPLES = {
     lead('A rewritten, SEO-tuned draft plus findings from the 18-agent QA suite.') +
     chips([['Readability', 'Grade 7', 'green'], ['Keyword use', 'Good', 'green'], ['Issues fixed', '6', 'amber']]) +
     `<div class="dm-ex-list"><b>QA agents flagged:</b><ul>
-      <li>${badge('Fact', 'amber')} "cheapest in Singapore" — unverifiable superlative, softened.</li>
+      <li>${badge('Fact', 'amber')} "the cheapest tool on the market" — unverifiable superlative, softened.</li>
       <li>${badge('Tone', 'blue')} 2 sentences too formal for the brand voice — rewritten.</li>
-      <li>${badge('SEO', 'green')} Added internal link to /personal-storage/.</li>
+      <li>${badge('SEO', 'green')} Added internal link to /features/.</li>
     </ul></div>`,
 
   'content-check':
@@ -213,8 +213,8 @@ export const OUTPUT_EXAMPLES = {
 
   pillars:
     lead('A content-pillar map — themes, subtopics and angles that keep your social cohesive.') +
-    card('Pillar 1 · Smart Living', 'Decluttering tips · Small-space hacks · Seasonal storage<br><span class="dm-ex-muted">Angle: aspirational, practical, save-and-share</span>') +
-    card('Pillar 2 · Behind the Brand', 'Facility tours · Security tech · Team stories<br><span class="dm-ex-muted">Angle: trust + transparency</span>'),
+    card('Pillar 1 · Work Smarter', 'Productivity tips · Remote work hacks · Team workflows<br><span class="dm-ex-muted">Angle: aspirational, practical, save-and-share</span>') +
+    card('Pillar 2 · Behind the Product', 'Feature deep-dives · Customer stories · Team culture<br><span class="dm-ex-muted">Angle: trust + transparency</span>'),
 
   // ── AI Visibility (GEO) ──────────────────────────────────────────────────────
   'ai-discovery':
@@ -234,9 +234,9 @@ export const OUTPUT_EXAMPLES = {
     table(
       ['Brand', 'Mention rate', 'Share of voice'],
       [
-        ['Extra Space Asia', '58%', badge('Leader', 'green')],
-        ['StorHub', '47%', badge('Strong', 'blue')],
-        ['Lock+Store', '21%', badge('Trailing', 'amber')],
+        ['Acme', '58%', badge('Leader', 'green')],
+        ['TaskFlow', '47%', badge('Strong', 'blue')],
+        ['TeamHub', '21%', badge('Trailing', 'amber')],
       ]
     ),
 
@@ -244,22 +244,22 @@ export const OUTPUT_EXAMPLES = {
     lead('A readiness check, then a spec-compliant llms.txt + llms-full.txt you can download.') +
     chips([['llms.txt found', 'No', 'red'], ['AI bots allowed', 'Yes', 'green'], ['Key pages', '8', 'green']]) +
     code(
-      `# Extra Space Asia
-> Climate-controlled self storage across 14 Singapore locations.
+      `# Acme
+> Project management software helping teams ship faster.
 
 ## Core pages
-- [Personal storage](/personal-storage/): Units from S$39/mo
-- [Business storage](/business-storage/): Document & inventory storage
-- [Locations](/locations/): 14 sites islandwide`,
+- [Features](/features/): Task tracking, timelines & dashboards
+- [Pricing](/pricing/): Plans for teams of all sizes
+- [Integrations](/integrations/): Connects with Slack, GitHub & more`,
       'llms.txt'
     ),
 
   'geo-onpage':
     lead('Content rewrites engineered to get your page picked up and cited by AI answers.') +
-    `<div class="dm-ex-list"><b>For the prompt “Where can I find self storage in Singapore?”:</b><ul>
+    `<div class=”dm-ex-list”><b>For the prompt “What is the best project management tool for small teams?”:</b><ul>
       <li>${badge('Add', 'green')} A direct one-sentence answer near the top (AI loves extractable claims).</li>
-      <li>${badge('Add', 'green')} A pricing + locations table — structured data AI can quote.</li>
-      <li>${badge('Fix', 'amber')} Replace “the best” with verifiable specifics (14 locations, S$39/mo).</li>
+      <li>${badge('Add', 'green')} A features + pricing table — structured data AI can quote.</li>
+      <li>${badge('Fix', 'amber')} Replace “the best” with verifiable specifics (free plan, 5-minute setup).</li>
     </ul></div>`,
 
   'forensic-audit':
@@ -277,18 +277,18 @@ export const OUTPUT_EXAMPLES = {
   // ── Strategy ─────────────────────────────────────────────────────────────────
   persona:
     lead('Up to 10 research-backed audience personas built from a single URL.') +
-    card('Relocating Renter · “Mei, 29”', 'Goals: store furniture between leases · Pains: short notice, tight budget<br><span class="dm-ex-muted">Channels: Google Search, Instagram · Trigger: moving date set</span>') +
-    card('SME Owner · “Raj, 41”', 'Goals: free up office space · Pains: document security, access hours<br><span class="dm-ex-muted">Channels: LinkedIn, Google · Trigger: office downsize</span>'),
+    card('Startup Founder · “Sarah, 32”', 'Goals: ship faster with a small team · Pains: context switching, missed deadlines<br><span class=”dm-ex-muted”>Channels: Product Hunt, LinkedIn · Trigger: team growing past 5</span>') +
+    card('SME Manager · “James, 44”', 'Goals: visibility across all projects · Pains: status meetings, missed tasks<br><span class=”dm-ex-muted”>Channels: Google Search, LinkedIn · Trigger: quarterly planning crunch</span>'),
 
   'media-plan':
     lead('A channel mix with budget allocation, auto-generated personas and a funnel.') +
     table(
       ['Channel', 'Budget', 'Goal', 'Est. result'],
       [
-        ['Google Search', 'S$3,200 (40%)', 'Capture intent', '~210 leads'],
-        ['Performance Max', 'S$2,400 (30%)', 'Scale + retarget', '~140 leads'],
-        ['Meta', 'S$1,600 (20%)', 'Awareness', '~180k reach'],
-        ['LinkedIn', 'S$800 (10%)', 'B2B storage', '~25 leads'],
+        ['Google Search', '$3,200 (40%)', 'Capture intent', '~210 sign-ups'],
+        ['Performance Max', '$2,400 (30%)', 'Scale + retarget', '~140 sign-ups'],
+        ['Meta', '$1,600 (20%)', 'Awareness', '~180k reach'],
+        ['LinkedIn', '$800 (10%)', 'B2B leads', '~25 demos'],
       ]
     ),
 
@@ -296,28 +296,28 @@ export const OUTPUT_EXAMPLES = {
     lead('A conversion read on the page — clarity, speed, trust and SEO readiness, with fixes.') +
     chips([['Conversion score', '68 / 100', 'amber'], ['Clarity', 'Good', 'green'], ['Speed', 'Slow', 'red'], ['Trust', 'Weak', 'amber']]) +
     `<div class="dm-ex-list"><ul>
-      <li>${badge('High', 'red')} Primary CTA below the fold — move “Reserve a unit” up.</li>
-      <li>${badge('Med', 'amber')} No pricing visible — add “from S$39/mo”.</li>
+      <li>${badge('High', 'red')} Primary CTA below the fold — move “Start free trial” up.</li>
+      <li>${badge('Med', 'amber')} No pricing visible — add “free plan available”.</li>
       <li>${badge('Med', 'amber')} Add reviews/trust badges near the form.</li>
     </ul></div>`,
 
   'sem-copy':
     lead('Ready-to-ship ad copy — headlines, descriptions and sitelinks for your chosen format.') +
     `<div class="dm-ex-list"><b>Google Search · Headlines</b><ul>
-      <li>Self Storage From S$39/mo</li>
-      <li>14 Locations Islandwide</li>
-      <li>Climate-Controlled & Secure</li>
+      <li>Project Management — Free Trial</li>
+      <li>Trusted by 10,000+ Teams</li>
+      <li>Ship Faster. Stay Organised.</li>
     </ul><b>Descriptions</b><ul>
-      <li>Free up space today. Clean, dry, 24/7-access units across Singapore. Reserve online in 2 minutes.</li>
+      <li>Plan, track and deliver projects on time. Built for teams of all sizes. Get started in under 5 minutes.</li>
     </ul></div>`,
 
   'perf-marketing':
     lead('A paid-media plan — channel mix, budget split and the biggest opportunities.') +
-    chips([['Suggested budget', 'S$6,000/mo'], ['Channels', '3'], ['Est. CPL', 'S$28', 'green']]) +
+    chips([['Suggested budget', '$6,000/mo'], ['Channels', '3'], ['Est. CPL', '$28', 'green']]) +
     table(
       ['Channel', 'Split', 'Why'],
       [
-        ['Google Search', '55%', 'High-intent “invisalign singapore” demand'],
+        ['Google Search', '55%', 'High-intent “cosmetic dentistry near me” demand'],
         ['Meta', '30%', 'Visual before/after, broad awareness'],
         ['Performance Max', '15%', 'Fill remarketing + Maps'],
       ]
@@ -329,9 +329,9 @@ export const OUTPUT_EXAMPLES = {
     table(
       ['Query', 'Clicks', 'Impr.', 'CTR', 'Pos.'],
       [
-        ['business storage', '467', '8,663', '5.4%', '13.2'],
-        ['wine storage', '456', '4,644', '9.8%', '27.3'],
-        ['self storage singapore', '252', '6,818', '3.7%', '9.7'],
+        ['project management software', '467', '8,663', '5.4%', '13.2'],
+        ['team task tracker', '456', '4,644', '9.8%', '27.3'],
+        ['best project management tool', '252', '6,818', '3.7%', '9.7'],
       ]
     ) +
     note('Break down by query, page, country or device — costs 0 credits (it’s your own data).'),
@@ -352,9 +352,9 @@ export const OUTPUT_EXAMPLES = {
     table(
       ['Campaign', 'Spend', 'Clicks', 'Conv.', 'CPA'],
       [
-        ['Search — Brand', 'S$1,240', '2,310', '188', 'S$6.60'],
-        ['Search — Storage', 'S$3,480', '4,020', '154', 'S$22.60'],
-        ['Pmax — Leads', 'S$2,100', '5,640', '96', 'S$21.90'],
+        ['Search — Brand', '$1,240', '2,310', '188', '$6.60'],
+        ['Search — Product', '$3,480', '4,020', '154', '$22.60'],
+        ['Pmax — Leads', '$2,100', '5,640', '96', '$21.90'],
       ]
     ),
 };
