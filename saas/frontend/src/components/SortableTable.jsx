@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import { Info } from 'lucide-react';
+import { GLOSSARY } from '@shared/catalog.mjs';
 
 // Shared data table with a STICKY header (stays put while the body scrolls) and
 // CLICK-TO-SORT columns. Used everywhere a <table> renders tabular data so the
@@ -12,10 +14,21 @@ import { useState, useMemo } from 'react';
 //   numeric?: boolean,        // force numeric sort (else auto-detected)
 //   accessor?: (row) => any,  // value used for sorting (defaults to row[key])
 //   render?: (row, i) => node // cell contents (defaults to the accessor value)
+//   tip?: string              // header tooltip (defaults to a GLOSSARY match)
 // }]
 // If `columns` is omitted, they're inferred from the keys of the first row.
 const humanise = (k) => String(k).replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 const toNum = (v) => parseFloat(String(v ?? '').replace(/[^0-9.-]/g, ''));
+
+// Plain-English definition for a column header (case-insensitive), for header
+// info tooltips. Matches the metric glossary used by the stat cards.
+const glossaryFor = (label) => {
+  const k = String(label || '').trim();
+  if (!k) return null;
+  if (GLOSSARY[k]) return GLOSSARY[k];
+  const hit = Object.keys(GLOSSARY).find((g) => g.toLowerCase() === k.toLowerCase());
+  return hit ? GLOSSARY[hit] : null;
+};
 
 export default function SortableTable({
   columns,
@@ -29,7 +42,10 @@ export default function SortableTable({
 }) {
   const cols = useMemo(() => {
     const base = columns || Object.keys(rows[0] || {}).map((k) => ({ key: k }));
-    return base.map((c) => ({ sortable: true, align: 'left', ...c, label: c.label ?? humanise(c.key) }));
+    return base.map((c) => {
+      const label = c.label ?? humanise(c.key);
+      return { sortable: true, align: 'left', ...c, label, tip: c.tip ?? glossaryFor(label) ?? glossaryFor(c.key) };
+    });
   }, [columns, rows]);
 
   const [sort, setSort] = useState({ key: null, dir: 1 });
@@ -76,8 +92,20 @@ export default function SortableTable({
                 onClick={() => onSort(c)}
                 className={`sticky top-0 z-10 border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 ${c.align === 'right' ? 'text-right' : ''} ${c.sortable === false ? '' : 'cursor-pointer select-none hover:text-slate-700'}`}
               >
-                {c.label}
-                {sort.key === c.key && <span className="text-brand-500" aria-hidden> {sort.dir > 0 ? '▲' : '▼'}</span>}
+                <span className={`inline-flex items-center gap-1 ${c.align === 'right' ? 'flex-row-reverse' : ''}`}>
+                  {c.label}
+                  {c.tip && (
+                    <span
+                      title={c.tip}
+                      onClick={(e) => e.stopPropagation()}
+                      className="cursor-help text-slate-300 hover:text-slate-500"
+                      aria-label={c.tip}
+                    >
+                      <Info size={12} aria-hidden />
+                    </span>
+                  )}
+                  {sort.key === c.key && <span className="text-brand-500" aria-hidden>{sort.dir > 0 ? '▲' : '▼'}</span>}
+                </span>
               </th>
             ))}
           </tr>

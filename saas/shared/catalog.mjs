@@ -297,6 +297,13 @@ export const GLOSSARY = {
   Backlinks: 'Links from other websites pointing to yours.',
   SERP: 'Search engine results page — what Google shows for a search.',
   GEO: 'Generative Engine Optimisation — getting cited by AI chatbots.',
+  Keyword: 'A search term people type into Google.',
+  Rank: 'Your position in Google for this keyword (1 = top).',
+  Traffic: 'Estimated monthly visits this keyword brings to the page.',
+  URL: 'The page on your site that ranks for this keyword.',
+  Cost: 'Total ad spend over the selected period.',
+  Engaged: 'Sessions where the visitor stayed actively engaged (GA4).',
+  Campaign: 'A Google Ads campaign — a group of ads sharing a budget and goal.',
 };
 
 /** One-click sample inputs per tool ("Try an example"). */
