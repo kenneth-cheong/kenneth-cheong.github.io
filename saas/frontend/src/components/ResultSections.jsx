@@ -73,7 +73,7 @@ function Section({ s }) {
     case 'cards':
       return <Block title={s.title}>{s.note && <p className="-mt-1 mb-3 text-sm text-slate-500">{s.note}</p>}<div className="space-y-2.5">{s.items.map((c, i) => <Card key={i} c={c} />)}</div></Block>;
     case 'table':
-      return <Block title={s.title}><Table columns={s.columns} rows={s.rows} /></Block>;
+      return <TableSection s={s} />;
     case 'code':
       return <CodeBlock title={s.title} filename={s.filename} content={s.content} />;
     default:
@@ -259,6 +259,28 @@ function CodeBlock({ title, filename, content }) {
         <pre className="max-h-96 overflow-auto whitespace-pre-wrap px-4 py-3 font-mono text-[13px] leading-relaxed text-slate-200">{content}</pre>
       </div>
     </Block>
+  );
+}
+
+// A data table always shows its row count (top-right), alongside the title if
+// one is given — so the reader knows the result size at a glance.
+function TableSection({ s }) {
+  const rows = Array.isArray(s.rows) ? s.rows : [];
+  const n = rows.length;
+  return (
+    <div>
+      <div className="mb-3 flex items-center gap-2">
+        {s.title && (
+          <h4 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-700">
+            <span className="h-3.5 w-1 rounded-full bg-brand-500" aria-hidden /> {s.title}
+          </h4>
+        )}
+        <span className="ml-auto shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium tabular-nums text-slate-500">
+          {n.toLocaleString()} {n === 1 ? 'row' : 'rows'}
+        </span>
+      </div>
+      <Table columns={s.columns} rows={rows} />
+    </div>
   );
 }
 
