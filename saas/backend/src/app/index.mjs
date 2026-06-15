@@ -233,7 +233,7 @@ export const handler = async (event) => {
         if (!targets.length) return badRequest('No keywords to backfill.');
         const per = CREDIT_COSTS.rank_backfill;
         const need = per * targets.length;
-        const have = await totalCredits(user.userId);
+        const have = totalCredits(user);
         if (have < need) return badRequest(`Backfilling ${targets.length} keyword${targets.length > 1 ? 's' : ''} costs ${need} credits — you have ${have}. Top up or select fewer keywords.`);
         let charged = 0;
         for (let i = 0; i < targets.length; i += 5) {
