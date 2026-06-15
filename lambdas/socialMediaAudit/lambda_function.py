@@ -140,6 +140,7 @@ def handle_start(body):
         'brand': brand,
         'domain': body.get('domain') or '',
         'location': body.get('location') or 'Singapore',
+        'extra_context': (body.get('extra_context') or '')[:40000],
         'runs': _ddb_clean(runs),
         'comp_runs': _ddb_clean(comp_runs),
         'created': _now_iso(),
@@ -225,7 +226,8 @@ def handle_finalize(body):
 
         brand_health = fetch_brand_health(item.get('domain'), brand, item.get('location') or 'Singapore')
         indicators   = _flatten_indicators(client_metrics, brand_health)
-        scorecard    = _narrate(brand, client_metrics, competitor_metrics, brand_health, indicators)
+        scorecard    = _narrate(brand, client_metrics, competitor_metrics, brand_health,
+                                indicators, item.get('extra_context') or '')
         scorecard.update({
             'platforms': [_platform_card(p, m) for p, m in client_metrics.items()],
             'indicators': indicators,
@@ -583,7 +585,7 @@ def _cadence_status(ppw):
 # ──────────────────────────────────────────────────────────────────────────────
 # Haiku narrative
 # ──────────────────────────────────────────────────────────────────────────────
-def _narrate(brand, client_metrics, competitor_metrics, brand_health, indicators):
+def _narrate(brand, client_metrics, competitor_metrics, brand_health, indicators, extra_context=''):
     api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
     facts = {
         'brand': brand,
@@ -612,6 +614,9 @@ def _narrate(brand, client_metrics, competitor_metrics, brand_health, indicators
         '"action_plan":[{"priority":"high|medium|low","action":"...","expected_impact":"..."}]}\n'
         "Base every claim on the numbers. Keep arrays to 3-5 items.\n\nAUDIT DATA:\n"
         + json.dumps(facts, default=str)[:12000]
+        + (("\n\nADDITIONAL CONTEXT the user uploaded (briefs, analytics, brand docs) "
+            "— use it to sharpen the verdict, goals and action plan:\n" + extra_context[:8000])
+           if extra_context else "")
     )
     try:
         r = requests.post('https://api.anthropic.com/v1/messages',
