@@ -380,7 +380,17 @@ function ResultTable({ rows }) {
     label: c, // upstream keys are already cased (e.g. "CPC") — don't humanise
     render: (row) => cell(c, row[c]),
   }));
-  return <SortableTable columns={columns} rows={rows} />;
+  const n = rows.length;
+  return (
+    <div>
+      <div className="mb-1.5 flex justify-end">
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium tabular-nums text-slate-500">
+          {n.toLocaleString()} {n === 1 ? 'row' : 'rows'}
+        </span>
+      </div>
+      <SortableTable columns={columns} rows={rows} />
+    </div>
+  );
 }
 
 const TONE = { red: 'bg-red-100 text-red-700', amber: 'bg-amber-100 text-amber-700', green: 'bg-green-100 text-green-700', blue: 'bg-blue-100 text-blue-700', slate: 'bg-slate-100 text-slate-600' };
