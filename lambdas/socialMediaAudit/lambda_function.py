@@ -31,6 +31,7 @@ import re
 import time
 import uuid
 import statistics
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 import requests
@@ -88,6 +89,8 @@ def lambda_handler(event, context):
             return _resp(200, handle_poll(body))
         if action == 'finalize':
             return _resp(200, handle_finalize(body))
+        if action == 'discover':
+            return _resp(200, handle_discover(body))
         return _resp(400, {'error': f'Unknown action: {action}'})
     except Exception as e:
         return _resp(500, {'error': str(e)})
@@ -149,6 +152,106 @@ def handle_start(body):
 
     return {'jobId': job_id, 'platforms': list(runs.keys()),
             'competitors': len(comp_runs)}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# DISCOVER — find a brand's social handles so the user can just give a URL/name.
+# Synchronous + fast: scrape the homepage's social links first (free, reliable),
+# then for any platform still missing, a concurrent DataForSEO SERP lookup by
+# brand name. Returns CANDIDATES for the user to confirm — never auto-audits.
+# ──────────────────────────────────────────────────────────────────────────────
+SOCIAL_RE = {
+    'instagram': r'(?:www\.)?instagram\.com/(?!p/|reel/|reels/|explore/|stories/|accounts/)([A-Za-z0-9_.]{2,30})',
+    'tiktok':    r'(?:www\.)?tiktok\.com/@([A-Za-z0-9_.]{2,30})',
+    'facebook':  r'(?:www\.)?facebook\.com/(?!sharer|plugins|tr\?|dialog|profile\.php)([A-Za-z0-9_.\-]{2,40})',
+    'linkedin':  r'(?:www\.)?linkedin\.com/(company/[A-Za-z0-9_\-%.]{2,60}|in/[A-Za-z0-9_\-%.]{2,60})',
+    'youtube':   r'(?:www\.)?youtube\.com/(@[A-Za-z0-9_.\-]{2,40}|channel/[A-Za-z0-9_\-]{6,40}|c/[A-Za-z0-9_\-]{2,40}|user/[A-Za-z0-9_\-]{2,40})',
+}
+
+def handle_discover(body):
+    brand     = (body.get('brand_name') or '').strip()
+    domain    = (body.get('domain') or '').strip()
+    platforms = body.get('platforms') or list(ACTORS.keys())
+    location  = body.get('location') or 'Singapore'
+
+    found = {}
+    if domain:
+        for p, hit in _scrape_social_links(domain).items():
+            if p in platforms:
+                found[p] = {**hit, 'source': 'website'}
+
+    missing = [p for p in platforms if p not in found]
+    if missing and brand and os.environ.get('DATAFORSEO_AUTH'):
+        with ThreadPoolExecutor(max_workers=5) as ex:
+            for p, hit in zip(missing, ex.map(lambda p: _serp_find_profile(brand, p, location), missing)):
+                if hit:
+                    found[p] = {**hit, 'source': 'search'}
+
+    return {'handles': found,
+            'note': 'Candidate profiles — confirm they are correct before auditing.'}
+
+
+def _scrape_social_links(domain):
+    url = domain if domain.startswith('http') else 'https://' + domain
+    try:
+        r = requests.get(url, timeout=12, allow_redirects=True,
+                         headers={'User-Agent': 'Mozilla/5.0 (compatible; DigimetricsAudit/1.0)'})
+        html = r.text[:600000]
+    except requests.exceptions.RequestException:
+        return {}
+    out = {}
+    for p, pat in SOCIAL_RE.items():
+        m = re.search(pat, html, re.IGNORECASE)
+        if m:
+            handle, profile_url = _normalize_profile(p, m.group(1))
+            if handle:
+                out[p] = {'handle': handle, 'profile_url': profile_url}
+    return out
+
+
+def _serp_find_profile(brand, platform, location='Singapore'):
+    auth = os.environ.get('DATAFORSEO_AUTH')
+    domain_kw = {'instagram': 'instagram.com', 'tiktok': 'tiktok.com',
+                 'facebook': 'facebook.com', 'linkedin': 'linkedin.com',
+                 'youtube': 'youtube.com'}[platform]
+    try:
+        r = requests.post(f'{DFS_BASE}/serp/google/organic/live/advanced',
+                          headers={'Authorization': auth, 'Content-Type': 'application/json'},
+                          timeout=22,
+                          json=[{'keyword': f'{brand} {platform}', 'location_name': location,
+                                 'language_name': 'English', 'depth': 10}])
+        items = (((r.json().get('tasks') or [{}])[0].get('result') or [{}])[0].get('items')) or []
+        for it in items:
+            u = it.get('url') or ''
+            if domain_kw in u:
+                m = re.search(SOCIAL_RE[platform], u, re.IGNORECASE)
+                if m:
+                    handle, profile_url = _normalize_profile(platform, m.group(1))
+                    if handle:
+                        return {'handle': handle, 'profile_url': profile_url}
+    except Exception:
+        pass
+    return None
+
+
+def _normalize_profile(platform, captured):
+    """Return (handle_for_audit, display_url). handle_for_audit is what the actor
+    input builder expects; for YouTube channel/c/user paths we keep a full URL."""
+    captured = captured.strip().strip('/').rstrip('.')
+    if platform in ('instagram', 'tiktok', 'facebook'):
+        h = captured.lstrip('@')
+        url = {'instagram': f'https://www.instagram.com/{h}',
+               'tiktok':    f'https://www.tiktok.com/@{h}',
+               'facebook':  f'https://www.facebook.com/{h}'}[platform]
+        return h, url
+    if platform == 'linkedin':                       # captured = "company/slug" or "in/slug"
+        slug = captured.split('/', 1)[1] if '/' in captured else captured
+        return slug, f'https://www.linkedin.com/{captured}'
+    if platform == 'youtube':                        # captured = "@x" | "channel/.." | "c/.." | "user/.."
+        if captured.startswith('@'):
+            return captured.lstrip('@'), f'https://www.youtube.com/{captured}'
+        return f'https://www.youtube.com/{captured}', f'https://www.youtube.com/{captured}'
+    return captured, ''
 
 
 # ──────────────────────────────────────────────────────────────────────────────
