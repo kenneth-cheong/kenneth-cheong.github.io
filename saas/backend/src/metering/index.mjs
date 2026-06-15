@@ -2388,7 +2388,7 @@ async function keywordAnalysisRun(body) {
     const target = cleanDomain(body.target || body.input);
     if (!target) throw new Error('A domain is required.');
     const map = deepBody(await postUpstream(UPSTREAMS.rankingKeywords, { target, location, user }));
-    return { rows: kwRows(map, ['volume', 'rank', 'difficulty', 'traffic']) };
+    return { rows: kwRows(map, ['volume', 'rank', 'difficulty', 'traffic', 'url']) };
   }
   if (/webpage/i.test(mode)) {
     const target = (body.target || body.input || '').trim();
@@ -2420,6 +2420,7 @@ function kwRows(map, cols) {
     if (cols.includes('traffic')) row.traffic = m.traffic ?? '—';
     if (cols.includes('intent')) row.intent = m.search_intent ?? m.intent ?? '—';
     if (cols.includes('reason')) row.reason = m.reason_for_choosing ?? m.reason ?? '';
+    if (cols.includes('url')) row.url = m.url ?? m.relative_url ?? m.relevant_url ?? '—';
     return row;
   });
   rows.sort((a, b) => (Number(b.volume) || 0) - (Number(a.volume) || 0));

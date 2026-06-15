@@ -439,6 +439,7 @@ function cell(col, val) {
   if (c === 'intent' || c === 'status' || c === 'type') return <Badge t={s} tone="slate" />;
   if (c === 'difficulty') { const n = parseFloat(s); if (Number.isFinite(n)) return <span className={n < 30 ? 'font-medium text-green-600' : n < 60 ? 'font-medium text-amber-600' : 'font-medium text-red-600'}>{n}</span>; }
   if (['volume', 'impressions', 'clicks', 'sessions', 'users', 'backlinks', 'traffic', 'conversions'].includes(c)) return <span className="tabular-nums">{fmtNum(s)}</span>;
+  if (c === 'url' && /^https?:\/\//i.test(s)) return <a href={s} target="_blank" rel="noreferrer" className="break-all text-brand-600 hover:underline">{s.replace(/^https?:\/\//i, '')}</a>;
   return s;
 }
 
