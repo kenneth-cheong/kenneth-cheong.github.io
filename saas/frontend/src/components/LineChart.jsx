@@ -1,11 +1,10 @@
 // Dependency-free SVG line chart for rank-over-time (lower position = higher on
-// the chart). Reusable for any { date, value } series.
-export default function LineChart({ data, height = 150, accessor = (d) => d.position, invert = true }) {
-  const W = 480, H = height;
-  const LPAD = 32; // left: Y-axis labels
-  const RPAD = 8;
-  const TPAD = 12; // top
-  const BPAD = 20; // bottom: X-axis date labels
+// the chart). Uses CSS aspect-ratio so text labels never stretch.
+export default function LineChart({ data, accessor = (d) => d.position, invert = true }) {
+  const W = 480, H = 130;
+  const LPAD = 36, RPAD = 12, TPAD = 16, BPAD = 24;
+  const cW = W - LPAD - RPAD;
+  const cH = H - TPAD - BPAD;
 
   const allData = (data || []).map((d) => ({ date: d.date, v: accessor(d) }));
   const pts = allData.filter((d) => d.v >= 1);
@@ -15,33 +14,31 @@ export default function LineChart({ data, height = 150, accessor = (d) => d.posi
   const min = Math.min(...vs), max = Math.max(...vs);
   const range = Math.max(1, max - min);
 
-  const cW = W - LPAD - RPAD;
-  const cH = H - TPAD - BPAD;
-
-  // Date-based X so trailing unranked points sit at their actual date,
-  // keeping ranked points proportionally placed and not forced to the right edge.
+  // Date-proportional X so trailing unranked dates push ranked points left
   const tFirst = new Date(allData[0].date).getTime();
-  const tLast = new Date(allData[allData.length - 1].date).getTime();
-  const dateToX = (date) => {
-    if (tFirst === tLast) return LPAD + cW / 2;
-    return LPAD + ((new Date(date).getTime() - tFirst) / (tLast - tFirst)) * cW;
-  };
+  const tLast  = new Date(allData[allData.length - 1].date).getTime();
+  const dx = (date) =>
+    tFirst === tLast ? LPAD + cW / 2
+      : LPAD + ((new Date(date).getTime() - tFirst) / (tLast - tFirst)) * cW;
 
-  const yv = (v) => {
-    const t = (v - min) / range; // 0 = best rank (top) … 1 = worst rank (bottom)
+  const dy = (v) => {
+    const t = (v - min) / range; // 0 = best rank (top) … 1 = worst (bottom)
     return invert ? TPAD + t * cH : TPAD + cH - t * cH;
   };
 
-  const path = pts.map((p, i) => `${i ? 'L' : 'M'}${dateToX(p.date).toFixed(1)},${yv(p.v).toFixed(1)}`).join(' ');
-  const last = pts[pts.length - 1];
+  const linePath = pts.map((p, i) => `${i ? 'L' : 'M'}${dx(p.date).toFixed(1)},${dy(p.v).toFixed(1)}`).join(' ');
+  const first = pts[0], last = pts[pts.length - 1];
 
-  // Trailing unranked: last overall data point has no valid position → keyword fell off rankings
+  // Close the path down to the baseline for the gradient fill
+  const fillPath = `${linePath} L${dx(last.date).toFixed(1)},${(TPAD + cH).toFixed(1)} L${dx(first.date).toFixed(1)},${(TPAD + cH).toFixed(1)} Z`;
+
   const hasTrailingUnranked =
     allData.length > 0 && (allData[allData.length - 1].v < 1 || !allData[allData.length - 1].v);
   const trailingDate = hasTrailingUnranked ? allData[allData.length - 1].date : null;
 
-  // Y-axis ticks: best, middle (if range > 5), worst
-  const rawTicks = range > 5 ? [min, Math.round((min + max) / 2), max] : [min, max];
+  // Y ticks: always include best + worst; add midpoint if spread is wide enough
+  const mid = Math.round((min + max) / 2);
+  const rawTicks = range > 4 && mid !== min && mid !== max ? [min, mid, max] : [min, max];
   const yTicks = [...new Set(rawTicks)];
 
   const fmtDate = (date) => {
@@ -51,49 +48,52 @@ export default function LineChart({ data, height = 150, accessor = (d) => d.posi
   };
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full" style={{ height }}>
-      {/* Faint horizontal grid lines */}
+    // aspectRatio keeps proportions correct regardless of container width — no label distortion
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full block" style={{ aspectRatio: `${W}/${H}` }}>
+      <defs>
+        <linearGradient id="lc-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor="#4f46e5" stopOpacity="0.12" />
+          <stop offset="100%" stopColor="#4f46e5" stopOpacity="0.01" />
+        </linearGradient>
+      </defs>
+
+      {/* Horizontal grid lines */}
       {yTicks.map((v) => (
-        <line key={v} x1={LPAD} y1={yv(v)} x2={W - RPAD} y2={yv(v)} stroke="#f1f5f9" strokeWidth="1" />
+        <line key={v} x1={LPAD} y1={dy(v)} x2={W - RPAD} y2={dy(v)} stroke="#e8eaf0" strokeWidth="0.75" />
       ))}
 
-      {/* Y-axis labels (rank numbers) */}
+      {/* Y-axis rank labels */}
       {yTicks.map((v) => (
-        <text key={v} x={LPAD - 4} y={yv(v) + 4} fontSize="10" fill="#94a3b8" textAnchor="end">
+        <text key={v} x={LPAD - 5} y={dy(v) + 4} fontSize="11" fill="#94a3b8" textAnchor="end">
           #{v}
         </text>
       ))}
 
-      {/* Main line */}
-      <path d={path} fill="none" stroke="#4f46e5" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+      {/* Gradient area fill */}
+      <path d={fillPath} fill="url(#lc-fill)" />
 
-      {/* Dashed extension when keyword has since dropped off rankings */}
+      {/* Main line */}
+      <path d={linePath} fill="none" stroke="#4f46e5" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+
+      {/* Trailing unranked: dashed fade to bottom-right */}
       {hasTrailingUnranked && (
         <line
-          x1={dateToX(last.date).toFixed(1)} y1={yv(last.v).toFixed(1)}
-          x2={dateToX(trailingDate).toFixed(1)} y2={(TPAD + cH).toFixed(1)}
-          stroke="#4f46e5" strokeWidth="1.5" strokeDasharray="4,3" opacity="0.35"
-          vectorEffect="non-scaling-stroke"
+          x1={dx(last.date).toFixed(1)}   y1={dy(last.v).toFixed(1)}
+          x2={dx(trailingDate).toFixed(1)} y2={(TPAD + cH).toFixed(1)}
+          stroke="#4f46e5" strokeWidth="1.5" strokeDasharray="4,3" opacity="0.3"
         />
       )}
 
       {/* Data point markers */}
       {pts.map((p, i) => (
-        <circle key={i} cx={dateToX(p.date)} cy={yv(p.v)} r="2.5" fill="#4f46e5" />
+        <circle key={i} cx={dx(p.date)} cy={dy(p.v)} r="3" fill="#fff" stroke="#4f46e5" strokeWidth="2" />
       ))}
 
-      {/* Inline last-rank label — hidden when trailing unranked (badge already says "Unranked") */}
-      {!hasTrailingUnranked && (
-        <text x={dateToX(last.date)} y={yv(last.v) - 6} fontSize="11" fill="#4f46e5" textAnchor="end">
-          #{last.v}
-        </text>
-      )}
-
-      {/* X-axis date labels spanning the full time range */}
-      <text x={LPAD} y={H - 4} fontSize="10" fill="#94a3b8" textAnchor="start">
+      {/* X-axis date labels */}
+      <text x={dx(allData[0].date)}                   y={H - 5} fontSize="11" fill="#94a3b8" textAnchor="start">
         {fmtDate(allData[0].date)}
       </text>
-      <text x={LPAD + cW} y={H - 4} fontSize="10" fill="#94a3b8" textAnchor="end">
+      <text x={dx(allData[allData.length - 1].date)}  y={H - 5} fontSize="11" fill="#94a3b8" textAnchor="end">
         {fmtDate(allData[allData.length - 1].date)}
       </text>
     </svg>
