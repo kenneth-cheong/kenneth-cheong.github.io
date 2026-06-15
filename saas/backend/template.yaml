@@ -5,7 +5,11 @@ Description: Digimetrics SaaS backend — auth, metering gateway, credits, Strip
 Parameters:
   AppOrigin:
     Type: String
-    Description: Frontend origin (Amplify URL or custom domain) for CORS + redirects.
+    Description: Canonical frontend origin for redirects (Stripe/email links). Single value.
+    Default: http://localhost:5173
+  CorsOrigins:
+    Type: CommaDelimitedList
+    Description: Allowed browser origins for CORS (custom domain + Amplify URL). Superset of AppOrigin.
     Default: http://localhost:5173
   GoogleClientId:
     Type: String
@@ -257,7 +261,7 @@ Resources:
           ThrottlingBurstLimit: 600
           ThrottlingRateLimit: 300
       CorsConfiguration:
-        AllowOrigins: [!Ref AppOrigin]
+        AllowOrigins: !Ref CorsOrigins
         AllowHeaders: [Content-Type, Authorization]
         AllowMethods: [GET, POST, OPTIONS]
         AllowCredentials: true
