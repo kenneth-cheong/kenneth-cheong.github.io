@@ -1312,10 +1312,27 @@ def build_structured_prompt(action, body):
         cover_period  = ("<p>" + report_period + "</p>") if report_period else ""
         plat_period   = ('<p class="period">' + report_period + "</p>") if report_period else ""
 
+        # When the client rasterises the report to page images, the figures are
+        # read straight off the dashboard rather than from a flattened (and often
+        # scrambled) text dump. Otherwise we fall back to the extracted text.
+        data_block = (
+            ("REPORT DATA:\n" + report_data) if report_data.strip()
+            else "The report pages are attached above as images. Base your analysis solely on them."
+        )
+
         user = (
             "Refer closely to the attached social media performance report and review all available "
             "data before writing the analysis. Do not make assumptions beyond the data provided. "
             "Where data is missing or unclear, note it professionally.\n\n"
+            "NUMBER ACCURACY (critical): Read every metric directly from the report and reproduce each "
+            "figure EXACTLY as shown, including its suffix (K, X, %) and any +/- sign. These dashboards "
+            "use a COMMA as the decimal separator, not a thousands separator: '5,28K' means 5.28 thousand "
+            "(≈5,280), '92,26K' means ≈92,260, '5,72%' means 5.72 percent, and '1,73X' means 1.73. "
+            "Never reinterpret the comma as a thousands separator and never inflate a value's magnitude "
+            "(e.g. do NOT turn '5,28K' into 528,000 or '5,72%' into 572%). A small percentage like '-22%' "
+            "next to a metric is a period-over-period change, not the metric's value. Do not invent, "
+            "estimate, or round away any number that is not visible in the report; if a figure is unclear, "
+            "say so rather than guessing.\n\n"
             "Craft a clear, polished and client-ready social media performance report in " + language + ". "
             "The tone must be positive, constructive and professional, while still being analytical and useful.\n\n"
             "STRUCTURE:\n"
@@ -1370,7 +1387,7 @@ def build_structured_prompt(action, body):
             "Do NOT include <!DOCTYPE>, <html>, <head>, <body>, or <style> tags. "
             "Return ONLY the inner HTML fragment.\n\n"
             + ctx_block
-            + "REPORT DATA:\n" + report_data
+            + data_block
         )
         return system, user
 
@@ -1839,13 +1856,21 @@ def lambda_handler(event, context):
 
             # Vision: when the caption generator sends image attachments, let the
             # model SEE the post's visuals so the caption actually matches them.
-            # Frontend sends `images` as a list of base64 data URLs (or
+            # For the SMM report analyser the client rasterises the report PDF to
+            # one image per page, so the model reads figures off the dashboard
+            # instead of a flattened, scrambled text dump.
+            # Frontend sends images as a list of base64 data URLs (or
             # {media_type, data} objects). Haiku 4.5 supports image input.
             user_content = user_str
-            images = event.get('images') if action == 'luxury_copy' else None
+            if action == 'luxury_copy':
+                images, img_cap = event.get('images'), 6
+            elif action == 'smm_report':
+                images, img_cap = (event.get('reportImages') or event.get('images')), 25
+            else:
+                images, img_cap = None, 6
             if images:
                 blocks = []
-                for img in images[:6]:  # cap to keep the request sane
+                for img in images[:img_cap]:  # cap to keep the request sane
                     media_type, data = None, None
                     if isinstance(img, dict):
                         media_type = img.get('media_type') or img.get('mediaType')
