@@ -1,9 +1,130 @@
 import json
 import os
 import re
+import time
 import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
+
+
+# ==============================================================================
+# Anthropic Messages API helper — backoff retries + server-tool continuation
+# ==============================================================================
+def _anthropic_request(api_key, request_body, max_retries=3, max_continuations=4):
+    """POST to the Anthropic Messages API with exponential-backoff retries on
+    transient failures (timeouts, connection errors, 429/5xx/529), and
+    transparent continuation of the server-side tool loop when the model
+    returns stop_reason == 'pause_turn' (e.g. while using web_fetch/web_search).
+    Returns the final response JSON (dict). Raises on unrecoverable failure."""
+    headers = {
+        'x-api-key':         api_key,
+        'anthropic-version': '2023-06-01',
+        'content-type':      'application/json',
+    }
+    body          = dict(request_body)
+    continuations = 0
+    while True:
+        resp_json = None
+        last_err  = None
+        for attempt in range(max_retries):
+            try:
+                resp = requests.post(
+                    'https://api.anthropic.com/v1/messages',
+                    headers=headers, json=body, timeout=90,
+                )
+                if resp.status_code in (429, 500, 502, 503, 504, 529):
+                    last_err = f"HTTP {resp.status_code}: {resp.text[:200]}"
+                    time.sleep(min(2 ** attempt, 8))
+                    continue
+                resp_json = resp.json()
+                break
+            except requests.exceptions.RequestException as e:
+                last_err = str(e)
+                time.sleep(min(2 ** attempt, 8))
+        if resp_json is None:
+            raise RuntimeError(
+                f"Anthropic request failed after {max_retries} retries: {last_err}"
+            )
+        # Server-tool loop hit its iteration cap — resume the same turn.
+        if resp_json.get('stop_reason') == 'pause_turn' and continuations < max_continuations:
+            continuations += 1
+            msgs = list(body.get('messages', []))
+            msgs.append({'role': 'assistant', 'content': resp_json.get('content', [])})
+            body = dict(body)
+            body['messages'] = msgs
+            continue
+        return resp_json
+
+
+_DATAFORSEO_CRAWLER_URL = (
+    'https://ak9qsl9wgi.execute-api.ap-southeast-1.amazonaws.com/dataforseoCrawler'
+)
+
+
+def _dataforseo_pull_content(url, timeout=60):
+    """Live single-page scrape via the existing dataforseoCrawler Lambda
+    (DataForSEO 'pull_content'). Returns plain text (HTML stripped, title
+    prepended, capped) or None on failure — so the caller can fall back."""
+    try:
+        resp = requests.post(
+            _DATAFORSEO_CRAWLER_URL,
+            headers={'Content-Type': 'application/json'},
+            json={'action': 'pull_content', 'url': url},
+            timeout=timeout,
+        )
+        data = resp.json()
+        body = data.get('body') if isinstance(data, dict) else None
+        if isinstance(body, str):
+            body = json.loads(body)
+        elif body is None:
+            body = data
+        html = (body or {}).get('html') or ''
+        if not html:
+            return None
+        text  = re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', html)).strip()
+        title = (body or {}).get('title') or (body or {}).get('first_h1') or ''
+        if title:
+            text = f"PAGE TITLE: {title}\n\n{text}"
+        return text or None
+    except Exception as e:
+        print(f"[aiOptimiser] dataforseo pull_content failed for {url}: {e}")
+        return None
+
+
+def _extract_text(resp_json):
+    """Concatenate all text blocks from a Messages API response. When server
+    tools are used the content array also holds server_tool_use / tool_result
+    blocks, so content[0] is not necessarily the text — scan for type=='text'."""
+    parts = [
+        b.get('text', '')
+        for b in (resp_json.get('content') or [])
+        if b.get('type') == 'text'
+    ]
+    return "\n".join(p for p in parts if p).strip()
+
+
+# JSON schema for the AI Strategy Engine's company-research output. Used with
+# output_config.format to force a valid JSON object (no prose preamble).
+# additionalProperties:false and no string/number constraints — per the
+# structured-outputs schema limitations.
+_STRATEGY_RESEARCH_SCHEMA = {
+    'type': 'object',
+    'properties': {
+        'client_profile':         {'type': 'string'},
+        'target_audience':        {'type': 'string'},
+        'market_context':         {'type': 'string'},
+        'objectives':             {'type': 'array', 'items': {'type': 'string'}},
+        'seed_keywords':          {'type': 'string'},
+        'top_competitor_domains': {'type': 'array', 'items': {'type': 'string'}},
+        'seo_keywords':           {'type': 'array', 'items': {'type': 'string'}},
+        'client_website':         {'type': 'string'},
+    },
+    'required': [
+        'client_profile', 'target_audience', 'market_context',
+        'objectives', 'seed_keywords', 'top_competitor_domains', 'seo_keywords',
+    ],
+    'additionalProperties': False,
+}
 
 # ==============================================================================
 # SYSTEM MESSAGE 1: STATIC CONSTITUTION
@@ -363,6 +484,147 @@ _STRUCTURED_ACTIONS = {
 }
 
 
+# ── Caption Generator: platform playbooks ──────────────────────────────────
+# Each platform carries the hard, channel-native rules the model must respect.
+# These are the difference between "generic copy with a label" and a post that
+# actually fits where it will be published.
+PLATFORM_SPECS = {
+    'instagram': {
+        'name': 'Instagram caption',
+        'limit': 'Hard cap 2,200 characters. Sweet spot 80–150 words for a feed caption.',
+        'hook': 'Only the first ~125 characters show before the "… more" fold. The hook MUST land in line one and create a reason to tap "more".',
+        'hashtags': 'Up to 30 allowed; 5–12 is optimal. Mix ~2 broad reach tags, ~5 niche/specific tags, ~1 branded tag.',
+        'cta': 'No clickable links in the caption body — use "link in bio", "DM us", "save this", or "tag a friend" style CTAs.',
+        'structure': 'Hook line → 1–3 short scannable paragraphs (blank line between) → soft CTA → hashtag block at the very end.',
+        'alt': True, 'onimage': True,
+    },
+    'linkedin': {
+        'name': 'LinkedIn post',
+        'limit': 'Hard cap ~3,000 characters; 150–300 words performs best.',
+        'hook': 'Only ~210 characters (2–3 lines) show before "…see more". Front-load the insight or tension; never waste line one on a greeting.',
+        'hashtags': '3–5 professional, topical hashtags placed at the end. No hashtag walls.',
+        'cta': 'Links are fine (though they can suppress reach). Prefer a question or a "share your take" prompt to drive comments.',
+        'structure': 'Punchy opening line → one-idea-per-line short paragraphs with white space → a concrete takeaway → a question or CTA.',
+        'alt': False, 'onimage': False,
+    },
+    'facebook': {
+        'name': 'Facebook post',
+        'limit': 'No hard cap, but 40–120 words gets the most engagement. ~480 chars show before "See more".',
+        'hook': 'Lead with a relatable, conversational hook. Front-load the point in the first sentence.',
+        'hashtags': '0–3 hashtags only; hashtags do little on Facebook. Prefer none unless branded/campaign.',
+        'cta': 'Links are clickable. A clear CTA + link is fine. Encourage comments/shares.',
+        'structure': 'Conversational hook → short body → clear CTA. Warm and human, not corporate.',
+        'alt': False, 'onimage': False,
+    },
+    'tiktok': {
+        'name': 'TikTok caption',
+        'limit': 'Keep the caption short — under ~150 characters. The video does the talking.',
+        'hook': 'The caption complements an on-screen hook. Curiosity, payoff tease, or relatable one-liner.',
+        'hashtags': '3–5 hashtags: blend 1–2 trending/broad with 2–3 niche. Include a content-category tag.',
+        'cta': '"Follow for part 2", "comment X", "watch till the end" style native CTAs.',
+        'structure': 'One tight caption line (or two) + hashtags. Always also propose the on-screen text hook.',
+        'alt': False, 'onimage': True,
+    },
+    'x': {
+        'name': 'X / Twitter post',
+        'limit': 'Hard cap 280 characters — this is absolute. Count carefully.',
+        'hook': 'The whole post is the hook. One sharp idea, no warm-up.',
+        'hashtags': '0–2 hashtags maximum; often best with none. Hashtags reduce reach if overused.',
+        'cta': 'Reply-bait, "RT if", or a single link at the end.',
+        'structure': 'One self-contained, punchy post under 280 chars. If the idea is bigger, note a thread is needed.',
+        'alt': False, 'onimage': False,
+    },
+    'threads': {
+        'name': 'Threads post',
+        'limit': 'Hard cap 500 characters. Conversational, lower-key than X.',
+        'hook': 'Casual, human opener — like talking to a friend. No corporate tone.',
+        'hashtags': 'At most 1 topic tag; Threads is not hashtag-driven.',
+        'cta': 'Invite replies. Conversational prompts beat hard CTAs.',
+        'structure': 'A short, natural post under 500 chars. Optional follow-up line.',
+        'alt': False, 'onimage': False,
+    },
+    'youtube': {
+        'name': 'YouTube post',
+        'limit': 'For a community post: 1–3 sentences. For a description: 150–300 words.',
+        'hook': 'First 1–2 lines show before the fold — make them keyword-aware and curiosity-driven.',
+        'hashtags': '3–5 keyword hashtags placed at the end (these also appear above the title).',
+        'cta': '"Subscribe", "watch the full video", "hit the bell". Links allowed.',
+        'structure': 'Hook line → context → CTA to watch/subscribe. Keyword-aware for search.',
+        'alt': False, 'onimage': False,
+    },
+    'pinterest': {
+        'name': 'Pinterest pin description',
+        'limit': 'Hard cap 500 characters; 100–200 is ideal.',
+        'hook': 'Pinterest is a search engine — lead with the keyword and the value/outcome.',
+        'hashtags': '2–5 specific, keyword-style hashtags.',
+        'cta': '"Save this for later", "tap to shop", "read the full guide". Links allowed.',
+        'structure': 'Keyword-rich first line → benefit/how-to detail → CTA → hashtags. Optimise for search intent.',
+        'alt': True, 'onimage': False,
+    },
+    'gbp': {
+        'name': 'Google Business Profile post',
+        'limit': 'Hard cap 1,500 characters; 150–300 chars recommended — only ~80 show before truncation.',
+        'hook': 'Front-load the offer/news and the local relevance in the first sentence.',
+        'hashtags': 'No hashtags — they do nothing on GBP. Use plain, action-oriented copy.',
+        'cta': 'Map to a GBP button: Book, Order, Buy, Learn more, Call, Sign up. State the action plainly.',
+        'structure': 'Offer/news first → key details (what/when/where) → single clear CTA matching a GBP button.',
+        'alt': False, 'onimage': False,
+    },
+}
+
+# Length intent → guidance, refined by platform limits in the prompt.
+LENGTH_INTENTS = {
+    'punchy':    'PUNCHY — as short as possible while complete. Favour the shortest end of the platform range.',
+    'standard':  'STANDARD — the platform sweet spot. Balanced, scannable.',
+    'long':      'LONG-FORM — the richer end of the platform range (story/insight depth), without exceeding the hard cap.',
+}
+
+# Hook archetypes the user can force; "auto" lets the variation angle decide.
+HOOK_STYLES = {
+    'question':    'Open with a sharp, scroll-stopping QUESTION that voices an unspoken desire or challenges an assumption.',
+    'stat':        'Open with a surprising STAT or number that reframes the topic. Use only numbers given in the brief — never invent figures.',
+    'bold-claim':  'Open with a BOLD, unhedged CLAIM. No qualifiers, no warm-up.',
+    'story':       'Open with a tiny, hyper-specific STORY moment (1–2 lines) that feels real.',
+    'contrarian':  'Open with a CONTRARIAN take that reframes conventional wisdom on this topic.',
+}
+
+def _platform_key(label):
+    l = (label or '').lower()
+    if 'instagram' in l:                       return 'instagram'
+    if 'linkedin' in l:                        return 'linkedin'
+    if 'facebook' in l:                        return 'facebook'
+    if 'tiktok' in l:                          return 'tiktok'
+    if 'threads' in l:                         return 'threads'
+    if 'twitter' in l or 'x post' in l or l.strip() in ('x', 'x / twitter post'):
+        return 'x'
+    if 'youtube' in l:                         return 'youtube'
+    if 'pinterest' in l:                       return 'pinterest'
+    if 'google business' in l or 'gbp' in l:   return 'gbp'
+    return 'instagram'
+
+# Strict output contract. The model returns ONE JSON object and nothing else,
+# so the frontend can render hook / body / CTA / hashtags / alt text separately.
+def _luxury_output_contract(spec):
+    want_alt = 'true' if spec.get('alt') else 'false (set to null)'
+    want_oi  = 'true' if spec.get('onimage') else 'false (set to null)'
+    return (
+        "OUTPUT FORMAT — return ONLY a single JSON object, no markdown fences, no prose before or after:\n"
+        "{\n"
+        '  "angle": "<the creative angle name you were given>",\n'
+        '  "hook": "<the first line / scroll-stopper, plain text>",\n'
+        '  "body": "<the main caption body; use \\n for line breaks; do NOT include the hook, CTA, or hashtags here>",\n'
+        '  "cta": "<the call-to-action line, platform-appropriate>",\n'
+        '  "caption": "<the FULL ready-to-paste post: hook + body + cta assembled with natural line breaks; include hashtags inline ONLY if placement is inline; never include them if placement is first-comment or none>",\n'
+        '  "hashtags": ["#tag1", "#tag2"],\n'
+        f'  "altText": "<accessibility alt text for the image, ~1 sentence>",   // include since alt useful for this platform = {want_alt}\n'
+        f'  "onImageText": "<short punchy text to overlay on the visual>",        // include since on-image text useful = {want_oi}\n'
+        '  "scores": { "hookStrength": <1-10>, "readability": <1-10>, "onBrand": <1-10> }\n'
+        "}\n"
+        "Keep the caption/hook/body/cta in the exact voice and language briefed above. All string values must be valid JSON "
+        "(escape quotes and newlines). Do not output anything except this JSON object."
+    )
+
+
 def build_structured_prompt(action, body):
     """Return (system_str, user_str) for a structured action, or (None, None) if unknown."""
 
@@ -453,6 +715,63 @@ def build_structured_prompt(action, body):
         webpage_text       = body.get('webpageText', '')
         variation_index    = int(body.get('variationIndex', 0) or 0)
         language           = (f.get('language') or '').lower()
+        previous_captions  = body.get('previousCaptions', []) or []
+        has_images         = bool(body.get('images'))
+
+        # Resolve the platform playbook + formatting controls from the brief.
+        spec = PLATFORM_SPECS[_platform_key(content_type_label)]
+        length_intent    = (f.get('lengthIntent') or 'standard').lower()
+        length_directive = LENGTH_INTENTS.get(length_intent, LENGTH_INTENTS['standard'])
+        word_count       = f.get('wordCount')
+        hook_style       = (f.get('hookStyle') or 'auto').lower()
+        hook_directive   = HOOK_STYLES.get(hook_style)
+        _ht_raw = str(f.get('hashtags') or 'none').lower()
+        if _ht_raw in ('yes', 'true', 'inline'):
+            ht_placement = 'inline'
+        elif _ht_raw in ('first-comment', 'first_comment', 'comment'):
+            ht_placement = 'first-comment'
+        else:
+            ht_placement = 'none'
+
+        # ── Refinement mode ────────────────────────────────────────────────
+        # The Caption Generator's "Refine selection" / inline-edit feature reuses
+        # this action but sends the existing copy + an edit instruction instead of
+        # a fresh brief. Detect it and rewrite the existing content rather than
+        # generating something new from empty brief fields.
+        if f.get('refinementMode'):
+            current_content = (f.get('currentContent') or '').strip()
+            selected_text   = (f.get('selectedText') or '').strip()
+            instructions    = (f.get('instructions') or '').strip()
+
+            system = (
+                "You are a senior social media copy editor. You revise existing social copy "
+                "according to the user's instruction. You preserve the parts the user did not ask "
+                "to change, keep the original voice, tone and language (including Singlish or "
+                "Chinese if the copy is in that language), and never add meta-commentary, "
+                "explanations, labels, or questions back to the user."
+            )
+
+            user_parts = [
+                f"Revise the following {content_type_label}.",
+                f"CURRENT CONTENT:\n{current_content}",
+            ]
+            if selected_text:
+                user_parts.append(
+                    "The user highlighted ONLY this portion to change — leave the rest of the "
+                    f"content intact and edit just this part in place:\n\"{selected_text}\""
+                )
+            else:
+                user_parts.append("Apply the change to the whole content.")
+            user_parts.append(f"INSTRUCTION:\n{instructions}")
+            user_parts.append(
+                "Do not invent facts, figures, prices, or offers that are not already in the current content. "
+                "Avoid em dashes (—); use commas, full stops, or short sentences instead."
+            )
+            user_parts.append(
+                "Output ONLY the complete revised content, ready to publish — no preamble, "
+                "no explanation, no labels, no questions."
+            )
+            return system, "\n\n".join(user_parts)
 
         CREATIVE_ANGLES = [
             { 'name': 'Atmospheric Opening',         'instruction': 'Lead with a cinematic, sensory scene that immerses the reader in a mood before any product or brand mention. Appeal to sight, texture, sound, or scent.' },
@@ -467,7 +786,24 @@ def build_structured_prompt(action, body):
             { 'name': 'Minimalist / Haiku Energy',   'instruction': 'Three sentences maximum. Each line lands with weight. Heavy rhythm, deliberate white space, every single word earns its place — restraint is the technique.' },
         ]
 
-        angle = CREATIVE_ANGLES[variation_index % len(CREATIVE_ANGLES)]
+        # Trend-format angles for the casual "viral / social-first" voice. The
+        # literary CREATIVE_ANGLES above fight that voice, so swap in on-brand
+        # social hooks when language == 'viral'.
+        VIRAL_ANGLES = [
+            { 'name': 'POV Hook',          'instruction': "Open with a 'POV:' framing that drops the reader straight into the experience or outcome (e.g. 'POV: you finally hired the right team'). Short and visual." },
+            { 'name': "It's Giving",       'instruction': "Lead with an \"it's giving ___\" line that names the vibe or quality in a single trendy beat, then back it up in a line or two." },
+            { 'name': 'Self-Aware Humour', 'instruction': "Open with a 'not me ___' / caught-in-the-act admission that pokes fun at how obsessed or extra the brand is about its craft." },
+            { 'name': 'Signature Flex',    'instruction': "Use a 'the way we ___' construction to flex one specific thing the brand does better than anyone — quiet confidence, not bragging." },
+            { 'name': 'Main Character',    'instruction': "Bold, main-character-energy flex. Unhedged confidence, claims the moment from word one — no warm-up, no qualifiers." },
+            { 'name': 'Behind The Scenes', 'instruction': "Playful 'we don't talk about ___' tease that winks at the behind-the-scenes chaos or effort, then lands on the result." },
+            { 'name': 'Hot Take',          'instruction': "Open with an 'unpopular opinion' / hot take that reframes how people think about this category, then defend it in one punchy line." },
+            { 'name': 'Tell Me Without',   'instruction': "Use 'tell me you're ___ without telling me you're ___' to show the brand's quality through specific, knowing details." },
+            { 'name': 'Result Reveal',     'instruction': "Celebratory reveal of the finished work — a 'did we cook or did we cook?' energy that lets the result speak. Hyped and proud." },
+            { 'name': 'Casual Real-Talk',  'instruction': "No meme template — just talk to the reader like a friend who's genuinely great at this. Casual, specific, a little funny, zero corporate words." },
+        ]
+
+        _angles = VIRAL_ANGLES if language == 'viral' else CREATIVE_ANGLES
+        angle = _angles[variation_index % len(_angles)]
 
         def _line(label, val):
             return f"- {label}: {val}\n" if val else ''
@@ -485,6 +821,47 @@ def build_structured_prompt(action, body):
                 "You are a senior social media strategist and copywriter with over 15 years of experience "
                 "writing brand-led, performance-aware social content for B2B and B2C brands in Chinese markets. "
                 "Write in Chinese."
+            )
+        elif language == 'singlish':
+            system = (
+                "You are a born-and-bred Singaporean social media copywriter who writes in authentic, natural "
+                "Singlish (Singaporean colloquial English) — the way locals actually text, caption, and talk. "
+                "This is a HARD requirement: the copy must read as genuinely Singlish, not standard English with "
+                "one 'lah' bolted on.\n\n"
+                "How to write proper Singlish:\n"
+                "- Use discourse particles naturally and VARY them — lah, leh, lor, sia, hor, ah, mah, meh, liao, "
+                "walao, aiyo. Don't end every line with 'lah'.\n"
+                "- Use real Singlish grammar and vocab: 'can'/'cannot' as standalone answers, 'die die must try', "
+                "'shiok', 'steady', 'paiseh', 'jialat', 'chope', 'confirm plus chop', 'where got', 'got' as a verb "
+                "('got promo'), 'already'/'liao' for completed action ('sold out liao'), dropped copula and "
+                "topic-comment structure ('This one damn shiok', 'Price very worth it one').\n"
+                "- Warm, friendly, kaypoh, hype-a-friend energy — not corporate.\n"
+                "- Code-switch lightly where natural, but keep it readable.\n"
+                "- Still keep the brand name, core message and CTA accurate. Err on the side of MORE Singlish, "
+                "not less — the reader must immediately feel 'wah, this one properly Singlish'.\n\n"
+                "You are still a strategist: the post must do its job (drive the CTA, reinforce positioning), "
+                "just in a fully Singlish voice."
+            )
+        elif language == 'viral':
+            system = (
+                "You are a chronically-online social media copywriter who writes scroll-stopping, "
+                "viral-native captions for Instagram, TikTok and Reels. You write the way real people "
+                "actually post — casual, punchy, self-aware and culturally fluent.\n\n"
+                "You use current internet vernacular and trend formats naturally where they fit — "
+                "e.g. 'POV: …', \"it's giving …\", 'not me …', 'the way we …', 'main character energy', "
+                "\"we don't talk about …\", 'tell me you … without telling me …', 'unpopular opinion' — "
+                "but only when they genuinely land. Never force a meme or sound try-hard.\n\n"
+                "How you write:\n"
+                "- Short. Front-load the hook in the first 3-5 words; assume the reader is mid-scroll.\n"
+                "- Conversational and human: contractions, lowercase energy, dry humour, a wink of confidence.\n"
+                "- Lowercase styling is fine for the body, but ALWAYS write the brand name with its given "
+                "capitalization (e.g. 'Anderco', never 'anderco').\n"
+                "- One clear idea per caption. Use line breaks for rhythm.\n"
+                "- Cut corporate filler entirely ('elevate', 'unlock', 'seamless', 'we are proud to', "
+                "'in today's fast-paced world', 'nestled', 'curated').\n"
+                "- Still land the brand's point and the CTA — viral but on-message, never random.\n\n"
+                "You are still a strategist: the post must do its job (hook, positioning, CTA), just in a "
+                "fully casual, trend-aware voice."
             )
         else:
             system = (
@@ -530,7 +907,17 @@ def build_structured_prompt(action, body):
             f"{'SAMPLE REFERENCE (match this style and voice):' + chr(10) + sample_text + chr(10) if sample_text else ''}"
             f"{'BRAND GUIDE CONTEXT:' + chr(10) + brand_guide_text + chr(10) if brand_guide_text else ''}"
             f"{'REFERENCE CONTENT:' + chr(10) + webpage_text + chr(10) if webpage_text else ''}"
-            "WRITING RULES — apply every rule without exception:\n"
+            + (
+                "ALREADY-GENERATED VERSIONS — do NOT repeat or closely resemble any of these. "
+                "Use a clearly different opening line, structure, and angle so this reads as a genuinely "
+                "fresh alternative, not a paraphrase:\n"
+                + "\n".join(
+                    f"{i + 1}. {str(c)[:200]}" for i, c in enumerate(previous_captions[-6:])
+                )
+                + "\n\n"
+                if previous_captions else ''
+            )
+            + "WRITING RULES — apply every rule without exception:\n"
             "1. NEVER open with the brand name or a phrase like \"At [Brand], we believe...\" — "
             "lead instead with an atmospheric, sensory observation about the subject matter itself.\n"
             "2. Structure as 2-3 short paragraphs. The final paragraph is a single soft call to action.\n"
@@ -542,8 +929,58 @@ def build_structured_prompt(action, body):
             "7. Identify the brand's signature vocabulary from provided context, or infer from brand knowledge. "
             "Prioritise those words throughout.\n"
             f"CREATIVE APPROACH FOR THIS VARIATION — {angle['name'].upper()}: {angle['instruction']}\n"
-            f"\nOutput ONLY the finished {content_type_label} — no meta-commentary, no explanations, no labels. "
-            "Ready to publish."
+            + (
+                "\nSINGLISH OVERRIDE — this language takes priority over the writing rules above:\n"
+                "- The copy MUST be in authentic Singlish throughout (particles, local vocab and grammar as briefed).\n"
+                "- Relax rule 1: you do not need a cinematic/sensory literary opening. A natural, colloquial Singlish "
+                "hook is better — open the way a Singaporean would actually start the caption.\n"
+                "- Keep the energy local and conversational rather than polished/literary, while still hitting the "
+                "strategic role and the CTA.\n"
+                if language == 'singlish' else ''
+            )
+            + (
+                "\nVIRAL/SOCIAL OVERRIDE — this voice takes priority over the writing rules above:\n"
+                "- Ignore the cinematic/sensory literary opening in rule 1. Open with a punchy, casual, "
+                "scroll-stopping hook the way a real creator would — a trend format (e.g. 'POV:', "
+                "\"it's giving\", 'not me …', 'the way we …') is welcome where it actually fits.\n"
+                "- Relax rule 2: it does NOT need to be 2-3 literary paragraphs. Short wins — one to a few "
+                "tight lines with line breaks for rhythm is ideal.\n"
+                "- Keep it conversational, human and a little funny — never polished/literary. Drop corporate "
+                "phrasing entirely.\n"
+                "- Still weave the brand in naturally and keep the CTA, just in a fully casual voice.\n"
+                if language == 'viral' else ''
+            )
+            + (
+                f"\nPLATFORM PLAYBOOK — {spec['name']} (follow exactly):\n"
+                f"- Length: {spec['limit']}\n"
+                f"- Hook: {spec['hook']}\n"
+                f"- Structure: {spec['structure']}\n"
+                f"- CTA style: {spec['cta']}\n"
+                f"- Hashtags on this platform: {spec['hashtags']}\n"
+            )
+            + (
+                f"\nTARGET LENGTH: aim for about {word_count}, but never exceed the platform hard cap above.\n"
+                if word_count else f"\nTARGET LENGTH: {length_directive}\n"
+            )
+            + (
+                "\nHASHTAGS: none — return an empty hashtags array and include no hashtags in the caption.\n"
+                if ht_placement == 'none' else
+                "\nHASHTAGS: provide them in the hashtags array for posting as the FIRST COMMENT. Do NOT put hashtags inside the caption text itself.\n"
+                if ht_placement == 'first-comment' else
+                "\nHASHTAGS: provide them in the hashtags array AND include them inline at the end of the caption text, per the platform norm above.\n"
+            )
+            + (f"\nHOOK STYLE (overrides the variation angle for line one): {hook_directive}\n" if hook_directive else "")
+            + (
+                "\nVISUAL: One or more images for THIS post are attached. Look at them and write copy that genuinely "
+                "fits what is shown — reference real visual details, mood, and subject. Do not contradict the image.\n"
+                if has_images else ""
+            )
+            + (
+                "\nGROUNDING: use only facts, figures, prices, and offers that appear in this brief, the attachments, "
+                "or the image. Never invent statistics, claims, or promotions. Honour every Constraint / Mandatory exactly. "
+                "Avoid em dashes (—); use commas or full stops instead.\n"
+            )
+            + "\n" + _luxury_output_contract(spec)
         )
         return system, user
 
@@ -742,6 +1179,26 @@ def build_structured_prompt(action, body):
             "You are an expert SEO researcher analyzing companies and websites "
             "to build accurate SEO profiles."
         )
+        scraped = body.get('_scraped_content')
+        if scraped:
+            user = (
+                f"Below is the actual text content scraped live from {canonical_url}. "
+                "Base the profile ONLY on this content — do not guess or substitute a "
+                "different company.\n\n"
+                f"PAGE CONTENT:\n\"\"\"\n{scraped[:80000]}\n\"\"\"\n\n"
+                "Return ONLY a valid JSON object (no markdown, no explanation):\n"
+                "{\n"
+                '  "client_profile": "Exact industry and core offerings from the content",\n'
+                '  "target_audience": "Key customer personas based on the content",\n'
+                '  "market_context": "Main competitors and market trends for this specific business",\n'
+                '  "objectives": ["lead_generation","brand_authority","local_visibility",'
+                '"ecommerce_revenue","service_enquiries","niche_dominance"],\n'
+                '  "seed_keywords": "keyword1, keyword2, keyword3, keyword4, keyword5",\n'
+                '  "top_competitor_domains": ["domain1.com","domain2.com","domain3.com","domain4.com","domain5.com"],\n'
+                '  "seo_keywords": ["primary keyword 1","primary keyword 2","primary keyword 3"]\n'
+                "}"
+            )
+            return system, user
         if canonical_url:
             user = (
                 f"Go to {canonical_url} and read the page. Based ONLY on what you find at that exact URL, "
@@ -1288,6 +1745,27 @@ def lambda_handler(event, context):
             if not api_key:
                 return {'statusCode': 500, 'body': json.dumps({'error': 'API key not configured'})}
 
+            # The AI Strategy Engine's research is told to "read the page". Rather
+            # than pay for Anthropic web_fetch, scrape the URL live via the existing
+            # DataForSEO crawler Lambda and feed the real content to the model. Done
+            # before build_structured_prompt so the prompt can embed the content.
+            if action == 'strategy_url_research':
+                iv    = (event.get('input') or '').strip()
+                canon = (
+                    (iv if iv.startswith('http') else 'https://' + iv)
+                    if ('.' in iv or iv.startswith('http')) else None
+                )
+                if canon:
+                    scraped = _dataforseo_pull_content(canon)
+                    if scraped:
+                        event = dict(event)
+                        event['_scraped_content'] = scraped
+                        print(f"[aiOptimiser] strategy_url_research: scraped "
+                              f"{len(scraped)} chars via DataForSEO for {canon}")
+                    else:
+                        print(f"[aiOptimiser] strategy_url_research: DataForSEO "
+                              f"scrape empty for {canon} — web_search fallback")
+
             system_str, user_str = build_structured_prompt(action, event)
             if system_str is None:
                 return {
@@ -1297,31 +1775,86 @@ def lambda_handler(event, context):
 
             settings_s   = event.get('settings', {})
             max_tokens_s = int(settings_s.get('maxTokens', event.get('max_tokens', 8096)))
+
+            # Vision: when the caption generator sends image attachments, let the
+            # model SEE the post's visuals so the caption actually matches them.
+            # Frontend sends `images` as a list of base64 data URLs (or
+            # {media_type, data} objects). Haiku 4.5 supports image input.
+            user_content = user_str
+            images = event.get('images') if action == 'luxury_copy' else None
+            if images:
+                blocks = []
+                for img in images[:6]:  # cap to keep the request sane
+                    media_type, data = None, None
+                    if isinstance(img, dict):
+                        media_type = img.get('media_type') or img.get('mediaType')
+                        data = img.get('data')
+                    elif isinstance(img, str):
+                        s = img.strip()
+                        if s.startswith('data:') and ',' in s:
+                            header, data = s.split(',', 1)
+                            media_type = header[5:].split(';')[0] or 'image/jpeg'
+                        else:
+                            data, media_type = s, 'image/jpeg'
+                    if data:
+                        blocks.append({
+                            'type': 'image',
+                            'source': {
+                                'type': 'base64',
+                                'media_type': media_type or 'image/jpeg',
+                                'data': data,
+                            },
+                        })
+                if blocks:
+                    blocks.append({'type': 'text', 'text': user_str})
+                    user_content = blocks
+
             request_body = {
                 'model':      'claude-haiku-4-5-20251001',
                 'max_tokens': max_tokens_s,
                 'system':     system_str,
-                'messages':   [{'role': 'user', 'content': user_str}]
+                'messages':   [{'role': 'user', 'content': user_content}]
             }
             temperature_s = settings_s.get('temperature')
             if temperature_s is not None:
                 request_body['temperature'] = float(temperature_s)
 
-            resp = requests.post(
-                'https://api.anthropic.com/v1/messages',
-                headers={
-                    'x-api-key':           api_key,
-                    'anthropic-version':   '2023-06-01',
-                    'content-type':        'application/json'
-                },
-                json=request_body,
-                timeout=90
-            )
-            resp_json   = resp.json()
-            result_text = (
-                resp_json['content'][0]['text']
-                if 'content' in resp_json else ''
-            )
+            if action == 'strategy_url_research':
+                # Always force a JSON object so the frontend's JSON.parse can't
+                # choke on a prose preamble.
+                request_body['output_config'] = {
+                    'format': {
+                        'type':   'json_schema',
+                        'schema': _STRATEGY_RESEARCH_SCHEMA,
+                    }
+                }
+                # If we couldn't scrape (bare company name, or scrape failed),
+                # fall back to a direct web_search so the model still has real
+                # data instead of guessing. allowed_callers=['direct'] avoids the
+                # dynamic-filtering caller Haiku 4.5 doesn't support.
+                if not event.get('_scraped_content'):
+                    request_body['tools'] = [
+                        {'type': 'web_search_20260209', 'name': 'web_search',
+                         'allowed_callers': ['direct']},
+                    ]
+
+            try:
+                resp_json   = _anthropic_request(api_key, request_body)
+                result_text = _extract_text(resp_json)
+                if not result_text:
+                    print(f"[aiOptimiser] empty result for '{action}'. resp: "
+                          f"{json.dumps(resp_json)[:1000]}")
+            except Exception as e:
+                print(f"Structured action '{action}' failed: {e}")
+                return {
+                    'statusCode': 502,
+                    'headers': {
+                        'Access-Control-Allow-Origin':  '*',
+                        'Access-Control-Allow-Headers': 'Content-Type',
+                        'Access-Control-Allow-Methods': 'OPTIONS,POST'
+                    },
+                    'body': json.dumps({'error': f"AI request failed: {e}"})
+                }
             return {
                 'statusCode': 200,
                 'headers': {
