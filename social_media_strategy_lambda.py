@@ -2,6 +2,38 @@ import json
 import requests
 import os
 
+CORS = {'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json'}
+
+
+def _call_anthropic(api_key, system_prompt, input_text, max_tokens=4096):
+    """Single Anthropic Messages call; returns (status_code, answer_or_error_text)."""
+    response = requests.post(
+        'https://api.anthropic.com/v1/messages',
+        headers={
+            'x-api-key':         api_key,
+            'anthropic-version': '2023-06-01',
+            'content-type':      'application/json'
+        },
+        json={
+            'model':      'claude-haiku-4-5-20251001',
+            'max_tokens': max_tokens,
+            'system':     system_prompt,
+            'messages':   [{'role': 'user', 'content': input_text}]
+        },
+        timeout=120
+    )
+    response_json = response.json()
+    if response.status_code == 200:
+        answer = response_json['content'][0]['text'] if response_json.get('content') else ''
+        answer = answer.strip()
+        if answer.startswith('```'):
+            answer = answer.split('\n', 1)[-1]
+        if answer.endswith('```'):
+            answer = answer.rsplit('```', 1)[0]
+        return 200, answer.strip()
+    return response.status_code, f"API Error: {response.text}"
+
+
 def lambda_handler(event, context):
     # 1. Parse Input Robustly
     body = event.get('body', {})
@@ -13,6 +45,10 @@ def lambda_handler(event, context):
 
     if not body:
         body = event if isinstance(event, dict) else {}
+
+    # Social Media & Content Audit (Phase 2, Step 7) — separate task on the same endpoint
+    if body.get('task') == 'social_audit':
+        return _run_social_audit(body)
 
     brand_context        = body.get('brand_context', '')
     strategic_ambition   = body.get('strategic_ambition', '')
@@ -190,3 +226,123 @@ Generate the Brand Foundation and Social Media Strategy framework now.
             },
             'body': json.dumps({'error': str(e)})
         }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SOCIAL MEDIA & CONTENT AUDIT (Phase 2, Step 7)
+#
+# Starter — competitor & content-gap audit from first-call inputs: what the
+#   client is doing, what competitors do better, missing content types, useful
+#   platforms, recommended content themes, posting cadence.
+# Pro — adds the data the CSM/client exports (social analytics, Meta Business
+#   Suite, content calendars, creative samples, engagement, blog performance,
+#   GA4 content) and deepens the recommendation: content pillars, campaign
+#   angles, organic/paid integration, social SEO, blog-to-social repurposing
+#   and creative improvements.
+#
+# Brevity-capped so generation stays within the HTTP API timeout.
+# ─────────────────────────────────────────────────────────────────────────────
+def _run_social_audit(body):
+    mode = str(body.get('mode', 'starter')).strip().lower()
+    is_pro = mode == 'pro'
+
+    client_website   = body.get('client_website', '')
+    social_profiles  = body.get('social_profiles', '')
+    target_audience  = body.get('target_audience', '')
+    industry         = body.get('industry', '')
+    competitors      = body.get('competitors', '')
+    campaign_goals   = body.get('campaign_goals', '')
+    rfq_notes        = body.get('rfq_notes', '')
+    content_calendars= body.get('content_calendars', '')
+
+    # Pro-only inputs
+    social_analytics = body.get('social_analytics', '')
+    meta_suite       = body.get('meta_business_suite', '')
+    calendar_samples = body.get('content_calendar_samples', '')
+    creative_samples = body.get('creative_samples', '')
+    engagement_data  = body.get('engagement_data', '')
+    blog_performance = body.get('blog_performance', '')
+    ga4_content      = body.get('ga4_content', '')
+
+    depth = (
+        "This is a PRO audit. Account/analytics data is provided below — read it and ground every "
+        "judgement in it. Fill ALL output fields, including campaign_angles, organic_paid_integration, "
+        "social_seo, blog_to_social and creative_improvements, and reflect the metrics in metrics_read."
+        if is_pro else
+        "This is a STARTER audit from first-call inputs (no analytics access). Focus on current_state, "
+        "competitor_comparison, missing_content_types, recommended_platforms, content_pillars (as themes), "
+        "posting_cadence and action_plan. You MAY leave the deeper Pro-only fields as empty arrays/strings."
+    )
+
+    system_prompt = f"""
+You are a senior social media and content strategist with 15+ years auditing brands' social presence
+and content against their competitors for B2B and B2C clients, with deep knowledge of the Singapore and
+SEA market. A CSM needs a SOCIAL MEDIA & CONTENT AUDIT: what the client is doing now, what competitors
+do better, where the gaps are, and what to do about it. Be specific, commercially sharp and scannable —
+the reader is a CSM, not necessarily a social expert.
+
+{depth}
+
+NEVER invent data that was not provided — if you lack information for a field, base it on the website,
+industry and audience, and say what to collect. Compare the client to the named competitors directly.
+
+Return ONLY raw JSON (no markdown, no code fences, no commentary) with EXACTLY this shape:
+
+{{
+  "executive_summary": "<= 2 sentences: the headline finding and the single biggest opportunity.",
+  "overall_health": "Strong | Developing | Underdeveloped",
+  "current_state": {{ "summary": "<= 25 words on what the client is doing now", "active_platforms": ["platform names"], "strengths": ["<= 10 words each"], "gaps": ["<= 10 words each"] }},
+  "competitor_comparison": [ {{ "competitor": "name", "doing_better": "<= 15 words", "opportunity": "<= 15 words for the client" }} ],
+  "missing_content_types": ["content types/formats the client is not using, <= 8 words each"],
+  "recommended_platforms": [ {{ "platform": "name", "why": "<= 12 words" }} ],
+  "content_pillars": [ {{ "pillar": "name", "rationale": "<= 12 words", "formats": ["suggested formats"] }} ],
+  "posting_cadence": "<= 25 words: cadence per platform",
+  "campaign_angles": ["<= 12 words each"],
+  "organic_paid_integration": "<= 25 words on how organic + paid should work together",
+  "social_seo": ["<= 12 words each — social/profile/search optimisation moves"],
+  "blog_to_social": ["<= 12 words each — blog-to-social repurposing ideas"],
+  "creative_improvements": ["<= 12 words each"],
+  "metrics_read": ["<= 12 words each — what the provided analytics indicate (Pro; [] if none)"],
+  "action_plan": [ {{ "priority": "High | Medium | Low", "action": "<= 16 words", "owner": "Strategist | Content | Designer | CSM | Client", "expected_impact": "<= 10 words" }} ]
+}}
+
+RULES:
+- Provide 2-4 competitor_comparison items (one per named competitor where possible), 3-5 content_pillars, 3-5 action_plan items (High → Low).
+- BE CONCISE — obey every word cap. Short, sharp, scannable. Do NOT pad or repeat the inputs.
+- Every string must be properly escaped with no literal newlines. No trailing commas.
+- Output the JSON object ONLY.
+""".strip()
+
+    input_text = f"""
+CLIENT WEBSITE: {client_website}
+CLIENT SOCIAL PROFILES: {social_profiles if social_profiles else 'Not provided'}
+INDUSTRY: {industry}
+TARGET AUDIENCE: {target_audience}
+COMPETITORS: {competitors if competitors else 'Not provided — infer likely competitors'}
+CAMPAIGN GOALS: {campaign_goals}
+EXISTING CONTENT CALENDAR(S): {content_calendars if content_calendars else 'Not provided'}
+RFQ / DISCUSSION NOTES: {rfq_notes if rfq_notes else 'None provided'}
+
+— ACCOUNT / ANALYTICS DATA (Pro inputs) —
+SOCIAL ANALYTICS EXPORTS: {social_analytics if social_analytics else 'Not provided'}
+META BUSINESS SUITE DATA: {meta_suite if meta_suite else 'Not provided'}
+CONTENT CALENDAR SAMPLES: {calendar_samples if calendar_samples else 'Not provided'}
+CREATIVE SAMPLES: {creative_samples if creative_samples else 'Not provided'}
+ENGAGEMENT DATA: {engagement_data if engagement_data else 'Not provided'}
+BLOG PERFORMANCE: {blog_performance if blog_performance else 'Not provided'}
+GA4 CONTENT DATA: {ga4_content if ga4_content else 'Not provided'}
+
+Produce the {'Pro' if is_pro else 'Starter'} social media & content audit now.
+""".strip()
+
+    api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
+    if not api_key:
+        return {'statusCode': 500, 'headers': CORS,
+                'body': json.dumps({'error': 'Missing ANTHROPIC_API_KEY / CLAUDE_API_KEY env var.'})}
+    try:
+        status, answer = _call_anthropic(api_key, system_prompt, input_text, max_tokens=2600)
+        if status == 200:
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'answer': answer})}
+        return {'statusCode': status, 'headers': CORS, 'body': json.dumps({'error': answer})}
+    except Exception as e:
+        return {'statusCode': 500, 'headers': CORS, 'body': json.dumps({'error': str(e)})}
