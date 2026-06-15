@@ -174,42 +174,125 @@ Produce the Starter performance-marketing opportunity analysis now.
 """.strip()
 
     # 4. Call Anthropic
-    api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
-    if not api_key:
-        return {'statusCode': 500, 'headers': CORS,
-                'body': json.dumps({'error': 'Missing ANTHROPIC_API_KEY / CLAUDE_API_KEY env var.'})}
+    try:
+        status, answer = _call_anthropic(api_key, system_prompt, input_text)
+        if status == 200:
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'answer': answer})}
+        return {'statusCode': status, 'headers': CORS, 'body': json.dumps({'error': answer})}
+    except Exception as e:
+        return {'statusCode': 500, 'headers': CORS, 'body': json.dumps({'error': str(e)})}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PRO MODE — account-level diagnosis
+# ─────────────────────────────────────────────────────────────────────────────
+def _run_pro(api_key, body,
+             website_url, business_category, target_country, target_audience,
+             monthly_budget, objectives, current_platforms, rfq_notes):
+
+    # Pro-only inputs (the account data a CSM/client can export)
+    google_ads_export    = body.get('google_ads_export', '')
+    meta_ads_export      = body.get('meta_ads_export', '')
+    ga4_data             = body.get('ga4_data', '')
+    conversion_tracking  = body.get('conversion_tracking', '')
+    landing_pages        = body.get('landing_pages', '')
+    cpl                  = body.get('cpl', '')
+    cpa                  = body.get('cpa', '')
+    roas                 = body.get('roas', '')
+    audience_data        = body.get('audience_data', '')
+    historical           = body.get('historical_performance', '')
+    creatives            = body.get('creatives', '')
+
+    system_prompt = f"""
+You are a senior performance marketing auditor and media buyer with 15+ years running paid media
+(Google Search, Demand Gen/Display, Meta, TikTok, LinkedIn, YouTube) for B2B and B2C clients, with
+deep knowledge of the Singapore and SEA market. A CSM has exported account-level data and needs a
+PRO-LEVEL DIAGNOSIS: what is wrong, why, how to fix it, and whether the CSM can handle it internally
+or must escalate to a senior media buyer.
+
+You diagnose root causes across these NINE areas — assess EVERY one, even if data is thin (say so):
+1. Tracking — conversion tracking, tags/pixels, GA4 setup, data integrity
+2. Targeting — audiences, geo, demographics, match types, placements
+3. Budget — total spend level, pacing, allocation across campaigns/channels
+4. Landing Page — relevance, speed, conversion experience, message match
+5. Creative — ad copy/visuals, fatigue, variety, hooks, CTAs
+6. Keyword Quality — search terms, negatives, intent match, Quality Score (Search only; mark N/A if no Search)
+7. Bidding Strategy — bid strategy fit, targets (tCPA/tROAS), learning phase
+8. Funnel — lead→customer flow, follow-up, drop-off, offer/form friction
+9. Market Competitiveness — auction pressure, CPC vs benchmark, seasonality, share
+
+Ground metric judgements in MediaOne benchmarks where relevant: {BENCHMARKS}. Adjust expectations by
+industry and budget. NEVER invent data that was not provided — if a field is empty, base that area's
+status on what is available and flag the missing data as something to collect. Be specific and
+commercially sharp; the reader is a CSM, not necessarily a paid-media expert.
+
+Return ONLY raw JSON (no markdown, no code fences, no commentary) with EXACTLY this shape:
+
+{{
+  "executive_summary": "2 sentences max: the headline diagnosis and the single biggest lever.",
+  "overall_health": "Healthy | Needs Work | Critical",
+  "key_metrics": [
+    {{ "label": "e.g. CPL", "value": "the client's figure or 'Not provided'", "benchmark": "the comparison point", "status": "good | warning | bad", "note": "<= 10 words" }}
+  ],
+  "diagnosis": [
+    {{ "area": "Tracking", "status": "ok | warning | critical", "finding": "<= 18 words", "evidence": "<= 10 words, or 'No data provided'", "recommendation": "<= 18 words, one concrete fix", "priority": "High | Medium | Low" }}
+  ],
+  "root_causes": ["1-3 items, each <= 12 words"],
+  "action_plan": [
+    {{ "priority": "High | Medium | Low", "action": "<= 16 words", "owner": "Media Buyer | CSM | Client | Developer", "expected_impact": "<= 10 words" }}
+  ],
+  "escalation": {{
+    "handle_internally": ["<= 12 words each"],
+    "escalate_to_specialist": [ {{ "issue": "<= 10 words", "reason": "<= 15 words" }} ]
+  }}
+}}
+
+RULES:
+- "diagnosis" MUST contain all NINE areas in the order above, using those exact "area" names.
+- BE CONCISE — obey every word cap above. Short, sharp, scannable. Do NOT pad or repeat.
+- key_metrics: include CPL, CPA and ROAS when given (compare to benchmark); add CPC/CTR if present.
+- Provide 3-4 action_plan items, ordered High → Low priority.
+- Every string must be properly escaped with no literal newlines. No trailing commas.
+- Output the JSON object ONLY.
+""".strip()
+
+    input_text = f"""
+BUSINESS WEBSITE: {website_url}
+BUSINESS CATEGORY / WHAT THEY SELL: {business_category}
+TARGET COUNTRY / MARKET: {target_country}
+TARGET AUDIENCE: {target_audience}
+STATED MONTHLY BUDGET: {monthly_budget if monthly_budget else 'Not provided'}
+PLATFORMS CURRENTLY USED: {current_platforms}
+CAMPAIGN OBJECTIVES / GOALS: {objectives}
+
+— ACCOUNT-LEVEL DATA (Pro inputs) —
+CONVERSION TRACKING STATUS: {conversion_tracking if conversion_tracking else 'Not provided'}
+CURRENT CPL (cost per lead): {cpl if cpl else 'Not provided'}
+CURRENT CPA (cost per acquisition): {cpa if cpa else 'Not provided'}
+CURRENT ROAS: {roas if roas else 'Not provided'}
+LANDING PAGE URLs: {landing_pages if landing_pages else 'Not provided'}
+AUDIENCE / TARGETING SETUP: {audience_data if audience_data else 'Not provided'}
+HISTORICAL PERFORMANCE / TRENDS: {historical if historical else 'Not provided'}
+CURRENT CREATIVES (description or paste): {creatives if creatives else 'Not provided'}
+
+GOOGLE ADS EXPORT:
+{google_ads_export if google_ads_export else 'Not provided'}
+
+META ADS EXPORT:
+{meta_ads_export if meta_ads_export else 'Not provided'}
+
+GA4 DATA:
+{ga4_data if ga4_data else 'Not provided'}
+
+RFQ / DISCUSSION NOTES: {rfq_notes if rfq_notes else 'None provided'}
+
+Produce the Pro account-level diagnosis now.
+""".strip()
 
     try:
-        response = requests.post(
-            'https://api.anthropic.com/v1/messages',
-            headers={
-                'x-api-key':         api_key,
-                'anthropic-version': '2023-06-01',
-                'content-type':      'application/json'
-            },
-            json={
-                'model':      'claude-haiku-4-5-20251001',
-                'max_tokens': 4096,
-                'system':     system_prompt,
-                'messages':   [{'role': 'user', 'content': input_text}]
-            },
-            timeout=120
-        )
-        response_json = response.json()
-
-        if response.status_code == 200:
-            answer = response_json['content'][0]['text'] if response_json.get('content') else ''
-            answer = answer.strip()
-            # Strip markdown code fences if the model added them
-            if answer.startswith('```'):
-                answer = answer.split('\n', 1)[-1]
-            if answer.endswith('```'):
-                answer = answer.rsplit('```', 1)[0]
-            answer = answer.strip()
+        status, answer = _call_anthropic(api_key, system_prompt, input_text, max_tokens=2200)
+        if status == 200:
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'answer': answer})}
-
-        return {'statusCode': response.status_code, 'headers': CORS,
-                'body': json.dumps({'error': f"API Error: {response.text}"})}
-
+        return {'statusCode': status, 'headers': CORS, 'body': json.dumps({'error': answer})}
     except Exception as e:
         return {'statusCode': 500, 'headers': CORS, 'body': json.dumps({'error': str(e)})}
