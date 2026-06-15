@@ -478,7 +478,7 @@ def build_user_msg(action, content, prompt_override):
 # The frontend sends only dynamic parameters — never the raw prompt text.
 
 _STRUCTURED_ACTIONS = {
-    'news_classify', 'html_fragment', 'luxury_copy', 'serp_analysis',
+    'news_classify', 'html_fragment', 'luxury_copy', 'caption_critic', 'serp_analysis',
     'content_outline', 'content_section', 'content_polish', 'strategy_url_research',
     'smm_report', 'image_alt_rationale'
 }
@@ -981,6 +981,57 @@ def build_structured_prompt(action, body):
                 "Avoid em dashes (—); use commas or full stops instead.\n"
             )
             + "\n" + _luxury_output_contract(spec)
+        )
+        return system, user
+
+    elif action == 'caption_critic':
+        # Comparative critic pass: score ALL caption variations against each
+        # other for one brief, with an explicit rubric, so the scores are
+        # relative and discriminating (not each variation marking its own work).
+        f                  = body.get('fields', {})
+        captions           = body.get('captions', []) or []
+        content_type_label = body.get('contentTypeLabel', 'social post')
+        language           = (f.get('language') or '').lower()
+        spec               = PLATFORM_SPECS[_platform_key(content_type_label)]
+
+        brief = []
+        if f.get('brandName'):    brief.append(f"Brand: {f.get('brandName')}")
+        if f.get('coreMessage'):  brief.append(f"Core message: {f.get('coreMessage')}")
+        if f.get('subgroups'):    brief.append(f"Audience: {f.get('subgroups')}")
+        if f.get('tone'):         brief.append(f"Intended tone: {f.get('tone')}")
+        if f.get('pov'):          brief.append(f"Brand POV: {f.get('pov')}")
+        brief_str = "\n".join(brief) if brief else "(no extra brief provided — judge on general craft)"
+
+        numbered = "\n\n".join(f"[{i}]\n{str(c)[:1500]}" for i, c in enumerate(captions))
+
+        lang_note = ""
+        if language in ('chinese', 'xiaohongshu', 'singlish', 'viral'):
+            lang_note = (
+                f"\nThese captions are written in a {language} voice — judge them ON THEIR OWN TERMS "
+                "(authenticity of that voice counts toward on-brand), not against formal English norms.\n"
+            )
+
+        system = (
+            "You are a senior social media editor judging caption variations written for ONE brief, "
+            f"all for the same {spec['name']}. Score them RELATIVE to each other and be discriminating: "
+            "use the full 1-10 range and SPREAD the numbers — never bunch everything at 7-9. If two are "
+            "close, still break the tie. Judge only what is written; do not rewrite or suggest edits."
+        )
+        user = (
+            "BRIEF CONTEXT:\n" + brief_str + "\n"
+            + lang_note
+            + f"\nPLATFORM: {spec['name']}. Hook rule: {spec['hook']}\n\n"
+            "Score each variation 1-10 on three dimensions, using these anchors "
+            "(1-3 = weak/generic, 4-6 = competent, 7-8 = strong, 9-10 = exceptional):\n"
+            "- hookStrength: does the FIRST line stop the scroll and pull the reader in?\n"
+            "- readability: how easily it scans on a phone — sentence length, rhythm, clarity.\n"
+            "- onBrand: fit to the brand voice, core message, audience and platform above.\n\n"
+            "VARIATIONS:\n" + numbered + "\n\n"
+            "Return ONLY this JSON object — no markdown fences, no prose before or after:\n"
+            '{ "scores": [ { "index": <int matching the [n] label>, "hookStrength": <1-10>, '
+            '"readability": <1-10>, "onBrand": <1-10>, "note": "<reason, max 12 words>" } ], '
+            '"winner": <index of the single strongest overall>, "winnerReason": "<max 20 words>" }\n'
+            "Include exactly one scores entry per variation. All values must be valid JSON."
         )
         return system, user
 
