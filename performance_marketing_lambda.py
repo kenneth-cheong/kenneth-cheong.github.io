@@ -3,13 +3,21 @@ import os
 import requests
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Performance Marketing — Starter Opportunity Analysis (Phase 2, Step 6)
+# Performance Marketing Module (Phase 2, Step 6)
 #
-# Sales-friendly, AI-generated media-buying opportunity analysis. Takes the
-# minimal "Starter" inputs a salesperson can collect on a first call and returns
-# a structured recommendation: which paid channels suit this business, a budget
-# split that sums to 100%, an estimated monthly budget range, concrete
-# opportunities, quick wins, watch-outs, and sales talking points.
+# Two modes, mirroring the SEO module's straight-through Starter/Pro logic:
+#
+#   STARTER — sales-friendly, AI-generated media-buying opportunity analysis from
+#   the minimal inputs a salesperson can collect on a first call: which channels
+#   suit the business, a budget split summing to 100%, an estimated budget range,
+#   opportunities, quick wins, watch-outs and sales talking points.
+#
+#   PRO — account-level diagnosis from the data the CSM/client exports (Google Ads,
+#   Meta Ads, GA4, conversion-tracking status, landing pages, CPL/CPA/ROAS, audience,
+#   historical performance, creatives). Diagnoses root causes across nine areas
+#   (tracking, targeting, budget, landing page, creative, keyword quality, bidding
+#   strategy, funnel, market competitiveness), with priorities, an action plan and
+#   an internal-vs-escalate decision.
 #
 # Mirrors social_media_strategy_lambda.py: requests → Anthropic Messages API,
 # CLAUDE_API_KEY / ANTHROPIC_API_KEY env var, returns {'answer': <raw JSON str>}.
@@ -17,6 +25,39 @@ import requests
 # ─────────────────────────────────────────────────────────────────────────────
 
 CORS = {'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json'}
+
+# MediaOne internal Google Ads benchmarks (Singapore / SGD, Q1 2026) — shared with
+# the SEM Benchmark tool. Used by Pro Mode to ground metric comparisons.
+BENCHMARKS = "Avg CPC S$0.68 · Avg CTR 2.61% · Avg CPA S$2.56 · Avg ROAS 2.51x (Google Ads, Singapore, Q1 2026)"
+
+
+def _call_anthropic(api_key, system_prompt, input_text, max_tokens=4096):
+    """Single Anthropic Messages call; returns (status_code, answer_or_error_text)."""
+    response = requests.post(
+        'https://api.anthropic.com/v1/messages',
+        headers={
+            'x-api-key':         api_key,
+            'anthropic-version': '2023-06-01',
+            'content-type':      'application/json'
+        },
+        json={
+            'model':      'claude-haiku-4-5-20251001',
+            'max_tokens': max_tokens,
+            'system':     system_prompt,
+            'messages':   [{'role': 'user', 'content': input_text}]
+        },
+        timeout=120
+    )
+    response_json = response.json()
+    if response.status_code == 200:
+        answer = response_json['content'][0]['text'] if response_json.get('content') else ''
+        answer = answer.strip()
+        if answer.startswith('```'):
+            answer = answer.split('\n', 1)[-1]
+        if answer.endswith('```'):
+            answer = answer.rsplit('```', 1)[0]
+        return 200, answer.strip()
+    return response.status_code, f"API Error: {response.text}"
 
 
 def lambda_handler(event, context):
@@ -30,6 +71,8 @@ def lambda_handler(event, context):
     if not body:
         body = event if isinstance(event, dict) else {}
 
+    mode = str(body.get('mode', 'starter')).strip().lower()
+
     website_url       = body.get('website_url', '')
     business_category = body.get('business_category', '')
     target_country    = body.get('target_country', '') or 'Singapore'
@@ -41,6 +84,19 @@ def lambda_handler(event, context):
 
     if isinstance(current_platforms, list):
         current_platforms = ', '.join([p for p in current_platforms if p]) or 'None / unknown'
+
+    api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
+    if not api_key:
+        return {'statusCode': 500, 'headers': CORS,
+                'body': json.dumps({'error': 'Missing ANTHROPIC_API_KEY / CLAUDE_API_KEY env var.'})}
+
+    # ── PRO MODE: account-level diagnosis ────────────────────────────────────
+    if mode == 'pro':
+        return _run_pro(
+            api_key, body,
+            website_url, business_category, target_country, target_audience,
+            monthly_budget, objectives, current_platforms, rfq_notes,
+        )
 
     # 2. Strategist persona (system prompt) — Starter Mode, sales-friendly
     system_prompt = """
