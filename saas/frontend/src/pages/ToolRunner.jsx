@@ -9,7 +9,7 @@ import ResultSections from '../components/ResultSections.jsx';
 import SchemaResult from '../components/SchemaResult.jsx';
 import SortableTable from '../components/SortableTable.jsx';
 import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
-import { startToolTour, hasSeen, markSeen } from '../lib/tours.js';
+import { startToolTour, sampleResultFor, hasSeen, markSeen } from '../lib/tours.js';
 import { Lock, Compass, Sparkles, AlertTriangle } from 'lucide-react';
 
 const CONFIRM_AT = 25; // credits — confirm before running pricey tools
@@ -55,7 +55,7 @@ export default function ToolRunner() {
     const t = setTimeout(() => {
       if (hasSeen('tool:any')) return;
       markSeen('tool:any');
-      startToolTour(tool, shownRef.current);
+      launchTour(shownRef.current);
     }, 700);
     return () => clearTimeout(t);
     /* eslint-disable-next-line */
@@ -82,6 +82,22 @@ export default function ToolRunner() {
     if (!example) return;
     setValues((s) => ({ ...s, ...example }));
     toast('Example filled in', 'info');
+  }
+
+  // Guided tour: pre-fill the worked example + render its real result on the
+  // page (so the walkthrough annotates a genuine run), and clear both on exit.
+  function launchTour(tourFields = shown) {
+    startToolTour(tool, tourFields, {
+      preview: () => {
+        if (example) setValues((s) => ({ ...s, ...example }));
+        const sample = sampleResultFor(tool.id);
+        if (sample) setOut({ creditsUsed: cost, creditsRemaining: 1860, ...sample });
+      },
+      clear: () => {
+        setValues(Object.fromEntries(fields.map((f) => [f.name, f.default ?? ''])));
+        setOut(null);
+      },
+    });
   }
 
   async function run(vals = values) {
@@ -120,7 +136,7 @@ export default function ToolRunner() {
         {!unlocked && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold uppercase text-amber-700"><Lock size={12} aria-hidden /> {PLANS[tool.minTier].name}</span>}
         <button
           type="button"
-          onClick={() => startToolTour(tool, shown)}
+          onClick={() => launchTour(shown)}
           className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:border-brand-300 hover:text-brand-600"
           title="Guided walkthrough with a real example"
         >
@@ -292,7 +308,7 @@ function Result({ out, tool, project, user }) {
   };
 
   return (
-    <div className="mt-6">
+    <div className="mt-6" data-tour="tool-result">
       <div className="dm-no-print mb-2 flex items-center gap-2">
         {r.source === 'live' && <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700"><span className="inline-block h-1.5 w-1.5 rounded-full bg-green-600" aria-hidden /> Live data</span>}
         {typeof out.creditsUsed === 'number' && out.creditsUsed > 0 && (

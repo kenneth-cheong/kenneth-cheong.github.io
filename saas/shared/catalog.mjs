@@ -306,32 +306,35 @@ export const GLOSSARY = {
   Campaign: 'A Google Ads campaign — a group of ads sharing a budget and goal.',
 };
 
-/** One-click sample inputs per tool ("Try an example"). */
+/** One-click sample inputs per tool ("Try an example").
+ *  Anchored on a real, recognisable brand (Asana / asana.com) so the worked
+ *  example feels genuine in demos. The guided tours fill these same inputs and
+ *  render a matching real-shaped result on the page (see frontend lib/tours.js). */
 export const EXAMPLES = {
-  'keyword-analysis': { mode: 'Keyword metrics', input: 'project management software, team collaboration', location: 'United States', language: 'English' },
-  'rank-checker': { input: 'project management software', target: 'acme.com', location: 'United States' },
-  'time-to-rank': { domain: 'https://www.acme.com', input: 'project management software', location: 'United States', language: 'English' },
-  'anchor-cleaner': { input: 'https://www.acme.com/features/', keyword: 'project management' },
-  'technical-seo': { input: 'https://www.acme.com', maxPages: '10', maxDepth: '4' },
-  onpage: { input: 'https://www.acme.com/features/', keywords: 'project management, team collaboration' },
+  'keyword-analysis': { mode: 'Keyword metrics', input: 'project management software, task management software, kanban board', location: 'United States', language: 'English' },
+  'rank-checker': { input: 'project management software, kanban board, gantt chart', target: 'asana.com', location: 'United States' },
+  'time-to-rank': { domain: 'https://asana.com', input: 'project management software, work management, kanban board', location: 'United States', language: 'English' },
+  'anchor-cleaner': { input: 'https://asana.com/features', keyword: 'project management' },
+  'technical-seo': { input: 'https://asana.com', maxPages: '10', maxDepth: '4' },
+  onpage: { input: 'https://asana.com/features', keywords: 'project management software, work management' },
   competitors: { input: 'project management software', location: 'United States', language: 'English' },
-  backlinks: { input: 'acme.com', mode: 'domain' },
-  schema: { type: 'LocalBusiness', name: 'Acme Corp', url: 'https://acme.com', telephone: '+1 555 555 5555', address: '123 Main St, New York' },
-  caption: { input: 'New features just launched — faster workflows and team dashboards', brand: 'Acme', platform: 'Instagram', tone: 'Friendly', language: 'English' },
-  'content-writer': { mode: 'Optimise existing content', input: 'Project management is useful. We have tools. Contact us.', keyword: 'project management software', analysis: 'Verify & QA (8 agents)' },
-  'content-check': { input: "Project management is the best way to organise you're team. We offer alot of plans.", keyword: 'project management software' },
-  pillars: { input: 'sustainable productivity SaaS brand', businessModel: 'B2C', objectives: 'Brand authority', audienceType: 'Individual consumers' },
-  'ai-discovery': { input: 'Acme', url: 'https://www.acme.com', location: 'United States' },
-  'ai-mentions': { input: 'Acme', url: 'https://www.acme.com', location: 'United States' },
-  'llms-txt': { input: 'https://www.acme.com' },
-  'geo-onpage': { input: 'https://www.acme.com/features/', prompts: 'What is the best project management tool for small teams?', brand: 'Acme', market: 'United States' },
-  'forensic-audit': { input: 'https://www.acme.com' },
-  persona: { input: 'https://www.acme.com' },
-  'media-plan': { input: 'Launch awareness and leads for a B2B SaaS productivity brand', budget: '$8,000', location: 'United States', objectives: 'Increase brand awareness and generate trial sign-ups' },
-  'landing-audit': { input: 'https://www.acme.com/features/', keyword: 'project management software' },
-  'sem-copy': { input: 'https://www.acme.com', format: 'Google Search', country: 'United States', language: 'English', tone: 'Professional' },
-  'perf-marketing': { input: 'https://acmedental.com', category: 'Dental clinic — teeth whitening & implants', country: 'United States', audience: 'Adults 25-45 considering cosmetic dentistry', budget: '$6,000', objectives: 'qualified leads' },
-  'strategy-engine': { domain: 'https://acme.com', input: 'A B2B SaaS company helping teams manage projects and collaborate', objective: 'Lead Generation', location: 'United States' },
+  backlinks: { input: 'asana.com', mode: 'domain' },
+  schema: { type: 'Organization', name: 'Asana', url: 'https://asana.com', telephone: '+1 415 525 3888', address: '633 Folsom St, San Francisco, CA' },
+  caption: { input: 'New Asana feature: AI-powered project summaries that catch your team up in seconds', brand: 'Asana', platform: 'Instagram', tone: 'Friendly', language: 'English' },
+  'content-writer': { mode: 'Optimise existing content', input: 'Project management is useful. Asana has tools for teams. Contact us to learn more.', keyword: 'project management software', analysis: 'Verify & QA (8 agents)' },
+  'content-check': { input: "Asana is the best way to organise you're team's work. We offer alot of templates and the guaranteed cheapest plans.", keyword: 'project management software' },
+  pillars: { input: 'Asana — work management platform for teams', businessModel: 'B2B', objectives: 'Brand authority', audienceType: 'Businesses' },
+  'ai-discovery': { input: 'Asana', url: 'https://asana.com', location: 'United States' },
+  'ai-mentions': { input: 'Asana', url: 'https://asana.com', location: 'United States' },
+  'llms-txt': { input: 'https://asana.com' },
+  'geo-onpage': { input: 'https://asana.com/features', prompts: 'What is the best project management tool for small teams?', brand: 'Asana', market: 'United States' },
+  'forensic-audit': { input: 'https://asana.com' },
+  persona: { input: 'https://asana.com' },
+  'media-plan': { input: 'Drive awareness and free-trial sign-ups for Asana, a B2B work management platform', budget: '$8,000', location: 'United States', objectives: 'Increase brand awareness and generate trial sign-ups' },
+  'landing-audit': { input: 'https://asana.com/features', keyword: 'project management software' },
+  'sem-copy': { input: 'https://asana.com', format: 'Google Search', country: 'United States', language: 'English', tone: 'Professional' },
+  'perf-marketing': { input: 'https://asana.com', category: 'B2B SaaS — work management & project management platform', country: 'United States', audience: 'Team leads & operations managers at 50–2,000 person companies', budget: '$6,000', objectives: 'qualified trial sign-ups' },
+  'strategy-engine': { domain: 'https://asana.com', input: 'Asana is a work management platform that helps teams orchestrate work, from daily tasks to cross-functional strategic initiatives', objective: 'Lead Generation', location: 'United States' },
 };
 
 export function exampleFor(toolId) {
