@@ -93,6 +93,8 @@ def lambda_handler(event, context):
             return _resp(200, handle_finalize(body))
         if action == 'discover':
             return _resp(200, handle_discover(body))
+        if action == 'discover_competitors':
+            return _resp(200, handle_discover_competitors(body))
         return _resp(400, {'error': f'Unknown action: {action}'})
     except Exception as e:
         return _resp(500, {'error': str(e)})
@@ -201,6 +203,84 @@ def handle_discover(body):
 
     return {'handles': found,
             'note': 'Candidate profiles — confirm they are correct before auditing.'}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# DISCOVER_COMPETITORS — find competitor brands from SERP, then scrape each
+# homepage for social handles. Returns up to 3 candidates for user review.
+# ──────────────────────────────────────────────────────────────────────────────
+def handle_discover_competitors(body):
+    brand     = (body.get('brand_name') or '').strip()
+    domain    = (body.get('domain') or '').strip()
+    location  = body.get('location') or 'Singapore'
+    platforms = body.get('platforms') or list(ACTORS.keys())
+
+    if not brand and not domain:
+        return {'competitors': [], 'note': 'Provide brand_name or domain.'}
+
+    comp_domains = _serp_find_competitor_domains(brand or domain, domain, location)
+    if not comp_domains:
+        return {'competitors': [], 'note': 'No competitor domains found via SERP.'}
+
+    def _process(comp_domain):
+        raw_name = comp_domain.replace('www.', '').split('.')[0].replace('-', ' ').title()
+        handles = _scrape_social_links(comp_domain)
+        filtered = {p: h for p, h in handles.items() if p in platforms}
+        if not filtered:
+            return None
+        return {'name': raw_name, 'website': comp_domain, 'handles': filtered}
+
+    results = []
+    with ThreadPoolExecutor(max_workers=5) as ex:
+        for r in ex.map(_process, comp_domains):
+            if r:
+                results.append(r)
+                if len(results) >= 3:
+                    break
+
+    return {'competitors': results,
+            'note': 'Candidate competitors — confirm they are correct before auditing.'}
+
+
+# Domains we skip when scanning SERP results for competitor candidates.
+_SKIP_ROOTS = {
+    'facebook.com', 'instagram.com', 'tiktok.com', 'youtube.com', 'linkedin.com',
+    'twitter.com', 'x.com', 'reddit.com', 'quora.com', 'wikipedia.org',
+    'trustpilot.com', 'glassdoor.com', 'yelp.com', 'clutch.co',
+    'g2.com', 'capterra.com', 'bloomberg.com', 'forbes.com', 'techcrunch.com',
+    'goodfirms.co', 'crunchbase.com', 'semrush.com', 'similarweb.com',
+}
+
+def _serp_find_competitor_domains(brand_or_domain, own_domain, location='Singapore'):
+    """Query DataForSEO SERP for '{brand} competitors', return up to 5 competitor domains."""
+    auth = os.environ.get('DATAFORSEO_AUTH')
+    if not auth:
+        return []
+    own = (own_domain or '').replace('https://', '').replace('http://', '').replace('www.', '').split('/')[0].lower()
+    try:
+        r = requests.post(f'{DFS_BASE}/serp/google/organic/live/advanced',
+                          headers={'Authorization': auth, 'Content-Type': 'application/json'},
+                          timeout=22,
+                          json=[{'keyword': f'{brand_or_domain} competitors',
+                                 'location_name': location, 'language_name': 'English', 'depth': 20}])
+        items = (((r.json().get('tasks') or [{}])[0].get('result') or [{}])[0].get('items')) or []
+        seen, domains = set(), []
+        for it in items:
+            url = it.get('url') or ''
+            host = url.replace('https://', '').replace('http://', '').replace('www.', '').split('/')[0].lower()
+            if not host:
+                continue
+            parts = host.rsplit('.', 2)
+            root = '.'.join(parts[-2:]) if len(parts) >= 2 else host
+            if root in seen or root in _SKIP_ROOTS or (own and root == own):
+                continue
+            seen.add(root)
+            domains.append(host)
+            if len(domains) >= 5:
+                break
+        return domains
+    except Exception:
+        return []
 
 
 def _scrape_social_links(domain):
