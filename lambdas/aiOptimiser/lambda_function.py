@@ -14,6 +14,13 @@ _CG_WORKSPACE_ID    = 'digimetrics_cg'
 def _cg_table():
     return boto3.resource('dynamodb', region_name='ap-southeast-1').Table(_CG_LEARNINGS_TABLE)
 
+def _cg_json_default(o):
+    # DynamoDB returns numbers as Decimal, which json.dumps can't serialise.
+    from decimal import Decimal
+    if isinstance(o, Decimal):
+        return int(o) if o % 1 == 0 else float(o)
+    raise TypeError(f'Object of type {type(o).__name__} is not JSON serializable')
+
 def handle_learnings(action, event):
     CORS = {
         'Access-Control-Allow-Origin':  '*',
@@ -29,7 +36,7 @@ def handle_learnings(action, event):
             items = resp.get('Items', [])
             # Sort newest-first by id (timestamp-based)
             items.sort(key=lambda x: int(x.get('id', 0)), reverse=True)
-            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'items': items})}
+            return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'items': items}, default=_cg_json_default)}
 
         elif action == 'learnings_upsert':
             entry = event.get('entry', {})
