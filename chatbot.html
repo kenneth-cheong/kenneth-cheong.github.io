@@ -3501,7 +3501,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2084</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2085</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -10104,14 +10104,11 @@
                 }
             });
 
-            // Slide decks
-            el.querySelectorAll('code.language-slides').forEach((code) => {
+            // Slide decks — helper so we can call it for multiple selectors
+            const tryRenderSlideDeck = (code) => {
                 try {
                     const parsed = JSON.parse(code.textContent.trim());
-                    if (!parsed || !Array.isArray(parsed.slides) || !parsed.slides.length) return;
-                    // Coerce the model's JSON into the locked MediaOne shape BEFORE it is
-                    // stored, previewed or exported — the renderer, not the model, is the
-                    // source of truth for brand + structure.
+                    if (!parsed || !Array.isArray(parsed.slides) || !parsed.slides.length) return false;
                     const deck = normalizeDeck(parsed);
                     const deckId = 'deck-' + (++_chartCounter) + '-' + Date.now();
                     _deckStore[deckId] = deck;
@@ -10142,10 +10139,24 @@
                             <button class="deck-btn deck-btn-ghost" onclick="copyGammaPrompt('${deckId}', this)" title="Copy a prompt to recreate this deck in Gamma"><i class="fas fa-wand-magic-sparkles"></i> Copy Gamma prompt</button>
                         </div>`;
                     code.closest('pre')?.replaceWith(card);
-                    hasVisual = true;
+                    return true;
                 } catch (e) {
-                    console.warn('[Slides] Parse error:', e.message);
+                    return false;
                 }
+            };
+
+            // Primary: explicit ```slides fence
+            el.querySelectorAll('code.language-slides').forEach((code) => {
+                if (tryRenderSlideDeck(code)) hasVisual = true;
+                else console.warn('[Slides] Parse error on language-slides block');
+            });
+
+            // Fallback: ```json or no-language code blocks whose content is slides JSON
+            el.querySelectorAll('code.language-json, pre > code:not([class])').forEach((code) => {
+                if (code.closest('.deck-card')) return; // already replaced
+                const txt = code.textContent.trim();
+                if (!txt.startsWith('{') || !txt.includes('"slides"')) return;
+                if (tryRenderSlideDeck(code)) hasVisual = true;
             });
 
             if (hasVisual && msgEl) msgEl.classList.add('has-visual');
