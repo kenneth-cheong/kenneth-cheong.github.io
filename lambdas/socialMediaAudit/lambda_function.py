@@ -30,6 +30,7 @@ import os
 import re
 import time
 import uuid
+import base64
 import statistics
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -48,8 +49,17 @@ JOBS_TABLE   = os.environ.get('SMA_JOBS_TABLE', 'sma_jobs')
 SNAP_TABLE   = os.environ.get('SMA_SNAP_TABLE', 'sma_snapshots')
 CACHE_TABLE  = os.environ.get('SMA_CACHE_TABLE', 'sma_apify_cache')
 HAIKU_MODEL  = 'claude-haiku-4-5-20251001'
+# Vision-capable model for the content/creative audit (visual style + theme).
+# Sonnet reasons over imagery noticeably better than Haiku; it runs once per
+# audit so the extra cost is bounded.
+VISION_MODEL = os.environ.get('SMA_VISION_MODEL', 'claude-sonnet-4-6')
+MAX_CREATIVE_IMAGES   = 8     # images fetched + sent to the vision model
+MAX_CREATIVE_CAPTIONS = 25    # captions sent as text context
 JOB_TTL_SECS   = 6 * 3600
 CACHE_TTL_SECS = 30 * 86400        # 30-day Apify cache to cut scrape cost
+# Bump whenever the metrics shape changes so stale-shape cache entries are
+# treated as misses (forces a re-scrape) instead of serving wrong/partial data.
+METRICS_SCHEMA = 2                  # v2: TikTok authorMeta fix + captions/image_urls
 
 CORS = {
     'Access-Control-Allow-Origin':  '*',
@@ -510,12 +520,14 @@ def handle_finalize(body):
 
         brand_health = fetch_brand_health(item.get('domain'), brand, item.get('location') or 'Singapore')
         indicators   = _flatten_indicators(client_metrics, brand_health)
+        creative     = _analyze_creative(brand, client_metrics, item.get('extra_context') or '')
         scorecard    = _narrate(brand, client_metrics, competitor_metrics, brand_health,
-                                indicators, item.get('extra_context') or '')
+                                indicators, item.get('extra_context') or '', creative=creative)
         scorecard.update({
             'platforms': [_platform_card(p, m) for p, m in client_metrics.items()],
             'indicators': indicators,
             'brand_health': brand_health,
+            'creative': creative,
             'competitors': [c for c in competitor_metrics if c.get('followers') is not None],
         })
         _jobs().update_item(Key={'jobId': job_id},
@@ -605,29 +617,49 @@ def _g(d, *keys, default=None):
 
 
 def _extract(platform, items):
-    """Normalise actor output to a common metrics dict."""
+    """Normalise actor output to a common metrics dict.
+
+    Some actors (notably the clockworks TikTok scraper) return ONE item per
+    post/video with the profile nested under `authorMeta`, rather than a
+    profile object as items[0]. Prefer authorMeta for the profile fields when
+    present so followers/verified/bio/avatar resolve correctly."""
     if not items:
         return _empty_metrics()
     head = items[0] if isinstance(items[0], dict) else {}
+    prof = head.get('authorMeta') if isinstance(head.get('authorMeta'), dict) else head
 
-    followers = _num(_g(head, 'followersCount', 'followers', 'fans', 'subscriberCount',
-                        'followerCount', 'edge_followed_by', 'likes'))
-    following = _num(_g(head, 'followsCount', 'following', 'followingCount'))
-    verified  = bool(_g(head, 'verified', 'isVerified', 'is_verified', default=False))
-    bio       = _g(head, 'biography', 'bio', 'description', 'about', default='')
-    link      = _g(head, 'externalUrl', 'website', 'link', 'externalUrls', default='')
-    category  = _g(head, 'businessCategoryName', 'category', 'categoryName', default='')
-    pfp       = _g(head, 'profilePicUrl', 'avatar', 'profileImage', 'thumbnailUrl', default='')
+    followers = _num(_g(prof, 'followersCount', 'followers', 'fans', 'fanCount',
+                        'subscriberCount', 'followerCount', 'edge_followed_by'))
+    following = _num(_g(prof, 'followsCount', 'following', 'followingCount'))
+    verified  = bool(_g(prof, 'verified', 'isVerified', 'is_verified', default=False))
+    bio       = _g(prof, 'biography', 'bio', 'description', 'about', 'signature', default='')
+    link      = _g(prof, 'externalUrl', 'website', 'link', 'externalUrls', 'bioLink', default='')
+    category  = _g(prof, 'businessCategoryName', 'category', 'categoryName', default='')
+    pfp       = _g(prof, 'profilePicUrl', 'avatar', 'profileImage', 'thumbnailUrl',
+                   'originalAvatarUrl', default='')
 
     posts = _collect_posts(platform, items, head)
     return _metrics_from(followers, following, verified, bio, link, category, pfp, posts)
 
 
+_PROFILE_HEAD_KEYS = ('followersCount', 'followers', 'subscriberCount', 'fans',
+                      'edge_followed_by', 'followerCount')
+
+
 def _collect_posts(platform, items, head):
-    """Return a list of normalised posts: {ts, likes, comments, views, type, hashtags}."""
-    raw = (_g(head, 'latestPosts', 'posts', 'videos', 'topPosts', default=None)
-           or [it for it in items[1:] if isinstance(it, dict)]
-           or [])
+    """Return a list of normalised posts: {ts, likes, comments, views, type, hashtags}.
+
+    Three actor shapes: (a) head carries a nested post list (Instagram), (b) head
+    is itself a post and items[1:] are more posts (TikTok — items[0] is a video
+    with authorMeta), (c) head is a profile and items[1:] are posts."""
+    nested = _g(head, 'latestPosts', 'posts', 'videos', 'topPosts', default=None)
+    if nested:
+        raw = nested
+    else:
+        head_is_profile = ('authorMeta' not in head
+                           and any(k in head for k in _PROFILE_HEAD_KEYS))
+        src = items[1:] if head_is_profile else items
+        raw = [it for it in src if isinstance(it, dict)]
     out = []
     for p in raw:
         if not isinstance(p, dict):
@@ -641,9 +673,33 @@ def _collect_posts(platform, items, head):
             'type':     _post_type(p),
             'hashtags': re.findall(r'#(\w+)', text),
             'text':     ' '.join(text.split())[:160],
+            'caption':  ' '.join(text.split())[:400],   # longer text for theme/tone analysis
+            'image':    _post_image(p),
             'url':      _g(p, 'url', 'webVideoUrl', 'postUrl', 'link', 'videoUrl', default=''),
         })
     return out
+
+
+def _post_image(p):
+    """Best-effort post thumbnail / display image URL across actor shapes."""
+    img = _g(p, 'displayUrl', 'imageUrl', 'thumbnailUrl', 'thumbnailSrc', 'thumbnail',
+             'cover', 'coverUrl', 'image', 'previewImageUrl', 'displayImageUrl', default='')
+    if not img:
+        for nest in ('videoMeta', 'video', 'media'):
+            sub = p.get(nest)
+            if isinstance(sub, dict):
+                img = _g(sub, 'coverUrl', 'originalCoverUrl', 'cover', 'thumbnail', default='')
+                if img:
+                    break
+    if not img:
+        for key in ('images', 'covers', 'thumbnails'):
+            seq = p.get(key)
+            if isinstance(seq, list) and seq:
+                first = seq[0]
+                img = first if isinstance(first, str) else _g(first, 'url', 'src', default='')
+                if img:
+                    break
+    return img if isinstance(img, str) else ''
 
 
 def _post_type(p):
@@ -710,6 +766,10 @@ def _metrics_from(followers, following, verified, bio, link, category, pfp, post
         'hashtag_count': len(set(hashtags)), 'top_hashtags': _top(hashtags, 8),
         'profile_completeness': {'score': comp_score, **completeness},
         'post_sample': len(posts), 'top_posts': top_posts,
+        # raw content for the creative/style audit (not surfaced in platform cards)
+        'captions':   [p['caption'] for p in posts if p.get('caption')][:MAX_CREATIVE_CAPTIONS],
+        'image_urls': [p['image'] for p in posts if p.get('image')][:12],
+        '_schema': METRICS_SCHEMA,
     }
 
 
@@ -721,7 +781,8 @@ def _empty_metrics():
             'top_vs_median': None, 'hashtag_count': 0, 'top_hashtags': [],
             'profile_completeness': {'score': 0, 'bio': False, 'link': False,
                                      'verified': False, 'pfp': False, 'category': False},
-            'post_sample': 0, 'top_posts': []}
+            'post_sample': 0, 'top_posts': [], 'captions': [], 'image_urls': [],
+            '_schema': METRICS_SCHEMA}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -875,9 +936,124 @@ def _cadence_status(ppw):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Content & creative audit (vision) — analyses the actual posts: recurring
+# themes, tone of voice, visual style and on-brand consistency.
+# ──────────────────────────────────────────────────────────────────────────────
+_VISION_TYPES = {'image/jpeg', 'image/png', 'image/webp', 'image/gif'}
+
+
+def _fetch_image_b64(url, max_bytes=4_500_000):
+    """Download a post image and return (media_type, base64) or None.
+    Skips non-images, oversized files, and anything that errors."""
+    try:
+        r = requests.get(url, timeout=12,
+                         headers={'User-Agent': 'Mozilla/5.0 (compatible; SMAudit/1.0)'})
+        if r.status_code >= 300:
+            return None
+        ctype = (r.headers.get('content-type') or '').split(';')[0].strip().lower()
+        if ctype not in _VISION_TYPES:
+            # infer from extension when the CDN omits/garbles the header
+            ext = re.search(r'\.(jpe?g|png|webp|gif)(?:\?|$)', url, re.I)
+            ctype = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+                     'webp': 'image/webp', 'gif': 'image/gif'}.get(
+                        (ext.group(1).lower() if ext else ''), '')
+        data = r.content
+        if ctype not in _VISION_TYPES or not data or len(data) > max_bytes:
+            return None
+        return ctype, base64.b64encode(data).decode()
+    except requests.exceptions.RequestException:
+        return None
+
+
+def _analyze_creative(brand, client_metrics, extra_context=''):
+    """Vision audit of the brand's actual posts. Returns a structured creative
+    verdict, or None when there's no key / no usable content."""
+    api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
+    if not api_key:
+        return None
+
+    captions, image_urls = [], []
+    for p, m in client_metrics.items():
+        if not m.get('found'):
+            continue
+        for cap in (m.get('captions') or []):
+            if cap:
+                captions.append((p, cap))
+        for url in (m.get('image_urls') or []):
+            if url:
+                image_urls.append((p, url))
+    if not captions and not image_urls:
+        return None
+
+    # Fetch a bounded set of images concurrently (URLs expire / hotlink-protect,
+    # so failures are expected and simply skipped).
+    img_blocks, used_platforms = [], []
+    if image_urls:
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            fetched = list(ex.map(lambda pu: (pu[0], _fetch_image_b64(pu[1])),
+                                  image_urls[:MAX_CREATIVE_IMAGES]))
+        for plat, got in fetched:
+            if got:
+                ctype, b64 = got
+                img_blocks.append({'type': 'image',
+                                   'source': {'type': 'base64', 'media_type': ctype, 'data': b64}})
+                used_platforms.append(plat)
+
+    caption_text = '\n'.join(f'[{p}] {c}' for p, c in captions[:MAX_CREATIVE_CAPTIONS])
+    img_note = (f'{len(img_blocks)} post images are attached (platforms: '
+                f'{", ".join(sorted(set(used_platforms)))}).'
+                if img_blocks else
+                'No post images could be retrieved — base the visual read on the '
+                'captions and note that imagery was unavailable.')
+
+    prompt = (
+        f"You are a senior brand & content strategist auditing {brand}'s organic "
+        "social CONTENT (not the metrics). " + img_note + " Below are recent post "
+        "captions, each tagged with its platform.\n\n"
+        "Judge the actual creative: recurring content themes/topics, the tone of "
+        "voice, the visual style (colour palette, composition, photography vs "
+        "graphic, consistency of look), and how on-brand and consistent it all is "
+        "across posts and platforms. Respond with STRICT JSON only, no prose, "
+        "matching:\n"
+        '{"content_themes":["..."],'
+        '"content_pillars":["..."],'
+        '"tone_of_voice":"1-2 sentences",'
+        '"visual_style":"1-2 sentences on the visual aesthetic",'
+        '"brand_consistency":{"score":0-100,"notes":"1-2 sentences"},'
+        '"standout_observations":["..."],'
+        '"recommendations":["..."]}\n'
+        "Keep every array to 3-5 short items. Ground each claim in the actual "
+        "captions/images. If imagery was unavailable, set visual_style to note "
+        "that and infer only what the captions support.\n\nPOST CAPTIONS:\n"
+        + (caption_text or '(no captions captured)')
+        + (("\n\nADDITIONAL BRAND CONTEXT (user-supplied briefs/docs):\n" + extra_context[:4000])
+           if extra_context else "")
+    )
+
+    content = img_blocks + [{'type': 'text', 'text': prompt}]
+    try:
+        r = requests.post('https://api.anthropic.com/v1/messages',
+                          headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01',
+                                   'content-type': 'application/json'},
+                          json={'model': VISION_MODEL, 'max_tokens': 1500,
+                                'messages': [{'role': 'user', 'content': content}]},
+                          timeout=70)
+        txt = ''.join(b.get('text', '') for b in (r.json().get('content') or [])
+                      if b.get('type') == 'text')
+        txt = re.sub(r'^```[a-z]*\n?|```$', '', txt.strip()).strip()
+        out = json.loads(txt)
+        out['images_analyzed'] = len(img_blocks)
+        out['posts_analyzed']  = len(captions)
+        return out
+    except Exception:
+        return None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Haiku narrative
 # ──────────────────────────────────────────────────────────────────────────────
-def _narrate(brand, client_metrics, competitor_metrics, brand_health, indicators, extra_context=''):
+def _narrate(brand, client_metrics, competitor_metrics, brand_health, indicators,
+             extra_context='', creative=None):
     api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
     facts = {
         'brand': brand,
@@ -885,6 +1061,7 @@ def _narrate(brand, client_metrics, competitor_metrics, brand_health, indicators
         'competitors': competitor_metrics,
         'brand_health': brand_health,
         'indicators': indicators,
+        'creative_audit': creative,
     }
     fallback = {
         'overall_health': 'Developing',
@@ -908,7 +1085,9 @@ def _narrate(brand, client_metrics, competitor_metrics, brand_health, indicators
         "Base every claim on the numbers. Keep arrays to 3-5 items. Only fill "
         "competitor_insights if the competitors array is non-empty (compare their "
         "engagement, cadence, content mix, hashtags and top posts to the brand's); "
-        "otherwise return it as empty arrays.\n\nAUDIT DATA:\n"
+        "otherwise return it as empty arrays. A creative_audit object (content "
+        "themes, tone of voice, visual style, brand consistency) may be present — "
+        "factor its findings into the summary, strengths/gaps and action plan.\n\nAUDIT DATA:\n"
         + json.dumps(facts, default=str)[:16000]
         + (("\n\nADDITIONAL CONTEXT the user uploaded (briefs, analytics, brand docs) "
             "— use it to sharpen the verdict, goals and action plan:\n" + extra_context[:8000])
@@ -948,7 +1127,11 @@ def _cache_get(platform, handle):
     try:
         item = _cache().get_item(Key={'ckey': _cache_key(platform, handle)}).get('Item')
         if item and item.get('metrics') and int(item.get('ttl', 0)) > int(time.time()):
-            return json.loads(item['metrics'])
+            m = json.loads(item['metrics'])
+            # Ignore entries written under an older metrics shape (e.g. the
+            # pre-fix TikTok scrape) so they re-scrape instead of serving bad data.
+            if m.get('_schema') == METRICS_SCHEMA:
+                return m
     except Exception:
         pass
     return None
