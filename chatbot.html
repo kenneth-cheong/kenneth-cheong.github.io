@@ -3501,7 +3501,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2087</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2088</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -9288,6 +9288,14 @@
             "💡 You can also try the **[Tool Name]** directly in the Digimetrics platform: [link]"
             Keep it to one recommendation per response. Only recommend when there is a clear, direct match — do not force recommendations for general questions.
 
+            CAPTION OUTPUT FORMAT — whenever you generate social media captions or post copy:
+            - Put the actual caption text on its own line. NEVER place the caption on the same line as the variation title, scores, or any label.
+            - Format each variation exactly like this (title and scores on one line, then a blank line, then the caption):
+              **Variation 1: [Title]** Hook 9/10 | Read 9/10 | Brand 9/10
+
+              [the actual caption text starts here on a new line]
+            - If you include scores (e.g. Hook / Read / Brand out of 10), they stay on the title line; the caption body always begins on the next line after a blank line.
+
             ════════════════════════════════════════════════
             PERFORMANCE INSIGHTS FRAMEWORK
             ════════════════════════════════════════════════
@@ -9853,7 +9861,13 @@
             }
 
             // Render Markdown (using marked.js)
-            let htmlContent = marked.parse(cleanText);
+            let renderSource = cleanText;
+            if (sender === 'bot') {
+                // Caption output: drop the actual caption onto its own line when it
+                // trails a score row (e.g. "Hook 9/10 | Read 9/10 | Brand 9/10 every detail...")
+                renderSource = renderSource.replace(/((?:[A-Za-z]+\s+\d+\/10)(?:\s*\|\s*[A-Za-z]+\s+\d+\/10)+)[ \t]+(?=\S)/g, '$1\n\n');
+            }
+            let htmlContent = marked.parse(renderSource);
 
             // Handle [ACTION: CONTACT_CONSULTANT] marker
             if (sender === 'bot' && htmlContent.includes('[ACTION: CONTACT_CONSULTANT]')) {
