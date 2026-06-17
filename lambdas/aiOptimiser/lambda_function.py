@@ -762,6 +762,7 @@ def build_structured_prompt(action, body):
         previous_captions  = body.get('previousCaptions', []) or []
         has_images         = bool(body.get('images'))
         brand_learnings    = [str(l) for l in (f.get('brandLearnings') or []) if l and str(l).strip()]
+        specific_instructions = (f.get('specificInstructions') or '').strip()
 
         # Resolve the platform playbook + formatting controls from the brief.
         spec = PLATFORM_SPECS[_platform_key(content_type_label)]
@@ -853,6 +854,8 @@ def build_structured_prompt(action, body):
         angle = _angles[variation_index % len(_angles)]
 
         def _line(label, val):
+            if isinstance(val, list):
+                val = ', '.join(str(v) for v in val if v)
             return f"- {label}: {val}\n" if val else ''
 
         if language == 'xiaohongshu':
@@ -969,6 +972,10 @@ def build_structured_prompt(action, body):
                 + "\n".join(f"• {l}" for l in brand_learnings[:30])
                 + "\n\n"
                 if brand_learnings else ''
+            )
+            + (
+                f"\nSPECIAL INSTRUCTIONS — HIGHEST USER PRIORITY. Follow these exactly, even if they override the writing rules below:\n{specific_instructions}\n"
+                if specific_instructions else ''
             )
             + "WRITING RULES — apply every rule without exception:\n"
             "1. NEVER open with the brand name or a phrase like \"At [Brand], we believe...\" — "
