@@ -19,6 +19,7 @@
     <!-- Document Extraction Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
@@ -3501,7 +3502,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2088</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2089</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -5211,6 +5212,34 @@
                 reader.onload = () => resolve(reader.result.split(',')[1]);
                 reader.onerror = error => reject(error);
             });
+        }
+
+        // Claude's vision API only accepts these media types.
+        const CLAUDE_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+        // Convert an image whose type Claude can't read (bmp, tiff, heic, svg, …)
+        // into a PNG base64 string via canvas. Returns null if it can't be decoded.
+        async function convertImageToPng(file) {
+            let url;
+            try {
+                url = URL.createObjectURL(file);
+                const img = await new Promise((resolve, reject) => {
+                    const im = new Image();
+                    im.onload = () => resolve(im);
+                    im.onerror = () => reject(new Error('decode failed'));
+                    im.src = url;
+                });
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth || img.width;
+                canvas.height = img.naturalHeight || img.height;
+                canvas.getContext('2d').drawImage(img, 0, 0);
+                return canvas.toDataURL('image/png').split(',')[1];
+            } catch (e) {
+                console.warn('[ATTACH] Could not convert image to PNG:', file.name, e);
+                return null;
+            } finally {
+                if (url) URL.revokeObjectURL(url);
+            }
         }
 
         // ---- Image Modal ----
@@ -9082,6 +9111,15 @@
             } else if (ext === 'docx') {
                 const result = await mammoth.extractRawText({ arrayBuffer });
                 return result.value;
+            } else if (['xlsx', 'xls'].includes(ext)) {
+                if (!window.XLSX) return "";
+                const wb = XLSX.read(arrayBuffer, { type: 'array' });
+                let fullText = '';
+                wb.SheetNames.forEach(name => {
+                    const csv = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
+                    if (csv.trim()) fullText += `--- Sheet: ${name} ---\n${csv}\n\n`;
+                });
+                return fullText;
             } else if (['txt', 'csv', 'md'].includes(ext)) {
                 return await file.text();
             }
@@ -9567,11 +9605,24 @@
                 let docCharsUsed = 0;
                 for (const att of activeAttachments) {
                     if (att.type && att.type.startsWith('image/')) {
-                        const b64 = await getFileBase64(att);
-                        currentContent.push({
-                            type: "image",
-                            source: { type: "base64", media_type: att.type, data: b64 }
-                        });
+                        if (CLAUDE_IMAGE_TYPES.includes(att.type)) {
+                            const b64 = await getFileBase64(att);
+                            currentContent.push({
+                                type: "image",
+                                source: { type: "base64", media_type: att.type, data: b64 }
+                            });
+                        } else {
+                            // Unsupported image format — convert to PNG, or note it if we can't.
+                            const pngB64 = await convertImageToPng(att);
+                            if (pngB64) {
+                                currentContent.push({
+                                    type: "image",
+                                    source: { type: "base64", media_type: "image/png", data: pngB64 }
+                                });
+                            } else {
+                                currentContent[0].text += `\n\n[Attached image ${att.name} is in a format I can't read (${att.type || 'unknown'}). Please re-save it as JPG, PNG, GIF or WEBP.]`;
+                            }
+                        }
                     } else {
                         // For non-images, extract text and append it to the message
                         let fileContent = await extractText(att);
