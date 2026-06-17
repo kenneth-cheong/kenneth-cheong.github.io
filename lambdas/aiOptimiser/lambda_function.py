@@ -37,7 +37,9 @@ def handle_learnings(action, event):
                 return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'Missing entry id or text'})}
             entry['workspace_id'] = _CG_WORKSPACE_ID
             entry['id']           = str(entry['id'])
-            table.put_item(Item=entry)
+            # DynamoDB rejects None values — strip them before writing
+            item = {k: v for k, v in entry.items() if v is not None}
+            table.put_item(Item=item)
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'ok': True})}
 
         elif action == 'learnings_delete':
