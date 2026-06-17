@@ -95,6 +95,8 @@ def lambda_handler(event, context):
             return _resp(200, handle_discover(body))
         if action == 'discover_competitors':
             return _resp(200, handle_discover_competitors(body))
+        if action == 'suggest_context':
+            return _resp(200, handle_suggest_context(body))
         return _resp(400, {'error': f'Unknown action: {action}'})
     except Exception as e:
         return _resp(500, {'error': str(e)})
@@ -240,6 +242,75 @@ def handle_discover_competitors(body):
 
     return {'competitors': results,
             'note': 'Candidate competitors — confirm they are correct before auditing.'}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# SUGGEST_CONTEXT — infer the campaign context (industry / audience / goals) from
+# just a brand name (+ optional website) so the user only has to type one field.
+# Grounds the guess in the homepage text when a URL is given. Returns CANDIDATES
+# for the user to review/edit — never auto-runs.
+# ──────────────────────────────────────────────────────────────────────────────
+def handle_suggest_context(body):
+    brand  = (body.get('brand_name') or '').strip()
+    domain = (body.get('domain') or '').strip()
+    if not brand and not domain:
+        return {'error': 'Provide brand_name or domain.'}
+
+    site_text = _fetch_page_text(domain) if domain else ''
+    api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
+    fallback = {'industry': '', 'target_audience': '', 'campaign_goals': '',
+                'note': 'Could not auto-suggest — please fill these in.'}
+    if not api_key:
+        return fallback
+
+    prompt = (
+        "You are a senior social media strategist. From the brand below, infer the "
+        "most likely campaign context for a social media audit. Respond with STRICT "
+        "JSON only, no prose, matching:\n"
+        '{"industry":"short phrase, e.g. B2B SaaS or Dental clinic",'
+        '"target_audience":"1-2 sentences: who the customers are — segment, '
+        'location, B2B/B2C, intent",'
+        '"campaign_goals":"comma-separated goals, e.g. Build awareness, generate leads"}\n'
+        "Be specific and realistic for THIS brand. If a website excerpt is given, "
+        "base it on that.\n\n"
+        f"BRAND NAME: {brand or '(unknown)'}\n"
+        f"WEBSITE: {domain or '(none)'}\n"
+        + (f"\nHOMEPAGE TEXT (excerpt):\n{site_text[:6000]}" if site_text else "")
+    )
+    try:
+        r = requests.post('https://api.anthropic.com/v1/messages',
+                          headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01',
+                                   'content-type': 'application/json'},
+                          json={'model': HAIKU_MODEL, 'max_tokens': 600,
+                                'messages': [{'role': 'user', 'content': prompt}]},
+                          timeout=40)
+        txt = ''.join(b.get('text', '') for b in (r.json().get('content') or [])
+                      if b.get('type') == 'text')
+        txt = re.sub(r'^```[a-z]*\n?|```$', '', txt.strip()).strip()
+        out = json.loads(txt)
+        return {
+            'industry': (out.get('industry') or '').strip(),
+            'target_audience': (out.get('target_audience') or '').strip(),
+            'campaign_goals': (out.get('campaign_goals') or '').strip(),
+            'note': 'AI-suggested from the brand — review and edit before auditing.',
+        }
+    except Exception as e:
+        return {**fallback, 'note': f'Auto-suggest failed: {e}'}
+
+
+def _fetch_page_text(domain):
+    """Fetch a homepage and return its visible text (tags/scripts stripped)."""
+    url = domain if domain.startswith('http') else 'https://' + domain
+    try:
+        r = requests.get(url, timeout=12, allow_redirects=True,
+                         headers={'User-Agent': 'Mozilla/5.0 (compatible; DigimetricsAudit/1.0)'})
+        html = r.text[:600000]
+    except requests.exceptions.RequestException:
+        return ''
+    html = re.sub(r'(?is)<(script|style|noscript)[^>]*>.*?</\1>', ' ', html)
+    text = re.sub(r'(?s)<[^>]+>', ' ', html)
+    text = re.sub(r'&[a-z]+;', ' ', text)
+    return re.sub(r'\s+', ' ', text).strip()
 
 
 # Domains we skip when scanning SERP results for competitor candidates.
