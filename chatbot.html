@@ -9120,6 +9120,10 @@
             const text = input.value.trim();
             if (!text) return;
 
+            // A real user turn cancels any pending self-continuation and starts fresh.
+            if (_autoContinueTimer) { clearTimeout(_autoContinueTimer); _autoContinueTimer = null; }
+            _autoContinueTotal = 0; _autoContinueStale = 0;
+
             // --- Auto-enable Gmail / Drive sync if prompt mentions them ---
             (function autoEnableGoogleSources(prompt) {
                 const lower = prompt.toLowerCase();
@@ -9215,7 +9219,8 @@
             }
 
             // Regenerate re-sends an existing user turn, so the bubble already exists.
-            if (!opts.skipUserBubble) addMessage("user", text, null, enrichedAttachments);
+            // Auto-continuation has no user turn at all — it just nudges the bot onward.
+            if (!opts.skipUserBubble && !opts.autoContinue) addMessage("user", text, null, enrichedAttachments);
             const activeAttachments = enrichedAttachments;
             removeAttachment();
 
@@ -9756,6 +9761,13 @@
                     history[history.length - 1].content = currentContent;
                 }
 
+                // Auto-continuation: no user bubble was added, so history ends on the
+                // bot's partial message. Append a hidden user turn that tells the model to
+                // pick up where it left off (keeps the payload ending on 'user' as required).
+                if (opts.autoContinue) {
+                    history.push({ role: 'user', content: "Continue exactly where you left off — work through the remaining items/boards you have NOT yet reported. Do not repeat what you already covered. When everything is done, give the final consolidated summary." });
+                }
+
                 // BULLETPROOF GUARD: measure the actual serialized payload and hard-trim if oversized.
                 // Catches ANY source of bloat (history, attachments, restored convos) regardless of path.
                 const PAYLOAD_CHAR_LIMIT = 150000; // ~40k tokens of messages — well under the 200k token ceiling
@@ -9934,6 +9946,30 @@
                 }
 
                 addMessage("bot", reply, toolLog, null, false, null, thinkingText);
+
+                // Self-continuation: the model stopped with work still pending. Post the
+                // partial message (above), then auto-send a hidden "continue" turn so the
+                // bot keeps going in a fresh message — with the typing placeholder between.
+                // Progress-aware: a step that made tool calls is "productive" and resets the
+                // stale counter, so real sweeps finish; only no-progress steps trip the cap.
+                if (data.incomplete) {
+                    const productive = (data.tool_calls || []).length > 0;
+                    if (productive) _autoContinueStale = 0; else _autoContinueStale++;
+                    if (_autoContinueTotal < AUTO_CONTINUE_HARD_MAX && _autoContinueStale < AUTO_CONTINUE_STALE_MAX) {
+                        _autoContinueTotal++;
+                        showTyping(true, 'continuing');
+                        if (_autoContinueTimer) clearTimeout(_autoContinueTimer);
+                        _autoContinueTimer = setTimeout(() => { _autoContinueTimer = null; handleClaudeMessage('', { autoContinue: true }); }, 600);
+                    } else {
+                        const reason = _autoContinueStale >= AUTO_CONTINUE_STALE_MAX
+                            ? "I've stopped making progress"
+                            : `I've run ${_autoContinueTotal} automatic steps`;
+                        addMessage("bot", `_${reason} — say **"continue"** if you'd like me to keep going._`);
+                        _autoContinueTotal = 0; _autoContinueStale = 0;
+                    }
+                } else {
+                    _autoContinueTotal = 0; _autoContinueStale = 0;
+                }
 
             } catch (error) {
                 if (error.name === 'AbortError') {
@@ -10913,11 +10949,27 @@
         let _chatAbortController = null;
         let _progressPollTimer = null;
 
+        // Self-continuation: when the bot's turn ends with work still pending (server
+        // sends incomplete:true), the client auto-sends a hidden "continue" turn so the
+        // bot posts successive messages instead of dead-ending. Progress-aware + stoppable:
+        // steps that do real work (make tool calls) reset the stale counter, so a genuine
+        // sweep runs to completion, while a stuck loop stops after a couple no-progress steps.
+        let _autoContinueTotal = 0;            // total continuations this chain (hard backstop)
+        let _autoContinueStale = 0;            // consecutive no-progress continuations
+        const AUTO_CONTINUE_HARD_MAX = 10;     // absolute ceiling so it can never run away
+        const AUTO_CONTINUE_STALE_MAX = 2;     // stop after this many steps that made no progress
+        let _autoContinueTimer = null;
+
         function stopResponse() {
+            // Cancel any pending self-continuation and prevent re-arming.
+            if (_autoContinueTimer) { clearTimeout(_autoContinueTimer); _autoContinueTimer = null; }
+            _autoContinueTotal = AUTO_CONTINUE_HARD_MAX;
+            _autoContinueStale = AUTO_CONTINUE_STALE_MAX;
             if (_chatAbortController) {
                 _chatAbortController.abort();
                 _chatAbortController = null;
             }
+            showTyping(false);
         }
 
         // One automatic retry on network-level failures (offline blip, DNS, reset).

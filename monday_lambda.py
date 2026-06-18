@@ -1971,6 +1971,9 @@ def claude_chat_with_tools(body):
                 # Exclude internal MEM_SAVE directives from the user-facing tool log
                 display_log = [t for t in tool_call_log if not t.startswith("MEM_SAVE:")]
                 summary = "\n".join(display_log) if display_log else None
+                # If DeepSeek still ended announcing more work (past the in-invocation
+                # auto-continue budget), flag it so the client continues in a new message.
+                still_unfinished = (provider == 'deepseek' and _deepseek_turn_unfinished(final_text))
                 _clear_progress()
                 return {
                     "statusCode": 200,
@@ -1980,6 +1983,7 @@ def claude_chat_with_tools(body):
                         "tool_calls_summary": summary,
                         "tool_calls": [t for t in tool_events if t.get("name") != "save_memory_note"],
                         "rounds": round_num,
+                        "incomplete": still_unfinished,
                         "memory_updates": [t for t in tool_call_log if t.startswith("MEM_SAVE:")],
                         "debug_stats": {
                             "system_chars": sys_size,
@@ -2550,7 +2554,10 @@ def claude_chat_with_tools(body):
             "body": json.dumps({
                 "reply": fallback or "I reached the maximum number of data lookups. Please refine your question.",
                 "tool_calls_summary": "\n".join(t for t in tool_call_log if not t.startswith("MEM_SAVE:")) or None,
-                "tool_calls": [t for t in tool_events if t.get("name") != "save_memory_note"]
+                "tool_calls": [t for t in tool_events if t.get("name") != "save_memory_note"],
+                # Ran out of tool rounds with work still pending — let the client auto-continue
+                # in a fresh invocation (separate bot message) instead of dead-ending here.
+                "incomplete": True
             })
         }
 
