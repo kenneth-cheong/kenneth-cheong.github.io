@@ -78,12 +78,9 @@ def handle_analysis(body, headers):
         return call_claude(model, prompt, max_tokens, headers)
 
 def call_claude(model, prompt, max_tokens, headers):
-    # FALLBACK TEST: Using Haiku for both to verify connection
-    api_model = "claude-haiku-4-5"
-
-    # If Haiku works, we can then try these Sonnet IDs one by one:
-    # 1. "claude-3-5-sonnet-20240620"
-    # 2. "claude-3-sonnet-20240229" (The older Claude 3 Sonnet)
+    # Map the client's model choice to a current Anthropic model ID.
+    # The Sonnet button sends 'claude-3-5-sonnet'; the Haiku button 'claude-3-haiku'.
+    api_model = "claude-sonnet-4-6" if 'sonnet' in (model or '').lower() else "claude-haiku-4-5"
 
     http = urllib3.PoolManager()
     payload = {
