@@ -5,33 +5,57 @@ import os
 CORS = {'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json'}
 
 
-def _call_anthropic(api_key, system_prompt, input_text, max_tokens=4096):
-    """Single Anthropic Messages call; returns (status_code, answer_or_error_text)."""
-    response = requests.post(
-        'https://api.anthropic.com/v1/messages',
-        headers={
-            'x-api-key':         api_key,
-            'anthropic-version': '2023-06-01',
-            'content-type':      'application/json'
-        },
-        json={
-            'model':      'claude-haiku-4-5-20251001',
-            'max_tokens': max_tokens,
-            'system':     system_prompt,
-            'messages':   [{'role': 'user', 'content': input_text}]
-        },
-        timeout=120
-    )
-    response_json = response.json()
-    if response.status_code == 200:
-        answer = response_json['content'][0]['text'] if response_json.get('content') else ''
-        answer = answer.strip()
-        if answer.startswith('```'):
-            answer = answer.split('\n', 1)[-1]
-        if answer.endswith('```'):
-            answer = answer.rsplit('```', 1)[0]
-        return 200, answer.strip()
-    return response.status_code, f"API Error: {response.text}"
+def _llm_complete(provider, system_prompt, input_text, max_tokens=4096):
+    """Single LLM call; returns (status_code, answer_or_error_text).
+    provider 'deepseek' -> DeepSeek (OpenAI-compatible); anything else -> Anthropic Claude (default).
+    Default preserves the original Claude behaviour, so the client can switch back to Claude at will."""
+    if (provider or '').lower() == 'deepseek':
+        key = os.environ.get('DEEPSEEK_API_KEY')
+        if not key:
+            return 500, 'Missing DEEPSEEK_API_KEY env var.'
+        response = requests.post(
+            'https://api.deepseek.com/chat/completions',
+            headers={'Authorization': f'Bearer {key}', 'content-type': 'application/json'},
+            json={
+                'model': 'deepseek-chat',
+                'max_tokens': max_tokens,
+                'messages': [
+                    {'role': 'system', 'content': system_prompt},
+                    {'role': 'user', 'content': input_text},
+                ],
+            },
+            timeout=120,
+        )
+        if response.status_code != 200:
+            return response.status_code, f"API Error: {response.text}"
+        rj = response.json()
+        answer = rj['choices'][0]['message']['content'] if rj.get('choices') else ''
+    else:
+        key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
+        if not key:
+            return 500, 'Missing ANTHROPIC_API_KEY env var.'
+        response = requests.post(
+            'https://api.anthropic.com/v1/messages',
+            headers={'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
+            json={
+                'model':      'claude-haiku-4-5-20251001',
+                'max_tokens': max_tokens,
+                'system':     system_prompt,
+                'messages':   [{'role': 'user', 'content': input_text}],
+            },
+            timeout=120,
+        )
+        if response.status_code != 200:
+            return response.status_code, f"API Error: {response.text}"
+        rj = response.json()
+        answer = rj['content'][0]['text'] if rj.get('content') else ''
+
+    answer = (answer or '').strip()
+    if answer.startswith('```'):
+        answer = answer.split('\n', 1)[-1]
+    if answer.endswith('```'):
+        answer = answer.rsplit('```', 1)[0]
+    return 200, answer.strip()
 
 
 def lambda_handler(event, context):
@@ -163,42 +187,13 @@ ADDITIONAL SUPPORTING DOCUMENTS CONTENT:
 Generate the Brand Foundation and Social Media Strategy framework now.
 """.strip()
 
-    # 4. Call Anthropic Claude Haiku
-    api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
-    if not api_key:
-        return {
-            'statusCode': 500,
-            'headers': {'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json'},
-            'body': json.dumps({'error': 'Missing ANTHROPIC_API_KEY env var.'})
-        }
+    # 4. Call the LLM — DeepSeek if requested, else Anthropic Claude (default).
+    provider = body.get('provider', 'anthropic')
 
     try:
-        response = requests.post(
-            'https://api.anthropic.com/v1/messages',
-            headers={
-                'x-api-key':         api_key,
-                'anthropic-version': '2023-06-01',
-                'content-type':      'application/json'
-            },
-            json={
-                'model':      'claude-haiku-4-5-20251001',
-                'max_tokens': 4096,
-                'system':     system_prompt,
-                'messages':   [{'role': 'user', 'content': input_text}]
-            },
-            timeout=60
-        )
-        response_json = response.json()
+        status, answer = _llm_complete(provider, system_prompt, input_text, max_tokens=4096)
 
-        if response.status_code == 200:
-            answer = response_json['content'][0]['text'] if response_json.get('content') else ''
-            # Strip markdown code fences if present
-            answer = answer.strip()
-            if answer.startswith('```'):
-                answer = answer.split('\n', 1)[-1]
-            if answer.endswith('```'):
-                answer = answer.rsplit('```', 1)[0]
-            answer = answer.strip()
+        if status == 200:
             return {
                 'statusCode': 200,
                 'headers': {
@@ -209,12 +204,12 @@ Generate the Brand Foundation and Social Media Strategy framework now.
             }
         else:
             return {
-                'statusCode': response.status_code,
+                'statusCode': status,
                 'headers': {
                     'Access-Control-Allow-Origin': '*',
                     'Content-Type': 'application/json'
                 },
-                'body': json.dumps({'error': f"API Error: {response.text}"})
+                'body': json.dumps({'error': answer})
             }
 
     except Exception as e:
@@ -335,12 +330,9 @@ GA4 CONTENT DATA: {ga4_content if ga4_content else 'Not provided'}
 Produce the {'Pro' if is_pro else 'Starter'} social media & content audit now.
 """.strip()
 
-    api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
-    if not api_key:
-        return {'statusCode': 500, 'headers': CORS,
-                'body': json.dumps({'error': 'Missing ANTHROPIC_API_KEY / CLAUDE_API_KEY env var.'})}
+    provider = body.get('provider', 'anthropic')
     try:
-        status, answer = _call_anthropic(api_key, system_prompt, input_text, max_tokens=2600)
+        status, answer = _llm_complete(provider, system_prompt, input_text, max_tokens=2600)
         if status == 200:
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'answer': answer})}
         return {'statusCode': status, 'headers': CORS, 'body': json.dumps({'error': answer})}

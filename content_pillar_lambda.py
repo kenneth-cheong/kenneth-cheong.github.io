@@ -2,6 +2,53 @@ import json
 import requests
 import os
 
+def _llm_complete(provider, system_prompt, input_text, max_tokens=4096):
+    """Returns (status_code, text_or_error).
+    provider 'deepseek' -> DeepSeek (OpenAI-compatible); anything else -> Anthropic Claude (default).
+    Default preserves the original Claude behaviour, so the client can switch back to Claude at will."""
+    if (provider or '').lower() == 'deepseek':
+        key = os.environ.get('DEEPSEEK_API_KEY')
+        if not key:
+            return 500, 'Missing DEEPSEEK_API_KEY env var.'
+        r = requests.post(
+            'https://api.deepseek.com/chat/completions',
+            headers={'Authorization': f'Bearer {key}', 'content-type': 'application/json'},
+            json={
+                'model': 'deepseek-chat',
+                'max_tokens': max_tokens,
+                'messages': [
+                    {'role': 'system', 'content': system_prompt},
+                    {'role': 'user', 'content': input_text},
+                ],
+            },
+            timeout=120,
+        )
+        if r.status_code != 200:
+            return r.status_code, f"API Error: {r.text}"
+        d = r.json()
+        return 200, (d['choices'][0]['message']['content'] if d.get('choices') else '')
+
+    # default: Anthropic Claude
+    key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
+    if not key:
+        return 500, 'Missing ANTHROPIC_API_KEY env var.'
+    r = requests.post(
+        'https://api.anthropic.com/v1/messages',
+        headers={'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
+        json={
+            'model': 'claude-haiku-4-5-20251001',
+            'max_tokens': max_tokens,
+            'system': system_prompt,
+            'messages': [{'role': 'user', 'content': input_text}],
+        },
+        timeout=60,
+    )
+    if r.status_code != 200:
+        return r.status_code, f"API Error: {r.text}"
+    d = r.json()
+    return 200, (d['content'][0]['text'] if d.get('content') else '')
+
+
 def lambda_handler(event, context):
     # 1. Parse Input Robustly
     body = event.get('body', {})
@@ -88,44 +135,20 @@ A <table> mapping each pillar to ONLY the active platforms stated: {platforms_st
 Include a final section <h3>Execution Guardrails</h3> using an <ul> with <li> items.
 """.strip()
 
-    # 4. Call Anthropic Claude Haiku
-    api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
-    if not api_key:
-        return {
-            'statusCode': 500,
-            'headers': {'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json'},
-            'body': json.dumps({'error': 'Missing ANTHROPIC_API_KEY env var.'})
-        }
-
+    # 4. Call the LLM — DeepSeek if requested, else Anthropic Claude (default).
+    provider = body.get('provider', 'anthropic')
     try:
-        response = requests.post(
-            'https://api.anthropic.com/v1/messages',
-            headers={
-                'x-api-key':         api_key,
-                'anthropic-version': '2023-06-01',
-                'content-type':      'application/json'
-            },
-            json={
-                'model':      'claude-haiku-4-5-20251001',
-                'max_tokens': 4096,
-                'system':     system_prompt,
-                'messages':   [{'role': 'user', 'content': input_text}]
-            },
-            timeout=60
-        )
-        response_json = response.json()
+        status, answer = _llm_complete(provider, system_prompt, input_text, max_tokens=4096)
 
-        if response.status_code != 200:
+        if status != 200:
             return {
-                'statusCode': response.status_code,
+                'statusCode': status,
                 'headers': {
                     'Access-Control-Allow-Origin': '*',
                     'Content-Type': 'application/json'
                 },
-                'body': json.dumps({'error': f"API Error: {response.text}"})
+                'body': json.dumps({'error': answer})
             }
-
-        answer = response_json['content'][0]['text'] if response_json.get('content') else ''
 
         return {
             'statusCode': 200,

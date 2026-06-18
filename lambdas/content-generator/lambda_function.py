@@ -152,15 +152,27 @@ def lambda_handler(event, context):
             "Write the caption as flowing, natural copy only."
         )
 
-    # API Call to OpenAI (replaces the deprecated 1min.ai integration)
-    openai_key = os.environ.get('OPENAI_API_KEY')
-    if not openai_key:
-        print("Error: OPENAI_API_KEY not configured")
-        return "Error: AI provider is not configured."
+    # API Call — DeepSeek if requested (OpenAI-compatible), else OpenAI (default).
+    # Default preserves the original OpenAI behaviour, so flipping DeepSeek off
+    # returns this tool to its normal engine.
+    provider = (event.get('provider') or '').lower()
+    if provider == 'deepseek':
+        api_key = os.environ.get('DEEPSEEK_API_KEY')
+        if not api_key:
+            print("Error: DEEPSEEK_API_KEY not configured")
+            return "Error: AI provider is not configured."
+        url = "https://api.deepseek.com/chat/completions"
+        model_id = 'deepseek-chat'
+    else:
+        api_key = os.environ.get('OPENAI_API_KEY')
+        if not api_key:
+            print("Error: OPENAI_API_KEY not configured")
+            return "Error: AI provider is not configured."
+        url = "https://api.openai.com/v1/chat/completions"
+        model_id = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
 
-    url = "https://api.openai.com/v1/chat/completions"
     json_data = {
-        "model": os.environ.get('OPENAI_MODEL', 'gpt-4o-mini'),
+        "model": model_id,
         "messages": [
             {"role": "user", "content": prompt}
         ],
@@ -170,7 +182,7 @@ def lambda_handler(event, context):
 
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {openai_key}"
+        "Authorization": f"Bearer {api_key}"
     }
 
     try:
