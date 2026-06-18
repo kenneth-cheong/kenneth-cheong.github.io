@@ -4549,6 +4549,7 @@
                             <button class="model-btn active" id="btn-claude-haiku" data-model="claude" onclick="setLLM('claude-haiku')">Haiku</button>
                             <button class="model-btn" id="btn-claude-sonnet" data-model="claude" onclick="setLLM('claude-sonnet')">Sonnet</button>
                             <button class="model-btn" id="btn-gpt-mini" data-model="gpt" onclick="setLLM('gpt-mini')">GPT</button>
+                            <button class="model-btn" id="btn-deepseek" data-model="deepseek" onclick="setLLM('deepseek')">DeepSeek</button>
                         </div>
                     </div>
                     <div class="chat-input-box" id="chat-input-box">
@@ -6319,6 +6320,7 @@
                 if (llm === 'claude-haiku') label = "Claude 3 Haiku";
                 if (llm === 'claude-sonnet') label = "Claude 3.5 Sonnet";
                 if (llm === 'gpt-mini') label = "GPT-4o-mini";
+                if (llm === 'deepseek') label = "DeepSeek";
 
                 if (!silent && typeof showToast === 'function') showToast(`Switched to ${label}`, "info");
             }
@@ -9938,7 +9940,7 @@ Respond with: [AUDIT_SCORES: {"strategy": 85, "compliance": 90, "quality": 80}] 
             async function callAIAPI(userInput, files = [], existingToast = null, explicitPhaseIndex = null) {
                 isProcessing = true;
                 const apiModel = currentLLM === 'gpt-4o-mini' ? 'gpt-4o-mini' : 
-                                 (currentLLM === 'claude-haiku' ? 'claude-3-haiku' : 'claude-3-5-sonnet');
+                                 (currentLLM === 'deepseek' ? 'deepseek-chat' : (currentLLM === 'claude-haiku' ? 'claude-3-haiku' : 'claude-3-5-sonnet'));
                 
                 // Show persistent toast if not provided
                 const isClaude = apiModel.toLowerCase().includes('claude');
@@ -10131,7 +10133,7 @@ Note: Index is 1-based. Blocks can be: title, rich_text, kpi_cards, table, chart
                     }
 
                     const apiModel = currentLLM === 'gpt-mini' ? 'gpt-4o-mini' :
-                        (currentLLM === 'claude-haiku' ? 'claude-3-haiku' : 'claude-3-5-sonnet');
+                        (currentLLM === 'deepseek' ? 'deepseek-chat' : (currentLLM === 'claude-haiku' ? 'claude-3-haiku' : 'claude-3-5-sonnet'));
 
                     const estimatedInputTokens = Math.round(fullPrompt.length / 3.5);
 
@@ -10738,7 +10740,7 @@ Note: Index is 1-based. Blocks can be: title, rich_text, kpi_cards, table, chart
                 const btn = text ? text.parentElement : null;
 
                 const apiModel = currentLLM === 'gpt-mini' ? 'gpt-4o-mini' :
-                    (currentLLM === 'claude-haiku' ? 'claude-3-haiku' : 'claude-3-5-sonnet');
+                    (currentLLM === 'deepseek' ? 'deepseek-chat' : (currentLLM === 'claude-haiku' ? 'claude-3-haiku' : 'claude-3-5-sonnet'));
 
                 const current = projects.find(p => p.id === currentProjectId);
 
@@ -11086,7 +11088,7 @@ CURRENT BLOCKS:
 ${JSON.stringify(slide.blocks)}`;
 
                 try {
-                    const apiModel = currentLLM === 'gpt-mini' ? 'gpt-4o-mini' : (currentLLM === 'claude-haiku' ? 'claude-3-haiku' : 'claude-3-5-sonnet');
+                    const apiModel = currentLLM === 'gpt-mini' ? 'gpt-4o-mini' : (currentLLM === 'deepseek' ? 'deepseek-chat' : (currentLLM === 'claude-haiku' ? 'claude-3-haiku' : 'claude-3-5-sonnet'));
 
                     const response = await fetch(API_BASE_URL, {
                         method: 'POST',
