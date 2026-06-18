@@ -1808,6 +1808,46 @@ def claude_chat_with_tools(body):
     auto_continues = 0       # DeepSeek-only: times we've nudged it to finish a stalled turn
     MAX_AUTO_CONTINUES = 3
 
+    # ── Usage accounting ────────────────────────────────────────────────────
+    # A single user message can span several model rounds (tool use +
+    # auto-continuation). The provider reports per-round token usage; sum it so
+    # the admin usage dashboard sees the true cost of the whole turn, not just
+    # the last round. Normalises Anthropic (input/output_tokens) and DeepSeek
+    # (prompt/completion_tokens) shapes into one running total.
+    usage_total = {"input_tokens": 0, "output_tokens": 0}
+    def _accumulate_usage(u):
+        if not isinstance(u, dict):
+            return
+        usage_total["input_tokens"]  += (u.get("input_tokens")  or u.get("prompt_tokens")     or 0)
+        usage_total["output_tokens"] += (u.get("output_tokens") or u.get("completion_tokens") or 0)
+
+    def _log_usage(rounds):
+        """Best-effort: persist this turn's token usage to the usage_logs
+        collection for the admin usage dashboard. Must never break the chat,
+        so every failure is swallowed."""
+        if usage_total["input_tokens"] == 0 and usage_total["output_tokens"] == 0:
+            return
+        try:
+            db = get_db()
+            if db is None:
+                return
+            email = (body.get('client_email') or body.get('clientEmail') or '').strip().lower() or 'unknown'
+            db.usage_logs.insert_one({
+                "orgId":           "digimetrics",
+                "ts":              time.time(),
+                "savedAt":         datetime.utcnow(),
+                "email":           email,
+                "app_source":      body.get('app_source') or 'unknown',
+                "provider":        provider,
+                "model":           model,
+                "input_tokens":    int(usage_total["input_tokens"]),
+                "output_tokens":   int(usage_total["output_tokens"]),
+                "rounds":          rounds,
+                "conversation_id": body.get('conversation_id') or '',
+            })
+        except Exception as e:
+            print(f"[USAGE] log failed: {e}")
+
     try:
         for round_num in range(MAX_TOOL_ROUNDS + 1):
 
@@ -1929,6 +1969,7 @@ def claude_chat_with_tools(body):
 
             # ── Tool result logging ────────────────────────────────────────────
             usage = response_data.get("usage", {})
+            _accumulate_usage(usage)
             print(f"      Response usage: {json.dumps(usage)}")
             # ───────────────────────────────────────────────────────────────────
 
@@ -1974,6 +2015,7 @@ def claude_chat_with_tools(body):
                 # If DeepSeek still ended announcing more work (past the in-invocation
                 # auto-continue budget), flag it so the client continues in a new message.
                 still_unfinished = (provider == 'deepseek' and _deepseek_turn_unfinished(final_text))
+                _log_usage(round_num)
                 _clear_progress()
                 return {
                     "statusCode": 200,
@@ -2534,6 +2576,7 @@ def claude_chat_with_tools(body):
                 block.get("text", "") for block in content_blocks
                 if block.get("type") == "text"
             ).strip()
+            _log_usage(round_num)
             _clear_progress()
             return {
                 "statusCode": 200,
@@ -2548,6 +2591,7 @@ def claude_chat_with_tools(body):
         fallback = "\n\n".join(
             b.get("text", "") for b in content_blocks if b.get("type") == "text"
         ).strip()
+        _log_usage(round_num)
         _clear_progress()
         return {
             "statusCode": 200,
@@ -3085,6 +3129,67 @@ def lambda_handler(event, context):
                 result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
             else:
                 deleted = db.tool_logs.delete_many({"orgId": "digimetrics"})
+                result = {"statusCode": 200, "body": json.dumps({"success": True, "deleted": deleted.deleted_count}, cls=JSONEncoder)}
+        elif action == 'fetch_usage_stats':
+            # Aggregated chatbot token usage for the admin usage dashboard.
+            # Cost is computed client-side from an editable price table, so this
+            # only returns raw token counts bucketed by model / user / app / day.
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                try:
+                    days = int(body.get('days', 30))
+                except (TypeError, ValueError):
+                    days = 30
+                query = {"orgId": "digimetrics"}
+                if days > 0:
+                    query["ts"] = {"$gte": time.time() - days * 86400}
+                cursor = (db.usage_logs
+                          .find(query, {"_id": 0, "savedAt": 0, "orgId": 0})
+                          .sort("ts", -1)
+                          .limit(20000))
+                rows = list(cursor)
+
+                def _blank():
+                    return {"messages": 0, "input_tokens": 0, "output_tokens": 0}
+                totals = _blank()
+                by_model, by_user, by_app, by_day = {}, {}, {}, {}
+                for r in rows:
+                    it = int(r.get("input_tokens") or 0)
+                    ot = int(r.get("output_tokens") or 0)
+                    for bucket, key in (
+                        (totals,   None),
+                        (by_model, r.get("model") or "unknown"),
+                        (by_user,  r.get("email") or "unknown"),
+                        (by_app,   r.get("app_source") or "unknown"),
+                        (by_day,   datetime.utcfromtimestamp(r.get("ts") or 0).strftime("%Y-%m-%d")),
+                    ):
+                        tgt = bucket if key is None else bucket.setdefault(key, _blank())
+                        tgt["messages"]      += 1
+                        tgt["input_tokens"]  += it
+                        tgt["output_tokens"] += ot
+
+                result = {"statusCode": 200, "body": json.dumps({
+                    "days":      days,
+                    "totals":    totals,
+                    "by_model":  by_model,
+                    "by_user":   by_user,
+                    "by_app":    by_app,
+                    "by_day":    by_day,
+                    "recent":    rows[:60],
+                }, cls=JSONEncoder)}
+        elif action == 'clear_usage_logs':
+            # Admin: purge usage logs. Optional app_source filter lets you drop
+            # just one source (e.g. test traffic) instead of the whole org.
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                q = {"orgId": "digimetrics"}
+                if body.get('app_source'):
+                    q["app_source"] = body.get('app_source')
+                deleted = db.usage_logs.delete_many(q)
                 result = {"statusCode": 200, "body": json.dumps({"success": True, "deleted": deleted.deleted_count}, cls=JSONEncoder)}
         elif action == 'get_monday_data':
             params = body.get('data', body)
