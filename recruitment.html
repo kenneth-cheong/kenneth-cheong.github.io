@@ -2739,7 +2739,8 @@
                     prompt: prompt,            // For the updated Lambda
                     post_info: prompt,         // Fallback for the current Lambda
                     content_type: "plain-text",
-                    action: "generate"
+                    action: "generate",
+                    provider: getLlmProvider()
                 };
 
                 const response = await fetch('https://panc0eazwj.execute-api.ap-southeast-1.amazonaws.com/content-generator', {
@@ -2837,7 +2838,8 @@
                     prompt: prompt,
                     post_info: prompt,
                     content_type: "plain-text",
-                    action: "generate"
+                    action: "generate",
+                    provider: getLlmProvider()
                 };
 
                 const response = await fetch('https://panc0eazwj.execute-api.ap-southeast-1.amazonaws.com/content-generator', {
@@ -5649,6 +5651,43 @@
                 body.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: var(--text-dim);">No logs found.</td></tr>';
             }
         }
+    </script>
+    <script>
+        // ── AI engine switcher for the recruitment AI generators ────────────
+        // content-generator runs on DeepSeek by default (cheaper) but the user can
+        // switch back to the original engine (GPT) at any time. Preference is shared
+        // app-wide via localStorage['chatLlmProvider'].
+        function getLlmProvider() {
+            return localStorage.getItem('chatLlmProvider') === 'anthropic' ? 'anthropic' : 'deepseek';
+        }
+        function renderRecruitEngine() {
+            const isDeep = getLlmProvider() === 'deepseek';
+            const btn = document.getElementById('recruitEngineBtn');
+            if (btn) {
+                btn.innerHTML = '<i class="fas fa-microchip"></i> AI: ' + (isDeep ? 'DeepSeek' : 'GPT');
+                btn.style.background = isDeep ? '#eef2ff' : '#f1f5f9';
+                btn.style.borderColor = isDeep ? '#c7d2fe' : '#cbd5e1';
+                btn.style.color = isDeep ? '#4f46e5' : '#475569';
+            }
+        }
+        function toggleRecruitEngine() {
+            // 'anthropic' here just means "not DeepSeek" → content-generator falls back to GPT.
+            const next = getLlmProvider() === 'deepseek' ? 'anthropic' : 'deepseek';
+            localStorage.setItem('chatLlmProvider', next);
+            renderRecruitEngine();
+            if (typeof showToast === 'function') {
+                showToast(next === 'deepseek' ? 'AI generation set to DeepSeek' : 'AI generation set to GPT');
+            }
+        }
+        (function initRecruitEngine() {
+            const b = document.createElement('button');
+            b.id = 'recruitEngineBtn';
+            b.title = 'Switch the AI engine used for AI generation (DeepSeek ⇄ GPT)';
+            b.onclick = toggleRecruitEngine;
+            b.style.cssText = 'position:fixed;top:12px;right:14px;z-index:9999;border:1px solid #cbd5e1;border-radius:999px;padding:6px 12px;font-size:0.75rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 1px 3px rgba(0,0,0,0.12);';
+            document.body.appendChild(b);
+            renderRecruitEngine();
+        })();
     </script>
 </body>
 
