@@ -2532,6 +2532,31 @@
             color: #3b82f6;
         }
 
+        /* LLM provider switcher (Claude ⇄ DeepSeek) */
+        .model-switch-btn {
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            color: #475569;
+            cursor: pointer;
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 4px 9px;
+            border-radius: 999px;
+            transition: background 0.2s, color 0.2s, border-color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            white-space: nowrap;
+            flex: 0 0 auto;
+        }
+        .model-switch-btn:hover { border-color: #94a3b8; }
+        .model-switch-btn.deepseek {
+            background: #eef2ff;
+            border-color: #c7d2fe;
+            color: #4f46e5;
+        }
+        .model-switch-btn i { font-size: 0.8rem; }
+
         /* Voice chat (hands-free) button */
         .voice-mode-btn {
             background: none;
@@ -4392,6 +4417,10 @@
 
             <div class="input-bar" id="inputBar">
                 <input type="file" id="fileInput" style="display:none;" multiple onchange="handleFileSelect(this)">
+                <button class="model-switch-btn" id="modelSwitchBtn" onclick="toggleLlmProvider()"
+                    title="Switch AI model — Claude (with prompt caching) ⇄ DeepSeek. Both use the same tools & data connectors.">
+                    <i class="fas fa-microchip"></i><span id="modelSwitchLabel">Claude</span>
+                </button>
                 <button class="upload-btn" onclick="document.getElementById('fileInput').click()"
                     title="Attach image or file">
                     <i class="fas fa-paperclip"></i>
@@ -4414,6 +4443,33 @@
         let isSyncing = false;
         let threadId = localStorage.getItem('threadId') || null;
         let currentMode = 'internal';
+
+        // ── LLM provider switcher ───────────────────────────────────────────
+        // Claude is the default and is fully unchanged. DeepSeek is an optional
+        // alternative the user can flip to; both run the SAME server-side tools
+        // and data connectors (the model is selected inside the monday Lambda).
+        // Only the provider name is sent to the backend — never any API key.
+        const LLM_MODELS = { anthropic: 'claude-haiku-4-5', deepseek: 'deepseek-chat' };
+        function getLlmProvider() {
+            return localStorage.getItem('chatLlmProvider') === 'deepseek' ? 'deepseek' : 'anthropic';
+        }
+        function renderModelSwitch() {
+            const provider = getLlmProvider();
+            const btn = document.getElementById('modelSwitchBtn');
+            const label = document.getElementById('modelSwitchLabel');
+            if (label) label.textContent = provider === 'deepseek' ? 'DeepSeek' : 'Claude';
+            if (btn) btn.classList.toggle('deepseek', provider === 'deepseek');
+        }
+        function toggleLlmProvider() {
+            const next = getLlmProvider() === 'deepseek' ? 'anthropic' : 'deepseek';
+            localStorage.setItem('chatLlmProvider', next);
+            renderModelSwitch();
+            if (typeof showToast === 'function') {
+                showToast(next === 'deepseek'
+                    ? 'Switched to DeepSeek — same tools & data connectors'
+                    : 'Switched to Claude', 'info');
+            }
+        }
         window.lastSyncedInternalState = { boards: [], items: [], staff: [] };
 
         // Persistence State
@@ -4932,6 +4988,9 @@
                     console.warn(`[STARTUP] Cleared stale syncedContext (${_sc.length} chars) to prevent token overflow.`);
                 }
             } catch (e) {}
+
+            // Reflect the saved LLM provider on the switcher button
+            renderModelSwitch();
 
             // Start background fetches for filters
             fetchSERankingSites();
@@ -9740,7 +9799,8 @@
                         progress_id: progressId,
                         system: systemBlocks,
                         messages: messagesPayload,
-                        model: 'claude-haiku-4-5',
+                        provider: getLlmProvider(),
+                        model: LLM_MODELS[getLlmProvider()],
                         max_tokens: 4096,
                         monday_api_key: localStorage.getItem('mondayApiKey'),
                         google_access_token: localStorage.getItem('googleToken_Workspace'),

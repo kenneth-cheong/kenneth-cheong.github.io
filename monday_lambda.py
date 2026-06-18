@@ -1052,6 +1052,155 @@ TOOL_LABELS = {
     "search_knowledge_base":           "Searching knowledge base",
 }
 
+# ── DeepSeek (OpenAI-compatible) provider adapter ────────────────────────────
+# The agentic loop below is written entirely against Anthropic's wire format
+# (content blocks, tool_use/tool_result, stop_reason). DeepSeek speaks the
+# OpenAI chat-completions format instead. These two pure helpers translate at
+# the request-out / response-in seams so the ~500-line tool dispatch and the
+# Anthropic-shaped `messages` history stay byte-for-byte unchanged. The Claude
+# path never touches this code.
+
+def _flatten_text(content):
+    """Anthropic content (string OR list of blocks) → plain text for OpenAI."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for b in content:
+            if isinstance(b, dict) and b.get("type") == "text" and b.get("text"):
+                parts.append(b["text"])
+            elif isinstance(b, str):
+                parts.append(b)
+        return "\n".join(parts)
+    return str(content) if content is not None else ""
+
+
+def _stringify_tool_result(content):
+    """A tool_result block's content → a single string DeepSeek's tool role accepts."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for b in content:
+            if isinstance(b, dict):
+                if b.get("type") == "text" and b.get("text") is not None:
+                    parts.append(b["text"])
+                else:
+                    # image or other non-text block — DeepSeek tool role is text-only
+                    parts.append(json.dumps(b))
+            else:
+                parts.append(str(b))
+        return "\n".join(parts)
+    return json.dumps(content) if content is not None else ""
+
+
+def _anthropic_to_openai(system, messages, tools):
+    """Translate Anthropic system+messages+tools → OpenAI chat-completions shape."""
+    openai_messages = []
+
+    sys_text = _flatten_text(system) if system else ""
+    if sys_text.strip():
+        openai_messages.append({"role": "system", "content": sys_text})
+
+    for m in messages:
+        role = m.get("role")
+        content = m.get("content")
+
+        # Plain-string content passes straight through.
+        if isinstance(content, str):
+            openai_messages.append({"role": role, "content": content})
+            continue
+
+        if not isinstance(content, list):
+            openai_messages.append({"role": role, "content": _flatten_text(content)})
+            continue
+
+        if role == "assistant":
+            text_parts = []
+            tool_calls = []
+            for b in content:
+                if not isinstance(b, dict):
+                    continue
+                btype = b.get("type")
+                if btype == "text" and b.get("text"):
+                    text_parts.append(b["text"])
+                elif btype == "tool_use":
+                    tool_calls.append({
+                        "id": b.get("id", ""),
+                        "type": "function",
+                        "function": {
+                            "name": b.get("name", ""),
+                            "arguments": json.dumps(b.get("input", {})),
+                        },
+                    })
+                # thinking / redacted_thinking blocks are dropped (DeepSeek has none)
+            msg = {"role": "assistant", "content": "\n".join(text_parts)}
+            if tool_calls:
+                msg["tool_calls"] = tool_calls
+            openai_messages.append(msg)
+            continue
+
+        # user role: may carry tool_result blocks and/or text/image blocks.
+        tool_result_msgs = []
+        text_parts = []
+        for b in content:
+            if not isinstance(b, dict):
+                if isinstance(b, str):
+                    text_parts.append(b)
+                continue
+            if b.get("type") == "tool_result":
+                tool_result_msgs.append({
+                    "role": "tool",
+                    "tool_call_id": b.get("tool_use_id", ""),
+                    "content": _stringify_tool_result(b.get("content", "")),
+                })
+            elif b.get("type") == "text" and b.get("text"):
+                text_parts.append(b["text"])
+            # image blocks in user turns are not forwarded to DeepSeek (text model)
+        # tool results must come before any free-text user message in the sequence
+        openai_messages.extend(tool_result_msgs)
+        if text_parts:
+            openai_messages.append({"role": "user", "content": "\n".join(text_parts)})
+
+    openai_tools = [{
+        "type": "function",
+        "function": {
+            "name": t.get("name"),
+            "description": t.get("description", ""),
+            "parameters": t.get("input_schema", {"type": "object", "properties": {}}),
+        },
+    } for t in (tools or [])]
+
+    return openai_messages, openai_tools
+
+
+def _openai_to_anthropic(choice_message, finish_reason):
+    """Translate one DeepSeek choice → (stop_reason, content_blocks) the loop expects."""
+    content_blocks = []
+
+    text = choice_message.get("content")
+    if text:
+        content_blocks.append({"type": "text", "text": text})
+
+    tool_calls = choice_message.get("tool_calls") or []
+    for tc in tool_calls:
+        fn = tc.get("function", {}) or {}
+        raw_args = fn.get("arguments", "") or "{}"
+        try:
+            parsed = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+        except (ValueError, TypeError):
+            parsed = {}
+        content_blocks.append({
+            "type": "tool_use",
+            "id": tc.get("id", f"call_{int(time.time()*1000)}"),
+            "name": fn.get("name", ""),
+            "input": parsed if isinstance(parsed, dict) else {},
+        })
+
+    stop_reason = "tool_use" if (finish_reason == "tool_calls" or tool_calls) else "end_turn"
+    return stop_reason, content_blocks
+# ─────────────────────────────────────────────────────────────────────────────
+
 def claude_chat_with_tools(body):
     """
     Full agentic loop:
@@ -1067,12 +1216,22 @@ def claude_chat_with_tools(body):
       max_tokens - int (optional, defaults to 4096)
       model      - Claude model ID (optional)
     """
+    # Provider switcher: 'anthropic' (default, unchanged) or 'deepseek'.
+    provider = (body.get('provider') or 'anthropic').lower()
+
     anthropic_key = os.environ.get('ANTHROPIC_API_KEY')
     anthropic_key_backup = os.environ.get('ANTHROPIC_API_KEY_BACKUP')
-    if not anthropic_key:
-        return {"statusCode": 500, "body": json.dumps({"error": "ANTHROPIC_API_KEY environment variable not configured"})}
+    deepseek_key = os.environ.get('DEEPSEEK_API_KEY')
 
-    model      = body.get('model') or os.environ.get('CLAUDE_MODEL', 'claude-haiku-4-5')
+    if provider == 'deepseek':
+        if not deepseek_key:
+            return {"statusCode": 500, "body": json.dumps({"error": "DEEPSEEK_API_KEY environment variable not configured"})}
+        model = body.get('model') or os.environ.get('DEEPSEEK_MODEL', 'deepseek-chat')
+    else:
+        if not anthropic_key:
+            return {"statusCode": 500, "body": json.dumps({"error": "ANTHROPIC_API_KEY environment variable not configured"})}
+        model = body.get('model') or os.environ.get('CLAUDE_MODEL', 'claude-haiku-4-5')
+
     system     = body.get('system', '')
     messages   = list(body.get('messages', []))   # mutable copy for the loop
     max_tokens = int(body.get('max_tokens', 4096))
@@ -1491,32 +1650,67 @@ def claude_chat_with_tools(body):
             sys_size = len(system) if system else 0
             msg_size = len(json.dumps(messages))
             total_est = sys_size + msg_size
-            print(f"[LOG] Anthropic Request - Round {round_num}")
+            print(f"[LOG] {provider} Request ({model}) - Round {round_num}")
             print(f"      System Prompt Size: {sys_size} chars")
             print(f"      Messages Size:      {msg_size} chars")
             print(f"      Estimated Total:    {total_est} chars")
             # ───────────────────────────────────────────────────────────────────
 
-            r = requests.post(
-                "https://api.anthropic.com/v1/messages",
-                headers=anthropic_headers,
-                json=payload,
-                timeout=60,
-            )
+            if provider == 'deepseek':
+                # ── DeepSeek (OpenAI-compatible) path ──────────────────────────
+                ds_messages, ds_tools = _anthropic_to_openai(system, messages, tools)
+                ds_payload = {
+                    "model": model,
+                    "max_tokens": max_tokens,
+                    "messages": ds_messages,
+                }
+                if ds_tools:
+                    ds_payload["tools"] = ds_tools
+                    ds_payload["tool_choice"] = "auto"
 
-            if r.status_code != 200:
-                err_body = r.text[:1000]
-                print(f"[TOOLS] Anthropic error {r.status_code}: {err_body}")
-                # On usage-limit errors, retry once with the backup key if available
-                if r.status_code in (429, 529) and anthropic_key_backup and anthropic_headers["x-api-key"] != anthropic_key_backup:
-                    print("[TOOLS] Primary key hit usage limit — retrying with backup key")
-                    anthropic_headers["x-api-key"] = anthropic_key_backup
-                    continue
-                return {"statusCode": r.status_code, "body": json.dumps({"error": f"Anthropic API error {r.status_code}", "detail": err_body})}
+                r = requests.post(
+                    "https://api.deepseek.com/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {deepseek_key}",
+                        "content-type": "application/json",
+                    },
+                    json=ds_payload,
+                    timeout=120,
+                )
 
-            response_data = r.json()
-            stop_reason   = response_data.get("stop_reason")
-            content_blocks = response_data.get("content", [])
+                if r.status_code != 200:
+                    err_body = r.text[:1000]
+                    print(f"[TOOLS] DeepSeek error {r.status_code}: {err_body}")
+                    return {"statusCode": r.status_code, "body": json.dumps({"error": f"DeepSeek API error {r.status_code}", "detail": err_body})}
+
+                response_data = r.json()
+                choice = (response_data.get("choices") or [{}])[0]
+                stop_reason, content_blocks = _openai_to_anthropic(
+                    choice.get("message", {}) or {},
+                    choice.get("finish_reason"),
+                )
+            else:
+                # ── Anthropic path (unchanged) ─────────────────────────────────
+                r = requests.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers=anthropic_headers,
+                    json=payload,
+                    timeout=60,
+                )
+
+                if r.status_code != 200:
+                    err_body = r.text[:1000]
+                    print(f"[TOOLS] Anthropic error {r.status_code}: {err_body}")
+                    # On usage-limit errors, retry once with the backup key if available
+                    if r.status_code in (429, 529) and anthropic_key_backup and anthropic_headers["x-api-key"] != anthropic_key_backup:
+                        print("[TOOLS] Primary key hit usage limit — retrying with backup key")
+                        anthropic_headers["x-api-key"] = anthropic_key_backup
+                        continue
+                    return {"statusCode": r.status_code, "body": json.dumps({"error": f"Anthropic API error {r.status_code}", "detail": err_body})}
+
+                response_data = r.json()
+                stop_reason   = response_data.get("stop_reason")
+                content_blocks = response_data.get("content", [])
 
             # ── Tool result logging ────────────────────────────────────────────
             usage = response_data.get("usage", {})
