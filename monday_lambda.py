@@ -10,6 +10,15 @@ from datetime import datetime
 from pymongo import MongoClient, UpdateOne
 from bson import ObjectId
 
+def clean_email(raw):
+    """Extract a bare email address from a value that may be wrapped in escaped
+    quotes/backslashes (clientEmail in localStorage sometimes is). Returns a
+    lowercased address, or 'unknown' when none is found."""
+    if not raw:
+        return 'unknown'
+    m = re.search(r'[\w.+-]+@[\w-]+\.[\w.-]*[\w]', str(raw))
+    return m.group(0).lower() if m else 'unknown'
+
 MONDAY_API_KEY = os.environ.get('MONDAY_API_KEY') or os.environ.get('MONDAY_TOKEN')
 MONDAY_API_URL = "https://api.monday.com/v2"
 SERANKING_TOKEN = os.environ.get('SERANKING_TOKEN') or "4181980cafdc89bc7bd8c7e9d26725f18cd617ef"
@@ -1831,7 +1840,9 @@ def claude_chat_with_tools(body):
             db = get_db()
             if db is None:
                 return
-            email = (body.get('client_email') or body.get('clientEmail') or '').strip().lower() or 'unknown'
+            # clientEmail in localStorage is sometimes wrapped in escaped quotes/
+            # backslashes; extract the bare address so the dashboard groups cleanly.
+            email = clean_email(body.get('client_email') or body.get('clientEmail'))
             db.usage_logs.insert_one({
                 "orgId":           "digimetrics",
                 "ts":              time.time(),
@@ -3158,10 +3169,13 @@ def lambda_handler(event, context):
                 for r in rows:
                     it = int(r.get("input_tokens") or 0)
                     ot = int(r.get("output_tokens") or 0)
+                    # Normalise possibly-escaped emails on read so old rows group
+                    # under the same clean key as new ones; also fix `recent`.
+                    r["email"] = clean_email(r.get("email"))
                     for bucket, key in (
                         (totals,   None),
                         (by_model, r.get("model") or "unknown"),
-                        (by_user,  r.get("email") or "unknown"),
+                        (by_user,  r["email"]),
                         (by_app,   r.get("app_source") or "unknown"),
                         (by_day,   datetime.utcfromtimestamp(r.get("ts") or 0).strftime("%Y-%m-%d")),
                     ):
