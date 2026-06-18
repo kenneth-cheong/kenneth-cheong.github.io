@@ -254,7 +254,10 @@
                 const payload = {
                     company_name: clientName,
                     strings: extractedTexts, // Use the extractedTexts array
-                    instructions: instructions
+                    instructions: instructions,
+                    // Default to DeepSeek (the OpenAI key on this Lambda is currently invalid);
+                    // honours a shared app-wide engine preference if one is set.
+                    provider: (localStorage.getItem('chatLlmProvider') === 'anthropic' ? 'anthropic' : 'deepseek')
                 };
 
                 const response = await fetch('https://djhsystd3h.execute-api.ap-southeast-1.amazonaws.com/proposeElementorContent', {
