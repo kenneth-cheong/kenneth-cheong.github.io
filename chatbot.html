@@ -5177,6 +5177,10 @@
         function processFile(file) {
             currentAttachments.push(file);
             renderAttachmentPreviews();
+            // On DeepSeek, images are read by Claude under the hood (seamless) — let the user know.
+            if (file.type && file.type.startsWith('image/') && getLlmProvider() === 'deepseek') {
+                showToast("On DeepSeek — I'll use Claude to read your image, then keep the conversation here.", 'info', 6000);
+            }
         }
 
         function renderAttachmentPreviews() {
@@ -9194,12 +9198,18 @@
             if (currentAttachments.length) {
                 showToast(`Uploading ${currentAttachments.length} file${currentAttachments.length > 1 ? 's' : ''}…`, 'loading', 4000);
                 for (const file of currentAttachments) {
+                    // Stable id for images so DeepSeek's analyze_image tool can re-fetch
+                    // them (a "second look") across turns and reloads.
+                    const extra = {};
+                    if (file.type && file.type.startsWith('image/')) {
+                        extra.imageId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `img_${Date.now()}_${Math.floor(Math.random()*1e9)}`;
+                    }
                     try {
                         const s3Data = await uploadAttachmentToS3(file);
-                        enrichedAttachments.push(Object.assign(file, { s3Key: s3Data.s3Key, url: s3Data.url }));
+                        enrichedAttachments.push(Object.assign(file, { s3Key: s3Data.s3Key, url: s3Data.url }, extra));
                     } catch(e) {
                         console.warn(`[S3 UPLOAD] Failed for ${file.name}, proceeding without persistent URL:`, e);
-                        enrichedAttachments.push(file);
+                        enrichedAttachments.push(Object.assign(file, extra));
                     }
                 }
             }
@@ -9662,9 +9672,15 @@
                 // files together can't blow the token limit.
                 const MAX_DOC_CHARS_TOTAL = 40000;
                 let docCharsUsed = 0;
+                const _isDeepseek = getLlmProvider() === 'deepseek';
                 for (const att of activeAttachments) {
                     if (att.type && att.type.startsWith('image/')) {
-                        if (CLAUDE_IMAGE_TYPES.includes(att.type)) {
+                        if (_isDeepseek) {
+                            // DeepSeek can't take image blocks — it sees images via the
+                            // analyze_image tool (carried in deepseek_images). Avoid putting
+                            // base64 in the message too (it would double the payload).
+                            currentContent[0].text += `\n\n[Attached image "${att.name}" (id: ${att.imageId}). Use the analyze_image tool to view it.]`;
+                        } else if (CLAUDE_IMAGE_TYPES.includes(att.type)) {
                             const b64 = await getFileBase64(att);
                             currentContent.push({
                                 type: "image",
@@ -9790,6 +9806,40 @@
                     ? crypto.randomUUID()
                     : `p_${Date.now()}_${Math.floor(Math.random() * 1e9)}`;
                 cbStartProgressPoll(progressId);
+
+                // DeepSeek vision: assemble the image registry so the analyze_image tool
+                // can run Claude's vision under the hood. New images this turn carry base64
+                // (the Lambda persists them to Mongo); images from earlier turns / restored
+                // conversations are sent id-only (the Lambda already has them).
+                let deepseekImages;
+                if (getLlmProvider() === 'deepseek') {
+                    window._deepseekSentImageIds = window._deepseekSentImageIds || new Set();
+                    const imgs = [];
+                    const seen = new Set();
+                    // Current turn's freshly-attached images (we have the File → base64).
+                    for (const att of activeAttachments) {
+                        if (!att.imageId || !(att.type || '').startsWith('image/')) continue;
+                        seen.add(att.imageId);
+                        let b64 = null, media = att.type;
+                        try {
+                            if (CLAUDE_IMAGE_TYPES.includes(att.type)) { b64 = await getFileBase64(att); }
+                            else { b64 = await convertImageToPng(att); media = 'image/png'; }
+                        } catch (e) { console.warn('[VISION] base64 failed', e); }
+                        imgs.push({ id: att.imageId, name: att.name, media_type: media, b64: b64 || undefined });
+                        if (b64) window._deepseekSentImageIds.add(att.imageId);
+                    }
+                    // Images from earlier turns in this conversation (id-only; Mongo-backed).
+                    for (let i = chatHistory.length - 1; i >= 0 && imgs.length < 4; i--) {
+                        for (const a of (chatHistory[i].attachments || [])) {
+                            if (a.imageId && !seen.has(a.imageId) && (a.mimeType || '').startsWith('image/')) {
+                                seen.add(a.imageId);
+                                imgs.push({ id: a.imageId, name: a.name, media_type: a.mimeType });
+                            }
+                        }
+                    }
+                    if (imgs.length) deepseekImages = imgs.slice(0, 4);
+                }
+
                 const res = await cbFetchWithRetry(MONDAY_LAMBDA_URL, {
                     signal: _chatAbortController.signal,
                     method: 'POST',
@@ -9801,6 +9851,8 @@
                         messages: messagesPayload,
                         provider: getLlmProvider(),
                         model: LLM_MODELS[getLlmProvider()],
+                        deepseek_images: deepseekImages,
+                        conversation_id: currentConversationId || 'unsaved',
                         max_tokens: 4096,
                         monday_api_key: localStorage.getItem('mondayApiKey'),
                         google_access_token: localStorage.getItem('googleToken_Workspace'),
@@ -10004,12 +10056,13 @@
             if (!isRestoring && attachmentList.length && sender === 'user') {
                 const histEntry = chatHistory[chatHistory.length - 1];
                 const persisted = attachmentList
-                    .filter(att => att && att.s3Key)
+                    .filter(att => att && (att.s3Key || att.imageId))
                     .map(att => ({
                         name: att.name,
                         mimeType: att.type || att.mimeType || '',
                         s3Key: att.s3Key,
-                        url: att.url
+                        url: att.url,
+                        imageId: att.imageId   // lets DeepSeek re-analyze the image after reload (Mongo-backed)
                     }));
                 if (histEntry && persisted.length) {
                     histEntry.attachments = persisted;

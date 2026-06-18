@@ -1050,6 +1050,7 @@ TOOL_LABELS = {
     "get_workduo_report":              "Fetching AI visibility data",
     "get_ahrefs_report":               "Fetching Ahrefs data",
     "search_knowledge_base":           "Searching knowledge base",
+    "analyze_image":                   "Reading image with Claude",
 }
 
 # ── DeepSeek (OpenAI-compatible) provider adapter ────────────────────────────
@@ -1156,7 +1157,15 @@ def _anthropic_to_openai(system, messages, tools):
                 })
             elif b.get("type") == "text" and b.get("text"):
                 text_parts.append(b["text"])
-            # image blocks in user turns are not forwarded to DeepSeek (text model)
+            elif b.get("type") == "image":
+                # DeepSeek's API is text-only and would reject image blocks. Don't drop
+                # them silently — leave a note so the model can give the user a helpful
+                # answer instead of replying blind as if no image was sent.
+                text_parts.append(
+                    "[An image was attached here, but the current model (DeepSeek) cannot "
+                    "view images. Tell the user to switch to Claude — the model pill in the "
+                    "input bar — and resend the image for visual analysis.]"
+                )
         # tool results must come before any free-text user message in the sequence
         openai_messages.extend(tool_result_msgs)
         if text_parts:
@@ -1233,6 +1242,104 @@ _DEEPSEEK_TOOL_DISCIPLINE = (
     "once you already have ALL the information. Do not announce future actions; either "
     "perform them now via a tool call, or finish your complete answer."
 )
+
+
+# ── DeepSeek vision bridge ───────────────────────────────────────────────────
+# DeepSeek can't see images, so when the user is on DeepSeek and uploads one, we
+# give DeepSeek an `analyze_image` tool that runs Claude's vision under the hood.
+# Images are persisted in MongoDB (keyed by a stable client id) so a "second look"
+# works across page reloads / reopened conversations — not just within a session.
+
+_CHAT_IMAGES_TTL_DAYS = 30
+
+def _chat_images_coll():
+    """The chat_images collection, with a TTL index ensured once. None if Mongo is down."""
+    db = get_db()
+    if db is None:
+        return None
+    coll = db['chat_images']
+    try:
+        coll.create_index("ts", expireAfterSeconds=_CHAT_IMAGES_TTL_DAYS * 24 * 3600)
+    except Exception:
+        pass  # index may already exist / Mongo hiccup — never block the chat
+    return coll
+
+
+def _store_chat_image(image_id, b64, media_type, name, conversation_id):
+    """Persist an uploaded image so analyze_image can retrieve it later. Best-effort."""
+    if not image_id or not b64:
+        return
+    try:
+        coll = _chat_images_coll()
+        if coll is None:
+            return
+        coll.update_one(
+            {"_id": image_id},
+            {"$set": {
+                "b64": b64,
+                "media_type": media_type or "image/png",
+                "name": name or "image",
+                "conversation_id": conversation_id or "",
+                "ts": datetime.utcnow(),
+            }},
+            upsert=True,
+        )
+    except Exception as e:
+        print(f"[VISION] store image failed: {e}")
+
+
+def _load_chat_image(image_id):
+    """Return {b64, media_type, name} for a stored image id, or None."""
+    try:
+        coll = _chat_images_coll()
+        if coll is None:
+            return None
+        return coll.find_one({"_id": image_id})
+    except Exception as e:
+        print(f"[VISION] load image failed: {e}")
+        return None
+
+
+def _claude_vision(b64, media_type, question):
+    """One-shot Claude vision call: image + question → description text (or error string)."""
+    anthropic_key = os.environ.get('ANTHROPIC_API_KEY')
+    if not anthropic_key:
+        return "[vision unavailable: ANTHROPIC_API_KEY not configured]"
+    mt = media_type if media_type in ('image/jpeg', 'image/png', 'image/gif', 'image/webp') else 'image/png'
+    headers = {
+        'x-api-key': anthropic_key,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+    }
+    payload = {
+        'model': 'claude-haiku-4-5',
+        'max_tokens': 1024,
+        'messages': [{
+            'role': 'user',
+            'content': [
+                {'type': 'image', 'source': {'type': 'base64', 'media_type': mt, 'data': b64}},
+                {'type': 'text', 'text': question or 'Describe this image in detail.'},
+            ],
+        }],
+    }
+    try:
+        r = requests.post('https://api.anthropic.com/v1/messages', headers=headers, json=payload, timeout=60)
+        if r.status_code != 200:
+            # retry once on a usage-limit error with the backup key, mirroring the main loop
+            backup = os.environ.get('ANTHROPIC_API_KEY_BACKUP')
+            if r.status_code in (429, 529) and backup:
+                headers['x-api-key'] = backup
+                r = requests.post('https://api.anthropic.com/v1/messages', headers=headers, json=payload, timeout=60)
+            if r.status_code != 200:
+                print(f"[VISION] Claude error {r.status_code}: {r.text[:300]}")
+                return f"[vision error {r.status_code}]"
+        blocks = r.json().get('content', [])
+        return "\n\n".join(b.get('text', '') for b in blocks if b.get('type') == 'text').strip() or "[no description returned]"
+    except requests.exceptions.Timeout:
+        return "[vision timed out]"
+    except Exception as e:
+        print(f"[VISION] exception: {e}")
+        return f"[vision failed: {e}]"
 # ─────────────────────────────────────────────────────────────────────────────
 
 def claude_chat_with_tools(body):
@@ -1273,6 +1380,25 @@ def claude_chat_with_tools(body):
 
     if not messages:
         return {"statusCode": 400, "body": json.dumps({"error": "No messages provided"})}
+
+    # ── DeepSeek vision: ingest any attached images ─────────────────────────
+    # DeepSeek is text-only; when on DeepSeek the client sends image metadata (and
+    # base64 on first upload) in `deepseek_images`. Persist new ones to Mongo and
+    # build the list available this turn, so the analyze_image tool can run Claude
+    # vision on them — now and across reloads (id-only on later turns).
+    deepseek_images = body.get('deepseek_images') or []
+    available_images = []
+    if provider == 'deepseek' and isinstance(deepseek_images, list):
+        conv_id = body.get('conversation_id') or ''
+        for img in deepseek_images[:8]:
+            if not isinstance(img, dict):
+                continue
+            img_id = img.get('id')
+            if not img_id:
+                continue
+            if img.get('b64'):
+                _store_chat_image(img_id, img['b64'], img.get('media_type'), img.get('name'), conv_id)
+            available_images.append({"id": img_id, "name": img.get('name') or 'image'})
 
     # ── Live progress reporting ─────────────────────────────────────────────
     # The browser sends a progress_id and polls get_chat_progress while this
@@ -1652,6 +1778,23 @@ def claude_chat_with_tools(body):
         }
     ]
 
+    # DeepSeek-only: expose Claude vision as a tool when the user attached image(s).
+    if provider == 'deepseek' and available_images:
+        tools.append({
+            "name": "analyze_image",
+            "description": "View and analyze an image the user attached. You (DeepSeek) cannot see "
+                           "images directly — call this to have Claude's vision examine one and return a "
+                           "description. Call it again with a more specific question for a closer second look.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "image_id": {"type": "string", "description": "The id of the image to examine (see the attached-images list)."},
+                    "question": {"type": "string", "description": "What to look for, e.g. 'Describe this image' or 'What text appears in it?'"},
+                },
+                "required": ["image_id", "question"],
+            },
+        })
+
     anthropic_headers = {
         "x-api-key": anthropic_key,
         "anthropic-version": "2023-06-01",
@@ -1697,10 +1840,20 @@ def claude_chat_with_tools(body):
                 ds_messages, ds_tools = _anthropic_to_openai(system, messages, tools)
                 # Append the tool-discipline reminder to the system message so DeepSeek
                 # doesn't stall mid-task by narrating its next step instead of doing it.
+                ds_system_extra = _DEEPSEEK_TOOL_DISCIPLINE
+                if available_images:
+                    _img_list = "; ".join(f"{im['id']} ({im['name']})" for im in available_images)
+                    ds_system_extra += (
+                        "\n\nATTACHED IMAGES: The user has attached image(s): " + _img_list + ". "
+                        "You cannot see images directly. To answer ANY question about them, call the "
+                        "analyze_image tool with the image_id and a specific question — do this immediately, "
+                        "and call it again for follow-up detail (a 'second look'). Never tell the user you "
+                        "can't see images; use the tool instead."
+                    )
                 if ds_messages and ds_messages[0].get("role") == "system":
-                    ds_messages[0]["content"] = (ds_messages[0].get("content") or "") + _DEEPSEEK_TOOL_DISCIPLINE
+                    ds_messages[0]["content"] = (ds_messages[0].get("content") or "") + ds_system_extra
                 else:
-                    ds_messages.insert(0, {"role": "system", "content": _DEEPSEEK_TOOL_DISCIPLINE.strip()})
+                    ds_messages.insert(0, {"role": "system", "content": ds_system_extra.strip()})
                 ds_payload = {
                     "model": model,
                     "max_tokens": max_tokens,
@@ -2327,6 +2480,24 @@ def claude_chat_with_tools(body):
                             "content":     json.dumps(result_data)
                         })
                         tool_call_log.append(f"Searched knowledge base for: {kb_query}")
+
+                    elif tool_name == "analyze_image":
+                        # DeepSeek vision bridge: run Claude's vision on a stored image.
+                        img_id    = tool_input.get("image_id", "")
+                        question  = tool_input.get("question", "Describe this image in detail.")
+                        print(f"[VISION] analyze_image id={img_id} q={question[:80]!r}")
+                        img_doc = _load_chat_image(img_id)
+                        if not img_doc or not img_doc.get("b64"):
+                            vision_text = ("That image is no longer available (it may have expired or was from a "
+                                           "previous session). Ask the user to re-upload it so I can take a look.")
+                        else:
+                            vision_text = _claude_vision(img_doc["b64"], img_doc.get("media_type"), question)
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     json.dumps({"image_id": img_id, "analysis": vision_text}),
+                        })
+                        tool_call_log.append(f"Analyzed image with Claude: {question[:80]}")
 
                     else:
                         # Unknown tool — return an error so Claude can recover
