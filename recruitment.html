@@ -2851,9 +2851,22 @@
                 const data = await response.json();
                 let content = typeof data === 'object' ? (data.body || data.result || JSON.stringify(data)) : data;
 
+                console.log("AI Raw Response (criteria):", content); // Debug log
+
+                if (typeof content === 'string' && content.trim().startsWith('Error:')) {
+                    throw new Error(content);
+                }
+
+                // Extract JSON array reliably
                 const jsonMatch = content.match(/\[\s*\{.*\}\s*\]/s);
                 if (jsonMatch) {
                     content = jsonMatch[0];
+                } else {
+                    const startIdx = content.indexOf('[');
+                    const endIdx = content.lastIndexOf(']');
+                    if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+                        content = content.substring(startIdx, endIdx + 1);
+                    }
                 }
 
                 const criteria = JSON.parse(content);

@@ -152,31 +152,33 @@ def lambda_handler(event, context):
             "Write the caption as flowing, natural copy only."
         )
 
-    # API Call to 1min.ai
-    url = "https://api.1min.ai/api/features"
+    # API Call to OpenAI (replaces the deprecated 1min.ai integration)
+    openai_key = os.environ.get('OPENAI_API_KEY')
+    if not openai_key:
+        print("Error: OPENAI_API_KEY not configured")
+        return "Error: AI provider is not configured."
+
+    url = "https://api.openai.com/v1/chat/completions"
     json_data = {
-        "type": "CHAT_WITH_AI",
-        "model": "gpt-4o-mini",
-        "promptObject": {
-            "prompt": prompt,
-            "isMixed": False,
-            "webSearch": True,
-            "numOfSite": 1,
-            "maxWord": 1200
-        }
+        "model": os.environ.get('OPENAI_MODEL', 'gpt-4o-mini'),
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 2000,
+        "temperature": 0.7
     }
 
     headers = {
         "Content-Type": "application/json",
-        'API-KEY': "2154bdde6d17a2d600ef5d662e1ddca1ac0272679402a08832a0c0fdc652cc61"
+        "Authorization": f"Bearer {openai_key}"
     }
 
     try:
-        response = requests.post(url, headers=headers, json=json_data)
+        response = requests.post(url, headers=headers, json=json_data, timeout=120)
         response.raise_for_status()
 
-        result_text = response.json()['aiRecord']['aiRecordDetail']['resultObject'][0]
-        output = result_text.replace('```html','').replace('```','').strip()
+        result_text = response.json()['choices'][0]['message']['content']
+        output = result_text.replace('```html', '').replace('```json', '').replace('```', '').strip()
 
         return output
     except requests.exceptions.RequestException as e:
