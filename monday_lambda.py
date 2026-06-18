@@ -1199,6 +1199,40 @@ def _openai_to_anthropic(choice_message, finish_reason):
 
     stop_reason = "tool_use" if (finish_reason == "tool_calls" or tool_calls) else "end_turn"
     return stop_reason, content_blocks
+
+
+# DeepSeek (unlike Claude) sometimes ENDS a turn by announcing the next step as
+# plain text ("Let me check the other boards now.") instead of firing the tool
+# call — leaving the user with a half-finished answer. Detect that so the loop
+# can nudge it to actually continue.
+_DEEPSEEK_CONTINUE_CUES = (
+    "let me check", "let me look", "let me fetch", "let me pull", "let me query",
+    "let me gather", "let me retrieve", "let me grab", "let me see the",
+    "now let me", "let me now", "next, i", "next i", "i'll check", "i will check",
+    "i'll look", "i'll now", "i'll pull", "i'll fetch", "i'll query", "i'll gather",
+    "checking the other", "check the other", "let me examine", "moving on to",
+    "let me go through", "give me a moment", "one moment", "hold on",
+)
+
+def _deepseek_turn_unfinished(text):
+    """True if DeepSeek ended a turn empty or while announcing more work to do."""
+    t = (text or "").strip().lower()
+    if not t:
+        return True
+    tail = t[-140:]
+    return any(cue in tail for cue in _DEEPSEEK_CONTINUE_CUES)
+
+
+# Injected only for DeepSeek: keep it from stalling mid-task.
+_DEEPSEEK_TOOL_DISCIPLINE = (
+    "\n\nTOOL DISCIPLINE (critical): You are running inside an agentic loop with real, "
+    "live tools. When you need data, call the appropriate tool IMMEDIATELY. NEVER reply "
+    "with phrases like 'let me check…', 'now let me look at…', or 'let me check the other "
+    "boards now' and then stop — that leaves the user with an unfinished answer. Keep "
+    "issuing tool calls across as many steps as you need, and only write your final response "
+    "once you already have ALL the information. Do not announce future actions; either "
+    "perform them now via a tool call, or finish your complete answer."
+)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def claude_chat_with_tools(body):
@@ -1628,6 +1662,8 @@ def claude_chat_with_tools(body):
 
     tool_call_log = []   # human-readable summary for the UI
     MAX_TOOL_ROUNDS = 8  # safety cap to prevent infinite loops
+    auto_continues = 0       # DeepSeek-only: times we've nudged it to finish a stalled turn
+    MAX_AUTO_CONTINUES = 3
 
     try:
         for round_num in range(MAX_TOOL_ROUNDS + 1):
@@ -1659,6 +1695,12 @@ def claude_chat_with_tools(body):
             if provider == 'deepseek':
                 # ── DeepSeek (OpenAI-compatible) path ──────────────────────────
                 ds_messages, ds_tools = _anthropic_to_openai(system, messages, tools)
+                # Append the tool-discipline reminder to the system message so DeepSeek
+                # doesn't stall mid-task by narrating its next step instead of doing it.
+                if ds_messages and ds_messages[0].get("role") == "system":
+                    ds_messages[0]["content"] = (ds_messages[0].get("content") or "") + _DEEPSEEK_TOOL_DISCIPLINE
+                else:
+                    ds_messages.insert(0, {"role": "system", "content": _DEEPSEEK_TOOL_DISCIPLINE.strip()})
                 ds_payload = {
                     "model": model,
                     "max_tokens": max_tokens,
@@ -1685,10 +1727,30 @@ def claude_chat_with_tools(body):
 
                 response_data = r.json()
                 choice = (response_data.get("choices") or [{}])[0]
-                stop_reason, content_blocks = _openai_to_anthropic(
-                    choice.get("message", {}) or {},
-                    choice.get("finish_reason"),
-                )
+                ds_finish = choice.get("finish_reason")
+                ds_msg = choice.get("message", {}) or {}
+                stop_reason, content_blocks = _openai_to_anthropic(ds_msg, ds_finish)
+
+                # Diagnostics: surface exactly what DeepSeek returned each round so
+                # "the conversation just ends" cases are traceable in CloudWatch.
+                _ds_text_len = len(ds_msg.get("content") or "")
+                _ds_tc = len(ds_msg.get("tool_calls") or [])
+                print(f"[DEEPSEEK] Round {round_num}: finish_reason={ds_finish} "
+                      f"text_len={_ds_text_len} tool_calls={_ds_tc} usage={json.dumps(response_data.get('usage', {}))}")
+                if ds_finish == "length":
+                    # Output hit max_tokens — the reply is truncated mid-thought, which
+                    # reads to the user as the conversation cutting off. Force a clean end
+                    # and append a notice rather than feeding a half-finished turn back.
+                    print(f"[DEEPSEEK] WARNING: response truncated at max_tokens={max_tokens} (round {round_num})")
+                    stop_reason = "end_turn"
+                    if not any(b.get("type") == "text" for b in content_blocks):
+                        content_blocks.append({"type": "text", "text": ""})
+                if stop_reason == "end_turn" and not any(
+                    (b.get("type") == "text" and b.get("text", "").strip()) for b in content_blocks
+                ):
+                    # DeepSeek ended the turn with no usable text (e.g. content filter or a
+                    # bare tool call it declined to summarise) — log the raw shape for triage.
+                    print(f"[DEEPSEEK] EMPTY final reply. raw_choice={json.dumps(choice)[:1200]}")
             else:
                 # ── Anthropic path (unchanged) ─────────────────────────────────
                 r = requests.post(
@@ -1727,6 +1789,32 @@ def claude_chat_with_tools(body):
                     block["thinking"] for block in content_blocks
                     if block.get("type") == "thinking" and block.get("thinking", "").strip()
                 ) or None
+                # DeepSeek sometimes ends a turn while announcing the next step instead
+                # of doing it ("Let me check the other boards now.") — which strands the
+                # user with a half-finished answer. Nudge it to actually continue.
+                if (provider == 'deepseek'
+                        and auto_continues < MAX_AUTO_CONTINUES
+                        and _deepseek_turn_unfinished(final_text)):
+                    print(f"[DEEPSEEK] Stalled turn (auto-continue {auto_continues + 1}/{MAX_AUTO_CONTINUES}); "
+                          f"tail={final_text[-100:]!r}")
+                    messages.append({
+                        "role": "assistant",
+                        "content": content_blocks if content_blocks else [{"type": "text", "text": final_text or "(continuing)"}],
+                    })
+                    messages.append({
+                        "role": "user",
+                        "content": "Continue and finish the remaining steps now. Call any tools you need, "
+                                   "then give the complete final answer — do not stop to announce what you are about to do.",
+                    })
+                    auto_continues += 1
+                    _report_progress("Continuing")
+                    continue
+
+                # Never hand the client a blank reply — that renders as a dead empty
+                # bubble and reads as "the conversation just ended". Give a graceful nudge.
+                if not final_text.strip():
+                    final_text = ("I didn't manage to produce a response that time. "
+                                  "Could you rephrase or try again?")
                 # Exclude internal MEM_SAVE directives from the user-facing tool log
                 display_log = [t for t in tool_call_log if not t.startswith("MEM_SAVE:")]
                 summary = "\n".join(display_log) if display_log else None
