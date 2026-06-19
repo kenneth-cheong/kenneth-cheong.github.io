@@ -81,6 +81,11 @@ ACTORS = {
     'linkedin':  'apimaestro~linkedin-company-detail',
 }
 
+# Facebook needs two actors: pages-scraper returns the profile (followers, etc.)
+# but NO posts; posts-scraper returns the posts but NO follower count. We run both
+# and merge — profile from pages, posts (engagement/cadence/grid) from posts.
+FB_POSTS_ACTOR = 'apify~facebook-posts-scraper'
+
 # Apify run statuses that mean "stop polling".
 TERMINAL = {'SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'}
 
@@ -138,10 +143,9 @@ def handle_start(body):
             runs[p] = {'handle': handle, 'cached': True, 'role': 'client'}
             cached_n += 1
             continue
-        run = _apify_start(actor, _build_input(p, handle))
-        if run:
-            runs[p] = {'handle': handle, 'run_id': run['id'],
-                       'dataset_id': run.get('defaultDatasetId'), 'role': 'client'}
+        entry = _start_platform(p, handle)
+        if entry:
+            runs[p] = {'handle': handle, 'role': 'client', **entry}
 
     # Competitors run the same actors (capped to keep cost predictable).
     comp_runs = []
@@ -156,10 +160,9 @@ def handle_start(body):
             comp_runs.append({'platform': p, 'handle': handle, 'name': name, 'cached': True})
             cached_n += 1
             continue
-        run = _apify_start(actor, _build_input(p, handle))
-        if run:
-            comp_runs.append({'platform': p, 'handle': handle, 'name': name,
-                              'run_id': run['id'], 'dataset_id': run.get('defaultDatasetId')})
+        entry = _start_platform(p, handle)
+        if entry:
+            comp_runs.append({'platform': p, 'handle': handle, 'name': name, **entry})
 
     if not runs and not comp_runs:
         raise RuntimeError('No valid platform handles were provided.')
@@ -550,8 +553,7 @@ def handle_poll(body):
     runs      = item.get('runs') or {}
     comp_runs = item.get('comp_runs') or []
     # Only live (non-cached) runs have a run_id and need polling.
-    live_ids = [r['run_id'] for r in runs.values() if r.get('run_id')] + \
-               [c['run_id'] for c in comp_runs if c.get('run_id')]
+    live_ids = _all_live_ids(runs, comp_runs)
     statuses = {rid: _apify_status(rid) for rid in live_ids}
     done = sum(1 for s in statuses.values() if s in TERMINAL)
     total = len(live_ids)
@@ -601,8 +603,7 @@ def handle_finalize(body):
         runs      = item.get('runs') or {}
         comp_runs = item.get('comp_runs') or []
         brand     = item.get('brand') or 'brand'
-        live_ids = [r['run_id'] for r in runs.values() if r.get('run_id')] + \
-                   [c['run_id'] for c in comp_runs if c.get('run_id')]
+        live_ids = _all_live_ids(runs, comp_runs)
         statuses = {rid: _apify_status(rid) for rid in live_ids}
 
         def _metrics_for(platform, r):
@@ -612,10 +613,14 @@ def handle_finalize(body):
                 return _cache_get(platform, r.get('handle')) or _empty_metrics(), 'cache'
             ok = statuses.get(r.get('run_id')) == 'SUCCEEDED'
             items = _apify_items(r.get('dataset_id')) if ok else []
-            m = _extract(platform, items)
-            if items:
+            # Facebook posts come from a second actor (posts-scraper).
+            post_items = []
+            if r.get('posts_dataset_id') and statuses.get(r.get('posts_run_id')) == 'SUCCEEDED':
+                post_items = _apify_items(r.get('posts_dataset_id'))
+            m = _extract(platform, items, post_items)
+            if items or post_items:
                 _cache_put(platform, r.get('handle'), m)
-            return m, ('apify' if items else 'empty')
+            return m, ('apify' if (items or post_items) else 'empty')
 
         client_metrics = {}
         for p, r in runs.items():
@@ -661,6 +666,17 @@ def handle_finalize(body):
                             UpdateExpression='SET finalize_error = :e',
                             ExpressionAttributeValues={':e': str(e)[:300]})
     return {'ok': True}
+
+
+def _all_live_ids(runs, comp_runs):
+    """All Apify run ids that need polling — primary plus Facebook's posts run."""
+    ids = []
+    for r in list(runs.values()) + list(comp_runs):
+        if r.get('run_id'):
+            ids.append(r['run_id'])
+        if r.get('posts_run_id'):
+            ids.append(r['posts_run_id'])
+    return ids
 
 
 def _self_invoke(payload):
@@ -710,6 +726,33 @@ def _apify_items(dataset_id):
         return []
 
 
+def _start_platform(platform, handle):
+    """Start the actor run(s) for one platform and return a run-entry dict
+    ({run_id, dataset_id[, posts_run_id, posts_dataset_id]}) or None on failure.
+
+    Facebook is special: it needs two actors — pages-scraper for the profile
+    (followers) and posts-scraper for the actual posts."""
+    actor = ACTORS.get(platform)
+    if not actor:
+        return None
+    run = _apify_start(actor, _build_input(platform, handle))
+    if not run:
+        return None
+    entry = {'run_id': run['id'], 'dataset_id': run.get('defaultDatasetId')}
+    if platform == 'facebook':
+        prun = _apify_start(FB_POSTS_ACTOR, _build_fb_posts_input(handle))
+        if prun:
+            entry['posts_run_id'] = prun['id']
+            entry['posts_dataset_id'] = prun.get('defaultDatasetId')
+    return entry
+
+
+def _build_fb_posts_input(handle):
+    user = handle.lstrip('@').strip()
+    url = user if user.startswith('http') else f'https://www.facebook.com/{user}'
+    return {'startUrls': [{'url': url}], 'resultsLimit': 24}
+
+
 def _build_input(platform, handle):
     """Per-platform actor input. Handles are normalised to a bare username/URL."""
     user = handle.lstrip('@').strip()
@@ -739,16 +782,20 @@ def _g(d, *keys, default=None):
     return default
 
 
-def _extract(platform, items):
+def _extract(platform, items, post_items=None):
     """Normalise actor output to a common metrics dict.
 
     Some actors (notably the clockworks TikTok scraper) return ONE item per
     post/video with the profile nested under `authorMeta`, rather than a
     profile object as items[0]. Prefer authorMeta for the profile fields when
-    present so followers/verified/bio/avatar resolve correctly."""
-    if not items:
+    present so followers/verified/bio/avatar resolve correctly.
+
+    `post_items` is an optional SECOND dataset holding the posts (Facebook: the
+    pages-scraper `items` carry the profile, the posts-scraper `post_items`
+    carry the posts). When given, posts are read from it instead of `items`."""
+    if not items and not post_items:
         return _empty_metrics()
-    head = items[0] if isinstance(items[0], dict) else {}
+    head = items[0] if (items and isinstance(items[0], dict)) else {}
     prof = head.get('authorMeta') if isinstance(head.get('authorMeta'), dict) else head
 
     followers = _num(_g(prof, 'followersCount', 'followers', 'fans', 'fanCount',
@@ -761,7 +808,11 @@ def _extract(platform, items):
     pfp       = _g(prof, 'profilePicUrl', 'avatar', 'profileImage', 'thumbnailUrl',
                    'originalAvatarUrl', default='')
 
-    posts = _collect_posts(platform, items, head)
+    if post_items:
+        post_head = post_items[0] if isinstance(post_items[0], dict) else {}
+        posts = _collect_posts(platform, post_items, post_head)
+    else:
+        posts = _collect_posts(platform, items, head)
     return _metrics_from(followers, following, verified, bio, link, category, pfp, posts)
 
 
@@ -788,11 +839,18 @@ def _collect_posts(platform, items, head):
         if not isinstance(p, dict):
             continue
         text = _g(p, 'caption', 'text', 'title', 'description', default='') or ''
+        # Facebook posts report likes as a like-only count (often 0 for reels)
+        # alongside topReactionsCount/reactionsCount — take the larger as "likes".
+        likes = _num(_g(p, 'likesCount', 'likes', 'diggCount', 'reactionsCount',
+                        'topReactionsCount', 'likeCount'))
+        reactions = _num(_g(p, 'topReactionsCount', 'reactionsCount'))
+        if reactions is not None and (likes is None or reactions > likes):
+            likes = reactions
         out.append({
-            'ts':       _g(p, 'timestamp', 'createTime', 'publishedAt', 'date', 'taken_at'),
-            'likes':    _num(_g(p, 'likesCount', 'likes', 'diggCount', 'reactionsCount', 'likeCount')),
+            'ts':       _g(p, 'timestamp', 'createTime', 'publishedAt', 'date', 'taken_at', 'time'),
+            'likes':    likes,
             'comments': _num(_g(p, 'commentsCount', 'comments', 'commentCount')),
-            'views':    _num(_g(p, 'videoViewCount', 'playCount', 'views', 'viewCount')),
+            'views':    _num(_g(p, 'videoViewCount', 'playCount', 'views', 'viewCount', 'viewsCount')),
             'type':     _post_type(p),
             'hashtags': re.findall(r'#(\w+)', text),
             'text':     ' '.join(text.split())[:160],
@@ -811,27 +869,41 @@ def _post_image(p):
         for nest in ('videoMeta', 'video', 'media'):
             sub = p.get(nest)
             if isinstance(sub, dict):
-                img = _g(sub, 'coverUrl', 'originalCoverUrl', 'cover', 'thumbnail', default='')
+                img = _g(sub, 'coverUrl', 'originalCoverUrl', 'cover', 'thumbnail',
+                         'image', 'photoImage', 'url', default='')
                 if img:
                     break
     if not img:
-        for key in ('images', 'covers', 'thumbnails'):
+        # Facebook posts carry media as a list of {thumbnail, image, ...}.
+        for key in ('media', 'images', 'covers', 'thumbnails'):
             seq = p.get(key)
             if isinstance(seq, list) and seq:
                 first = seq[0]
-                img = first if isinstance(first, str) else _g(first, 'url', 'src', default='')
+                if isinstance(first, str):
+                    img = first
+                elif isinstance(first, dict):
+                    img = _g(first, 'thumbnail', 'url', 'src', 'image', 'photoImage',
+                             'imageUrl', default='')
+                    sub = first.get('photo_image') if isinstance(first.get('photo_image'), dict) else None
+                    if not img and sub:
+                        img = _g(sub, 'uri', 'url', default='')
                 if img:
                     break
     return img if isinstance(img, str) else ''
 
 
 def _post_type(p):
+    if p.get('isVideo') is True:          # Facebook posts-scraper flag
+        return 'video'
     t = str(_g(p, 'type', 'productType', 'mediaType', default='')).lower()
     if 'video' in t or 'reel' in t or 'clip' in t:
         return 'video'
     if 'carousel' in t or 'sidecar' in t or 'album' in t:
         return 'carousel'
-    if _g(p, 'videoViewCount', 'playCount', 'videoUrl'):
+    url = str(_g(p, 'url', 'topLevelUrl', default='')).lower()
+    if '/reel/' in url or '/videos/' in url or '/watch' in url:
+        return 'video'
+    if _g(p, 'videoViewCount', 'playCount', 'videoUrl', 'viewsCount'):
         return 'video'
     return 'image'
 
