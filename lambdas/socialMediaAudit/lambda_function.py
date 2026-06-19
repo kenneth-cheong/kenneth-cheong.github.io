@@ -59,7 +59,8 @@ JOB_TTL_SECS   = 6 * 3600
 CACHE_TTL_SECS = 30 * 86400        # 30-day Apify cache to cut scrape cost
 # Bump whenever the metrics shape changes so stale-shape cache entries are
 # treated as misses (forces a re-scrape) instead of serving wrong/partial data.
-METRICS_SCHEMA = 2                  # v2: TikTok authorMeta fix + captions/image_urls
+METRICS_SCHEMA = 3                  # v3: + posts[] grid (image/url/likes/type per post)
+MAX_GRID_POSTS = 21                 # posts surfaced for the visual grid (brand + competitors)
 
 CORS = {
     'Access-Control-Allow-Origin':  '*',
@@ -571,6 +572,26 @@ def handle_poll(body):
 # FINALIZE — heavy step (Apify datasets + DataForSEO + Haiku). Async-invoked; the
 # computed scorecard is cached on the job so subsequent polls return it instantly.
 # ──────────────────────────────────────────────────────────────────────────────
+def _serialize_scorecard(scorecard):
+    """JSON-encode the scorecard, progressively trimming the post grids if the
+    payload would blow past DynamoDB's 400KB item limit (URLs can be very long)."""
+    MAX_BYTES = 380_000
+    s = json.dumps(scorecard, default=str)
+    if len(s.encode('utf-8')) <= MAX_BYTES:
+        return s
+    for cap in (12, 8, 4, 0):
+        for card in scorecard.get('platforms', []):
+            if isinstance(card.get('posts'), list):
+                card['posts'] = card['posts'][:cap]
+        for comp in scorecard.get('competitors', []):
+            if isinstance(comp.get('posts'), list):
+                comp['posts'] = comp['posts'][:cap]
+        s = json.dumps(scorecard, default=str)
+        if len(s.encode('utf-8')) <= MAX_BYTES:
+            return s
+    return s
+
+
 def handle_finalize(body):
     job_id = body.get('jobId')
     item = _jobs().get_item(Key={'jobId': job_id}).get('Item')
@@ -616,6 +637,8 @@ def handle_finalize(body):
                 'avg_video_views': m.get('avg_video_views'),
                 'content_mix': m.get('content_mix'), 'top_hashtags': m.get('top_hashtags'),
                 'top_posts': m.get('top_posts'),
+                'handle': c.get('handle'),
+                'posts': m.get('posts') or [],
             })
 
         brand_health = fetch_brand_health(item.get('domain'), brand, item.get('location') or 'Singapore')
@@ -632,7 +655,7 @@ def handle_finalize(body):
         })
         _jobs().update_item(Key={'jobId': job_id},
                             UpdateExpression='SET scorecard = :s',
-                            ExpressionAttributeValues={':s': json.dumps(scorecard, default=str)})
+                            ExpressionAttributeValues={':s': _serialize_scorecard(scorecard)})
     except Exception as e:
         _jobs().update_item(Key={'jobId': job_id},
                             UpdateExpression='SET finalize_error = :e',
@@ -866,9 +889,17 @@ def _metrics_from(followers, following, verified, bio, link, category, pfp, post
         'hashtag_count': len(set(hashtags)), 'top_hashtags': _top(hashtags, 8),
         'profile_completeness': {'score': comp_score, **completeness},
         'post_sample': len(posts), 'top_posts': top_posts,
+        # full post list for the visual grid — most-recent first, bounded for payload size
+        'posts': [
+            {'image': p.get('image', ''), 'url': p.get('url', ''),
+             'text': p.get('text', ''), 'type': p['type'],
+             'likes': p['likes'], 'comments': p['comments'], 'views': p['views'],
+             'ts': p.get('ts')}
+            for p in sorted(posts, key=lambda p: _to_epoch(p.get('ts')) or 0, reverse=True)[:MAX_GRID_POSTS]
+        ],
         # raw content for the creative/style audit (not surfaced in platform cards)
         'captions':   [p['caption'] for p in posts if p.get('caption')][:MAX_CREATIVE_CAPTIONS],
-        'image_urls': [p['image'] for p in posts if p.get('image')][:21],
+        'image_urls': [p['image'] for p in posts if p.get('image')][:MAX_GRID_POSTS],
         '_schema': METRICS_SCHEMA,
     }
 
@@ -881,7 +912,7 @@ def _empty_metrics():
             'top_vs_median': None, 'hashtag_count': 0, 'top_hashtags': [],
             'profile_completeness': {'score': 0, 'bio': False, 'link': False,
                                      'verified': False, 'pfp': False, 'category': False},
-            'post_sample': 0, 'top_posts': [], 'captions': [], 'image_urls': [],
+            'post_sample': 0, 'top_posts': [], 'posts': [], 'captions': [], 'image_urls': [],
             '_schema': METRICS_SCHEMA}
 
 
@@ -980,6 +1011,7 @@ def _platform_card(platform, m):
         'top_vs_median': m.get('top_vs_median'),
         'hashtag_count': m.get('hashtag_count'), 'top_hashtags': m.get('top_hashtags'),
         'profile_completeness': m.get('profile_completeness'),
+        'posts': m.get('posts') or [],
     }
 
 
