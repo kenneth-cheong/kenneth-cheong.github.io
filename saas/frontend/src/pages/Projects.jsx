@@ -11,7 +11,6 @@ export default function Projects() {
   const { projects, activeId, setActive, create, remove } = useProjects();
   const navigate = useNavigate();
   const track = (projectId) => { setActive(projectId); navigate('/tracking'); };
-  const perf = (projectId) => { setActive(projectId); navigate('/performance'); };
   const [name, setName] = useState('');
   const [domain, setDomain] = useState('');
   const [busy, setBusy] = useState(false);
@@ -54,14 +53,14 @@ export default function Projects() {
         {projects.map((p) => (
           <div key={p.projectId} className={`card flex items-center gap-3 p-4 ${p.projectId === activeId ? 'ring-2 ring-brand-400' : ''}`}>
             <div className="min-w-0 flex-1">
-              <div className="font-semibold">{p.name}</div>
-              <div className="text-xs text-slate-400">{p.domain || '—'} · {p.id}</div>
+              <Link to={`/projects/${p.projectId}`} className="font-semibold hover:text-brand-600">{p.name}</Link>
+              <div className="text-xs text-slate-400">{p.domain || '—'} · {p.projectId}</div>
             </div>
             {p.projectId === activeId
               ? <span className="rounded-full bg-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-700">Active</span>
               : <button onClick={() => setActive(p.projectId)} className="text-sm font-medium text-brand-600 hover:text-brand-700">Set active</button>}
             <button onClick={() => track(p.projectId)} className="text-sm font-medium text-brand-600 hover:text-brand-700">Track</button>
-            <button onClick={() => perf(p.projectId)} className="text-sm font-medium text-brand-600 hover:text-brand-700">Performance</button>
+            <Link to={`/projects/${p.projectId}`} className="text-sm font-medium text-brand-600 hover:text-brand-700">Open</Link>
             <button onClick={() => remove(p.projectId)} className="text-sm text-slate-400 hover:text-red-600">Delete</button>
           </div>
         ))}

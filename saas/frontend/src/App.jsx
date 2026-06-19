@@ -40,6 +40,7 @@ const History = lazyWithReload(() => import('./pages/History.jsx'));
 const Support = lazyWithReload(() => import('./pages/Support.jsx'));
 const Integrations = lazyWithReload(() => import('./pages/Integrations.jsx'));
 const Projects = lazyWithReload(() => import('./pages/Projects.jsx'));
+const ProjectDetail = lazyWithReload(() => import('./pages/ProjectDetail.jsx'));
 const Tracking = lazyWithReload(() => import('./pages/Tracking.jsx'));
 const Performance = lazyWithReload(() => import('./pages/Performance.jsx'));
 const SiteAudit = lazyWithReload(() => import('./pages/SiteAudit.jsx'));
@@ -82,6 +83,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/tool/:toolId" element={<ToolRunner />} />
           <Route path="/projects" element={<Projects />} />
+          <Route path="/projects/:projectId" element={<ProjectDetail />} />
           <Route path="/tracking" element={<Tracking />} />
           <Route path="/performance" element={<Performance />} />
           <Route path="/audit" element={<SiteAudit />} />
