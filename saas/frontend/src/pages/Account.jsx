@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useLocation } from 'react-router-dom';
 import { PartyPopper, Zap } from 'lucide-react';
 import { PLANS, TOPUP_PACKS, CURRENCY } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -9,6 +9,7 @@ import { toast } from '../lib/ui.js';
 export default function Account() {
   const { user, refresh, logout } = useAuth();
   const [params] = useSearchParams();
+  const location = useLocation();
   const [busy, setBusy] = useState(false);
   const [topupBusy, setTopupBusy] = useState(null);
   const [docs, setDocs] = useState(null);
@@ -31,6 +32,13 @@ export default function Account() {
   }, [params, refresh]);
 
   useEffect(() => { api.invoices().then((d) => setDocs(d.documents || [])).catch(() => setDocs([])); }, []);
+
+  // Deep-link from the "Billing" nav item → scroll to the invoices section once
+  // it has rendered (docs load async, so wait for them).
+  useEffect(() => {
+    if (location.hash !== '#billing' || !docs) return;
+    document.getElementById('billing')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [location.hash, docs]);
   useEffect(() => { api.me().then((d) => setSessions(d.user?.sessions || [])).catch(() => setSessions([])); }, []);
   useEffect(() => { api.accessRequests().then((d) => setGrants(d.grants || [])).catch(() => setGrants([])); }, []);
 
@@ -156,10 +164,13 @@ export default function Account() {
       </div>
 
       {/* ── Invoices & receipts ───────────────────────────────────────── */}
-      {docs && docs.length > 0 && (
-        <div className="card mt-4 p-5">
-          <h2 className="font-bold">Invoices &amp; receipts</h2>
-          <p className="mt-1 text-sm text-slate-500">Your subscription invoices and one-time top-up receipts.</p>
+      <div id="billing" className="card mt-4 scroll-mt-20 p-5">
+        <h2 className="font-bold">Invoices &amp; receipts</h2>
+        <p className="mt-1 text-sm text-slate-500">Your subscription invoices and one-time top-up receipts.</p>
+        {docs && docs.length === 0 && (
+          <p className="mt-4 text-sm text-slate-400">No invoices or receipts yet — they'll appear here after your first payment.</p>
+        )}
+        {docs && docs.length > 0 && (
           <div className="mt-4 divide-y divide-slate-100">
             {docs.map((d) => (
               <div key={d.id} className="flex items-center gap-3 py-2.5">
@@ -179,8 +190,8 @@ export default function Account() {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ── Credit top-ups (overage) ──────────────────────────────────── */}
       <div className="card mt-4 p-5">
