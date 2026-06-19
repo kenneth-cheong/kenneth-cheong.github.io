@@ -34,7 +34,7 @@ export default function Pricing() {
               onClick={() => setInterval(iv)}
               className={`rounded-full px-4 py-1.5 capitalize ${interval === iv ? 'bg-white shadow text-brand-700' : 'text-slate-500'}`}
             >
-              {iv} {iv === 'annual' && <span className="text-green-600">−2 months</span>}
+              {iv} {iv === 'annual' && <span className="text-green-600">−20%</span>}
             </button>
           ))}
         </div>
@@ -44,7 +44,7 @@ export default function Pricing() {
         {ORDER.map((id) => {
           const p = PLANS[id];
           const current = user.tier === id;
-          const price = interval === 'annual' ? Math.round(p.priceMonthly * 10 / 12) : p.priceMonthly;
+          const price = interval === 'annual' ? Math.round(p.priceMonthly * 0.8) : p.priceMonthly;
           return (
             <div key={id} className={`card flex flex-col p-5 ${p.popular ? 'ring-2 ring-brand-500' : ''}`}>
               {p.popular && <span className="mb-2 w-fit rounded-full bg-brand-600 px-2 py-0.5 text-xs font-bold text-white">MOST POPULAR</span>}

@@ -5,7 +5,7 @@
 //   STRIPE_SECRET_KEY=sk_test_xxx AWS_REGION=ap-southeast-1 node scripts/setup-stripe.mjs
 //
 // Idempotent-ish: re-running creates NEW prices (Stripe prices are immutable).
-// Run once per environment (test, then live). Annual = 10× monthly (2 months free).
+// Run once per environment (test, then live). Annual = 12× monthly less 20% (9.6× monthly).
 import Stripe from 'stripe';
 import { SSMClient, PutParameterCommand } from '@aws-sdk/client-ssm';
 import { PLANS, CURRENCY, TOPUP_PACKS } from '../../shared/catalog.mjs';
@@ -38,7 +38,7 @@ for (const id of PAID) {
   const annual = await stripe.prices.create({
     product: product.id,
     currency: CURRENCY.code.toLowerCase(),
-    unit_amount: plan.priceMonthly * 10 * 100, // 2 months free
+    unit_amount: Math.round(plan.priceMonthly * 12 * 0.8 * 100), // 20% off annual
     recurring: { interval: 'year' },
     metadata: { tier: id, interval: 'annual' },
   });
