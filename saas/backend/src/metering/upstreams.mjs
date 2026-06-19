@@ -43,6 +43,12 @@ export const UPSTREAMS = {
   // runs as the user via gscIntegration→adsSearchStream (see lib/google.mjs adsGaql).
   googleAds: 'https://j4aca9hcmh.execute-api.ap-southeast-1.amazonaws.com/googleAds',
   googleAuth: 'https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday',
+  // LinkedIn Ads — reuse the agency monday Lambda's linkedin_get_ad_accounts /
+  // linkedin_get_analytics actions (same endpoint as googleAuth/strategyEngine).
+  // LinkedIn blocks browser CORS + uses fiddly Rest.li encoding, so the agency
+  // already proxies it server-side; we feed it the OAuth token we obtained.
+  // See lib/linkedin.mjs.
+  mondayBridge: 'https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday',
   aiMentions: 'https://y0ypcivaz1.execute-api.ap-southeast-1.amazonaws.com/aiMentions',
   // Domain → ranking-keyword map, used to seed AI-visibility discovery prompts.
   keywordsForSite: 'https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite',

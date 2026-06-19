@@ -13,10 +13,12 @@
 //   7. return result + { creditsUsed, creditsRemaining }
 // ─────────────────────────────────────────────────────────────────────────
 import { createHash } from 'node:crypto';
-import { getUser, putUser, spendCredits, totalCredits, saveRun, getCache, putCache } from '../lib/dynamo.mjs';
+import { getUser, putUser, spendCredits, totalCredits, saveRun, getCache, putCache, appendMetricSnapshots } from '../lib/dynamo.mjs';
+import { extractMetrics } from '../../../shared/metrics.mjs';
 import { UPSTREAMS } from './upstreams.mjs';
 import { ADAPTERS, parseStrategyJson } from './adapters.mjs';
-import { fetchIntegration, gscInspect, gscSitemaps, gscIndexing } from '../lib/google.mjs';
+import { gscInspect, gscSitemaps, gscIndexing } from '../lib/google.mjs';
+import { fetchIntegrationFor } from '../lib/integrations.mjs';
 import {
   TOOLS,
   CREDIT_COSTS,
@@ -171,6 +173,22 @@ export const handler = async (event) => {
     runId = saved.runId;
   } catch (e) { console.error('save_run_failed', tool.id, e.message); }
 
+  // Snapshot the run's headline metric(s) into the per-project performance
+  // series — only for real, project-scoped runs (skip teaser/soft-failed runs so
+  // partial/empty data never pollutes the trend). Best-effort: never blocks the
+  // response. `result` (not the teaser-capped `payload`) carries the full summary.
+  if (!teaser && !softFailed && body.projectId) {
+    try {
+      const metrics = extractMetrics(tool.id, result);
+      if (metrics.length) {
+        await appendMetricSnapshots(user.userId, {
+          projectId: body.projectId, tool: tool.id, toolName: tool.name,
+          target: deriveMetricTarget(body), inputs: publicInputs(body),
+        }, metrics);
+      }
+    } catch (e) { console.error('metric_capture_failed', tool.id, e.message); }
+  }
+
   // Structured metric line (CloudWatch Logs Insights / metric filters).
   console.log(JSON.stringify({ metric: 'tool_run', tool: tool.id, ms: Date.now() - t0, creditsUsed, cached: !!result?.cached, teaser, softFailed }));
 
@@ -184,6 +202,12 @@ export const handler = async (event) => {
     runId,
   });
 };
+
+/** Human label of what a run measured (the property / domain / URL) for the
+ *  Performance series — falls back to the connected integration account. */
+function deriveMetricTarget(body) {
+  return String(body.input || body.url || body.domain || body.target || '').trim();
+}
 
 /** Strip gateway-injected (underscore-prefixed) keys before saving inputs. */
 function publicInputs(body) {
@@ -1782,7 +1806,7 @@ async function integrationsRun(tool, body) {
   }
   // GSC sub-tools (URL Inspection / Sitemaps / Indexing) — dispatched by gscOp.
   if (tool.integration === 'gsc' && body.gscOp && body.gscOp !== 'insights') return gscOpsRun(body, conn);
-  const live = await fetchIntegration(tool.integration, conn, { ...body, input: body.input || conn.account });
+  const live = await fetchIntegrationFor(tool.integration, conn, { ...body, input: body.input || conn.account });
   // No seeded fallback: if the live pull didn't return data, prompt a reconnect.
   if (!live?.rows) {
     return { needsConnect: tool.integration, text: `We couldn’t pull live ${tool.name} data — reconnect your account under Integrations to continue.` };
@@ -1851,6 +1875,11 @@ function integrationSections(provider, summary, series, deltas, compareRaw, stri
   } else if (provider === 'google-ads') {
     sections.push({ type: 'stats', items: [stat('Cost', summary.cost, d.cost, 'neutral'), stat('Clicks', num(summary.clicks), d.clicks), stat('Conversions', num(summary.conversions), d.conversions), stat('CPA', summary.cpa, d.cpa, 'down')] });
     pushTrend(sections, 'Cost & clicks over time', series, [{ key: 'cost', label: 'Cost (S$)', color: '#2563eb' }, { key: 'clicks', label: 'Clicks', color: '#f59e0b' }]);
+  } else if (provider === 'meta-ads' || provider === 'linkedin-ads') {
+    // Meta / LinkedIn share the Ads stat shape; their day-series key is `spend`.
+    const accent = provider === 'meta-ads' ? '#1877f2' : '#0a66c2';
+    sections.push({ type: 'stats', items: [stat('Spend', summary.cost, d.spend, 'neutral'), stat('Clicks', num(summary.clicks), d.clicks), stat('Conversions', num(summary.conversions), d.conversions), stat('CPA', summary.cpa, d.cpa, 'down')] });
+    pushTrend(sections, 'Spend & clicks over time', series, [{ key: 'spend', label: 'Spend', color: accent }, { key: 'clicks', label: 'Clicks', color: '#f59e0b' }]);
   }
   if (deltas) {
     const lbl = /year/i.test(String(compareRaw || '')) ? 'the same period last year' : 'the previous period';
@@ -2033,7 +2062,8 @@ async function aiDiscoveryRun(body) {
   ];
   if (fails.length) sections.push({ type: 'list', title: '🎯 Prioritised fixes', items: fails.map((c) => `${c.factor}: ${c.fix}`) });
   else sections.push({ type: 'callout', text: 'Your site covers the core AI-discoverability factors. 🎉' });
-  return { sections };
+  // `summary` feeds the Performance tracker (GEO readiness over time).
+  return { sections, summary: { geoReadiness: score, checksPassed: passed, checksTotal: checks.length } };
 }
 
 async function aiVisibilityRun(body) {

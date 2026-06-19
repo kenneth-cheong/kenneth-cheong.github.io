@@ -260,15 +260,48 @@ def handle_discover_competitors(body):
 # Grounds the guess in the homepage text when a URL is given. Returns CANDIDATES
 # for the user to review/edit — never auto-runs.
 # ──────────────────────────────────────────────────────────────────────────────
+def _find_brand_domain(brand):
+    """Use DataForSEO SERP to find the brand's own website URL."""
+    auth = os.environ.get('DATAFORSEO_AUTH')
+    if not auth or not brand:
+        return ''
+    skip = {'wikipedia.org', 'linkedin.com', 'facebook.com', 'instagram.com',
+            'twitter.com', 'youtube.com', 'tiktok.com', 'crunchbase.com',
+            'bloomberg.com', 'forbes.com', 'glassdoor.com', 'trustpilot.com'}
+    try:
+        r = requests.post(f'{DFS_BASE}/serp/google/organic/live/advanced',
+                          headers={'Authorization': auth, 'Content-Type': 'application/json'},
+                          timeout=22,
+                          json=[{'keyword': brand, 'location_name': 'Singapore',
+                                 'language_name': 'English', 'depth': 10}])
+        items = (((r.json().get('tasks') or [{}])[0].get('result') or [{}])[0].get('items')) or []
+        for it in items:
+            url = it.get('url') or ''
+            host = url.replace('https://', '').replace('http://', '').replace('www.', '').split('/')[0].lower()
+            root = '.'.join(host.rsplit('.', 2)[-2:]) if host else ''
+            if root and root not in skip:
+                return 'https://' + host
+    except Exception:
+        pass
+    return ''
+
+
 def handle_suggest_context(body):
     brand  = (body.get('brand_name') or '').strip()
     domain = (body.get('domain') or '').strip()
     if not brand and not domain:
         return {'error': 'Provide brand_name or domain.'}
 
+    # If no domain provided, try to discover it via SERP
+    discovered_domain = ''
+    if not domain and brand:
+        discovered_domain = _find_brand_domain(brand)
+        domain = discovered_domain
+
     site_text = _fetch_page_text(domain) if domain else ''
     api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
     fallback = {'industry': '', 'target_audience': '', 'campaign_goals': '',
+                'website': discovered_domain,
                 'note': 'Could not auto-suggest — please fill these in.'}
     if not api_key:
         return fallback
@@ -302,6 +335,7 @@ def handle_suggest_context(body):
             'industry': (out.get('industry') or '').strip(),
             'target_audience': (out.get('target_audience') or '').strip(),
             'campaign_goals': (out.get('campaign_goals') or '').strip(),
+            'website': discovered_domain,
             'note': 'AI-suggested from the brand — review and edit before auditing.',
         }
     except Exception as e:

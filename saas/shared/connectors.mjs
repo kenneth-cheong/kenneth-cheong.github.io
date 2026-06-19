@@ -7,7 +7,7 @@
 // demo / seeded-data fallback.
 // ─────────────────────────────────────────────────────────────────────────
 
-const LABEL = { gsc: 'Search Console', ga4: 'GA4', 'google-ads': 'Google Ads' };
+const LABEL = { gsc: 'Search Console', ga4: 'GA4', 'google-ads': 'Google Ads', 'meta-ads': 'Meta Ads', 'linkedin-ads': 'LinkedIn Ads' };
 
 /** Compact one-line status the chatbot can read for a connected account. States
  *  what's connected without fabricating metrics — live numbers come from running

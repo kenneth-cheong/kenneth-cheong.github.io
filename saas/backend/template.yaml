@@ -66,6 +66,7 @@ Globals:
         PROJECTS_TABLE: !Ref ProjectsTable
         CACHE_TABLE: !Ref CacheTable
         TRACKED_TABLE: !Ref TrackedTable
+        METRICS_TABLE: !Ref MetricsTable
         CONVERSATIONS_TABLE: !Ref ConversationsTable
         APP_ORIGIN: !Ref AppOrigin
         JWT_SECRET: '{{resolve:secretsmanager:digimetrics-saas/jwt-secret:SecretString}}'
@@ -169,6 +170,23 @@ Resources:
       KeySchema:
         - { AttributeName: userId, KeyType: HASH }
         - { AttributeName: trackId, KeyType: RANGE }
+
+  # Tool performance metrics — one row per (user, project#tool#metric), each
+  # holding a `history` of dated headline values for the Performance charts.
+  MetricsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - { AttributeName: userId, AttributeType: S }
+        - { AttributeName: metricId, AttributeType: S }
+      KeySchema:
+        - { AttributeName: userId, KeyType: HASH }
+        - { AttributeName: metricId, KeyType: RANGE }
 
   # Assistant chat conversations — full message thread per (user, conversation).
   ConversationsTable:
@@ -348,6 +366,7 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
         - DynamoDBCrudPolicy: { TableName: !Ref RunsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref CacheTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref MetricsTable }
       # Function URL bypasses API Gateway's hard 30s integration limit for
       # long-running tools (strategy engine, persona, forensic audit). JWT is
       # verified inside the handler; CORS is handled by the handler too.
@@ -424,6 +443,7 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref NotificationsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref ProjectsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref TrackedTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref MetricsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref ConversationsTable }
         # Rate-limit counters live in the Cache table (lib/ratelimit.mjs).
         - DynamoDBCrudPolicy: { TableName: !Ref CacheTable }
@@ -453,6 +473,7 @@ Resources:
         TrackAdd: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /tracking, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         TrackDelete: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /tracking/delete, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         TrackRefresh: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /tracking/refresh, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        Metrics: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /metrics, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Notifications: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/notifications, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         NotificationsRead: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/notifications/read, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         TicketsList: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /support/tickets, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
@@ -501,6 +522,30 @@ Resources:
       Timeout: 600
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref TrackedTable }
+      Events:
+        Daily:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 day)
+
+  # ── Scheduled: re-pull connected Google integrations → Performance series ─
+  # Daily 0-credit pull of GSC/GA4/Ads for projects already tracking them, so
+  # the Performance charts stay current without the user re-opening each tool.
+  MetricsCronFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .build/metricscron/
+      Handler: index.handler
+      Timeout: 600
+      Environment:
+        Variables:
+          GOOGLE_CLIENT_ID: !Ref GoogleClientId
+          GOOGLE_CLIENT_SECRET: !Ref GoogleClientSecret
+          GOOGLE_ADS_DEVELOPER_TOKEN: '{{resolve:secretsmanager:digimetrics-saas/google-ads-developer-token:SecretString}}'
+          GOOGLE_ADS_LOGIN_CUSTOMER_ID: !Ref GoogleAdsLoginCustomerId
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref MetricsTable }
       Events:
         Daily:
           Type: Schedule
@@ -738,6 +783,22 @@ Resources:
       MetricName: Errors
       Dimensions:
         - { Name: FunctionName, Value: !Ref TrackFn }
+      Statistic: Sum
+      Period: 86400
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref 'AWS::NoValue']
+
+  MetricsCronErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Daily integrations performance-snapshot job failed.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - { Name: FunctionName, Value: !Ref MetricsCronFn }
       Statistic: Sum
       Period: 86400
       EvaluationPeriods: 1

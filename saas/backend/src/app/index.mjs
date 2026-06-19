@@ -10,6 +10,7 @@ import {
   addNotification, listNotifications, markNotificationsRead,
   createProject, listProjects, deleteProject,
   addTracked, listTracked, countTracked, removeTracked, appendSnapshot, mergeSnapshots,
+  listMetrics,
   exportAllUserData, deleteAllUserData, bumpTokenVersion, revokeSession,
   listAccessGrants, respondAccess, updateOnboarding,
 } from '../lib/dynamo.mjs';
@@ -18,7 +19,7 @@ import { UPSTREAMS } from '../metering/upstreams.mjs';
 import { CREDIT_COSTS, INTEGRATIONS, PLANS } from '../../../shared/catalog.mjs';
 import { buildChatSystem } from '../lib/assistant.mjs';
 import { integrationSummary } from '../../../shared/connectors.mjs';
-import { oauthConfigured, authUrl, exchangeCode, detectAccount, listAccounts } from '../lib/google.mjs';
+import { connectorConfigured, providersInFamilyOf, familyOf, authorizeUrl, exchangeCodeFor, listAccountsFor, detectAccountFor } from '../lib/integrations.mjs';
 import { signOAuthState, verifyOAuthState } from '../lib/jwt.mjs';
 import { putAttachment, signTicketAttachments, deleteUserAttachments } from '../lib/s3.mjs';
 import Stripe from 'stripe';
@@ -292,6 +293,11 @@ export const handler = async (event) => {
       return ok({ tracked: (await listTracked(user.userId, body.projectId)).find((t) => t.trackId === item.trackId) || item });
     }
 
+    // ── Tool performance metrics (headline scalars over time, per project) ─────
+    if (method === 'GET' && path.endsWith('/metrics')) {
+      return ok({ metrics: await listMetrics(user.userId, (event.queryStringParameters || {}).projectId) });
+    }
+
     // ── Notifications ─────────────────────────────────────────────────────────
     if (method === 'GET' && path.endsWith('/me/notifications')) return ok({ notifications: await listNotifications(user.userId) });
     if (method === 'POST' && path.endsWith('/me/notifications/read')) { await markNotificationsRead(user.userId); return ok({ ok: true }); }
@@ -347,31 +353,34 @@ export const handler = async (event) => {
 
     // ── Integrations (Google OAuth) ───────────────────────────────────────────
     if (method === 'GET' && path.endsWith('/integrations')) {
+      // Only surface connectors whose OAuth is wired up on this deployment, so a
+      // half-built integration (env vars unset) never shows a dead Connect button.
+      const providers = INTEGRATIONS.filter((p) => connectorConfigured(p.id));
       // Last-pull health per source, derived from the most recent run of each
       // integration tool (newest-first), so the UI can flag "data flowing" vs
       // "no data / failed" beyond just "account selected".
       const lastPull = {};
       try {
         const recent = await listRuns(user.userId, 100);
-        for (const pid of ['gsc', 'ga4', 'google-ads']) {
-          const r = recent.find((x) => x.tool === pid);
-          if (r) lastPull[pid] = { status: pullStatus(r.preview), at: r.ts };
+        for (const p of providers) {
+          const r = recent.find((x) => x.tool === p.id);
+          if (r) lastPull[p.id] = { status: pullStatus(r.preview), at: r.ts };
         }
       } catch { /* best-effort */ }
-      return ok({ providers: INTEGRATIONS, connected: redactIntegrations(user.integrations), oauthReady: oauthConfigured(), lastPull });
+      return ok({ providers, connected: redactIntegrations(user.integrations), oauthReady: connectorConfigured('gsc'), lastPull });
     }
     if (method === 'GET' && path.endsWith('/integrations/accounts')) {
       const provider = (event.queryStringParameters || {}).provider;
       const conn = (user.integrations || {})[provider];
       if (!conn?.connected) return ok({ accounts: [] });
-      try { return ok({ accounts: await listAccounts(provider, conn) }); }
+      try { return ok({ accounts: await listAccountsFor(provider, conn) }); }
       catch (e) { return ok({ accounts: [], error: e.message }); }
     }
     if (method === 'GET' && path.endsWith('/integrations/authorize')) {
       const provider = (event.queryStringParameters || {}).provider;
       if (!INTEGRATIONS.some((p) => p.id === provider)) return badRequest('Unknown provider.');
-      if (!oauthConfigured()) return badRequest('Google OAuth is not configured on this deployment.');
-      return ok({ url: authUrl(provider, signOAuthState(user.userId, provider), oauthRedirectUri(event)) });
+      if (!connectorConfigured(provider)) return badRequest('This integration is not configured on this deployment.');
+      return ok({ url: authorizeUrl(provider, signOAuthState(user.userId, provider), oauthRedirectUri(event)) });
     }
     if (method === 'POST' && path.endsWith('/integrations/connect')) {
       // Used for disconnect, or to set/override the account id for a provider.
@@ -396,7 +405,8 @@ async function oauthCallback(event) {
   try {
     if (q.error) throw new Error(q.error);
     const st = verifyOAuthState(q.state);
-    const tok = await exchangeCode(q.code, oauthRedirectUri(event));
+    const provider = st.provider;
+    const tok = await exchangeCodeFor(provider, q.code, oauthRedirectUri(event));
     // Only persist defined token fields (a re-consent may omit refresh_token).
     const tokens = {};
     if (tok.refresh_token) tokens.refreshToken = tok.refresh_token;
@@ -404,17 +414,17 @@ async function oauthCallback(event) {
     if (tok.expires_in) tokens.expiresAt = Date.now() + Number(tok.expires_in) * 1000;
     if (tok.scope) tokens.scope = tok.scope;
 
-    // One Google consent grants the GSC + GA4 + Ads scopes, so connect all three
-    // at once. Preserve any property/account the user already picked; only auto-
-    // pick a default for a source that doesn't have one yet. Each source keeps
-    // its own account, so they can point at different properties/accounts.
+    // One consent connects every source in the provider's family (Google's
+    // sign-in grants GSC + GA4 + Ads; Meta / LinkedIn have a single source).
+    // Preserve any account the user already picked; only auto-pick a default for
+    // a source that doesn't have one yet, so sources can point at different accounts.
     const existing = (await getUser(st.sub))?.integrations || {};
-    for (const provider of ['gsc', 'ga4', 'google-ads']) {
-      let account = existing[provider]?.account || '';
-      if (!account && tok.access_token) account = await detectAccount(provider, tok.access_token);
-      await setIntegration({ userId: st.sub, provider, account, connected: true, tokens });
+    for (const pid of providersInFamilyOf(provider)) {
+      let account = existing[pid]?.account || '';
+      if (!account && tok.access_token) account = await detectAccountFor(pid, tok.access_token);
+      await setIntegration({ userId: st.sub, provider: pid, account, connected: true, tokens });
     }
-    return redirect(`${APP_ORIGIN}/integrations?connected=google`);
+    return redirect(`${APP_ORIGIN}/integrations?connected=${familyOf(provider) || 'google'}`);
   } catch (e) {
     console.error('oauth_callback_error', e.message);
     return redirect(`${APP_ORIGIN}/integrations?error=oauth`);

@@ -208,6 +208,12 @@ export const TOOLS = [
   { id: 'google-ads', name: 'Google Ads', category: 'Integrations', minTier: 'pro',
     cost: 'integration_pull', upstream: null, integration: 'google-ads',
     desc: 'Campaign spend, clicks, conversions and CPA from Google Ads.' },
+  { id: 'meta-ads', name: 'Meta Ads', category: 'Integrations', minTier: 'pro',
+    cost: 'integration_pull', upstream: null, integration: 'meta-ads',
+    desc: 'Campaign spend, clicks, conversions and CPA from Facebook & Instagram Ads.' },
+  { id: 'linkedin-ads', name: 'LinkedIn Ads', category: 'Integrations', minTier: 'pro',
+    cost: 'integration_pull', upstream: null, integration: 'linkedin-ads',
+    desc: 'Campaign spend, clicks, conversions and CPA from LinkedIn Ads.' },
 ];
 
 export const CATEGORIES = ['SEO', 'Content', 'AI Visibility', 'Strategy', 'Integrations'];
@@ -273,6 +279,8 @@ export const SIMPLE_NAMES = {
   gsc: { name: 'My Google search stats', desc: 'Clicks, impressions and positions from Google.' },
   ga4: { name: 'My website visitors', desc: 'Visitors, sessions and conversions from Analytics.' },
   'google-ads': { name: 'My Google Ads', desc: 'Spend, clicks and cost-per-result from Ads.' },
+  'meta-ads': { name: 'My Meta Ads', desc: 'Spend, clicks and cost-per-result from Facebook & Instagram.' },
+  'linkedin-ads': { name: 'My LinkedIn Ads', desc: 'Spend, clicks and cost-per-result from LinkedIn Ads.' },
   'sem-copy': { name: 'Write my ads', desc: 'Generate Google / Meta / LinkedIn ad copy.' },
   persona: { name: 'Know my audience', desc: 'Build audience profiles from your website.' },
   'media-plan': { name: 'Plan my ad budget', desc: 'A channel + budget plan for your campaigns.' },
@@ -342,11 +350,25 @@ export function exampleFor(toolId) {
 }
 
 /** Providers the user can connect (OAuth) to unlock the Integrations tools. */
+// `family` groups sources connected by one OAuth consent (mirrors the backend
+// registry in lib/integrations.mjs). The Integrations page renders one connect
+// card per family. FAMILY_META supplies that card's label/icon/blurb.
 export const INTEGRATIONS = [
-  { id: 'gsc', name: 'Google Search Console', blurb: 'Search clicks, impressions, CTR & position.' },
-  { id: 'ga4', name: 'Google Analytics (GA4)', blurb: 'Sessions, users, engagement & conversions.' },
-  { id: 'google-ads', name: 'Google Ads', blurb: 'Campaign spend, clicks, conversions & CPA.' },
+  { id: 'gsc', name: 'Google Search Console', blurb: 'Search clicks, impressions, CTR & position.', family: 'google' },
+  { id: 'ga4', name: 'Google Analytics (GA4)', blurb: 'Sessions, users, engagement & conversions.', family: 'google' },
+  { id: 'google-ads', name: 'Google Ads', blurb: 'Campaign spend, clicks, conversions & CPA.', family: 'google' },
+  { id: 'meta-ads', name: 'Meta Ads', blurb: 'Facebook & Instagram spend, clicks, conversions & CPA.', family: 'meta' },
+  { id: 'linkedin-ads', name: 'LinkedIn Ads', blurb: 'LinkedIn spend, clicks, conversions & CPA.', family: 'linkedin' },
 ];
+
+// One connection card per family on the Integrations page. `authVia` is the
+// provider id whose /authorize starts the consent (any source in the family
+// works — one consent connects them all).
+export const FAMILY_META = {
+  google: { label: 'Google account', icon: 'G', blurb: 'One sign-in connects Search Console, Analytics & Ads.', authVia: 'gsc' },
+  meta: { label: 'Meta account', icon: 'M', blurb: 'Connect Meta to pull Facebook & Instagram ad performance.', authVia: 'meta-ads' },
+  linkedin: { label: 'LinkedIn account', icon: 'in', blurb: 'Connect LinkedIn to pull your Ads campaign performance.', authVia: 'linkedin-ads' },
+};
 
 export function toolById(id) {
   return TOOLS.find((t) => t.id === id) || null;
@@ -605,6 +627,16 @@ export const INPUTS = {
   ],
   'google-ads': [
     { name: 'input', label: 'Ads account', type: 'account', placeholder: 'e.g. 123-456-7890', required: true },
+    { name: 'range', label: 'Date range', type: 'select', options: ['Last 7 days', 'Last 28 days', 'Last 3 months'], default: 'Last 28 days' },
+    { name: 'compare', label: 'Compare to', type: 'select', options: ['None', 'Previous period', 'Previous year'], default: 'None' },
+  ],
+  'meta-ads': [
+    { name: 'input', label: 'Ad account', type: 'account', placeholder: 'e.g. act_1234567890', required: true },
+    { name: 'range', label: 'Date range', type: 'select', options: ['Last 7 days', 'Last 28 days', 'Last 3 months'], default: 'Last 28 days' },
+    { name: 'compare', label: 'Compare to', type: 'select', options: ['None', 'Previous period', 'Previous year'], default: 'None' },
+  ],
+  'linkedin-ads': [
+    { name: 'input', label: 'Ad account', type: 'account', placeholder: 'e.g. 512345678', required: true },
     { name: 'range', label: 'Date range', type: 'select', options: ['Last 7 days', 'Last 28 days', 'Last 3 months'], default: 'Last 28 days' },
     { name: 'compare', label: 'Compare to', type: 'select', options: ['None', 'Previous period', 'Previous year'], default: 'None' },
   ],

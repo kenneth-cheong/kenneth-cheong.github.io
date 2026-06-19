@@ -25,6 +25,7 @@ export const TABLES = {
   projects: process.env.PROJECTS_TABLE,
   cache: process.env.CACHE_TABLE,
   tracked: process.env.TRACKED_TABLE,
+  metrics: process.env.METRICS_TABLE,
   conversations: process.env.CONVERSATIONS_TABLE,
 };
 
@@ -806,6 +807,60 @@ export async function mergeSnapshots(userId, trackId, points) {
     ExpressionAttributeValues: { ':h': history, ':p': last.position ?? 0, ':u': last.url || '', ':t': new Date().toISOString() },
   }));
 }
+
+// ── Tool performance metrics (headline scalar over time, per project) ─────────
+// One row per (project, tool, metric) — same shape as tracked keywords, so the
+// frontend can chart `history` directly. `inputs` is the public run input (the
+// integration property + range) the daily cron replays to keep the series live.
+
+/**
+ * Append today's value for each extracted metric of a run (one point per metric
+ * per day; last 120 kept). `metrics` is the array from extractMetrics(); a run
+ * with no metrics is a no-op. Best-effort per metric — one bad write never sinks
+ * the others. `inputs` lets the cron re-pull integration metrics later.
+ */
+export async function appendMetricSnapshots(userId, ctx, metrics) {
+  if (!metrics || !metrics.length) return;
+  const date = new Date().toISOString().slice(0, 10);
+  const now = new Date().toISOString();
+  await Promise.all(metrics.map(async (m) => {
+    const metricId = `${ctx.projectId || 'none'}#${ctx.tool}#${m.key}`;
+    try {
+      const { Item } = await ddb.send(new GetCommand({ TableName: TABLES.metrics, Key: { userId, metricId } }));
+      const history = (Item?.history || []).filter((h) => h.date !== date);
+      history.push({ date, value: m.value });
+      history.sort((a, b) => a.date.localeCompare(b.date));
+      await ddb.send(new PutCommand({
+        TableName: TABLES.metrics,
+        Item: {
+          userId, metricId,
+          projectId: ctx.projectId || '',
+          tool: ctx.tool,
+          toolName: ctx.toolName || ctx.tool,
+          metricKey: m.key,
+          label: m.label,
+          unit: m.unit || '',
+          dir: m.dir || 'up',
+          target: ctx.target || '',
+          inputs: ctx.inputs || {},
+          history: history.slice(-120),
+          lastValue: m.value,
+          updatedAt: now,
+          addedAt: Item?.addedAt || now,
+        },
+      }));
+    } catch (e) { console.error('metric_snapshot_failed', metricId, e.message); }
+  }));
+}
+
+export async function listMetrics(userId, projectId) {
+  const { Items } = await ddb.send(new QueryCommand({ TableName: TABLES.metrics, KeyConditionExpression: 'userId = :u', ExpressionAttributeValues: { ':u': userId } }));
+  let items = Items || [];
+  if (projectId) items = items.filter((i) => i.projectId === projectId);
+  return items;
+}
+
+export async function scanMetrics() { const { Items } = await ddb.send(new ScanCommand({ TableName: TABLES.metrics })); return Items || []; }
 
 // ── Upstream result cache (cuts cost + latency on repeat queries) ─────────────
 // Keyed by a hash of tool + inputs; rows self-expire via DynamoDB TTL.

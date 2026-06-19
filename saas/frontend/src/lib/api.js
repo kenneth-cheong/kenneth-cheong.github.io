@@ -172,6 +172,8 @@ export const api = {
   removeTracked: (trackId) => call('/tracking/delete', { method: 'POST', body: { trackId } }),
   refreshTracking: (projectId, trackId) => call('/tracking/refresh', { method: 'POST', body: { projectId, trackId } }),
   backfillTracking: (projectId, trackId) => call('/tracking/refresh', { method: 'POST', body: { projectId, trackId, backfill: true } }),
+  // Tool performance metrics over time (per project)
+  metrics: (projectId) => call(`/metrics${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`),
   // Integrations (Google OAuth)
   integrations: () => call('/integrations'),
   integrationAccounts: (provider) => call(`/integrations/accounts?provider=${encodeURIComponent(provider)}`),
