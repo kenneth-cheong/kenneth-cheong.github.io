@@ -2999,8 +2999,6 @@
             display: inline-block;
             padding: 2px 8px;
             border-radius: 20px;
-            background: #fef3c7;
-            color: #92400e;
             font-size: 0.65rem;
             font-weight: 700;
             text-transform: uppercase;
@@ -3571,7 +3569,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2136</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2137</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -12861,6 +12859,27 @@
             return safe.replace(new RegExp(`(${esc})`, 'gi'), '<mark class="prompt-hl">$1</mark>');
         }
 
+        // Deterministic colour per tag — hashes the tag name to one of 12 distinct palettes
+        const _TAG_PALETTES = [
+            ['#fef3c7','#92400e'], // amber
+            ['#dbeafe','#1e40af'], // blue
+            ['#dcfce7','#166534'], // green
+            ['#fce7f3','#9d174d'], // pink
+            ['#ede9fe','#5b21b6'], // violet
+            ['#ffedd5','#9a3412'], // orange
+            ['#cffafe','#155e75'], // cyan
+            ['#fef9c3','#713f12'], // yellow
+            ['#f1f5f9','#334155'], // slate
+            ['#fee2e2','#991b1b'], // red
+            ['#d1fae5','#065f46'], // emerald
+            ['#e0e7ff','#3730a3'], // indigo
+        ];
+        function promptTagColor(tag) {
+            let h = 0;
+            for (let i = 0; i < tag.length; i++) h = (h * 31 + tag.charCodeAt(i)) >>> 0;
+            return _TAG_PALETTES[h % _TAG_PALETTES.length];
+        }
+
         function renderPromptsModal() {
             const list = document.getElementById('promptsList');
             const countEl = document.getElementById('promptCount');
@@ -12913,7 +12932,10 @@
                 prompts.forEach(p => {
                     const item = document.createElement('div');
                     item.className = 'prompt-item';
-                    const tagsHtml = (p.tags || []).map(t => `<span class="prompt-tag">${escapeHtml(t)}</span>`).join('');
+                    const tagsHtml = (p.tags || []).map(t => {
+                        const [bg, fg] = promptTagColor(t);
+                        return `<span class="prompt-tag" style="background:${bg};color:${fg};">${escapeHtml(t)}</span>`;
+                    }).join('');
                     item.innerHTML = `
                         <div class="prompt-icon"><i class="fas ${p.icon || 'fa-wand-magic-sparkles'}"></i></div>
                         <div class="prompt-content" style="flex:1; min-width:0;">
