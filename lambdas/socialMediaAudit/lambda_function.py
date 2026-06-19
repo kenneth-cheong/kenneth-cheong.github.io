@@ -59,7 +59,7 @@ JOB_TTL_SECS   = 6 * 3600
 CACHE_TTL_SECS = 30 * 86400        # 30-day Apify cache to cut scrape cost
 # Bump whenever the metrics shape changes so stale-shape cache entries are
 # treated as misses (forces a re-scrape) instead of serving wrong/partial data.
-METRICS_SCHEMA = 3                  # v3: + posts[] grid (image/url/likes/type per post)
+METRICS_SCHEMA = 4                  # v4: album posts resolve first real image (was permalink)
 MAX_GRID_POSTS = 21                 # posts surfaced for the visual grid (brand + competitors)
 
 CORS = {
@@ -861,34 +861,60 @@ def _collect_posts(platform, items, head):
     return out
 
 
+def _img_from_media_item(m):
+    """Pull a real image URL from one media item. Skips the bare `url` field —
+    on Facebook media items that's a post permalink, not an image. Prefers the
+    nested image/photo_image uri, then a thumbnail."""
+    if isinstance(m, str):
+        return m
+    if not isinstance(m, dict):
+        return ''
+    for nest in ('image', 'photo_image', 'thumbnailImage', 'preferred_thumbnail',
+                 'large_share_image', 'flexible_height_share_image', 'clip_fallback_cover'):
+        sub = m.get(nest)
+        if isinstance(sub, dict):
+            u = _g(sub, 'uri', 'url', 'src', default='')
+            if u:
+                return u
+        elif isinstance(sub, str) and sub:
+            return sub
+    return _g(m, 'thumbnail', 'thumbnailUrl', 'thumbnailSrc', 'src', 'imageUrl',
+              'photoImage', 'coverUrl', 'cover', default='')
+
+
 def _post_image(p):
-    """Best-effort post thumbnail / display image URL across actor shapes."""
+    """Best-effort post thumbnail / display image URL across actor shapes.
+
+    For albums (media is a list whose FIRST item can be a non-image wrapper —
+    e.g. Facebook's mediaset token), scan every item and return the first that
+    yields a real image, so multi-image posts still show their first photo."""
     img = _g(p, 'displayUrl', 'imageUrl', 'thumbnailUrl', 'thumbnailSrc', 'thumbnail',
              'cover', 'coverUrl', 'image', 'previewImageUrl', 'displayImageUrl', default='')
+    if isinstance(img, dict):
+        img = _g(img, 'uri', 'url', 'src', default='')
     if not img:
         for nest in ('videoMeta', 'video', 'media'):
             sub = p.get(nest)
             if isinstance(sub, dict):
                 img = _g(sub, 'coverUrl', 'originalCoverUrl', 'cover', 'thumbnail',
-                         'image', 'photoImage', 'url', default='')
+                         'image', 'photoImage', default='')
+                if isinstance(img, dict):
+                    img = _g(img, 'uri', 'url', 'src', default='')
                 if img:
                     break
     if not img:
-        # Facebook posts carry media as a list of {thumbnail, image, ...}.
+        # Facebook/IG carry media as a LIST; the first item may be a wrapper, so
+        # walk all items and take the first that resolves to a real image.
         for key in ('media', 'images', 'covers', 'thumbnails'):
             seq = p.get(key)
-            if isinstance(seq, list) and seq:
-                first = seq[0]
-                if isinstance(first, str):
-                    img = first
-                elif isinstance(first, dict):
-                    img = _g(first, 'thumbnail', 'url', 'src', 'image', 'photoImage',
-                             'imageUrl', default='')
-                    sub = first.get('photo_image') if isinstance(first.get('photo_image'), dict) else None
-                    if not img and sub:
-                        img = _g(sub, 'uri', 'url', default='')
-                if img:
-                    break
+            if isinstance(seq, list):
+                for item in seq:
+                    cand = _img_from_media_item(item)
+                    if cand:
+                        img = cand
+                        break
+            if img:
+                break
     return img if isinstance(img, str) else ''
 
 

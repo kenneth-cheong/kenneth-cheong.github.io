@@ -3571,7 +3571,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2132</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2133</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -12713,6 +12713,60 @@
                         text: "Scan my Google Chat messages for any mentions of 'pending tasks' or 'to-do' items from today.",
                         icon: "fa-clipboard-list",
                         tags: ["Comms", "Google Chat"]
+                    }
+                ]
+            },
+            {
+                category: "Campaign Audit Flags",
+                prompts: [
+                    {
+                        title: "Stale Items Near Expiry",
+                        description: "Find forgotten tasks where last update is >14 days and campaign end is <60 days away.",
+                        text: "Scan all campaign boards for items where the last_updated column is older than 14 days, the campaign end date is within 60 days, and the item's status column is NOT \"Complete\" or \"Done.\" List each stale item with its pulse ID, link, current status, and how many days since last update. Flag any item where the timeline column is empty but the item was created >7 days ago.",
+                        icon: "fa-clock-rotate-left",
+                        tags: ["Audit", "Monday"]
+                    },
+                    {
+                        title: "SLA Breach — Unactioned Pings",
+                        description: "Find @mentions >3 business days old with no status change and no timeline set.",
+                        text: "Search all updates/posts on campaign boards where a team member was @mentioned (pinged) more than 3 business days ago, but the item's status column has NOT changed since the ping date, and the timeline1 column is empty. List each with: pulse ID, the ping date, the requesting person, the assignee, and the original message. Prioritise pings related to \"ad copy,\" \"creative,\" \"backlink,\" or \"approval.\"",
+                        icon: "fa-bell-slash",
+                        tags: ["Audit", "Monday", "SLA"]
+                    },
+                    {
+                        title: "Zero Delivery — Live Campaigns",
+                        description: "Find live campaigns >3 days old with zero impressions or blank delivery columns.",
+                        text: "Find all items where the campaign status is \"Live\" or \"In Progress\", the campaign start date is >3 days ago, but the performance/delivery column (e.g., impressions, articles published, backlinks delivered) shows 0 or is blank. List the item, the responsible person column value, and the date the campaign went live.",
+                        icon: "fa-circle-xmark",
+                        tags: ["Audit", "Monday", "Delivery"]
+                    },
+                    {
+                        title: "Unreviewed Quality Checks",
+                        description: "Deliverables submitted but QA column empty or Pending >5 days.",
+                        text: "Find all items where a deliverable has been submitted/completed (e.g., backlinks delivered column = \"Yes\" or \"Delivered\") but the QA / Review Status column is empty or \"Pending Review\" for more than 5 days. List with: pulse ID, item name, person who submitted, and date submitted. Flag if the submitter is also the reviewer.",
+                        icon: "fa-magnifying-glass",
+                        tags: ["Audit", "Monday", "QA"]
+                    },
+                    {
+                        title: "Broken Handover Trail",
+                        description: "CSM/AM column changed in last 30 days with no new update from the new CSM.",
+                        text: "For any campaign board where the CSM or Account Manager column value has changed in the last 30 days, generate a snapshot of all open items (status not \"Done\" or \"Complete\") with their current status, days since last update, and any overdue timeline columns. Flag items where no new update has been posted by the new CSM.",
+                        icon: "fa-handshake-slash",
+                        tags: ["Audit", "Monday", "Handover"]
+                    },
+                    {
+                        title: "Client-Facing Data Leak",
+                        description: "Internal drafts/WIPs that may be visible to clients.",
+                        text: "Find any item where a column or sub-item contains the word \"draft\", \"WIP\", \"template\", or \"copy\" in its name, AND the item's \"Visibility to Client\" or board permission column is set to \"Visible\" or \"Client Can View\". Flag these as potential premature client-facing content leaks.",
+                        icon: "fa-eye",
+                        tags: ["Audit", "Monday", "Client"]
+                    },
+                    {
+                        title: "Weekly Health Score",
+                        description: "Full board audit — flags, scores, and RAG status across all campaign boards.",
+                        text: "Run a health audit across ALL campaign boards and produce a single table with: Board name + total open items | Items with no timeline set (created >7 days ago) | Items with no update in 14+ days | Items pinged but not actioned in 5+ days | Items past their timeline end date but status not \"Done\". Score each board: 🟢 Healthy (0–1 flags), 🟡 Warning (2–3 flags), 🔴 Critical (4+ flags).",
+                        icon: "fa-heart-pulse",
+                        tags: ["Audit", "Monday", "Reporting"]
                     }
                 ]
             }
