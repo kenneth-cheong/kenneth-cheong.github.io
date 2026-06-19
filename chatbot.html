@@ -275,6 +275,11 @@
             max-height: none !important;
         }
 
+        /* Master "Integrations" group: let nested connector cards expand fully */
+        .integrations-group > .collapsible-header { background: #f8fafc; }
+        .integrations-group.active > .collapsible-content { max-height: none !important; }
+        .integrations-group > .collapsible-content > .collapsible-section:last-of-type { margin-bottom: 0; }
+
         /* Multi-Select Styles */
         .multi-select-container {
             position: relative;
@@ -3527,7 +3532,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2109</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2110</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3694,6 +3699,15 @@
                 </div>
             </div>
 
+            <!-- Connections Overview: at-a-glance status + account login for every service -->
+            <div id="connectionsOverview" style="background:#fff; border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px; margin-bottom:4px;">
+                <div style="font-size:0.75rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                    <i class="fas fa-plug"></i> Connections
+                    <span id="integrationsCount" style="font-size:0.62rem; font-weight:700; color:#64748b; background:#f1f5f9; border-radius:10px; padding:1px 8px; letter-spacing:0;"></span>
+                </div>
+                <div id="connectionsOverviewGrid" style="display:grid; grid-template-columns:1fr 1fr; gap:6px 10px;"></div>
+            </div>
+
             <!-- Voice Output Section -->
             <div class="collapsible-section" id="voiceSection">
                 <div class="collapsible-header" onclick="this.closest('.collapsible-section').classList.toggle('active'); initTtsVoiceList()">
@@ -3742,6 +3756,14 @@
                     </div>
                 </div>
             </div>
+
+            <!-- ===== Integrations & Connectors (master collapsible housing every connector) ===== -->
+            <div class="collapsible-section integrations-group" id="integrationsGroup">
+                <div class="collapsible-header" onclick="this.closest('.collapsible-section').classList.toggle('active')">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-navy);"><i class="fas fa-plug" style="margin-right: 8px; opacity: 0.5;"></i> Integrations &amp; Connectors</span>
+                    <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
+                </div>
+                <div class="collapsible-content">
 
             <!-- Authentication Section (Always Visible) -->
             <div class="collapsible-section active" id="authSection">
@@ -4276,6 +4298,9 @@
                     </div>
                 </div>
             </div>
+
+                </div> <!-- /.collapsible-content (Integrations group) -->
+            </div> <!-- /#integrationsGroup -->
 
             <!-- Hidden inputs retained for backward-compat with saveSettings/autoSync references -->
             <textarea id="contextUrls" style="display:none;"></textarea>
@@ -5414,6 +5439,88 @@
         function toggleSettings() {
             const sidebar = document.getElementById('settingsSidebar');
             sidebar.classList.toggle('active');
+            if (sidebar.classList.contains('active')) cbRenderConnectionsOverview();
+        }
+
+        // ── Connections Overview: status dot + account login per service ──
+        function cbConnLs(k) { return localStorage.getItem(k); }
+        function cbConnArr(k) { try { const v = JSON.parse(localStorage.getItem(k) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } }
+        function cbGoogleUserEmail() { try { return (JSON.parse(localStorage.getItem('googleUser') || '{}').email) || ''; } catch { return ''; } }
+        function cbSvcEmail(svc) { return cbConnLs('googleEmail_' + svc) || cbGoogleUserEmail() || ''; }
+
+        function cbGetConnectionStates() {
+            return [
+                { name: 'Monday.com',     section: 'authSection',       on: !!cbConnLs('mondayApiKey'),          acct: cbConnLs('monday_account_email') || '' },
+                { name: 'Google',         section: 'googleChatSection', on: !!cbConnLs('googleToken_Workspace'), acct: cbSvcEmail('Workspace') },
+                { name: 'Search Console', section: 'googleChatSection', on: !!cbConnLs('googleToken_Gsc') && cbConnArr('selectedGscSite').length > 0,        acct: cbSvcEmail('Gsc') },
+                { name: 'GA4',            section: 'googleChatSection', on: !!cbConnLs('googleToken_Ga4') && cbConnArr('selectedGa4Property').length > 0,     acct: cbSvcEmail('Ga4') },
+                { name: 'Google Ads',     section: 'googleChatSection', on: !!cbConnLs('googleToken_Ads') && cbConnArr('selectedAdsAccount').length > 0,      acct: cbSvcEmail('Ads') },
+                { name: 'SE Ranking',     section: 'serankingSection',  on: cbConnArr('selectedSERankingSiteIds').length > 0,  acct: cbConnArr('selectedSERankingSiteIds').length + ' campaign(s)' },
+                { name: 'WorkDuo AI',     section: 'workduoSection',    on: cbConnArr('selectedWorkDuoProjectIds').length > 0, acct: cbConnArr('selectedWorkDuoProjectIds').length + ' project(s)' },
+                { name: 'Ahrefs',         section: 'ahrefsSection',     on: true, acct: 'Server-side key' },
+                { name: 'Meta Ads',       section: 'metaSection',       on: !!cbConnLs('meta_access_token'),     acct: cbConnLs('meta_connected_name') || '' },
+                { name: 'LinkedIn Ads',   section: 'linkedinSection',   on: !!cbConnLs('linkedin_access_token'), acct: cbConnLs('linkedin_connected_name') || '' },
+                { name: 'TikTok Ads',     section: 'tiktokSection',     on: !!cbConnLs('tiktok_access_token'),   acct: cbConnLs('tiktok_connected_name') || '' }
+            ];
+        }
+
+        function cbRenderConnectionsOverview() {
+            const grid = document.getElementById('connectionsOverviewGrid');
+            if (!grid) return;
+            cbCaptureMondayAccount();
+            const states = cbGetConnectionStates();
+            grid.innerHTML = states.map(s => {
+                const acct = s.on && s.acct ? String(s.acct) : '';
+                const acctClean = acct.replace(/"/g, '&quot;');
+                return `<button onclick="cbOpenConnectorSection('${s.section}')"
+                    title="${s.on ? 'Connected' : 'Not connected'}${acct ? ' — ' + acctClean : ''} — open ${s.name} settings"
+                    style="display:flex; align-items:flex-start; gap:7px; background:none; border:none; padding:3px 2px; cursor:pointer; text-align:left; min-width:0;">
+                    <span style="width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:3px; background:${s.on ? '#10b981' : '#cbd5e1'}; ${s.on ? 'box-shadow:0 0 0 3px rgba(16,185,129,0.15);' : ''}"></span>
+                    <span style="min-width:0; display:flex; flex-direction:column; line-height:1.25;">
+                        <span style="font-size:0.75rem; font-weight:600; color:${s.on ? '#1e293b' : '#94a3b8'}; white-space:nowrap;">${s.name}</span>
+                        ${acct ? `<span style="font-size:0.62rem; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:135px;">${acctClean}</span>` : ''}
+                    </span>
+                </button>`;
+            }).join('');
+            const count = states.filter(s => s.on).length;
+            const badge = document.getElementById('integrationsCount');
+            if (badge) badge.textContent = count + '/' + states.length;
+        }
+
+        function cbOpenConnectorSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            if (!section) return;
+            const group = section.closest('.integrations-group');
+            if (group && !group.classList.contains('active')) group.classList.add('active');
+            if (!section.classList.contains('active')) section.classList.add('active');
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        let _cbMondayAcctTried = false;
+        async function cbCaptureMondayAccount() {
+            if (_cbMondayAcctTried) return;
+            const key = localStorage.getItem('mondayApiKey');
+            if (!key || localStorage.getItem('monday_account_email')) return;
+            _cbMondayAcctTried = true;
+            try {
+                const url = (typeof CB_MONDAY_LAMBDA_URL !== 'undefined' ? CB_MONDAY_LAMBDA_URL : MONDAY_LAMBDA_URL);
+                const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get_monday_data', query: '{ me { name email } }', api_key: key }) });
+                const r = await res.json();
+                const data = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
+                const me = data?.me ?? data?.data?.me;
+                if (me?.email) { localStorage.setItem('monday_account_email', me.email); cbRenderConnectionsOverview(); }
+            } catch (e) { /* offline — leave email blank */ }
+        }
+
+        // Capture the Google login email for a freshly connected service, then refresh the overview
+        async function cbCaptureGoogleEmail(service, token) {
+            try {
+                const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { 'Authorization': `Bearer ${token}` } });
+                if (res.ok) {
+                    const info = await res.json();
+                    if (info.email) { localStorage.setItem('googleEmail_' + service, info.email); cbRenderConnectionsOverview(); }
+                }
+            } catch (e) { /* ignore */ }
         }
 
         // Close settings panel when clicking outside
@@ -6905,6 +7012,7 @@
                                 showToast(`${service} Connected!`, 'success');
                                 updateServiceUI(service, true);
                                 initializeServiceData(service);
+                                cbCaptureGoogleEmail(service, res.access_token);
                             } else {
                                 const errorMsg = res.error || res.message || 'Token exchange failed';
                                 console.error(`[${service}] Exchange failed:`, errorMsg);
@@ -6926,12 +7034,14 @@
             localStorage.removeItem(`googleToken_${service}`);
             localStorage.removeItem(`googleRefresh_${service}`);
             localStorage.removeItem(`googleToken_${service}_expires`);
+            localStorage.removeItem(`googleEmail_${service}`);
             if (service === 'Workspace') {
                 window.gchatAccessToken = null;
                 window.gchatSpaces = [];
             }
             updateServiceUI(service, false);
             showToast(`${service} disconnected`, 'success');
+            cbRenderConnectionsOverview();
         }
 
         async function tryRefreshToken(service) {
@@ -7045,6 +7155,7 @@
                         const userInfo = await res.json();
                         if (userInfo.email) setUserIdFromEmail(userInfo.email);
                         if (userInfo.email) localStorage.setItem('googleUser', JSON.stringify({ name: userInfo.name, email: userInfo.email, picture: userInfo.picture }));
+                        if (userInfo.email) localStorage.setItem(`googleEmail_${s}`, userInfo.email);
                         localStorage.setItem(`googleToken_${s}_verified`, Date.now());
                         updateServiceUI(s, true);
                         if (s === 'Workspace') window.gchatAccessToken = activeToken;
