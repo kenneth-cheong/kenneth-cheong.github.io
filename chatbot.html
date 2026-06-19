@@ -3527,7 +3527,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2090</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2109</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -4093,6 +4093,7 @@
                                 <i class="fas fa-search"></i>
                                 <input type="text" placeholder="Search campaigns..." id="serankingSearchInput" oninput="filterSERankingSites()">
                             </div>
+                            <div class="ms-bulk-actions"><button onclick="serankingSelectAll()" title="Select all campaigns">✓ All</button><button onclick="serankingUnselectAll()" title="Deselect all campaigns">✗ None</button></div>
                             <div class="multi-select-options" id="serankingOptionsList"></div>
                         </div>
                     </div>
@@ -4123,6 +4124,7 @@
                                 <i class="fas fa-search"></i>
                                 <input type="text" placeholder="Search projects..." id="workduoSearchInput" oninput="filterWorkDuoProjects()">
                             </div>
+                            <div class="ms-bulk-actions"><button onclick="selectAllWorkDuo()" title="Select all projects">✓ All</button><button onclick="clearAllWorkDuo()" title="Deselect all projects">✗ None</button></div>
                             <div class="multi-select-options" id="workduoOptionsList">
                                 <div style="padding:10px; font-size:0.7rem; color:#94a3b8; text-align:center;">Open to load projects</div>
                             </div>
@@ -5972,6 +5974,28 @@
             countDisplay.textContent = count === 0 ? "Select Campaigns" : `${count} Campaign${count !== 1 ? 's' : ''} Selected`;
         }
 
+        function serankingSelectAll() {
+            const filter = (document.getElementById('serankingSearchInput') || {}).value || '';
+            const visible = filter
+                ? window.allSERankingSites.filter(s => s.title.toLowerCase().includes(filter.toLowerCase()) || (s.url && s.url.toLowerCase().includes(filter.toLowerCase())))
+                : window.allSERankingSites;
+            visible.forEach(s => { if (!window.selectedSERankingSites.includes(String(s.id))) window.selectedSERankingSites.push(String(s.id)); });
+            localStorage.setItem('selectedSERankingSiteIds', JSON.stringify(window.selectedSERankingSites));
+            renderSERankingSites(filter.toLowerCase());
+            updateSelectedCount();
+        }
+
+        function serankingUnselectAll() {
+            const filter = (document.getElementById('serankingSearchInput') || {}).value || '';
+            const visible = filter
+                ? window.allSERankingSites.filter(s => s.title.toLowerCase().includes(filter.toLowerCase()) || (s.url && s.url.toLowerCase().includes(filter.toLowerCase())))
+                : window.allSERankingSites;
+            const visibleIds = new Set(visible.map(s => String(s.id)));
+            window.selectedSERankingSites = window.selectedSERankingSites.filter(id => !visibleIds.has(id));
+            localStorage.setItem('selectedSERankingSiteIds', JSON.stringify(window.selectedSERankingSites));
+            renderSERankingSites(filter.toLowerCase());
+            updateSelectedCount();
+        }
 
 
         // ── WorkDuo Project Selector ──────────────────────────────────────────
