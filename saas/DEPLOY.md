@@ -45,8 +45,9 @@ You'll create the **webhook secret** in step 4 (after the API URL exists).
 
 ## 3. Deploy the backend (esbuild → CloudFormation)
 
-The backend has **9 Lambdas** (`authorizer, auth, me, metering, billing, admin, app,
-track, close`). `scripts/build.mjs` bundles each into `.build/<fn>/index.mjs` with
+The backend has **12 Lambdas** (`authorizer, auth, me, metering, billing, admin, app,
+close, track, metricscron, refill, chatstream`) — the canonical list is the `FUNCTIONS`
+array in `scripts/build.mjs`. It bundles each into `.build/<fn>/index.mjs` with
 `esbuild` (inlining `shared/catalog.mjs` + npm deps; the AWS SDK is provided by the
 nodejs20 runtime). `template.yaml` points each function's `CodeUri` at `.build/<fn>/`.
 
@@ -64,17 +65,32 @@ aws cloudformation package \
 
 ### First deploy — create the stack
 
-The template takes these parameters (the live stack uses all of them):
+> **Secrets are NOT CloudFormation parameters.** `JwtSecret`, `GatewaySecret`,
+> `StripeSecretKey`, `StripeWebhookSecret`, the Google Ads developer token and the
+> Anthropic key live in **Secrets Manager** (`digimetrics-saas/jwt-secret`,
+> `…/gateway-secret`, `…/stripe-secret-key`, `…/stripe-webhook-secret`,
+> `…/google-ads-developer-token`, `…/anthropic-key`) and the template pulls them via
+> `{{resolve:secretsmanager:…}}`. Seed those secrets **before** the first deploy:
+> ```bash
+> aws secretsmanager create-secret --name digimetrics-saas/jwt-secret \
+>   --secret-string "$(openssl rand -hex 32)" --region ap-southeast-1
+> # …repeat for gateway-secret, stripe-secret-key, stripe-webhook-secret (whsec_temp
+> #    for now — set the real one in step 4), google-ads-developer-token, anthropic-key
+> ```
+
+The template's CloudFormation **parameters** (the live stack uses exactly these ten):
 
 | Parameter | Value |
 |---|---|
 | `AppOrigin` | `http://localhost:5173` for now; change to the live URL after step 5 |
+| `CorsOrigins` | comma-separated allowed origins (e.g. the Amplify URL + localhost) |
 | `GoogleClientId` | from step 1 |
-| `JwtSecret` | a long random string (`openssl rand -hex 32`) |
-| `StripeSecretKey` | `sk_test_…` |
-| `StripeWebhookSecret` | placeholder for now (`whsec_temp`), fixed in step 4 |
-| `GatewaySecret` | random string — the gateway→upstream shared secret (step 6) |
+| `GoogleClientSecret` | from step 1 (empty string is allowed — browser-token flow) |
+| `GoogleAdsLoginCustomerId` | Ads MCC login customer id (digits, no dashes) |
 | `AdminEmails` | comma-separated admin emails for `/admin` (e.g. `clarinet.kenneth@gmail.com`) |
+| `SesFrom` | verified SES "from" address |
+| `SesSupport` | support inbox address |
+| `AutoCloseDays` | days of inactivity before a support ticket auto-closes |
 | `AlarmEmail` | email for CloudWatch error/throttle alarms (SNS sends a one-time confirm) |
 
 ```bash
@@ -84,40 +100,54 @@ aws cloudformation deploy \
   --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
   --region ap-southeast-1 \
   --parameter-overrides \
-    AppOrigin=http://localhost:5173 GoogleClientId=... JwtSecret=... \
-    StripeSecretKey=sk_test_... StripeWebhookSecret=whsec_temp GatewaySecret=... \
-    AdminEmails=clarinet.kenneth@gmail.com AlarmEmail=you@example.com
+    AppOrigin=http://localhost:5173 CorsOrigins=http://localhost:5173 \
+    GoogleClientId=... GoogleClientSecret=... GoogleAdsLoginCustomerId=... \
+    AdminEmails=clarinet.kenneth@gmail.com SesFrom=no-reply@example.com \
+    SesSupport=support@example.com AutoCloseDays=7 AlarmEmail=you@example.com
 ```
 
 Note the **`ApiUrl`** output (`aws cloudformation describe-stacks`) — used as
 `VITE_API_BASE` and the Stripe webhook target. There's also a **`RunUrl`** Function
 URL output that slow tools route through (the `/run/{toolId}` API path has a 30s cap).
 
-### Subsequent updates — change-set (preserves secrets)
+### Subsequent updates — change-set (preserves params)
 
 For an existing stack, deploy via a change-set and pass **`UsePreviousValue=true`** for
-every secret/param you aren't changing, so you don't clobber the live values:
+every parameter you aren't changing, so you don't clobber the live values. Pass **all
+ten** — `create-change-set` rejects `UsePreviousValue` for a key that isn't in the
+template, and omitting a key resets it to its default (see the `AlarmEmail` warning
+below). Secrets aren't parameters (they're in Secrets Manager), so they're never listed
+here:
 
 ```bash
+CS="deploy-$(git rev-parse --short HEAD)"
 aws cloudformation create-change-set --stack-name digimetrics-saas \
-  --change-set-name deploy-$(git rev-parse --short HEAD) --change-set-type UPDATE \
+  --change-set-name "$CS" --change-set-type UPDATE \
   --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
   --template-body file:///tmp/pkg.yaml --region ap-southeast-1 \
   --parameters \
-    ParameterKey=JwtSecret,UsePreviousValue=true \
-    ParameterKey=GatewaySecret,UsePreviousValue=true \
-    ParameterKey=StripeSecretKey,UsePreviousValue=true \
-    ParameterKey=StripeWebhookSecret,UsePreviousValue=true \
-    ParameterKey=GoogleClientId,UsePreviousValue=true \
     ParameterKey=AppOrigin,UsePreviousValue=true \
+    ParameterKey=CorsOrigins,UsePreviousValue=true \
+    ParameterKey=GoogleClientId,UsePreviousValue=true \
+    ParameterKey=GoogleClientSecret,UsePreviousValue=true \
+    ParameterKey=GoogleAdsLoginCustomerId,UsePreviousValue=true \
     ParameterKey=AdminEmails,UsePreviousValue=true \
+    ParameterKey=SesFrom,UsePreviousValue=true \
+    ParameterKey=SesSupport,UsePreviousValue=true \
+    ParameterKey=AutoCloseDays,UsePreviousValue=true \
     ParameterKey=AlarmEmail,UsePreviousValue=true
 
-# ALWAYS review before executing — check for an unexpected "Remove AlarmTopic":
+# Wait for the change-set to finish computing, then ALWAYS review before executing —
+# every Lambda shows "Modify" (shared/catalog.mjs is inlined into each bundle); check
+# there's no unexpected "Remove" (esp. AlarmTopic) and no Replace on a DynamoDB table:
+aws cloudformation wait change-set-create-complete --stack-name digimetrics-saas \
+  --change-set-name "$CS" --region ap-southeast-1
 aws cloudformation describe-change-set --stack-name digimetrics-saas \
-  --change-set-name deploy-... --region ap-southeast-1
+  --change-set-name "$CS" --region ap-southeast-1 \
+  --query 'Changes[].ResourceChange.{Action:Action,Id:LogicalResourceId,Replace:Replacement}' --output table
 aws cloudformation execute-change-set --stack-name digimetrics-saas \
-  --change-set-name deploy-... --region ap-southeast-1
+  --change-set-name "$CS" --region ap-southeast-1
+aws cloudformation wait stack-update-complete --stack-name digimetrics-saas --region ap-southeast-1
 ```
 
 > ⚠️ **Don't drop `AlarmEmail` from the param list.** It defaults to `''` and gates
@@ -139,8 +169,9 @@ aws lambda update-function-code --function-name <physical-name> \
 
 Physical names are `digimetrics-saas-<LogicalId>-<suffix>` (resolve via
 `aws cloudformation describe-stack-resources`). **`shared/catalog.mjs` is inlined into
-every bundle**, so a catalog change means redeploying all 9 functions. (This leaves the
-stack's S3 artifact pointers stale until the next full CFN deploy — fine for code.)
+every bundle** (as is `shared/metrics.mjs`), so a catalog/metrics change means
+redeploying all 12 functions. (This leaves the stack's S3 artifact pointers stale until
+the next full CFN deploy — fine for code.)
 
 ### Two SAM-transform gotchas (already handled in `template.yaml`)
 
@@ -161,24 +192,20 @@ Stripe Dashboard → Developers → Webhooks → **Add endpoint**:
 - URL: `<ApiUrl>/billing/webhook`
 - Events: `checkout.session.completed`, `invoice.paid`,
   `customer.subscription.updated`, `customer.subscription.deleted`
-- Copy the **Signing secret** (`whsec_…`), then push it as a change-set (everything
-  else `UsePreviousValue=true` — see step 3):
+- Copy the **Signing secret** (`whsec_…`) and write it to the Secrets Manager secret
+  the template resolves (`digimetrics-saas/stripe-webhook-secret`):
 
 ```bash
-aws cloudformation create-change-set --stack-name digimetrics-saas \
-  --change-set-name webhook-secret --change-set-type UPDATE \
-  --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
-  --template-body file:///tmp/pkg.yaml --region ap-southeast-1 \
-  --parameters ParameterKey=StripeWebhookSecret,ParameterValue=whsec_xxx \
-    ParameterKey=JwtSecret,UsePreviousValue=true \
-    ParameterKey=GatewaySecret,UsePreviousValue=true \
-    ParameterKey=StripeSecretKey,UsePreviousValue=true \
-    ParameterKey=GoogleClientId,UsePreviousValue=true \
-    ParameterKey=AppOrigin,UsePreviousValue=true \
-    ParameterKey=AdminEmails,UsePreviousValue=true \
-    ParameterKey=AlarmEmail,UsePreviousValue=true
-# then describe-change-set → execute-change-set
+aws secretsmanager put-secret-value \
+  --secret-id digimetrics-saas/stripe-webhook-secret \
+  --secret-string whsec_xxx --region ap-southeast-1
 ```
+
+`{{resolve:secretsmanager:…}}` is evaluated at **deploy time**, not runtime, so the new
+value only reaches `BillingFn`'s env on the next CloudFormation deploy — run the
+standard step-3 change-set (all params `UsePreviousValue=true`) to pick it up. The
+code-only `update-function-code` fast path does **not** re-resolve secret env vars, so
+don't use it to rotate this.
 
 ---
 
@@ -254,6 +281,6 @@ Until this is done, treat the deployment as **staging only**.
 3. If its payload/response differs from the generic `{input}` → `{rows|text}`, add an
    adapter in `src/metering/adapters.mjs` (see `keyword-analysis` / `caption`).
 4. Deploy. Since `catalog.mjs` is inlined into every bundle and imported by the
-   frontend, redeploy **both** sides: backend (code-only fast path, all 9 functions —
+   frontend, redeploy **both** sides: backend (code-only fast path, all 12 functions —
    step 3) **and** frontend (`npm run deploy` — step 5). The tool grid + runner are
    catalog-driven, so no other frontend code changes.
