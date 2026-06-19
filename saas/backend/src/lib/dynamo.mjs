@@ -389,6 +389,21 @@ export async function adminSetTier({ userId, tier, monthlyCredits, adminEmail })
   return getUser(userId);
 }
 
+/** Admin: set a user's lifecycle status (active | paused | inactive). */
+export async function adminSetStatus({ userId, status, adminEmail }) {
+  const user = await getUser(userId);
+  if (!user) throw new Error('User not found');
+  await putUser({ ...user, status, updatedAt: new Date().toISOString() });
+  await writeLedger({
+    userId,
+    delta: 0,
+    balanceAfter: totalCredits(user),
+    action: 'admin_set_status',
+    meta: { adminEmail, status },
+  });
+  return getUser(userId);
+}
+
 // ── Admin-provisioned accounts (invite-by-email) ─────────────────────────────
 // Stored in the Users table under a `pending:<email>` key. On the person's first
 // Google sign-in with that email, auth links it onto their real google:<sub>

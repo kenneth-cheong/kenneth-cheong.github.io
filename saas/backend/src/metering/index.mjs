@@ -29,6 +29,7 @@ import {
   ok,
   badRequest,
   unauthorized,
+  forbidden,
   paymentRequired,
   tierLocked,
   serverError,
@@ -37,6 +38,7 @@ import {
   claims,
   preflight,
 } from '../lib/http.mjs';
+import { accountBlocked } from '../lib/admin.mjs';
 import { verify } from '../lib/jwt.mjs';
 import { rateLimit, RUN_LIMITS } from '../lib/ratelimit.mjs';
 
@@ -75,6 +77,7 @@ export const handler = async (event) => {
 
   const user = await getUser(c.userId);
   if (!user) return unauthorized('User not found');
+  if (accountBlocked(user)) return forbidden({ error: 'account_suspended', status: user.status });
 
   const body = parseBody(event);
   // Expose the authenticated email to adapters that attribute upstream jobs

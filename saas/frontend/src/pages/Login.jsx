@@ -22,7 +22,12 @@ export default function Login() {
           try {
             await loginWithGoogle(resp.credential);
           } catch (err) {
-            setError(err?.message || 'Sign-in failed. Please try again.');
+            const status = err?.payload?.status;
+            setError(
+              status === 'paused' || status === 'inactive'
+                ? `Your account has been ${status === 'paused' ? 'paused' : 'deactivated'}. Please contact support to restore access.`
+                : err?.message || 'Sign-in failed. Please try again.'
+            );
             setSigningIn(false);
           }
         },

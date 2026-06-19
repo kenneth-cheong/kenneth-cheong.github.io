@@ -28,8 +28,8 @@ import Stripe from 'stripe';
 // account isn't billed). Null when no key is configured.
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 import { sendEmail, SUPPORT_INBOX } from '../lib/email.mjs';
-import { isStaff } from '../lib/admin.mjs';
-import { ok, badRequest, unauthorized, paymentRequired, tooManyRequests, serverError, parseBody, claims, preflight, isEmail, clampStr } from '../lib/http.mjs';
+import { isStaff, accountBlocked } from '../lib/admin.mjs';
+import { ok, badRequest, unauthorized, forbidden, paymentRequired, tooManyRequests, serverError, parseBody, claims, preflight, isEmail, clampStr } from '../lib/http.mjs';
 import { rateLimit, APP_LIMITS } from '../lib/ratelimit.mjs';
 
 const APP_ORIGIN = process.env.APP_ORIGIN || '';
@@ -77,6 +77,7 @@ export const handler = async (event) => {
 
   const user = await getUser(c.userId);
   if (!user) return unauthorized('User not found');
+  if (accountBlocked(user)) return forbidden({ error: 'account_suspended', status: user.status });
   const body = parseBody(event);
 
   try {

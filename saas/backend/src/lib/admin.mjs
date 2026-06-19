@@ -15,3 +15,14 @@ export function isStaff(user) {
   if (!user) return false;
   return user.role === 'staff' || isAdmin(user.email);
 }
+
+// Account lifecycle status, set by admins from the Users console. 'active' (the
+// default when the field is absent) has full access; 'paused' (temporary hold)
+// and 'inactive' (deactivated) are blocked everywhere with a 403 until an admin
+// restores them. Provisioned-but-unlinked invites use 'invited' (not blocked —
+// they simply haven't signed in yet).
+export const ACCOUNT_STATUSES = ['active', 'paused', 'inactive'];
+
+export function accountBlocked(user) {
+  return user?.status === 'paused' || user?.status === 'inactive';
+}

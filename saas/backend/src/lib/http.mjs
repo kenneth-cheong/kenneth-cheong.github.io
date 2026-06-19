@@ -30,6 +30,10 @@ export const paymentRequired = (payload) =>
 export const tierLocked = (requiredTier) =>
   json(403, { error: 'tier_locked', requiredTier });
 
+/** Generic 403 — pass a string for a plain message, or an object payload. */
+export const forbidden = (payload = 'Forbidden') =>
+  json(403, typeof payload === 'string' ? { error: payload } : payload);
+
 export const serverError = (msg = 'Internal error') => json(500, { error: msg });
 
 /** 429 with a Retry-After header so clients (and the UI) can back off. */

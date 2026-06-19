@@ -11,6 +11,7 @@ import {
   createProvision,
   adminAdjustCredits,
   adminSetTier,
+  adminSetStatus,
   totalCredits,
   requestAccess,
   listAccessGrants,
@@ -22,7 +23,7 @@ import {
   addNotification,
 } from '../lib/dynamo.mjs';
 import { PLANS } from '../../../shared/catalog.mjs';
-import { isAdmin, isStaff } from '../lib/admin.mjs';
+import { isAdmin, isStaff, ACCOUNT_STATUSES } from '../lib/admin.mjs';
 import { sendEmail } from '../lib/email.mjs';
 import { ok, badRequest, unauthorized, serverError, json, parseBody, claims, isEmail } from '../lib/http.mjs';
 
@@ -125,6 +126,17 @@ export const handler = async (event) => {
     });
     return ok({ user: shape(user) });
   }
+  // Pause / deactivate / reactivate a user. 'paused' and 'inactive' block all
+  // access (login, refresh, app routes, tool runs) until set back to 'active'.
+  if (path.endsWith('/status')) {
+    if (!body.userId || !ACCOUNT_STATUSES.includes(body.status)) return badRequest('userId + valid status required');
+    const target = await getUser(body.userId);
+    if (!target) return badRequest('User not found');
+    // Guard against an admin locking a staff member (or themselves) out.
+    if (isStaff(target) && body.status !== 'active') return badRequest('Staff accounts cannot be paused or deactivated.');
+    const user = await adminSetStatus({ userId: body.userId, status: body.status, adminEmail: c.email });
+    return ok({ user: shape(user) });
+  }
 
   return badRequest('Unknown admin route');
   } catch (err) {
@@ -141,7 +153,7 @@ function shape(u) {
     name: u.name,
     tier: u.tier,
     role: u.role || (isAdmin(u.email) ? 'staff' : 'client'),
-    status: invited ? 'invited' : 'active',
+    status: invited ? 'invited' : (u.status || 'active'),
     credits: invited ? (u.credits || 0) : totalCredits(u),
     monthlyCredits: u.credits || 0,
     topupCredits: u.topupCredits || 0,

@@ -9,9 +9,9 @@ import { OAuth2Client } from 'google-auth-library';
 import { getUser, putUser, getProvision, deleteProvision, addSession, validateSession } from '../lib/dynamo.mjs';
 import { signAccess, signRefresh, verify } from '../lib/jwt.mjs';
 import { PLANS } from '../../../shared/catalog.mjs';
-import { ok, badRequest, unauthorized, tooManyRequests, parseBody } from '../lib/http.mjs';
+import { ok, badRequest, unauthorized, forbidden, tooManyRequests, parseBody } from '../lib/http.mjs';
 import { rateLimit, AUTH_LIMITS } from '../lib/ratelimit.mjs';
-import { isStaff } from '../lib/admin.mjs';
+import { isStaff, accountBlocked } from '../lib/admin.mjs';
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -96,6 +96,10 @@ async function handleGoogle({ idToken }, meta = {}) {
     await deleteProvision(payload.email);
   }
 
+  // Blocked accounts can't sign in (checked after invite-linking so a paused
+  // status set on the linked record is honoured).
+  if (accountBlocked(user)) return forbidden({ error: 'account_suspended', status: user.status });
+
   // Register this login as a session (caps concurrent devices; oldest evicted).
   const sid = randomUUID();
   await addSession({ userId: user.userId, sid, device: meta.device, ip: meta.ip });
@@ -118,6 +122,9 @@ async function handleRefresh({ refreshToken }) {
   }
   const user = await getUser(claims.sub);
   if (!user) return unauthorized('User not found');
+  // A paused/inactive account can't mint new access tokens — so any live
+  // session dies within the access-token TTL once an admin blocks them.
+  if (accountBlocked(user)) return forbidden({ error: 'account_suspended', status: user.status });
   // Reject refresh tokens issued before a "sign out everywhere" / revocation.
   if ((claims.tv || 0) !== (user.tokenVersion || 0)) return unauthorized('Session expired — please sign in again.');
   // Enforce the device cap: a session-bound token must still be registered.

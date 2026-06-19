@@ -48,6 +48,13 @@ function AdminUsers() {
     catch (e) { setUsers([]); setError(e?.status === 403 ? 'Your account is not an admin.' : 'Could not load users — reload and try again.'); }
   }
   async function setTier(u, tier) { await api.adminTier(u.userId, tier); flash(`${u.email} → ${PLANS[tier].name}`); load(); }
+  async function setStatus(u, status) {
+    if (status === (u.status || 'active')) return;
+    if (status !== 'active' && !confirm(`Set ${u.email} to "${status}"? They'll be signed out and blocked from signing in or using the app until you reactivate them.`)) { load(); return; }
+    try { await api.adminStatus(u.userId, status); flash(`${u.email} → ${status}`); }
+    catch (e) { setError(e?.payload?.error || 'Could not update status.'); }
+    load();
+  }
   async function adjust(u, bucket) {
     const raw = prompt(`Adjust ${bucket} credits for ${u.email} (use a negative number to deduct):`, '100');
     if (raw === null) return;
@@ -86,9 +93,12 @@ function AdminUsers() {
                 ? <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700">Staff</span>
                 : <span className="text-xs text-slate-500">Client</span>) },
             { key: 'status', label: 'Status', accessor: (u) => u.status || 'active',
-              render: (u) => (u.status === 'invited'
-                ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Invited</span>
-                : <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">Active</span>) },
+              render: (u) => (
+                u.status === 'invited'
+                  ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Invited</span>
+                  : u.role === 'staff'
+                    ? <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">Active</span>
+                    : <StatusSelect u={u} onChange={(s) => setStatus(u, s)} />) },
             { key: 'tier', label: 'Tier', accessor: (u) => TIER_ORDER.indexOf(u.tier),
               render: (u) => (
                 <select value={u.tier} onChange={(e) => setTier(u, e.target.value)} className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm">
@@ -110,10 +120,29 @@ function AdminUsers() {
         />
       </div>
       <p className="mt-3 text-xs text-slate-400">
-        Tier changes reset the monthly allowance to that plan's amount; top-up credits are untouched. All adjustments are written to the credit ledger.
+        Tier changes reset the monthly allowance to that plan's amount; top-up credits are untouched. Setting a user to <strong>Paused</strong> or <strong>Inactive</strong> blocks sign-in and all app/tool access until you set them back to Active. Staff accounts can't be blocked. All changes are written to the credit ledger.
       </p>
       {activityUser && <AdminUserActivity user={activityUser} onClose={() => setActivityUser(null)} />}
     </div>
+  );
+}
+
+// Active / Paused / Inactive picker for the Users table. Colour-codes the
+// current state; 'paused'/'inactive' lock the account out everywhere (enforced
+// server-side). Invited + staff rows render a plain pill instead (see above).
+function StatusSelect({ u, onChange }) {
+  const status = u.status || 'active';
+  const tone = status === 'active' ? 'text-green-700' : status === 'paused' ? 'text-amber-700' : 'text-red-700';
+  return (
+    <select
+      value={status}
+      onChange={(e) => onChange(e.target.value)}
+      className={`dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm font-semibold ${tone}`}
+    >
+      <option value="active">Active</option>
+      <option value="paused">Paused</option>
+      <option value="inactive">Inactive</option>
+    </select>
   );
 }
 

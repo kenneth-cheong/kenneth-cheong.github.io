@@ -195,4 +195,5 @@ export const api = {
   adminCredits: (userId, monthlyDelta, topupDelta, reason) =>
     call('/admin/credits', { method: 'POST', body: { userId, monthlyDelta, topupDelta, reason } }),
   adminTier: (userId, tier) => call('/admin/tier', { method: 'POST', body: { userId, tier } }),
+  adminStatus: (userId, status) => call('/admin/status', { method: 'POST', body: { userId, status } }),
 };

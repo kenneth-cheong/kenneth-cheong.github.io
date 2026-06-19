@@ -3,8 +3,8 @@
 //   GET /me/usage    -> recent credit-ledger rows for the usage dashboard
 import { getUser, listLedger, totalCredits } from '../lib/dynamo.mjs';
 import { PLANS } from '../../../shared/catalog.mjs';
-import { ok, unauthorized, serverError, claims } from '../lib/http.mjs';
-import { isStaff } from '../lib/admin.mjs';
+import { ok, unauthorized, forbidden, serverError, claims } from '../lib/http.mjs';
+import { isStaff, accountBlocked } from '../lib/admin.mjs';
 
 export const handler = async (event) => {
   try {
@@ -12,6 +12,9 @@ export const handler = async (event) => {
     if (!c?.userId) return unauthorized();
     const user = await getUser(c.userId);
     if (!user) return unauthorized('User not found');
+    // Blocked accounts get bounced — the frontend clears the session and the
+    // sign-in screen shows why (it reads the account_suspended payload).
+    if (accountBlocked(user)) return forbidden({ error: 'account_suspended', status: user.status });
 
     const path = event.rawPath || '';
     if (path.endsWith('/usage')) {
