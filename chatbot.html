@@ -1997,6 +1997,47 @@
             gap: 8px;
         }
 
+        /* History staff filter (multi-select checkbox dropdown) */
+        .hsf { position: relative; margin-bottom: 10px; }
+        .hsf-trigger {
+            width: 100%; display: flex; align-items: center; justify-content: space-between;
+            gap: 8px; padding: 7px 10px; border: 1px solid #e2e8f0; border-radius: 10px;
+            background: #f8fafc; color: #334155; font-size: 0.8rem; font-family: inherit;
+            cursor: pointer; box-sizing: border-box; transition: border-color 0.15s, background 0.15s;
+        }
+        .hsf-trigger:hover { border-color: #cbd5e1; background: #fff; }
+        .hsf-trigger.active { border-color: #6366f1; background: #fff; }
+        .hsf-trigger .hsf-label { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .hsf-trigger .hsf-label i { color: #94a3b8; font-size: 0.72rem; flex-shrink: 0; }
+        .hsf-panel {
+            position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 60;
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+            box-shadow: 0 12px 28px rgba(15,23,42,0.14); overflow: hidden;
+        }
+        .hsf-search { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; }
+        .hsf-search i { color: #94a3b8; font-size: 0.72rem; }
+        .hsf-search input { flex: 1; border: none; outline: none; font-size: 0.78rem; font-family: inherit; background: transparent; color: #334155; }
+        .hsf-actions { display: flex; gap: 6px; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; }
+        .hsf-actions button {
+            flex: 1; padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 7px; background: #f8fafc;
+            color: #475569; font-size: 0.7rem; font-weight: 700; cursor: pointer; font-family: inherit;
+        }
+        .hsf-actions button:hover { border-color: #6366f1; color: #4338ca; background: #eef2ff; }
+        .hsf-options { max-height: 240px; overflow-y: auto; padding: 4px; }
+        .hsf-opt {
+            display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px;
+            cursor: pointer; font-size: 0.8rem; color: #334155;
+        }
+        .hsf-opt:hover { background: #f1f5f9; }
+        .hsf-opt .hsf-check {
+            width: 16px; height: 16px; border: 1.5px solid #cbd5e1; border-radius: 5px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center; color: #fff; font-size: 0.6rem; transition: all 0.12s;
+        }
+        .hsf-opt.selected .hsf-check { background: #6366f1; border-color: #6366f1; }
+        .hsf-opt .hsf-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .hsf-opt .hsf-count { font-size: 0.68rem; color: #94a3b8; flex-shrink: 0; }
+        .hsf-empty { padding: 16px; text-align: center; color: #94a3b8; font-size: 0.76rem; }
+
         /* Internal mode accent override */
         body.internal-mode .app-container {
             border-color: rgba(245, 158, 11, 0.3);
@@ -3530,7 +3571,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2123</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2124</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3636,8 +3677,22 @@
                         onfocus="this.style.borderColor='#6366f1'; this.style.background='#fff';"
                         onblur="this.style.borderColor='#e2e8f0'; this.style.background='#f8fafc';">
                 </div>
-                <div style="display:flex; align-items:center; gap:6px; font-size:0.75rem; color:#64748b; padding:6px 10px; background:#f8fafc; border-radius:10px; border:1px solid #e2e8f0;">
-                    <i class="fas fa-users" style="font-size:0.72rem;"></i> Showing all team conversations
+                <div class="hsf" id="historyStaffFilter">
+                    <button type="button" class="hsf-trigger" id="hsfTrigger" onclick="toggleStaffFilter(event)" title="Filter conversations by staff">
+                        <span class="hsf-label" id="hsfLabel"><i class="fas fa-user-group"></i> All staff</span>
+                        <i class="fas fa-chevron-down" style="font-size:0.6rem; color:#94a3b8;"></i>
+                    </button>
+                    <div class="hsf-panel" id="hsfPanel" style="display:none;" onclick="event.stopPropagation()">
+                        <div class="hsf-search">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="hsfSearch" placeholder="Search staff…" oninput="renderStaffOptions(this.value)" autocomplete="off">
+                        </div>
+                        <div class="hsf-actions">
+                            <button type="button" onclick="staffSelectAll()">✓ All</button>
+                            <button type="button" onclick="staffClearAll()">✗ None</button>
+                        </div>
+                        <div class="hsf-options" id="hsfOptions"></div>
+                    </div>
                 </div>
             </div>
             <div id="historyList" class="history-list">
@@ -4765,13 +4820,141 @@
 
         let _historySearchTimer = null;
 
+        // ── History staff filter ──────────────────────────────────────────────────
+        // Each conversation is owned by one staff member (userLabel / userId). The
+        // dropdown lets you narrow the list to any combination of them.
+        const historyStaffFilter = new Set(); // selected staff keys (rawLabel)
+
+        // Stable key + friendly display name for a conversation's owner.
+        function staffKey(c) { return c.userLabel || c.userId || 'Unknown'; }
+        function staffDisplayName(rawLabel) {
+            let s = String(rawLabel || 'Unknown').replace('user_', '').split('@')[0].replace(/_/g, '.');
+            // Collapse runs / trim separators, and reject garbage labels (some legacy
+            // records carry absurdly long owner strings) so the dropdown stays sane.
+            s = s.replace(/\.{2,}/g, '.').replace(/^\.+|\.+$/g, '').trim();
+            return (!s || s.length > 40) ? 'Unknown' : s;
+        }
+        function staffMatch(c) {
+            if (historyStaffFilter.size === 0) return true;
+            return historyStaffFilter.has(staffDisplayName(staffKey(c)));
+        }
+
+        // Distinct staff across all loaded conversations, grouped by display name so
+        // a person whose records carry slightly different raw labels appears once.
+        function getHistoryStaffList() {
+            const map = new Map();
+            _allHistoryConvs.forEach(c => {
+                const name = staffDisplayName(staffKey(c));
+                if (!map.has(name)) map.set(name, { key: name, name, count: 0 });
+                map.get(name).count++;
+            });
+            return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+        }
+
+        function updateStaffFilterLabel() {
+            const label = document.getElementById('hsfLabel');
+            const trigger = document.getElementById('hsfTrigger');
+            if (!label) return;
+            const n = historyStaffFilter.size;
+            if (n === 0) {
+                label.innerHTML = '<i class="fas fa-user-group"></i> All staff';
+                trigger?.classList.remove('active');
+            } else if (n === 1) {
+                const only = [...historyStaffFilter][0]; // already a display name
+                label.innerHTML = `<i class="fas fa-user-group"></i> ${escapeHtml(only)}`;
+                trigger?.classList.add('active');
+            } else {
+                label.innerHTML = `<i class="fas fa-user-group"></i> ${n} staff selected`;
+                trigger?.classList.add('active');
+            }
+        }
+
+        let _staffListCache = []; // cache so options can reference staff by index (keys can be huge)
+        function renderStaffOptions(search) {
+            const box = document.getElementById('hsfOptions');
+            if (!box) return;
+            const q = (search || '').toLowerCase().trim();
+            _staffListCache = getHistoryStaffList();
+            _staffListCache.forEach((s, i) => { s._i = i; });
+            let staff = _staffListCache;
+            if (q) staff = staff.filter(s => s.name.toLowerCase().includes(q));
+            if (staff.length === 0) {
+                box.innerHTML = `<div class="hsf-empty">${_allHistoryConvs.length ? 'No staff match' : 'No conversations loaded'}</div>`;
+                return;
+            }
+            box.innerHTML = staff.map(s => {
+                const sel = historyStaffFilter.has(s.key);
+                return `<div class="hsf-opt${sel ? ' selected' : ''}" onclick="toggleStaffSelection(${s._i})">
+                    <span class="hsf-check">${sel ? '<i class="fas fa-check"></i>' : ''}</span>
+                    <span class="hsf-name">${escapeHtml(s.name)}</span>
+                    <span class="hsf-count">${s.count}</span>
+                </div>`;
+            }).join('');
+        }
+
+        function toggleStaffSelection(i) {
+            const s = _staffListCache[i];
+            if (!s) return;
+            if (historyStaffFilter.has(s.key)) historyStaffFilter.delete(s.key);
+            else historyStaffFilter.add(s.key);
+            updateStaffFilterLabel();
+            renderStaffOptions(document.getElementById('hsfSearch')?.value || '');
+            filterHistory();
+        }
+
+        function staffSelectAll() {
+            getHistoryStaffList().forEach(s => historyStaffFilter.add(s.key));
+            updateStaffFilterLabel();
+            renderStaffOptions(document.getElementById('hsfSearch')?.value || '');
+            filterHistory();
+        }
+
+        function staffClearAll() {
+            historyStaffFilter.clear();
+            updateStaffFilterLabel();
+            renderStaffOptions(document.getElementById('hsfSearch')?.value || '');
+            filterHistory();
+        }
+
+        function toggleStaffFilter(e) {
+            if (e) e.stopPropagation();
+            const panel = document.getElementById('hsfPanel');
+            const trigger = document.getElementById('hsfTrigger');
+            if (!panel) return;
+            const isOpen = panel.style.display !== 'none';
+            if (isOpen) {
+                panel.style.display = 'none';
+                if (historyStaffFilter.size === 0) trigger?.classList.remove('active');
+            } else {
+                renderStaffOptions('');
+                panel.style.display = 'block';
+                trigger?.classList.add('active');
+                const search = document.getElementById('hsfSearch');
+                if (search) { search.value = ''; setTimeout(() => search.focus(), 50); }
+                // Close when clicking outside the dropdown
+                setTimeout(() => document.addEventListener('click', _closeStaffFilterOnOutside), 0);
+            }
+        }
+        function _closeStaffFilterOnOutside(e) {
+            const wrap = document.getElementById('historyStaffFilter');
+            if (wrap && !wrap.contains(e.target)) {
+                const panel = document.getElementById('hsfPanel');
+                if (panel) panel.style.display = 'none';
+                if (historyStaffFilter.size === 0) document.getElementById('hsfTrigger')?.classList.remove('active');
+                document.removeEventListener('click', _closeStaffFilterOnOutside);
+            }
+        }
+
         function filterHistory() {
             const q = (document.getElementById('historySearch')?.value || '').trim();
 
+            // Staff filter applies in every branch (with or without a text query)
+            const base = _allHistoryConvs.filter(staffMatch);
+
             // Instant local filter first (title + username)
-            if (!q) { renderHistoryList(_allHistoryConvs); return; }
+            if (!q) { renderHistoryList(base); return; }
             const ql = q.toLowerCase();
-            const localMatches = _allHistoryConvs.filter(c =>
+            const localMatches = base.filter(c =>
                 (c.title || '').toLowerCase().includes(ql) ||
                 (c.userLabel || c.userId || '').toLowerCase().includes(ql)
             );
@@ -4796,9 +4979,11 @@
                         // top, then append server content-matches not already shown.
                         // This guarantees the list only grows by genuinely-relevant
                         // content hits and never drops a local match underneath them.
+                        // Server hits still have to clear the active staff filter.
                         const seen = new Set(localMatches.map(c => c.conversationId));
                         const merged = localMatches.slice();
                         for (const c of data.conversations) {
+                            if (!staffMatch(c)) continue;
                             if (!seen.has(c.conversationId)) {
                                 seen.add(c.conversationId);
                                 merged.push(c);
@@ -4845,7 +5030,13 @@
                 // Clear search when refreshing
                 const searchEl = document.getElementById('historySearch');
                 if (searchEl) searchEl.value = '';
-                renderHistoryList(_allHistoryConvs);
+                // Refresh the staff filter: drop any selected staff no longer present,
+                // rebuild the option list, then apply whatever filter remains.
+                const present = new Set(getHistoryStaffList().map(s => s.key));
+                [...historyStaffFilter].forEach(k => { if (!present.has(k)) historyStaffFilter.delete(k); });
+                updateStaffFilterLabel();
+                renderStaffOptions(document.getElementById('hsfSearch')?.value || '');
+                filterHistory();
             } catch (error) {
                 console.error(`[PERSISTENCE FETCH ERROR]`, error);
                 list.innerHTML = `<div style="padding: 20px; color: #ef4444; text-align: center; font-size: 0.8rem;">Failed to load history: ${error.message}</div>`;
@@ -10069,9 +10260,9 @@
                             insight.source = "AI Learned";
                             insight.user = currentUser;
                             insight.id = Date.now() + Math.random();
-                            // Normalise teams field (AI may return team string or teams array)
-                            if (!insight.teams) insight.teams = insight.team ? [insight.team] : ['Everyone'];
-                            delete insight.team;
+                            // Coerce tag + teams into the canonical filter vocabulary
+                            // (the AI sometimes invents tags like "Project Logic").
+                            normalizeInsight(insight);
                             learnedInsights.unshift(insight);
                         } catch (e) { console.error("Memory parsing error", e); }
                     });
@@ -11905,12 +12096,60 @@
 
     <script>
         let learnedInsights = JSON.parse(localStorage.getItem('chatBotInsights')) || [];
-        // Migrate legacy single-team string to teams array
-        let _migrated = false;
-        learnedInsights.forEach(i => {
-            if (!i.teams) { i.teams = i.team ? [i.team] : ['Everyone']; delete i.team; _migrated = true; }
-        });
-        if (_migrated) localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
+
+        // ── Memory normalisation ──────────────────────────────────────────────────
+        // The tag/team filters assume a fixed vocabulary. AI-learned notes and
+        // cloud-pulled data sometimes arrive with off-vocabulary tags (e.g.
+        // "Project Logic") or no teams array at all — those become unfilterable and
+        // render with the wrong tag in the per-card <select>. normalizeInsight()
+        // coerces every note into the canonical vocabulary so the filters stay sane.
+        const VALID_TAGS = ['Preference', 'Strategy', 'Fact', 'Process', 'Constraint'];
+        const VALID_TEAMS = ['Everyone', 'SEO', 'SEM', 'SMM', 'BD'];
+        const TAG_ALIASES = {
+            'project logic': 'Strategy', 'logic': 'Strategy', 'plan': 'Strategy', 'strategic': 'Strategy',
+            'project brief': 'Fact', 'brief': 'Fact', 'data': 'Fact', 'info': 'Fact', 'information': 'Fact',
+            'note': 'Fact', 'detail': 'Fact', 'details': 'Fact',
+            'pref': 'Preference', 'preferences': 'Preference', 'style': 'Preference',
+            'workflow': 'Process', 'sop': 'Process', 'procedure': 'Process', 'steps': 'Process',
+            'restriction': 'Constraint', 'limit': 'Constraint', 'rule': 'Constraint', 'requirement': 'Constraint'
+        };
+        function normalizeTag(tag) {
+            const key = String(tag || '').trim().toLowerCase();
+            if (!key) return 'Fact';
+            const exact = VALID_TAGS.find(t => t.toLowerCase() === key);
+            if (exact) return exact;
+            return TAG_ALIASES[key] || 'Fact';
+        }
+        function normalizeTeams(ins) {
+            let teams = ins.teams || (ins.team ? [ins.team] : ['Everyone']);
+            if (!Array.isArray(teams)) teams = [teams];
+            teams = teams
+                .map(t => VALID_TEAMS.find(v => v.toLowerCase() === String(t || '').trim().toLowerCase()))
+                .filter(Boolean);
+            return teams.length ? [...new Set(teams)] : ['Everyone'];
+        }
+        // Mutates ins in place; returns true if anything changed.
+        function normalizeInsight(ins) {
+            const newTag = normalizeTag(ins.tag);
+            const newTeams = normalizeTeams(ins);
+            const changed = ins.tag !== newTag ||
+                JSON.stringify(ins.teams) !== JSON.stringify(newTeams) ||
+                ('team' in ins);
+            ins.tag = newTag;
+            ins.teams = newTeams;
+            delete ins.team;
+            return changed;
+        }
+        // Normalise the whole list; returns true if any note changed.
+        function normalizeAllInsights() {
+            let changed = false;
+            learnedInsights.forEach(i => { if (normalizeInsight(i)) changed = true; });
+            return changed;
+        }
+
+        if (normalizeAllInsights()) localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
+        // Initial cloud pull
+        setTimeout(pullInsightsFromCloud, 1000);
         // Initial cloud pull
         setTimeout(pullInsightsFromCloud, 1000);
 
@@ -11990,7 +12229,12 @@
 
                 if (body.insights && Array.isArray(body.insights)) {
                     learnedInsights = body.insights;
+                    // Cloud data can carry off-vocabulary tags / missing teams — clean it
+                    // before it reaches the filters. Re-push if we actually fixed anything
+                    // so the cleanup is durable instead of re-running on every pull.
+                    const fixed = normalizeAllInsights();
                     localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
+                    if (fixed) pushInsightsToCloud();
                     renderInsights();
                 }
             } catch (err) {
@@ -12202,6 +12446,8 @@
             localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
             pushInsightsToCloud();
             showToast('Tag updated', 'info');
+            // Re-render so the card respects the active tag filter (it may now drop out)
+            renderInsights();
         }
 
         function deleteInsight(id) {
@@ -12322,19 +12568,22 @@
                         title: "Analyze Board Status",
                         description: "Use Monday tools to get a high-level overview of task progress.",
                         text: "Use your Monday tools to analyze the current status of all items on this board and give me a summary of progress.",
-                        icon: "fa-chart-pie"
+                        icon: "fa-chart-pie",
+                        tags: ["Monday", "Project Mgmt"]
                     },
                     {
                         title: "Find Bottlenecks",
                         description: "Identify 'Stuck' items or delays on the current Monday board.",
                         text: "Identify any items on this Monday board that are currently 'Stuck' or facing delays. Who is responsible for them?",
-                        icon: "fa-exclamation-triangle"
+                        icon: "fa-exclamation-triangle",
+                        tags: ["Monday", "Project Mgmt"]
                     },
                     {
                         title: "Workload Audit",
                         description: "Check task distribution among team members on Monday.",
                         text: "Check the Monday board and tell me how the workload is distributed among team members. Who has the most tasks?",
-                        icon: "fa-users"
+                        icon: "fa-users",
+                        tags: ["Monday", "Project Mgmt"]
                     }
                 ]
             },
@@ -12345,19 +12594,22 @@
                         title: "Top Keywords (GSC)",
                         description: "Fetch top performing keywords from Google Search Console.",
                         text: "Use the Google Search Console tool to find the top 10 performing keywords for my site over the last 30 days.",
-                        icon: "fa-magnifying-glass-chart"
+                        icon: "fa-magnifying-glass-chart",
+                        tags: ["SEO", "GSC"]
                     },
                     {
                         title: "Ranking Drops",
                         description: "Identify any significant performance dips in GSC.",
                         text: "Check GSC data for any significant drops in clicks or impressions compared to the previous month.",
-                        icon: "fa-arrow-trend-down"
+                        icon: "fa-arrow-trend-down",
+                        tags: ["SEO", "GSC"]
                     },
                     {
                         title: "Index Status",
                         description: "Report on indexing errors or excluded pages from GSC.",
                         text: "Use GSC to report any indexing errors or pages that are currently excluded from search.",
-                        icon: "fa-bug"
+                        icon: "fa-bug",
+                        tags: ["SEO", "GSC"]
                     }
                 ]
             },
@@ -12368,19 +12620,22 @@
                         title: "GA4 Traffic Sources",
                         description: "See where your visitors are coming from.",
                         text: "Use GA4 to show me a breakdown of traffic sources for the last 30 days. Which channel is performing best?",
-                        icon: "fa-chart-simple"
+                        icon: "fa-chart-simple",
+                        tags: ["Analytics", "GA4"]
                     },
                     {
                         title: "Conversion Overview",
                         description: "Check your conversion rates in GA4.",
                         text: "Show me the top 5 conversion events from GA4 for the past month and their counts.",
-                        icon: "fa-bullseye"
+                        icon: "fa-bullseye",
+                        tags: ["Analytics", "GA4"]
                     },
                     {
                         title: "Ads Performance",
                         description: "High-level Google Ads cost and CPC analysis.",
                         text: "Check my Google Ads performance. What was the total cost and average CPC for all campaigns last week?",
-                        icon: "fa-rectangle-ad"
+                        icon: "fa-rectangle-ad",
+                        tags: ["SEM", "Google Ads"]
                     }
                 ]
             },
@@ -12391,25 +12646,29 @@
                         title: "Meta Deep Dive",
                         description: "30-day vs prior 30-day gated insights report for Meta Ads.",
                         text: "Run a deep dive insights report for Meta Ads. Pull the last 30 days vs the prior 30 days. Follow the full insights framework: compute deltas with polarity, classify into buckets, apply all gates, then output the two-section report (Insights + Recommendations).",
-                        icon: "fa-magnifying-glass-chart"
+                        icon: "fa-magnifying-glass-chart",
+                        tags: ["SMM", "Meta", "Reporting"]
                     },
                     {
                         title: "Meta EOM Report",
                         description: "End-of-month insights report for Meta Ads.",
                         text: "Run an end-of-month insights report for Meta Ads. Pull this calendar month vs the prior calendar month. Follow the full insights framework: compute deltas with polarity, classify into buckets, apply all gates, then output the two-section report (Insights + Recommendations).",
-                        icon: "fa-calendar-check"
+                        icon: "fa-calendar-check",
+                        tags: ["SMM", "Meta", "Reporting"]
                     },
                     {
                         title: "Google Ads Deep Dive",
                         description: "30-day vs prior 30-day gated insights report for Google Ads.",
                         text: "Run a deep dive insights report for Google Ads. Pull the last 30 days vs the prior 30 days. Follow the full insights framework: compute deltas with polarity, classify into buckets, apply all gates, then output the two-section report (Insights + Recommendations).",
-                        icon: "fa-magnifying-glass-chart"
+                        icon: "fa-magnifying-glass-chart",
+                        tags: ["SEM", "Google Ads", "Reporting"]
                     },
                     {
                         title: "Cross-Platform Deep Dive",
                         description: "Pull all connected ad platforms and run the full insights pipeline.",
                         text: "Run a cross-platform deep dive insights report across all connected ad accounts (Meta, Google Ads, LinkedIn). Pull the last 30 days vs the prior 30 days for each. Follow the full insights framework for each platform — compute deltas with polarity, classify into buckets, apply all gates — then produce a combined two-section report (Insights + Recommendations) ranked by impact. Cover weekly optimization summaries (week-over-week shifts worth acting on now), monthly reporting automation (a repeatable end-of-month rollup across all platforms), and campaign performance analysis (top and bottom campaigns per platform with the metrics driving the verdict).",
-                        icon: "fa-layer-group"
+                        icon: "fa-layer-group",
+                        tags: ["SEM", "SMM", "Reporting"]
                     }
                 ]
             },
@@ -12420,19 +12679,22 @@
                         title: "Chat Summary",
                         description: "Summarize recent messages in a space.",
                         text: "Search for the newest messages in the Google Chat space '[Space Name]' and summarize what was discussed.",
-                        icon: "fa-comments"
+                        icon: "fa-comments",
+                        tags: ["Comms", "Google Chat"]
                     },
                     {
                         title: "Find in Email",
                         description: "Search Gmail for specific keywords.",
                         text: "Search my Gmail for any recent emails regarding '[Keyword]' and give me a summary of the latest one.",
-                        icon: "fa-envelope-open-text"
+                        icon: "fa-envelope-open-text",
+                        tags: ["Comms", "Gmail"]
                     },
                     {
                         title: "Check Tasks (Chat)",
                         description: "Find task mentions in team chats.",
                         text: "Scan my Google Chat messages for any mentions of 'pending tasks' or 'to-do' items from today.",
-                        icon: "fa-clipboard-list"
+                        icon: "fa-clipboard-list",
+                        tags: ["Comms", "Google Chat"]
                     }
                 ]
             }
@@ -12463,6 +12725,9 @@
                 if (body.insights && Array.isArray(body.insights)) {
                     customPrompts = body.insights;
                     localStorage.setItem('chatbot_custom_prompts', JSON.stringify(customPrompts));
+                    // Cloud copy may predate tagging — backfill (and re-push) so the
+                    // tag filter chips appear instead of an empty filter row.
+                    backfillPromptTags();
                 }
             } catch (e) { console.error('[PROMPTS] Cloud pull failed', e); }
         }
@@ -12611,7 +12876,7 @@
                         description: p.description || '',
                         text: p.text,
                         category: cat.category,
-                        tags: [],
+                        tags: Array.isArray(p.tags) ? [...p.tags] : [],
                         icon: p.icon || 'fa-wand-magic-sparkles',
                         createdAt: new Date().toLocaleDateString()
                     });
@@ -12620,6 +12885,29 @@
             localStorage.setItem('chatbot_custom_prompts', JSON.stringify(customPrompts));
             pushPromptsToCloud();
         }
+
+        // Earlier builds seeded the built-in prompts with empty tags, so the tag
+        // filter row showed nothing. Backfill tags onto any untagged prompt whose
+        // title matches a built-in template. Runs once; pushes the fix to cloud.
+        function backfillPromptTags() {
+            const tagMap = {};
+            promptTemplates.forEach(cat => cat.prompts.forEach(p => {
+                if (Array.isArray(p.tags) && p.tags.length) tagMap[p.title] = p.tags;
+            }));
+            let changed = false;
+            customPrompts.forEach(p => {
+                if ((!p.tags || p.tags.length === 0) && tagMap[p.title]) {
+                    p.tags = [...tagMap[p.title]];
+                    changed = true;
+                }
+            });
+            if (changed) {
+                localStorage.setItem('chatbot_custom_prompts', JSON.stringify(customPrompts));
+                pushPromptsToCloud();
+            }
+            return changed;
+        }
+        backfillPromptTags();
 
         function openPromptsModal() {
             seedPromptsFromBuiltIns();
