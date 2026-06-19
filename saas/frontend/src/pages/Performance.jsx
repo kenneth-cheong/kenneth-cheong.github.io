@@ -147,7 +147,11 @@ export default function Performance() {
                         {t.items.map((m) => {
                           const hist = inPeriod(m.history);
                           const tr = trend(m, hist);
-                          const latest = hist.length ? hist[hist.length - 1].value : m.lastValue;
+                          const latestPoint = hist.length ? hist[hist.length - 1] : null;
+                          const latest = latestPoint ? latestPoint.value : m.lastValue;
+                          const latestDate = latestPoint?.date
+                            ? new Date(latestPoint.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                            : null;
                           return (
                             <div key={m.metricId} className="rounded-lg border border-slate-100 p-3">
                               <div className="flex items-baseline justify-between">
@@ -155,6 +159,7 @@ export default function Performance() {
                                 {tr && <span className={`text-xs font-semibold ${tr.cls}`}>{tr.arrow} {tr.label}</span>}
                               </div>
                               <div className="mt-0.5 text-xl font-bold">{fmtVal(latest, m.unit)}</div>
+                              {latestDate && <div className="text-xs text-slate-400">{latestDate}</div>}
                               {hist.length >= 2
                                 ? <div className="mt-2"><MetricChart data={hist} color={color} /></div>
                                 : <div className="mt-2 text-xs text-slate-300">One data point so far — run again to build a trend.</div>}

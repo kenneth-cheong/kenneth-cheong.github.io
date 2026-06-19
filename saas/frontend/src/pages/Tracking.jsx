@@ -7,7 +7,7 @@ import LineChart from '../components/LineChart.jsx';
 import { api } from '../lib/api.js';
 import { toast, downloadCsv } from '../lib/ui.js';
 
-const PERIODS = [['7', '7d'], ['28', '28d'], ['90', '90d'], ['all', 'All']];
+const PERIODS = [['7', '7d'], ['28', '28d'], ['90', '90d'], ['all', 'All'], ['custom', 'Custom']];
 
 // Tracked keywords for the active project — rank position over time. The daily
 // scheduled job appends a point automatically; "Refresh" pulls one on demand.
@@ -24,6 +24,8 @@ export default function Tracking() {
   const [backfilling, setBackfilling] = useState(false);
   const [confirmBackfill, setConfirmBackfill] = useState(false);
   const [period, setPeriod] = useState('28');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
   const limit = PLANS[user.tier]?.trackedKeywords ?? 0;
   const backfillCost = CREDIT_COSTS.rank_backfill * tracked.length;
 
@@ -64,6 +66,7 @@ export default function Tracking() {
       const { tracked, charged } = await api.backfillTracking(activeId || undefined);
       setTracked(tracked || []);
       await refresh(); // reflect the spent credits in the header balance
+      setPeriod('all'); // reveal the newly filled history
       toast(charged ? `History backfilled — ${charged} credits used.` : 'History backfilled.', 'success');
     } catch (err) { toast(err.message, 'error'); }
     finally { setBackfilling(false); }
@@ -85,12 +88,20 @@ export default function Tracking() {
   // Current position label: a rank, "Unranked" (checked, out of top 100), or "—".
   const posLabel = (t) => (t.lastPosition >= 1 ? `#${t.lastPosition}` : (t.history?.length ? 'Unranked' : '—'));
 
-  const cutoff = useMemo(() => {
-    if (period === 'all') return null;
+  // Date range filtering — supports fixed periods or a custom from/to range.
+  const { fromCutoff, toCutoff } = useMemo(() => {
+    if (period === 'custom') return { fromCutoff: customFrom || null, toCutoff: customTo || null };
+    if (period === 'all') return { fromCutoff: null, toCutoff: null };
     const d = new Date(); d.setDate(d.getDate() - Number(period));
-    return d.toISOString().slice(0, 10);
-  }, [period]);
-  const inPeriod = (h) => (!cutoff ? h : (h || []).filter((p) => p.date >= cutoff));
+    return { fromCutoff: d.toISOString().slice(0, 10), toCutoff: null };
+  }, [period, customFrom, customTo]);
+
+  const inPeriod = (h) => {
+    let pts = h || [];
+    if (fromCutoff) pts = pts.filter((p) => p.date >= fromCutoff);
+    if (toCutoff) pts = pts.filter((p) => p.date <= toCutoff);
+    return pts;
+  };
 
   const trend = (h) => {
     if (!h || h.length < 2) return null;
@@ -98,6 +109,34 @@ export default function Tracking() {
     if (!a || !b) return null;
     return b < a ? { dir: '▲', cls: 'text-green-600', n: a - b } : b > a ? { dir: '▼', cls: 'text-red-600', n: b - a } : { dir: '–', cls: 'text-slate-400', n: 0 };
   };
+
+  // Aggregate summary — average position across all keywords per date, within the selected period.
+  const summaryData = useMemo(() => {
+    if (!tracked.length) return [];
+    const dateMap = {};
+    for (const t of tracked) {
+      const hist = (t.history || []).filter((h) => {
+        if (fromCutoff && h.date < fromCutoff) return false;
+        if (toCutoff && h.date > toCutoff) return false;
+        return true;
+      });
+      for (const h of hist) {
+        if (h.position >= 1) {
+          if (!dateMap[h.date]) dateMap[h.date] = { date: h.date, sum: 0, count: 0 };
+          dateMap[h.date].sum += h.position;
+          dateMap[h.date].count += 1;
+        }
+      }
+    }
+    return Object.values(dateMap)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((d) => ({ date: d.date, position: Math.round(d.sum / d.count) }));
+  }, [tracked, fromCutoff, toCutoff]);
+
+  const ranked = tracked.filter((t) => t.lastPosition >= 1);
+  const avgPosition = ranked.length ? Math.round(ranked.reduce((s, t) => s + t.lastPosition, 0) / ranked.length) : null;
+  const top10Count = ranked.filter((t) => t.lastPosition <= 10).length;
+  const bestKeyword = ranked.length ? ranked.reduce((a, b) => a.lastPosition < b.lastPosition ? a : b) : null;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -157,9 +196,9 @@ export default function Tracking() {
             {bulk && <p className="mt-2 text-xs text-slate-400">Up to {Math.max(0, limit - tracked.length)} more. Positions are checked right after adding.</p>}
           </form>
 
-          {/* Period selector for the charts/history below. */}
+          {/* Period selector + custom date range. */}
           {tracked.length > 0 && (
-            <div className="mt-5 flex items-center gap-2">
+            <div className="mt-5 flex flex-wrap items-center gap-2">
               <span className="text-sm text-slate-500">Period</span>
               {PERIODS.map(([v, label]) => (
                 <button key={v} onClick={() => setPeriod(v)}
@@ -167,6 +206,47 @@ export default function Tracking() {
                   {label}
                 </button>
               ))}
+              {period === 'custom' && (
+                <div className="flex items-center gap-2">
+                  <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
+                    className="rounded-lg border border-slate-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none" />
+                  <span className="text-sm text-slate-400">to</span>
+                  <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
+                    className="rounded-lg border border-slate-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none" />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Overall performance summary card. */}
+          {tracked.length > 0 && (
+            <div className="card mt-4 p-4">
+              <h2 className="mb-3 text-sm font-semibold text-slate-700">Overall performance</h2>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="rounded-lg bg-slate-50 p-3 text-center">
+                  <div className="text-2xl font-bold text-slate-800">{tracked.length}</div>
+                  <div className="mt-0.5 text-xs text-slate-500">tracked</div>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3 text-center">
+                  <div className="text-2xl font-bold text-slate-800">{avgPosition ? `#${avgPosition}` : '—'}</div>
+                  <div className="mt-0.5 text-xs text-slate-500">avg position</div>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3 text-center">
+                  <div className="text-2xl font-bold text-slate-800">{top10Count}</div>
+                  <div className="mt-0.5 text-xs text-slate-500">in top 10</div>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3 text-center">
+                  <div className="text-2xl font-bold text-slate-800">{bestKeyword ? `#${bestKeyword.lastPosition}` : '—'}</div>
+                  <div className="mt-0.5 text-xs text-slate-500">best rank</div>
+                  {bestKeyword && <div className="mt-0.5 truncate text-xs text-slate-400" title={bestKeyword.keyword}>{bestKeyword.keyword}</div>}
+                </div>
+              </div>
+              {summaryData.length >= 2 && (
+                <div className="mt-4">
+                  <div className="mb-1 text-xs text-slate-400">Average position over time (all keywords)</div>
+                  <LineChart data={summaryData} />
+                </div>
+              )}
             </div>
           )}
 

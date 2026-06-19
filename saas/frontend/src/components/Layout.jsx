@@ -18,9 +18,8 @@ import { Menu, MessageCircle, HelpCircle, ChevronDown } from 'lucide-react';
 const primaryNav = [
   { to: '/', label: 'Tools', end: true },
   { to: '/projects', label: 'Projects' },
-  { to: '/performance', label: 'Performance' },
   { to: '/integrations', label: 'Integrations' },
-  { to: '/history', label: 'History' },
+  { to: '/history', label: 'Runs' },
 ];
 const menuNav = [
   { to: '/account', label: 'Account' },

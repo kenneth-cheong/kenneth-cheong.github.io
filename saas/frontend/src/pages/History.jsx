@@ -96,7 +96,7 @@ export default function History() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <h1 className="text-2xl font-bold">Run history</h1>
+      <h1 className="text-2xl font-bold">Runs</h1>
       <p className="mt-1 text-slate-600">Every tool run is saved here. Click a row to revisit the result and the exact inputs.</p>
 
       <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
