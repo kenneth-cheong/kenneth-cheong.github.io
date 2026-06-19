@@ -361,6 +361,10 @@ Resources:
           GOOGLE_CLIENT_SECRET: !Ref GoogleClientSecret
           GOOGLE_ADS_DEVELOPER_TOKEN: '{{resolve:secretsmanager:digimetrics-saas/google-ads-developer-token:SecretString}}'
           GOOGLE_ADS_LOGIN_CUSTOMER_ID: !Ref GoogleAdsLoginCustomerId
+          # LinkedIn Ads connector — reuses the agency linkedinOAuth app's
+          # credentials; data fetch proxies the monday Lambda (see lib/linkedin.mjs).
+          LINKEDIN_CLIENT_ID: '{{resolve:secretsmanager:digimetrics-saas/linkedin-client-id:SecretString}}'
+          LINKEDIN_CLIENT_SECRET: '{{resolve:secretsmanager:digimetrics-saas/linkedin-client-secret:SecretString}}'
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
@@ -428,6 +432,9 @@ Resources:
           GOOGLE_CLIENT_SECRET: !Ref GoogleClientSecret
           GOOGLE_ADS_DEVELOPER_TOKEN: '{{resolve:secretsmanager:digimetrics-saas/google-ads-developer-token:SecretString}}'
           GOOGLE_ADS_LOGIN_CUSTOMER_ID: !Ref GoogleAdsLoginCustomerId
+          # LinkedIn Ads connector — OAuth authorize/callback run in this fn.
+          LINKEDIN_CLIENT_ID: '{{resolve:secretsmanager:digimetrics-saas/linkedin-client-id:SecretString}}'
+          LINKEDIN_CLIENT_SECRET: '{{resolve:secretsmanager:digimetrics-saas/linkedin-client-secret:SecretString}}'
           # OAuth redirect URI is derived at runtime from the request domain (see
           # app handler) — referencing ${Api} here created a circular dependency.
           ATTACHMENTS_BUCKET: !Ref AttachmentsBucket
