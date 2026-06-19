@@ -11,7 +11,7 @@ export default function ToolCard({ tool, userTier }) {
 
   return (
     <Link
-      to={`/tool/${tool.id}`}
+      to={tool.route || `/tool/${tool.id}`}
       className={`card card-hover group relative flex flex-col overflow-hidden p-4 pl-5 ${unlocked ? '' : 'border-dashed'}`}
     >
       <span className="absolute inset-y-0 left-0 w-1" style={{ background: meta.color }} aria-hidden />

@@ -1,0 +1,599 @@
+import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { toolById, tierMeets, CREDIT_COSTS } from '@shared/catalog.mjs';
+import { useAuth } from '../context/AuthContext.jsx';
+import { useProjects } from '../context/ProjectContext.jsx';
+import { api, ApiError } from '../lib/api.js';
+import { toast } from '../lib/ui.js';
+import { Loader2, Wand2, Plus, X, Microscope, ScanSearch } from 'lucide-react';
+import { renderSMAScorecard, renderSocialAudit, installSmaGlobals } from '../lib/smaRender.js';
+// Bundled (not CDN) so the strict production CSP serves them from 'self'. FA's
+// webfonts are emitted as hashed same-origin assets; scoping the import to this
+// page keeps the icon font out of every other route's bundle.
+import '@fortawesome/fontawesome-free/css/all.min.css';
+
+const TOOL = toolById('social-audit');
+
+const SMA_PLATFORMS = [
+  { key: 'instagram', label: 'Instagram', ph: '@handle' },
+  { key: 'tiktok', label: 'TikTok', ph: '@handle' },
+  { key: 'facebook', label: 'Facebook', ph: 'page name or URL' },
+  { key: 'linkedin', label: 'LinkedIn', ph: 'company slug or URL' },
+  { key: 'youtube', label: 'YouTube', ph: '@channel or URL' },
+];
+const COMP_PLATFORMS = ['instagram', 'tiktok', 'facebook', 'linkedin', 'youtube'];
+
+// Pro-mode fields keyed by the exact payload key the strategy lambda expects.
+const PRO_FIELDS = [
+  { id: 'social_analytics', label: 'Social analytics exports', ph: 'Native platform analytics — reach, followers, growth, top posts…' },
+  { id: 'meta_business_suite', label: 'Meta Business Suite data', ph: 'FB/IG reach, engagement, audience, best-performing content…' },
+  { id: 'engagement_data', label: 'Engagement data', ph: 'Engagement rates by format/platform, saves, shares, comments…' },
+  { id: 'content_calendar_samples', label: 'Content calendar samples', ph: 'Recent posts/topics/formats actually published…' },
+  { id: 'creative_samples', label: 'Creative samples', ph: 'Describe or link current creatives — copy, visuals, video styles…' },
+  { id: 'blog_performance', label: 'Blog performance', ph: 'Posting frequency, traffic, top blog topics…' },
+  { id: 'ga4_content', label: 'GA4 content data', ph: 'Top landing pages, social referral traffic, content conversions…' },
+];
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Default to DeepSeek unless the user has explicitly chosen Claude (mirrors the
+// agency app's model switch, persisted under the same localStorage key).
+const getLlmProvider = () => (localStorage.getItem('chatLlmProvider') === 'anthropic' ? 'anthropic' : 'deepseek');
+
+// pdf.js + mammoth are bundled (npm) and dynamically imported on first use, so
+// they stay out of the page's initial chunk and only download when a user
+// actually attaches a PDF/DOCX. The pdf.js worker is a same-origin hashed asset
+// (CSP-safe) via Vite's `?url` import.
+let _pdfjs = null, _mammoth = null;
+async function getPdfjs() {
+  if (_pdfjs) return _pdfjs;
+  const pdfjsLib = await import('pdfjs-dist');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default;
+  _pdfjs = pdfjsLib;
+  return pdfjsLib;
+}
+async function getMammoth() {
+  if (_mammoth) return _mammoth;
+  const m = await import('mammoth/mammoth.browser');
+  _mammoth = m.default || m;
+  return _mammoth;
+}
+
+// Browser-side text extraction for the optional context uploads — PDF via
+// pdf.js, DOCX via mammoth, everything else read as text. Output is capped so
+// the payload stays small. Port of extractSmaContext / extractProFieldContext.
+async function extractFiles(files, maxPer = 12000, maxTotal = 40000) {
+  if (!files || !files.length) return '';
+  const parts = [];
+  for (const file of files) {
+    let text = '';
+    try {
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      if (ext === 'pdf') {
+        const pdfjsLib = await getPdfjs();
+        const ab = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(ab) }).promise;
+        const lines = [];
+        for (let n = 1; n <= pdf.numPages; n++) {
+          const c = await (await pdf.getPage(n)).getTextContent();
+          lines.push(c.items.map((it) => it.str).join(' '));
+          if (lines.join('\n').length > maxPer) break;
+        }
+        text = lines.join('\n');
+      } else if (ext === 'docx') {
+        const mammoth = await getMammoth();
+        const ab = await file.arrayBuffer();
+        text = (await mammoth.extractRawText({ arrayBuffer: ab })).value;
+      } else {
+        text = await file.text();
+      }
+    } catch (err) { text = `[Could not read ${file.name}: ${err.message}]`; }
+    parts.push(`### ${file.name}\n${(text || '').trim().slice(0, maxPer)}`);
+  }
+  return parts.join('\n\n').slice(0, maxTotal);
+}
+
+// Source badge shown next to an auto-discovered handle / competitor.
+function SourceBadge({ source }) {
+  if (!source) return null;
+  const site = source === 'website';
+  return (
+    <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold"
+      style={{ background: site ? '#dcfce7' : '#fef9c3', color: site ? '#166534' : '#854d0e' }}>
+      {site ? 'from site' : 'from search'}
+    </span>
+  );
+}
+
+// Small inline status line (info / success / error tones) used under each
+// auto-find button.
+function Status({ s }) {
+  if (!s?.text) return null;
+  const tones = {
+    info: 'bg-blue-50 text-blue-800',
+    ok: 'bg-amber-50 text-amber-800',
+    note: 'bg-slate-100 text-slate-600',
+    err: 'bg-red-50 text-red-700',
+  };
+  return <div className={`mt-2 rounded-lg px-3 py-2 text-xs ${tones[s.tone] || tones.info}`}>{s.text}</div>;
+}
+
+export default function SocialAudit() {
+  const { user, setCredits } = useAuth();
+  const { active } = useProjects();
+  const unlocked = TOOL && tierMeets(user.tier, TOOL.minTier);
+  const cost = CREDIT_COSTS[TOOL?.cost] ?? 0;
+
+  // ── Brand & campaign ──────────────────────────────────────────────────────
+  const [brand, setBrand] = useState('');
+  const [domain, setDomain] = useState(active?.domain || '');
+  const [industry, setIndustry] = useState('');
+  const [goals, setGoals] = useState('');
+  const [audience, setAudience] = useState('');
+
+  // ── Profiles (per-platform checkbox + handle + source badge) ──────────────
+  const [plat, setPlat] = useState(() =>
+    Object.fromEntries(SMA_PLATFORMS.map((p) => [p.key, { checked: true, handle: '', source: '' }])));
+  const setPlatField = (key, patch) => setPlat((s) => ({ ...s, [key]: { ...s[key], ...patch } }));
+
+  // ── Competitors (up to 3) ─────────────────────────────────────────────────
+  const [competitors, setCompetitors] = useState([]); // {platform, handle, name, source}
+
+  // ── Optional context + uploads ────────────────────────────────────────────
+  const [calendars, setCalendars] = useState('');
+  const [rfq, setRfq] = useState('');
+  const [smaFiles, setSmaFiles] = useState([]);
+
+  // ── Mode + pro fields ─────────────────────────────────────────────────────
+  const [mode, setMode] = useState('starter');
+  const [proText, setProText] = useState(() => Object.fromEntries(PRO_FIELDS.map((f) => [f.id, ''])));
+  const [proFiles, setProFiles] = useState(() => Object.fromEntries(PRO_FIELDS.map((f) => [f.id, []])));
+
+  // ── Statuses / busy / results ─────────────────────────────────────────────
+  const [suggestStatus, setSuggestStatus] = useState(null);
+  const [discoverStatus, setDiscoverStatus] = useState(null);
+  const [compStatus, setCompStatus] = useState(null);
+  const [findingDetails, setFindingDetails] = useState(false);
+  const [findingProfiles, setFindingProfiles] = useState(false);
+  const [findingComps, setFindingComps] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [loadingText, setLoadingText] = useState('');
+  const [error, setError] = useState('');
+  const [scaError, setScaError] = useState('');
+  const [scorecardHtml, setScorecardHtml] = useState(null);
+  const [scaHtml, setScaHtml] = useState(null);
+  const resultsRef = useRef(null);
+
+  // Install the globals the scorecard markup wires via inline onclick.
+  useEffect(() => { installSmaGlobals(); }, []);
+  // Prefill the website from the active project once it loads.
+  useEffect(() => { if (!domain && active?.domain) setDomain(active.domain); /* eslint-disable-next-line */ }, [active]);
+
+  const onCredits = (res) => { if (typeof res?.creditsRemaining === 'number') setCredits(res.creditsRemaining); };
+  const gateError = (e) => {
+    if (e instanceof ApiError && e.status === 402) return 'Out of credits — top up to run the audit.';
+    if (e instanceof ApiError && e.status === 403) return `This tool needs the ${TOOL.minTier} plan.`;
+    return e?.message || 'Something went wrong.';
+  };
+
+  // ── AI: suggest campaign context (returns the raw result; also fills blanks) ─
+  async function suggestContext(force) {
+    const b = brand.trim(), dm = domain.trim();
+    if (!b && !dm) { setError('Enter a brand name first, then Auto-find.'); return null; }
+    const res = await api.socialAudit({ action: 'suggest_context', brand_name: b, domain: dm });
+    onCredits(res);
+    const d = res.result || {};
+    if (d.error) throw new Error(d.error);
+    if (d.website && (force || !domain.trim())) setDomain(d.website);
+    if (d.industry && (force || !industry.trim())) setIndustry(d.industry);
+    if (d.target_audience && (force || !audience.trim())) setAudience(d.target_audience);
+    if (d.campaign_goals && (force || !goals.trim())) setGoals(d.campaign_goals);
+    return d;
+  }
+
+  // ── AI: discover the brand's social profiles → pre-fill handles ───────────
+  async function discoverProfiles() {
+    const b = brand.trim(), dm = domain.trim();
+    if (!b && !dm) { setError('Enter a brand name and/or website first, then Auto-find.'); return; }
+    setError('');
+    setFindingProfiles(true);
+    setDiscoverStatus({ tone: 'info', text: 'Looking up profiles…' });
+    try {
+      const res = await api.socialAudit({ action: 'discover', brand_name: b, domain: dm });
+      onCredits(res);
+      const d = res.result || {};
+      if (d.error) throw new Error(d.error);
+      const found = d.handles || {};
+      let n = 0;
+      setPlat((s) => {
+        const next = { ...s };
+        for (const p of SMA_PLATFORMS) {
+          const hit = found[p.key];
+          if (hit && hit.handle) { next[p.key] = { checked: true, handle: hit.handle, source: hit.source === 'website' ? 'website' : 'search' }; n++; }
+        }
+        return next;
+      });
+      setDiscoverStatus(n
+        ? { tone: 'ok', text: `Found ${n} profile(s). Confirm each is the correct account (edit or untick any that are wrong), then Run Audit.` }
+        : { tone: 'err', text: "Couldn't find profiles automatically. Enter the handles manually." });
+    } catch (e) {
+      setDiscoverStatus({ tone: 'err', text: 'Auto-find failed: ' + gateError(e) });
+    } finally { setFindingProfiles(false); }
+  }
+
+  // ── AI: discover competitors → fill up to 3 rows ──────────────────────────
+  async function discoverCompetitors() {
+    const b = brand.trim(), dm = domain.trim();
+    if (!b && !dm) { setError('Enter a brand name and/or website first, then Auto-find competitors.'); return; }
+    setError('');
+    setFindingComps(true);
+    setCompStatus({ tone: 'info', text: 'Searching for competitors…' });
+    try {
+      const res = await api.socialAudit({ action: 'discover_competitors', brand_name: b, domain: dm, industry: industry.trim(), target_audience: audience.trim() });
+      onCredits(res);
+      const d = res.result || {};
+      if (d.error) throw new Error(d.error);
+      const rows = [];
+      for (const comp of (d.competitors || [])) {
+        if (rows.length >= 3) break;
+        const entry = Object.entries(comp.handles || {})[0];
+        if (entry) {
+          const [platform, hit] = entry;
+          rows.push({ platform, handle: hit.handle || '', name: comp.name || '', source: hit.source || 'search' });
+        }
+      }
+      setCompetitors(rows);
+      setCompStatus(rows.length
+        ? { tone: 'ok', text: `Found ${rows.length} competitor(s). Confirm each is correct before auditing — edit or remove any that are wrong.` }
+        : { tone: 'err', text: "Couldn't find competitors automatically. Add them manually." });
+    } catch (e) {
+      setCompStatus({ tone: 'err', text: 'Auto-find failed: ' + gateError(e) });
+    } finally { setFindingComps(false); }
+  }
+
+  // ── "Auto-find details" — suggest context + discover profiles & competitors ─
+  async function autoFindDetails() {
+    setError('');
+    setFindingDetails(true);
+    setSuggestStatus({ tone: 'info', text: 'Asking AI to fill in the campaign context…' });
+    try {
+      const d = await suggestContext(false);
+      setSuggestStatus(d ? { tone: 'ok', text: 'AI filled the campaign context. Review and edit if anything looks off, then Run Audit.' } : null);
+    } catch (e) {
+      setSuggestStatus({ tone: 'err', text: 'Suggest failed: ' + gateError(e) });
+    } finally { setFindingDetails(false); }
+    await Promise.allSettled([discoverProfiles(), discoverCompetitors()]);
+  }
+
+  // ── Phase 1: live scrape (async start → poll, driven here) ────────────────
+  async function runLiveScrape(startPayload) {
+    const startRes = await api.socialAudit({ action: 'start', ...startPayload });
+    onCredits(startRes);
+    const sd = startRes.result || {};
+    if (sd.error) throw new Error(sd.error);
+    if (!sd.jobId) throw new Error('No jobId returned.');
+    setLoadingText(`Phase 1 of 2 — auditing ${(sd.platforms || startPayload.platforms || []).length} platform(s)…`);
+    for (let tries = 0; tries <= 50; tries++) {
+      const pollRes = await api.socialAudit({ action: 'poll', jobId: sd.jobId });
+      const d = pollRes.result || {};
+      if (d.error) throw new Error(d.error);
+      if (d.status === 'done') return d.scorecard || {};
+      if (d.status === 'running' || d.status === 'finalizing') {
+        const pr = d.progress || {};
+        setLoadingText(d.status === 'finalizing'
+          ? 'Phase 1 of 2 — crunching live data…'
+          : (pr.total ? `Phase 1 of 2 — ${pr.done}/${pr.total} sources ready…` : 'Phase 1 of 2 — collecting live data…'));
+        await sleep(6000);
+        continue;
+      }
+      throw new Error('Unexpected poll response.');
+    }
+    throw new Error('Timed out waiting for live data.');
+  }
+
+  // ── Combined run: live scrape (Phase 1) → strategy analysis (Phase 2) ──────
+  async function runAudit() {
+    if (!brand.trim()) { setError('Please enter a brand name.'); return; }
+    setError(''); setScaError('');
+    setScorecardHtml(null); setScaHtml(null);
+    setBusy(true);
+    setLoadingText('Starting…');
+    try {
+      // Only brand is required — fill any blank context with AI before running.
+      const ctx = { industry: industry.trim(), audience: audience.trim(), goals: goals.trim(), website: domain.trim() };
+      if (!ctx.industry || !ctx.audience || !ctx.goals) {
+        setLoadingText('Filling in the campaign context with AI…');
+        try {
+          const d = await suggestContext(false);
+          if (d) {
+            ctx.website = ctx.website || d.website || '';
+            ctx.industry = ctx.industry || d.industry || '';
+            ctx.audience = ctx.audience || d.target_audience || '';
+            ctx.goals = ctx.goals || d.campaign_goals || '';
+          }
+        } catch { /* strategy still runs without it */ }
+      }
+
+      // Gather selected platforms + handles.
+      const handles = {}, platforms = [];
+      for (const p of SMA_PLATFORMS) {
+        const row = plat[p.key];
+        if (row.checked && row.handle.trim()) { handles[p.key] = row.handle.trim(); platforms.push(p.key); }
+      }
+      const comps = competitors
+        .filter((c) => c.platform && c.handle.trim())
+        .map((c) => ({ platform: c.platform, handle: c.handle.trim().replace(/^@/, ''), name: (c.name.trim() || c.handle.trim()) }));
+
+      // Read additional-context files (browser-side).
+      let extra_context = '';
+      if (smaFiles.length) {
+        setLoadingText(`Reading ${smaFiles.length} file(s)…`);
+        try { extra_context = await extractFiles(smaFiles); } catch { /* non-fatal */ }
+      }
+
+      // Phase 1 — live scrape (skipped if no handles).
+      let liveScorecard = null;
+      if (platforms.length) {
+        setLoadingText('Phase 1 of 2 — collecting live social data…');
+        try {
+          liveScorecard = await runLiveScrape({ brand_name: brand.trim(), domain: ctx.website, handles, platforms, competitors: comps, extra_context });
+          installSmaGlobals();
+          setScorecardHtml(renderSMAScorecard(liveScorecard));
+        } catch (e) {
+          setError('Live data unavailable (' + gateError(e) + ') — running strategy analysis only.');
+        }
+      } else {
+        setLoadingText('No social handles — skipping live scrape, running strategy analysis…');
+      }
+
+      // Phase 2 — strategy analysis (the charged step).
+      setLoadingText('Phase 2 of 2 — generating strategy analysis…');
+      const payload = {
+        action: 'strategy', mode, provider: getLlmProvider(),
+        client_website: ctx.website, brand_name: brand.trim(),
+        industry: ctx.industry, target_audience: ctx.audience, campaign_goals: ctx.goals,
+        social_profiles: platforms.map((p) => `${p} ${handles[p]}`).join('\n'),
+        competitors: comps.map((c) => `${c.platform} ${c.handle}`).join('\n'),
+        content_calendars: calendars.trim(), rfq_notes: rfq.trim(),
+        extra_context,
+      };
+      if (liveScorecard) payload.live_social_data = JSON.stringify(liveScorecard);
+      if (mode === 'pro') {
+        setLoadingText('Reading uploaded pro analytics files…');
+        for (const f of PRO_FIELDS) {
+          const typed = (proText[f.id] || '').trim();
+          const fromFiles = await extractFiles(proFiles[f.id] || [], 12000, 30000);
+          payload[f.id] = [typed, fromFiles].filter(Boolean).join('\n\n');
+        }
+      }
+
+      const res = await api.socialAudit(payload);
+      onCredits(res);
+      if (res.failed || res.result?._failed) throw new Error(res.result?.text || 'Strategy analysis failed.');
+      const data = res.result?.sca;
+      if (!data) throw new Error('No strategy data returned.');
+      setScaHtml(renderSocialAudit(data));
+      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+    } catch (e) {
+      setScaError('Strategy analysis failed: ' + gateError(e));
+      if (e instanceof ApiError && e.status === 402) toast('Out of credits — top up to finish.', 'error');
+    } finally {
+      setBusy(false);
+      setLoadingText('');
+    }
+  }
+
+  if (!unlocked) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <h1 className="text-2xl font-bold">Social Media Audit</h1>
+        <div className="card mt-6 p-6 text-center">
+          <p className="text-slate-600">{TOOL?.desc}</p>
+          <Link to="/pricing" className="btn-primary mt-4 inline-block">Upgrade to run a Social Media Audit</Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-3xl pb-12">
+      <h1 className="text-2xl font-bold">Social Media Audit</h1>
+      <p className="mt-1 text-slate-600">
+        Pulls live profile &amp; engagement data from Instagram, TikTok, Facebook, LinkedIn &amp; YouTube,
+        then generates a strategic content-gap &amp; competitor audit in one pass. Auto-find the brand's
+        profiles, fill in the campaign context, and hit Run Audit.
+      </p>
+
+      {/* Brand & campaign */}
+      <div className="card mt-6 p-5">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Brand &amp; campaign</h2>
+        <p className="mt-1 text-xs text-slate-400">Only the brand name is required — leave the rest blank and AI will fill them in (you can edit before auditing).</p>
+        <div className="mt-3 space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-slate-700">Brand name <span className="text-red-500">*</span></label>
+            <input className="field mt-1" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. MediaOne" disabled={busy} />
+          </div>
+          <button type="button" onClick={autoFindDetails} disabled={busy || findingDetails}
+            className="btn-ghost text-xs text-brand-700">
+            {findingDetails ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />} Auto-find details
+          </button>
+          <Status s={suggestStatus} />
+          <div>
+            <label className="block text-sm font-medium text-slate-700">Website</label>
+            <input className="field mt-1" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="https://brand.com" disabled={busy} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-slate-700">Industry</label>
+              <input className="field mt-1" value={industry} onChange={(e) => setIndustry(e.target.value)} placeholder="e.g. Dental clinic, B2B SaaS" disabled={busy} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700">Campaign goals</label>
+              <input className="field mt-1" value={goals} onChange={(e) => setGoals(e.target.value)} placeholder="e.g. Build awareness, generate leads" disabled={busy} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700">Target audience</label>
+            <textarea className="field mt-1" rows={2} value={audience} onChange={(e) => setAudience(e.target.value)} placeholder="Describe the customers: age, location, intent, B2B/B2C…" disabled={busy} />
+          </div>
+        </div>
+      </div>
+
+      {/* Profiles */}
+      <div className="card mt-4 p-5">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Profiles to audit</h2>
+          <button type="button" onClick={discoverProfiles} disabled={busy || findingProfiles} className="btn-ghost text-xs text-brand-700">
+            {findingProfiles ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />} Auto-find profiles
+          </button>
+        </div>
+        <Status s={discoverStatus} />
+        <div className="mt-3 space-y-2.5">
+          {SMA_PLATFORMS.map((p) => (
+            <div key={p.key} className="flex items-center gap-3">
+              <input type="checkbox" className="h-4 w-4 shrink-0" checked={plat[p.key].checked}
+                onChange={(e) => setPlatField(p.key, { checked: e.target.checked })} disabled={busy} />
+              <span className="w-24 shrink-0 text-sm font-semibold text-slate-600">{p.label}</span>
+              <input className="field" value={plat[p.key].handle} placeholder={p.ph}
+                onChange={(e) => setPlatField(p.key, { handle: e.target.value })} disabled={busy} />
+              <SourceBadge source={plat[p.key].source} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Competitors */}
+      <div className="card mt-4 p-5">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Competitors <span className="font-normal normal-case text-slate-400">(optional, up to 3)</span></h2>
+          <button type="button" onClick={discoverCompetitors} disabled={busy || findingComps} className="btn-ghost text-xs text-brand-700">
+            {findingComps ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />} Auto-find competitors
+          </button>
+        </div>
+        <Status s={compStatus} />
+        <div className="mt-3 space-y-2">
+          {competitors.map((c, i) => (
+            <div key={i} className="flex flex-wrap items-center gap-2">
+              <select className="field w-32 cursor-pointer" value={c.platform} disabled={busy}
+                onChange={(e) => setCompetitors((s) => s.map((x, j) => (j === i ? { ...x, platform: e.target.value } : x)))}>
+                {COMP_PLATFORMS.map((p) => <option key={p} value={p}>{p[0].toUpperCase() + p.slice(1)}</option>)}
+              </select>
+              <input className="field flex-1" style={{ minWidth: 120 }} value={c.handle} placeholder="handle or URL" disabled={busy}
+                onChange={(e) => setCompetitors((s) => s.map((x, j) => (j === i ? { ...x, handle: e.target.value } : x)))} />
+              <input className="field w-32" value={c.name} placeholder="Name (optional)" disabled={busy}
+                onChange={(e) => setCompetitors((s) => s.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
+              <SourceBadge source={c.source} />
+              <button type="button" className="text-slate-400 hover:text-red-500" disabled={busy}
+                onClick={() => setCompetitors((s) => s.filter((_, j) => j !== i))} aria-label="Remove competitor"><X size={16} /></button>
+            </div>
+          ))}
+        </div>
+        {competitors.length < 3 && (
+          <button type="button" className="btn-ghost mt-2 text-xs" disabled={busy}
+            onClick={() => setCompetitors((s) => [...s, { platform: 'instagram', handle: '', name: '', source: '' }])}>
+            <Plus size={13} /> Add manually
+          </button>
+        )}
+      </div>
+
+      {/* Optional context */}
+      <div className="card mt-4 p-5">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Optional context</h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="block text-sm font-medium text-slate-700">Existing content calendar</label>
+            <textarea className="field mt-1" rows={3} value={calendars} onChange={(e) => setCalendars(e.target.value)} placeholder="Paste or describe the current content plan/cadence, if any" disabled={busy} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700">RFQ / discussion notes</label>
+            <textarea className="field mt-1" rows={3} value={rfq} onChange={(e) => setRfq(e.target.value)} placeholder="Pain points, priorities, constraints the prospect mentioned…" disabled={busy} />
+          </div>
+        </div>
+        <div className="mt-3">
+          <label className="block text-sm font-medium text-slate-700">Additional context <span className="font-normal text-slate-400">(optional — briefs, brand guidelines)</span></label>
+          <FileField files={smaFiles} setFiles={setSmaFiles} disabled={busy} accept=".pdf,.docx,.txt,.csv,.md"
+            hint="PDF, DOCX, TXT, CSV or MD. Text is extracted in your browser and fed to the audit's analysis." />
+        </div>
+      </div>
+
+      {/* Mode toggle */}
+      <div className="card mt-4 p-5">
+        <div className="inline-flex overflow-hidden rounded-lg border border-brand-200">
+          {['starter', 'pro'].map((m) => (
+            <button key={m} type="button" onClick={() => setMode(m)} disabled={busy}
+              className={`px-4 py-2 text-sm font-bold ${mode === m ? 'bg-brand-600 text-white' : 'bg-white text-brand-700'}`}>
+              {m === 'starter' ? 'Starter' : 'Pro'}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-slate-500">
+          {mode === 'pro'
+            ? 'Deeper audit using your exported analytics — adds content pillars, campaign angles, organic/paid integration, social SEO, blog-to-social repurposing and creative improvements.'
+            : "Competitor & content-gap audit from first-call inputs — what the client does, what competitors do better, and what's missing."}
+        </p>
+
+        {mode === 'pro' && (
+          <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+            <p className="text-xs font-semibold text-slate-500">Analytics &amp; content data — paste what you have or upload files; leave the rest blank.</p>
+            {PRO_FIELDS.map((f) => (
+              <div key={f.id}>
+                <label className="block text-sm font-medium text-slate-700">{f.label}</label>
+                <textarea className="field mt-1" rows={2} value={proText[f.id]} disabled={busy}
+                  onChange={(e) => setProText((s) => ({ ...s, [f.id]: e.target.value }))} placeholder={f.ph} />
+                <FileField files={proFiles[f.id]} setFiles={(updater) => setProFiles((s) => ({ ...s, [f.id]: typeof updater === 'function' ? updater(s[f.id]) : updater }))}
+                  disabled={busy} accept=".pdf,.docx,.txt,.csv,.md,.xlsx" compact hint="Upload exports — PDF, DOCX, TXT, CSV or XLSX" />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Run */}
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <button onClick={runAudit} disabled={busy} className="btn-primary">
+          {busy ? <Loader2 size={16} className="animate-spin" /> : (mode === 'pro' ? <Microscope size={16} /> : <ScanSearch size={16} />)}
+          {busy ? 'Running…' : `Run Audit${mode === 'pro' ? ' (Pro)' : ''} · ${cost} cr`}
+        </button>
+        {busy && loadingText && <span className="text-sm text-slate-500"><Loader2 size={13} className="mr-1 inline animate-spin" />{loadingText}</span>}
+      </div>
+      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {scaError && <p className="mt-2 text-sm text-red-600">{scaError}</p>}
+
+      {/* Results — bespoke HTML scorecards (Font Awesome styled, ported 1:1). */}
+      <div ref={resultsRef} className="mt-6 space-y-4">
+        {scorecardHtml && <div dangerouslySetInnerHTML={{ __html: scorecardHtml }} />}
+        {scaHtml && <div dangerouslySetInnerHTML={{ __html: scaHtml }} />}
+      </div>
+    </div>
+  );
+}
+
+// File picker + removable chips. `setFiles` accepts a value or an updater fn.
+function FileField({ files, setFiles, disabled, accept, hint, compact }) {
+  const onPick = (e) => {
+    const picked = Array.from(e.target.files || []);
+    if (!picked.length) return;
+    setFiles((prev) => {
+      const existing = new Set((prev || []).map((f) => f.name));
+      return [...(prev || []), ...picked.filter((f) => !existing.has(f.name))];
+    });
+    e.target.value = '';
+  };
+  return (
+    <div className={compact ? 'mt-1.5' : 'mt-2'}>
+      <input type="file" multiple accept={accept} onChange={onPick} disabled={disabled}
+        className="block w-full text-xs text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-brand-700 hover:file:bg-brand-100" />
+      {hint && <p className="mt-1 text-[11px] text-slate-400">{hint}</p>}
+      {!!(files && files.length) && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {files.map((file, i) => (
+            <span key={i} className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-800">
+              {file.name}
+              <button type="button" className="text-brand-500 hover:text-brand-700" disabled={disabled}
+                onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))} aria-label="Remove file"><X size={12} /></button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

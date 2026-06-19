@@ -137,7 +137,12 @@ export const handler = async (event) => {
   // Surface the message but NEVER charge for it — credits are only for results.
   const softFailed = isSoftFailure(result);
   if (result && typeof result === 'object') delete result._failed; // strip internal flag from client payload
-  const charge = willCharge && !softFailed;
+  // Free sub-steps (e.g. Social Media Audit discover/scrape/poll) opt out of
+  // billing with `{ _noCharge: true }`: proxied like a run, but never charged,
+  // saved to history, or snapshotted to the performance series.
+  const noCharge = !!(result && typeof result === 'object' && result._noCharge === true);
+  if (result && typeof result === 'object') delete result._noCharge;
+  const charge = willCharge && !softFailed && !noCharge;
 
   // ── Partial-results shaping for teaser / capped free tier ─────────────────
   let payload = result;
@@ -163,21 +168,24 @@ export const handler = async (event) => {
   }
 
   // Persist the run so the user can re-open it from their history (best-effort).
+  // Skip free sub-steps (discover/poll) so a single audit yields one history row.
   let runId = null;
-  try {
-    const saved = await saveRun({
-      userId: user.userId, tool: tool.id, toolName: tool.name,
-      inputs: publicInputs(body), result: payload, creditsUsed,
-      projectId: body.projectId || null,
-    });
-    runId = saved.runId;
-  } catch (e) { console.error('save_run_failed', tool.id, e.message); }
+  if (!noCharge) {
+    try {
+      const saved = await saveRun({
+        userId: user.userId, tool: tool.id, toolName: tool.name,
+        inputs: publicInputs(body), result: payload, creditsUsed,
+        projectId: body.projectId || null,
+      });
+      runId = saved.runId;
+    } catch (e) { console.error('save_run_failed', tool.id, e.message); }
+  }
 
   // Snapshot the run's headline metric(s) into the per-project performance
   // series — only for real, project-scoped runs (skip teaser/soft-failed runs so
   // partial/empty data never pollutes the trend). Best-effort: never blocks the
   // response. `result` (not the teaser-capped `payload`) carries the full summary.
-  if (!teaser && !softFailed && body.projectId) {
+  if (!teaser && !softFailed && !noCharge && body.projectId) {
     try {
       const metrics = extractMetrics(tool.id, result);
       if (metrics.length) {
@@ -345,6 +353,8 @@ async function callUpstreamRaw(tool, body) {
   if (tool.id === 'technical-seo') return crawlRun(body, tool);
   // GEO+SEO Forensic Audit: fan out ~30 probes, score them, build a remediation plan.
   if (tool.id === 'forensic-audit') return forensicAuditRun(body);
+  // Page Technical & Domain Analysis: lighter probe fan-out → metric-card grid.
+  if (tool.id === 'page-analysis') return pageAnalysisRun(body);
   // AI-visibility is multi-step: derive prompts → verify_mentions → poll snapshot.
   // AI Mentions: are you cited in AI answers? AI Discovery: technical GEO-readiness.
   if (tool.id === 'ai-mentions') return aiVisibilityRun(body);
@@ -361,6 +371,9 @@ async function callUpstreamRaw(tool, body) {
   if (tool.id === 'anchor-cleaner') return anchorCleanerRun(body);
   // Performance Marketing Audit: paid-media opportunity analysis.
   if (tool.id === 'perf-marketing') return perfMarketingRun(body);
+  // Social Media Audit: async live scrape (start→poll) + strategy analysis.
+  // The React page calls us once per `action`; only `strategy` is charged.
+  if (tool.id === 'social-audit') return socialAuditRun(body);
   // llms.txt Generator: crawl the site → validate (llms.txt/robots/AI-bots/key
   // pages) → generate a spec-compliant llms.txt + llms-full.txt + recommendations.
   if (tool.id === 'llms-txt') return llmsTxtRun(body);
@@ -1332,6 +1345,184 @@ async function forensicAuditRun(body) {
   };
 
   return { sections: faSections(d, recs, score, sevCounts, backlinksSource), summary };
+}
+
+// ── Page Technical & Domain Analysis ──────────────────────────────────────────
+// The lighter cousin of the forensic audit (index.html's "Domain Analysis"
+// section): fan out a focused set of FAST probes — Moz authority, Ahrefs /
+// DataForSEO link data, PageSpeed (mobile+desktop), SSL and the on-page HTML —
+// then render the agency's "Domain & Page Metrics" card grid. No siteliner crawl
+// or GTmetrix long-pole, no scoring/remediation: just the signals, in one view.
+async function pageAnalysisRun(body) {
+  let target = (body.input || body.url || '').trim();
+  if (!target) throw new Error('A website URL is required.');
+  if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
+  let u;
+  try { u = new URL(target); } catch { throw new Error('Invalid URL format.'); }
+
+  const rootDomain = u.origin;                       // https://www.example.com
+  const domain = u.hostname;                         // www.example.com
+  const baseDomain = domain.replace(/^www\./, '');   // example.com
+
+  const withTimeout = (p, ms) =>
+    Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+  const tryJson = (url, payload, ms) => withTimeout(postUpstream(url, payload), ms).catch(() => null);
+  const getHtmlBody = (path, ms) =>
+    withTimeout(postUpstream(UPSTREAMS.getHtml, { url: path }), ms)
+      .then((r) => (typeof r === 'string' ? r : (r && typeof r.body === 'string' ? r.body : '')))
+      .catch(() => '');
+
+  const [siteRes, mozRes, psmRes, psdRes, sslRes, ahrefsRes, homeHtml] = await Promise.all([
+    tryJson(UPSTREAMS.forensicSiteData, { url: baseDomain }, 25000),
+    tryJson(UPSTREAMS.mozAuthority, { domain: baseDomain }, 25000),
+    tryJson(UPSTREAMS.pageSpeed, { url: target }, 55000),
+    tryJson(UPSTREAMS.pageSpeed, { url: target, strategy: 'desktop' }, 55000),
+    tryJson(UPSTREAMS.sslCheck, { url: domain }, 20000),
+    tryJson(UPSTREAMS.ahrefsProxy, { endpoint: 'overview', params: { target: baseDomain } }, 25000),
+    getHtmlBody(target, 30000),
+  ]);
+
+  // Normalise into a flat shape (mirrors the forensic `d` fields we reuse).
+  const d = {
+    url: target, da: null, pa: null, backlinks: null, refdomains: null,
+    orgkw: null, orgtraffic: null, spam: null, ssl: null, psm: null, psd: null,
+    metatitle: '', metadesc: '', h1: null, h2: null, structdata: '', semantic: '', cms: '',
+  };
+
+  // 1. DataForSEO site data — title / desc / h1-h2 / schema / spam / links.
+  if (siteRes) {
+    if (siteRes.title) d.metatitle = String(siteRes.title);
+    if (siteRes.description) d.metadesc = String(siteRes.description);
+    if (siteRes.backlinks_spam_score != null) d.spam = Number(siteRes.backlinks_spam_score);
+    const toCount = (v) => (Array.isArray(v) ? v.length : (v !== '' && v != null ? Number(v) : null));
+    const h1c = toCount(siteRes.h1), h2c = toCount(siteRes.h2);
+    if (h1c != null && !Number.isNaN(h1c)) d.h1 = h1c;
+    if (h2c != null && !Number.isNaN(h2c)) d.h2 = h2c;
+    if (siteRes.schema && siteRes.schema !== 'None') d.structdata = 'Yes';
+    if (siteRes.backlinks != null) d.backlinks = Number(siteRes.backlinks);
+    if (siteRes.referring_domains != null) d.refdomains = Number(siteRes.referring_domains);
+  }
+
+  // Backlinks / ref domains / organic — prefer Ahrefs, fall back to site data.
+  const ah = ahrefsRes?.domain || ahrefsRes || {};
+  if (ah.backlinks != null) d.backlinks = Number(ah.backlinks);
+  if (ah.referring_domains != null) d.refdomains = Number(ah.referring_domains);
+  if (ah.org_keywords != null) d.orgkw = Number(ah.org_keywords);
+  if (ah.org_traffic != null) d.orgtraffic = Number(ah.org_traffic);
+  const linkSource = (ah.backlinks != null || ah.referring_domains != null)
+    ? 'Ahrefs' : (siteRes?.backlinks != null ? 'DataForSEO' : null);
+
+  // 2. Moz Domain / Page Authority.
+  if (mozRes?.domain_authority != null) d.da = Number(mozRes.domain_authority);
+  if (mozRes?.page_authority != null) d.pa = Number(mozRes.page_authority);
+
+  // 3. PageSpeed (mobile + desktop) — the upstream returns a 0-100 score string.
+  const parsePS = (v) => { if (v == null) return null; const n = parseInt(String(v), 10); return Number.isNaN(n) ? null : n; };
+  if (psmRes) { const v = parsePS(psmRes.pagespeed); if (v != null) d.psm = v; }
+  if (psdRes) { const v = parsePS(psdRes.pagespeed); if (v != null) d.psd = v; }
+
+  // 4. SSL.
+  if (sslRes) d.ssl = (sslRes.message && String(sslRes.message).toLowerCase().includes('valid')) ? 'pass' : 'fail';
+
+  // 5. On-page HTML — fills title/desc/h1-h2/schema/semantic/CMS when absent.
+  faParseHomeHtml(homeHtml, d);
+  const page = pageHtmlStats(homeHtml, domain);
+
+  // ── Build the metric-card grid (mirrors index.html's Domain & Page Metrics) ──
+  const dash = '—';
+  const num = (v) => (v == null ? dash : Number(v).toLocaleString());
+  const daTone = (v) => (v == null ? 'slate' : v >= 50 ? 'green' : v >= 30 ? 'amber' : 'red');
+  const psTone = (v) => (v == null ? 'slate' : v >= 90 ? 'green' : v >= 50 ? 'amber' : 'red');
+  const sslTone = d.ssl === 'pass' ? 'green' : d.ssl === 'fail' ? 'red' : 'slate';
+  const spamTone = d.spam == null ? 'slate' : d.spam > 30 ? 'red' : d.spam > 15 ? 'amber' : 'green';
+  const readTone = page.readability == null ? 'slate' : page.readability >= 60 ? 'green' : page.readability >= 30 ? 'amber' : 'red';
+
+  const authority = [
+    { label: 'Domain Authority', value: d.da ?? dash, tone: daTone(d.da) },
+    { label: 'Page Authority', value: d.pa ?? dash, tone: daTone(d.pa) },
+    { label: 'Backlinks', value: num(d.backlinks) + (linkSource ? ` · ${linkSource}` : ''), tone: 'slate' },
+    { label: 'Referring domains', value: num(d.refdomains), tone: 'slate' },
+    { label: 'Organic traffic', value: d.orgtraffic == null ? dash : `${num(d.orgtraffic)}/mo`, tone: 'slate' },
+    { label: 'Organic keywords', value: num(d.orgkw), tone: 'slate' },
+    { label: 'Spam score', value: d.spam == null ? dash : `${d.spam}%`, tone: spamTone },
+  ];
+
+  const technical = [
+    { label: 'SSL', value: d.ssl === 'pass' ? 'Valid' : d.ssl === 'fail' ? 'Invalid' : dash, tone: sslTone },
+    { label: 'PageSpeed (mobile)', value: d.psm ?? dash, tone: psTone(d.psm) },
+    { label: 'PageSpeed (desktop)', value: d.psd ?? dash, tone: psTone(d.psd) },
+    { label: 'Structured data', value: d.structdata || dash, tone: d.structdata === 'Yes' ? 'green' : d.structdata === 'No' ? 'red' : 'slate' },
+    { label: 'Semantic HTML', value: d.semantic || dash, tone: d.semantic === 'Yes' ? 'green' : d.semantic ? 'red' : 'slate' },
+    { label: 'Word count', value: num(page.words), tone: page.words == null ? 'slate' : page.words >= 1000 ? 'green' : 'amber' },
+    { label: 'Readability', value: page.readability == null ? dash : String(page.readability), tone: readTone },
+    { label: 'H1 / H2', value: (d.h1 == null && d.h2 == null) ? dash : `${d.h1 ?? 0} / ${d.h2 ?? 0}`, tone: d.h1 == null ? 'slate' : d.h1 === 1 ? 'green' : 'amber' },
+    { label: 'Internal links', value: num(page.internal), tone: 'slate' },
+    { label: 'External links', value: num(page.external), tone: 'slate' },
+    { label: 'Images', value: num(page.images), tone: 'slate' },
+    { label: 'CMS', value: d.cms || dash, tone: 'slate' },
+  ];
+
+  const sections = [
+    { type: 'heading', text: `Page Technical & Domain Analysis — ${d.url}` },
+    { type: 'stats', title: 'Domain authority & links', items: authority },
+    { type: 'stats', title: 'Page technical signals', items: technical },
+  ];
+  if (d.metatitle || d.metadesc) {
+    sections.push({ type: 'table', title: 'Page metadata', columns: ['Field', 'Value'], rows: [
+      { Field: 'Title', Value: d.metatitle || dash },
+      { Field: 'Meta description', Value: d.metadesc || dash },
+    ] });
+  }
+
+  const summary = {
+    domainAuthority: d.da, pageAuthority: d.pa, backlinks: d.backlinks,
+    referringDomains: d.refdomains, spamScore: d.spam, organicKeywords: d.orgkw,
+    organicTraffic: d.orgtraffic, pageSpeedMobile: d.psm, pageSpeedDesktop: d.psd,
+    ssl: d.ssl, wordCount: page.words,
+  };
+
+  // Every probe failed → non-billable soft failure (spec §6.2/6.4), never charge.
+  const gotData = d.da != null || d.backlinks != null || d.psm != null || d.psd != null || page.words != null;
+  if (!gotData) return { _failed: true, text: 'Could not retrieve metrics for this URL — no credits were charged. Please check the URL and try again.' };
+
+  return { sections, summary };
+}
+
+/** Word count, Flesch readability, link + image counts from a page's HTML. */
+function pageHtmlStats(html, host) {
+  const empty = { words: null, readability: null, internal: null, external: null, images: null };
+  if (!html || html.length < 200) return empty;
+  const text = faStripHtml(html);
+  const words = (text.match(/\b[\w’']+\b/g) || []).length;
+  if (!words) return empty;
+  const sentences = Math.max(1, (text.match(/[.!?]+(\s|$)/g) || []).length);
+  const syllables = faEstimateSyllables(text);
+  // Flesch Reading Ease, clamped to the 0-100 display range.
+  const flesch = 206.835 - 1.015 * (words / sentences) - 84.6 * (syllables / words);
+  const readability = Math.max(0, Math.min(100, Math.round(flesch)));
+
+  const baseHost = host.replace(/^www\./, '');
+  let internal = 0, external = 0;
+  for (const m of html.matchAll(/<a\s[^>]*href=["']([^"']+)["']/gi)) {
+    const href = m[1];
+    if (/^(#|mailto:|tel:|javascript:|data:)/i.test(href)) continue;
+    if (/^https?:\/\//i.test(href)) {
+      try { (new URL(href).hostname.replace(/^www\./, '') === baseHost ? internal++ : external++); } catch { /* skip */ }
+    } else internal++; // relative path
+  }
+  const images = (html.match(/<img[\s>]/gi) || []).length;
+  return { words, readability, internal, external, images };
+}
+
+/** Rough English syllable count for Flesch (samples up to 4k words). */
+function faEstimateSyllables(text) {
+  const words = (text.toLowerCase().match(/[a-z]+/g) || []).slice(0, 4000);
+  let total = 0;
+  for (const w of words) {
+    const groups = w.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, '').match(/[aeiouy]{1,2}/g);
+    total += Math.max(1, groups ? groups.length : 1);
+  }
+  return total || 1;
 }
 
 /** DataForSEO async crawl used only for the internal-duplication ratio. */
@@ -2710,6 +2901,53 @@ function sectionsPerfMarketing(d) {
   return out;
 }
 
+// ── Social Media Audit: live multi-platform scrape + content-gap strategy ─────
+// The lambda is async (start → poll, up to ~5 min) so the React page — not the
+// gateway — drives the loop, calling us once per `action`. Only the Phase-2
+// `strategy` step is billable; every scrape/discover/poll step opts out of
+// billing with `{ _noCharge: true }` so the user is charged exactly once.
+async function socialAuditRun(body) {
+  const action = String(body.action || '').trim();
+  // Strip gateway-injected + routing keys before forwarding upstream.
+  const fwd = { ...body };
+  delete fwd._email; delete fwd._integrations; delete fwd.projectId;
+
+  // ── Phase 2: strategy analysis — the single CHARGED step ──────────────────
+  if (action === 'strategy') {
+    delete fwd.action;
+    const raw = await postUpstream(UPSTREAMS.socialMediaStrategy, { ...fwd, task: 'social_audit' });
+    const data = parseScaAnswer(raw);
+    if (!data) return { _failed: true, text: 'The strategy analysis did not return a usable result. Please try again.' };
+    return { sca: data, usage: deepBody(raw)?.usage };
+  }
+
+  // ── Free helper / live-scrape actions — proxied raw, never charged ────────
+  const ALLOWED = new Set(['suggest_context', 'discover', 'discover_competitors', 'start', 'poll']);
+  if (!ALLOWED.has(action)) return { _failed: true, text: `Unknown social-audit action: ${action || '(none)'}` };
+  const raw = await postUpstream(UPSTREAMS.socialMediaAudit, fwd);
+  const d = deepBody(raw);
+  const obj = d && typeof d === 'object' && !Array.isArray(d) ? d : { data: d };
+  return { _noCharge: true, ...obj };
+}
+
+// Unwrap the socialMediaStrategy response (proxy envelope → answer → JSON) into
+// the structured object renderSocialAudit() expects. Mirrors index.html.
+function parseScaAnswer(raw) {
+  let answer = deepBody(raw);
+  if (answer && typeof answer === 'object' && answer.answer == null && answer.body != null) {
+    let b = answer.body;
+    if (typeof b === 'string') { try { b = JSON.parse(b); } catch { /* keep string */ } }
+    answer = b;
+  }
+  if (answer && typeof answer === 'object' && answer.answer != null) answer = answer.answer;
+  if (typeof answer === 'string') {
+    let s = answer.trim();
+    if (s.startsWith('```')) s = s.replace(/^```[a-z]*\n?/i, '').replace(/```$/, '').trim();
+    try { return JSON.parse(s); } catch { return null; }
+  }
+  return answer && typeof answer === 'object' ? answer : null;
+}
+
 /** aiOptimiser response → text (handles statusCode/body + result/text/content). */
 function aiText(raw) {
   const d = deepBody(raw);
@@ -2725,7 +2963,7 @@ function deepBody(raw) {
 
 // Exposed for unit tests (orchestration is otherwise unreachable without a full
 // authed event). Not used by the handler path.
-export const __test = { callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks };
+export const __test = { callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks };
 
 /**
  * AI endpoints return token usage; convert to actual credits so a tiny caption

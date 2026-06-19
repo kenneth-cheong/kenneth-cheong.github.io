@@ -128,6 +128,14 @@ export const api = {
     slow && RUN_URL
       ? call(`run/${toolId}`, { method: 'POST', body: input, base: RUN_URL })
       : call(`/run/${toolId}`, { method: 'POST', body: input }),
+  // Social Media Audit — one metered tool, many actions. The page drives the
+  // async start→poll loop and the two-phase combined run; the gateway charges
+  // only the `strategy` action (scrape/discover/poll opt out via _noCharge).
+  // Routes via the Function URL (slow tool) when configured.
+  socialAudit: (payload) =>
+    RUN_URL
+      ? call('run/social-audit', { method: 'POST', body: payload, base: RUN_URL })
+      : call('/run/social-audit', { method: 'POST', body: payload }),
   checkout: (tier, interval) => call('/billing/checkout', { method: 'POST', body: { tier, interval } }),
   topup: (packId) => call('/billing/topup', { method: 'POST', body: { packId } }),
   portal: () => call('/billing/portal', { method: 'POST' }),

@@ -44,6 +44,7 @@ const ProjectDetail = lazyWithReload(() => import('./pages/ProjectDetail.jsx'));
 const Tracking = lazyWithReload(() => import('./pages/Tracking.jsx'));
 const Performance = lazyWithReload(() => import('./pages/Performance.jsx'));
 const SiteAudit = lazyWithReload(() => import('./pages/SiteAudit.jsx'));
+const SocialAudit = lazyWithReload(() => import('./pages/SocialAudit.jsx'));
 
 const Loading = () => <div className="grid min-h-[40vh] place-items-center text-slate-400">Loading…</div>;
 
@@ -87,6 +88,7 @@ export default function App() {
           <Route path="/tracking" element={<Tracking />} />
           <Route path="/performance" element={<Performance />} />
           <Route path="/audit" element={<SiteAudit />} />
+          <Route path="/social-audit" element={<SocialAudit />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/account" element={<Account />} />
           <Route path="/usage" element={<Usage />} />

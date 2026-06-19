@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { useParams, Link, useLocation } from 'react-router-dom';
+import { useParams, Link, useLocation, Navigate } from 'react-router-dom';
 import { toolById, inputsFor, tabsFor, exampleFor, CREDIT_COSTS, PLANS, tierMeets } from '@shared/catalog.mjs';
 import { api, ApiError } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -62,6 +62,9 @@ export default function ToolRunner() {
   }, [toolId]);
 
   if (!tool) return <p>Unknown tool.</p>;
+  // Tools with a bespoke page (e.g. Social Media Audit) render at their own
+  // route, not the generic runner — redirect if someone lands here directly.
+  if (tool.route) return <Navigate to={tool.route} replace />;
   const unlocked = tierMeets(user.tier, tool.minTier);
   const cost = CREDIT_COSTS[tool.cost] ?? 0;
   const set = (name, v) => setValues((s) => ({ ...s, [name]: v }));

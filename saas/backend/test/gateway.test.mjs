@@ -28,6 +28,16 @@ describe('gateway pure helpers', () => {
     expect(p.summary).toBe('ok');
     expect(p.content).toBe('body text');
   });
+  it('parseScaAnswer unwraps the Social Media Audit strategy envelope', () => {
+    // 1) plain object answer
+    expect(__test.parseScaAnswer({ answer: { executive_summary: 'a' } }).executive_summary).toBe('a');
+    // 2) fenced JSON string answer
+    expect(__test.parseScaAnswer({ answer: '```json\n{"overall_health":"Strong"}\n```' }).overall_health).toBe('Strong');
+    // 3) doubly-wrapped proxy envelope { body: "{ answer: ... }" }
+    expect(__test.parseScaAnswer({ body: JSON.stringify({ answer: { gaps: ['x'] } }) }).gaps).toEqual(['x']);
+    // 4) unparseable → null (caller turns this into a soft failure)
+    expect(__test.parseScaAnswer({ answer: 'not json' })).toBeNull();
+  });
 });
 
 describe('crawlRun (mocked upstream)', () => {

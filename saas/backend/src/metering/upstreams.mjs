@@ -71,4 +71,12 @@ export const UPSTREAMS = {
   // Strategy Engine uses the `strategy_generate` action on this shared lambda
   // (SEO strategy generation — not monday-board management).
   strategyEngine: 'https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday',
+  // Social Media Audit (flagship) — live multi-platform profile scrape (Apify +
+  // DataForSEO). Async: the gateway proxies the lambda's own action protocol
+  //   suggest_context / discover / discover_competitors / start → poll
+  // (the React page drives the start→poll loop, same as index.html).
+  socialMediaAudit: 'https://vceg7jm8w0.execute-api.ap-southeast-1.amazonaws.com/socialMediaAudit',
+  // Phase 2 of the Social Media Audit — the content-gap & competitor STRATEGY
+  // analysis (Starter/Pro). Reuses the agency lambda via task:'social_audit'.
+  socialMediaStrategy: 'https://8domnt5y2f.execute-api.ap-southeast-1.amazonaws.com/socialMediaStrategy',
 };

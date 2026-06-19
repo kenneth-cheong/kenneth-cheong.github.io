@@ -129,6 +129,10 @@ export const TOOLS = [
   { id: 'onpage', name: 'On-Page Optimisation', category: 'SEO', minTier: 'starter',
     cost: 'ai_long', upstream: 'onPageContentRecommendations', slow: true,
     desc: 'Benchmark title/meta/headings/images/content vs top-ranking pages.' },
+  { id: 'page-analysis', name: 'Page Technical & Domain Analysis', category: 'SEO', minTier: 'starter',
+    cost: 'page_analysis', upstream: 'forensicSiteData', slow: true,
+    desc: 'Quick site health snapshot: domain authority, backlinks, organic traffic, page speed, SSL and on-page technical signals — all in one view.',
+    teaser: { reveal: 'summary-only' } },
   { id: 'competitors', name: 'Competitors Identifier', category: 'SEO', minTier: 'starter',
     cost: 'keyword_lookup', upstream: 'serpCompetitors',
     desc: 'Find who shares your keywords and how you stack up.' },
@@ -190,6 +194,12 @@ export const TOOLS = [
   { id: 'perf-marketing', name: 'Performance Marketing Audit', category: 'Strategy', minTier: 'pro',
     cost: 'ai_long', upstream: 'performanceMarketing', slow: true,
     desc: 'Channel mix, budget split & opportunities for a paid-media plan.' },
+  // Social Media Audit — bespoke page (`route`): live multi-platform scrape +
+  // AI content-gap & competitor strategy in one combined two-phase run. The
+  // strategy phase is the single charged step; scrape/discover are free helpers.
+  { id: 'social-audit', name: 'Social Media Audit', category: 'Strategy', minTier: 'pro',
+    cost: 'ai_long', upstream: 'socialMediaAudit', slow: true, route: '/social-audit',
+    desc: 'Live profile scrape + AI content-gap & competitor strategy across IG, TikTok, FB, LinkedIn & YouTube.' },
 
   // ── Strategy Engine (flagship: auto SEO action-plan generator) ────────────
   { id: 'strategy-engine', name: 'SEO Strategy', category: 'SEO', minTier: 'pro',
@@ -238,7 +248,7 @@ export const GOALS = [
     tools: ['keyword-analysis', 'rank-checker', 'technical-seo', 'onpage', 'strategy-engine'] },
   { id: 'health', label: 'Check my site’s health', icon: 'Stethoscope', to: '/audit',
     desc: 'A full audit with a score and a prioritised fix list.',
-    tools: ['forensic-audit', 'technical-seo', 'landing-audit'] },
+    tools: ['forensic-audit', 'page-analysis', 'technical-seo', 'landing-audit'] },
   { id: 'content', label: 'Create content', icon: 'PenLine',
     desc: 'Write posts, captions and content plans that rank.',
     tools: ['content-writer', 'caption', 'pillars', 'content-check'] },
@@ -274,6 +284,7 @@ export const SIMPLE_NAMES = {
   'llms-txt': { name: 'AI access file', desc: 'Create the file that tells AI tools how to read your site.' },
   schema: { name: 'Rich result builder', desc: 'Make your Google listing show extra info (stars, prices…).' },
   'strategy-engine': { name: 'SEO game plan', desc: 'Get a prioritised list of what to do to rank.' },
+  'page-analysis': { name: 'Quick site check', desc: 'A fast snapshot of a site’s authority, links, speed and technical health.' },
   'content-writer': { name: 'Write content', desc: 'Write or improve a page, then auto-check the quality.' },
   pillars: { name: 'Content plan', desc: 'A map of topics and angles to post about.' },
   gsc: { name: 'My Google search stats', desc: 'Clicks, impressions and positions from Google.' },
@@ -326,6 +337,7 @@ export const EXAMPLES = {
   'technical-seo': { input: 'https://asana.com', maxPages: '10', maxDepth: '4' },
   onpage: { input: 'https://asana.com/features', keywords: 'project management software, work management' },
   competitors: { input: 'project management software', location: 'United States', language: 'English' },
+  'page-analysis': { input: 'https://asana.com' },
   backlinks: { input: 'asana.com', mode: 'domain' },
   schema: { type: 'Organization', name: 'Asana', url: 'https://asana.com', telephone: '+1 415 525 3888', address: '633 Folsom St, San Francisco, CA' },
   caption: { input: 'New Asana feature: AI-powered project summaries that catch your team up in seconds', brand: 'Asana', platform: 'Instagram', tone: 'Friendly', language: 'English' },
@@ -442,6 +454,9 @@ export const INPUTS = {
     { name: 'input', label: 'Keywords or domains', type: 'tags', placeholder: 'add a keyword or domain', required: true },
     { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'United States' },
     { name: 'language', label: 'Language', type: 'select', options: LANGUAGES, default: 'English' },
+  ],
+  'page-analysis': [
+    { name: 'input', label: 'Website or page URL', type: 'url', placeholder: 'https://example.com', required: true },
   ],
   backlinks: [
     { name: 'input', label: 'Domain', type: 'text', placeholder: 'example.com', required: true },
