@@ -3571,7 +3571,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2133</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2134</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -12980,6 +12980,38 @@
             return changed;
         }
         backfillPromptTags();
+
+        // Add any built-in template prompts that don't yet exist in customPrompts.
+        // Runs every page load so new prompts added to promptTemplates appear for
+        // existing users without wiping their custom prompts.
+        function backfillNewTemplates() {
+            const existingTitles = new Set(customPrompts.map(p => p.title));
+            let changed = false;
+            let id = Date.now();
+            promptTemplates.forEach(cat => {
+                cat.prompts.forEach(p => {
+                    if (!existingTitles.has(p.title)) {
+                        customPrompts.push({
+                            id: id++,
+                            title: p.title,
+                            description: p.description || '',
+                            text: p.text,
+                            category: cat.category,
+                            tags: Array.isArray(p.tags) ? [...p.tags] : [],
+                            icon: p.icon || 'fa-wand-magic-sparkles',
+                            createdAt: new Date().toLocaleDateString()
+                        });
+                        existingTitles.add(p.title);
+                        changed = true;
+                    }
+                });
+            });
+            if (changed) {
+                localStorage.setItem('chatbot_custom_prompts', JSON.stringify(customPrompts));
+                pushPromptsToCloud();
+            }
+        }
+        backfillNewTemplates();
 
         function openPromptsModal() {
             seedPromptsFromBuiltIns();
