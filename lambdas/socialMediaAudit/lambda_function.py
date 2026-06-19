@@ -53,7 +53,8 @@ HAIKU_MODEL  = 'claude-haiku-4-5-20251001'
 # Sonnet reasons over imagery noticeably better than Haiku; it runs once per
 # audit so the extra cost is bounded.
 VISION_MODEL = os.environ.get('SMA_VISION_MODEL', 'claude-sonnet-4-6')
-MAX_CREATIVE_IMAGES   = 21    # images fetched + sent to the vision model
+MAX_CREATIVE_IMAGES   = 21    # images fetched + sent to the vision model (brand)
+MAX_CREATIVE_IMAGES_COMP = 12 # fewer per competitor — keeps the concurrent calls fast
 MAX_CREATIVE_CAPTIONS = 21    # captions sent as text context
 JOB_TTL_SECS   = 6 * 3600
 CACHE_TTL_SECS = 30 * 86400        # 30-day Apify cache to cut scrape cost
@@ -631,9 +632,10 @@ def handle_finalize(body):
             client_metrics[p] = m
 
         competitor_metrics = []
+        comp_creative_jobs = []   # (entry, name, platform, full_metrics) for creative eval
         for c in comp_runs:
             m, src = _metrics_for(c['platform'], c)
-            competitor_metrics.append({
+            entry = {
                 'name': c.get('name'), 'platform': c['platform'], 'found': src != 'empty',
                 'followers': m.get('followers'), 'engagement_rate': m.get('engagement_rate'),
                 'posts_per_week': m.get('posts_per_week'),
@@ -644,13 +646,32 @@ def handle_finalize(body):
                 'top_posts': m.get('top_posts'),
                 'handle': c.get('handle'),
                 'posts': m.get('posts') or [],
-            })
+            }
+            competitor_metrics.append(entry)
+            if src != 'empty' and (m.get('captions') or m.get('image_urls')):
+                m['found'] = True   # _analyze_creative skips entries without it
+                comp_creative_jobs.append((entry, c.get('name') or c.get('handle'), c['platform'], m))
 
         brand_health = fetch_brand_health(item.get('domain'), brand, item.get('location') or 'Singapore')
         indicators   = _flatten_indicators(client_metrics, brand_health)
-        creative     = _analyze_creative(brand, client_metrics, item.get('extra_context') or '')
+
+        # Creative/design/colour eval for the brand AND each competitor — run
+        # concurrently so the extra vision calls don't blow the 180s budget.
+        extra_ctx = item.get('extra_context') or ''
+        with ThreadPoolExecutor(max_workers=5) as ex:
+            brand_fut = ex.submit(_analyze_creative, brand, client_metrics, extra_ctx)
+            comp_futs = [(entry, ex.submit(_analyze_creative, name, {plat: cm}, '',
+                                           MAX_CREATIVE_IMAGES_COMP))
+                         for (entry, name, plat, cm) in comp_creative_jobs]
+            creative = brand_fut.result()
+            for entry, fut in comp_futs:
+                try:
+                    entry['creative'] = fut.result()
+                except Exception:
+                    entry['creative'] = None
+
         scorecard    = _narrate(brand, client_metrics, competitor_metrics, brand_health,
-                                indicators, item.get('extra_context') or '', creative=creative)
+                                indicators, extra_ctx, creative=creative)
         scorecard.update({
             'platforms': [_platform_card(p, m) for p, m in client_metrics.items()],
             'indicators': indicators,
@@ -1195,12 +1216,15 @@ def _fetch_image_b64(url, max_bytes=4_500_000):
         return None
 
 
-def _analyze_creative(brand, client_metrics, extra_context=''):
-    """Vision audit of the brand's actual posts. Returns a structured creative
-    verdict, or None when there's no key / no usable content."""
+def _analyze_creative(brand, client_metrics, extra_context='', max_images=None):
+    """Vision audit of the brand's (or a competitor's) actual posts. Returns a
+    structured creative verdict, or None when there's no key / no usable content.
+    `max_images` caps how many images are sent (defaults to MAX_CREATIVE_IMAGES)."""
     api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
     if not api_key:
         return None
+    if max_images is None:
+        max_images = MAX_CREATIVE_IMAGES
 
     captions, image_urls = [], []
     for p, m in client_metrics.items():
@@ -1221,7 +1245,7 @@ def _analyze_creative(brand, client_metrics, extra_context=''):
     if image_urls:
         with ThreadPoolExecutor(max_workers=8) as ex:
             fetched = list(ex.map(lambda pu: (pu[0], _fetch_image_b64(pu[1])),
-                                  image_urls[:MAX_CREATIVE_IMAGES]))
+                                  image_urls[:max_images]))
         for plat, got in fetched:
             if got:
                 ctype, b64 = got
