@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { recordBoundaryError } from '../lib/diagnostics.js';
 
 // Catches render-time exceptions so one broken component shows a recovery panel
 // instead of white-screening the whole app. (lazyWithReload handles stale-chunk
@@ -15,6 +16,14 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error('react_error_boundary', error, info?.componentStack);
+    try { recordBoundaryError(error, info); } catch { /* ignore */ }
+  }
+
+  // The boundary has unmounted the app tree, so hand off to the freshly-mounted
+  // FaultReporter across a reload via sessionStorage (it opens pre-filled).
+  reportProblem() {
+    try { sessionStorage.setItem('dm_fault_pending', '1'); } catch { /* ignore */ }
+    window.location.reload();
   }
 
   render() {
@@ -27,6 +36,7 @@ export default class ErrorBoundary extends Component {
           <p className="mt-2 text-sm text-slate-500">An unexpected error broke this page. Reloading usually fixes it.</p>
           <div className="mt-5 flex justify-center gap-2">
             <button onClick={() => window.location.reload()} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white">Reload</button>
+            <button onClick={this.reportProblem} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-white">Report this problem</button>
             <a href="/" className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-white">Go home</a>
           </div>
         </div>

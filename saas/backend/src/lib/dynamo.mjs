@@ -583,7 +583,7 @@ export async function deleteConversation(userId, conversationId) {
 }
 
 // ── Support tickets (threaded) ───────────────────────────────────────────────
-export async function createTicket({ userId, userEmail, additionalEmails = [], category, subject, message, attachments = [] }) {
+export async function createTicket({ userId, userEmail, additionalEmails = [], category, subject, message, attachments = [], diagnostics }) {
   const ts = new Date().toISOString();
   const ticketId = `${ts}#${rid()}`;
   const item = {
@@ -591,6 +591,8 @@ export async function createTicket({ userId, userEmail, additionalEmails = [], c
     userEmail: userEmail || '', additionalEmails, category: category || 'Other',
     subject, status: 'open', ts, lastActivityAt: ts,
     messages: [{ id: 'm_' + rid(), author: 'user', authorEmail: userEmail || '', body: message, attachments, ts }],
+    // Optional structured fault context captured by the Report-a-Fault reporter.
+    ...(diagnostics ? { diagnostics } : {}),
   };
   await ddb.send(new PutCommand({ TableName: TABLES.tickets, Item: item }));
   return item;

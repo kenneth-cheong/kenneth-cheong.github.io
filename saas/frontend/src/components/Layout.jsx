@@ -9,6 +9,8 @@ import ExplainMenu from './ExplainMenu.jsx';
 import ProjectSelector from './ProjectSelector.jsx';
 import Welcome from './Welcome.jsx';
 import ConsentGate from './ConsentGate.jsx';
+import FaultReporter from './FaultReporter.jsx';
+import { setUser as setDiagnosticsUser } from '../lib/diagnostics.js';
 import { useMediaQuery, needsWelcome, hasAcceptedTerms } from '../lib/ui.js';
 import { PLANS } from '@shared/catalog.mjs';
 import { startPlatformTour, hasSeen, markSeen } from '../lib/tours.js';
@@ -53,6 +55,8 @@ export default function Layout({ children }) {
     return clampChatW(Number.isFinite(saved) && saved > 0 ? saved : CHAT_W_DEFAULT);
   });
   useEffect(() => { localStorage.setItem('dm:chatWidth', String(chatW)); }, [chatW]);
+  // Stamp identity onto fault reports so support can tie a report to an account.
+  useEffect(() => { setDiagnosticsUser(user); }, [user]);
   // Shows automatically for brand-new accounts; `?welcome=1` re-opens it anytime
   // (lets anyone replay the intro — tours were otherwise one-shot).
   const [forceWelcome, setForceWelcome] = useState(() => new URLSearchParams(window.location.search).has('welcome'));
@@ -220,6 +224,7 @@ export default function Layout({ children }) {
         ask={ask}
       />
       <ExplainMenu />
+      <FaultReporter />
       <Toaster />
       {needsConsent && <ConsentGate />}
       {showWelcome && <Welcome onDone={() => setForceWelcome(false)} />}

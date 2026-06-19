@@ -49,15 +49,28 @@ async function tryRefresh() {
   }
 }
 
+// Notify the diagnostics collector (lib/diagnostics.js listens) about a failed
+// request so the fault reporter can show "which functions weren't run". Best-effort.
+function reportApiError(method, path, status, message) {
+  try { window.dispatchEvent(new CustomEvent('dm:api-error', { detail: { method, path, status, message } })); } catch { /* non-browser */ }
+}
+
 async function call(path, { method = 'GET', body, auth = true, base, _retried = false } = {}) {
-  const res = await fetch((base || BASE) + path, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch((base || BASE) + path, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (err) {
+    // Network-level failure (offline, DNS, CORS) — no response at all.
+    reportApiError(method, path, 0, err?.message || 'Network request failed');
+    throw err;
+  }
   // Token expired/denied → refresh once and retry before surfacing the error.
   if ((res.status === 401 || res.status === 403) && auth && !_retried && (await tryRefresh())) {
     return call(path, { method, body, auth, base, _retried: true });
@@ -65,9 +78,13 @@ async function call(path, { method = 'GET', body, auth = true, base, _retried = 
   const payload = await res.json().catch(() => ({}));
   if (res.status === 429) {
     const secs = payload?.retryAfter || Number(res.headers.get('Retry-After')) || 60;
+    reportApiError(method, path, 429, 'Rate limited');
     throw new ApiError(429, { ...payload, error: `You're going a bit fast — try again in ${secs}s.` });
   }
-  if (!res.ok) throw new ApiError(res.status, payload);
+  if (!res.ok) {
+    reportApiError(method, path, res.status, payload?.error || `HTTP ${res.status}`);
+    throw new ApiError(res.status, payload);
+  }
   return payload;
 }
 
@@ -85,6 +102,7 @@ export async function chatStream(messages, conversationId, onDelta, _retried = f
   }
   if (!res.ok || !res.body) {
     const payload = await res.json().catch(() => ({}));
+    reportApiError('POST', 'chatStream', res.status, payload?.error || `HTTP ${res.status}`);
     throw new ApiError(res.status, payload);
   }
   const conversationIdOut = res.headers.get('x-conversation-id') || conversationId;
@@ -154,7 +172,7 @@ export const api = {
   tickets: () => call('/support/tickets'),
   ticket: (ticketId) => call(`/support/tickets/${encodeURIComponent(ticketId)}`),
   createTicket: (subject, message, opts = {}) =>
-    call('/support/tickets', { method: 'POST', body: { subject, message, additionalEmails: opts.additionalEmails || [], attachments: opts.attachments || [], category: opts.category } }),
+    call('/support/tickets', { method: 'POST', body: { subject, message, additionalEmails: opts.additionalEmails || [], attachments: opts.attachments || [], category: opts.category, diagnostics: opts.diagnostics } }),
   replyTicket: (ticketId, body, attachments = []) =>
     call(`/support/tickets/${encodeURIComponent(ticketId)}/reply`, { method: 'POST', body: { body, attachments } }),
   closeTicket: (ticketId) => call(`/support/tickets/${encodeURIComponent(ticketId)}/close`, { method: 'POST' }),

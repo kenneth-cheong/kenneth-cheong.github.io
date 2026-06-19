@@ -322,9 +322,18 @@ export const handler = async (event) => {
       // Keep only well-formed addresses (drops junk before it reaches SES).
       const additionalEmails = (Array.isArray(body.additionalEmails) ? body.additionalEmails : [])
         .map((e) => String(e).trim()).filter(isEmail).slice(0, 10);
-      const ticket = await createTicket({ userId: user.userId, userEmail: user.email, additionalEmails, category: body.category, subject, message, attachments: body.attachments || [] });
+      // Optional fault diagnostics — keep only if it stays within a sane size so a
+      // crafted payload can't bloat the ticket item (Dynamo items cap at 400KB).
+      let diagnostics;
+      if (body.diagnostics && typeof body.diagnostics === 'object') {
+        try { if (JSON.stringify(body.diagnostics).length <= 20000) diagnostics = body.diagnostics; } catch { /* drop malformed */ }
+      }
+      const ticket = await createTicket({ userId: user.userId, userEmail: user.email, additionalEmails, category: body.category, subject, message, attachments: body.attachments || [], diagnostics });
       await addNotification({ userId: user.userId, title: `Ticket ${ticket.id} received`, body: subject, ticketId: ticket.ticketId });
-      if (SUPPORT_INBOX) await sendEmail({ to: SUPPORT_INBOX, subject: `New ticket ${ticket.id}: ${subject}`, text: `${user.email} opened a ticket.\n\n${message}` });
+      if (SUPPORT_INBOX) {
+        const diagLine = diagnostics ? `\n\n— Diagnostics —\nPage: ${diagnostics.env?.url || 'n/a'}\nLast error: ${diagnostics.errors?.slice(-1)[0]?.message || 'none'}\nFailed calls: ${(diagnostics.apiFailures || []).map((f) => `${f.method} ${f.path} (${f.status || 'net'})`).join(', ') || 'none'}` : '';
+        await sendEmail({ to: SUPPORT_INBOX, subject: `New ticket ${ticket.id}: ${subject}`, text: `${user.email} opened a ticket.\n\n${message}${diagLine}` });
+      }
       return ok({ ticket });
     }
     if (method === 'GET' && path.endsWith('/support/tickets')) {
