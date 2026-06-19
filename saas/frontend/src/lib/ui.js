@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { TERMS_VERSION } from '@shared/catalog.mjs';
 
 // ── Toasts ───────────────────────────────────────────────────────────────────
 export function toast(msg, type = 'info') {
@@ -55,6 +56,15 @@ export function needsWelcome(user) {
   if (!user.createdAt) return false; // legacy account with no timestamp → never new
   const age = Date.now() - new Date(user.createdAt).getTime();
   return Number.isFinite(age) && age >= 0 && age < NEW_ACCOUNT_MS;
+}
+
+// Has the user accepted the CURRENT version of the Terms/Privacy? A version bump
+// (TERMS_VERSION) makes this false again so the consent gate re-prompts. Applies
+// to everyone — existing accounts that never accepted are gated on next login.
+export function hasAcceptedTerms(user) {
+  return !!user
+    && user.onboarding?.acceptedTerms === true
+    && user.onboarding?.acceptedTermsVersion === TERMS_VERSION;
 }
 
 // Recently-used tools (most recent first, capped).

@@ -8,7 +8,8 @@ import Toaster from './Toaster.jsx';
 import ExplainMenu from './ExplainMenu.jsx';
 import ProjectSelector from './ProjectSelector.jsx';
 import Welcome from './Welcome.jsx';
-import { useMediaQuery, needsWelcome } from '../lib/ui.js';
+import ConsentGate from './ConsentGate.jsx';
+import { useMediaQuery, needsWelcome, hasAcceptedTerms } from '../lib/ui.js';
 import { PLANS } from '@shared/catalog.mjs';
 import { startPlatformTour, hasSeen, markSeen } from '../lib/tours.js';
 import { Menu, MessageCircle, HelpCircle, ChevronDown, ChevronLeft } from 'lucide-react';
@@ -55,20 +56,24 @@ export default function Layout({ children }) {
   // Shows automatically for brand-new accounts; `?welcome=1` re-opens it anytime
   // (lets anyone replay the intro — tours were otherwise one-shot).
   const [forceWelcome, setForceWelcome] = useState(() => new URLSearchParams(window.location.search).has('welcome'));
-  const showWelcome = forceWelcome || needsWelcome(user);
+  // Legal consent comes first: until the user accepts the current Terms version,
+  // the consent gate is shown and the welcome flow / tour are held back so the
+  // two overlays never stack.
+  const needsConsent = !!user && !hasAcceptedTerms(user);
+  const showWelcome = !needsConsent && (forceWelcome || needsWelcome(user));
 
   // After the welcome flow is done → auto-run the platform tour once the
   // dashboard has painted. Chained behind the welcome so the two never stack;
   // `seenPlatformTour` is also tracked server-side so it survives a new device.
   useEffect(() => {
-    if (showWelcome) return;                                  // wait until welcome is dismissed
+    if (needsConsent || showWelcome) return;                  // wait until consent + welcome are done
     if (hasSeen('platform') || user?.onboarding?.seenPlatformTour) return;
     if (window.location.pathname !== '/') return;
     const t = setTimeout(() => {
       if (!hasSeen('platform')) { markSeen('platform'); setOnboarding({ seenPlatformTour: true }); startPlatformTour(); }
     }, 900);
     return () => clearTimeout(t);
-  }, [showWelcome]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [showWelcome, needsConsent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Let any page open the assistant (Support CTA) or ask it about something
   // (the right-click "Explain this" menu).
@@ -216,6 +221,7 @@ export default function Layout({ children }) {
       />
       <ExplainMenu />
       <Toaster />
+      {needsConsent && <ConsentGate />}
       {showWelcome && <Welcome onDone={() => setForceWelcome(false)} />}
     </>
   );

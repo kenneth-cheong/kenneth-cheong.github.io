@@ -124,6 +124,13 @@ export const handler = async (event) => {
       if (typeof body.dismissedChecklist === 'boolean') patch.dismissedChecklist = body.dismissedChecklist;
       if (typeof body.seenPlatformTour === 'boolean') patch.seenPlatformTour = body.seenPlatformTour;
       if (body.goal === null || typeof body.goal === 'string') patch.goal = body.goal ? clampStr(body.goal, 40) : null;
+      // Legal consent. Record the accepted version and a server-stamped timestamp
+      // (don't trust a client time) so we have a durable proof-of-acceptance.
+      if (typeof body.acceptedTerms === 'boolean') {
+        patch.acceptedTerms = body.acceptedTerms;
+        if (body.acceptedTerms) patch.acceptedTermsAt = new Date().toISOString();
+      }
+      if (typeof body.acceptedTermsVersion === 'string') patch.acceptedTermsVersion = clampStr(body.acceptedTermsVersion, 20);
       if (!Object.keys(patch).length) return badRequest('Nothing to update.');
       return ok({ onboarding: await updateOnboarding(user.userId, patch) });
     }

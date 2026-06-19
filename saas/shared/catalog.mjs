@@ -8,6 +8,13 @@
 /** Billing currency — prices below and all Stripe Prices are created in SGD. */
 export const CURRENCY = { code: 'SGD', symbol: 'S$' };
 
+/**
+ * Terms/Privacy version. Bump this whenever the legal text materially changes —
+ * the first-run consent gate re-prompts any user whose accepted version differs,
+ * so a bump forces everyone to re-accept. Keep in sync with Legal.jsx's date.
+ */
+export const TERMS_VERSION = '2026-06-19';
+
 /** Tier ordering — index = rank. Used for `userTier >= requiredTier` checks. */
 export const TIER_ORDER = ['free', 'starter', 'pro', 'expert'];
 

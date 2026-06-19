@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom';
+import { TERMS_VERSION } from '@shared/catalog.mjs';
 
 // Terms of Service + Privacy Policy. These are starter templates covering the
 // standard sections — HAVE A LAWYER REVIEW before relying on them commercially.
 // Rendered both logged-out (public) and logged-in (inside the app shell).
 
-const UPDATED = 'June 2026';
+const UPDATED = '19 June 2026';
 const COMPANY = 'Digimetrics';
 const CONTACT = 'support@mediaone.co';
 
@@ -13,7 +14,7 @@ function Shell({ title, children }) {
     <div className="mx-auto max-w-3xl px-4 py-10">
       <Link to="/" className="text-sm text-brand-600 hover:text-brand-700">← Back</Link>
       <h1 className="mt-4 text-3xl font-bold">{title}</h1>
-      <p className="mt-1 text-sm text-slate-400">Last updated: {UPDATED}</p>
+      <p className="mt-1 text-sm text-slate-400">Last updated: {UPDATED} · v{TERMS_VERSION}</p>
       <div className="prose prose-slate mt-6 max-w-none text-sm leading-relaxed text-slate-700 [&_h2]:mt-6 [&_h2]:text-base [&_h2]:font-bold [&_p]:mt-2 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5">
         {children}
       </div>
@@ -36,17 +37,21 @@ export function Terms() {
       <p>You agree not to misuse the Service, including: reverse engineering, reselling access without permission, scraping, overloading the system, infringing others' rights, or using outputs unlawfully. We may suspend accounts that violate these Terms.</p>
       <h2>4. Your content & outputs</h2>
       <p>You retain rights to the inputs you submit. You are responsible for how you use generated outputs. AI-generated results may be inaccurate — verify before relying on them. We may process your inputs to provide and improve the Service.</p>
-      <h2>5. Third-party services</h2>
+      <h2>5. Recommendations are informational only — no professional advice</h2>
+      <p>The Service produces audits, scores, suggestions, action plans, and other recommendations using automated and AI-based methods (collectively, "Recommendations"). Recommendations are provided for general informational purposes only, are generated from data that may be incomplete, outdated, or inaccurate, and do <strong>not</strong> constitute professional, legal, financial, marketing, or business advice. They are not a substitute for your own judgement or that of a qualified professional. You are solely responsible for reviewing, validating, and deciding whether to act on any Recommendation, and for any results, decisions, expenditures, or changes you make in reliance on it. {COMPANY} does not warrant that following any Recommendation will produce any particular outcome (including rankings, traffic, conversions, or revenue) and accepts no responsibility for actions taken, or not taken, based on Recommendations.</p>
+      <h2>6. Third-party services</h2>
       <p>The Service integrates third parties (e.g. Google Search Console / Analytics / Ads, and AI providers). Your use of those integrations is also subject to their terms.</p>
-      <h2>6. Availability & disclaimers</h2>
+      <h2>7. Availability & disclaimers</h2>
       <p>The Service is provided "as is" without warranties of any kind. We do not guarantee uninterrupted or error-free operation, or any particular result (including rankings, traffic, or revenue).</p>
-      <h2>7. Limitation of liability</h2>
+      <h2>8. Limitation of liability</h2>
       <p>To the maximum extent permitted by law, {COMPANY} is not liable for indirect, incidental, or consequential damages, and our total liability is limited to the amount you paid in the 12 months before the claim.</p>
-      <h2>8. Termination</h2>
+      <h2>9. Indemnification</h2>
+      <p>You agree to defend, indemnify, and hold harmless {COMPANY}, its affiliates, and their respective officers, directors, employees, and agents from and against any and all claims, demands, liabilities, damages, losses, costs, and expenses (including reasonable legal fees) arising out of or related to: (a) your use of the Service or the outputs and Recommendations it generates; (b) your reliance on, implementation of, or decisions based on any Recommendation; (c) any content or inputs you submit; (d) your violation of these Terms or of any applicable law; or (e) your infringement of any third party's rights. This obligation survives termination of your account and these Terms.</p>
+      <h2>10. Termination</h2>
       <p>You may stop using the Service and delete your account at any time. We may suspend or terminate access for breach of these Terms.</p>
-      <h2>9. Changes</h2>
-      <p>We may update these Terms; material changes will be notified in-app or by email. Continued use after changes means you accept them.</p>
-      <h2>10. Contact</h2>
+      <h2>11. Changes</h2>
+      <p>We may update these Terms; material changes will be notified in-app or by email, and we may require you to re-accept them before continuing to use the Service. Continued use after changes means you accept them.</p>
+      <h2>12. Contact</h2>
       <p>Questions: <a className="text-brand-600" href={`mailto:${CONTACT}`}>{CONTACT}</a>. See also our <Link className="text-brand-600" to="/legal/privacy">Privacy Policy</Link>.</p>
     </Shell>
   );
