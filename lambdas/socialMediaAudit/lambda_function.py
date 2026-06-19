@@ -218,23 +218,89 @@ def handle_discover(body):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# DISCOVER_COMPETITORS — find competitor brands from SERP, then scrape each
-# homepage for social handles. Returns up to 3 candidates for user review.
+# DISCOVER_COMPETITORS — use AI to name direct competitors, look up each brand's
+# domain via SERP, then scrape social handles. Falls back to SERP domain scan
+# if AI is unavailable. Returns up to 3 candidates for user review.
 # ──────────────────────────────────────────────────────────────────────────────
+def _ai_suggest_competitor_brands(brand, domain, industry, audience, site_text, location):
+    """Ask Claude to name the most direct competitor brands. Returns a list of brand name strings."""
+    api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
+    if not api_key:
+        return []
+    prompt = (
+        "You are a senior market analyst. Identify the 5 most direct competitor brands "
+        "for the company below — real brands that compete for the same customers in the same space. "
+        "Return ONLY a JSON array of brand name strings, e.g. [\"BrandA\",\"BrandB\",...]. "
+        "No explanation, no URLs, no extra text.\n\n"
+        f"BRAND: {brand or '(unknown)'}\n"
+        f"DOMAIN: {domain or '(none)'}\n"
+        f"INDUSTRY: {industry or '(infer from brand/site)'}\n"
+        f"TARGET AUDIENCE: {audience or '(infer)'}\n"
+        f"PRIMARY MARKET: {location}\n"
+        + (f"\nHOMEPAGE TEXT (excerpt):\n{site_text[:3000]}" if site_text else "")
+    )
+    try:
+        r = requests.post('https://api.anthropic.com/v1/messages',
+                          headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01',
+                                   'content-type': 'application/json'},
+                          json={'model': HAIKU_MODEL, 'max_tokens': 300,
+                                'messages': [{'role': 'user', 'content': prompt}]},
+                          timeout=30)
+        txt = ''.join(b.get('text', '') for b in (r.json().get('content') or [])
+                      if b.get('type') == 'text')
+        txt = re.sub(r'^```[a-z]*\n?|```$', '', txt.strip()).strip()
+        brands = json.loads(txt)
+        if isinstance(brands, list):
+            return [str(b).strip() for b in brands if str(b).strip()][:5]
+    except Exception:
+        pass
+    return []
+
+
 def handle_discover_competitors(body):
     brand     = (body.get('brand_name') or '').strip()
     domain    = (body.get('domain') or '').strip()
+    industry  = (body.get('industry') or '').strip()
+    audience  = (body.get('target_audience') or '').strip()
     location  = body.get('location') or 'Singapore'
     platforms = body.get('platforms') or list(ACTORS.keys())
 
     if not brand and not domain:
         return {'competitors': [], 'note': 'Provide brand_name or domain.'}
 
+    site_text = _fetch_page_text(domain) if domain else ''
+
+    # AI-first: get named competitor brands, then find their domains + handles
+    ai_brands = _ai_suggest_competitor_brands(brand, domain, industry, audience, site_text, location)
+
+    if ai_brands:
+        def _process_brand(comp_brand):
+            comp_domain = _find_brand_domain(comp_brand)
+            if not comp_domain:
+                return None
+            handles = _scrape_social_links(comp_domain)
+            filtered = {p: h for p, h in handles.items() if p in platforms}
+            if not filtered:
+                return None
+            return {'name': comp_brand, 'website': comp_domain, 'handles': filtered}
+
+        results = []
+        with ThreadPoolExecutor(max_workers=5) as ex:
+            for r in ex.map(_process_brand, ai_brands):
+                if r:
+                    results.append(r)
+                    if len(results) >= 3:
+                        break
+        if results:
+            return {'competitors': results,
+                    'note': 'Candidate competitors — confirm each is correct before auditing.'}
+
+    # Fallback: SERP domain scan (original approach)
     comp_domains = _serp_find_competitor_domains(brand or domain, domain, location)
     if not comp_domains:
         return {'competitors': [], 'note': 'No competitor domains found via SERP.'}
 
-    def _process(comp_domain):
+    def _process_domain(comp_domain):
         raw_name = comp_domain.replace('www.', '').split('.')[0].replace('-', ' ').title()
         handles = _scrape_social_links(comp_domain)
         filtered = {p: h for p, h in handles.items() if p in platforms}
@@ -244,14 +310,14 @@ def handle_discover_competitors(body):
 
     results = []
     with ThreadPoolExecutor(max_workers=5) as ex:
-        for r in ex.map(_process, comp_domains):
+        for r in ex.map(_process_domain, comp_domains):
             if r:
                 results.append(r)
                 if len(results) >= 3:
                     break
 
     return {'competitors': results,
-            'note': 'Candidate competitors — confirm they are correct before auditing.'}
+            'note': 'Candidate competitors — confirm each is correct before auditing.'}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
