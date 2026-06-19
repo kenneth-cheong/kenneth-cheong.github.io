@@ -1,5 +1,6 @@
 import json
 import os
+import time
 import requests
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -32,32 +33,39 @@ BENCHMARKS = "Avg CPC S$0.68 · Avg CTR 2.61% · Avg CPA S$2.56 · Avg ROAS 2.51
 
 
 def _call_anthropic(api_key, system_prompt, input_text, max_tokens=4096):
-    """Single Anthropic Messages call; returns (status_code, answer_or_error_text)."""
-    response = requests.post(
-        'https://api.anthropic.com/v1/messages',
-        headers={
-            'x-api-key':         api_key,
-            'anthropic-version': '2023-06-01',
-            'content-type':      'application/json'
-        },
-        json={
-            'model':      'claude-haiku-4-5-20251001',
-            'max_tokens': max_tokens,
-            'system':     system_prompt,
-            'messages':   [{'role': 'user', 'content': input_text}]
-        },
-        timeout=120
-    )
-    response_json = response.json()
-    if response.status_code == 200:
-        answer = response_json['content'][0]['text'] if response_json.get('content') else ''
-        answer = answer.strip()
-        if answer.startswith('```'):
-            answer = answer.split('\n', 1)[-1]
-        if answer.endswith('```'):
-            answer = answer.rsplit('```', 1)[0]
-        return 200, answer.strip()
-    return response.status_code, f"API Error: {response.text}"
+    """Single Anthropic Messages call with one retry on transient errors.
+    Returns (status_code, answer_or_error_text)."""
+    _TRANSIENT = {503, 529}
+    for attempt in range(2):
+        response = requests.post(
+            'https://api.anthropic.com/v1/messages',
+            headers={
+                'x-api-key':         api_key,
+                'anthropic-version': '2023-06-01',
+                'content-type':      'application/json'
+            },
+            json={
+                'model':      'claude-haiku-4-5-20251001',
+                'max_tokens': max_tokens,
+                'system':     system_prompt,
+                'messages':   [{'role': 'user', 'content': input_text}]
+            },
+            timeout=120
+        )
+        if response.status_code == 200:
+            response_json = response.json()
+            answer = response_json['content'][0]['text'] if response_json.get('content') else ''
+            answer = answer.strip()
+            if answer.startswith('```'):
+                answer = answer.split('\n', 1)[-1]
+            if answer.endswith('```'):
+                answer = answer.rsplit('```', 1)[0]
+            return 200, answer.strip()
+        if response.status_code in _TRANSIENT and attempt == 0:
+            time.sleep(3)
+            continue
+        break
+    return response.status_code, f"API Error {response.status_code}: {response.text}"
 
 
 def lambda_handler(event, context):
@@ -178,9 +186,11 @@ Produce the Starter performance-marketing opportunity analysis now.
         status, answer = _call_anthropic(api_key, system_prompt, input_text)
         if status == 200:
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'answer': answer})}
-        return {'statusCode': status, 'headers': CORS, 'body': json.dumps({'error': answer})}
+        msg = 'The AI service is temporarily unavailable. Please try again in a moment.' \
+              if status in (503, 529) else f'AI service returned an error ({status}). Please try again.'
+        return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'error': msg})}
     except Exception as e:
-        return {'statusCode': 500, 'headers': CORS, 'body': json.dumps({'error': str(e)})}
+        return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'error': str(e)})}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -293,6 +303,8 @@ Produce the Pro account-level diagnosis now.
         status, answer = _call_anthropic(api_key, system_prompt, input_text, max_tokens=2200)
         if status == 200:
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'answer': answer})}
-        return {'statusCode': status, 'headers': CORS, 'body': json.dumps({'error': answer})}
+        msg = 'The AI service is temporarily unavailable. Please try again in a moment.' \
+              if status in (503, 529) else f'AI service returned an error ({status}). Please try again.'
+        return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'error': msg})}
     except Exception as e:
-        return {'statusCode': 500, 'headers': CORS, 'body': json.dumps({'error': str(e)})}
+        return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'error': str(e)})}
