@@ -310,7 +310,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
             </button>
           </form>
           <div className="px-3 pb-2 text-center text-[11px] text-slate-400">
-            Out of credits? <Link to="/pricing" className="text-brand-600">Upgrade</Link>
+            Out of credits? <Link to="/account" className="text-brand-600">Top up</Link> or <Link to="/pricing" className="text-brand-600">upgrade</Link>
           </div>
         </>
       )}

@@ -122,7 +122,12 @@ export default function ToolRunner() {
       pushRecent(tool.id);
     } catch (e) {
       if (e instanceof ApiError && (e.status === 402 || e.status === 403)) {
-        setModal({ reason: e.payload.error, requiredTier: e.payload.requiredTier || tool.minTier });
+        setModal({
+          reason: e.payload.error,
+          requiredTier: e.payload.requiredTier || tool.minTier,
+          creditsRemaining: e.payload.creditsRemaining,
+          creditsNeeded: e.payload.creditsNeeded,
+        });
       } else {
         setOut({ error: e.message });
       }
@@ -201,7 +206,7 @@ export default function ToolRunner() {
       {busy && tool.slow && <SlowProgress tool={tool} />}
       {out && !busy && <Result out={out} tool={tool} project={active} user={user} />}
 
-      {modal && <UpgradeModal reason={modal.reason} requiredTier={modal.requiredTier} onClose={() => setModal(null)} />}
+      {modal && <UpgradeModal reason={modal.reason} requiredTier={modal.requiredTier} creditsRemaining={modal.creditsRemaining} creditsNeeded={modal.creditsNeeded} onClose={() => setModal(null)} />}
     </div>
   );
 }
