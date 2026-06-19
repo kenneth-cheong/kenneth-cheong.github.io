@@ -53,8 +53,8 @@ HAIKU_MODEL  = 'claude-haiku-4-5-20251001'
 # Sonnet reasons over imagery noticeably better than Haiku; it runs once per
 # audit so the extra cost is bounded.
 VISION_MODEL = os.environ.get('SMA_VISION_MODEL', 'claude-sonnet-4-6')
-MAX_CREATIVE_IMAGES   = 8     # images fetched + sent to the vision model
-MAX_CREATIVE_CAPTIONS = 25    # captions sent as text context
+MAX_CREATIVE_IMAGES   = 21    # images fetched + sent to the vision model
+MAX_CREATIVE_CAPTIONS = 21    # captions sent as text context
 JOB_TTL_SECS   = 6 * 3600
 CACHE_TTL_SECS = 30 * 86400        # 30-day Apify cache to cut scrape cost
 # Bump whenever the metrics shape changes so stale-shape cache entries are
@@ -868,7 +868,7 @@ def _metrics_from(followers, following, verified, bio, link, category, pfp, post
         'post_sample': len(posts), 'top_posts': top_posts,
         # raw content for the creative/style audit (not surfaced in platform cards)
         'captions':   [p['caption'] for p in posts if p.get('caption')][:MAX_CREATIVE_CAPTIONS],
-        'image_urls': [p['image'] for p in posts if p.get('image')][:12],
+        'image_urls': [p['image'] for p in posts if p.get('image')][:21],
         '_schema': METRICS_SCHEMA,
     }
 
@@ -1107,24 +1107,41 @@ def _analyze_creative(brand, client_metrics, extra_context=''):
                 'captions and note that imagery was unavailable.')
 
     prompt = (
-        f"You are a senior brand & content strategist auditing {brand}'s organic "
-        "social CONTENT (not the metrics). " + img_note + " Below are recent post "
-        "captions, each tagged with its platform.\n\n"
-        "Judge the actual creative: recurring content themes/topics, the tone of "
-        "voice, the visual style (colour palette, composition, photography vs "
-        "graphic, consistency of look), and how on-brand and consistent it all is "
-        "across posts and platforms. Respond with STRICT JSON only, no prose, "
-        "matching:\n"
-        '{"content_themes":["..."],'
-        '"content_pillars":["..."],'
-        '"tone_of_voice":"1-2 sentences",'
-        '"visual_style":"1-2 sentences on the visual aesthetic",'
+        f"You are a senior brand & creative director auditing {brand}'s organic "
+        "social posts. " + img_note + " Below are recent post captions, each tagged "
+        "with its platform. Evaluate the actual creative output across every dimension "
+        "a design or content lead would care about.\n\n"
+        "EVALUATE:\n"
+        "1. CONTENT — recurring topics/themes, content pillars, what's missing\n"
+        "2. TONE & COPY — voice, language register, CTA quality, caption length\n"
+        "3. DESIGN — layout, use of text-on-image, graphic vs photo ratio, "
+        "   template consistency, whitespace, typography feel\n"
+        "4. COLOUR SCHEME — dominant colours, palette coherence across posts, "
+        "   brand colour usage vs off-brand choices\n"
+        "5. STYLE — overall aesthetic (e.g. minimalist, vibrant, corporate, lifestyle), "
+        "   photography style, editing consistency, reel/video style\n"
+        "6. BRAND CONSISTENCY — how cohesive the look, voice and themes are across "
+        "   posts and platforms; score 0-100\n"
+        "7. STANDOUT & GAPS — what works well, what looks weak or inconsistent\n"
+        "8. RECOMMENDATIONS — specific, actionable creative improvements\n\n"
+        "Respond with STRICT JSON only, no prose, matching EXACTLY:\n"
+        '{"content_themes":["3-5 recurring topics, <=10 words each"],'
+        '"content_pillars":["3-5 strategic pillars inferred from posts, <=10 words each"],'
+        '"tone_of_voice":"2-3 sentences on copy style, register, CTA quality",'
+        '"visual_style":"2-3 sentences on overall aesthetic, photography vs graphic, editing",'
+        '"colour_palette":{"dominant":["list 2-4 dominant colours by name or hex approx"],'
+        '"coherence":"consistent | mostly consistent | inconsistent",'
+        '"notes":"1-2 sentences on how colour is used and whether it feels on-brand"},'
+        '"design_quality":{"score":0-100,'
+        '"layout":"1-2 sentences on layout, whitespace, text-on-image",'
+        '"template_use":"consistent templates | mixed | no templates",'
+        '"typography":"1 sentence on font feel and consistency"},'
         '"brand_consistency":{"score":0-100,"notes":"1-2 sentences"},'
-        '"standout_observations":["..."],'
-        '"recommendations":["..."]}\n'
-        "Keep every array to 3-5 short items. Ground each claim in the actual "
-        "captions/images. If imagery was unavailable, set visual_style to note "
-        "that and infer only what the captions support.\n\nPOST CAPTIONS:\n"
+        '"standout_observations":["3-5 specific things that stand out — good or bad, <=15 words each"],'
+        '"recommendations":["4-6 specific, actionable creative improvements, <=15 words each"]}\n\n'
+        "Ground EVERY claim in the actual images/captions — no generic advice. "
+        "If imagery was unavailable, note it in visual_style, colour_palette and design_quality and infer from captions only.\n\n"
+        "POST CAPTIONS:\n"
         + (caption_text or '(no captions captured)')
         + (("\n\nADDITIONAL BRAND CONTEXT (user-supplied briefs/docs):\n" + extra_context[:4000])
            if extra_context else "")
@@ -1135,7 +1152,7 @@ def _analyze_creative(brand, client_metrics, extra_context=''):
         r = requests.post('https://api.anthropic.com/v1/messages',
                           headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01',
                                    'content-type': 'application/json'},
-                          json={'model': VISION_MODEL, 'max_tokens': 1500,
+                          json={'model': VISION_MODEL, 'max_tokens': 2000,
                                 'messages': [{'role': 'user', 'content': content}]},
                           timeout=70)
         txt = ''.join(b.get('text', '') for b in (r.json().get('content') or [])
