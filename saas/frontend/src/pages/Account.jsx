@@ -184,8 +184,11 @@ export default function Account() {
                 <span className="text-sm font-semibold tabular-nums">{money(d.amount, d.currency)}</span>
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${d.status === 'paid' || d.status === 'succeeded' ? 'bg-green-100 text-green-700' : d.status === 'refunded' ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'}`}>{d.status}</span>
                 <div className="flex gap-2">
-                  {d.pdf && <a href={d.pdf} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand-600 hover:text-brand-700">Download</a>}
-                  {d.url && <a href={d.url} target="_blank" rel="noreferrer" className="text-sm font-medium text-slate-500 hover:text-slate-800">{d.pdf ? 'View' : 'Receipt'}</a>}
+                  {/* Invoices have a PDF (the hosted page just duplicates it) → one link.
+                      Receipts have no PDF, only a hosted receipt URL → fall back to that. */}
+                  {d.pdf
+                    ? <a href={d.pdf} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand-600 hover:text-brand-700">Download</a>
+                    : d.url && <a href={d.url} target="_blank" rel="noreferrer" className="text-sm font-medium text-slate-500 hover:text-slate-800">{d.type === 'invoice' ? 'View' : 'Receipt'}</a>}
                 </div>
               </div>
             ))}
