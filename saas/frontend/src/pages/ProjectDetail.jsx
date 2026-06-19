@@ -46,14 +46,15 @@ export default function ProjectDetail() {
     );
   }
 
-  const goTo = (path) => { setActive(projectId); navigate(path); };
+  const fromState = { fromProjectId: projectId, fromProjectName: project.name };
+  const goTo = (path) => { setActive(projectId); navigate(path, { state: fromState }); };
   const isActive = activeId === projectId;
 
   async function openRun(runId) {
     setOpening(runId);
     try {
       const { run } = await api.run(runId);
-      navigate(`/tool/${run.tool}`, { state: { values: run.inputs, result: run.result } });
+      navigate(`/tool/${run.tool}`, { state: { values: run.inputs, result: run.result, ...fromState } });
     } catch { setOpening(null); }
   }
 
@@ -198,7 +199,7 @@ export default function ProjectDetail() {
                     const locked = !tierMeets(user.tier, t.minTier);
                     return (
                       <button key={t.id}
-                        onClick={() => { if (!locked) { setActive(projectId); navigate(`/tool/${t.id}`); } }}
+                        onClick={() => { if (!locked) { setActive(projectId); navigate(`/tool/${t.id}`, { state: fromState }); } }}
                         disabled={locked}
                         className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-colors ${
                           locked

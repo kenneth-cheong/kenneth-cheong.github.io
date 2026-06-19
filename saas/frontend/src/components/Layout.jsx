@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import CreditMeter from './CreditMeter.jsx';
 import ChatDrawer from './ChatDrawer.jsx';
@@ -11,7 +11,7 @@ import Welcome from './Welcome.jsx';
 import { useMediaQuery, needsWelcome } from '../lib/ui.js';
 import { PLANS } from '@shared/catalog.mjs';
 import { startPlatformTour, hasSeen, markSeen } from '../lib/tours.js';
-import { Menu, MessageCircle, HelpCircle, ChevronDown } from 'lucide-react';
+import { Menu, MessageCircle, HelpCircle, ChevronDown, ChevronLeft } from 'lucide-react';
 
 // Core workflow links stay in the top bar; account/meta links live in the
 // right-side account dropdown so the row never overflows.
@@ -38,6 +38,8 @@ const clampChatW = (w) => Math.min(CHAT_W_MAX, Math.max(CHAT_W_MIN, Math.round(w
 
 export default function Layout({ children }) {
   const { user, logout, setOnboarding } = useAuth();
+  const location = useLocation();
+  const { fromProjectId, fromProjectName } = location.state || {};
   const [chatOpen, setChatOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [acctOpen, setAcctOpen] = useState(false);
@@ -96,6 +98,15 @@ export default function Layout({ children }) {
               <span className="grid h-7 w-7 place-items-center rounded-md bg-brand-600 text-white">D</span>
               <span className="hidden sm:inline">Digimetrics</span>
             </Link>
+            {fromProjectId && (
+              <Link
+                to={`/projects/${encodeURIComponent(fromProjectId)}`}
+                className="hidden shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium text-brand-600 hover:bg-brand-50 md:flex"
+              >
+                <ChevronLeft size={14} aria-hidden />
+                {fromProjectName || 'Project'}
+              </Link>
+            )}
             <nav className="hidden min-w-0 gap-1 md:flex">
               {primaryNav.map((n) => <NavLink key={n.to} to={n.to} end={n.end} data-tour={`nav-${n.to}`} className={linkCls}>{n.label}</NavLink>)}
             </nav>
