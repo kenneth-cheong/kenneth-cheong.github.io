@@ -241,6 +241,7 @@ def _run_social_audit(body):
     mode = str(body.get('mode', 'starter')).strip().lower()
     is_pro = mode == 'pro'
 
+    brand_name       = body.get('brand_name', '')
     client_website   = body.get('client_website', '')
     social_profiles  = body.get('social_profiles', '')
     target_audience  = body.get('target_audience', '')
@@ -249,6 +250,7 @@ def _run_social_audit(body):
     campaign_goals   = body.get('campaign_goals', '')
     rfq_notes        = body.get('rfq_notes', '')
     content_calendars= body.get('content_calendars', '')
+    extra_context    = body.get('extra_context', '')
 
     # Pro-only inputs
     social_analytics = body.get('social_analytics', '')
@@ -309,6 +311,7 @@ RULES:
 """.strip()
 
     input_text = f"""
+BRAND NAME: {brand_name if brand_name else 'Not provided'}
 CLIENT WEBSITE: {client_website}
 CLIENT SOCIAL PROFILES: {social_profiles if social_profiles else 'Not provided'}
 INDUSTRY: {industry}
@@ -317,6 +320,7 @@ COMPETITORS: {competitors if competitors else 'Not provided — infer likely com
 CAMPAIGN GOALS: {campaign_goals}
 EXISTING CONTENT CALENDAR(S): {content_calendars if content_calendars else 'Not provided'}
 RFQ / DISCUSSION NOTES: {rfq_notes if rfq_notes else 'None provided'}
+ADDITIONAL CONTEXT / UPLOADED BRIEFS: {extra_context if extra_context else 'None provided'}
 
 — ACCOUNT / ANALYTICS DATA (Pro inputs) —
 SOCIAL ANALYTICS EXPORTS: {social_analytics if social_analytics else 'Not provided'}
