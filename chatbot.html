@@ -3571,7 +3571,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2124</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Super Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2125</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -4580,7 +4580,9 @@
         let userId = null;
 
         function setUserIdFromEmail(email) {
-            email = (email || '').trim();
+            // Only ever accept a real string — guards against a DOM element being
+            // passed in and stringified to "[object HTMLInputElement]".
+            email = (typeof email === 'string' ? email : '').trim();
             if (!email.includes('@')) return false;
             userId = 'user_' + email.replace(/[^a-zA-Z0-9]/g, '_');
             localStorage.setItem('chatbot_userId', userId);
@@ -10251,7 +10253,7 @@
 
                 // Handle Automated Memory Updates
                 if (data.memory_updates && data.memory_updates.length > 0) {
-                    const _raw = localStorage.getItem('clientEmail') || ''; const currentUser = (_raw && !_raw.toLowerCase().startsWith('[object')) ? _raw.split('@')[0] : 'System';
+                    const currentUser = getCurrentUser();
                     data.memory_updates.forEach(updateStr => {
                         try {
                             const jsonStr = updateStr.replace('MEM_SAVE: ', '');
@@ -12128,15 +12130,31 @@
                 .filter(Boolean);
             return teams.length ? [...new Set(teams)] : ['Everyone'];
         }
+        // Reject DOM-coerced / malformed creator labels (e.g. "[object HTMLInputElement]"
+        // or stray-quoted "\"yiyong") that older bugs wrote into the user field.
+        function sanitizeUser(u) {
+            const s = String(u == null ? '' : u).replace(/["\\]/g, '').trim();
+            if (!s || /^\[object/i.test(s) || s.length > 60) return 'System';
+            return s;
+        }
+        // The creator label for a NEW note: the logged-in user's name, or "System".
+        function getCurrentUser() {
+            const raw = (localStorage.getItem('clientEmail') || '').trim();
+            if (!raw || /^\[object/i.test(raw) || !raw.includes('@')) return 'System';
+            return sanitizeUser(raw.split('@')[0]);
+        }
         // Mutates ins in place; returns true if anything changed.
         function normalizeInsight(ins) {
             const newTag = normalizeTag(ins.tag);
             const newTeams = normalizeTeams(ins);
+            const newUser = sanitizeUser(ins.user);
             const changed = ins.tag !== newTag ||
                 JSON.stringify(ins.teams) !== JSON.stringify(newTeams) ||
+                ins.user !== newUser ||
                 ('team' in ins);
             ins.tag = newTag;
             ins.teams = newTeams;
+            ins.user = newUser;
             delete ins.team;
             return changed;
         }
@@ -12381,7 +12399,7 @@
             }
 
             const insight = learnedInsights.find(i => i.id == id);
-            const currentUser = (localStorage.getItem('clientEmail') || "System").split('@')[0];
+            const currentUser = getCurrentUser();
             insight.text = newText;
             insight.date = new Date().toLocaleDateString() + " (edited)";
             insight.user = currentUser;
@@ -12509,7 +12527,7 @@
                 teams = Array.isArray(classification.teams) ? classification.teams : (classification.team ? [classification.team] : teams);
             }
 
-            const currentUser = (localStorage.getItem('clientEmail') || "System").split('@')[0];
+            const currentUser = getCurrentUser();
             learnedInsights.unshift({
                 tag,
                 teams,
