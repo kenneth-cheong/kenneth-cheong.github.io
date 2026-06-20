@@ -74,8 +74,31 @@ export async function putUser(user) {
   // stripeCustomerId is a GSI hash key — DynamoDB rejects a null value for it.
   // Omit the attribute until the user actually has a Stripe customer.
   if (!item.stripeCustomerId) delete item.stripeCustomerId;
+  // Keep the emailIndex GSI key in sync: derive a normalized lowercase email so
+  // password sign-in / forgot-password / account-linking can look users up by
+  // address. (Provision stubs keep their own email — only set when present.)
+  if (item.email) item.emailLower = String(item.email).trim().toLowerCase();
+  else delete item.emailLower;
   await ddb.send(new PutCommand({ TableName: TABLES.users, Item: item }));
   return user;
+}
+
+// Look up a real user account by email via the emailIndex GSI. Skips `pending:`
+// provision stubs (they carry an email but aren't a sign-in-able account) so
+// callers get the linkable account, if any. Returns null when none exists.
+export async function getUserByEmail(email) {
+  const emailLower = String(email || '').trim().toLowerCase();
+  if (!emailLower) return null;
+  const { Items } = await ddb.send(
+    new QueryCommand({
+      TableName: TABLES.users,
+      IndexName: 'emailIndex',
+      KeyConditionExpression: 'emailLower = :e',
+      ExpressionAttributeValues: { ':e': emailLower },
+    })
+  );
+  const accounts = (Items || []).filter((u) => !String(u.userId || '').startsWith('pending:'));
+  return accounts[0] || null;
 }
 
 // Credits live in two buckets: `credits` (monthly allowance, reset each cycle)

@@ -120,6 +120,13 @@ export async function chatStream(messages, conversationId, onDelta, _retried = f
 
 export const api = {
   loginGoogle: (idToken) => call('/auth/google', { method: 'POST', body: { idToken }, auth: false }),
+  // Email / password auth (all public, pre-token).
+  signup: (email, password) => call('/auth/signup', { method: 'POST', body: { email, password }, auth: false }),
+  loginPassword: (email, password) => call('/auth/password', { method: 'POST', body: { email, password }, auth: false }),
+  verifyEmail: (token) => call('/auth/verify', { method: 'POST', body: { token }, auth: false }),
+  resendVerification: (email) => call('/auth/resend', { method: 'POST', body: { email }, auth: false }),
+  forgotPassword: (email) => call('/auth/forgot', { method: 'POST', body: { email }, auth: false }),
+  resetPassword: (token, password) => call('/auth/reset', { method: 'POST', body: { token, password }, auth: false }),
   me: () => call('/me'),
   usage: () => call('/me/usage'),
   // Site Health Check — synthesise several tool results into one scored report.

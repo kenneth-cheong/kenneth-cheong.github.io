@@ -3,6 +3,8 @@ import { Routes, Route } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import Layout from './components/Layout.jsx';
 import Login from './pages/Login.jsx';
+import VerifyEmail from './pages/VerifyEmail.jsx';
+import ResetPassword from './pages/ResetPassword.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import { Terms, Privacy } from './pages/Legal.jsx';
 import NotFound from './pages/NotFound.jsx';
@@ -72,6 +74,9 @@ export default function App() {
         {/* Legal pages are public — reachable before sign-in. */}
         <Route path="/legal/terms" element={<Terms />} />
         <Route path="/legal/privacy" element={<Privacy />} />
+        {/* Email-link landings — must work pre-auth; they auto-log-in on success. */}
+        <Route path="/verify" element={<VerifyEmail />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<Login />} />
       </Routes>
     );

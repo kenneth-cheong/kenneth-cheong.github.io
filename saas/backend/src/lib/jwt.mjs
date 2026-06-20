@@ -37,3 +37,25 @@ export function verifyOAuthState(token) {
   if (t.typ !== 'oauth') throw new Error('bad oauth state');
   return t;
 }
+
+// Email-verification token (emailed on signup). Carries the email so we can
+// confirm it still matches the record when the link is clicked.
+export function signVerifyToken(userId, email) {
+  return jwt.sign({ sub: userId, email, typ: 'verify' }, SECRET, { expiresIn: '24h', issuer: 'digimetrics-saas' });
+}
+export function verifyVerifyToken(token) {
+  const t = jwt.verify(token, SECRET, { issuer: 'digimetrics-saas' });
+  if (t.typ !== 'verify') throw new Error('bad verify token');
+  return t;
+}
+
+// Single-use password-reset token. `jti` is a nonce stored on the user record so
+// a reset link can only be redeemed once (cleared after use).
+export function signResetToken(userId, jti) {
+  return jwt.sign({ sub: userId, jti, typ: 'pwreset' }, SECRET, { expiresIn: '1h', issuer: 'digimetrics-saas' });
+}
+export function verifyResetToken(token) {
+  const t = jwt.verify(token, SECRET, { issuer: 'digimetrics-saas' });
+  if (t.typ !== 'pwreset') throw new Error('bad reset token');
+  return t;
+}

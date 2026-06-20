@@ -25,13 +25,40 @@ export function AuthProvider({ children }) {
     })();
   }, [refresh]);
 
-  const loginWithGoogle = useCallback(async (idToken) => {
-    const { accessToken, refreshToken, user } = await api.loginGoogle(idToken);
+  // Store the token pair from any sign-in method and adopt the returned user.
+  const adoptSession = useCallback(({ accessToken, refreshToken, user }) => {
     setToken(accessToken);
     setRefreshToken(refreshToken); // enables silent token renewal
     setUser(user);
     return user;
   }, []);
+
+  const loginWithGoogle = useCallback(
+    async (idToken) => adoptSession(await api.loginGoogle(idToken)),
+    [adoptSession]
+  );
+
+  // Email/password sign-in (returns the user, or throws ApiError — callers
+  // surface email_not_verified / invalid-credential messages).
+  const loginWithPassword = useCallback(
+    async (email, password) => adoptSession(await api.loginPassword(email, password)),
+    [adoptSession]
+  );
+
+  // Sign up → backend emails a confirmation link; no session yet.
+  const signup = useCallback((email, password) => api.signup(email, password), []);
+  const resendVerification = useCallback((email) => api.resendVerification(email), []);
+  const forgotPassword = useCallback((email) => api.forgotPassword(email), []);
+
+  // Confirm-email and reset-password both return a fresh session → log in.
+  const verifyEmail = useCallback(
+    async (token) => adoptSession(await api.verifyEmail(token)),
+    [adoptSession]
+  );
+  const resetPassword = useCallback(
+    async (token, password) => adoptSession(await api.resetPassword(token, password)),
+    [adoptSession]
+  );
 
   const logout = useCallback(() => {
     setToken(null);
@@ -56,7 +83,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthCtx.Provider value={{ user, loading, loginWithGoogle, logout, refresh, setCredits, setOnboarding }}>
+    <AuthCtx.Provider value={{ user, loading, loginWithGoogle, loginWithPassword, signup, resendVerification, forgotPassword, verifyEmail, resetPassword, logout, refresh, setCredits, setOnboarding }}>
       {children}
     </AuthCtx.Provider>
   );

@@ -84,12 +84,19 @@ Resources:
       AttributeDefinitions:
         - { AttributeName: userId, AttributeType: S }
         - { AttributeName: stripeCustomerId, AttributeType: S }
+        - { AttributeName: emailLower, AttributeType: S }
       KeySchema:
         - { AttributeName: userId, KeyType: HASH }
       GlobalSecondaryIndexes:
         - IndexName: stripeCustomerIndex
           KeySchema:
             - { AttributeName: stripeCustomerId, KeyType: HASH }
+          Projection: { ProjectionType: ALL }
+        # Look up an account by normalized email — email/password sign-in,
+        # forgot-password, and Google↔password account linking.
+        - IndexName: emailIndex
+          KeySchema:
+            - { AttributeName: emailLower, KeyType: HASH }
           Projection: { ProjectionType: ALL }
 
   LedgerTable:
@@ -321,13 +328,26 @@ Resources:
         Variables:
           GOOGLE_CLIENT_ID: !Ref GoogleClientId
           ADMIN_EMAILS: !Ref AdminEmails
+          # Verified SES sender for email-verification + password-reset mail.
+          SES_FROM: !Ref SesFrom
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         # Rate-limit counters live in the Cache table (lib/ratelimit.mjs).
         - DynamoDBCrudPolicy: { TableName: !Ref CacheTable }
+        # Send verification + password-reset emails.
+        - Statement:
+            - Effect: Allow
+              Action: ['ses:SendEmail']
+              Resource: '*'
       Events:
         Google: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /auth/google, Method: POST } }
         Refresh: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /auth/refresh, Method: POST } }
+        Signup: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /auth/signup, Method: POST } }
+        Verify: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /auth/verify, Method: POST } }
+        Password: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /auth/password, Method: POST } }
+        Forgot: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /auth/forgot, Method: POST } }
+        Reset: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /auth/reset, Method: POST } }
+        Resend: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /auth/resend, Method: POST } }
 
   # ── Profile + usage (authed) ────────────────────────────────────────────
   MeFn:
