@@ -5869,6 +5869,10 @@
         /* Flash highlight when the assistant points at a row in the main UI */
         @keyframes rcFlash { 0% { background: rgba(99,102,241,0.5); } 100% { background: transparent; } }
         tr.rc-flash > td { animation: rcFlash 2.2s ease-out; }
+
+        /* Image attachments shown inside a message bubble */
+        .rc-msg-atts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+        .rc-msg-img { max-width: 170px; max-height: 170px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.25); cursor: zoom-in; display: block; }
     </style>
 
     <button id="rcLauncher" title="Ask the AI Recruitment Assistant" aria-label="Open AI assistant">
@@ -6112,9 +6116,14 @@
                 const msgs = (rcConv && rcConv.messages) ? rcConv.messages : [];
                 // Normal turn: drop the just-added user message (re-added below). Continuation: keep all (last msg is a bot chunk).
                 const prior = (opts.continuation ? msgs.slice(-8) : msgs.slice(0, -1).slice(-8));
-                const hist = prior
-                    .map(m => (m.role === 'user' ? 'User' : 'Assistant') + ': ' + (m.role === 'user' ? m.content : rcStripHtml(m.content)))
-                    .join('\n');
+                const hist = prior.map(m => {
+                    if (m.role !== 'user') return 'Assistant: ' + rcStripHtml(m.content);
+                    let line = 'User: ' + m.content;
+                    if (m.atts && m.atts.length) {
+                        line += ' ' + m.atts.map(a => '[attached ' + (a.isImage ? 'image' : 'file') + ' "' + a.name + '": ' + trunc(a.text || '', 600) + ']').join(' ');
+                    }
+                    return line;
+                }).join('\n');
                 const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
                 // Auto-include the full CV of the candidate the user currently has open.
@@ -6130,9 +6139,10 @@
                 const atts = opts.attachments || [];
                 if (atts.length) {
                     attachBlock = '\n===== FILES ATTACHED BY THE USER FOR THIS QUESTION =====\n'
-                        + atts.map(a => a.isImage
-                            ? ('[Image "' + a.name + '" — cannot be read as text.]')
-                            : ('--- ' + a.name + ' ---\n' + (a.text || '[no extractable text]'))).join('\n\n')
+                        + atts.map(a => {
+                            const label = a.isImage ? ('Image (auto-transcribed by Claude): ' + a.name) : a.name;
+                            return '--- ' + label + ' ---\n' + (a.text || '[no extractable text]');
+                        }).join('\n\n')
                         + '\n===== END ATTACHED FILES =====\n';
                 }
 
@@ -6217,7 +6227,7 @@
             }
 
             // Render a message bubble (no persistence — used for restoring history too).
-            function rcRenderMsg(role, content) {
+            function rcRenderMsg(role, content, atts) {
                 const list = $('rcMessages');
                 if (!list) return;
                 const empty = $('rcEmpty');
@@ -6227,19 +6237,30 @@
                 let html;
                 if (role === 'user') html = rcEsc(content).replace(/\n/g, '<br>');
                 else html = /<[a-z][\s\S]*>/i.test(content) ? rcSanitize(content) : rcEsc(content).replace(/\n/g, '<br>');
+                if (atts && atts.length) {
+                    html += '<div class="rc-msg-atts">' + atts.map(a => {
+                        if (a.isImage && a.thumb) return '<img class="rc-msg-img" src="' + a.thumb + '" alt="' + rcEsc(a.name || 'image') + '" onclick="window.open(this.src,\'_blank\')">';
+                        return '<span class="rc-attach-chip"><i class="fas fa-file-lines"></i> ' + rcEsc(trunc(a.name || 'file', 26)) + '</span>';
+                    }).join('') + '</div>';
+                }
                 div.innerHTML = '<div class="rc-bubble">' + html + '</div>';
                 list.appendChild(div);
                 list.scrollTop = list.scrollHeight;
                 return div;
             }
             // Render + record into the current conversation + persist.
-            function rcAddMsg(role, content) {
-                rcRenderMsg(role, content);
+            function rcAddMsg(role, content, atts) {
+                rcRenderMsg(role, content, atts);
                 if (!rcConv) rcConv = rcNewConv();
                 if (role === 'user' && (!rcConv.messages.length || rcConv.title === 'New conversation')) {
                     rcConv.title = trunc(rcStripHtml(content), 40) || 'Conversation';
                 }
-                rcConv.messages.push({ role: role, content: content });
+                const msg = { role: role, content: content };
+                if (atts && atts.length) {
+                    // Persist a lightweight copy: downscaled thumb + capped description text.
+                    msg.atts = atts.map(a => ({ name: a.name, isImage: !!a.isImage, thumb: a.thumb, text: trunc(a.text || '', 2000) }));
+                }
+                rcConv.messages.push(msg);
                 rcPersist();
             }
 
@@ -6291,13 +6312,11 @@
                 if ((!text && !hasAtt) || rcBusy) return;
                 rcEnsureConv();
 
-                const attNames = rcAttachments.map(a => a.name);
-                const userDisplay = (text || '(see attached file)') + (attNames.length ? ('\n\n📎 ' + attNames.join(', ')) : '');
-                rcAddMsg('user', userDisplay);
-                if (ta) { ta.value = ''; ta.style.height = 'auto'; }
-
                 // Snapshot the attachments for this turn, then clear the tray.
                 const sendAtts = rcAttachments.slice();
+                const userDisplay = text || (sendAtts.length ? ('(attached ' + sendAtts.map(a => a.name).join(', ') + ')') : '');
+                rcAddMsg('user', userDisplay, sendAtts);
+                if (ta) { ta.value = ''; ta.style.height = 'auto'; }
                 rcAttachments = [];
                 rcRenderAttachments();
 
@@ -6360,6 +6379,52 @@
                 }).join('');
                 bar.querySelectorAll('.rc-attach-x').forEach(b => b.onclick = () => { rcAttachments.splice(+b.dataset.i, 1); rcRenderAttachments(); });
             }
+            function rcFileToDataURL(file) {
+                return new Promise((resolve, reject) => {
+                    const fr = new FileReader();
+                    fr.onload = () => resolve(fr.result);
+                    fr.onerror = reject;
+                    fr.readAsDataURL(file);
+                });
+            }
+            // Shrink an image dataURL so the in-chat thumbnail + persisted copy stay small.
+            function rcDownscale(dataUrl, max) {
+                return new Promise((resolve) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        try {
+                            const scale = Math.min(1, max / Math.max(img.width, img.height));
+                            const w = Math.max(1, Math.round(img.width * scale));
+                            const h = Math.max(1, Math.round(img.height * scale));
+                            const cv = document.createElement('canvas');
+                            cv.width = w; cv.height = h;
+                            cv.getContext('2d').drawImage(img, 0, 0, w, h);
+                            resolve(cv.toDataURL('image/jpeg', 0.6));
+                        } catch (e) { resolve(dataUrl); }
+                    };
+                    img.onerror = () => resolve(dataUrl);
+                    img.src = dataUrl;
+                });
+            }
+            // Send an image to the Lambda's Claude-Haiku vision branch and get back text.
+            async function rcImageDescribe(b64, media) {
+                try {
+                    const res = await fetch(RC_LAMBDA, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            images: [{ media_type: media || 'image/png', data: b64 }],
+                            vision_prompt: 'Transcribe ALL visible text in this image verbatim, then briefly describe what the image shows, for a recruitment assistant. Output plain text only.'
+                        })
+                    });
+                    let raw = await res.text(); let c;
+                    try { const j = JSON.parse(raw); c = (j && typeof j === 'object') ? (j.body || j.result || j.reply || raw) : String(j); }
+                    catch (_) { c = raw; }
+                    c = (c || '').trim();
+                    if (!res.ok || /^Error:/i.test(c)) return '[Could not read image: ' + (c || ('HTTP ' + res.status)) + ']';
+                    return c;
+                } catch (e) { return '[Could not read image: ' + ((e && e.message) || 'failed') + ']'; }
+            }
             function rcOnFiles(input) {
                 const files = Array.from(input.files || []);
                 input.value = '';
@@ -6370,7 +6435,12 @@
                     try {
                         const ext = (f.name.split('.').pop() || '').toLowerCase();
                         if ((f.type || '').startsWith('image/')) {
+                            // Screenshots: Claude Haiku reads them, then DeepSeek answers as usual.
                             att.isImage = true;
+                            const dataUrl = await rcFileToDataURL(f);
+                            att.thumb = await rcDownscale(dataUrl, 360);
+                            const b64 = String(dataUrl).split(',')[1] || '';
+                            att.text = trunc(await rcImageDescribe(b64, f.type), 4000);
                         } else if (['pdf', 'docx', 'txt', 'csv', 'md', 'json', 'rtf'].includes(ext) || (f.type || '').startsWith('text')) {
                             att.text = trunc(await extractText({ name: f.name, blob: f }), 12000);
                         } else {
@@ -6462,7 +6532,7 @@
                 const list = $('rcMessages');
                 if (!list) return;
                 list.innerHTML = '';
-                if (rcConv && rcConv.messages && rcConv.messages.length) rcConv.messages.forEach(m => rcRenderMsg(m.role, m.content));
+                if (rcConv && rcConv.messages && rcConv.messages.length) rcConv.messages.forEach(m => rcRenderMsg(m.role, m.content, m.atts));
                 else rcRenderEmpty();
                 list.dataset.rendered = '1';
                 list.scrollTop = list.scrollHeight;

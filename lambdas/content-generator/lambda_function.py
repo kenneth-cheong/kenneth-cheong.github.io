@@ -2,8 +2,73 @@ import os
 import requests
 import json
 
+
+def _describe_images_with_claude(images, instruction):
+    """DeepSeek/OpenAI are text-only. When the caller attaches images we use
+    Claude (Haiku) to transcribe + describe them, and return plain text the
+    caller can then feed back into a normal DeepSeek conversation."""
+    api_key = os.environ.get('ANTHROPIC_API_KEY')
+    if not api_key:
+        print("Error: ANTHROPIC_API_KEY not configured")
+        return "Error: Image analysis is not configured."
+
+    model_id = os.environ.get('ANTHROPIC_VISION_MODEL', 'claude-haiku-4-5-20251001')
+
+    content = []
+    for img in (images or [])[:4]:           # cap at 4 images per request
+        b64 = img.get('data') or img.get('b64')
+        media = img.get('media_type') or img.get('type') or 'image/png'
+        if not b64:
+            continue
+        content.append({
+            "type": "image",
+            "source": {"type": "base64", "media_type": media, "data": b64}
+        })
+    if not content:
+        return "Error: No readable image data was provided."
+
+    content.append({
+        "type": "text",
+        "text": instruction or (
+            "Transcribe ALL visible text in this image verbatim, then describe the "
+            "image in detail (layout, people, charts, UI, anything relevant). This will "
+            "be read by a recruitment assistant to answer questions. Output plain text only."
+        )
+    })
+
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            },
+            json={"model": model_id, "max_tokens": 1500, "messages": [{"role": "user", "content": content}]},
+            timeout=120
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        parts = data.get('content') or []
+        text = " ".join([p.get('text', '') for p in parts if p.get('type') == 'text']).strip()
+        return text or "(No description returned.)"
+    except requests.exceptions.RequestException as e:
+        print(f"Claude vision error: {e}")
+        return f"Error: Failed to analyze image. {e}"
+    except (KeyError, IndexError, ValueError) as e:
+        print(f"Claude vision parse error: {e}")
+        return "Error: Failed to parse image analysis."
+
+
 def lambda_handler(event, context):
     apikey = os.environ.get('API_KEY_2')
+
+    # Image analysis branch: caller sent image(s) → use Claude (Haiku) to read them
+    # and return a plain-text transcription/description. Text generation (DeepSeek/
+    # OpenAI) is untouched and resumes on the caller's next normal request.
+    images = event.get('images') or []
+    if images:
+        return _describe_images_with_claude(images, event.get('vision_prompt') or event.get('prompt'))
 
     # 1. Extract Existing Data
     reference_post = event.get('reference_post', "")
