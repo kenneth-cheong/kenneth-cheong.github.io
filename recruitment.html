@@ -6110,7 +6110,8 @@
                 const ctx = rcBuildContext();
                 const view = rcCurrentView();
                 const msgs = (rcConv && rcConv.messages) ? rcConv.messages : [];
-                const prior = msgs.slice(0, -1).slice(-8);   // exclude the just-added current user message
+                // Normal turn: drop the just-added user message (re-added below). Continuation: keep all (last msg is a bot chunk).
+                const prior = (opts.continuation ? msgs.slice(-8) : msgs.slice(0, -1).slice(-8));
                 const hist = prior
                     .map(m => (m.role === 'user' ? 'User' : 'Assistant') + ': ' + (m.role === 'user' ? m.content : rcStripHtml(m.content)))
                     .join('\n');
@@ -6178,7 +6179,9 @@
                     '• Highlight a job in the list: [[RC_ACTION:{"type":"highlight_job","id":"<id>"}]]',
                     '• Switch section: [[RC_ACTION:{"type":"show_section","section":"dashboard|jobs|candidates|users|settings|activity"}]]',
                     '• Create a job (ONLY when the user explicitly asks to create/add a job): [[RC_ACTION:{"type":"create_job","title":"...","desc":"...","kpi":"...","status":"Open"}]] — write a clear job description and KPIs from the user\'s request; the user will be asked to confirm before it is saved.',
-                    'Only include a directive when navigation, highlighting, or job creation is clearly intended. Write a normal sentence telling the user what you are doing (e.g. "Opening Alice Tan\'s profile…"), then put the directive line last. The directive itself is parsed out and never shown.'
+                    'Only include a directive when navigation, highlighting, or job creation is clearly intended. Write a normal sentence telling the user what you are doing (e.g. "Opening Alice Tan\'s profile…"), then put the directive line last. The directive itself is parsed out and never shown.',
+                    '',
+                    'If a complete answer is too long to fit in one reply, do NOT stop to ask whether to continue. Write as much as you can, then put the marker [[RC_CONTINUE]] on the final line — you will automatically be asked to continue. Only use the marker when more content genuinely remains.'
                 );
 
                 lines.push('', hist ? ('Conversation so far:\n' + hist + '\n') : '', 'User: ' + userMsg, '', 'Write your reply now.');
@@ -6313,10 +6316,27 @@
                         reply = await rcCallLambda(rcBuildPrompt(text, { cvBlock: cvBlock, attachments: sendAtts }));
                     }
 
-                    const parsed = rcExtractActions(reply);
-                    rcSetTyping(false);
-                    rcAddMsg('bot', parsed.clean || '(no answer)');
-                    if (parsed.actions.length) rcRunActions(parsed.actions);
+                    // Auto-continue long answers without the user having to type "continue".
+                    let guard = 0, prevChunk = '';
+                    while (true) {
+                        const wantsMore = /\[\[RC_CONTINUE\]\]/.test(reply);
+                        const parsed = rcExtractActions(reply.replace(/\[\[RC_CONTINUE\]\]/g, ''));
+                        rcSetTyping(false);
+                        const chunk = parsed.clean || (guard === 0 ? '(no answer)' : '');
+                        if (chunk) rcAddMsg('bot', chunk);
+                        if (parsed.actions.length) rcRunActions(parsed.actions);
+
+                        const norm = rcStripHtml(chunk);
+                        const stale = norm && norm === prevChunk;   // model repeated itself — stop
+                        prevChunk = norm;
+                        if (!wantsMore || !chunk || stale || guard >= 5) break;
+                        guard++;
+                        rcSetTyping(true, 'Continuing…');
+                        reply = await rcCallLambda(rcBuildPrompt(
+                            'Continue exactly where you left off. Do NOT repeat anything you already wrote. End with [[RC_CONTINUE]] only if more still remains; otherwise finish normally.',
+                            { attachments: [], continuation: true }
+                        ));
+                    }
                 } catch (e) {
                     rcSetTyping(false);
                     rcAddMsg('bot', '<span style="color:var(--accent)"><i class="fas fa-triangle-exclamation"></i> Sorry, I couldn\'t answer that — ' + rcEsc((e && e.message) || 'request failed') + '. Please try again.</span>');
