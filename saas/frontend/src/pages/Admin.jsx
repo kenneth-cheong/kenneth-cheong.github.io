@@ -17,7 +17,7 @@ export default function Admin() {
     <div>
       <h1 className="text-2xl font-bold">Admin</h1>
       <div className="mt-3 flex gap-1 border-b border-slate-200">
-        {[['users', 'Users'], ['tickets', 'Support tickets']].map(([k, label]) => (
+        {[['users', 'Users'], ['tickets', 'Support tickets'], ['settings', 'Settings']].map(([k, label]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
@@ -27,7 +27,78 @@ export default function Admin() {
           </button>
         ))}
       </div>
-      {tab === 'users' ? <AdminUsers /> : <AdminTickets />}
+      {tab === 'users' ? <AdminUsers /> : tab === 'tickets' ? <AdminTickets /> : <AdminSettings />}
+    </div>
+  );
+}
+
+// ── Settings ─────────────────────────────────────────────────────────────────
+// Platform-wide toggles. Currently: whether email/password sign-in is allowed
+// (Google sign-in is always on). Saving is restricted to ADMIN_EMAILS admins
+// server-side; staff without that role get a 403.
+function AdminSettings() {
+  const [settings, setSettings] = useState(null); // null = loading
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let live = true;
+    api.adminSettings()
+      .then(({ settings }) => live && setSettings(settings))
+      .catch(() => live && setError('Could not load settings.'));
+    return () => { live = false; };
+  }, []);
+
+  async function toggle(key, value) {
+    setBusy(true); setError(''); setMsg('');
+    try {
+      const { settings } = await api.adminSetSettings({ [key]: value });
+      setSettings(settings);
+      setMsg('Saved.');
+      setTimeout(() => setMsg(''), 2500);
+    } catch (e) {
+      setError(e?.payload?.error === 'admin_only'
+        ? 'Only a primary admin can change this setting.'
+        : (e?.message || 'Could not save. Please try again.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (settings === null && !error) return <p className="mt-6 text-sm text-slate-500">Loading…</p>;
+
+  return (
+    <div className="mt-4 max-w-2xl">
+      <div className="card p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold">Email &amp; password sign-in</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              When off, new sign-ups and existing email/password logins are blocked and the login page
+              shows only “Sign in with Google”. Google sign-in is always available.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={!!settings?.passwordAuthEnabled}
+            disabled={busy || !settings}
+            onClick={() => toggle('passwordAuthEnabled', !settings.passwordAuthEnabled)}
+            className={`relative mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-50 ${settings?.passwordAuthEnabled ? 'bg-brand-600' : 'bg-slate-300'}`}
+          >
+            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${settings?.passwordAuthEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+          </button>
+        </div>
+        <p className="mt-3 text-sm font-medium">
+          Status:{' '}
+          <span className={settings?.passwordAuthEnabled ? 'text-emerald-600' : 'text-slate-500'}>
+            {settings?.passwordAuthEnabled ? 'Enabled' : 'Disabled'}
+          </span>
+        </p>
+        {msg && <p className="mt-2 text-sm text-emerald-600">{msg}</p>}
+        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      </div>
     </div>
   );
 }

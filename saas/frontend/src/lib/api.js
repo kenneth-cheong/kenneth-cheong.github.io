@@ -127,6 +127,8 @@ export const api = {
   resendVerification: (email) => call('/auth/resend', { method: 'POST', body: { email }, auth: false }),
   forgotPassword: (email) => call('/auth/forgot', { method: 'POST', body: { email }, auth: false }),
   resetPassword: (token, password) => call('/auth/reset', { method: 'POST', body: { token, password }, auth: false }),
+  // Public pre-auth config — which sign-in methods the login page should show.
+  authConfig: () => call('/auth/config', { auth: false }),
   me: () => call('/me'),
   usage: () => call('/me/usage'),
   // Site Health Check — synthesise several tool results into one scored report.
@@ -221,4 +223,6 @@ export const api = {
     call('/admin/credits', { method: 'POST', body: { userId, monthlyDelta, topupDelta, reason } }),
   adminTier: (userId, tier) => call('/admin/tier', { method: 'POST', body: { userId, tier } }),
   adminStatus: (userId, status) => call('/admin/status', { method: 'POST', body: { userId, status } }),
+  adminSettings: () => call('/admin/settings'),
+  adminSetSettings: (patch) => call('/admin/settings', { method: 'POST', body: patch }),
 };
