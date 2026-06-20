@@ -427,6 +427,8 @@ export const INPUTS = {
       showWhen: { field: 'mode', in: ['Keyword metrics', 'Similar keywords (from seed)'] } },
     { name: 'target', label: 'Domain or page URL', type: 'url', placeholder: 'https://example.com', required: true,
       showWhen: { field: 'mode', in: ['Ranking keywords (for a domain)', 'Keywords from a webpage'] } },
+    { name: 'domain', label: 'Your domain (optional — adds a time-to-rank estimate per keyword)', type: 'url', placeholder: 'https://yoursite.com',
+      showWhen: { field: 'mode', in: ['Keyword metrics', 'Similar keywords (from seed)'] } },
     { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'United States' },
     { name: 'language', label: 'Language', type: 'select', options: LANGUAGES, default: 'English' },
   ],

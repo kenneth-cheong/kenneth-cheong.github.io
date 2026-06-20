@@ -127,6 +127,16 @@ export const handler = async (event) => {
         })
       );
       result = { rows: settled };
+      // Rank Checker: add an AI pass over the positions (striking-distance pushes,
+      // what to do for unranked keywords). Other fan-out tools keep raw rows.
+      if (tool.id === 'rank-checker') {
+        const rec = await aiRecommendations({
+          label: 'Rank Checker',
+          context: `Domain: ${body.target || ''}; Location: ${body.location || 'Singapore'}. Flag striking-distance keywords (roughly positions 4-20) to prioritise, and advise what to do for keywords not ranking in the top 100.`,
+          findings: settled.map((s) => `${s.keyword}: ${s.result}`).join('\n'),
+        });
+        result = withRecs(result, rec);
+      }
     } else {
       result = await callUpstream(tool, body);
     }
@@ -661,6 +671,62 @@ function parseInsightsArray(raw) {
   try { const p = JSON.parse(clean); return Array.isArray(p) ? p : []; } catch { return []; }
 }
 
+// ── Generic AI recommendations (shared by the data-tool runners) ──────────────
+// Turns a findings summary into 3–5 prioritised, actionable recommendation cards
+// — the same `cards` section competitors/perf-marketing already render, so the UI
+// needs no change. Best-effort: any failure just omits the section and the tool
+// still returns its data. The LLM call is folded into the tool's existing cost
+// (not charged separately), mirroring competitor_insights.
+async function aiRecommendations({ label, context, findings }) {
+  if (!findings || !String(findings).trim()) return null;
+  try {
+    const userPrompt =
+      `You are an expert SEO & digital-marketing analyst. Based ONLY on the real "${label}" data below, ` +
+      `give 3 to 5 specific, prioritised, actionable recommendations for the user's next steps. ` +
+      `Cite the actual numbers/findings; never invent data.\n` +
+      (context ? `Context: ${context}\n` : '') +
+      `\nData:\n${String(findings).slice(0, 6000)}\n\n` +
+      `Output ONLY strict JSON (no markdown fences, no prose): an array of 3-5 objects of shape ` +
+      `{"title": string (short imperative action, <=8 words), "priority": "high"|"medium"|"low", ` +
+      `"detail": string (1-2 sentences citing the data)}.`;
+    const raw = await postUpstream(UPSTREAMS.aiOptimiser, { action: 'content_freeform', userPrompt });
+    const items = parseInsightsArray(aiText(raw))
+      .map((it) => {
+        const prio = String(it.priority || 'medium').toLowerCase();
+        return {
+          title: String(it.title || '').trim(),
+          badge: prio === 'high' ? 'High' : prio === 'low' ? 'Low' : 'Medium',
+          badgeTone: prio === 'high' ? 'red' : prio === 'low' ? 'green' : 'amber',
+          body: String(it.detail || it.body || '').trim(),
+        };
+      })
+      .filter((x) => x.title)
+      .slice(0, 5);
+    return items.length ? { type: 'cards', title: '💡 Recommendations & next steps', items } : null;
+  } catch (e) { console.error('ai_recommendations_failed', label, e.message); return null; }
+}
+
+// Append a recommendations card section to a result, preserving rows/sections.
+function withRecs(result, recSection) {
+  if (!recSection || !result || typeof result !== 'object') return result;
+  return { ...result, sections: [...(result.sections || []), recSection] };
+}
+
+// Compact a row array into a short "key: value; …" text table for the recommender.
+function rowsToFindings(rows, max = 25) {
+  if (!Array.isArray(rows) || !rows.length) return '';
+  return rows.slice(0, max).map((r) => Object.entries(r).map(([k, v]) => `${k}: ${v}`).join('; ')).join('\n');
+}
+
+// Compact a flat summary object into "Key: value" lines (skips empties/objects).
+function summaryToFindings(summary) {
+  if (!summary || typeof summary !== 'object') return '';
+  return Object.entries(summary)
+    .filter(([, v]) => v != null && v !== '' && v !== '—' && typeof v !== 'object')
+    .map(([k, v]) => `${k}: ${v}`)
+    .join('\n');
+}
+
 // ── Caption Generator: N diverse variations ───────────────────────────────────
 // index.html generates up to 10 variations (rotating variationIndex + rising
 // temperature); the SaaS adapter hardcoded a single call. Restore multi-variation
@@ -1160,7 +1226,12 @@ async function crawlRun(body, tool) {
     pagesWithIssues: rows.filter((r) => r.issues > 0).length,
     status: progress === 'in_progress' ? 'partial (still crawling)' : 'complete',
   };
-  return { rows, summary };
+  const rec = await aiRecommendations({
+    label: 'Technical SEO Crawler',
+    context: 'Prioritise the technical SEO fixes that will most improve crawlability and rankings, based on the crawled pages, on-page scores and issue counts.',
+    findings: `${summaryToFindings(summary)}\nPages (url; status; on-page score; issue count):\n${rowsToFindings(rows)}`,
+  });
+  return withRecs({ rows, summary }, rec);
 }
 
 /** Count obvious on-page problems on a crawled page (safe, polarity-known checks). */
@@ -1488,7 +1559,12 @@ async function pageAnalysisRun(body) {
   const gotData = d.da != null || d.backlinks != null || d.psm != null || d.psd != null || page.words != null;
   if (!gotData) return { _failed: true, text: 'Could not retrieve metrics for this URL — no credits were charged. Please check the URL and try again.' };
 
-  return { sections, summary };
+  const rec = await aiRecommendations({
+    label: 'Page Technical & Domain Analysis',
+    context: 'Advise on the most impactful technical SEO & authority improvements (page speed, SSL, on-page signals, backlinks/authority) based on these signals.',
+    findings: summaryToFindings(summary),
+  });
+  return withRecs({ sections, summary }, rec);
 }
 
 /** Word count, Flesch readability, link + image counts from a page's HTML. */
@@ -1654,7 +1730,9 @@ async function llmsTxtRun(body) {
     getBody(rootDomain + '/llms-full.txt', 10000),
   ]);
   if (!homeHtml || homeHtml.length < 200) {
-    throw new Error(`Could not fetch ${rootDomain}. Check the URL is public and reachable.`);
+    // Soft-fail (not a 500): the site bot-blocks the fetcher or is unreachable.
+    // Surface the actionable reason and charge nothing — mirrors aiDiscoveryRun.
+    return { _failed: true, sections: [{ type: 'callout', text: `Could not fetch ${rootDomain} to read the homepage. Check the URL is public and reachable — no credits were charged.` }] };
   }
 
   const title = (homeHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || host).replace(/\s+/g, ' ').trim();
@@ -2007,10 +2085,24 @@ async function integrationsRun(tool, body) {
   }
   // Summary cards + trend chart render above the (sortable) breakdown table -
   // the dashboard layout index.html uses, not a bare table.
-  return {
+  const out = {
     sections: integrationSections(tool.integration, live.summary || {}, live.series || [], live.deltas, body.compare, live.striking),
     rows: live.rows, summary: live.summary, source: live.source,
   };
+  // GA4 / Google Ads return raw metrics — add an AI "what to do next" pass over
+  // the real numbers. (GSC already surfaces striking-distance easy-wins.)
+  if (tool.integration === 'ga4' || tool.integration === 'google-ads') {
+    const label = tool.integration === 'ga4' ? 'Google Analytics (GA4)' : 'Google Ads';
+    const ctx = tool.integration === 'ga4'
+      ? 'Advise on traffic quality, channel mix, engagement and conversion improvements from this GA4 data.'
+      : 'Advise on budget reallocation, low-converting / high-CPA campaigns, and optimisation opportunities from this Google Ads data.';
+    const rec = await aiRecommendations({
+      label, context: `${ctx} Date range: ${body.range || 'Last 28 days'}.`,
+      findings: `${summaryToFindings(live.summary)}\nBreakdown rows:\n${rowsToFindings(live.rows)}`,
+    });
+    return withRecs(out, rec);
+  }
+  return out;
 }
 
 // Dispatch + format the GSC sub-tools. integration_pull cost is 0, so these are
@@ -2138,7 +2230,15 @@ async function backlinksRun(body) {
   if (summary.backlinks == null && !refDomains.length && !anchors.length && !backlinks.length) {
     return { text: 'No backlinks data was returned for this target. Check the domain and analysis scope.' };
   }
-  return { sections: sectionsBacklinks(target, mode, summary, refDomains, anchors, backlinks, broken, brokenTotal, history), summary };
+  const out = { sections: sectionsBacklinks(target, mode, summary, refDomains, anchors, backlinks, broken, brokenTotal, history), summary };
+  const rec = await aiRecommendations({
+    label: 'Backlinks Explorer',
+    context: `Target: ${target} (${mode}). Advise on link-building priorities, disavowing toxic/spammy links, recovering broken backlinks, and anchor-text diversity.`,
+    findings: summaryToFindings(summary) +
+      (brokenTotal ? `\nbrokenBacklinksTotal: ${brokenTotal}` : '') +
+      (refDomains.length ? `\nTop referring domains: ${refDomains.slice(0, 10).map((d) => d.domain || d.referring_domain || d.Domain).filter(Boolean).join(', ')}` : ''),
+  });
+  return withRecs(out, rec);
 }
 
 function sectionsBacklinks(target, mode, s, refDomains, anchors, backlinks = [], broken = [], brokenTotal = 0, history = []) {
@@ -2317,7 +2417,12 @@ async function aiVisibilityRun(body) {
     modelsChecked: AI_MODELS.length,
     mentionRate: checks ? `${Math.round((mentions / (prompts.length * AI_MODELS.length)) * 100)}%` : '0%',
   };
-  return { rows, summary };
+  const rec = await aiRecommendations({
+    label: 'AI Mentions Tracker',
+    context: `Brand: ${brand}. Overall mention rate ${summary.mentionRate} across ${AI_MODELS.length} AI models. Advise how to raise mention frequency on the weak prompts/models (content, structured data, citations, llms.txt, authority).`,
+    findings: `Mention rate: ${summary.mentionRate}\nPer-prompt results (✓ = mentioned, score; ✗ = not mentioned):\n${rowsToFindings(rows)}`,
+  });
+  return withRecs({ rows, summary }, rec);
 }
 
 /** One verify_mentions call (+ snapshot polling) → normalised finding. */
@@ -2602,29 +2707,89 @@ async function keywordAnalysisRun(body) {
   const language = body.language || 'English';
   const user = body._email || 'saas';
 
+  // Recommend which keywords to prioritise (volume vs difficulty, intent, likely
+  // time-to-rank), content angles and quick wins — from the real rows.
+  const kaRecs = (rows) => aiRecommendations({
+    label: 'Keyword Analysis',
+    context: `Mode: ${mode}; Location: ${location}; Language: ${language}. Advise which keywords to prioritise (weigh search volume against difficulty and likely time-to-rank), the search intent to target, content angles, and quick wins.`,
+    findings: rowsToFindings(rows),
+  });
+
+  // Where to assess time-to-rank from: an explicit domain (metrics/similar modes)
+  // or the target the ranking/webpage modes already carry. When present we add a
+  // per-keyword `timeToRank` column (parity with index.html's keyword analysis,
+  // which folds time-to-rank into the same flow). Heavier: 2 upstream calls per
+  // keyword (capped), so it's opt-in via the domain field.
+  let map, cols;
   if (/similar/i.test(mode)) {
     const keywords = splitItems(body.input).slice(0, 25);
     if (!keywords.length) throw new Error('Add at least one seed keyword.');
-    const map = deepBody(await postUpstream(UPSTREAMS.similarKeywords, { keywords, location, language, user }));
-    return { rows: kwRows(map, ['volume', 'difficulty', 'cpc']) };
-  }
-  if (/ranking/i.test(mode)) {
+    map = deepBody(await postUpstream(UPSTREAMS.similarKeywords, { keywords, location, language, user }));
+    cols = ['volume', 'cpc', 'competition'];
+  } else if (/ranking/i.test(mode)) {
     const target = cleanDomain(body.target || body.input);
     if (!target) throw new Error('A domain is required.');
-    const map = deepBody(await postUpstream(UPSTREAMS.rankingKeywords, { target, location, user }));
-    return { rows: kwRows(map, ['volume', 'rank', 'difficulty', 'traffic', 'url']) };
-  }
-  if (/webpage/i.test(mode)) {
+    map = deepBody(await postUpstream(UPSTREAMS.rankingKeywords, { target, location, user }));
+    cols = ['volume', 'rank', 'difficulty', 'traffic', 'url'];
+  } else if (/webpage/i.test(mode)) {
     const target = (body.target || body.input || '').trim();
     if (!target) throw new Error('A page URL is required.');
-    const map = deepBody(await postUpstream(UPSTREAMS.keywordsForSite, { location, language, target, skip_ai: false }));
-    return { rows: kwRows(map, ['volume', 'difficulty', 'intent', 'reason']) };
+    map = deepBody(await postUpstream(UPSTREAMS.keywordsForSite, { location, language, target, skip_ai: false }));
+    cols = ['volume', 'competition', 'intent', 'reason'];
+  } else {
+    // Default: keyword metrics (mangoolsKeywords → volume + cpc only; no KD).
+    const keywords = splitItems(body.input).slice(0, 25);
+    if (!keywords.length) throw new Error('Add at least one keyword.');
+    map = deepBody(await postUpstream(UPSTREAMS.mangoolsKeywords, { keywords, location, language }));
+    cols = ['volume', 'cpc'];
   }
-  // Default: keyword metrics (mangoolsKeywords)
-  const keywords = splitItems(body.input).slice(0, 25);
-  if (!keywords.length) throw new Error('Add at least one keyword.');
-  const map = deepBody(await postUpstream(UPSTREAMS.mangoolsKeywords, { keywords, location, language }));
-  return { rows: kwRows(map, ['volume', 'difficulty', 'cpc']) };
+
+  // An upstream Lambda error envelope ({errorType,errorMessage}) must not be
+  // rendered as keyword rows (it would surface "errorMessage" as a keyword and
+  // still bill). Soft-fail so nothing is charged.
+  if (!map || typeof map !== 'object' || map.errorMessage || map.errorType || map.stackTrace) {
+    return { _failed: true, text: 'The keyword data service returned an error — no credits were charged. Please try again in a moment.' };
+  }
+  let rows = kwRows(map, cols);
+  if (!rows.length) return { _failed: true, text: 'No keyword data was found — no credits were charged. Try different keywords or check the domain/URL.' };
+
+  const domain = (body.domain || (/(ranking|webpage)/i.test(mode) ? (body.target || body.input) : '') || '').trim();
+  if (domain) rows = await enrichTimeToRank(rows, domain, location, language, user);
+
+  return withRecs({ rows }, await kaRecs(rows));
+}
+
+/** Google-Ads paid competition (0–1 or 0–100) → a readable Low/Medium/High band. */
+function fmtCompetition(v) {
+  if (v == null || v === '') return '—';
+  let n = Number(v);
+  if (!Number.isFinite(n)) return String(v);
+  if (n <= 1) n = n * 100;
+  n = Math.round(n);
+  return n < 33 ? `Low (${n})` : n < 66 ? `Medium (${n})` : `High (${n})`;
+}
+
+/** Add a `timeToRank` column per keyword when a domain is given — the real
+ *  serpLite → kwRecommendations path (capped) the dedicated Time-to-Rank tool
+ *  uses, with a difficulty heuristic fallback. Mutates + returns rows. */
+async function enrichTimeToRank(rows, domain, location, language, email, cap = 10) {
+  if (!Array.isArray(rows) || !rows.length || !domain) return rows;
+  await Promise.all(rows.slice(0, cap).map(async (row) => {
+    try {
+      const serps = deepBody(await postUpstream(UPSTREAMS.serpLite, { keyword: row.keyword, language, location, user: email }));
+      const rec = await postUpstream(UPSTREAMS.kwRecommendations, {
+        keyword: row.keyword,
+        target_content: [{ url: domain, domain_metrics: {}, rank: (row.rank && row.rank !== '—') ? row.rank : null }],
+        serps_dict: serps,
+      });
+      const recText = String(deepBody(rec) ?? '');
+      const hit = recText.match(/(0-3 months|3-6 months|6-9 months|9-12 months|more than 12 months)/i);
+      row.timeToRank = hit ? hit[0] : difficultyToTime(row.difficulty);
+    } catch { row.timeToRank = difficultyToTime(row.difficulty); }
+  }));
+  // Beyond the cap: cheap heuristic from KD (or N/A when KD is unavailable).
+  for (const row of rows.slice(cap)) row.timeToRank = difficultyToTime(row.difficulty);
+  return rows;
 }
 
 function cleanDomain(u) {
@@ -2638,7 +2803,11 @@ function kwRows(map, cols) {
     m = m || {};
     const row = { keyword };
     if (cols.includes('volume')) row.volume = m.search_volume ?? m.search_vol ?? m.volume ?? 0;
-    if (cols.includes('difficulty')) row.difficulty = m.difficulty ?? m.competition ?? m.seo ?? '—';
+    // Real SEO keyword difficulty only (DataForSEO `difficulty`, in ranking mode).
+    // Mangools/Keyword-metrics has no KD, so it omits this column entirely rather
+    // than showing a dead "—"; Google-Ads paid competition gets its own column.
+    if (cols.includes('difficulty')) row.difficulty = m.difficulty ?? '—';
+    if (cols.includes('competition')) row.competition = fmtCompetition(m.competition ?? m.competition_index);
     if (cols.includes('cpc')) row.cpc = m.cpc != null ? `S$${Number(m.cpc).toFixed(2)}` : '—';
     if (cols.includes('rank')) row.rank = m.rank ?? m.best_position ?? '—';
     if (cols.includes('traffic')) row.traffic = m.traffic ?? '—';
@@ -3010,7 +3179,10 @@ function applyTeaser(tool, result) {
 
 function capRows(tool, result, cap) {
   if (!Array.isArray(result?.rows)) return result;
+  // Spread the rest of the result so non-row content (e.g. the recommendations
+  // `sections`, `summary`) survives the free-tier row cap.
   return {
+    ...result,
     rows: result.rows.slice(0, cap),
     blurredCount: Math.max(0, result.rows.length - cap),
     capMessage: `${Math.max(0, result.rows.length - cap)} more rows — upgrade to reveal`,
