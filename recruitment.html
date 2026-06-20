@@ -3264,7 +3264,7 @@
                 return 0;
             });
             container.innerHTML = accessibleJobs.map(job => `
-                <tr style="cursor: pointer; transition: background 0.2s ease;">
+                <tr data-id="${job.id}" style="cursor: pointer; transition: background 0.2s ease;">
                     <td class="clickable-name" onclick="openJobDetails('${job.id}')">${job.title}</td>
                     <td style="font-size: 0.75rem; color: var(--text-dim);">${formatDateTime8(job.createdAt)}</td>
                     <td>${job.applicants || 0}</td>
@@ -5687,6 +5687,864 @@
             b.style.cssText = 'position:fixed;top:12px;right:14px;z-index:9999;border:1px solid #cbd5e1;border-radius:999px;padding:6px 12px;font-size:0.75rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;box-shadow:0 1px 3px rgba(0,0,0,0.12);';
             document.body.appendChild(b);
             renderRecruitEngine();
+        })();
+    </script>
+
+    <!-- ══════════════════ AI Recruitment Assistant (DeepSeek) ══════════════════ -->
+    <style>
+        #rcLauncher {
+            position: fixed;
+            bottom: 28px;
+            right: 28px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: none;
+            background: var(--gradient);
+            color: #fff;
+            font-size: 1.5rem;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.6);
+            z-index: 9998;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        #rcLauncher:hover { transform: scale(1.08); box-shadow: 0 14px 30px -5px rgba(99, 102, 241, 0.75); }
+        #rcLauncher.open { transform: scale(0.9); opacity: 0; pointer-events: none; }
+
+        #rcChat {
+            position: fixed;
+            bottom: 28px;
+            right: 28px;
+            width: 420px;
+            max-width: calc(100vw - 32px);
+            height: 640px;
+            max-height: calc(100vh - 56px);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 9998;
+            animation: rcSlideUp 0.28s ease-out forwards;
+        }
+        #rcChat.open { display: flex; }
+        @keyframes rcSlideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+
+        .rc-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 18px 20px;
+            background: var(--gradient);
+            color: #fff;
+            flex-shrink: 0;
+        }
+        .rc-header .rc-avatar {
+            width: 40px; height: 40px; border-radius: 50%;
+            background: rgba(255, 255, 255, 0.18);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.15rem; flex-shrink: 0;
+        }
+        .rc-header h3 { font-family: 'Outfit', sans-serif; font-size: 1.05rem; font-weight: 700; line-height: 1.2; }
+        .rc-header .rc-sub { font-size: 0.72rem; opacity: 0.9; display: flex; align-items: center; gap: 5px; margin-top: 2px; }
+        .rc-header .rc-dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.25); }
+        .rc-header .rc-close {
+            margin-left: auto; background: rgba(255,255,255,0.15); border: none; color: #fff;
+            width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 0.95rem;
+            display: flex; align-items: center; justify-content: center; transition: background 0.2s;
+        }
+        .rc-header .rc-close:hover { background: rgba(255,255,255,0.3); }
+
+        #rcMessages {
+            flex: 1; overflow-y: auto; padding: 20px;
+            display: flex; flex-direction: column; gap: 14px;
+            background: radial-gradient(circle at 50% 0%, rgba(99,102,241,0.06) 0%, transparent 60%);
+        }
+        #rcMessages::-webkit-scrollbar { width: 6px; }
+        #rcMessages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+        .rc-msg { display: flex; max-width: 90%; }
+        .rc-msg.user { align-self: flex-end; }
+        .rc-msg.bot { align-self: flex-start; }
+        .rc-bubble {
+            padding: 12px 16px; border-radius: 16px; font-size: 0.9rem; line-height: 1.55;
+            overflow-wrap: anywhere; word-break: break-word;
+        }
+        .rc-msg.user .rc-bubble {
+            background: var(--gradient); color: #fff; border-bottom-right-radius: 4px;
+        }
+        .rc-msg.bot .rc-bubble {
+            background: var(--glass); color: var(--text-main); border: 1px solid var(--border);
+            border-bottom-left-radius: 4px;
+        }
+        .rc-bubble table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 0.8rem; }
+        .rc-bubble th { background: #0f172a; color: #f1f5f9; text-align: left; padding: 7px 9px; border: 1px solid var(--border); font-weight: 700; }
+        .rc-bubble td { padding: 7px 9px; border: 1px solid var(--border); color: var(--text-main); }
+        .rc-bubble ul, .rc-bubble ol { margin: 6px 0 6px 18px; }
+        .rc-bubble li { margin: 3px 0; }
+        .rc-bubble p { margin: 6px 0; }
+        .rc-bubble p:first-child { margin-top: 0; }
+        .rc-bubble p:last-child { margin-bottom: 0; }
+        .rc-bubble strong { color: #fff; }
+        .rc-bubble a { color: var(--primary-light); }
+        .rc-bubble code { background: rgba(0,0,0,0.3); padding: 1px 5px; border-radius: 5px; font-size: 0.82rem; }
+
+        #rcEmpty { text-align: center; color: var(--text-dim); margin: auto 0; padding: 10px; }
+        #rcEmpty .rc-emoji { font-size: 2.2rem; margin-bottom: 12px; }
+        #rcEmpty h4 { color: var(--text-main); font-family: 'Outfit', sans-serif; font-size: 1.1rem; margin-bottom: 6px; }
+        #rcEmpty p { font-size: 0.85rem; line-height: 1.5; margin-bottom: 18px; }
+        .rc-chips { display: flex; flex-direction: column; gap: 8px; }
+        .rc-chip {
+            background: var(--glass); border: 1px solid var(--border); color: var(--text-main);
+            padding: 10px 14px; border-radius: 12px; font-size: 0.82rem; cursor: pointer;
+            text-align: left; transition: all 0.18s; font-family: inherit;
+        }
+        .rc-chip:hover { border-color: var(--primary); background: rgba(99,102,241,0.12); }
+
+        .rc-typing .rc-bubble { display: flex; gap: 5px; align-items: center; padding: 14px 16px; }
+        .rc-typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); animation: rcBounce 1.2s infinite ease-in-out; }
+        .rc-typing span:nth-child(2) { animation-delay: 0.18s; }
+        .rc-typing span:nth-child(3) { animation-delay: 0.36s; }
+        @keyframes rcBounce { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
+
+        .rc-input-bar {
+            display: flex; align-items: flex-end; gap: 10px; padding: 14px 16px;
+            border-top: 1px solid var(--border); background: var(--bg-card); flex-shrink: 0;
+        }
+        .rc-input-bar textarea {
+            flex: 1; resize: none; border: 1px solid var(--border); background: var(--bg-dark);
+            color: var(--text-main); border-radius: 14px; padding: 11px 14px; font-family: inherit;
+            font-size: 0.9rem; outline: none; max-height: 120px; min-height: 44px; line-height: 1.4;
+        }
+        .rc-input-bar textarea:focus { border-color: var(--primary); }
+        .rc-input-bar textarea::placeholder { color: var(--text-dim); }
+        #rcSend {
+            width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--gradient);
+            color: #fff; cursor: pointer; font-size: 1rem; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center; transition: transform 0.15s, opacity 0.15s;
+        }
+        #rcSend:hover { transform: scale(1.06); }
+        #rcSend:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+        @media (max-width: 520px) {
+            #rcChat { bottom: 0; right: 0; width: 100vw; max-width: 100vw; height: 100vh; max-height: 100vh; border-radius: 0; }
+            #rcLauncher { bottom: 20px; right: 20px; }
+        }
+
+        /* Header action buttons (New chat / History / Close) */
+        .rc-header .rc-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+        .rc-header .rc-hbtn {
+            background: rgba(255,255,255,0.15); border: none; color: #fff;
+            width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 0.85rem;
+            display: flex; align-items: center; justify-content: center; transition: background 0.2s;
+        }
+        .rc-header .rc-hbtn:hover { background: rgba(255,255,255,0.32); }
+
+        /* Conversation history panel */
+        #rcHistory { position: absolute; inset: 0; background: var(--bg-card); z-index: 5; display: none; flex-direction: column; }
+        #rcHistory.open { display: flex; }
+        .rc-hist-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); font-weight: 700; color: var(--text-main); font-size: 0.9rem; }
+        .rc-icon-btn { background: var(--glass); border: 1px solid var(--border); color: var(--text-main); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; }
+        .rc-icon-btn:hover { border-color: var(--primary); }
+        .rc-hist-list { overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+        .rc-hist-item { display: flex; justify-content: space-between; gap: 10px; align-items: center; background: var(--glass); border: 1px solid var(--border); color: var(--text-main); padding: 12px 14px; border-radius: 12px; cursor: pointer; text-align: left; font-family: inherit; }
+        .rc-hist-item:hover { border-color: var(--primary); background: rgba(99,102,241,0.12); }
+        .rc-hist-title { font-size: 0.86rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .rc-hist-date { font-size: 0.72rem; color: var(--text-dim); flex-shrink: 0; }
+        .rc-hist-empty { padding: 36px 20px; text-align: center; color: var(--text-dim); font-size: 0.85rem; }
+
+        /* Attachment tray */
+        #rcAttachments { display: none; flex-wrap: wrap; gap: 6px; padding: 10px 16px 0; }
+        .rc-attach-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--glass); border: 1px solid var(--border); color: var(--text-main); padding: 5px 10px; border-radius: 20px; font-size: 0.75rem; }
+        .rc-attach-x { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 0.95rem; line-height: 1; padding: 0 0 0 2px; }
+        .rc-attach-x:hover { color: var(--accent); }
+        .rc-input-bar .rc-attach-btn { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--border); background: var(--glass); color: var(--text-dim); cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+        .rc-input-bar .rc-attach-btn:hover { color: var(--primary); border-color: var(--primary); }
+
+        /* Flash highlight when the assistant points at a row in the main UI */
+        @keyframes rcFlash { 0% { background: rgba(99,102,241,0.5); } 100% { background: transparent; } }
+        tr.rc-flash > td { animation: rcFlash 2.2s ease-out; }
+    </style>
+
+    <button id="rcLauncher" title="Ask the AI Recruitment Assistant" aria-label="Open AI assistant">
+        <i class="fas fa-robot"></i>
+    </button>
+
+    <div id="rcChat" role="dialog" aria-label="AI Recruitment Assistant">
+        <div class="rc-header">
+            <div class="rc-avatar"><i class="fas fa-robot"></i></div>
+            <div>
+                <h3>Recruitment Assistant</h3>
+                <div class="rc-sub"><span class="rc-dot"></span> Powered by DeepSeek</div>
+            </div>
+            <div class="rc-actions">
+                <button class="rc-hbtn" id="rcNewChat" title="New conversation" aria-label="New conversation"><i class="fas fa-plus"></i></button>
+                <button class="rc-hbtn" id="rcHistoryBtn" title="Chat history (last 30 days)" aria-label="Chat history"><i class="fas fa-clock-rotate-left"></i></button>
+                <button class="rc-hbtn" id="rcClose" title="Close" aria-label="Close" style="font-size:1.15rem;">&times;</button>
+            </div>
+        </div>
+        <div id="rcMessages"></div>
+        <div id="rcHistory"></div>
+        <div id="rcAttachments"></div>
+        <div class="rc-input-bar">
+            <input type="file" id="rcFile" multiple style="display:none;" accept=".pdf,.doc,.docx,.txt,.csv,.md,.json,.rtf,image/*">
+            <button id="rcAttachBtn" class="rc-attach-btn" title="Attach a file (CV, JD, notes…)" aria-label="Attach file"><i class="fas fa-paperclip"></i></button>
+            <textarea id="rcInput" rows="1" placeholder="Ask about jobs or candidates…"></textarea>
+            <button id="rcSend" title="Send" aria-label="Send"><i class="fas fa-paper-plane"></i></button>
+        </div>
+    </div>
+
+    <script>
+        // ── AI Recruitment Assistant (DeepSeek via content-generator Lambda) ──────
+        (function () {
+            const RC_LAMBDA = 'https://panc0eazwj.execute-api.ap-southeast-1.amazonaws.com/content-generator';
+            const RC_STORE_KEY = 'rcChats_v1';
+            const RC_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;   // keep history for 30 days
+            let rcConv = null;            // current conversation { id, title, createdAt, updatedAt, messages:[{role,content}] }
+            let rcConvKey = null;         // which user the current conversation belongs to
+            let rcAttachments = [];       // files staged for the next message
+            let rcBusy = false;
+
+            const $ = id => document.getElementById(id);
+            const rcEsc = s => String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            const rcStripHtml = s => String(s || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+            const trunc = (s, n) => { s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n) + '…' : s; };
+            const rcUID = () => 'c_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+            // ── Per-user conversation persistence (localStorage, 30-day retention) ──
+            function rcUserKey() {
+                return String(state.currentUser || localStorage.getItem('googleUserEmail') || state.loggedUserId || 'guest');
+            }
+            function rcLoadStore() {
+                let store = {};
+                try { store = JSON.parse(localStorage.getItem(RC_STORE_KEY) || '{}') || {}; } catch (e) { store = {}; }
+                const now = Date.now();
+                Object.keys(store).forEach(k => {
+                    const u = store[k];
+                    if (!u || !Array.isArray(u.conversations)) { store[k] = { conversations: [] }; return; }
+                    u.conversations = u.conversations
+                        .filter(c => c && c.messages && c.messages.length && (now - (c.updatedAt || c.createdAt || 0)) < RC_RETENTION_MS)
+                        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+                        .slice(0, 40);
+                });
+                return store;
+            }
+            function rcSaveStore(store) {
+                try { localStorage.setItem(RC_STORE_KEY, JSON.stringify(store)); }
+                catch (e) { console.warn('[rc] could not save chat history (storage full?)', e); }
+            }
+            function rcNewConv() { return { id: rcUID(), title: 'New conversation', createdAt: Date.now(), updatedAt: Date.now(), messages: [] }; }
+            function rcPersist() {
+                if (!rcConv || !rcConv.messages.length) return;
+                const store = rcLoadStore();
+                const key = rcUserKey();
+                if (!store[key]) store[key] = { conversations: [] };
+                rcConv.updatedAt = Date.now();
+                const arr = store[key].conversations;
+                const toStore = { ...rcConv, messages: rcConv.messages.slice(-100) };
+                const i = arr.findIndex(c => c.id === rcConv.id);
+                if (i !== -1) arr[i] = toStore; else arr.unshift(toStore);
+                rcSaveStore(store);
+            }
+
+            function rcSanitize(html) {
+                return String(html)
+                    .replace(/```html|```/g, '')
+                    .replace(/<\s*(script|style|iframe|object|embed|link|meta|form)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
+                    .replace(/<\s*(script|style|iframe|object|embed|link|meta|form)[^>]*\/?>/gi, '')
+                    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+                    .replace(/javascript:/gi, '');
+            }
+
+            // Shared accessors that respect the app's role-based access control.
+            function rcAccessibleJobs() {
+                try { const j = (typeof getAccessibleJobs === 'function') ? getAccessibleJobs() : (state.jobs || []); return Array.isArray(j) ? j : []; }
+                catch (e) { return state.jobs || []; }
+            }
+            function rcAccessibleCands() {
+                let cands;
+                try { cands = (typeof getAccessibleCandidates === 'function') ? getAccessibleCandidates() : (state.candidates || []); }
+                catch (e) { cands = state.candidates || []; }
+                return (cands || []).filter(c => c && !c.isDeleted && !c.deleted);
+            }
+            function rcJobTitle(id) {
+                const j = rcAccessibleJobs().find(j => String(j.id) === String(id));
+                if (j) return j.title;
+                const j2 = (state.jobs || []).find(j => String(j.id) === String(id));
+                return j2 ? j2.title : 'Unknown';
+            }
+            // The candidate whose detail modal is currently open on screen (or null).
+            function rcOpenCandidate() {
+                const dm = document.getElementById('detailModal');
+                if (dm && getComputedStyle(dm).display !== 'none' && state.viewingCandidateId) {
+                    return (state.candidates || []).find(c => String(c.id) === String(state.viewingCandidateId)) || null;
+                }
+                return null;
+            }
+            // Describe what the user is looking at right now (section / open job / open candidate).
+            function rcCurrentView() {
+                const lines = [];
+                const nav = document.querySelector('.nav-item.active');
+                lines.push('Active section: ' + (nav ? nav.textContent.replace(/\s+/g, ' ').trim() : 'Dashboard'));
+                if (state.activeJobId) {
+                    const j = (state.jobs || []).find(j => String(j.id) === String(state.activeJobId));
+                    if (j) lines.push('Open job: "' + j.title + '" — the candidate list on screen is filtered to this role.');
+                }
+                const openC = rcOpenCandidate();
+                if (openC) lines.push('Open candidate detail: "' + (openC.name || 'Unknown') + '" (applied for ' + rcJobTitle(openC.jobId) + ').');
+                return lines.join('\n');
+            }
+
+            // ── CV access ─────────────────────────────────────────────────────────
+            // Pull a candidate's full CV text, fetching from the server if not cached.
+            async function rcFetchCV(cand) {
+                if (!cand) return '';
+                if (cand.fullText) return cand.fullText;
+                try {
+                    const full = await persistenceApiCall('get_candidate_detail', { id: cand.id }, true);
+                    if (full) {
+                        const idx = state.candidates.findIndex(x => String(x.id) === String(cand.id));
+                        if (idx !== -1) state.candidates[idx] = { ...state.candidates[idx], ...full };
+                        else state.candidates.push(full);
+                        if (full.fullText) return full.fullText;
+                        if (full.cvData) return '[CV is a scanned image/PDF with no machine-readable text.]';
+                    }
+                } catch (e) { /* ignore — answer with what we have */ }
+                return '';
+            }
+            function rcResolveCandidate(ref) {
+                const cands = rcAccessibleCands();
+                const r = String(ref == null ? '' : ref).trim().toLowerCase();
+                if (!r) return null;
+                return cands.find(c => String(c.id).toLowerCase() === r)
+                    || cands.find(c => (c.name || '').toLowerCase() === r)
+                    || cands.find(c => (c.name || '').toLowerCase().includes(r))
+                    || null;
+            }
+            async function rcGatherCVs(refs) {
+                const seen = new Set(); const picked = [];
+                for (const ref of refs) {
+                    const c = rcResolveCandidate(ref);
+                    if (c && !seen.has(String(c.id))) { seen.add(String(c.id)); picked.push(c); }
+                    if (picked.length >= 6) break;
+                }
+                if (!picked.length) return '(No matching candidate CVs were found for: ' + refs.join(', ') + '.)';
+                let block = ''; let used = 0; const MAX = 30000;
+                for (const c of picked) {
+                    let cv = trunc(await rcFetchCV(c), 6000);
+                    if (used + cv.length > MAX) cv = cv.slice(0, Math.max(0, MAX - used));
+                    used += cv.length;
+                    block += '\n--- CV: ' + (c.name || 'Unknown') + ' (applied for ' + rcJobTitle(c.jobId) + ') ---\n' + (cv || '[No CV text available.]') + '\n';
+                    if (used >= MAX) break;
+                }
+                return block;
+            }
+            // Detect a {"need_cv":[...]} signal the model emits when it needs full CV text.
+            function rcParseNeedCv(reply) {
+                if (!reply) return null;
+                const txt = String(reply).replace(/<[^>]*>/g, ' ');
+                const m = txt.match(/\{[^{}]*"need_cv"[^{}]*\}/i);
+                if (!m) return null;
+                try {
+                    const obj = JSON.parse(m[0]);
+                    if (obj && Array.isArray(obj.need_cv) && obj.need_cv.length) return obj.need_cv.map(String).slice(0, 6);
+                } catch (e) {
+                    const arr = m[0].match(/"([^"]+)"/g);
+                    if (arr) { const vals = arr.map(s => s.replace(/"/g, '')).filter(v => v.toLowerCase() !== 'need_cv'); if (vals.length) return vals.slice(0, 6); }
+                }
+                return null;
+            }
+
+            // Build a compact, live snapshot of jobs + accessible candidates for the model.
+            function rcBuildContext() {
+                const jobs = rcAccessibleJobs();
+                const cands = rcAccessibleCands();
+
+                let out = '### JOB POSITIONS (' + jobs.length + ')\n';
+                if (!jobs.length) out += '(none yet)\n';
+                jobs.forEach((j, i) => {
+                    out += '\n[Job ' + (i + 1) + '] ' + (j.title || 'Untitled') + ' (id: ' + j.id + ')' +
+                        ' — status: ' + (j.status || '?') +
+                        '; applicants: ' + (j.applicants != null ? j.applicants : '?') +
+                        '; shortlisted: ' + (j.shortlisted != null ? j.shortlisted : '?') + '\n';
+                    if (j.desc) out += '  Description: ' + trunc(j.desc, 400) + '\n';
+                    if (j.kpi) out += '  KPIs/Responsibilities: ' + trunc(j.kpi, 280) + '\n';
+                    if (Array.isArray(j.evaluationCriteria) && j.evaluationCriteria.length) {
+                        out += '  Evaluation criteria: ' + j.evaluationCriteria
+                            .map(c => (c.text || c) + (c.weight ? ' (' + c.weight + '%)' : '')).join('; ') + '\n';
+                    }
+                });
+
+                const sorted = cands.slice().sort((a, b) => (b.aiScore || 0) - (a.aiScore || 0));
+                const CAP = 200;
+                const shown = sorted.slice(0, CAP);
+                out += '\n### CANDIDATES (showing ' + shown.length + ' of ' + cands.length + ', sorted by AI score)\n';
+                if (!cands.length) out += '(none yet)\n';
+                shown.forEach(c => {
+                    const parts = ['AI ' + (c.aiScore != null ? c.aiScore : '-')];
+                    if (c.interviewerScore) parts.push('Interviewer ' + c.interviewerScore + '%');
+                    parts.push('status ' + (c.status || '-'));
+                    if (c.pendingBy) parts.push('assignee ' + c.pendingBy);
+                    if (c.isHopper) parts.push('JOB HOPPER');
+                    if (c.bestFit && c.bestFit.jobTitle && (c.bestFit.score > (c.aiScore || 0)))
+                        parts.push('better fit: ' + c.bestFit.jobTitle + ' ' + c.bestFit.score + '%');
+                    out += '\n• ' + (c.name || 'Unknown') + ' (id: ' + c.id + ') — applied for: ' + rcJobTitle(c.jobId) + ' — ' + parts.join(', ');
+                    if (c.email) out += '; email ' + c.email;
+                    if (c.summary) out += '\n  Summary: ' + trunc(c.summary, 200);
+                });
+
+                const MAX = 42000;
+                if (out.length > MAX) out = out.slice(0, MAX) + '\n…[data truncated to fit]';
+                return out;
+            }
+
+            function rcBuildPrompt(userMsg, opts) {
+                opts = opts || {};
+                const ctx = rcBuildContext();
+                const view = rcCurrentView();
+                const msgs = (rcConv && rcConv.messages) ? rcConv.messages : [];
+                const prior = msgs.slice(0, -1).slice(-8);   // exclude the just-added current user message
+                const hist = prior
+                    .map(m => (m.role === 'user' ? 'User' : 'Assistant') + ': ' + (m.role === 'user' ? m.content : rcStripHtml(m.content)))
+                    .join('\n');
+                const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+                // Auto-include the full CV of the candidate the user currently has open.
+                let autoCv = '';
+                const openC = rcOpenCandidate();
+                if (openC && openC.fullText) {
+                    autoCv = '\n===== FULL CV OF THE OPEN CANDIDATE: ' + (openC.name || 'Unknown') + ' =====\n'
+                        + trunc(openC.fullText, 6000) + '\n===== END CV =====\n';
+                }
+
+                // User-attached files for this turn (text extracted client-side).
+                let attachBlock = '';
+                const atts = opts.attachments || [];
+                if (atts.length) {
+                    attachBlock = '\n===== FILES ATTACHED BY THE USER FOR THIS QUESTION =====\n'
+                        + atts.map(a => a.isImage
+                            ? ('[Image "' + a.name + '" — cannot be read as text.]')
+                            : ('--- ' + a.name + ' ---\n' + (a.text || '[no extractable text]'))).join('\n\n')
+                        + '\n===== END ATTACHED FILES =====\n';
+                }
+
+                const lines = [
+                    'You are a helpful AI recruitment assistant embedded in an applicant-tracking dashboard.',
+                    'Answer questions about the JOB POSITIONS and CANDIDATES strictly using the data provided.',
+                    'Be concise and specific. When listing or comparing multiple jobs/candidates, use a compact HTML <table>. Use <strong> for key figures and short <ul> lists where helpful.',
+                    'Scores are 0–100: "AI" is the AI match score, "Interviewer" is the human interviewer score.',
+                    'Never invent candidates, jobs, scores, CV contents or contact details. If the answer is not in the data, say you do not have that information.',
+                    '',
+                    '===== CURRENT VIEW (what the user is looking at right now) =====',
+                    view,
+                    'When the user says "this job", "this role", "this candidate", "here", "current" or similar, they refer to the items in CURRENT VIEW above.',
+                    '===== END CURRENT VIEW =====',
+                    '',
+                    '===== DATA (live snapshot, ' + today + ') =====',
+                    ctx,
+                    '===== END DATA =====',
+                    autoCv,
+                    attachBlock
+                ];
+
+                if (opts.cvBlock) {
+                    lines.push(
+                        '===== REQUESTED CV TEXT =====',
+                        opts.cvBlock,
+                        '===== END REQUESTED CV TEXT =====',
+                        'Use the CV text above to answer. Do NOT ask for more CVs — answer the question directly now.'
+                    );
+                } else {
+                    lines.push(
+                        'The DATA lists candidate summaries but NOT their full CV text (only the open candidate\'s CV, if any, is included above).',
+                        'If — and only if — answering requires reading the full CV(s) of specific candidate(s) not already provided, do NOT answer yet. Instead reply with ONLY this JSON and nothing else: {"need_cv": ["candidate name", ...]} listing the candidate name(s) whose CV you need. Otherwise, answer normally.'
+                    );
+                }
+
+                // UI control + job creation protocol.
+                lines.push(
+                    '',
+                    'You can also drive the dashboard. When the user wants to open, show, go to, or highlight a specific job or candidate — or to create a new job — append exactly ONE directive on its OWN line at the very end of your reply, in this exact format (valid JSON): [[RC_ACTION:{...}]]. Use the exact id values from the DATA. Supported directives:',
+                    '• Open a candidate\'s full detail: [[RC_ACTION:{"type":"open_candidate","id":"<id>"}]]',
+                    '• Highlight a candidate in the list: [[RC_ACTION:{"type":"highlight_candidate","id":"<id>"}]]',
+                    '• Open/manage a job (shows its candidates): [[RC_ACTION:{"type":"open_job","id":"<id>"}]]',
+                    '• Highlight a job in the list: [[RC_ACTION:{"type":"highlight_job","id":"<id>"}]]',
+                    '• Switch section: [[RC_ACTION:{"type":"show_section","section":"dashboard|jobs|candidates|users|settings|activity"}]]',
+                    '• Create a job (ONLY when the user explicitly asks to create/add a job): [[RC_ACTION:{"type":"create_job","title":"...","desc":"...","kpi":"...","status":"Open"}]] — write a clear job description and KPIs from the user\'s request; the user will be asked to confirm before it is saved.',
+                    'Only include a directive when navigation, highlighting, or job creation is clearly intended. Write a normal sentence telling the user what you are doing (e.g. "Opening Alice Tan\'s profile…"), then put the directive line last. The directive itself is parsed out and never shown.'
+                );
+
+                lines.push('', hist ? ('Conversation so far:\n' + hist + '\n') : '', 'User: ' + userMsg, '', 'Write your reply now.');
+                return lines.join('\n');
+            }
+
+            function rcRenderEmpty() {
+                const list = $('rcMessages');
+                if (!list) return;
+                const chips = [];
+                const openC = rcOpenCandidate();
+                const activeJob = state.activeJobId ? (state.jobs || []).find(j => String(j.id) === String(state.activeJobId)) : null;
+                if (openC) {
+                    chips.push('Summarise ' + (openC.name || 'this candidate') + '’s CV');
+                    chips.push('What are ' + (openC.name || 'this candidate') + '’s strengths and gaps for this role?');
+                }
+                if (activeJob) chips.push('Compare the top candidates for ' + activeJob.title);
+                chips.push('Which positions are currently open?');
+                chips.push('Who are the top 5 candidates by AI score?');
+                chips.push('Are there any job hoppers I should review?');
+                const openJob = activeJob || (Array.isArray(state.jobs) ? state.jobs : []).find(j => (j.status || '').toLowerCase() === 'open');
+                if (!activeJob && openJob) chips.push('Summarise the candidates for ' + openJob.title);
+                list.innerHTML =
+                    '<div id="rcEmpty">' +
+                    '<div class="rc-emoji">🤖</div>' +
+                    '<h4>Hi! I\'m your recruitment assistant.</h4>' +
+                    '<p>Ask me anything about your open roles and the candidates in your pipeline.</p>' +
+                    '<div class="rc-chips">' +
+                    chips.map(c => '<button class="rc-chip" type="button">' + rcEsc(c) + '</button>').join('') +
+                    '</div></div>';
+                list.querySelectorAll('.rc-chip').forEach(btn =>
+                    btn.addEventListener('click', () => { rcSend(btn.textContent); }));
+            }
+
+            // Render a message bubble (no persistence — used for restoring history too).
+            function rcRenderMsg(role, content) {
+                const list = $('rcMessages');
+                if (!list) return;
+                const empty = $('rcEmpty');
+                if (empty) empty.remove();
+                const div = document.createElement('div');
+                div.className = 'rc-msg ' + role;
+                let html;
+                if (role === 'user') html = rcEsc(content).replace(/\n/g, '<br>');
+                else html = /<[a-z][\s\S]*>/i.test(content) ? rcSanitize(content) : rcEsc(content).replace(/\n/g, '<br>');
+                div.innerHTML = '<div class="rc-bubble">' + html + '</div>';
+                list.appendChild(div);
+                list.scrollTop = list.scrollHeight;
+                return div;
+            }
+            // Render + record into the current conversation + persist.
+            function rcAddMsg(role, content) {
+                rcRenderMsg(role, content);
+                if (!rcConv) rcConv = rcNewConv();
+                if (role === 'user' && (!rcConv.messages.length || rcConv.title === 'New conversation')) {
+                    rcConv.title = trunc(rcStripHtml(content), 40) || 'Conversation';
+                }
+                rcConv.messages.push({ role: role, content: content });
+                rcPersist();
+            }
+
+            function rcSetTyping(on, label) {
+                let t = $('rcTyping');
+                if (on) {
+                    if (!t) {
+                        const list = $('rcMessages');
+                        t = document.createElement('div');
+                        t.id = 'rcTyping';
+                        t.className = 'rc-msg bot rc-typing';
+                        t.innerHTML = '<div class="rc-bubble"><span></span><span></span><span></span>' +
+                            '<em class="rc-typing-label" style="font-style:normal;color:var(--text-dim);font-size:0.8rem;"></em></div>';
+                        list.appendChild(t);
+                        list.scrollTop = list.scrollHeight;
+                    }
+                    const lbl = t.querySelector('.rc-typing-label');
+                    if (lbl) lbl.textContent = label || '';
+                } else if (t) {
+                    t.remove();
+                }
+            }
+
+            // Single call to the DeepSeek-backed content-generator Lambda.
+            async function rcCallLambda(prompt) {
+                const res = await fetch(RC_LAMBDA, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        content_type: 'blog-post',      // makes the Lambda append a "clean HTML output" instruction (aligns with our HTML-table request)
+                        action: 'generate',
+                        provider: 'deepseek'
+                    })
+                });
+                let raw = await res.text();
+                let content;
+                try { const j = JSON.parse(raw); content = (j && typeof j === 'object') ? (j.body || j.result || j.reply || raw) : String(j); }
+                catch (_) { content = raw; }
+                content = (content || '').trim();
+                if (!res.ok || !content || /^Error:/i.test(content)) throw new Error(content || ('Request failed (HTTP ' + res.status + ')'));
+                return content;
+            }
+
+            async function rcSend(forcedText) {
+                const ta = $('rcInput');
+                const text = (forcedText != null ? forcedText : (ta ? ta.value : '')).trim();
+                const hasAtt = rcAttachments.length > 0;
+                if ((!text && !hasAtt) || rcBusy) return;
+                rcEnsureConv();
+
+                const attNames = rcAttachments.map(a => a.name);
+                const userDisplay = (text || '(see attached file)') + (attNames.length ? ('\n\n📎 ' + attNames.join(', ')) : '');
+                rcAddMsg('user', userDisplay);
+                if (ta) { ta.value = ''; ta.style.height = 'auto'; }
+
+                // Snapshot the attachments for this turn, then clear the tray.
+                const sendAtts = rcAttachments.slice();
+                rcAttachments = [];
+                rcRenderAttachments();
+
+                rcBusy = true;
+                if ($('rcSend')) $('rcSend').disabled = true;
+                rcSetTyping(true);
+
+                try {
+                    let reply = await rcCallLambda(rcBuildPrompt(text, { attachments: sendAtts }));
+
+                    // Two-pass: if the model asked for full CV(s), fetch them and answer again.
+                    const need = rcParseNeedCv(reply);
+                    if (need && need.length) {
+                        rcSetTyping(true, 'Reading CV' + (need.length > 1 ? 's' : '') + '…');
+                        const cvBlock = await rcGatherCVs(need);
+                        reply = await rcCallLambda(rcBuildPrompt(text, { cvBlock: cvBlock, attachments: sendAtts }));
+                    }
+
+                    const parsed = rcExtractActions(reply);
+                    rcSetTyping(false);
+                    rcAddMsg('bot', parsed.clean || '(no answer)');
+                    if (parsed.actions.length) rcRunActions(parsed.actions);
+                } catch (e) {
+                    rcSetTyping(false);
+                    rcAddMsg('bot', '<span style="color:var(--accent)"><i class="fas fa-triangle-exclamation"></i> Sorry, I couldn\'t answer that — ' + rcEsc((e && e.message) || 'request failed') + '. Please try again.</span>');
+                } finally {
+                    rcBusy = false;
+                    if ($('rcSend')) $('rcSend').disabled = false;
+                    if ($('rcInput')) $('rcInput').focus();
+                }
+            }
+
+            // ── File attachments (text extracted client-side via the page's pdf/docx libs) ──
+            function rcRenderAttachments() {
+                const bar = $('rcAttachments');
+                if (!bar) return;
+                if (!rcAttachments.length) { bar.innerHTML = ''; bar.style.display = 'none'; return; }
+                bar.style.display = 'flex';
+                bar.innerHTML = rcAttachments.map((a, i) => {
+                    const icon = a.loading ? 'fa-spinner fa-spin' : (a.isImage ? 'fa-image' : (a.error ? 'fa-triangle-exclamation' : 'fa-file-lines'));
+                    return '<span class="rc-attach-chip"><i class="fas ' + icon + '"></i> ' + rcEsc(trunc(a.name, 26)) +
+                        '<button class="rc-attach-x" data-i="' + i + '" title="Remove">&times;</button></span>';
+                }).join('');
+                bar.querySelectorAll('.rc-attach-x').forEach(b => b.onclick = () => { rcAttachments.splice(+b.dataset.i, 1); rcRenderAttachments(); });
+            }
+            function rcOnFiles(input) {
+                const files = Array.from(input.files || []);
+                input.value = '';
+                files.forEach(async (f) => {
+                    const att = { name: f.name, type: f.type, text: '', loading: true };
+                    rcAttachments.push(att);
+                    rcRenderAttachments();
+                    try {
+                        const ext = (f.name.split('.').pop() || '').toLowerCase();
+                        if ((f.type || '').startsWith('image/')) {
+                            att.isImage = true;
+                        } else if (['pdf', 'docx', 'txt', 'csv', 'md', 'json', 'rtf'].includes(ext) || (f.type || '').startsWith('text')) {
+                            att.text = trunc(await extractText({ name: f.name, blob: f }), 12000);
+                        } else {
+                            att.text = trunc(await f.text(), 12000);
+                        }
+                    } catch (e) { att.error = true; }
+                    att.loading = false;
+                    rcRenderAttachments();
+                });
+            }
+
+            // ── UI actions the assistant can trigger ([[RC_ACTION:{...}]]) ──────────
+            function rcExtractActions(reply) {
+                const actions = [];
+                const clean = String(reply || '').replace(/\[\[RC_ACTION:(\{[\s\S]*?\})\]\]/g, function (_, json) {
+                    try { actions.push(JSON.parse(json)); } catch (e) { /* ignore malformed */ }
+                    return '';
+                });
+                return { clean: clean.trim(), actions: actions };
+            }
+            function rcFlashRow(bodyId, id) {
+                const body = document.getElementById(bodyId);
+                if (!body || id == null) return false;
+                const row = body.querySelector('tr[data-id="' + (window.CSS && CSS.escape ? CSS.escape(String(id)) : String(id)) + '"]');
+                if (row) {
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    row.classList.remove('rc-flash'); void row.offsetWidth; row.classList.add('rc-flash');
+                    return true;
+                }
+                return false;
+            }
+            async function rcHighlightCandidate(id) {
+                if (rcFlashRow('candidateBody', id) || rcFlashRow('repoBody', id)) return;
+                if (typeof showCandidates === 'function') {
+                    await showCandidates();
+                    await new Promise(r => setTimeout(r, 450));
+                    if (rcFlashRow('repoBody', id) || rcFlashRow('candidateBody', id)) return;
+                }
+                if (typeof viewCandidate === 'function') viewCandidate(id);
+            }
+            async function rcRunActions(actions) {
+                for (const a of actions) { try { await rcRunAction(a); } catch (e) { console.warn('[rc] action failed', a, e); } }
+            }
+            async function rcRunAction(a) {
+                if (!a || !a.type) return;
+                const sectionFn = { dashboard: 'showDashboard', jobs: 'showJobs', candidates: 'showCandidates', users: 'showUsers', settings: 'showSettings', activity: 'showAuditLogs' };
+                switch (a.type) {
+                    case 'show_section': if (a.section && typeof window[sectionFn[a.section]] === 'function') window[sectionFn[a.section]](); break;
+                    case 'open_job': if (a.id && typeof openJobDetails === 'function') await openJobDetails(a.id); break;
+                    case 'highlight_job': if (typeof showJobs === 'function') { showJobs(); setTimeout(() => rcFlashRow('jobListBody', a.id), 250); } break;
+                    case 'open_candidate': if (a.id && typeof viewCandidate === 'function') await viewCandidate(a.id); break;
+                    case 'highlight_candidate': await rcHighlightCandidate(a.id); break;
+                    case 'create_job': await rcCreateJob(a); break;
+                }
+            }
+            async function rcCreateJob(a) {
+                const title = String(a.title || '').trim();
+                if (!title) { rcAddMsg('bot', '<span style="color:var(--accent)">I need at least a job title to create a position.</span>'); return; }
+                const summary = 'Create this job?\n\nTitle: ' + title + '\nStatus: ' + (a.status === 'Closed' ? 'Closed' : 'Open') +
+                    '\n\nDescription:\n' + (a.desc || '(none)') + (a.kpi ? ('\n\nKPIs / Responsibilities:\n' + a.kpi) : '');
+                if (!confirm(summary)) { rcAddMsg('bot', 'No problem — I didn’t create the job.'); return; }
+                const beforeIds = new Set((state.jobs || []).map(j => String(j.id)));
+                const jobData = {
+                    title: title,
+                    jobUrl: a.jobUrl || '',
+                    desc: a.desc || '',
+                    kpi: a.kpi || '',
+                    evaluationCriteria: Array.isArray(a.evaluationCriteria) ? a.evaluationCriteria : [],
+                    interviewQuestions: Array.isArray(a.interviewQuestions) ? a.interviewQuestions : [],
+                    status: a.status === 'Closed' ? 'Closed' : 'Open',
+                    applicants: 0,
+                    shortlisted: 0
+                };
+                const result = await persistenceApiCall('upsert_job', jobData);
+                if (result && result.success) {
+                    const jobs = await persistenceApiCall('get_jobs');
+                    if (Array.isArray(jobs)) state.jobs = jobs;
+                    if (typeof renderJobs === 'function') renderJobs();
+                    const created = (state.jobs || []).find(j => !beforeIds.has(String(j.id)) && j.title === title)
+                        || (state.jobs || []).find(j => j.title === title);
+                    rcAddMsg('bot', '✅ Created the job <strong>' + rcEsc(title) + '</strong> and opened the Jobs section.');
+                    if (typeof showJobs === 'function') { showJobs(); if (created) setTimeout(() => rcFlashRow('jobListBody', created.id), 350); }
+                } else {
+                    rcAddMsg('bot', '<span style="color:var(--accent)">Sorry, I couldn’t create the job — the server rejected the request (you may not have permission, or there was a connection issue).</span>');
+                }
+            }
+
+            function rcRenderMessages() {
+                const list = $('rcMessages');
+                if (!list) return;
+                list.innerHTML = '';
+                if (rcConv && rcConv.messages && rcConv.messages.length) rcConv.messages.forEach(m => rcRenderMsg(m.role, m.content));
+                else rcRenderEmpty();
+                list.dataset.rendered = '1';
+                list.scrollTop = list.scrollHeight;
+            }
+            function rcStartNew() {
+                rcPersist();
+                rcConvKey = rcUserKey();
+                rcConv = rcNewConv();
+                rcHideHistory();
+                rcRenderMessages();
+                const ta = $('rcInput'); if (ta) ta.focus();
+            }
+            function rcOpenConversation(id) {
+                const u = rcLoadStore()[rcUserKey()];
+                if (!u) return;
+                const c = u.conversations.find(x => x.id === id);
+                if (!c) return;
+                rcPersist();
+                rcConvKey = rcUserKey();
+                rcConv = { ...c, messages: (c.messages || []).slice() };
+                rcHideHistory();
+                rcRenderMessages();
+            }
+            function rcRenderHistory() {
+                const panel = $('rcHistory');
+                if (!panel) return;
+                const u = rcLoadStore()[rcUserKey()] || { conversations: [] };
+                let html = '<div class="rc-hist-head"><span>Recent chats · last 30 days</span><button id="rcHistClose" class="rc-icon-btn" title="Back"><i class="fas fa-xmark"></i></button></div>';
+                if (!u.conversations.length) {
+                    html += '<div class="rc-hist-empty">No saved conversations yet.</div>';
+                } else {
+                    html += '<div class="rc-hist-list">' + u.conversations.map(c => {
+                        const d = new Date(c.updatedAt || c.createdAt);
+                        return '<button class="rc-hist-item" data-id="' + c.id + '"><span class="rc-hist-title">' + rcEsc(c.title || 'Conversation') + '</span><span class="rc-hist-date">' + d.toLocaleDateString() + '</span></button>';
+                    }).join('') + '</div>';
+                }
+                panel.innerHTML = html;
+                panel.classList.add('open');
+                panel.querySelector('#rcHistClose').onclick = rcHideHistory;
+                panel.querySelectorAll('.rc-hist-item').forEach(b => b.onclick = () => rcOpenConversation(b.dataset.id));
+            }
+            function rcHideHistory() { const p = $('rcHistory'); if (p) p.classList.remove('open'); }
+
+            // Resolve the active conversation for the *current* user (login happens after init),
+            // resuming their most recent thread within the 30-day window.
+            function rcEnsureConv() {
+                const key = rcUserKey();
+                if (rcConv && rcConvKey === key) return;
+                rcConvKey = key;
+                let resumed = null;
+                try {
+                    const u = rcLoadStore()[key];
+                    if (u && u.conversations && u.conversations.length) {
+                        resumed = { ...u.conversations[0], messages: (u.conversations[0].messages || []).slice() };
+                    }
+                } catch (e) { /* ignore */ }
+                rcConv = resumed || rcNewConv();
+                const list = $('rcMessages'); if (list) delete list.dataset.rendered;
+            }
+
+            function rcOpen() {
+                rcEnsureConv();
+                $('rcChat').classList.add('open');
+                $('rcLauncher').classList.add('open');
+                const list = $('rcMessages');
+                if (list && !list.dataset.rendered) rcRenderMessages();
+                setTimeout(() => { const ta = $('rcInput'); if (ta) ta.focus(); }, 80);
+            }
+            function rcClose() {
+                rcHideHistory();
+                $('rcChat').classList.remove('open');
+                $('rcLauncher').classList.remove('open');
+            }
+
+            function rcInit() {
+                const launcher = $('rcLauncher');
+                if (!launcher) return;
+                launcher.style.display = 'flex';   // visible once the user is in the app
+
+                // The active conversation is resolved lazily on first open (rcEnsureConv),
+                // after login, so history is keyed to the correct user.
+
+                launcher.addEventListener('click', rcOpen);
+                $('rcClose').addEventListener('click', rcClose);
+                $('rcNewChat').addEventListener('click', rcStartNew);
+                $('rcHistoryBtn').addEventListener('click', rcRenderHistory);
+                $('rcSend').addEventListener('click', () => rcSend());
+                $('rcAttachBtn').addEventListener('click', () => $('rcFile').click());
+                $('rcFile').addEventListener('change', function () { rcOnFiles(this); });
+
+                const ta = $('rcInput');
+                ta.addEventListener('input', function () {
+                    this.style.height = 'auto';
+                    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+                });
+                ta.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); rcSend(); }
+                });
+            }
+
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', rcInit);
+            else rcInit();
         })();
     </script>
 </body>
