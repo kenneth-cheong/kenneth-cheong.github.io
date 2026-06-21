@@ -96,6 +96,64 @@
 
     window.DMError = { report: report };
 
+    // ── Global fetch wrapper: auto-report failures from ALL tool endpoints ──
+    // Covers every standalone tool on the page (each calls its own Lambda) plus
+    // any monday action — without per-call wiring. Only inspects our own API
+    // hosts; the chatbot chat path and the reporter itself are skipped (the chat
+    // path is reported explicitly + server-side, and self-calls would loop).
+    var API_HOST_RE = /amazonaws\.com/i;
+    var BODY_MAX = 200000; // don't buffer/parse responses larger than this
+    var realFetch = window.fetch ? window.fetch.bind(window) : null;
+    if (realFetch) {
+        window.fetch = function (input, init) {
+            var url = (typeof input === 'string') ? input : ((input && input.url) || '');
+            var body = (init && init.body) || (input && input.body) || '';
+            var action = '';
+            try { if (typeof body === 'string' && body.charAt(0) === '{') action = JSON.parse(body).action || ''; } catch (e) { }
+            // function label = endpoint path tail (+ action), e.g. fetch:dataforseoCrawler / fetch:monday:get_insights
+            var label = 'fetch:' + ((url.split('?')[0].split('/').pop()) || 'api') + (action ? ':' + action : '');
+            // Skip non-API hosts, the reporter's own call, and the chat path (handled elsewhere).
+            var skip = !API_HOST_RE.test(url) || action === 'report_error' || action === 'claude_chat_with_tools';
+
+            return realFetch(input, init).then(function (resp) {
+                if (skip) return resp;
+                try {
+                    if (resp.status >= 500) {
+                        // HTTP server error (incl. 502/504 gateway)
+                        resp.clone().text().then(function (t) {
+                            report({ function: label, inputs: body, error: 'HTTP ' + resp.status, apiResponse: t });
+                        }).catch(function () {
+                            report({ function: label, inputs: body, error: 'HTTP ' + resp.status });
+                        });
+                    } else if (resp.ok) {
+                        // Many of these Lambdas return HTTP 200 with an error envelope
+                        // ({statusCode:5xx, body:{error}}) or a top-level {error}. Inspect cheaply.
+                        var cl = parseInt(resp.headers.get('content-length') || '0', 10);
+                        if (!cl || cl < BODY_MAX) {
+                            resp.clone().text().then(function (t) {
+                                if (!t || t.length > BODY_MAX) return;
+                                var j; try { j = JSON.parse(t); } catch (e) { return; }
+                                if (!j || typeof j !== 'object') return;
+                                var errVal = null;
+                                if (j.error) errVal = j.error;
+                                else if (typeof j.statusCode === 'number' && j.statusCode >= 500) {
+                                    errVal = 'statusCode ' + j.statusCode;
+                                    try { var bb = (typeof j.body === 'string') ? JSON.parse(j.body) : j.body; if (bb && bb.error) errVal = bb.error; } catch (e) { }
+                                }
+                                if (errVal) report({ function: label, inputs: body, error: errVal, apiResponse: t });
+                            }).catch(function () { });
+                        }
+                    }
+                } catch (e) { /* reporting must never break the app */ }
+                return resp;
+            }, function (err) {
+                // Network / CORS failure
+                if (!skip) { try { report({ function: label, inputs: body, error: err }); } catch (e) { } }
+                throw err;
+            });
+        };
+    }
+
     // ── Global safety nets ────────────────────────────────────────────────
     window.addEventListener('error', function (ev) {
         if (!ev || !ev.message) return;           // ignore resource-load errors (no message)

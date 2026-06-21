@@ -114,6 +114,64 @@ def forward_error_report(body, event):
         return {"statusCode": 502, "body": json.dumps({"error": str(e)})}
 
 
+def _report_tool_failures(content_blocks, tool_results, messages, body, event=None):
+    """Report ANY failed tool call inside a chatbot turn to Google Chat.
+
+    The model usually recovers from a tool error (it's fed back as a tool_result),
+    so these never surface to the frontend — this gives visibility into every
+    flaky tool (DataForSEO, Moz, Ahrefs, SE Ranking, GSC/GA4/Ads, Meta/LinkedIn/
+    TikTok, monday_graphql, KB search, …). Captures the tool's own arguments plus
+    the user's prompt as inputs. Best-effort; never raises into the chat flow."""
+    if not GCHAT_WEBHOOK_URL:
+        return
+    meta = {}  # tool_use_id -> (tool_name, tool_input args)
+    for b in content_blocks or []:
+        if isinstance(b, dict) and b.get("type") == "tool_use":
+            meta[b.get("id")] = (b.get("name", "unknown"), b.get("input", {}))
+    user_prompt = ""
+    for m in reversed(messages or []):
+        if isinstance(m, dict) and m.get("role") == "user" and isinstance(m.get("content"), str):
+            user_prompt = m["content"]
+            break
+    for tr in tool_results or []:
+        if not isinstance(tr, dict):
+            continue
+        content = tr.get("content")
+        content_str = content if isinstance(content, str) else json.dumps(content)
+        err_text = None
+        if tr.get("is_error"):
+            err_text = content_str
+        else:
+            # Some handlers signal failure via {"error": ...} content without is_error.
+            try:
+                parsed = json.loads(content_str)
+                if isinstance(parsed, dict) and parsed.get("error"):
+                    err_text = json.dumps(parsed.get("error"))
+            except Exception:
+                pass
+        if not err_text:
+            continue
+        name, targs = meta.get(tr.get("tool_use_id"), ("unknown", {}))
+        try:
+            inputs_blob = json.dumps({"tool_args": targs, "user_prompt": user_prompt[:600]})
+        except Exception:
+            inputs_blob = str(targs)
+        try:
+            _r = forward_error_report({
+                "app":         body.get("app_source", "chatbot"),
+                "user":        body.get("client_email") or "anonymous",
+                "function":    f"tool:{name}",
+                "inputs":      inputs_blob,
+                "error":       err_text[:1500],
+                "apiResponse": content_str[:2500],
+                "datetime":    datetime.now().isoformat(),
+                "url":         body.get("app_source", ""),
+            }, event)
+            print(f"[tool-report] tool:{name} failed -> gchat {(_r or {}).get('statusCode')}")
+        except Exception as _e:
+            print(f"[tool-report] skipped {name}: {_e}")
+
+
 class JSONEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, ObjectId): return str(o)
@@ -2684,6 +2742,13 @@ def claude_chat_with_tools(body):
                     if isinstance(_c, str) and len(_c) > TOOL_RESULT_CHAR_LIMIT:
                         print(f"[TOOLS] Capping {block.get('name','result')} result ({len(_c)} chars)")
                         _tr["content"] = _c[:TOOL_RESULT_CHAR_LIMIT] + "\n... [result truncated to fit token budget — narrow the date range, fields, or row count]"
+
+                # Report any failed tool calls to Google Chat (covers ALL tools;
+                # the model often recovers so these never reach the frontend).
+                try:
+                    _report_tool_failures(content_blocks, tool_results, messages, body)
+                except Exception as _tre:
+                    print(f"[tool-report] skipped: {_tre}")
 
                 messages.append({"role": "user", "content": tool_results})
                 continue   # next round
