@@ -21,6 +21,8 @@ import {
   getConversation,
   toolUsageCounts,
   addNotification,
+  getSettings,
+  updateSettings,
 } from '../lib/dynamo.mjs';
 import { PLANS } from '../../../shared/catalog.mjs';
 import { isAdmin, isStaff, ACCOUNT_STATUSES } from '../lib/admin.mjs';
@@ -43,6 +45,11 @@ export const handler = async (event) => {
   if (method === 'GET' && path.endsWith('/users')) {
     const users = (await listAllUsers()).map(shape);
     return ok({ users });
+  }
+
+  // Platform-wide settings (e.g. whether email/password sign-in is allowed).
+  if (method === 'GET' && path.endsWith('/admin/settings')) {
+    return ok({ settings: await getSettings() });
   }
 
   // Per-tool usage COUNTS for a user — operational/billing metadata, not
@@ -85,6 +92,18 @@ export const handler = async (event) => {
       body: `A staff member asked to view your tool usage & conversations${body.reason ? ` ("${String(body.reason).slice(0, 80)}")` : ''}. Review under Account → Data access.`,
     });
     return ok({ grant });
+  }
+
+  // Flip a platform setting. Restricted to true admins (ADMIN_EMAILS), not just
+  // staff — this gates everyone's ability to sign in.
+  if (method === 'POST' && path.endsWith('/admin/settings')) {
+    if (!isAdmin(me.email)) return json(403, { error: 'admin_only' });
+    const patch = {};
+    if (typeof body.passwordAuthEnabled === 'boolean') patch.passwordAuthEnabled = body.passwordAuthEnabled;
+    if (!Object.keys(patch).length) return badRequest('No valid setting provided.');
+    const settings = await updateSettings(patch, c.email);
+    console.log(JSON.stringify({ audit: 'admin_settings', admin: c.email, patch, at: new Date().toISOString() }));
+    return ok({ settings });
   }
 
   if (method === 'POST' && path.endsWith('/users')) {

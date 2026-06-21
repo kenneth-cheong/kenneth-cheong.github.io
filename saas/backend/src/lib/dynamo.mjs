@@ -286,7 +286,35 @@ export async function scanAllUsers() {
     out.push(...(res.Items || []));
     ExclusiveStartKey = res.LastEvaluatedKey;
   } while (ExclusiveStartKey);
-  return out;
+  return out.filter((u) => !isSingleton(u.userId)); // skip the platform-settings row
+}
+
+// ── Platform-wide settings (admin-toggled) ───────────────────────────────────
+// Stored as one singleton item in the Users table (no email → never indexed,
+// excluded from user scans). Keep the surface small + defaulted so a missing
+// row, or a missing key on it, reads as the safe default.
+const SETTINGS_ID = 'settings:global';
+const DEFAULT_SETTINGS = { passwordAuthEnabled: true };
+const isSingleton = (userId) => String(userId || '').startsWith('settings:');
+
+/** Public, defaulted view of the platform settings. */
+export async function getSettings() {
+  const item = await getUser(SETTINGS_ID);
+  return { ...DEFAULT_SETTINGS, passwordAuthEnabled: item ? item.passwordAuthEnabled !== false : true };
+}
+
+/** Merge a partial patch onto the settings singleton; returns the new view. */
+export async function updateSettings(patch = {}, adminEmail) {
+  const current = (await getUser(SETTINGS_ID)) || {};
+  const next = {
+    ...current,
+    ...patch,
+    userId: SETTINGS_ID,
+    updatedAt: new Date().toISOString(),
+    updatedBy: adminEmail || current.updatedBy || null,
+  };
+  await putUser(next);
+  return { passwordAuthEnabled: next.passwordAuthEnabled !== false };
 }
 
 /** Free-tier monthly refill — atomic + idempotent per period via a condition on
@@ -377,7 +405,7 @@ export async function linkStripeCustomer(userId, customerId) {
 /** Admin-only: list every user (Scan — fine at MVP volume). */
 export async function listAllUsers(limit = 200) {
   const { Items } = await ddb.send(new ScanCommand({ TableName: TABLES.users, Limit: limit }));
-  return Items || [];
+  return (Items || []).filter((u) => !isSingleton(u.userId)); // hide the settings row
 }
 
 /** Admin: nudge a user's monthly and/or top-up buckets, with an audit row. */

@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { api } from '../lib/api.js';
 
 // One card, three modes: sign in (Google + email/password), create account, and
 // forgot password. Email/password and Google resolve to the same account.
+// Email/password can be turned off platform-wide by an admin → then only the
+// Google button is shown.
 export default function Login() {
   const { loginWithGoogle, loginWithPassword, signup, forgotPassword, resendVerification } = useAuth();
   const btnRef = useRef(null);
@@ -14,6 +17,17 @@ export default function Login() {
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(null);   // success / info message
   const [unverified, setUnverified] = useState(false); // show "resend" CTA
+  const [pwAuth, setPwAuth] = useState(true);   // email/password enabled?
+
+  // Ask the backend which sign-in methods are enabled. Defaults to showing the
+  // password form; if admin has disabled it, we hide it and fall back to Google.
+  useEffect(() => {
+    let live = true;
+    api.authConfig()
+      .then((c) => { if (live && c && typeof c.passwordAuthEnabled === 'boolean') { setPwAuth(c.passwordAuthEnabled); if (!c.passwordAuthEnabled) setMode('signin'); } })
+      .catch(() => { /* keep default (shown) on error */ });
+    return () => { live = false; };
+  }, []);
 
   // Render the Google Sign-In button and wire its credential to our auth.
   // The SDK is loaded async+defer so it may not be ready when this component
@@ -111,43 +125,48 @@ export default function Login() {
 
         <div className="card mt-8 p-6 text-left">
           <p className="mb-4 text-center text-sm font-medium text-slate-700">
-            {mode === 'signup'
-              ? 'Sign up and confirm your email to claim 30 free credits'
-              : mode === 'forgot'
-                ? "Enter your email and we'll send a reset link"
-                : 'Welcome back'}
+            {!pwAuth
+              ? 'Sign in to start with 30 free credits'
+              : mode === 'signup'
+                ? 'Sign up and confirm your email to claim 30 free credits'
+                : mode === 'forgot'
+                  ? "Enter your email and we'll send a reset link"
+                  : 'Welcome back'}
           </p>
 
-          {busy && mode === 'signin' && password === '' ? (
-            <div className="flex h-10 items-center justify-center gap-2 text-sm text-slate-500">
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-brand-600" />
-              Signing you in…
-            </div>
-          ) : (
-            <form onSubmit={onSubmit} className="space-y-3">
-              <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">Email</span>
-                <input
-                  type="email" required autoComplete="email" value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com" className="field"
-                />
-              </label>
-              {mode !== 'forgot' && (
+          {/* Email/password form — only when enabled platform-wide. */}
+          {pwAuth && (
+            busy && mode === 'signin' && password === '' ? (
+              <div className="flex h-10 items-center justify-center gap-2 text-sm text-slate-500">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-brand-600" />
+                Signing you in…
+              </div>
+            ) : (
+              <form onSubmit={onSubmit} className="space-y-3">
                 <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-slate-600">Password</span>
+                  <span className="mb-1 block text-xs font-medium text-slate-600">Email</span>
                   <input
-                    type="password" required minLength={mode === 'signup' ? 8 : undefined}
-                    autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                    value={password} onChange={(e) => setPassword(e.target.value)}
-                    placeholder={mode === 'signup' ? 'At least 8 characters' : '••••••••'} className="field"
+                    type="email" required autoComplete="email" value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@company.com" className="field"
                   />
                 </label>
-              )}
-              <button type="submit" disabled={busy} className="btn-primary w-full">
-                {busy ? 'Please wait…' : cta}
-              </button>
-            </form>
+                {mode !== 'forgot' && (
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-slate-600">Password</span>
+                    <input
+                      type="password" required minLength={mode === 'signup' ? 8 : undefined}
+                      autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                      value={password} onChange={(e) => setPassword(e.target.value)}
+                      placeholder={mode === 'signup' ? 'At least 8 characters' : '••••••••'} className="field"
+                    />
+                  </label>
+                )}
+                <button type="submit" disabled={busy} className="btn-primary w-full">
+                  {busy ? 'Please wait…' : cta}
+                </button>
+              </form>
+            )
           )}
 
           {notice && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</p>}
@@ -158,33 +177,46 @@ export default function Login() {
             </button>
           )}
 
+          {/* Google is always available. Show the "or" divider only when it sits
+              under the password form. */}
           {mode === 'signin' && (
             <>
-              <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
-                <span className="h-px flex-1 bg-slate-200" /> or <span className="h-px flex-1 bg-slate-200" />
-              </div>
-              <div className="flex justify-center" ref={btnRef} />
+              {pwAuth && (
+                <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
+                  <span className="h-px flex-1 bg-slate-200" /> or <span className="h-px flex-1 bg-slate-200" />
+                </div>
+              )}
+              {!pwAuth && busy ? (
+                <div className="flex h-10 items-center justify-center gap-2 text-sm text-slate-500">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-brand-600" />
+                  Signing you in…
+                </div>
+              ) : (
+                <div className="flex justify-center" ref={btnRef} />
+              )}
             </>
           )}
 
-          <div className="mt-5 space-y-1 text-center text-sm">
-            {mode === 'signin' && (
-              <>
+          {pwAuth && (
+            <div className="mt-5 space-y-1 text-center text-sm">
+              {mode === 'signin' && (
+                <>
+                  <p className="text-slate-500">
+                    <button onClick={() => switchMode('forgot')} className="font-medium text-brand-600 hover:text-brand-700">Forgot password?</button>
+                  </p>
+                  <p className="text-slate-500">
+                    New here?{' '}
+                    <button onClick={() => switchMode('signup')} className="font-medium text-brand-600 hover:text-brand-700">Create an account</button>
+                  </p>
+                </>
+              )}
+              {mode !== 'signin' && (
                 <p className="text-slate-500">
-                  <button onClick={() => switchMode('forgot')} className="font-medium text-brand-600 hover:text-brand-700">Forgot password?</button>
+                  <button onClick={() => switchMode('signin')} className="font-medium text-brand-600 hover:text-brand-700">← Back to sign in</button>
                 </p>
-                <p className="text-slate-500">
-                  New here?{' '}
-                  <button onClick={() => switchMode('signup')} className="font-medium text-brand-600 hover:text-brand-700">Create an account</button>
-                </p>
-              </>
-            )}
-            {mode !== 'signin' && (
-              <p className="text-slate-500">
-                <button onClick={() => switchMode('signin')} className="font-medium text-brand-600 hover:text-brand-700">← Back to sign in</button>
-              </p>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
 
         <p className="mt-4 text-xs text-slate-400">

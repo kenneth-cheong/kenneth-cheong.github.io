@@ -15,6 +15,7 @@ import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { OAuth2Client } from 'google-auth-library';
 import {
   getUser, getUserByEmail, putUser, getProvision, deleteProvision, addSession, validateSession, bumpTokenVersion,
+  getSettings,
 } from '../lib/dynamo.mjs';
 import {
   signAccess, signRefresh, verify,
@@ -56,13 +57,27 @@ export const handler = async (event) => {
   const ua = event.headers?.['user-agent'] || event.headers?.['User-Agent'] || '';
   const meta = { ip, device: deviceLabel(ua) };
 
+  // Public pre-auth config so the login page knows which methods to show.
+  if (path.endsWith('/config')) return ok({ passwordAuthEnabled: (await getSettings()).passwordAuthEnabled });
+
+  // Google + token refresh are always available; the email/password family is
+  // gated by the admin-controlled platform setting.
   if (path.endsWith('/refresh')) return handleRefresh(body);
-  if (path.endsWith('/signup')) return handleSignup(body);
-  if (path.endsWith('/verify')) return handleVerify(body, meta);
-  if (path.endsWith('/password')) return handlePasswordLogin(body, meta);
-  if (path.endsWith('/forgot')) return handleForgot(body);
-  if (path.endsWith('/reset')) return handleReset(body, meta);
-  if (path.endsWith('/resend')) return handleResend(body);
+  if (path.endsWith('/google')) return handleGoogle(body, meta);
+
+  const PASSWORD_PATHS = ['/signup', '/verify', '/password', '/forgot', '/reset', '/resend'];
+  if (PASSWORD_PATHS.some((p) => path.endsWith(p))) {
+    if (!(await getSettings()).passwordAuthEnabled) {
+      return forbidden({ error: 'password_auth_disabled', message: 'Email & password sign-in is currently disabled. Please use “Sign in with Google”.' });
+    }
+    if (path.endsWith('/signup')) return handleSignup(body);
+    if (path.endsWith('/verify')) return handleVerify(body, meta);
+    if (path.endsWith('/password')) return handlePasswordLogin(body, meta);
+    if (path.endsWith('/forgot')) return handleForgot(body);
+    if (path.endsWith('/reset')) return handleReset(body, meta);
+    if (path.endsWith('/resend')) return handleResend(body);
+  }
+
   return handleGoogle(body, meta);
 };
 
