@@ -10527,9 +10527,51 @@
                 }
             }
             renderChartsInElement(msg);
+            if (sender === 'bot') cbAddTableExports(msg);
             // User-sent messages always snap to bottom; bot replies respect the
             // reader's scroll position and surface a "jump to latest" pill instead.
             cbScrollChatToBottom(sender === 'user');
+        }
+
+        // ── Export answer tables to Excel (SheetJS) ───────────────────────────
+        // Any <table> inside a bot reply gets an "Export to Excel" button. Works on
+        // restored messages too; idempotent via the data-xlsx-ready flag.
+        function cbAddTableExports(msgEl) {
+            try {
+                if (!msgEl || typeof XLSX === 'undefined') return;
+                const content = msgEl.querySelector('.msg-content');
+                if (!content) return;
+                content.querySelectorAll('table').forEach(table => {
+                    if (table.dataset.xlsxReady) return;
+                    table.dataset.xlsxReady = '1';
+                    const bar = document.createElement('div');
+                    bar.style.cssText = 'display:flex;justify-content:flex-end;margin:4px 0 2px;';
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.innerHTML = '<i class="fas fa-file-excel"></i> Export to Excel';
+                    btn.style.cssText = 'display:inline-flex;align-items:center;gap:6px;font-size:0.7rem;font-weight:600;color:#fff;background:#1d6f42;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;';
+                    btn.addEventListener('click', () => cbExportTableToXlsx(table, btn));
+                    bar.appendChild(btn);
+                    table.parentNode.insertBefore(bar, table);
+                });
+            } catch (e) { console.warn('[XLSX export] setup failed:', e); }
+        }
+
+        function cbExportTableToXlsx(table, btn) {
+            try {
+                if (typeof XLSX === 'undefined') { alert('Excel export library is still loading — try again in a moment.'); return; }
+                const wb = XLSX.utils.table_to_book(table, { sheet: 'Data', raw: true });
+                const stamp = new Date().toISOString().slice(0, 10);
+                XLSX.writeFile(wb, `digimetrics-${stamp}.xlsx`);
+                if (btn) {
+                    const orig = btn.innerHTML;
+                    btn.innerHTML = '<i class="fas fa-check"></i> Downloaded';
+                    setTimeout(() => { btn.innerHTML = orig; }, 1800);
+                }
+            } catch (e) {
+                console.error('[XLSX export] failed:', e);
+                alert('Sorry, could not export this table to Excel.');
+            }
         }
 
         // ── Diagram & Chart Rendering ─────────────────────────────────────────

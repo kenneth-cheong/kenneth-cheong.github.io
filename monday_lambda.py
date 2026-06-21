@@ -24,6 +24,8 @@ MONDAY_API_URL = "https://api.monday.com/v2"
 SERANKING_TOKEN = os.environ.get('SERANKING_TOKEN') or "4181980cafdc89bc7bd8c7e9d26725f18cd617ef"
 DATAFORSEO_API_KEY = os.environ.get('DATAFORSEO_API_KEY') or os.environ.get('API_KEY')
 AHREFS_API_KEY = os.environ.get('AHREFS_API_KEY')
+# Moz Domain/Page Authority — same endpoint the standalone SEO tools use
+MOZ_API_URL = os.environ.get('MOZ_API_URL') or "https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new"
 
 # TikTok Marketing API config
 TIKTOK_APP_ID = os.environ.get('TIKTOK_APP_ID') or "7530162592132792321"
@@ -1058,6 +1060,7 @@ TOOL_LABELS = {
     "dataforseo_ranked_keywords":      "Fetching ranked keywords",
     "get_workduo_report":              "Fetching AI visibility data",
     "get_ahrefs_report":               "Fetching Ahrefs data",
+    "get_moz_da":                      "Fetching Moz DA/PA",
     "search_knowledge_base":           "Searching knowledge base",
     "analyze_image":                   "Reading image with Claude",
 }
@@ -1693,6 +1696,24 @@ def claude_chat_with_tools(body):
                     }
                 },
                 "required": ["domain"]
+            }
+        },
+        {
+            "name": "get_moz_da",
+            "description": (
+                "Get Moz Domain Authority (DA) and Page Authority (PA) for a domain or URL. "
+                "Use this WHENEVER the user specifically asks for 'Moz DA', 'Domain Authority (DA)', "
+                "or 'Page Authority (PA)' — this is the real Moz metric, distinct from Ahrefs DR or "
+                "DataForSEO domain rank. Pass a bare domain (e.g. 'example.com') for domain-level DA, "
+                "or a full URL for that page's PA. Call once per target; for a list of URLs, call it "
+                "for each one."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "target": {"type": "string", "description": "Domain or full URL to score, e.g. 'example.com' or 'https://example.com/page'."}
+                },
+                "required": ["target"]
             }
         },
         {
@@ -2525,6 +2546,37 @@ def claude_chat_with_tools(body):
                             "content":     result_str
                         })
                         tool_call_log.append(f"Fetched Ahrefs {action} for {domain}")
+
+                    elif tool_name == "get_moz_da":
+                        target = (tool_input.get("target") or tool_input.get("domain") or "").strip()
+                        print(f"[TOOLS] Fetching Moz DA/PA for {target}")
+                        try:
+                            r_moz = requests.post(
+                                MOZ_API_URL,
+                                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                                json={"domain": target},
+                                timeout=30
+                            )
+                            if r_moz.status_code == 200:
+                                moz = r_moz.json()
+                                result_data = {
+                                    "target": target,
+                                    "domain_authority": moz.get("domain_authority"),
+                                    "page_authority": moz.get("page_authority"),
+                                    "spam_score": moz.get("spam_score"),
+                                    "linking_root_domains": moz.get("root_domains_to_root_domain"),
+                                    "source": "Moz"
+                                }
+                            else:
+                                result_data = {"error": f"Moz API HTTP {r_moz.status_code}: {r_moz.text[:300]}"}
+                        except Exception as moz_e:
+                            result_data = {"error": str(moz_e)}
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     json.dumps(result_data)
+                        })
+                        tool_call_log.append(f"Fetched Moz DA/PA for {target}")
 
                     elif tool_name == "search_knowledge_base":
                         kb_query = tool_input.get("query", "")
