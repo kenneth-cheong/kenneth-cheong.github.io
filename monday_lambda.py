@@ -3065,7 +3065,7 @@ def lambda_handler(event, context):
                 result = {"statusCode": 500, "body": json.dumps({"error": str(e)})}
         elif action == 'fetch_boards':
             db = get_db()
-            if not db: 
+            if db is None: 
                 result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
             else:
                 user_id = body.get('data', {}).get('userId', 'default_workspace')
@@ -3073,7 +3073,7 @@ def lambda_handler(event, context):
                 result = {"statusCode": 200, "body": json.dumps({"boards": user_data.get('boards', []) if user_data else []}, cls=JSONEncoder)}
         elif action == 'save_boards':
             db = get_db()
-            if not db: 
+            if db is None: 
                 result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
             else:
                 data = body.get('data', {})
@@ -3214,7 +3214,7 @@ def lambda_handler(event, context):
             result = {"statusCode": 200, "body": json.dumps(result_data)}
         elif action == 'get_insights':
             db = get_db()
-            if not db: 
+            if db is None: 
                 result = {"statusCode": 500, "body": json.dumps({"error": "DB Connection Failed"})}
             else:
                 email = body.get('email')
@@ -3225,7 +3225,7 @@ def lambda_handler(event, context):
                     result = {"statusCode": 200, "body": json.dumps({"insights": doc.get('insights', []) if doc else []}, cls=JSONEncoder)}
         elif action == 'get_forensic_audits':
             db = get_db()
-            if not db:
+            if db is None:
                 result = {"statusCode": 500, "body": json.dumps({"error": "DB Connection Failed"})}
             else:
                 email = body.get('email')
@@ -3236,7 +3236,7 @@ def lambda_handler(event, context):
                     result = {"statusCode": 200, "body": json.dumps({"audits": doc.get('audits', []) if doc else []}, cls=JSONEncoder)}
         elif action == 'save_forensic_audits':
             db = get_db()
-            if not db:
+            if db is None:
                 result = {"statusCode": 500, "body": json.dumps({"error": "DB Connection Failed"})}
             else:
                 email = body.get('email')
@@ -3252,7 +3252,7 @@ def lambda_handler(event, context):
                     result = {"statusCode": 200, "body": json.dumps({"status": "success"})}
         elif action == 'save_insights':
             db = get_db()
-            if not db: 
+            if db is None: 
                 result = {"statusCode": 500, "body": json.dumps({"error": "DB Connection Failed"})}
             else:
                 email = body.get('email')
