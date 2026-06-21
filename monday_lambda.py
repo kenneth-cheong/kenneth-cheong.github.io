@@ -6,8 +6,21 @@ import base64
 import time
 import hashlib
 import traceback
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pymongo import MongoClient, UpdateOne
+
+SGT = timezone(timedelta(hours=8))  # Singapore time, for error-report display
+
+
+def _fmt_sgt(dt_str):
+    """Render an ISO timestamp (UTC 'Z', offset, or naive=UTC) as Singapore time."""
+    try:
+        d = datetime.fromisoformat(str(dt_str).replace('Z', '+00:00'))
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=timezone.utc)
+    except Exception:
+        d = datetime.now(timezone.utc)
+    return d.astimezone(SGT).strftime('%Y-%m-%d %H:%M:%S SGT')
 from bson import ObjectId
 
 def clean_email(raw):
@@ -96,7 +109,7 @@ def forward_error_report(body, event):
         f"🐞 *Error report — {app_name}*\n"
         f"*User:* {user}\n"
         f"*Function:* `{fn}`\n"
-        f"*When:* {dt}\n"
+        f"*When:* {_fmt_sgt(dt)}\n"
         f"*Error:* {error}\n"
     )
     if inputs:   text += f"*Inputs:*\n```\n{inputs}\n```\n"
