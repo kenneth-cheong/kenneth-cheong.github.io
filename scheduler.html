@@ -3,6 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
+    <script src="error-reporter.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Automated Task Manager</title>
     <link rel="icon" href="MO_Logo2.png" sizes="32x32">
@@ -1703,6 +1704,7 @@
                     console.error("Could not find cl-code textarea");
                 }
             } catch (err) {
+                window.DMError && DMError.report({ function: 'generateAiCode', inputs: (typeof promptToUse !== 'undefined' ? promptToUse : ''), error: err, apiResponse: (typeof raw !== 'undefined' ? raw : '') });
                 showToast('AI Generation failed', 'error');
             } finally {
                 btn.disabled = false;
@@ -1753,6 +1755,7 @@
                 return data;
             } catch (error) {
                 console.error('API Error:', error);
+                window.DMError && DMError.report({ function: 'apiCall:' + action, inputs: payload, error: error });
                 throw error;
             }
         }

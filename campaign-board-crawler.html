@@ -3,6 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
+    <script src="error-reporter.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Campaign Auditor | Overdue Crawler</title>
     <link rel="icon" href="/MO_Logo2.png" sizes="32x32">
@@ -5329,6 +5330,7 @@ ${JSON.stringify(contextData)}`;
                 const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
 
                 if (data.error || (raw.statusCode && raw.statusCode !== 200)) {
+                    window.DMError && DMError.report({ function: 'claude_chat_with_tools', inputs: text, error: (data.error || "Unknown Claude error"), apiResponse: raw });
                     throw new Error(data.error || "Unknown Claude error");
                 }
 

@@ -3,6 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
+    <script src="error-reporter.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Digimetrics Chatbot</title>
     <link rel="icon" type="image/webp" href="chatbot.webp">
@@ -6066,34 +6067,69 @@
             }
             const title = document.getElementById('headerTitle')?.textContent || 'Conversation';
             const win = window.open('', '_blank');
+            const esc = s => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const rows = chatHistory.map(m => {
                 const isUser = m.role === 'user';
                 const label = isUser ? (m.userLabel || 'You') : 'Assistant';
                 const ts = m.timestamp ? new Date(m.timestamp).toLocaleString() : '';
-                const content = (m.content || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+                // Bot replies are Markdown — render them to formatted HTML (tables,
+                // headings, lists, code). User turns are plain text — escape + line breaks.
+                let body;
+                if (isUser) {
+                    body = esc(m.content).replace(/\n/g, '<br>');
+                } else {
+                    try { body = marked.parse(m.content || ''); }
+                    catch { body = esc(m.content).replace(/\n/g, '<br>'); }
+                }
                 return `<div class="msg ${isUser ? 'user' : 'bot'}">
-                    <div class="meta"><strong>${label}</strong>${ts ? ' &mdash; ' + ts : ''}</div>
-                    <div class="bubble">${content}</div>
+                    <div class="meta"><strong>${esc(label)}</strong>${ts ? ' &mdash; ' + ts : ''}</div>
+                    <div class="bubble">${body}</div>
                 </div>`;
             }).join('');
             win.document.write(`<!DOCTYPE html><html><head>
                 <meta charset="utf-8">
-                <title>${title}</title>
+                <title>${esc(title)}</title>
                 <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 32px; color: #111; background: #fff; }
-                    h1 { font-size: 1.25rem; color: #374151; border-bottom: 2px solid #f3f4f6; padding-bottom: 12px; margin-bottom: 24px; }
-                    .msg { margin-bottom: 20px; max-width: 85%; }
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; padding: 32px; color: #1f2937; background: #fff; }
+                    h1.doc-title { font-size: 1.25rem; color: #374151; border-bottom: 2px solid #f3f4f6; padding-bottom: 12px; margin-bottom: 24px; }
+                    .msg { margin-bottom: 22px; max-width: 88%; }
                     .msg.user { margin-left: auto; }
-                    .meta { font-size: 0.72rem; color: #6b7280; margin-bottom: 4px; }
-                    .bubble { padding: 12px 16px; border-radius: 12px; font-size: 0.9rem; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
-                    .user .bubble { background: #fef3c7; border: 1px solid #fcd34d; }
+                    .meta { font-size: 0.72rem; color: #6b7280; margin-bottom: 5px; }
+                    .bubble { padding: 14px 18px; border-radius: 12px; font-size: 0.9rem; line-height: 1.6; word-break: break-word; }
+                    .user .bubble { background: #fef3c7; border: 1px solid #fcd34d; white-space: pre-wrap; }
                     .bot .bubble { background: #f9fafb; border: 1px solid #e5e7eb; }
-                    @media print { body { padding: 16px; } }
+                    /* Rendered Markdown styling for bot bubbles */
+                    .bot .bubble > *:first-child { margin-top: 0; }
+                    .bot .bubble > *:last-child { margin-bottom: 0; }
+                    .bot .bubble h1, .bot .bubble h2, .bot .bubble h3, .bot .bubble h4 { color: #111827; line-height: 1.3; margin: 18px 0 8px; font-weight: 700; }
+                    .bot .bubble h1 { font-size: 1.3rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; }
+                    .bot .bubble h2 { font-size: 1.12rem; }
+                    .bot .bubble h3 { font-size: 1rem; }
+                    .bot .bubble h4 { font-size: 0.92rem; }
+                    .bot .bubble p { margin: 8px 0; }
+                    .bot .bubble ul, .bot .bubble ol { margin: 8px 0; padding-left: 22px; }
+                    .bot .bubble li { margin: 3px 0; }
+                    .bot .bubble hr { border: none; border-top: 1px solid #e5e7eb; margin: 16px 0; }
+                    .bot .bubble blockquote { margin: 8px 0; padding: 4px 14px; border-left: 3px solid #d1d5db; color: #4b5563; background: #fff; }
+                    .bot .bubble a { color: #2563eb; text-decoration: underline; }
+                    .bot .bubble code { background: #eef2ff; color: #3730a3; padding: 1px 5px; border-radius: 4px; font-size: 0.85em; font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
+                    .bot .bubble pre { background: #1e293b; color: #f1f5f9; padding: 12px 14px; border-radius: 8px; overflow-x: auto; margin: 10px 0; }
+                    .bot .bubble pre code { background: none; color: inherit; padding: 0; }
+                    .bot .bubble table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 0.82rem; }
+                    .bot .bubble th, .bot .bubble td { border: 1px solid #d1d5db; padding: 7px 10px; text-align: left; vertical-align: top; }
+                    .bot .bubble thead th { background: #1e293b; color: #f1f5f9; font-weight: 600; }
+                    .bot .bubble tbody tr:nth-child(even) { background: #f3f4f6; }
+                    @media print {
+                        body { padding: 16px; }
+                        .msg { page-break-inside: avoid; }
+                        .bot .bubble table, .bot .bubble tr, .bot .bubble pre { page-break-inside: avoid; }
+                        thead { display: table-header-group; }
+                    }
                 </style>
             </head><body>
-                <h1><strong>${title}</strong> &mdash; Exported ${new Date().toLocaleDateString()}</h1>
+                <h1 class="doc-title"><strong>${esc(title)}</strong> &mdash; Exported ${new Date().toLocaleDateString()}</h1>
                 ${rows}
-                <script>window.onload = function(){ window.print(); }<\/script>
+                <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 200); }<\/script>
             </body></html>`);
             win.document.close();
         }
@@ -10242,6 +10278,7 @@
                             errorMsg += `: ${data.detail}`;
                         }
                     }
+                    window.DMError && DMError.report({ function: 'claude_chat_with_tools', inputs: (typeof messagesPayload !== 'undefined' && messagesPayload.length ? messagesPayload[messagesPayload.length - 1] : ''), error: errorMsg, apiResponse: (typeof raw !== 'undefined' ? raw : data) });
                     throw new Error(errorMsg);
                 }
 

@@ -26,6 +26,9 @@ DATAFORSEO_API_KEY = os.environ.get('DATAFORSEO_API_KEY') or os.environ.get('API
 AHREFS_API_KEY = os.environ.get('AHREFS_API_KEY')
 # Moz Domain/Page Authority — same endpoint the standalone SEO tools use
 MOZ_API_URL = os.environ.get('MOZ_API_URL') or "https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new"
+# Google Chat webhook for automated client-side error reports (set via env, never hardcoded)
+GCHAT_WEBHOOK_URL = os.environ.get('GCHAT_WEBHOOK_URL', '')
+_error_report_recent = {}  # signature -> epoch, per-container dedup so crash loops don't flood chat
 
 # TikTok Marketing API config
 TIKTOK_APP_ID = os.environ.get('TIKTOK_APP_ID') or "7530162592132792321"
@@ -57,6 +60,59 @@ def get_db():
             print(f"MongoDB connection error: {str(e)}")
             return None
     return mongo_client[MONGODB_DATABASE]
+
+
+def forward_error_report(body, event):
+    """Forward a client-side error report to the team Google Chat space.
+    Bounded by a per-container dedup throttle + field truncation so a crash
+    loop can't flood the space. Returns a Lambda proxy response dict."""
+    def _trunc(v, n):
+        s = '' if v is None else str(v)
+        return s if len(s) <= n else s[:n] + ' …[truncated]'
+
+    if not GCHAT_WEBHOOK_URL:
+        return {"statusCode": 500, "body": json.dumps({"error": "GCHAT_WEBHOOK_URL not configured"})}
+
+    app_name = _trunc(body.get('app', 'unknown'), 80)
+    user     = _trunc(body.get('user', 'anonymous'), 200)
+    fn       = _trunc(body.get('function', 'unknown'), 200)
+    inputs   = _trunc(body.get('inputs', ''), 3000)
+    error    = _trunc(body.get('error', ''), 2000)
+    stack    = _trunc(body.get('stack', ''), 1500)
+    api_resp = _trunc(body.get('apiResponse', ''), 3000)
+    dt       = _trunc(body.get('datetime', ''), 60)
+    page_url = _trunc(body.get('url', ''), 400)
+    ua       = _trunc(body.get('userAgent', ''), 300)
+
+    now = time.time()
+    for k in [k for k, v in list(_error_report_recent.items()) if now - v > 60]:
+        _error_report_recent.pop(k, None)
+    sig = hashlib.sha1(f'{app_name}|{fn}|{error}'.encode('utf-8', 'ignore')).hexdigest()
+    if _error_report_recent.get(sig) and now - _error_report_recent[sig] < 60:
+        return {"statusCode": 200, "body": json.dumps({"status": "deduped"})}
+    _error_report_recent[sig] = now
+
+    text = (
+        f"🐞 *Error report — {app_name}*\n"
+        f"*User:* {user}\n"
+        f"*Function:* `{fn}`\n"
+        f"*When:* {dt}\n"
+        f"*Error:* {error}\n"
+    )
+    if inputs:   text += f"*Inputs:*\n```\n{inputs}\n```\n"
+    if api_resp: text += f"*API return:*\n```\n{api_resp}\n```\n"
+    if stack:    text += f"*Stack:*\n```\n{stack}\n```\n"
+    if page_url: text += f"*Page:* {page_url}\n"
+    if ua:       text += f"_{ua}_"
+
+    try:
+        r = requests.post(GCHAT_WEBHOOK_URL, json={"text": text}, timeout=10)
+        if r.status_code < 300:
+            return {"statusCode": 200, "body": json.dumps({"status": "sent"})}
+        return {"statusCode": 502, "body": json.dumps({"error": f"gchat HTTP {r.status_code}", "detail": r.text[:300]})}
+    except Exception as e:
+        return {"statusCode": 502, "body": json.dumps({"error": str(e)})}
+
 
 class JSONEncoder(json.JSONEncoder):
     def default(self, o):
@@ -3050,7 +3106,9 @@ def lambda_handler(event, context):
         action = body.get('action')
         result = None
 
-        if action == 'openai_proxy':
+        if action == 'report_error':
+            result = forward_error_report(body, event)
+        elif action == 'openai_proxy':
             result = openai_proxy(body)
         elif action == 'openai_upload':
             result = openai_upload(body)
