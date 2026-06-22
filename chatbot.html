@@ -3570,7 +3570,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2144</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2163</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -5075,7 +5075,7 @@
                     const list = document.getElementById('messageList');
                     list.innerHTML = '';
                     chatHistory.forEach(m => {
-                        addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, m.attachments || m.attachment || null, true, m.userLabel);
+                        addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, m.attachments || m.attachment || null, true, m.userLabel, null, m.modelProvider);
                     });
 
                     toggleHistory();
@@ -6170,7 +6170,7 @@
 
                 const list = document.getElementById('messageList');
                 list.innerHTML = '';
-                chatHistory.forEach(m => addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, null, true, m.userLabel));
+                chatHistory.forEach(m => addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, null, true, m.userLabel, null, m.modelProvider));
                 if (conv.title) document.getElementById('headerTitle').textContent = conv.title;
 
                 // Show banner after successful load
@@ -10213,6 +10213,7 @@
                     if (imgs.length) deepseekImages = imgs.slice(0, 4);
                 }
 
+                const capturedProvider = getLlmProvider();
                 const res = await cbFetchWithRetry(MONDAY_LAMBDA_URL, {
                     signal: _chatAbortController.signal,
                     method: 'POST',
@@ -10285,6 +10286,7 @@
                 const reply = data.reply || '';
                 const toolLog = data.tool_calls_summary || null;
                 const thinkingText = data.thinking || null;
+                const responseProvider = data.provider || capturedProvider;
 
                 // Handle Automated Memory Updates
                 if (data.memory_updates && data.memory_updates.length > 0) {
@@ -10309,7 +10311,7 @@
                     showToast('AI memory updated automatically', 'info');
                 }
 
-                addMessage("bot", reply, toolLog, null, false, null, thinkingText);
+                addMessage("bot", reply, toolLog, null, false, null, thinkingText, responseProvider);
 
                 // Self-continuation: the model stopped with work still pending. Post the
                 // partial message (above), then auto-send a hidden "continue" turn so the
@@ -10380,7 +10382,7 @@
             return palette[Math.abs(hash) % palette.length];
         }
 
-        function addMessage(sender, text, toolLog = null, attachment = null, isRestoring = false, senderLabel = null, thinkingText = null) {
+        function addMessage(sender, text, toolLog = null, attachment = null, isRestoring = false, senderLabel = null, thinkingText = null, modelProvider = null) {
             const list = document.getElementById('messageList');
             const msg = document.createElement('div');
             msg.className = `message ${sender}`;
@@ -10412,6 +10414,7 @@
                     timestamp: new Date().toISOString()
                 };
                 if (sender === 'user' && resolvedLabel) entry.userLabel = resolvedLabel;
+                if (sender === 'bot' && modelProvider) entry.modelProvider = modelProvider;
                 chatHistory.push(entry);
                 try {
                     localStorage.setItem('chatbot_history', JSON.stringify(chatHistory));
@@ -10539,6 +10542,14 @@
                 ? `<span style="opacity:0.45; margin-left:6px; font-size:0.65rem;">(${window._lastResponseDuration})</span>`
                 : '';
             if (sender === 'bot' && !isRestoring) window._lastResponseDuration = null;
+            const modelLabelHtml = (sender === 'bot' && modelProvider)
+                ? (() => {
+                    const p = modelProvider.toLowerCase();
+                    if (p === 'anthropic') return `<span style="font-size:0.62rem;font-weight:700;background:#fff3e0;color:#c2410c;border:1px solid #fed7aa;border-radius:4px;padding:1px 6px;letter-spacing:0.02em;flex-shrink:0;margin-right:auto;opacity:1;">Claude</span>`;
+                    if (p === 'deepseek') return `<span style="font-size:0.62rem;font-weight:700;background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;border-radius:4px;padding:1px 6px;letter-spacing:0.02em;flex-shrink:0;margin-right:auto;opacity:1;">DeepSeek</span>`;
+                    return `<span style="font-size:0.62rem;font-weight:700;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:4px;padding:1px 6px;flex-shrink:0;margin-right:auto;opacity:1;">${modelProvider}</span>`;
+                })()
+                : '';
             const speakBtnHtml = sender === 'bot'
                 ? `<button class="tts-speak-btn" title="Speak this message" onclick="speakText(this.dataset.text, this, this.closest('.message').querySelector('.msg-content'))" data-text=${JSON.stringify(cleanText)}><i class="fas fa-volume-high"></i></button>`
                 : '';
@@ -10548,7 +10559,7 @@
                 : `<button class="msg-action-btn" title="Edit & resend" onclick="cbEditMessage(this)"><i class="fas fa-pen"></i></button>`;
             msg.innerHTML = `
                 <div class="msg-content">${thinkingHtml}${htmlContent}${attachmentHtml}${toolHtml}</div>
-                <span class="time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${durationHtml}${actionBtnsHtml}${speakBtnHtml}</span>
+                <span class="time">${modelLabelHtml}${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${durationHtml}${actionBtnsHtml}${speakBtnHtml}</span>
             `;
             // Raw text kept on the node so copy / regenerate / edit use the original
             // Markdown source rather than the rendered (and possibly mutated) HTML.
