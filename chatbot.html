@@ -3570,7 +3570,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2168</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2169</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3605,6 +3605,10 @@
                     </button>
                     <button class="btn btn-outline" id="ttsStopBtn" onclick="stopAllTts()" title="Stop speaking" aria-label="Stop speaking" style="display:none; color:var(--accent-orange);">
                         <i class="fas fa-stop"></i>
+                    </button>
+                    <!-- Visibility indicator/toggle — only for staff with private history -->
+                    <button class="btn btn-outline" id="visPill" onclick="toggleCurrentConvShare()" style="display:none;" title="">
+                        <i class="fas fa-lock" id="visPillIcon"></i> <span id="visPillLabel">Private</span>
                     </button>
                     <div class="header-overflow-wrap">
                         <button class="btn btn-outline" id="tourBtn" onclick="toggleOverflowMenu(event)"
@@ -3643,6 +3647,7 @@
             <button onclick="startTour(); closeMobileNav()" id="tourBtnMobile"><i class="fas fa-map-signs"></i> Tour</button>
             <button onclick="shareConversation(); closeMobileNav()"><i class="fas fa-share-nodes"></i> Share</button>
             <button onclick="exportToPdf(); closeMobileNav()"><i class="fas fa-file-pdf"></i> Export PDF</button>
+            <button id="visPillMobile" onclick="toggleCurrentConvShare(); closeMobileNav()" style="display:none;"><i class="fas fa-lock" id="visPillMobileIcon"></i> <span id="visPillMobileLabel">Private</span></button>
         </div>
 
         <aside class="history-sidebar" id="historySidebar">
@@ -4601,8 +4606,21 @@
             const el = document.getElementById('clientEmail');
             if (el) el.value = email;
             console.log(`[PERSISTENCE] User ID set: ${userId}`);
+            try { refreshVisibilityIndicator(); } catch (e) {}
             return true;
         }
+
+        // ── Per-user private history ──────────────────────────────────────────
+        // These staff have PRIVATE chat history: their conversations are visible
+        // only to them unless they explicitly share one with all staff. Everyone
+        // else keeps the legacy behaviour (all chats visible to all staff). The
+        // real gate is server-side in the chatbotPersistence Lambda — this just
+        // drives the UI. Keep this list in sync with PRIVATE_USERS there.
+        const CHAT_PRIVATE_USERS = ['tom@mediaone.co', 'june@mediaone.co'];
+        function currentChatEmail() { return (localStorage.getItem('clientEmail') || '').trim().toLowerCase(); }
+        function isPrivateChatUser() { return CHAT_PRIVATE_USERS.includes(currentChatEmail()); }
+        // Whether the CURRENT conversation is shared with all staff.
+        let currentConvShared = false;
 
         // Resolve email: clientEmail → googleUser (from index.html login) → prompt
         function handleGoogleCredential(response) {
@@ -4824,11 +4842,26 @@
                             <div class="action-btn delete" onclick="event.stopPropagation(); deleteConversation('${c.conversationId}')" title="Delete"><i class="fas fa-trash"></i></div>
                         </div>` : ''}
                     </div>
-                    <div style="margin-top:3px;">
+                    <div style="margin-top:3px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
                         <span style="background:rgba(245,158,11,0.12); color:#b45309; padding:1px 7px; border-radius:8px; font-size:0.63rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em;">${c.mode || 'AI'}</span>
+                        ${visibilityControls(c, isOwn)}
                     </div>
                 </div>`;
             }).join('');
+        }
+
+        // Per-conversation privacy badge (+ toggle for your own chats). Only staff
+        // with private history see these; everyone else's chats are always shared.
+        function visibilityControls(c, isOwn) {
+            const sharedTag = `<span title="All MediaOne staff can see this conversation" style="display:inline-flex; align-items:center; gap:3px; background:rgba(16,185,129,0.12); color:#047857; padding:1px 7px; border-radius:8px; font-size:0.63rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em;"><i class="fas fa-users" style="font-size:0.55rem;"></i> Shared with all staff</span>`;
+            const privateTag = `<span title="Only you can see this conversation" style="display:inline-flex; align-items:center; gap:3px; background:rgba(100,116,139,0.12); color:#475569; padding:1px 7px; border-radius:8px; font-size:0.63rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em;"><i class="fas fa-lock" style="font-size:0.55rem;"></i> Private</span>`;
+            const btn = (shared) => `<button onclick="event.stopPropagation(); toggleConvShare('${c.conversationId}', ${shared ? 'false' : 'true'})" title="${shared ? 'Make this private again' : 'Let all MediaOne staff see this'}" style="background:none; border:1px solid #cbd5e1; border-radius:8px; padding:1px 8px; font-size:0.63rem; font-weight:600; color:#475569; cursor:pointer; font-family:inherit;"><i class="fas fa-${shared ? 'lock' : 'share-nodes'}" style="font-size:0.55rem;"></i> ${shared ? 'Unshare' : 'Share to staff'}</button>`;
+            if (isOwn && isPrivateChatUser()) {
+                return (c.shared ? sharedTag : privateTag) + btn(!!c.shared);
+            }
+            // Another private user's chat that they shared with all staff
+            if (c.private && c.shared) return sharedTag;
+            return '';
         }
 
         let _historySearchTimer = null;
@@ -5021,7 +5054,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action: 'fetch_conversations',
-                        data: { userId: 'ALL_USERS', fetchAll: true }
+                        // requesterId lets the server hide other private users' chats
+                        data: { userId: 'ALL_USERS', fetchAll: true, requesterId: userId }
                     })
                 });
 
@@ -5064,7 +5098,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action: 'get_conversation',
-                        data: { userId: userId, conversationId: id, fetchAll: true }
+                        data: { userId: userId, conversationId: id, fetchAll: true, requesterId: userId }
                     })
                 });
 
@@ -5075,6 +5109,8 @@
                 if (convData) {
                     currentConversationId = convData.conversationId;
                     chatHistory = convData.messages || [];
+                    currentConvShared = !!convData.shared;
+                    refreshVisibilityIndicator();
                     localStorage.setItem('chatbot_conversationId', currentConversationId);
                     localStorage.setItem('chatbot_history', JSON.stringify(chatHistory));
 
@@ -5106,6 +5142,8 @@
 
             currentConversationId = null;
             chatHistory = [];
+            currentConvShared = false;
+            refreshVisibilityIndicator();
             localStorage.removeItem('chatbot_conversationId');
             localStorage.removeItem('chatbot_history');
             localStorage.removeItem('threadId');
@@ -6072,6 +6110,75 @@
             }
         }
 
+        // ── Conversation visibility (private ↔ shared with all staff) ──────────
+        // Flip a single conversation's all-staff visibility and refresh the UI.
+        async function toggleConvShare(convId, makeShared) {
+            if (!convId) return;
+            try {
+                const res = await fetch(PERSISTENCE_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'set_share',
+                        data: { userId: userId, conversationId: convId, shared: makeShared }
+                    })
+                });
+                const result = await res.json();
+                const data = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body || result);
+                if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+
+                const cached = _allHistoryConvs.find(x => x.conversationId === convId);
+                if (cached) cached.shared = makeShared;
+                if (convId === currentConversationId) { currentConvShared = makeShared; refreshVisibilityIndicator(); }
+                filterHistory();
+                showToast(makeShared ? 'Shared with all MediaOne staff.' : 'Set back to private — only you can see it.', 'success');
+            } catch (e) {
+                console.error('[VISIBILITY] toggle failed', e);
+                showToast('Could not change visibility: ' + e.message, 'error');
+            }
+        }
+
+        // Share/unshare the CURRENT conversation from the header pill. Saves first
+        // if the chat hasn't been persisted yet.
+        async function toggleCurrentConvShare() {
+            if (!chatHistory.length) { showToast('Start a conversation first.', 'warning'); return; }
+            const makeShared = !currentConvShared;
+            if (!currentConversationId) {
+                const saving = showToast('Saving conversation…', 'loading', 0);
+                const ok = await saveConversation();
+                saving.remove();
+                if (!ok || !currentConversationId) { showToast('Save failed — try again.', 'error'); return; }
+            }
+            await toggleConvShare(currentConversationId, makeShared);
+        }
+
+        // Sync the header pill (and mobile entry) to the current conversation's state.
+        function refreshVisibilityIndicator() {
+            const pill = document.getElementById('visPill');
+            const mob = document.getElementById('visPillMobile');
+            const show = isPrivateChatUser();
+            [[pill, 'visPillIcon', 'visPillLabel'], [mob, 'visPillMobileIcon', 'visPillMobileLabel']].forEach(([el, iconId, labelId]) => {
+                if (!el) return;
+                el.style.display = show ? '' : 'none';
+                if (!show) return;
+                const icon = document.getElementById(iconId);
+                const label = document.getElementById(labelId);
+                if (currentConvShared) {
+                    if (icon) icon.className = 'fas fa-users';
+                    if (label) label.textContent = 'Shared with staff';
+                    el.style.color = 'var(--accent-orange, #e07b39)';
+                    el.style.borderColor = 'var(--accent-orange, #e07b39)';
+                    el.title = 'All MediaOne staff can see this conversation. Click to make it private again.';
+                } else {
+                    if (icon) icon.className = 'fas fa-lock';
+                    if (label) label.textContent = 'Private';
+                    el.style.color = '';
+                    el.style.borderColor = '';
+                    el.title = 'Only you can see this conversation. Click to share it with all MediaOne staff.';
+                }
+            });
+        }
+
         function exportToPdf() {
             if (!chatHistory.length) {
                 showToast('Nothing to export — start a conversation first.', 'warning');
@@ -6146,6 +6253,10 @@
             win.document.close();
         }
 
+        // Show the visibility pill as soon as the DOM is ready (identity may have
+        // been resolved before the header existed).
+        window.addEventListener('DOMContentLoaded', function () { try { refreshVisibilityIndicator(); } catch (e) {} });
+
         // ---- Load shared conversation from URL param ----
         window.addEventListener('load', async function checkSharedConversation() {
             const params = new URLSearchParams(location.search);
@@ -6156,9 +6267,11 @@
 
             try {
                 const shareUserId = params.get('u') || null;
+                // viaShareLink tells the server this is an explicit link grant, so a
+                // private conversation opened from its share URL is still readable.
                 const fetchPayload = shareUserId
-                    ? { conversationId: shareId, userId: shareUserId }
-                    : { conversationId: shareId, fetchAll: true };
+                    ? { conversationId: shareId, userId: shareUserId, viaShareLink: true }
+                    : { conversationId: shareId, fetchAll: true, viaShareLink: true };
                 console.log('[SHARE] Fetch payload:', fetchPayload);
                 const res = await fetch(PERSISTENCE_API_URL, {
                     method: 'POST',
@@ -6178,6 +6291,8 @@
                 // the next saveConversation() will create a new conversation for this user
                 chatHistory = conv.messages || [];
                 currentConversationId = null;
+                currentConvShared = false; // forked copy starts private to this user
+                refreshVisibilityIndicator();
                 localStorage.removeItem('chatbot_conversationId');
 
                 const list = document.getElementById('messageList');
