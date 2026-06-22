@@ -32,6 +32,7 @@ import time
 import uuid
 import base64
 import statistics
+from decimal import Decimal
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
@@ -48,6 +49,13 @@ REGION       = os.environ.get('AWS_REGION', 'ap-southeast-1')
 JOBS_TABLE   = os.environ.get('SMA_JOBS_TABLE', 'sma_jobs')
 SNAP_TABLE   = os.environ.get('SMA_SNAP_TABLE', 'sma_snapshots')
 CACHE_TABLE  = os.environ.get('SMA_CACHE_TABLE', 'sma_apify_cache')
+# Monthly Social Reports — persistent client tracking (shared across all staff).
+#   social_report_projects  PK: projectId (S)            — one client; settings,
+#                            competitor list, tagged posts, lightweight month index.
+#   social_report_months    PK: projectId (S), SK: month (S "YYYY-MM")
+#                            — one captured month; full scorecard + AI recs + KPIs.
+REPORT_PROJECTS_TABLE = os.environ.get('REPORT_PROJECTS_TABLE', 'social_report_projects')
+REPORT_MONTHS_TABLE   = os.environ.get('REPORT_MONTHS_TABLE', 'social_report_months')
 HAIKU_MODEL  = 'claude-haiku-4-5-20251001'
 # Vision-capable model for the content/creative audit (visual style + theme).
 # Sonnet reasons over imagery noticeably better than Haiku; it runs once per
@@ -60,7 +68,7 @@ JOB_TTL_SECS   = 6 * 3600
 CACHE_TTL_SECS = 30 * 86400        # 30-day Apify cache to cut scrape cost
 # Bump whenever the metrics shape changes so stale-shape cache entries are
 # treated as misses (forces a re-scrape) instead of serving wrong/partial data.
-METRICS_SCHEMA = 4                  # v4: album posts resolve first real image (was permalink)
+METRICS_SCHEMA = 5                  # v5: LinkedIn posts via company-posts actor (was profile-only)
 MAX_GRID_POSTS = 21                 # posts surfaced for the visual grid (brand + competitors)
 
 CORS = {
@@ -77,9 +85,11 @@ ACTORS = {
     'tiktok':    'clockworks~tiktok-profile-scraper',
     'facebook':  'apify~facebook-pages-scraper',
     'youtube':   'streamers~youtube-scraper',
-    # LinkedIn org scraping is the fragile one — confirm this actor is the one
-    # you've subscribed to on apify.com and adjust the input builder if needed.
-    'linkedin':  'apimaestro~linkedin-company-detail',
+    # LinkedIn: harvestapi's cookie-less company-posts actor returns the posts
+    # AND the company profile (follower count + name + avatar live on each post's
+    # `author`), so one actor covers both — the old company-detail actor only
+    # returned the profile and its input schema since broke (identifier->array).
+    'linkedin':  'harvestapi~linkedin-company-posts',
 }
 
 # Facebook needs two actors: pages-scraper returns the profile (followers, etc.)
@@ -114,6 +124,27 @@ def lambda_handler(event, context):
             return _resp(200, handle_discover_competitors(body))
         if action == 'suggest_context':
             return _resp(200, handle_suggest_context(body))
+        # ── Monthly Social Reports: persistent project tracking ──────────────
+        if action == 'report_list_projects':
+            return _resp(200, report_list_projects(body))
+        if action == 'report_get_project':
+            return _resp(200, report_get_project(body))
+        if action == 'report_save_project':
+            return _resp(200, report_save_project(body))
+        if action == 'report_delete_project':
+            return _resp(200, report_delete_project(body))
+        if action == 'report_save_month':
+            return _resp(200, report_save_month(body))
+        if action == 'report_get_month':
+            return _resp(200, report_get_month(body))
+        if action == 'report_delete_month':
+            return _resp(200, report_delete_month(body))
+        if action == 'report_save_tags':
+            return _resp(200, report_save_tags(body))
+        if action == 'report_recommend':
+            return _resp(200, report_recommend(body))
+        if action == 'report_extract_pdf':
+            return _resp(200, report_extract_pdf(body))
         return _resp(400, {'error': f'Unknown action: {action}'})
     except Exception as e:
         return _resp(500, {'error': str(e)})
@@ -774,6 +805,8 @@ def _build_fb_posts_input(handle):
     return {'startUrls': [{'url': url}], 'resultsLimit': 24}
 
 
+
+
 def _build_input(platform, handle):
     """Per-platform actor input. Handles are normalised to a bare username/URL."""
     user = handle.lstrip('@').strip()
@@ -789,7 +822,10 @@ def _build_input(platform, handle):
         return {'startUrls': [{'url': url}], 'maxResults': 24}
     if platform == 'linkedin':
         url = user if user.startswith('http') else f'https://www.linkedin.com/company/{user}'
-        return {'identifier': user, 'url': url}
+        # counts come from each post's `engagement` block, so skip the slower,
+        # costlier per-reaction / per-comment scrapes — we only need the totals.
+        return {'targetUrls': [url], 'maxPosts': 20,
+                'scrapeReactions': False, 'scrapeComments': False}
     return {'usernames': [user]}
 
 
@@ -817,6 +853,16 @@ def _extract(platform, items, post_items=None):
     if not items and not post_items:
         return _empty_metrics()
     head = items[0] if (items and isinstance(items[0], dict)) else {}
+
+    # LinkedIn: the company-posts actor returns one item PER POST; the company
+    # profile (follower count, name, avatar) lives on each post's `author`.
+    if platform == 'linkedin':
+        author = head.get('author') if isinstance(head.get('author'), dict) else {}
+        followers = _parse_followers(author.get('info') or author.get('followers'))
+        pfp = (author.get('avatar') or {}).get('url', '') if isinstance(author.get('avatar'), dict) else ''
+        posts = _collect_posts('linkedin', items, head)
+        return _metrics_from(followers, None, False, '', '', '', pfp, posts)
+
     prof = head.get('authorMeta') if isinstance(head.get('authorMeta'), dict) else head
 
     followers = _num(_g(prof, 'followersCount', 'followers', 'fans', 'fanCount',
@@ -847,6 +893,35 @@ def _collect_posts(platform, items, head):
     Three actor shapes: (a) head carries a nested post list (Instagram), (b) head
     is itself a post and items[1:] are more posts (TikTok — items[0] is a video
     with authorMeta), (c) head is a profile and items[1:] are posts."""
+    # LinkedIn posts come from harvestapi's company-posts actor — a distinct,
+    # nested shape (engagement.*, postedAt.*, postImages/postVideo). Normalise it
+    # directly rather than via the generic field-name guessing below.
+    if platform == 'linkedin':
+        out = []
+        for p in items:
+            if not isinstance(p, dict):
+                continue
+            eng  = p.get('engagement') or {}
+            text = p.get('content') or ''
+            pa   = p.get('postedAt') or {}
+            pv   = p.get('postVideo') or {}
+            imgs = p.get('postImages') or []
+            is_video = bool(isinstance(pv, dict) and pv.get('thumbnailUrl'))
+            image = (pv.get('thumbnailUrl') if is_video
+                     else (imgs[0].get('url') if (imgs and isinstance(imgs[0], dict)) else ''))
+            out.append({
+                'ts':       pa.get('timestamp') or pa.get('date'),
+                'likes':    _num(eng.get('likes')),
+                'comments': _num(eng.get('comments')),
+                'views':    None,
+                'type':     'video' if is_video else 'image',
+                'hashtags': re.findall(r'#(\w+)', text),
+                'text':     ' '.join(text.split())[:160],
+                'caption':  ' '.join(text.split())[:400],
+                'image':    image or '',
+                'url':      p.get('linkedinUrl') or p.get('shareLinkedinUrl') or '',
+            })
+        return out
     nested = _g(head, 'latestPosts', 'posts', 'videos', 'topPosts', default=None)
     if nested:
         raw = nested
@@ -855,6 +930,7 @@ def _collect_posts(platform, items, head):
                            and any(k in head for k in _PROFILE_HEAD_KEYS))
         src = items[1:] if head_is_profile else items
         raw = [it for it in src if isinstance(it, dict)]
+    is_youtube = (platform == 'youtube')
     out = []
     for p in raw:
         if not isinstance(p, dict):
@@ -876,10 +952,30 @@ def _collect_posts(platform, items, head):
             'hashtags': re.findall(r'#(\w+)', text),
             'text':     ' '.join(text.split())[:160],
             'caption':  ' '.join(text.split())[:400],   # longer text for theme/tone analysis
-            'image':    _post_image(p),
+            'image':    (_youtube_thumb(p) if is_youtube else '') or _post_image(p),
             'url':      _g(p, 'url', 'webVideoUrl', 'postUrl', 'link', 'videoUrl', default=''),
         })
     return out
+
+
+_YT_ID_RE = re.compile(r'(?:v=|/shorts/|youtu\.be/|/embed/|/v/)([A-Za-z0-9_-]{11})')
+
+def _youtube_thumb(p):
+    """Durable YouTube thumbnail from the video id. i.ytimg.com covers never
+    expire and aren't hotlink-blocked, unlike the signed CDN urls the scraper
+    returns — so prefer them for YouTube videos/Shorts."""
+    vid = _g(p, 'id', 'videoId', default='')
+    if not (isinstance(vid, str) and re.fullmatch(r'[A-Za-z0-9_-]{11}', vid or '')):
+        vid = ''
+    if not vid:
+        for f in ('url', 'videoUrl', 'webVideoUrl', 'link'):
+            u = p.get(f)
+            if isinstance(u, str):
+                m = _YT_ID_RE.search(u)
+                if m:
+                    vid = m.group(1)
+                    break
+    return f'https://i.ytimg.com/vi/{vid}/hqdefault.jpg' if vid else ''
 
 
 def _img_from_media_item(m):
@@ -1381,6 +1477,308 @@ def _narrate(brand, client_metrics, competitor_metrics, brand_health, indicators
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Monthly Social Reports — persistent, cross-user client tracking
+# ──────────────────────────────────────────────────────────────────────────────
+# A "project" is one client we report on monthly. Settings (handles, competitor
+# accounts, tagged posts) live on the project item; each captured month's full
+# scorecard + AI recommendations live in the months table (kept separate so a
+# single project never blows past DynamoDB's 400KB item cap). All staff share the
+# same store — no per-user filtering — mirroring the recruitment database model.
+
+def _rprojects(): return boto3.resource('dynamodb', region_name=REGION).Table(REPORT_PROJECTS_TABLE)
+def _rmonths():   return boto3.resource('dynamodb', region_name=REGION).Table(REPORT_MONTHS_TABLE)
+
+def _enc(obj):
+    """Encode for DynamoDB writes — JSON round-trip turns floats into Decimal
+    (boto3's resource client rejects raw floats) and drops empty strings is not
+    needed here since we keep them as-is."""
+    return json.loads(json.dumps(obj, default=str), parse_float=Decimal)
+
+def _dec(obj):
+    """Decode DynamoDB reads back to plain JSON — Decimal → int/float — so the
+    HTTP response never leaks Decimals (which _resp would stringify)."""
+    if isinstance(obj, list):
+        return [_dec(x) for x in obj]
+    if isinstance(obj, dict):
+        return {k: _dec(v) for k, v in obj.items()}
+    if isinstance(obj, Decimal):
+        return int(obj) if obj == obj.to_integral_value() else float(obj)
+    return obj
+
+def _who(body):
+    u = body.get('currentUser') or {}
+    if isinstance(u, dict):
+        return (u.get('email') or u.get('name') or body.get('userEmail') or 'unknown')
+    return str(u or body.get('userEmail') or 'unknown')
+
+def report_list_projects(body):
+    """All projects, lightweight (no full scorecards) — for the projects grid."""
+    items = []
+    resp = _rprojects().scan()
+    items.extend(resp.get('Items', []))
+    while resp.get('LastEvaluatedKey'):
+        resp = _rprojects().scan(ExclusiveStartKey=resp['LastEvaluatedKey'])
+        items.extend(resp.get('Items', []))
+    items.sort(key=lambda p: str(p.get('updated') or p.get('created') or ''), reverse=True)
+    return {'projects': _dec(items)}
+
+def report_get_project(body):
+    """Full project settings + the month index (summaries only, no heavy scorecards)."""
+    pid = (body.get('projectId') or '').strip()
+    if not pid:
+        raise RuntimeError('Missing projectId.')
+    proj = _rprojects().get_item(Key={'projectId': pid}).get('Item')
+    if not proj:
+        raise RuntimeError('Unknown project.')
+    # Month summaries (drop the bulky scorecard/recommendations payloads here).
+    resp = _rmonths().query(KeyConditionExpression=Key('projectId').eq(pid),
+                            ProjectionExpression='#m, kpis, savedAt, savedBy',
+                            ExpressionAttributeNames={'#m': 'month'},
+                            ScanIndexForward=True)
+    months = resp.get('Items', [])
+    return {'project': _dec(proj), 'months': _dec(months)}
+
+def report_save_project(body):
+    """Create or update a project's settings (name, brand, handles, competitors)."""
+    data = body.get('data') or body
+    pid = (data.get('projectId') or '').strip() or uuid.uuid4().hex
+    existing = _rprojects().get_item(Key={'projectId': pid}).get('Item') or {}
+    now = _now_iso(); who = _who(body)
+    item = {
+        'projectId':   pid,
+        'name':        (data.get('name') or existing.get('name') or 'Untitled client').strip(),
+        'brand':       (data.get('brand') or existing.get('brand') or '').strip(),
+        'domain':      (data.get('domain') or existing.get('domain') or '').strip(),
+        'industry':    (data.get('industry') or existing.get('industry') or '').strip(),
+        'location':    (data.get('location') or existing.get('location') or 'Singapore').strip(),
+        'handles':     data.get('handles')     if data.get('handles')     is not None else existing.get('handles', {}),
+        'platforms':   data.get('platforms')   if data.get('platforms')   is not None else existing.get('platforms', []),
+        'competitors': data.get('competitors') if data.get('competitors') is not None else existing.get('competitors', []),
+        'tagged_posts':data.get('tagged_posts')if data.get('tagged_posts')is not None else existing.get('tagged_posts', []),
+        'months':      existing.get('months', []),
+        'created':     existing.get('created') or now,
+        'created_by':  existing.get('created_by') or who,
+        'updated':     now,
+        'updated_by':  who,
+    }
+    stored = _enc(item)
+    _rprojects().put_item(Item=stored)
+    return {'ok': True, 'project': _dec(stored)}
+
+def report_delete_project(body):
+    pid = (body.get('projectId') or (body.get('data') or {}).get('projectId') or '').strip()
+    if not pid:
+        raise RuntimeError('Missing projectId.')
+    # Delete all captured months first, then the project.
+    resp = _rmonths().query(KeyConditionExpression=Key('projectId').eq(pid),
+                            ProjectionExpression='#m', ExpressionAttributeNames={'#m': 'month'})
+    with _rmonths().batch_writer() as bw:
+        for mit in resp.get('Items', []):
+            bw.delete_item(Key={'projectId': pid, 'month': mit['month']})
+    _rprojects().delete_item(Key={'projectId': pid})
+    return {'ok': True}
+
+def report_save_month(body):
+    """Persist one captured month: full scorecard + KPI summary + AI recs. Also
+    refreshes the project's lightweight month index + latest-KPI snapshot."""
+    data  = body.get('data') or body
+    pid   = (data.get('projectId') or '').strip()
+    month = (data.get('month') or '').strip()         # "YYYY-MM"
+    if not pid or not month:
+        raise RuntimeError('Missing projectId or month.')
+    proj = _rprojects().get_item(Key={'projectId': pid}).get('Item')
+    if not proj:
+        raise RuntimeError('Unknown project.')
+    now = _now_iso(); who = _who(body)
+    scorecard = data.get('scorecard') or {}
+    kpis      = data.get('kpis') or {}
+    recs      = data.get('recommendations')
+
+    _rmonths().put_item(Item=_enc({
+        'projectId': pid, 'month': month,
+        'scorecard': _serialize_scorecard(scorecard) if isinstance(scorecard, dict) else (scorecard or ''),
+        'kpis': kpis,
+        'recommendations': recs,
+        'savedAt': now, 'savedBy': who,
+    }))
+
+    # Maintain the month index on the project (dedupe by month, keep sorted).
+    idx = [m for m in (_dec(proj.get('months')) or []) if m.get('month') != month]
+    idx.append({'month': month, 'savedAt': now, 'savedBy': who, 'kpis': kpis})
+    idx.sort(key=lambda m: str(m.get('month')))
+    _rprojects().update_item(
+        Key={'projectId': pid},
+        UpdateExpression='SET months = :m, updated = :u, updated_by = :w',
+        ExpressionAttributeValues={':m': _enc(idx), ':u': now, ':w': who})
+    return {'ok': True, 'month': month, 'months': _dec(_enc(idx))}
+
+def report_get_month(body):
+    """One month's full payload (scorecard rehydrated, recommendations, kpis)."""
+    pid   = (body.get('projectId') or '').strip()
+    month = (body.get('month') or '').strip()
+    if not pid or not month:
+        raise RuntimeError('Missing projectId or month.')
+    it = _rmonths().get_item(Key={'projectId': pid, 'month': month}).get('Item')
+    if not it:
+        raise RuntimeError('No data captured for that month.')
+    sc = it.get('scorecard')
+    if isinstance(sc, str):
+        try: sc = json.loads(sc)
+        except ValueError: sc = {}
+    return {'month': month, 'scorecard': sc,
+            'kpis': _dec(it.get('kpis') or {}),
+            'recommendations': _dec(it.get('recommendations')),
+            'savedAt': it.get('savedAt'), 'savedBy': it.get('savedBy')}
+
+def report_delete_month(body):
+    data  = body.get('data') or body
+    pid   = (data.get('projectId') or '').strip()
+    month = (data.get('month') or '').strip()
+    if not pid or not month:
+        raise RuntimeError('Missing projectId or month.')
+    _rmonths().delete_item(Key={'projectId': pid, 'month': month})
+    proj = _rprojects().get_item(Key={'projectId': pid}).get('Item') or {}
+    idx = [m for m in (_dec(proj.get('months')) or []) if m.get('month') != month]
+    _rprojects().update_item(
+        Key={'projectId': pid},
+        UpdateExpression='SET months = :m, updated = :u',
+        ExpressionAttributeValues={':m': _enc(idx), ':u': _now_iso()})
+    return {'ok': True, 'months': _dec(_enc(idx))}
+
+def report_save_tags(body):
+    """Replace the project's tagged-posts list (posts the user flags to track)."""
+    data = body.get('data') or body
+    pid  = (data.get('projectId') or '').strip()
+    if not pid:
+        raise RuntimeError('Missing projectId.')
+    tagged = data.get('tagged_posts')
+    if tagged is None:
+        tagged = []
+    _rprojects().update_item(
+        Key={'projectId': pid},
+        UpdateExpression='SET tagged_posts = :t, updated = :u, updated_by = :w',
+        ExpressionAttributeValues={':t': _enc(tagged), ':u': _now_iso(), ':w': _who(body)})
+    return {'ok': True, 'tagged_posts': _dec(_enc(tagged))}
+
+def report_recommend(body):
+    """Client-ready monthly recommendations from this month's KPIs vs last month,
+    the per-platform metrics, tagged-post performance and competitor benchmark.
+    Strict-JSON Haiku call (fast, single round-trip, well under the gateway timeout)."""
+    data = body.get('data') or body
+    api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
+    facts = {
+        'brand':        data.get('brand') or data.get('name') or 'the brand',
+        'month':        data.get('month'),
+        'previous_month': data.get('previous_month'),
+        'kpis_this_month':     data.get('kpis') or {},
+        'kpis_previous_month': data.get('prev_kpis') or {},
+        'platforms':    data.get('platforms') or [],
+        'competitors':  data.get('competitors') or [],
+        'tagged_posts': data.get('tagged_posts') or [],
+        'goals':        data.get('goals') or '',
+    }
+    fallback = {
+        'headline': 'Monthly performance captured.',
+        'wins': [], 'concerns': [], 'recommendations': [], 'next_month_focus': [],
+    }
+    if not api_key:
+        return {'recommendations_block': fallback, 'ai': False}
+    prompt = (
+        "You are a senior social media account manager writing the recommendations "
+        "section of a MONTHLY client report. Given the data (real metrics, this "
+        "month vs last month, the client's own tagged priority posts and competitor "
+        "benchmarks), write a concise, client-facing analysis. Respond with STRICT "
+        "JSON only, no prose, matching:\n"
+        '{"headline":"one punchy sentence on the month",'
+        '"wins":["2-4 concrete wins, cite the numbers/deltas"],'
+        '"concerns":["1-3 honest concerns or declines"],'
+        '"recommendations":[{"title":"...","detail":"1-2 sentences, specific & actionable","priority":"high|medium|low"}],'
+        '"next_month_focus":["2-3 priorities for next month"]}\n'
+        "Ground every point in the numbers. Reference platforms by name. If tagged "
+        "posts are present, comment on what made them work and how to repeat it. "
+        "Keep it plain-English for a non-marketer client.\n\nDATA:\n"
+        + json.dumps(facts, default=str)[:16000]
+    )
+    try:
+        r = requests.post('https://api.anthropic.com/v1/messages',
+                          headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01',
+                                   'content-type': 'application/json'},
+                          json={'model': HAIKU_MODEL, 'max_tokens': 1800,
+                                'messages': [{'role': 'user', 'content': prompt}]},
+                          timeout=60)
+        txt = ''.join(b.get('text', '') for b in (r.json().get('content') or [])
+                      if b.get('type') == 'text')
+        txt = re.sub(r'^```[a-z]*\n?|```$', '', txt.strip()).strip()
+        out = json.loads(txt)
+        return {'recommendations_block': {**fallback, **out}, 'ai': True}
+    except Exception as e:
+        return {'recommendations_block': fallback, 'ai': False, 'error': str(e)[:200]}
+
+
+def report_extract_pdf(body):
+    """Read a brand's monthly platform export (rasterised to page images by the
+    browser) and pull the headline KPIs per platform so the user can backfill a
+    past month. Vision model; returns a DRAFT the user confirms/edits before save."""
+    data = body.get('data') or body
+    api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
+    images = data.get('images') or []          # list of base64 JPEG/PNG (data-url or raw)
+    if not api_key:
+        return {'extracted': None, 'ai': False, 'error': 'AI key not configured.'}
+    if not images:
+        return {'extracted': None, 'ai': False, 'error': 'No pages supplied.'}
+
+    blocks = []
+    for img in images[:12]:                    # cap pages to keep the call bounded
+        s = img if isinstance(img, str) else ''
+        ctype = 'image/jpeg'
+        if s.startswith('data:'):
+            try:
+                head, s = s.split(',', 1)
+                ctype = head.split(':', 1)[1].split(';', 1)[0] or 'image/jpeg'
+            except Exception:
+                pass
+        if not s:
+            continue
+        blocks.append({'type': 'image', 'source': {'type': 'base64', 'media_type': ctype, 'data': s}})
+    if not blocks:
+        return {'extracted': None, 'ai': False, 'error': 'No readable pages.'}
+
+    prompt = (
+        "These page images are a monthly SOCIAL MEDIA performance export for one "
+        "brand (e.g. from Meltwater, Sprout, Meta Business Suite or a platform "
+        "report). Extract the headline metrics. If a reporting period / month is "
+        "shown, capture it. For EACH platform present (instagram, tiktok, facebook, "
+        "linkedin, youtube), read the figures shown — expand abbreviated numbers "
+        "(1.4K -> 1400, 26.38K -> 26380, 1.2M -> 1200000). Use null for anything "
+        "not shown; never guess. Respond with STRICT JSON only, no prose, matching:\n"
+        '{"month":"YYYY-MM or null",'
+        '"period_label":"the date range text shown, or null",'
+        '"platforms":[{"platform":"instagram|tiktok|facebook|linkedin|youtube",'
+        '"followers":int|null,"reach":int|null,"impressions":int|null,'
+        '"engagement_rate":number|null,"posts_per_week":number|null,'
+        '"avg_likes":int|null}],'
+        '"notes":"one line on anything ambiguous, or empty"}\n'
+        "engagement_rate is a percentage number (e.g. 0.61 means 0.61). If only a "
+        "monthly post count is shown, divide by ~4.3 for posts_per_week."
+    )
+    content = blocks + [{'type': 'text', 'text': prompt}]
+    try:
+        r = requests.post('https://api.anthropic.com/v1/messages',
+                          headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01',
+                                   'content-type': 'application/json'},
+                          json={'model': VISION_MODEL, 'max_tokens': 1500,
+                                'messages': [{'role': 'user', 'content': content}]},
+                          timeout=120)
+        txt = ''.join(b.get('text', '') for b in (r.json().get('content') or [])
+                      if b.get('type') == 'text')
+        txt = re.sub(r'^```[a-z]*\n?|```$', '', txt.strip()).strip()
+        out = json.loads(txt)
+        return {'extracted': out, 'ai': True}
+    except Exception as e:
+        return {'extracted': None, 'ai': False, 'error': str(e)[:200]}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Small utils
 # ──────────────────────────────────────────────────────────────────────────────
 def _jobs():  return boto3.resource('dynamodb', region_name=REGION).Table(JOBS_TABLE)
@@ -1432,6 +1830,17 @@ def _num(v):
         return int(float(s) * mult)
     except ValueError:
         return None
+
+
+def _parse_followers(v):
+    """LinkedIn's company-posts actor reports followers as a string on the
+    author, e.g. '509 followers' or '1.2K followers'. Pull the leading count."""
+    if v is None:
+        return None
+    if isinstance(v, (int, float)):
+        return int(v)
+    m = re.search(r'([\d.,]+\s*[KMB]?)\s*follower', str(v), re.I)
+    return _num(m.group(1).replace(' ', '')) if m else _num(v)
 
 
 def _to_epoch(ts):
