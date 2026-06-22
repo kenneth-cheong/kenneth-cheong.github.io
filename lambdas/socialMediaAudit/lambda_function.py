@@ -919,6 +919,7 @@ def _collect_posts(platform, items, head):
                 'ts':       pa.get('timestamp') or pa.get('date'),
                 'likes':    _num(eng.get('likes')),
                 'comments': _num(eng.get('comments')),
+                'shares':   _num(eng.get('shares')),
                 'views':    None,
                 'type':     'video' if is_video else 'image',
                 'hashtags': re.findall(r'#(\w+)', text),
@@ -953,6 +954,7 @@ def _collect_posts(platform, items, head):
             'ts':       _g(p, 'timestamp', 'createTime', 'publishedAt', 'date', 'taken_at', 'time'),
             'likes':    likes,
             'comments': _num(_g(p, 'commentsCount', 'comments', 'commentCount')),
+            'shares':   _num(_g(p, 'sharesCount', 'shares', 'shareCount', 'reshareCount', 'repostCount')),
             'views':    _num(_g(p, 'videoViewCount', 'playCount', 'views', 'viewCount', 'viewsCount')),
             'type':     _post_type(p),
             'hashtags': re.findall(r'#(\w+)', text),
@@ -1752,29 +1754,47 @@ def report_extract_pdf(body):
     prompt = (
         "These page images are a monthly SOCIAL MEDIA performance export for one "
         "brand (e.g. from Meltwater, Sprout, Meta Business Suite or a platform "
-        "report). Extract the headline metrics. If a reporting period / month is "
-        "shown, capture it. For EACH platform present (instagram, tiktok, facebook, "
-        "linkedin, youtube), read the figures shown — expand abbreviated numbers "
-        "(1.4K -> 1400, 26.38K -> 26380, 1.2M -> 1200000). Use null for anything "
-        "not shown; never guess. Respond with STRICT JSON only, no prose, matching:\n"
+        "report). Read EVERY metric shown. If a reporting period / month is shown, "
+        "capture it. For EACH platform present (instagram, tiktok, facebook, "
+        "linkedin, youtube, xiaohongshu), read the figures — expand abbreviated "
+        "numbers (1.4K -> 1400, 26.38K -> 26380, 1.2M -> 1200000). Use null for any "
+        "metric NOT shown for that platform; never guess. Respond with STRICT JSON "
+        "only, no prose, matching this shape (every key per platform object):\n"
         '{"month":"YYYY-MM or null",'
         '"period_label":"the date range text shown, or null",'
-        '"platforms":[{"platform":"instagram|tiktok|facebook|linkedin|youtube|xiaohongshu",'
-        '"followers":int|null,"reach":int|null,"impressions":int|null,'
-        '"engagement_rate":number|null,"posts_per_week":number|null,'
-        '"avg_likes":int|null}],'
+        '"platforms":[{'
+        '"platform":"instagram|tiktok|facebook|linkedin|youtube|xiaohongshu",'
+        '"followers":number|null,"net_new_followers":number|null,'
+        '"followers_increase":number|null,"followers_decrease":number|null,'
+        '"page_likes":number|null,"impressions":number|null,'
+        '"organic_impressions":number|null,"paid_impressions":number|null,'
+        '"reach":number|null,"page_reach":number|null,"daily_reach":number|null,'
+        '"paid_reach":number|null,"frequency":number|null,"engagements":number|null,'
+        '"engagement_rate":number|null,"engaged_users_daily":number|null,'
+        '"engaged_users_rate":number|null,"reactions":number|null,"likes":number|null,'
+        '"comments":number|null,"shares":number|null,"saves":number|null,'
+        '"interactions":number|null,"interaction_rate":number|null,"clicks":number|null,'
+        '"ctr":number|null,"profile_views":number|null,"profile_cta_clicks":number|null,'
+        '"video_views":number|null,"avg_video_views":number|null,'
+        '"avg_watch_time":number|null,"video_frequency":number|null,'
+        '"full_video_watch_rate":number|null,"posts_per_week":number|null,'
+        '"avg_likes":number|null}],'
         '"notes":"one line on anything ambiguous, or empty"}\n'
-        "engagement_rate is a percentage number (e.g. 0.61 means 0.61). If only a "
-        "monthly post count is shown, divide by ~4.3 for posts_per_week."
+        "Field meaning: reach=Reach (daily); page_reach=total Page Reach; "
+        "engagement_rate / engagement_rate (reach) is a percent number (0.61 means "
+        "0.61); frequency is a multiplier (e.g. 0.99); profile_views=Channel profile "
+        "views; engaged_users_daily=Engaged users (daily); video metrics are TikTok/"
+        "YouTube. If only a monthly POST COUNT is shown, divide by ~4.3 for "
+        "posts_per_week. Omit a platform entirely if it has no figures at all."
     )
     content = blocks + [{'type': 'text', 'text': prompt}]
     try:
         r = requests.post('https://api.anthropic.com/v1/messages',
                           headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01',
                                    'content-type': 'application/json'},
-                          json={'model': VISION_MODEL, 'max_tokens': 1500,
+                          json={'model': VISION_MODEL, 'max_tokens': 3000,
                                 'messages': [{'role': 'user', 'content': content}]},
-                          timeout=120)
+                          timeout=150)
         txt = ''.join(b.get('text', '') for b in (r.json().get('content') or [])
                       if b.get('type') == 'text')
         txt = re.sub(r'^```[a-z]*\n?|```$', '', txt.strip()).strip()
