@@ -1759,7 +1759,7 @@ def report_extract_pdf(body):
         "not shown; never guess. Respond with STRICT JSON only, no prose, matching:\n"
         '{"month":"YYYY-MM or null",'
         '"period_label":"the date range text shown, or null",'
-        '"platforms":[{"platform":"instagram|tiktok|facebook|linkedin|youtube",'
+        '"platforms":[{"platform":"instagram|tiktok|facebook|linkedin|youtube|xiaohongshu",'
         '"followers":int|null,"reach":int|null,"impressions":int|null,'
         '"engagement_rate":number|null,"posts_per_week":number|null,'
         '"avg_likes":int|null}],'
