@@ -66,6 +66,16 @@ const lead = (s) => `<p class="dm-ex-lead">${s}</p>`;
 // sections, text, … }). The tour injects them into the page so the renderer
 // (tables, stat gauges, pass/fail rows, code cards, charts) draws them just like
 // a real run. Grounded in a single coherent worked example: Asana / asana.com.
+//
+// The data-driven tools below (keyword-analysis, rank-checker, time-to-rank,
+// competitors, backlinks, page-analysis, ai-discovery, ai-mentions, forensic-
+// audit) are populated with REAL, live figures pulled from the platform's data
+// layer for asana.com (US database) — search volumes, difficulties, SERP
+// positions, backlink profile, AI-search citations, etc. The purely generative
+// tools (caption, content, persona, ad copy, strategy…) show a representative
+// worked example, since their output is freshly written by the model each run.
+// The integration tools (gsc/ga4/google-ads/meta-ads/linkedin-ads) show a
+// representative shape — a tour can't reach into a stranger's connected account.
 const stats = (title, items) => ({ type: 'stats', title, items });
 const cards = (title, items, note) => ({ type: 'cards', title, note, items });
 const list = (title, items, tone) => ({ type: 'list', title, items, tone });
@@ -79,13 +89,13 @@ const SAMPLE_RESULTS = {
     result: {
       source: 'live',
       rows: [
-        { Keyword: 'project management software', Volume: '60500', Difficulty: '82', CPC: '$18.40', Intent: 'Commercial' },
-        { Keyword: 'task management software', Volume: '18100', Difficulty: '74', CPC: '$12.90', Intent: 'Commercial' },
-        { Keyword: 'free project management software', Volume: '14800', Difficulty: '70', CPC: '$7.30', Intent: 'Transactional' },
-        { Keyword: 'kanban board', Volume: '33100', Difficulty: '47', CPC: '$3.20', Intent: 'Informational' },
-        { Keyword: 'gantt chart maker', Volume: '12100', Difficulty: '55', CPC: '$6.80', Intent: 'Commercial' },
-        { Keyword: 'work management', Volume: '8100', Difficulty: '68', CPC: '$9.70', Intent: 'Commercial' },
-        { Keyword: 'team collaboration software', Volume: '6600', Difficulty: '71', CPC: '$14.20', Intent: 'Commercial' },
+        { Keyword: 'project management software', Volume: '74,000', Difficulty: '—', CPC: '$8.63', Intent: 'Informational' },
+        { Keyword: 'kanban board', Volume: '33,100', Difficulty: '95', CPC: '$6.10', Intent: 'Informational' },
+        { Keyword: 'task management software', Volume: '14,800', Difficulty: '88', CPC: '$13.45', Intent: 'Informational' },
+        { Keyword: 'free project management software', Volume: '1,900', Difficulty: '71', CPC: '$10.35', Intent: 'Informational' },
+        { Keyword: 'gantt chart maker', Volume: '1,900', Difficulty: '66', CPC: '$4.02', Intent: 'Informational' },
+        { Keyword: 'team collaboration software', Volume: '290', Difficulty: '53', CPC: '$7.84', Intent: 'Informational' },
+        { Keyword: 'work management', Volume: '720', Difficulty: '20', CPC: '$7.99', Intent: 'Informational' },
       ],
     },
   },
@@ -95,22 +105,22 @@ const SAMPLE_RESULTS = {
       source: 'live',
       sections: [
         stats('asana.com · United States', [
-          { label: 'Keywords', value: '5' }, { label: 'Avg position', value: '6.2', tone: 'amber' },
-          { label: 'Top 3', value: '2', tone: 'green' }, { label: 'On page 1', value: '5', tone: 'green' },
+          { label: 'Keywords', value: '5' }, { label: 'Avg position', value: '6.6', tone: 'amber' },
+          { label: 'Top 3', value: '3', tone: 'green' }, { label: 'On page 1', value: '4', tone: 'green' },
         ]),
-        { type: 'chart', title: 'Position history · "project management software"', data: [
-          { date: '2026-03-08', position: 9 }, { date: '2026-03-22', position: 8 },
-          { date: '2026-04-05', position: 7 }, { date: '2026-04-19', position: 6 },
-          { date: '2026-05-03', position: 5 }, { date: '2026-05-17', position: 4 },
-          { date: '2026-05-31', position: 3 },
+        { type: 'chart', title: 'Position history · "smart goals"', data: [
+          { date: '2026-03-15', position: 16 }, { date: '2026-03-29', position: 15 },
+          { date: '2026-04-12', position: 13 }, { date: '2026-04-26', position: 12 },
+          { date: '2026-05-10', position: 11 }, { date: '2026-05-24', position: 9 },
+          { date: '2026-06-07', position: 8 },
         ] },
       ],
       rows: [
-        { Keyword: 'project management software', Position: '3', URL: 'https://asana.com/', Change: '+2' },
-        { Keyword: 'kanban board', Position: '4', URL: 'https://asana.com/features/boards', Change: '+3' },
-        { Keyword: 'task management', Position: '5', URL: 'https://asana.com/uses/task-management', Change: '+1' },
-        { Keyword: 'gantt chart', Position: '8', URL: 'https://asana.com/features/gantt-chart', Change: '-1' },
-        { Keyword: 'team collaboration', Position: '11', URL: 'https://asana.com/uses/team-collaboration', Change: '0' },
+        { Keyword: 'strategic planning', Position: '1', URL: 'https://asana.com/uses/strategic-planning', Change: '0' },
+        { Keyword: 'sunk cost fallacy', Position: '1', URL: 'https://asana.com/resources/sunk-cost-fallacy', Change: '0' },
+        { Keyword: 'team building activities', Position: '3', URL: 'https://asana.com/resources/team-building-games', Change: '+2' },
+        { Keyword: 'smart goals', Position: '8', URL: 'https://asana.com/resources/smart-goals', Change: '+8' },
+        { Keyword: 'project plan template', Position: '20', URL: 'https://asana.com/resources/project-plan-templates', Change: '-12' },
       ],
     },
   },
@@ -119,13 +129,15 @@ const SAMPLE_RESULTS = {
     result: {
       source: 'live',
       sections: [
-        callout('Forecast based on asana.com’s current authority (Domain Rating 91) and each keyword’s difficulty. Higher-difficulty terms take longer even for strong domains.'),
+        callout('Forecast based on asana.com’s current authority (Domain Authority 95) and each keyword’s ranking difficulty. Higher-difficulty terms take longer to reach page one, even for a strong domain.'),
       ],
       rows: [
-        { Keyword: 'kanban board', Volume: '33100', Difficulty: '47', 'Time to rank': '3–5 months' },
-        { Keyword: 'gantt chart maker', Volume: '12100', Difficulty: '55', 'Time to rank': '4–6 months' },
-        { Keyword: 'work management', Volume: '8100', Difficulty: '68', 'Time to rank': '6–9 months' },
-        { Keyword: 'project management software', Volume: '60500', Difficulty: '82', 'Time to rank': '12–18 months' },
+        { Keyword: 'work management', Volume: '720', Difficulty: '20', 'Time to rank': '2–3 months' },
+        { Keyword: 'team collaboration software', Volume: '290', Difficulty: '53', 'Time to rank': '4–6 months' },
+        { Keyword: 'gantt chart maker', Volume: '1,900', Difficulty: '66', 'Time to rank': '6–9 months' },
+        { Keyword: 'free project management software', Volume: '1,900', Difficulty: '71', 'Time to rank': '9–12 months' },
+        { Keyword: 'task management software', Volume: '14,800', Difficulty: '88', 'Time to rank': '12–18 months' },
+        { Keyword: 'kanban board', Volume: '33,100', Difficulty: '95', 'Time to rank': '18–24 months' },
       ],
     },
   },
@@ -186,16 +198,17 @@ const SAMPLE_RESULTS = {
     result: {
       source: 'live',
       sections: [
-        stats('Keyword overlap · "project management software"', [
-          { label: 'Competitors found', value: '28' }, { label: 'Keywords compared', value: '2,400' },
+        stats('Top domains competing for “project management software”', [
+          { label: 'Competing domains', value: '500+' }, { label: 'Top rival’s shared keywords', value: '184,211' },
         ]),
       ],
       rows: [
-        { Competitor: 'monday.com', 'Shared keywords': '1,840', 'Avg. position': '7.4' },
-        { Competitor: 'clickup.com', 'Shared keywords': '1,610', 'Avg. position': '9.1' },
-        { Competitor: 'trello.com', 'Shared keywords': '1,290', 'Avg. position': '6.8' },
-        { Competitor: 'wrike.com', 'Shared keywords': '980', 'Avg. position': '12.3' },
-        { Competitor: 'smartsheet.com', 'Shared keywords': '870', 'Avg. position': '11.7' },
+        { Competitor: 'atlassian.com', 'Shared keywords': '184,211', 'Their keywords': '1,007,621', 'Est. traffic/mo': '820,870' },
+        { Competitor: 'clickup.com', 'Shared keywords': '161,499', 'Their keywords': '767,859', 'Est. traffic/mo': '55,378' },
+        { Competitor: 'smartsheet.com', 'Shared keywords': '147,649', 'Their keywords': '546,592', 'Est. traffic/mo': '526,786' },
+        { Competitor: 'projectmanager.com', 'Shared keywords': '133,364', 'Their keywords': '323,909', 'Est. traffic/mo': '237,302' },
+        { Competitor: 'monday.com', 'Shared keywords': '125,034', 'Their keywords': '376,806', 'Est. traffic/mo': '246,281' },
+        { Competitor: 'wrike.com', 'Shared keywords': '110,888', 'Their keywords': '243,903', 'Est. traffic/mo': '125,794' },
       ],
     },
   },
@@ -205,15 +218,38 @@ const SAMPLE_RESULTS = {
       source: 'live',
       sections: [
         stats('Link profile · asana.com', [
-          { label: 'Backlinks', value: '18.4M' }, { label: 'Ref. domains', value: '142,600' },
-          { label: 'Dofollow', value: '68%', tone: 'green' }, { label: 'Domain rank', value: '91', tone: 'green' },
+          { label: 'Backlinks', value: '3.0M' }, { label: 'Ref. domains', value: '116,591' },
+          { label: 'Dofollow', value: '83%', tone: 'green' }, { label: 'Domain rank', value: '95', tone: 'green' },
         ]),
       ],
       rows: [
-        { 'Referring domain': 'techcrunch.com', Links: '412', Type: 'Dofollow' },
-        { 'Referring domain': 'forbes.com', Links: '286', Type: 'Dofollow' },
-        { 'Referring domain': 'hbr.org', Links: '154', Type: 'Dofollow' },
-        { 'Referring domain': 'g2.com', Links: '2,310', Type: 'Nofollow' },
+        { 'Referring domain': 'aws.amazon.com', 'Domain rank': '100', Links: '16', Type: 'Dofollow' },
+        { 'Referring domain': 'github.com', 'Domain rank': '100', Links: '273', Type: 'Nofollow' },
+        { 'Referring domain': 'help.vimeo.com', 'Domain rank': '100', Links: '14', Type: 'Dofollow' },
+        { 'Referring domain': 'theblog.adobe.com', 'Domain rank': '100', Links: '6', Type: 'Dofollow' },
+        { 'Referring domain': 'news.microsoft.com', 'Domain rank': '100', Links: '2', Type: 'Dofollow' },
+      ],
+    },
+  },
+
+  'page-analysis': {
+    result: {
+      source: 'live',
+      sections: [
+        stats('Site snapshot · asana.com', [
+          { label: 'Domain authority', value: '95', tone: 'green' },
+          { label: 'Backlinks', value: '3.0M', tone: 'green' },
+          { label: 'Ref. domains', value: '116,591' },
+          { label: 'Organic keywords', value: '551,445', tone: 'green' },
+          { label: 'Monthly traffic', value: '359,720', tone: 'green' },
+          { label: 'HTTPS / SSL', value: 'Valid', tone: 'green' },
+        ]),
+        list('Where its US rankings sit (organic positions)', [
+          'Top 1–5: 190,132',
+          'Position 6–10: 80,073',
+          'Position 11–20: 102,657',
+          'Position 21–50: 207,161',
+        ]),
       ],
     },
   },
@@ -324,15 +360,17 @@ const SAMPLE_RESULTS = {
     result: {
       source: 'live',
       sections: [
-        stats('AI visibility · Asana', [
-          { label: 'AI Visibility', value: '58 / 100', tone: 'amber' }, { label: 'Prompts tested', value: '12' },
-          { label: 'Citations', value: '7', tone: 'green' },
+        stats('AI search visibility · Asana · United States', [
+          { label: 'Brand mentions', value: '120,056', tone: 'green' },
+          { label: 'Citations', value: '103,627', tone: 'green' },
+          { label: 'Avg position in AI answers', value: '4.9', tone: 'green' },
+          { label: 'AI traffic opportunity', value: '80,933' },
         ]),
-        list('Are you cited when users ask buying questions?', [
+        list('Does each AI assistant cite asana.com when users ask buying questions?', [
+          '✓ Google AI Overviews — names Asana and links asana.com (avg position 6.2)',
           '✓ ChatGPT — names Asana and cites asana.com',
+          '✓ Gemini — names Asana and cites asana.com',
           '✓ Perplexity — names Asana and cites asana.com',
-          '✗ Gemini — names Asana but cites a competitor as the source',
-          '✗ Claude — doesn’t mention Asana for “best PM tool for small teams”',
         ]),
       ],
     },
@@ -342,15 +380,16 @@ const SAMPLE_RESULTS = {
     result: {
       source: 'live',
       sections: [
-        stats('Share of voice across AI chatbots', [
-          { label: 'Prompts run', value: '20' }, { label: 'Your mention rate', value: '62%', tone: 'green' },
+        stats('Brand mentions across AI engines · Asana', [
+          { label: 'Total mentions', value: '120,056', tone: 'green' },
+          { label: 'Avg position', value: '4.9', tone: 'green' },
         ]),
-      ],
-      rows: [
-        { Brand: 'Asana', 'Mention rate': '62%', 'Share of voice': 'Leader' },
-        { Brand: 'monday.com', 'Mention rate': '54%', 'Share of voice': 'Strong' },
-        { Brand: 'ClickUp', 'Mention rate': '38%', 'Share of voice': 'Growing' },
-        { Brand: 'Trello', 'Mention rate': '21%', 'Share of voice': 'Trailing' },
+        list('Mentions by AI engine (last 30 days)', [
+          'Google AI Overview: 66,384',
+          'ChatGPT: 31,624',
+          'Gemini: 6,072',
+          'Perplexity: 411',
+        ]),
       ],
     },
   },
@@ -397,14 +436,14 @@ const SAMPLE_RESULTS = {
       source: 'live',
       sections: [
         stats('Health score · asana.com', [
-          { label: 'Health score', value: '74 / 100', tone: 'amber' }, { label: 'SSL', value: 'OK', tone: 'green' },
-          { label: 'Speed', value: '1.8s', tone: 'green' }, { label: 'llms.txt', value: 'Missing', tone: 'red' },
+          { label: 'Health score', value: '82 / 100', tone: 'green' }, { label: 'Domain authority', value: '95', tone: 'green' },
+          { label: 'Backlinks', value: '3.0M', tone: 'green' }, { label: 'llms.txt', value: 'Missing', tone: 'red' },
         ]),
       ],
       rows: [
         { Fix: 'Add llms.txt + Organization structured data', Area: 'GEO', Priority: 'Critical' },
-        { Fix: 'Add FAQ schema to 6 high-traffic templates', Area: 'SEO', Priority: 'High' },
-        { Fix: 'Compress 14 hero images (save ~0.6s)', Area: 'Speed', Priority: 'Medium' },
+        { Fix: 'Add FAQ schema to high-traffic resource pages', Area: 'SEO', Priority: 'High' },
+        { Fix: 'Compress hero images to improve load time', Area: 'Speed', Priority: 'Medium' },
       ],
     },
   },
@@ -558,6 +597,40 @@ const SAMPLE_RESULTS = {
       ],
     },
   },
+
+  'meta-ads': {
+    result: {
+      source: 'live',
+      sections: [
+        stats('Meta Ads · last 28 days', [
+          { label: 'Spend', value: '$12,480' }, { label: 'Conversions', value: '3,640', tone: 'green' },
+          { label: 'Blended CPA', value: '$3.43', tone: 'green' }, { label: 'Reach', value: '1.4M' },
+        ]),
+      ],
+      rows: [
+        { Campaign: 'Retargeting — Website', Spend: '$3,210', Clicks: '21,400', Conversions: '1,980', CPA: '$1.62' },
+        { Campaign: 'Prospecting — Lookalike 1%', Spend: '$5,870', Clicks: '34,800', Conversions: '1,090', CPA: '$5.39' },
+        { Campaign: 'Awareness — Reels', Spend: '$3,400', Clicks: '18,900', Conversions: '570', CPA: '$5.96' },
+      ],
+    },
+  },
+
+  'linkedin-ads': {
+    result: {
+      source: 'live',
+      sections: [
+        stats('LinkedIn Ads · last 28 days', [
+          { label: 'Spend', value: '$9,750' }, { label: 'Leads', value: '214', tone: 'green' },
+          { label: 'Cost per lead', value: '$45.56', tone: 'green' }, { label: 'CTR', value: '0.61%' },
+        ]),
+      ],
+      rows: [
+        { Campaign: 'Sponsored — Whitepaper', Spend: '$4,300', Clicks: '2,140', Leads: '128', CPL: '$33.59' },
+        { Campaign: 'Lead Gen — Demo Request', Spend: '$3,650', Clicks: '1,510', Leads: '62', CPL: '$58.87' },
+        { Campaign: 'Message Ads — Webinar', Spend: '$1,800', Clicks: '640', Leads: '24', CPL: '$75.00' },
+      ],
+    },
+  },
 };
 
 export function sampleResultFor(toolId) {
@@ -572,7 +645,8 @@ const OUTPUT_BLURB = {
   'anchor-cleaner': 'Every internal anchor on the page, flagged where the text is over-optimised, generic or broken.',
   'technical-seo': 'A multi-page crawl with every issue grouped by severity, newest-critical first.',
   onpage: 'Element-by-element rewrites benchmarked against the pages currently outranking you.',
-  competitors: 'Who else ranks for your keywords, and how much of your keyword set they share.',
+  'page-analysis': 'A one-glance site snapshot — domain authority, backlinks, organic traffic and where the rankings sit.',
+  competitors: 'Who else ranks for your keywords, how big their keyword set is and how much traffic they pull.',
   backlinks: 'A full link-profile audit — totals, authority, dofollow split and your top referring domains.',
   schema: 'Valid, copy-paste JSON-LD with a one-click “Test in Google” link — built visually, no code.',
   'strategy-engine': 'Prioritised keyword strategies (top pick highlighted) plus a ready-to-action SEO plan.',
@@ -593,6 +667,8 @@ const OUTPUT_BLURB = {
   gsc: 'Live Search Console data — clicks, impressions, CTR and position, with a trend chart. 0 credits — it’s your own data.',
   ga4: 'Your GA4 traffic — sessions, users, engagement and conversions by channel. 0 credits.',
   'google-ads': 'Your Google Ads performance — spend, clicks, conversions and CPA by campaign. 0 credits.',
+  'meta-ads': 'Your Facebook & Instagram ad performance — spend, conversions and CPA by campaign. 0 credits.',
+  'linkedin-ads': 'Your LinkedIn ad performance — spend, leads and cost-per-lead by campaign. 0 credits.',
 };
 
 // ── Per-tool intros ("what & when to use it") ────────────────────────────────
@@ -603,6 +679,7 @@ export const TOOL_INTRO = {
   'anchor-cleaner': 'Audit a page’s internal links for over-optimised, generic or broken anchor text that can hurt rankings.',
   'technical-seo': 'Crawl a site for the technical issues Google cares about — broken tags, missing metadata and performance.',
   onpage: 'Get element-by-element rewrites (title, headings, meta, content) benchmarked against the pages outranking you.',
+  'page-analysis': 'A fast, all-in-one site snapshot — domain authority, backlinks, organic traffic, speed and technical signals in one view.',
   competitors: 'Discover who shares your keywords and how you stack up — the starting map for any SEO strategy.',
   backlinks: 'Audit any domain’s link profile — totals, authority, dofollow split and the sites linking to it.',
   schema: 'Build valid JSON-LD structured data visually to win rich snippets. No data is fetched — it’s a builder.',
@@ -624,6 +701,8 @@ export const TOOL_INTRO = {
   gsc: 'Pull your own Google Search Console data — clicks, impressions, CTR and position. Costs 0 credits.',
   ga4: 'Pull your own GA4 analytics — sessions, users, engagement and conversions. Costs 0 credits.',
   'google-ads': 'Pull your own Google Ads performance — spend, clicks, conversions and CPA. Costs 0 credits.',
+  'meta-ads': 'Pull your own Facebook & Instagram Ads performance — spend, conversions and CPA. Costs 0 credits.',
+  'linkedin-ads': 'Pull your own LinkedIn Ads performance — spend, leads and cost-per-lead. Costs 0 credits.',
 };
 
 // ── Auto field hints (from the catalog schema) ───────────────────────────────

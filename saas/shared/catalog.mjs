@@ -338,8 +338,8 @@ export const GLOSSARY = {
  *  render a matching real-shaped result on the page (see frontend lib/tours.js). */
 export const EXAMPLES = {
   'keyword-analysis': { mode: 'Keyword metrics', input: 'project management software, task management software, kanban board', location: 'United States', language: 'English' },
-  'rank-checker': { input: 'project management software, kanban board, gantt chart', target: 'asana.com', location: 'United States' },
-  'time-to-rank': { domain: 'https://asana.com', input: 'project management software, work management, kanban board', location: 'United States', language: 'English' },
+  'rank-checker': { input: 'strategic planning, sunk cost fallacy, team building activities, smart goals, project plan template', target: 'asana.com', location: 'United States' },
+  'time-to-rank': { domain: 'https://asana.com', input: 'work management, gantt chart maker, task management software, kanban board', location: 'United States', language: 'English' },
   'anchor-cleaner': { input: 'https://asana.com/features', keyword: 'project management' },
   'technical-seo': { input: 'https://asana.com', maxPages: '10', maxDepth: '4' },
   onpage: { input: 'https://asana.com/features', keywords: 'project management software, work management' },
