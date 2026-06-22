@@ -91,7 +91,36 @@
                 body: JSON.stringify(payload),
                 keepalive: true
             }).catch(function () { /* never surface reporter failures */ });
+            if (ctx.silent !== true) showLoggedToast();
         } catch (e) { /* the reporter must never throw */ }
+    }
+
+    // ── Self-contained "error logged" toast (works on all pages) ───────────
+    function _toastContainer() {
+        var c = document.getElementById('dm-err-toasts');
+        if (!c && document.body) {
+            c = document.createElement('div');
+            c.id = 'dm-err-toasts';
+            c.style.cssText = 'position:fixed;z-index:2147483647;left:50%;bottom:24px;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;max-width:92vw;';
+            document.body.appendChild(c);
+        }
+        return c;
+    }
+    function showLoggedToast() {
+        try {
+            var c = _toastContainer();
+            if (!c) return;
+            var t = document.createElement('div');
+            t.setAttribute('role', 'status');
+            t.textContent = '⚠️ Something went wrong — the error has been logged and our team notified.';
+            t.style.cssText = 'background:#1e293b;color:#f1f5f9;font:500 13px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:10px 16px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.28);border:1px solid rgba(148,163,184,.25);opacity:0;transform:translateY(8px);transition:opacity .25s ease,transform .25s ease;pointer-events:auto;text-align:center;';
+            c.appendChild(t);
+            requestAnimationFrame(function () { t.style.opacity = '1'; t.style.transform = 'translateY(0)'; });
+            setTimeout(function () {
+                t.style.opacity = '0'; t.style.transform = 'translateY(8px)';
+                setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 300);
+            }, 5000);
+        } catch (e) { /* toast must never break anything */ }
     }
 
     window.DMError = { report: report };
