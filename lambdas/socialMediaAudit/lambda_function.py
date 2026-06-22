@@ -68,7 +68,7 @@ JOB_TTL_SECS   = 6 * 3600
 CACHE_TTL_SECS = 30 * 86400        # 30-day Apify cache to cut scrape cost
 # Bump whenever the metrics shape changes so stale-shape cache entries are
 # treated as misses (forces a re-scrape) instead of serving wrong/partial data.
-METRICS_SCHEMA = 5                  # v5: LinkedIn posts via company-posts actor (was profile-only)
+METRICS_SCHEMA = 6                  # v6: YouTube channel fields (numberOfSubscribers etc.)
 MAX_GRID_POSTS = 21                 # posts surfaced for the visual grid (brand + competitors)
 
 CORS = {
@@ -865,15 +865,21 @@ def _extract(platform, items, post_items=None):
 
     prof = head.get('authorMeta') if isinstance(head.get('authorMeta'), dict) else head
 
+    # YouTube (streamers~youtube-scraper) returns one item PER VIDEO with the
+    # channel fields flat on each item (numberOfSubscribers/isChannelVerified/
+    # channelDescription/channelAvatarUrl) — include those names so the channel
+    # profile resolves. channelAvatarUrl is listed before the video thumbnailUrl
+    # so the avatar wins over a video still for the profile picture.
     followers = _num(_g(prof, 'followersCount', 'followers', 'fans', 'fanCount',
-                        'subscriberCount', 'followerCount', 'edge_followed_by'))
+                        'subscriberCount', 'followerCount', 'edge_followed_by',
+                        'numberOfSubscribers', 'channelTotalSubscribers', 'subscribers'))
     following = _num(_g(prof, 'followsCount', 'following', 'followingCount'))
-    verified  = bool(_g(prof, 'verified', 'isVerified', 'is_verified', default=False))
-    bio       = _g(prof, 'biography', 'bio', 'description', 'about', 'signature', default='')
+    verified  = bool(_g(prof, 'verified', 'isVerified', 'is_verified', 'isChannelVerified', default=False))
+    bio       = _g(prof, 'biography', 'bio', 'channelDescription', 'description', 'about', 'signature', default='')
     link      = _g(prof, 'externalUrl', 'website', 'link', 'externalUrls', 'bioLink', default='')
     category  = _g(prof, 'businessCategoryName', 'category', 'categoryName', default='')
-    pfp       = _g(prof, 'profilePicUrl', 'avatar', 'profileImage', 'thumbnailUrl',
-                   'originalAvatarUrl', default='')
+    pfp       = _g(prof, 'profilePicUrl', 'channelAvatarUrl', 'avatar', 'profileImage',
+                   'originalAvatarUrl', 'thumbnailUrl', default='')
 
     if post_items:
         post_head = post_items[0] if isinstance(post_items[0], dict) else {}
