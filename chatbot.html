@@ -3570,7 +3570,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2166</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2167</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -9831,6 +9831,25 @@
             - Recommend anything that did not pass the gates
             If a tool call fails or returns insufficient data, surface the failure explicitly ("Could not retrieve [platform] data — [reason]") rather than fabricating a section.
             ════════════════════════════════════════════════
+
+            MONDAY.COM GRAPHQL RULES (monday_graphql tool — DO NOT VIOLATE; verify EVERY query against this before sending):
+            - Top-level \`items\` on a board is DEPRECATED. ALWAYS use \`items_page(limit:, cursor:) { cursor items { ... } }\` nested inside \`boards { ... }\`. Never query \`items\` at the board level, and never put \`items_page\` at the root of the query.
+            - \`creator_name\` does NOT exist. Use \`creator { id name }\`.
+            - There is no \`board_ids\`, top-level \`column_id\`, or \`column_value\` argument. Use singular \`board_id\`, and \`columns: [{ column_id: "...", column_values: ["..."] }]\` (an array of objects).
+            - \`updates_page\` does NOT exist on an item. Use \`updates(limit:) { id body created_at creator { id name } }\`.
+            - \`items_page_by_column_values(...)\` returns an \`items_page\` shape — you MUST unwrap it as \`{ cursor items { ... } }\`, never as raw items.
+            - To paginate, follow the returned \`cursor\` with \`next_items_page(cursor: "...", limit:) { cursor items { ... } }\`.
+            Schema-correct templates:
+              • Items on a board: \`{ boards(ids: [BOARD_ID]) { items_page(limit: 100) { cursor items { id name column_values { id text value } creator { id name } } } } }\`
+              • Items by column value: \`{ boards(ids: [BOARD_ID]) { items_page_by_column_values(board_id: BOARD_ID, columns: [{column_id: "status", column_values: ["Done"]}]) { cursor items { id name column_values { id text value } } } } }\`
+              • Updates on an item: \`{ items(ids: [ITEM_ID]) { updates(limit: 5) { id body created_at creator { id name } } } }\`
+
+            GRACEFUL ERROR HANDLING:
+            - Ahrefs: if get_ahrefs_report returns {"error":"Not found"} (or similar), do NOT crash or fabricate — reply with a graceful message like "That domain isn't indexed in Ahrefs yet." and offer an alternative.
+            - Google Chat: if search_messages_standard (or list_messages) returns "Space not found", call list_my_spaces to discover available spaces and present them to the user rather than erroring out.
+
+            DATA FORMAT RULE:
+            - Visibility / SOV / mention-rate scores from Digimetrics & WorkDuo APIs are 0–1 decimals. ALWAYS multiply × 100 before rendering them in any chart, table, or sentence as a percentage.
 
             SE RANKING CRITICAL RULES:
             - NEVER ask the user for an SE Ranking Site ID. The Site IDs are already in the synced context under 'loaded_seranking_campaigns'.
