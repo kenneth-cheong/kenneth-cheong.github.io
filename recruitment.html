@@ -1681,34 +1681,73 @@
                     <strong id="scheduleRecipientEmail">the candidate</strong> at the chosen time.
                 </p>
 
-                <div class="form-group">
-                    <label>When to send</label>
-                    <select id="scheduleWhen" onchange="onScheduleWhenChange()"
-                        style="background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); color: white;">
-                        <option value="3600">In 1 hour</option>
-                        <option value="86400">In 1 day</option>
-                        <option value="259200">In 3 days</option>
-                        <option value="604800" selected>In 1 week</option>
-                        <option value="1209600">In 2 weeks</option>
-                        <option value="custom">Custom date &amp; time…</option>
-                    </select>
+                <!-- Loading state while we check authorization -->
+                <div id="scheduleLoading" style="text-align: center; color: var(--text-dim); font-size: 0.85rem; padding: 24px 0;">
+                    <i class="fas fa-spinner fa-spin"></i> Checking Gmail authorization…
                 </div>
 
-                <div class="form-group" id="scheduleCustomWrap" style="display: none;">
-                    <label>Pick date &amp; time</label>
-                    <input type="datetime-local" id="scheduleCustomAt" onchange="updateSchedulePreview()"
-                        style="background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); color: white;">
+                <!-- Shown when the logged-in recruiter has NOT authorized Gmail -->
+                <div id="scheduleAuthNeeded" style="display: none;">
+                    <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 16px; margin-bottom: 16px; font-size: 0.85rem;">
+                        <i class="fas fa-triangle-exclamation" style="color: var(--danger, #ef4444);"></i>
+                        Scheduled sending isn't authorized for <strong id="scheduleAuthEmail">your account</strong> yet.
+                        Authorize once to send invitations from your own Gmail.
+                    </div>
+                    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <button class="btn" style="background: var(--glass); color: var(--text-main); border: 1px solid var(--border);" onclick="closeScheduleEmailModal()">Cancel</button>
+                        <button class="btn btn-primary" onclick="authorizeGmailSending(onModalAuthorized)">
+                            <i class="fab fa-google"></i> Authorize Gmail
+                        </button>
+                    </div>
                 </div>
 
-                <div style="background: rgba(99, 102, 241, 0.1); border-radius: 12px; padding: 14px; margin-bottom: 20px; border: 1px solid rgba(99, 102, 241, 0.2); font-size: 0.82rem;">
-                    Scheduled for: <strong id="schedulePreview" style="color: var(--primary-light);">—</strong>
-                </div>
+                <!-- Scheduling form (shown when authorized) -->
+                <div id="scheduleForm" style="display: none;">
+                    <div class="form-group">
+                        <label>When to send</label>
+                        <select id="scheduleWhen" onchange="onScheduleWhenChange()"
+                            style="background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); color: white;">
+                            <option value="3600">In 1 hour</option>
+                            <option value="86400">In 1 day</option>
+                            <option value="259200">In 3 days</option>
+                            <option value="604800" selected>In 1 week</option>
+                            <option value="1209600">In 2 weeks</option>
+                            <option value="custom">Custom date &amp; time…</option>
+                        </select>
+                    </div>
 
-                <div style="display: flex; gap: 12px; justify-content: flex-end;">
-                    <button class="btn" style="background: var(--glass); color: var(--text-main); border: 1px solid var(--border);" onclick="closeScheduleEmailModal()">Cancel</button>
-                    <button class="btn btn-primary" id="scheduleConfirmBtn" onclick="confirmScheduleEmail()">
-                        <i class="fas fa-paper-plane"></i> Schedule Send
-                    </button>
+                    <div class="form-group" id="scheduleCustomWrap" style="display: none;">
+                        <label>Pick date &amp; time</label>
+                        <input type="datetime-local" id="scheduleCustomAt" onchange="updateSchedulePreview()"
+                            style="background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); color: white;">
+                    </div>
+
+                    <div style="background: rgba(99, 102, 241, 0.1); border-radius: 12px; padding: 14px; margin-bottom: 20px; border: 1px solid rgba(99, 102, 241, 0.2); font-size: 0.82rem;">
+                        Scheduled for: <strong id="schedulePreview" style="color: var(--primary-light);">—</strong>
+                    </div>
+
+                    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <button class="btn" style="background: var(--glass); color: var(--text-main); border: 1px solid var(--border);" onclick="closeScheduleEmailModal()">Cancel</button>
+                        <button class="btn btn-primary" id="scheduleConfirmBtn" onclick="confirmScheduleEmail()">
+                            <i class="fas fa-paper-plane"></i> Schedule Send
+                        </button>
+                    </div>
+
+                    <!-- Pending scheduled sends for this recruiter -->
+                    <div id="schedulePendingWrap" style="margin-top: 22px; border-top: 1px solid var(--border); padding-top: 16px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                            <span style="font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim);">Your pending sends</span>
+                            <button onclick="loadPendingSends()" title="Refresh" style="background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 0.8rem;"><i class="fas fa-rotate-right"></i></button>
+                        </div>
+                        <div id="schedulePendingList" style="display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; font-size: 0.82rem;">
+                            <div style="color: var(--text-dim);">Loading…</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 14px; font-size: 0.75rem; color: var(--text-dim);">
+                        Sending as <strong id="scheduleSenderEmail2">your Gmail</strong>.
+                        <a href="#" onclick="revokeGmailSending(); return false;" style="color: var(--danger, #ef4444); text-decoration: none;">Disconnect</a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -5519,7 +5558,7 @@
             }
         }
 
-        function authorizeGmailSending() {
+        function authorizeGmailSending(onSuccess) {
             if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
                 showToast('Google library not loaded. Refresh and try again.', 'error');
                 return;
@@ -5544,6 +5583,7 @@
                         if (r.authorized) {
                             renderGmailAuthState(true);
                             showToast('Gmail sending authorized.', 'success');
+                            if (typeof onSuccess === 'function') onSuccess();
                         } else {
                             throw new Error(r.message || 'Exchange failed.');
                         }
@@ -5563,6 +5603,10 @@
                 await gmailAuthApi({ action: 'revoke', senderEmail: getLoggedUserEmail() });
                 renderGmailAuthState(false);
                 showToast('Gmail sending disconnected.', 'success');
+                // If the schedule modal is open, flip it back to the auth-needed state.
+                if (document.getElementById('scheduleEmailModal').style.display === 'flex') {
+                    setScheduleModalState('auth');
+                }
             } catch (e) {
                 showToast('Could not disconnect: ' + e.message, 'error');
             }
@@ -5605,28 +5649,87 @@
             updateSchedulePreview();
         }
 
+        // Toggle the modal between loading / auth-needed / scheduling-form states.
+        function setScheduleModalState(stateName) {
+            document.getElementById('scheduleLoading').style.display = stateName === 'loading' ? '' : 'none';
+            document.getElementById('scheduleAuthNeeded').style.display = stateName === 'auth' ? '' : 'none';
+            document.getElementById('scheduleForm').style.display = stateName === 'form' ? '' : 'none';
+        }
+
         async function openScheduleEmailModal() {
             const c = state.candidates.find(cand => String(cand.id) === String(editingCandId));
             if (!c || !c.email) {
                 alert("No email address found for this candidate. Please add one first.");
                 return;
             }
-            // Scheduled mail sends from the recruiter's Gmail, so they must authorize once first.
+            const email = getLoggedUserEmail();
+            document.getElementById('scheduleSenderEmail').textContent = email || 'your Gmail';
+            document.getElementById('scheduleSenderEmail2').textContent = email || 'your Gmail';
+            document.getElementById('scheduleRecipientEmail').textContent = c.email;
+            document.getElementById('scheduleAuthEmail').textContent = email || 'your account';
+            // Always open the modal first so the click clearly does something, then resolve auth.
+            setScheduleModalState('loading');
+            document.getElementById('scheduleEmailModal').style.display = 'flex';
+
             const authorized = await refreshGmailAuthStatus();
             if (!authorized) {
-                showToast('Authorize Gmail sending in Settings before scheduling.', 'error', 5000);
-                showSettings && showSettings();
+                setScheduleModalState('auth');
                 return;
             }
-            document.getElementById('scheduleSenderEmail').textContent = getLoggedUserEmail() || 'your Gmail';
-            document.getElementById('scheduleRecipientEmail').textContent = c.email;
             document.getElementById('scheduleWhen').value = '604800'; // default 1 week
             onScheduleWhenChange();
-            document.getElementById('scheduleEmailModal').style.display = 'flex';
+            setScheduleModalState('form');
+            loadPendingSends();
+        }
+
+        // Called after a successful in-modal "Authorize Gmail" so we flip straight to the form.
+        function onModalAuthorized() {
+            if (document.getElementById('scheduleEmailModal').style.display === 'none') return;
+            document.getElementById('scheduleWhen').value = '604800';
+            onScheduleWhenChange();
+            setScheduleModalState('form');
+            loadPendingSends();
         }
 
         function closeScheduleEmailModal() {
             document.getElementById('scheduleEmailModal').style.display = 'none';
+        }
+
+        const schedEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+
+        // List + cancel pending scheduled sends for the logged-in recruiter.
+        async function loadPendingSends() {
+            const wrap = document.getElementById('schedulePendingList');
+            wrap.innerHTML = '<div style="color: var(--text-dim);">Loading…</div>';
+            try {
+                const r = await scheduledEmailApi({ action: 'list', senderEmail: getLoggedUserEmail() });
+                const items = (r.items || []).slice().sort((a, b) => (a.sendAt > b.sendAt ? 1 : -1));
+                if (!items.length) {
+                    wrap.innerHTML = '<div style="color: var(--text-dim);">No pending scheduled sends.</div>';
+                    return;
+                }
+                wrap.innerHTML = items.map(it => `
+                    <div style="display: flex; align-items: center; gap: 10px; background: var(--glass); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px;">
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${schedEsc(it.to)}</div>
+                            <div style="color: var(--text-dim); font-size: 0.75rem;">${new Date(it.sendAt).toLocaleString()}</div>
+                        </div>
+                        <button onclick="cancelScheduledSend('${it.id}')" title="Cancel" style="background: none; border: none; color: var(--danger, #ef4444); cursor: pointer; flex-shrink: 0;"><i class="fas fa-trash"></i></button>
+                    </div>`).join('');
+            } catch (e) {
+                wrap.innerHTML = '<div style="color: var(--danger, #ef4444);">Could not load pending sends.</div>';
+            }
+        }
+
+        async function cancelScheduledSend(id) {
+            if (!confirm('Cancel this scheduled invitation? It will not be sent.')) return;
+            try {
+                await scheduledEmailApi({ action: 'cancel', id, senderEmail: getLoggedUserEmail() });
+                showToast('Scheduled invitation cancelled.', 'success');
+                loadPendingSends();
+            } catch (e) {
+                showToast('Could not cancel: ' + e.message, 'error');
+            }
         }
 
         async function confirmScheduleEmail() {
