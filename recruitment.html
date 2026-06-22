@@ -1604,19 +1604,42 @@
                 </div>
 
                 <div class="card" style="max-width: 800px;">
-                    <div class="card-title">Email Invitation Template <i class="fas fa-envelope"></i></div>
+                    <div class="card-title">Email Templates <i class="fas fa-envelope"></i></div>
                     <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 20px;">
-                        Customize the email sent to candidates when inviting them for an interview.
+                        Create and save multiple email templates. The one marked
+                        <strong>default</strong> is used by the instant Email button and pre-selected when
+                        scheduling; you can pick any template when you schedule an email.
                     </p>
-                    
+
+                    <div class="form-group">
+                        <label>Template</label>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <select id="templateSelect" onchange="onTemplateSelectChange()"
+                                style="flex: 1; min-width: 200px; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); color: white;"></select>
+                            <button class="btn" style="background: var(--glass); color: var(--text-main); border: 1px solid var(--border);" onclick="newTemplate()"><i class="fas fa-plus"></i> New</button>
+                            <button class="btn" style="background: var(--glass); color: var(--text-main); border: 1px solid var(--border);" onclick="duplicateTemplate()"><i class="fas fa-copy"></i> Duplicate</button>
+                            <button class="btn" style="background: var(--glass); color: var(--danger, #ef4444); border: 1px solid var(--danger, #ef4444);" onclick="deleteTemplate()"><i class="fas fa-trash"></i> Delete</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Template Name</label>
+                        <input type="text" id="settingTemplateName" placeholder="e.g. Rejection, Interview Invite…">
+                    </div>
+
                     <div class="form-group">
                         <label>Email Subject</label>
                         <input type="text" id="settingEmailSubject" placeholder="Enter subject template...">
                     </div>
-                    
+
                     <div class="form-group">
                         <label>Email Body</label>
                         <textarea id="settingEmailBody" rows="12" placeholder="Enter email body template..."></textarea>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                        <span id="templateDefaultBadge" style="display: none; font-size: 0.75rem; font-weight: 700; color: var(--success, #22c55e); background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.3); border-radius: 999px; padding: 4px 12px;"><i class="fas fa-star"></i> Default template</span>
+                        <button id="setDefaultBtn" class="btn" style="background: var(--glass); color: var(--text-main); border: 1px solid var(--border); font-size: 0.8rem;" onclick="setTemplateAsDefault()"><i class="far fa-star"></i> Set as default</button>
                     </div>
 
                     <div style="background: rgba(99, 102, 241, 0.1); border-radius: 12px; padding: 16px; margin-bottom: 24px; border: 1px solid rgba(99, 102, 241, 0.2);">
@@ -1631,7 +1654,7 @@
 
                     <div style="display: flex; gap: 12px;">
                         <button class="btn btn-primary" onclick="saveEmailSettings()">
-                            <i class="fas fa-save"></i> Save Settings
+                            <i class="fas fa-save"></i> Save Templates
                         </button>
                         <button class="btn" style="background: var(--glass); color: var(--text-main); border: 1px solid var(--border);" onclick="resetEmailSettings()">
                             <i class="fas fa-undo"></i> Reset to Default
@@ -1703,6 +1726,12 @@
 
                 <!-- Scheduling form (shown when authorized) -->
                 <div id="scheduleForm" style="display: none;">
+                    <div class="form-group">
+                        <label>Template</label>
+                        <select id="scheduleTemplate" onchange="onScheduleTemplateChange()"
+                            style="background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); color: white;"></select>
+                    </div>
+
                     <div class="form-group">
                         <label>Subject</label>
                         <input type="text" id="scheduleSubject" placeholder="Email subject"
@@ -2148,23 +2177,59 @@
             emailTemplate: {
                 subject: DEFAULT_EMAIL_SUBJECT,
                 body: DEFAULT_EMAIL_BODY
-            }
+            },
+            emailTemplates: [],        // [{ id, name, subject, body }]
+            defaultTemplateId: null,   // id used by instant Email + pre-selected when scheduling
+            editingTemplateId: null    // template currently shown in the Settings editor
         };
+
+        function genTemplateId() {
+            return 'tpl_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+        }
+        function getTemplateById(id) {
+            return state.emailTemplates.find(t => t.id === id) || null;
+        }
+        function getDefaultTemplate() {
+            return getTemplateById(state.defaultTemplateId)
+                || state.emailTemplates[0]
+                || { id: null, name: 'Default', subject: DEFAULT_EMAIL_SUBJECT, body: DEFAULT_EMAIL_BODY };
+        }
 
         function loadUserEmailTemplates() {
             if (!state.loggedUserId || !Array.isArray(state.users)) return;
             const userId = String(state.loggedUserId);
             const user = state.users.find(u => String(u.id) === userId);
-            
-            if (user && user.emailTemplateSubject && user.emailTemplateBody) {
-                console.log("Loading email template from database for user:", userId);
-                state.emailTemplate.subject = user.emailTemplateSubject;
-                state.emailTemplate.body = user.emailTemplateBody;
+
+            let templates = null, defId = null;
+
+            if (user && Array.isArray(user.emailTemplates) && user.emailTemplates.length) {
+                // New multi-template model from the database.
+                templates = user.emailTemplates.map(t => ({ id: t.id || genTemplateId(), name: t.name || 'Untitled', subject: t.subject || '', body: t.body || '' }));
+                defId = user.defaultTemplateId;
+            } else if (user && user.emailTemplateSubject && user.emailTemplateBody) {
+                // Migrate a legacy single template.
+                const t = { id: genTemplateId(), name: 'My Template', subject: user.emailTemplateSubject, body: user.emailTemplateBody };
+                templates = [t]; defId = t.id;
             } else {
-                console.log("No database template found; checking localStorage or defaults for user:", userId);
-                state.emailTemplate.subject = localStorage.getItem(`recruitment_email_subject_${userId}`) || DEFAULT_EMAIL_SUBJECT;
-                state.emailTemplate.body = localStorage.getItem(`recruitment_email_body_${userId}`) || DEFAULT_EMAIL_BODY;
+                // Try a locally-cached multi-template payload, else seed the default.
+                try {
+                    const cached = JSON.parse(localStorage.getItem(`recruitment_templates_${userId}`) || 'null');
+                    if (cached && Array.isArray(cached.templates) && cached.templates.length) {
+                        templates = cached.templates; defId = cached.defaultTemplateId;
+                    }
+                } catch (e) { /* ignore */ }
+                if (!templates) {
+                    const t = { id: genTemplateId(), name: 'Application Update', subject: DEFAULT_EMAIL_SUBJECT, body: DEFAULT_EMAIL_BODY };
+                    templates = [t]; defId = t.id;
+                }
             }
+
+            state.emailTemplates = templates;
+            state.defaultTemplateId = (defId && getTemplateById(defId)) ? defId : templates[0].id;
+            // Keep the legacy single-template object in sync for any older readers.
+            const d = getDefaultTemplate();
+            state.emailTemplate.subject = d.subject;
+            state.emailTemplate.body = d.body;
         }
 
         async function handleCredentialResponse(response) {
@@ -2789,97 +2854,172 @@
             hideAllSections();
             document.getElementById('settingsSection').style.display = 'block';
             setActiveNavItem('nav-settings');
-            
-            // Load current templates into inputs
-            document.getElementById('settingEmailSubject').value = state.emailTemplate.subject;
-            document.getElementById('settingEmailBody').value = state.emailTemplate.body;
+
+            renderTemplatesUI();
 
             // Reflect Gmail "send from your mailbox" authorization status.
             refreshGmailAuthStatus();
         }
 
-        async function saveEmailSettings() {
-            const subject = document.getElementById('settingEmailSubject').value.trim();
-            const body = document.getElementById('settingEmailBody').value.trim();
-            
-            if (!subject || !body) {
-                return showToast("Subject and Body cannot be empty", "error");
-            }
+        // ---- Email template manager (Settings) ----
+        function renderTemplateSelect() {
+            const sel = document.getElementById('templateSelect');
+            if (!sel) return;
+            sel.innerHTML = state.emailTemplates.map(t =>
+                `<option value="${t.id}">${schedEsc(t.name)}${t.id === state.defaultTemplateId ? ' (default)' : ''}</option>`
+            ).join('');
+            sel.value = state.editingTemplateId;
+        }
 
-            if (!state.loggedUserId) {
-                return showToast("User not identified. Save failed.", "error");
+        function updateTemplateDefaultUI() {
+            const isDefault = state.editingTemplateId === state.defaultTemplateId;
+            document.getElementById('templateDefaultBadge').style.display = isDefault ? '' : 'none';
+            document.getElementById('setDefaultBtn').style.display = isDefault ? 'none' : '';
+        }
+
+        function loadTemplateIntoInputs(id) {
+            const t = getTemplateById(id) || state.emailTemplates[0];
+            if (!t) return;
+            state.editingTemplateId = t.id;
+            document.getElementById('settingTemplateName').value = t.name;
+            document.getElementById('settingEmailSubject').value = t.subject;
+            document.getElementById('settingEmailBody').value = t.body;
+            renderTemplateSelect();
+            updateTemplateDefaultUI();
+        }
+
+        // Persist the on-screen inputs back into the editing template object.
+        function syncInputsToEditingTemplate() {
+            const t = getTemplateById(state.editingTemplateId);
+            if (!t) return;
+            t.name = document.getElementById('settingTemplateName').value.trim() || 'Untitled';
+            t.subject = document.getElementById('settingEmailSubject').value;
+            t.body = document.getElementById('settingEmailBody').value;
+        }
+
+        function renderTemplatesUI() {
+            if (!state.emailTemplates.length) loadUserEmailTemplates();
+            if (!getTemplateById(state.editingTemplateId)) {
+                state.editingTemplateId = state.defaultTemplateId || (state.emailTemplates[0] && state.emailTemplates[0].id);
             }
+            loadTemplateIntoInputs(state.editingTemplateId);
+        }
+
+        function onTemplateSelectChange() {
+            syncInputsToEditingTemplate();
+            loadTemplateIntoInputs(document.getElementById('templateSelect').value);
+        }
+
+        function newTemplate() {
+            syncInputsToEditingTemplate();
+            const t = { id: genTemplateId(), name: 'New Template', subject: '', body: '' };
+            state.emailTemplates.push(t);
+            loadTemplateIntoInputs(t.id);
+            document.getElementById('settingTemplateName').focus();
+        }
+
+        function duplicateTemplate() {
+            syncInputsToEditingTemplate();
+            const cur = getTemplateById(state.editingTemplateId);
+            if (!cur) return;
+            const t = { id: genTemplateId(), name: cur.name + ' (copy)', subject: cur.subject, body: cur.body };
+            state.emailTemplates.push(t);
+            loadTemplateIntoInputs(t.id);
+        }
+
+        function deleteTemplate() {
+            if (state.emailTemplates.length <= 1) {
+                return showToast("You must keep at least one template.", "error");
+            }
+            const cur = getTemplateById(state.editingTemplateId);
+            if (!cur || !confirm(`Delete the template "${cur.name}"?`)) return;
+            state.emailTemplates = state.emailTemplates.filter(t => t.id !== cur.id);
+            if (state.defaultTemplateId === cur.id) state.defaultTemplateId = state.emailTemplates[0].id;
+            loadTemplateIntoInputs(state.emailTemplates[0].id);
+            showToast("Template deleted. Remember to Save.", "info");
+        }
+
+        function setTemplateAsDefault() {
+            syncInputsToEditingTemplate();
+            state.defaultTemplateId = state.editingTemplateId;
+            renderTemplateSelect();
+            updateTemplateDefaultUI();
+            showToast("Marked as default. Remember to Save.", "info");
+        }
+
+        async function saveEmailSettings() {
+            syncInputsToEditingTemplate();
+
+            // Validate every template.
+            for (const t of state.emailTemplates) {
+                if (!t.name.trim() || !t.subject.trim() || !t.body.trim()) {
+                    return showToast(`Template "${t.name || 'Untitled'}" needs a name, subject and body.`, "error");
+                }
+            }
+            if (!state.loggedUserId) return showToast("User not identified. Save failed.", "error");
 
             const currentUserObj = state.users.find(u => String(u.id) === String(state.loggedUserId));
             if (!currentUserObj) return showToast("User session configuration not found", "error");
 
-            // Prepare user update for database
+            const templates = state.emailTemplates.map(t => ({ id: t.id, name: t.name.trim(), subject: t.subject, body: t.body }));
             const updatedUser = {
                 ...currentUserObj,
-                emailTemplateSubject: subject,
-                emailTemplateBody: body
+                emailTemplates: templates,
+                defaultTemplateId: state.defaultTemplateId,
+                // Keep the legacy fields mirrored to the default template for older readers.
+                emailTemplateSubject: getDefaultTemplate().subject,
+                emailTemplateBody: getDefaultTemplate().body
             };
-            
+
             try {
                 toggleLoading(true);
-                // Call database to save persistently
                 const result = await persistenceApiCall('upsert_user', updatedUser);
-                
                 if (result && result.success) {
-                    state.emailTemplate.subject = subject;
-                    state.emailTemplate.body = body;
-                    currentUserObj.emailTemplateSubject = subject;
-                    currentUserObj.emailTemplateBody = body;
-                    
-                    // Also save locally as a redundant cache
-                    localStorage.setItem(`recruitment_email_subject_${state.loggedUserId}`, subject);
-                    localStorage.setItem(`recruitment_email_body_${state.loggedUserId}`, body);
-                    
-                    showToast("Templates saved securely to database", "success");
+                    Object.assign(currentUserObj, { emailTemplates: templates, defaultTemplateId: state.defaultTemplateId });
+                    const d = getDefaultTemplate();
+                    state.emailTemplate.subject = d.subject;
+                    state.emailTemplate.body = d.body;
+                    localStorage.setItem(`recruitment_templates_${state.loggedUserId}`, JSON.stringify({ templates, defaultTemplateId: state.defaultTemplateId }));
+                    showToast(`${templates.length} template${templates.length > 1 ? 's' : ''} saved.`, "success");
+                    renderTemplateSelect();
                 } else {
                     throw new Error("Persistence error");
                 }
             } catch (err) {
                 console.error("Save Setting Error:", err);
                 showToast("Server error. Saved locally for now.", "warning");
-                // Fallback to purely local persistence
-                localStorage.setItem(`recruitment_email_subject_${state.loggedUserId}`, subject);
-                localStorage.setItem(`recruitment_email_body_${state.loggedUserId}`, body);
+                localStorage.setItem(`recruitment_templates_${state.loggedUserId}`, JSON.stringify({ templates, defaultTemplateId: state.defaultTemplateId }));
             } finally {
                 toggleLoading(false);
             }
         }
 
         async function resetEmailSettings() {
-            if (!confirm("Are you sure you want to reset the email template to defaults across all sessions?")) return;
-            
+            if (!confirm("Reset to a single default template? This removes your other saved templates.")) return;
             const currentUserObj = state.users.find(u => String(u.id) === String(state.loggedUserId));
-            
+
+            const t = { id: genTemplateId(), name: 'Application Update', subject: DEFAULT_EMAIL_SUBJECT, body: DEFAULT_EMAIL_BODY };
+            state.emailTemplates = [t];
+            state.defaultTemplateId = t.id;
+            state.editingTemplateId = t.id;
+            state.emailTemplate.subject = DEFAULT_EMAIL_SUBJECT;
+            state.emailTemplate.body = DEFAULT_EMAIL_BODY;
+
             try {
                 toggleLoading(true);
-                
                 if (currentUserObj) {
                     const updatedUser = {
                         ...currentUserObj,
-                        emailTemplateSubject: null,
-                        emailTemplateBody: null
+                        emailTemplates: [t],
+                        defaultTemplateId: t.id,
+                        emailTemplateSubject: DEFAULT_EMAIL_SUBJECT,
+                        emailTemplateBody: DEFAULT_EMAIL_BODY
                     };
                     await persistenceApiCall('upsert_user', updatedUser);
-                    currentUserObj.emailTemplateSubject = null;
-                    currentUserObj.emailTemplateBody = null;
+                    Object.assign(currentUserObj, { emailTemplates: [t], defaultTemplateId: t.id });
                 }
-
-                state.emailTemplate.subject = DEFAULT_EMAIL_SUBJECT;
-                state.emailTemplate.body = DEFAULT_EMAIL_BODY;
-                
-                document.getElementById('settingEmailSubject').value = DEFAULT_EMAIL_SUBJECT;
-                document.getElementById('settingEmailBody').value = DEFAULT_EMAIL_BODY;
-                
-                if (state.loggedUserId) {
-                    localStorage.removeItem(`recruitment_email_subject_${state.loggedUserId}`);
-                    localStorage.removeItem(`recruitment_email_body_${state.loggedUserId}`);
-                }
-                
+                localStorage.setItem(`recruitment_templates_${state.loggedUserId}`, JSON.stringify({ templates: [t], defaultTemplateId: t.id }));
+                loadTemplateIntoInputs(t.id);
                 showToast("Templates reset to default", "info");
             } catch (err) {
                 console.error("Reset Error:", err);
@@ -5472,17 +5612,18 @@
             } catch (e) { return ''; }
         }
 
-        // Build the resolved {to, subject, body} for a candidate's invitation,
-        // applying the saved template + placeholder substitutions. Shared by the
-        // instant "Email" (mailto) path and the scheduled "Send on behalf" path.
-        function buildCandidateEmail(c) {
+        // Build the resolved {to, subject, body} for a candidate's email, applying the
+        // given template (defaults to the user's default template) + placeholder
+        // substitutions. Shared by the instant "Email" (mailto) and scheduled paths.
+        function buildCandidateEmail(c, template) {
+            const tmpl = template || getDefaultTemplate();
             const job = state.jobs.find(j => String(j.id) === String(c.jobId));
 
             const url = new URL(window.location.href);
             url.searchParams.set('candidateId', c.id);
             const candidateBoardUrl = url.toString();
 
-            const replacer = (text) => text
+            const replacer = (text) => String(text || '')
                 .replace(/{{candidate_name}}/g, c.name)
                 .replace(/{{job_title}}/g, job ? job.title : 'Position')
                 .replace(/{{reference_url}}/g, candidateBoardUrl)
@@ -5490,8 +5631,8 @@
 
             return {
                 to: c.email,
-                subject: replacer(state.emailTemplate.subject),
-                body: replacer(state.emailTemplate.body)
+                subject: replacer(tmpl.subject),
+                body: replacer(tmpl.body)
             };
         }
 
@@ -5668,6 +5809,28 @@
             document.getElementById('scheduleForm').style.display = stateName === 'form' ? '' : 'none';
         }
 
+        function populateScheduleTemplatePicker() {
+            const sel = document.getElementById('scheduleTemplate');
+            sel.innerHTML = state.emailTemplates.map(t =>
+                `<option value="${t.id}">${schedEsc(t.name)}${t.id === state.defaultTemplateId ? ' (default)' : ''}</option>`
+            ).join('');
+            sel.value = state.defaultTemplateId;
+        }
+
+        // Fill the editable subject/body from a chosen template for candidate c.
+        function applyScheduleTemplate(c, templateId) {
+            const tmpl = getTemplateById(templateId) || getDefaultTemplate();
+            const mail = buildCandidateEmail(c, tmpl);
+            document.getElementById('scheduleSubject').value = mail.subject;
+            document.getElementById('scheduleBody').value = mail.body;
+        }
+
+        function onScheduleTemplateChange() {
+            const c = state.candidates.find(cand => String(cand.id) === String(editingCandId));
+            if (!c) return;
+            applyScheduleTemplate(c, document.getElementById('scheduleTemplate').value);
+        }
+
         async function openScheduleEmailModal() {
             const c = state.candidates.find(cand => String(cand.id) === String(editingCandId));
             if (!c || !c.email) {
@@ -5679,10 +5842,9 @@
             document.getElementById('scheduleSenderEmail2').textContent = email || 'your Gmail';
             document.getElementById('scheduleRecipientEmail').textContent = c.email;
             document.getElementById('scheduleAuthEmail').textContent = email || 'your account';
-            // Pre-fill the editable subject/body from the saved template (placeholders resolved).
-            const mail = buildCandidateEmail(c);
-            document.getElementById('scheduleSubject').value = mail.subject;
-            document.getElementById('scheduleBody').value = mail.body;
+            // Populate the template picker (default selected) and pre-fill subject/body.
+            populateScheduleTemplatePicker();
+            applyScheduleTemplate(c, state.defaultTemplateId);
             // Always open the modal first so the click clearly does something, then resolve auth.
             setScheduleModalState('loading');
             document.getElementById('scheduleEmailModal').style.display = 'flex';
