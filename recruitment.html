@@ -1640,20 +1640,31 @@
                 </div>
 
                 <div class="card" style="max-width: 800px;">
-                    <div class="card-title">Scheduled Sending <i class="fas fa-paper-plane"></i></div>
-                    <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 16px;">
-                        From a candidate's profile you can <strong>Schedule</strong> an invitation to be
-                        sent later — for example one week from now. Scheduled invitations are delivered
-                        automatically by the platform even when you're offline; no setup is needed.
+                    <div class="card-title">Send from Your Gmail <i class="fab fa-google"></i></div>
+                    <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 20px;">
+                        Authorize the platform to send <strong>scheduled</strong> interview invitations from
+                        your own Gmail account — for example a follow-up one week from now that goes out even
+                        when you're offline. Sent mail appears in your Gmail <strong>Sent</strong> folder, just
+                        as if you sent it yourself. You only need to authorize once.
                     </p>
-                    <div style="display: flex; align-items: flex-start; gap: 12px; background: var(--glass); border: 1px solid var(--border); border-radius: 12px; padding: 16px; font-size: 0.82rem;">
-                        <i class="fas fa-circle-info" style="color: var(--primary-light); margin-top: 2px;"></i>
-                        <div style="color: var(--text-dim);">
-                            Scheduled mail is sent from MediaOne's verified mailbox with
-                            <strong>your address as Reply-To</strong>, so candidate replies land in your inbox.
-                            The instant <strong>Email</strong> button still opens your own mail client as before.
+
+                    <div id="gmailAuthRow" style="display: flex; align-items: center; gap: 14px; background: var(--glass); border: 1px solid var(--border); border-radius: 12px; padding: 16px;">
+                        <span id="gmailAuthStatusDot" style="width: 10px; height: 10px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0;"></span>
+                        <div style="flex: 1;">
+                            <div id="gmailAuthStatusText" style="font-weight: 700; font-size: 0.9rem;">Checking authorization…</div>
+                            <div id="gmailAuthStatusSub" style="font-size: 0.78rem; color: var(--text-dim);">Gmail sending is not yet connected.</div>
                         </div>
+                        <button id="gmailAuthBtn" class="btn btn-primary" onclick="authorizeGmailSending()">
+                            <i class="fab fa-google"></i> Authorize Gmail
+                        </button>
+                        <button id="gmailRevokeBtn" class="btn" style="display: none; background: var(--glass); color: var(--danger, #ef4444); border: 1px solid var(--danger, #ef4444);" onclick="revokeGmailSending()">
+                            <i class="fas fa-unlink"></i> Disconnect
+                        </button>
                     </div>
+                    <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 12px;">
+                        The instant <strong>Email</strong> button still opens your own mail client as before — this
+                        only affects <strong>scheduled</strong> sends.
+                    </p>
                 </div>
             </section>
         </main>
@@ -2049,12 +2060,16 @@
         const GOOGLE_CLIENT_ID = '1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com';
         const VERIFY_ENDPOINT = 'https://ts9k398yn8.execute-api.ap-southeast-1.amazonaws.com/googleLogin';
 
-        // --- Scheduled "send on behalf" delivery (Amazon SES backend) ---
-        // recruitment.html POSTs a {to,subject,body,sendAt} row to this HTTP API;
-        // an EventBridge-cron Lambda (recruitmentEmailDispatcher) later delivers each
-        // due row via Amazon SES — From a verified mediaone.co sender and Reply-To the
-        // recruiter who scheduled it. No per-user authorization is required.
+        // --- Scheduled "send from the recruiter's own Gmail" ---
+        // The Schedule button POSTs a {to,subject,body,sendAt} row to SCHEDULED_EMAIL_ENDPOINT;
+        // an EventBridge-cron Lambda (recruitmentEmailDispatcher) later delivers each due row
+        // via the Gmail API using the recruiter's own refresh token — so it sends from their
+        // mailbox and shows in their Gmail "Sent". Each recruiter authorizes once via the OAuth
+        // auth-code popup; the code is exchanged for a stored refresh token by GMAIL_AUTH_ENDPOINT.
         // Backend source: recruitment-lambdas/  (acct 167633412846, ap-southeast-1).
+        // Requires the OAuth client to have the gmail.send scope + an Internal consent screen.
+        const GMAIL_SEND_SCOPE = 'https://www.googleapis.com/auth/gmail.send';
+        const GMAIL_AUTH_ENDPOINT = 'https://hp1ad5xwck.execute-api.ap-southeast-1.amazonaws.com';
         const SCHEDULED_EMAIL_ENDPOINT = 'https://lm82p1te4c.execute-api.ap-southeast-1.amazonaws.com';
 
         const DEFAULT_EMAIL_SUBJECT = "Interview Invitation: {{job_title}} - {{candidate_name}}";
@@ -2727,6 +2742,9 @@
             // Load current templates into inputs
             document.getElementById('settingEmailSubject').value = state.emailTemplate.subject;
             document.getElementById('settingEmailBody').value = state.emailTemplate.body;
+
+            // Reflect Gmail "send from your mailbox" authorization status.
+            refreshGmailAuthStatus();
         }
 
         async function saveEmailSettings() {
@@ -5452,7 +5470,106 @@
         }
 
         // ---------------------------------------------------------------------
-        // Schedule a "send on behalf" delivery
+        // Gmail "send from your mailbox" authorization (OAuth auth-code flow)
+        // ---------------------------------------------------------------------
+        let gmailCodeClient = null;
+
+        async function gmailAuthApi(payload) {
+            const res = await fetch(GMAIL_AUTH_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            return typeof data.body === 'string' ? JSON.parse(data.body) : (data.body || data);
+        }
+
+        // Reflect connected / not-connected state in the Settings card (if rendered).
+        function renderGmailAuthState(authorized, sub) {
+            const dot = document.getElementById('gmailAuthStatusDot');
+            if (!dot) return;
+            const text = document.getElementById('gmailAuthStatusText');
+            const subEl = document.getElementById('gmailAuthStatusSub');
+            const authBtn = document.getElementById('gmailAuthBtn');
+            const revokeBtn = document.getElementById('gmailRevokeBtn');
+            if (authorized) {
+                dot.style.background = 'var(--success, #22c55e)';
+                text.textContent = 'Gmail sending connected';
+                subEl.textContent = sub || `Scheduled invitations will send from ${getLoggedUserEmail()}.`;
+                authBtn.style.display = 'none';
+                revokeBtn.style.display = '';
+            } else {
+                dot.style.background = 'var(--text-dim)';
+                text.textContent = 'Gmail sending not connected';
+                subEl.textContent = sub || 'Authorize once to schedule sends from your own Gmail.';
+                authBtn.style.display = '';
+                revokeBtn.style.display = 'none';
+            }
+        }
+
+        async function refreshGmailAuthStatus() {
+            try {
+                const r = await gmailAuthApi({ action: 'status', senderEmail: getLoggedUserEmail() });
+                renderGmailAuthState(!!r.authorized);
+                return !!r.authorized;
+            } catch (e) {
+                console.error('Gmail status check failed:', e);
+                renderGmailAuthState(false, 'Could not check status. Try again.');
+                return false;
+            }
+        }
+
+        function authorizeGmailSending() {
+            if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
+                showToast('Google library not loaded. Refresh and try again.', 'error');
+                return;
+            }
+            // Auth-code flow (popup) with offline access -> backend receives a refresh token.
+            gmailCodeClient = google.accounts.oauth2.initCodeClient({
+                client_id: GOOGLE_CLIENT_ID,
+                scope: GMAIL_SEND_SCOPE,
+                ux_mode: 'popup',
+                callback: async (response) => {
+                    if (response.error || !response.code) {
+                        showToast('Authorization cancelled.', 'error');
+                        return;
+                    }
+                    try {
+                        renderGmailAuthState(false, 'Finalizing authorization…');
+                        const r = await gmailAuthApi({
+                            action: 'exchange',
+                            code: response.code,
+                            senderEmail: getLoggedUserEmail()
+                        });
+                        if (r.authorized) {
+                            renderGmailAuthState(true);
+                            showToast('Gmail sending authorized.', 'success');
+                        } else {
+                            throw new Error(r.message || 'Exchange failed.');
+                        }
+                    } catch (e) {
+                        console.error('Gmail authorization failed:', e);
+                        renderGmailAuthState(false, 'Authorization failed. Try again.');
+                        showToast('Authorization failed: ' + e.message, 'error', 6000);
+                    }
+                }
+            });
+            gmailCodeClient.requestCode();
+        }
+
+        async function revokeGmailSending() {
+            if (!confirm('Disconnect Gmail sending? Scheduled invitations that have not yet gone out will fail until you re-authorize.')) return;
+            try {
+                await gmailAuthApi({ action: 'revoke', senderEmail: getLoggedUserEmail() });
+                renderGmailAuthState(false);
+                showToast('Gmail sending disconnected.', 'success');
+            } catch (e) {
+                showToast('Could not disconnect: ' + e.message, 'error');
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // Schedule a delivery (sent later from the recruiter's Gmail)
         // ---------------------------------------------------------------------
         async function scheduledEmailApi(payload) {
             if (!SCHEDULED_EMAIL_ENDPOINT) throw new Error('Scheduling backend not configured yet (SCHEDULED_EMAIL_ENDPOINT is empty).');
@@ -5494,7 +5611,14 @@
                 alert("No email address found for this candidate. Please add one first.");
                 return;
             }
-            document.getElementById('scheduleSenderEmail').textContent = getLoggedUserEmail() || 'your address';
+            // Scheduled mail sends from the recruiter's Gmail, so they must authorize once first.
+            const authorized = await refreshGmailAuthStatus();
+            if (!authorized) {
+                showToast('Authorize Gmail sending in Settings before scheduling.', 'error', 5000);
+                showSettings && showSettings();
+                return;
+            }
+            document.getElementById('scheduleSenderEmail').textContent = getLoggedUserEmail() || 'your Gmail';
             document.getElementById('scheduleRecipientEmail').textContent = c.email;
             document.getElementById('scheduleWhen').value = '604800'; // default 1 week
             onScheduleWhenChange();
