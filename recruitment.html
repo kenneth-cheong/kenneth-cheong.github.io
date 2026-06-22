@@ -3243,6 +3243,23 @@
             }
         }
 
+        async function toggleCandidatePin(candId) {
+            const cand = state.candidates.find(c => String(c.id) === String(candId));
+            if (!cand) return;
+            cand.pinned = !cand.pinned;
+            renderCandidates();      // Optimistic re-render (job-detail view)
+            filterCandidatesRepo();  // ...and repository view
+            const result = await persistenceApiCall('upsert_candidate', { id: String(candId), pinned: cand.pinned }, true);
+            if (!result || !result.success) {
+                cand.pinned = !cand.pinned; // Roll back on failure
+                renderCandidates();
+                filterCandidatesRepo();
+                showToast("Failed to update pin.", "error");
+            } else {
+                showToast(cand.pinned ? "Candidate pinned to top." : "Candidate unpinned.");
+            }
+        }
+
         function renderJobs() {
             const container = document.getElementById('jobListBody');
             const accessibleJobs = getAccessibleJobs();
@@ -3263,9 +3280,11 @@
                 if (valA > valB) return jobsSort.direction === 'asc' ? 1 : -1;
                 return 0;
             });
+            // Pinned jobs always float to the top (stable: preserves the sort above within each group)
+            accessibleJobs.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
             container.innerHTML = accessibleJobs.map(job => `
-                <tr data-id="${job.id}" style="cursor: pointer; transition: background 0.2s ease;">
-                    <td class="clickable-name" onclick="openJobDetails('${job.id}')">${job.title}</td>
+                <tr data-id="${job.id}" style="cursor: pointer; transition: background 0.2s ease; ${job.pinned ? 'background: rgba(99, 102, 241, 0.08);' : ''}">
+                    <td class="clickable-name" onclick="openJobDetails('${job.id}')">${job.pinned ? '<i class="fas fa-thumbtack" style="color: var(--primary); margin-right: 6px; font-size: 0.75rem;"></i>' : ''}${job.title}</td>
                     <td style="font-size: 0.75rem; color: var(--text-dim);">${formatDateTime8(job.createdAt)}</td>
                     <td>${job.applicants || 0}</td>
                     <td>${job.shortlisted || 0}</td>
@@ -3277,6 +3296,7 @@
                         </select>
                     </td>
                     <td style="display: flex; gap: 8px;">
+                        <button class="btn" title="${job.pinned ? 'Unpin job' : 'Pin job to top'}" style="padding: 6px 12px; font-size: 0.75rem; background: ${job.pinned ? 'var(--primary)' : 'var(--glass)'}; color: ${job.pinned ? 'white' : 'var(--text-dim)'}; border: 1px solid ${job.pinned ? 'var(--primary)' : 'var(--border)'};" onclick="toggleJobPin('${job.id}')"><i class="fas fa-thumbtack"></i></button>
                         <button class="btn btn-primary" style="padding: 6px 12px; font-size: 0.75rem;" onclick="openJobDetails('${job.id}')">Manage</button>
                         <button class="btn" style="padding: 6px 12px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border);" onclick="openEditJobModal('${job.id}')">Edit</button>
                         <button class="btn" style="padding: 6px 12px; font-size: 0.75rem; background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);" onclick="confirmDuplicateJob('${job.id}')"><i class="fas fa-clone"></i> Clone</button>
@@ -3356,6 +3376,21 @@
                 alert("Job duplicated successfully!");
             } else {
                 alert("Failed to duplicate job.");
+            }
+        }
+
+        async function toggleJobPin(jobId) {
+            const job = state.jobs.find(j => String(j.id) === String(jobId));
+            if (!job) return;
+            job.pinned = !job.pinned;
+            renderJobs(); // Optimistic re-render
+            const result = await persistenceApiCall('upsert_job', { id: job.id, pinned: job.pinned }, true);
+            if (!result || !result.success) {
+                job.pinned = !job.pinned; // Roll back on failure
+                renderJobs();
+                showToast("Failed to update pin.", "error");
+            } else {
+                showToast(job.pinned ? "Job pinned to top." : "Job unpinned.");
             }
         }
 
@@ -3563,6 +3598,9 @@
                 return 0;
             });
 
+            // Pinned candidates always float to the top (stable: preserves the sort above within each group)
+            filtered.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+
             // Pagination Slicing
             const start = (state.pagination.page - 1) * state.pagination.limit;
             const sliced = filtered.slice(start, start + state.pagination.limit);
@@ -3595,11 +3633,11 @@
             }
 
             body.innerHTML = displayData.map(c => `
-                <tr data-id="${c.id}" style="animation: fadeIn 0.3s ease forwards; ${c.isReEvaluating ? 'opacity: 0.7; pointer-events: none;' : ''}" onclick="toggleRowSelection(this)">
+                <tr data-id="${c.id}" style="animation: fadeIn 0.3s ease forwards; ${c.isReEvaluating ? 'opacity: 0.7; pointer-events: none;' : ''} ${c.pinned ? 'background: rgba(99, 102, 241, 0.08);' : ''}" onclick="toggleRowSelection(this)">
                     <td style="text-align: center;" onclick="event.stopPropagation()">
                         <input type="checkbox" class="repo-checkbox" value="${c.id}" onchange="updateBulkDeleteVisibility('repoTable')">
                     </td>
-                    <td class="clickable-name" onclick="event.stopPropagation(); viewCandidate('${c.id}')">${c.name}</td>
+                    <td class="clickable-name" onclick="event.stopPropagation(); viewCandidate('${c.id}')">${c.pinned ? '<i class="fas fa-thumbtack" style="color: var(--primary); margin-right: 6px; font-size: 0.75rem;"></i>' : ''}${c.name}</td>
                     <td>
                         <select style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: white; border: 1px solid var(--border); border-radius: 8px; outline: none; width: 100%;" 
                             onclick="event.stopPropagation()" onchange="updateCandidateJob('${c.id}', this.value)">
@@ -3639,7 +3677,11 @@
                     </td>
                     <td>
                         <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-                            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);" 
+                            <button class="btn" title="${c.pinned ? 'Unpin candidate' : 'Pin candidate to top'}" style="padding: 4px 8px; font-size: 0.75rem; background: ${c.pinned ? 'var(--primary)' : 'var(--glass)'}; color: ${c.pinned ? 'white' : 'var(--text-dim)'}; border: 1px solid ${c.pinned ? 'var(--primary)' : 'var(--border)'};"
+                                onclick="event.stopPropagation(); toggleCandidatePin('${c.id}')">
+                                <i class="fas fa-thumbtack"></i>
+                            </button>
+                            <button class="btn" style="padding: 4px 8px; font-size: 0.75rem; background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);"
                                 onclick="event.stopPropagation(); copyShareLink('${c.id}')">
                                 <i class="fas fa-share-alt"></i>
                             </button>
@@ -4809,6 +4851,9 @@
                 return 0;
             });
 
+            // Pinned candidates always float to the top (stable: preserves the sort above within each group)
+            filtered.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+
             // Pagination Slicing
             const start = (state.pagination.page - 1) * state.pagination.limit;
             const sliced = filtered.slice(start, start + state.pagination.limit);
@@ -4825,12 +4870,12 @@
 
             // Render candidates table body
             body.innerHTML = sliced.map(c => `
-                <tr data-id="${c.id}" style="animation: fadeIn 0.3s ease forwards; ${c.isReEvaluating ? 'opacity: 0.7; pointer-events: none;' : ''}" onclick="toggleRowSelection(this)">
+                <tr data-id="${c.id}" style="animation: fadeIn 0.3s ease forwards; ${c.isReEvaluating ? 'opacity: 0.7; pointer-events: none;' : ''} ${c.pinned ? 'background: rgba(99, 102, 241, 0.08);' : ''}" onclick="toggleRowSelection(this)">
                     <td style="text-align: center;" onclick="event.stopPropagation()">
                         <input type="checkbox" class="cand-checkbox" value="${c.id}" onchange="updateBulkDeleteVisibility('candidateTable')">
                     </td>
                     <td>
-                        <div class="clickable-name" onclick="event.stopPropagation(); viewCandidate('${c.id}')">${c.name}</div>
+                        <div class="clickable-name" onclick="event.stopPropagation(); viewCandidate('${c.id}')">${c.pinned ? '<i class="fas fa-thumbtack" style="color: var(--primary); margin-right: 6px; font-size: 0.75rem;"></i>' : ''}${c.name}</div>
                         <div style="font-size: 0.7rem; color: var(--text-dim);">${c.fileName}</div>
                     </td>
                     <td>
@@ -4872,7 +4917,11 @@
                     </td>
                     <td>
                         <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-                            <button class="btn" style="padding: 6px 12px; font-size: 0.75rem; background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);" 
+                            <button class="btn" title="${c.pinned ? 'Unpin candidate' : 'Pin candidate to top'}" style="padding: 6px 12px; font-size: 0.75rem; background: ${c.pinned ? 'var(--primary)' : 'var(--glass)'}; color: ${c.pinned ? 'white' : 'var(--text-dim)'}; border: 1px solid ${c.pinned ? 'var(--primary)' : 'var(--border)'};"
+                                onclick="event.stopPropagation(); toggleCandidatePin('${c.id}')">
+                                <i class="fas fa-thumbtack"></i>
+                            </button>
+                            <button class="btn" style="padding: 6px 12px; font-size: 0.75rem; background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);"
                                 onclick="event.stopPropagation(); copyShareLink('${c.id}')">
                                 <i class="fas fa-share-alt"></i>
                             </button>
