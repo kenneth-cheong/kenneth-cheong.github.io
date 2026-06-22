@@ -3570,7 +3570,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2165</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2166</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -4554,8 +4554,20 @@
 
         // Persistence State
         var PERSISTENCE_API_URL = 'https://t9pw69cg8d.execute-api.ap-southeast-1.amazonaws.com/chatbotPersistence';
-        let currentConversationId = localStorage.getItem('chatbot_conversationId') || null;
-        let chatHistory = JSON.parse(localStorage.getItem('chatbot_history') || '[]');
+        // Always start a fresh conversation on page load / reload. Past chats are
+        // already saved to cloud history (browse them via the history sidebar), so
+        // nothing is lost — we just don't auto-restore the previous session into the
+        // live window. Shared links (?share=) are handled separately and load their
+        // own messages, so we keep the stored state in that one case.
+        const _startFreshChat = !new URLSearchParams(location.search).has('share');
+        let currentConversationId = _startFreshChat ? null : (localStorage.getItem('chatbot_conversationId') || null);
+        let chatHistory = _startFreshChat ? [] : JSON.parse(localStorage.getItem('chatbot_history') || '[]');
+        if (_startFreshChat) {
+            localStorage.removeItem('chatbot_conversationId');
+            localStorage.removeItem('chatbot_history');
+            localStorage.removeItem('threadId');
+            threadId = null;
+        }
 
         // Google Client ID — fetched from Lambda env var on load
         let _googleClientId = localStorage.getItem('googleClientId') || '';
