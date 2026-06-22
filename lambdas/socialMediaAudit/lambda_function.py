@@ -71,6 +71,35 @@ CACHE_TTL_SECS = 30 * 86400        # 30-day Apify cache to cut scrape cost
 METRICS_SCHEMA = 6                  # v6: YouTube channel fields (numberOfSubscribers etc.)
 MAX_GRID_POSTS = 21                 # posts surfaced for the visual grid (brand + competitors)
 
+# ── Daily auto-capture (cron) ────────────────────────────────────────────────
+# A scheduled EventBridge rule fires `cron_capture_all`, which fans out one
+# async `cron_capture_one` self-invoke per project. Each captures THIS month
+# (overwriting it daily so the in-progress month stays live) using the same
+# Apify pipeline as the UI, plus the Meta Graph API for private IG/FB insights.
+META_API          = 'https://graph.facebook.com/v23.0'
+# A long-lived Business Manager SYSTEM USER token (non-expiring) with
+# pages_show_list, pages_read_engagement, read_insights, instagram_basic,
+# instagram_manage_insights + business_management, and the client Pages assigned.
+META_ACCESS_TOKEN = os.environ.get('META_ACCESS_TOKEN', '')
+# How long a single cron_capture_one waits for its Apify runs before finalizing
+# with whatever finished. Keep below the Lambda timeout (set to 900s for cron).
+CRON_MAX_WAIT_SECS = int(os.environ.get('CRON_MAX_WAIT_SECS', '660'))
+# Metric → roll-up aggregation, mirroring the frontend METRICS catalog so the
+# cron computes KPIs identically to kpisFromScorecard() in index.html.
+METRIC_AGG = {
+    'followers':'sum','net_new_followers':'sum','followers_increase':'sum',
+    'followers_decrease':'sum','page_likes':'sum','impressions':'sum',
+    'organic_impressions':'sum','paid_impressions':'sum','reach':'sum',
+    'page_reach':'sum','daily_reach':'sum','paid_reach':'sum','frequency':'avg',
+    'engagements':'sum','engagement_rate':'avg','engaged_users_daily':'sum',
+    'engaged_users_rate':'avg','reactions':'sum','likes':'sum','comments':'sum',
+    'shares':'sum','saves':'sum','interactions':'sum','interaction_rate':'avg',
+    'clicks':'sum','ctr':'avg','profile_views':'sum','profile_cta_clicks':'sum',
+    'video_views':'sum','avg_video_views':'avg','avg_watch_time':'avg',
+    'video_frequency':'avg','full_video_watch_rate':'avg','posts_per_week':'sum',
+    'avg_likes':'avg',
+}
+
 CORS = {
     'Access-Control-Allow-Origin':  '*',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -145,6 +174,11 @@ def lambda_handler(event, context):
             return _resp(200, report_recommend(body))
         if action == 'report_extract_pdf':
             return _resp(200, report_extract_pdf(body))
+        # ── Daily auto-capture (scheduled, no user trigger) ──────────────────
+        if action == 'cron_capture_all':
+            return _resp(200, cron_capture_all(body))
+        if action == 'cron_capture_one':
+            return _resp(200, cron_capture_one(body))
         return _resp(400, {'error': f'Unknown action: {action}'})
     except Exception as e:
         return _resp(500, {'error': str(e)})
@@ -161,6 +195,9 @@ def handle_start(body):
     platforms  = body.get('platforms') or list(handles.keys())
     competitors = body.get('competitors') or []     # list of {platform, handle}
     brand      = (body.get('brand_name') or body.get('domain') or 'brand').strip()
+    # The daily cron sets _no_cache so every run re-scrapes (the 30-day cache
+    # would otherwise serve stale data and defeat true-daily capture).
+    no_cache   = bool(body.get('_no_cache'))
 
     cached_n = 0
     runs = {}
@@ -171,7 +208,7 @@ def handle_start(body):
         actor = ACTORS.get(p)
         if not actor:
             continue
-        if _cache_get(p, handle) is not None:          # fresh (<30d) → skip the scrape
+        if not no_cache and _cache_get(p, handle) is not None:   # fresh (<30d) → skip the scrape
             runs[p] = {'handle': handle, 'cached': True, 'role': 'client'}
             cached_n += 1
             continue
@@ -188,7 +225,7 @@ def handle_start(body):
         if not (p and handle and actor):
             continue
         name = c.get('name') or handle
-        if _cache_get(p, handle) is not None:
+        if not no_cache and _cache_get(p, handle) is not None:
             comp_runs.append({'platform': p, 'handle': handle, 'name': name, 'cached': True})
             cached_n += 1
             continue
@@ -1802,6 +1839,353 @@ def report_extract_pdf(body):
         return {'extracted': out, 'ai': True}
     except Exception as e:
         return {'extracted': None, 'ai': False, 'error': str(e)[:200]}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# DAILY AUTO-CAPTURE (cron) — no user trigger
+#
+# `cron_capture_all` (fired by an EventBridge schedule) scans every project and
+# async self-invokes `cron_capture_one` per project, so each gets its own full
+# Lambda budget. `cron_capture_one` re-captures the CURRENT month (overwriting it
+# each day so the in-progress month stays live) via the same Apify pipeline used
+# by the UI, then overlays Meta's private IG/FB insights, and saves.
+# ──────────────────────────────────────────────────────────────────────────────
+def _current_month():
+    d = datetime.now(timezone.utc)
+    return f'{d.year:04d}-{d.month:02d}'
+
+
+def cron_capture_all(body):
+    month = (body.get('month') or '').strip() or _current_month()
+    items = []
+    resp = _rprojects().scan(ProjectionExpression='projectId')
+    items.extend(resp.get('Items', []))
+    while resp.get('LastEvaluatedKey'):
+        resp = _rprojects().scan(ProjectionExpression='projectId',
+                                 ExclusiveStartKey=resp['LastEvaluatedKey'])
+        items.extend(resp.get('Items', []))
+    fired = 0
+    for it in items:
+        pid = it.get('projectId')
+        if not pid:
+            continue
+        _self_invoke({'action': 'cron_capture_one', 'projectId': pid, 'month': month})
+        fired += 1
+    return {'ok': True, 'projects': fired, 'month': month}
+
+
+def cron_capture_one(body):
+    pid   = (body.get('projectId') or '').strip()
+    month = (body.get('month') or '').strip() or _current_month()
+    if not pid:
+        raise RuntimeError('Missing projectId.')
+    proj = _rprojects().get_item(Key={'projectId': pid}).get('Item')
+    if not proj:
+        raise RuntimeError('Unknown project.')
+    proj = _dec(proj)
+
+    # 1. Apify scrape (organic, public) — same pipeline as the UI's "Capture".
+    sc = _cron_apify_scorecard(proj, month)
+
+    # 2. Meta Graph overlay (private owner-only IG/FB insights).
+    try:
+        meta_platforms = _cron_meta_platforms(proj, month)
+        sc = _merge_meta_platforms(sc, meta_platforms)
+    except Exception as e:
+        sc = sc or {}
+        sc['_meta_error'] = str(e)[:200]
+
+    # 3. Preserve any platforms from the existing month NOT re-captured here
+    #    (e.g. manual-only Xiaohongshu rows) plus user-written recommendations.
+    existing = _rmonths().get_item(Key={'projectId': pid, 'month': month}).get('Item')
+    prev_sc, prev_recs = {}, None
+    if existing:
+        prev_recs = _dec(existing.get('recommendations'))
+        if isinstance(existing.get('scorecard'), str):
+            try: prev_sc = json.loads(existing['scorecard'])
+            except ValueError: prev_sc = {}
+    have = {c.get('platform') for c in (sc.get('platforms') or [])}
+    for p in (prev_sc.get('platforms') or []):
+        if p.get('platform') and p['platform'] not in have:
+            sc.setdefault('platforms', []).append(p)
+
+    if not (sc.get('platforms') or []):
+        return {'ok': False, 'projectId': pid, 'month': month,
+                'reason': 'no data captured', 'meta_error': sc.get('_meta_error')}
+
+    kpis = _kpis_from_scorecard(sc)
+    recs = prev_recs or {'executive_summary': sc.get('executive_summary', ''),
+                         'overall_health': sc.get('overall_health')}
+    report_save_month({'data': {'projectId': pid, 'month': month, 'scorecard': sc,
+                                'kpis': kpis, 'recommendations': recs},
+                       'currentUser': {'email': 'daily-cron@auto'}})
+    return {'ok': True, 'projectId': pid, 'month': month,
+            'platforms': [c.get('platform') for c in (sc.get('platforms') or [])],
+            'meta_error': sc.get('_meta_error')}
+
+
+def _cron_apify_scorecard(proj, month):
+    """Run the Apify pipeline synchronously (start → wait → finalize) and return
+    the computed scorecard, or {} when the project has no live (scrapable)
+    platforms or the scrape yields nothing."""
+    handles = proj.get('handles') or {}
+    live = [p for p in (proj.get('platforms') or [])
+            if p in ACTORS and (handles.get(p) or '').strip()]
+    if not live or not APIFY_TOKEN:
+        return {}
+    try:
+        started = handle_start({
+            'brand_name':  proj.get('brand') or proj.get('name') or 'brand',
+            'domain':      proj.get('domain') or '',
+            'location':    proj.get('location') or 'Singapore',
+            'platforms':   live,
+            'handles':     handles,
+            'competitors': proj.get('competitors') or [],
+            '_no_cache':   True,
+        })
+    except Exception:
+        return {}
+    job_id = started.get('jobId')
+    if not job_id:
+        return {}
+    item = _jobs().get_item(Key={'jobId': job_id}).get('Item') or {}
+    live_ids = _all_live_ids(item.get('runs') or {}, item.get('comp_runs') or [])
+    deadline = time.time() + CRON_MAX_WAIT_SECS
+    while live_ids and time.time() < deadline:
+        statuses = {rid: _apify_status(rid) for rid in live_ids}
+        if all(s in TERMINAL for s in statuses.values()):
+            break
+        time.sleep(15)
+    # Build the scorecard inline (cron has the full Lambda budget — no need for
+    # the async self-invoke the UI poll path uses).
+    handle_finalize({'jobId': job_id})
+    job = _jobs().get_item(Key={'jobId': job_id}).get('Item') or {}
+    if job.get('scorecard'):
+        try: return json.loads(job['scorecard'])
+        except ValueError: return {}
+    return {}
+
+
+def _merge_meta_platforms(sc, meta_platforms):
+    """Overlay Meta's private metrics onto the scorecard. For a platform already
+    present (Apify-scraped IG/FB), the private fields are merged in at the field
+    level so the post grid + public counts from Apify are preserved."""
+    sc = sc or {}
+    if not meta_platforms:
+        return sc
+    cards = sc.setdefault('platforms', [])
+    by = {c.get('platform'): c for c in cards}
+    for mp in meta_platforms:
+        plat = mp.get('platform')
+        if not plat:
+            continue
+        if plat in by:
+            for k, v in mp.items():
+                if k in ('platform', 'posts') or v is None:
+                    continue
+                by[plat][k] = v
+        else:
+            cards.append(mp)
+    return sc
+
+
+# ── KPI roll-up (mirrors kpisFromScorecard in index.html) ───────────────────
+def _is_num(v):
+    if v is None or v == '':
+        return False
+    try:
+        float(v); return True
+    except (TypeError, ValueError):
+        return False
+
+
+def _kpis_from_scorecard(sc):
+    plats = [p for p in (sc.get('platforms') or []) if p and p.get('found') is not False]
+    def _vals(f):
+        return [float(p[f]) for p in plats if _is_num(p.get(f))]
+    def _sum(f):  return sum(_vals(f))
+    def _avg(f):
+        v = _vals(f)
+        return round(sum(v) / len(v), 2) if v else None
+    out = {
+        'platforms': len(plats),
+        'per_platform': {p.get('platform'): {
+            'followers': int(float(p['followers'])) if _is_num(p.get('followers')) else 0,
+            'engagement_rate': p.get('engagement_rate')} for p in plats},
+    }
+    for k, agg in METRIC_AGG.items():
+        if not any(_is_num(p.get(k)) for p in plats):
+            out[k] = None
+            continue
+        v = _avg(k) if agg == 'avg' else _sum(k)
+        if k == 'posts_per_week' and v is not None: v = round(float(v), 1)
+        if k == 'avg_likes' and v is not None:      v = round(v)
+        out[k] = v
+    out['followers_growth_30d'] = _sum('followers_growth_30d') or None
+    return out
+
+
+# ── Meta (Instagram + Facebook) Graph insights — server-side mirror of the
+#    browser connector in index.html (srResolveMeta / srIg/FbInsights). ───────
+def _meta_get(path, params=None):
+    params = dict(params or {})
+    params.setdefault('access_token', META_ACCESS_TOKEN)
+    r = requests.get(META_API + path, params=params, timeout=25)
+    j = r.json()
+    if isinstance(j, dict) and j.get('error'):
+        raise RuntimeError((j['error'] or {}).get('message', 'Graph API error'))
+    return j
+
+
+def _meta_norm(h):
+    s = str(h or '').strip().lower().lstrip('@')
+    s = re.sub(r'^https?://(www\.)?(facebook|instagram)\.com/', '', s)
+    return re.sub(r'/.*$', '', s)
+
+
+def _meta_month_range(month):
+    y, m = (int(x) for x in month.split('-'))
+    since = int(datetime(y, m, 1, tzinfo=timezone.utc).timestamp())
+    nm    = datetime(y + (m == 12), (m % 12) + 1, 1, tzinfo=timezone.utc)
+    until = min(int(nm.timestamp()), int(time.time()))
+    if until <= since:                 # very first moment of the month
+        until = since + 86400
+    return since, until
+
+
+def _meta_pages(token):
+    pages, seen = [], set()
+    def add(ps):
+        for p in (ps or []):
+            if p and p.get('id') and p['id'] not in seen:
+                seen.add(p['id']); pages.append(p)
+    F = 'id,name,username,access_token,instagram_business_account{id,username}'
+    try: add(_meta_get('/me/accounts', {'fields': F, 'limit': 200, 'access_token': token}).get('data'))
+    except Exception: pass
+    if not pages:    # agency model: client pages live under Business Manager
+        bizes = []
+        try: bizes = _meta_get('/me/businesses', {'fields': 'id,name', 'limit': 50, 'access_token': token}).get('data') or []
+        except Exception: pass
+        for biz in bizes:
+            for edge in ('owned_pages', 'client_pages'):
+                try: add(_meta_get('/' + biz['id'] + '/' + edge, {'fields': F, 'limit': 200, 'access_token': token}).get('data'))
+                except Exception: pass
+    return pages
+
+
+def _meta_resolve(proj, token):
+    pages = _meta_pages(token)
+    if not pages:
+        raise RuntimeError('No Pages visible to the Meta token (needs pages_show_list + '
+                           'read_insights + instagram_manage_insights and the client Pages assigned).')
+    handles = proj.get('handles') or {}
+    fb, ig = _meta_norm(handles.get('facebook')), _meta_norm(handles.get('instagram'))
+    page = None
+    if fb:
+        page = next((p for p in pages if _meta_norm(p.get('username')) == fb
+                     or _meta_norm(p.get('name')) == fb), None)
+    if not page and ig:
+        page = next((p for p in pages if _meta_norm((p.get('instagram_business_account') or {}).get('username')) == ig), None)
+    if not page and len(pages) == 1:
+        page = pages[0]
+    if not page:
+        return None
+    iba = page.get('instagram_business_account') or {}
+    return {'pageId': page['id'], 'pageToken': page.get('access_token') or token,
+            'pageName': page.get('name'), 'igId': iba.get('id'), 'igName': iba.get('username')}
+
+
+def _meta_sum_metric(node_id, metric, token, since, until, opts=None):
+    try:
+        params = {'metric': metric, 'period': 'day', 'since': since, 'until': until, 'access_token': token}
+        if opts: params.update(opts)
+        rows = (_meta_get('/' + node_id + '/insights', params).get('data') or [])
+        if not rows:
+            return None
+        row = rows[0]
+        if row.get('total_value'):
+            return _num((row['total_value'] or {}).get('value'))
+        vals = row.get('values') or []
+        if not vals:
+            return None
+        return sum(_num(v.get('value')) or 0 for v in vals)
+    except Exception:
+        return None
+
+
+def _meta_fb_insights(page_id, token, since, until):
+    out = {}
+    def s(k, v):
+        if v is not None: out[k] = v
+    s('impressions',   _meta_sum_metric(page_id, 'page_impressions', token, since, until))
+    reach = _meta_sum_metric(page_id, 'page_impressions_unique', token, since, until)
+    s('reach', reach); s('page_reach', reach); s('daily_reach', reach)
+    s('engagements',   _meta_sum_metric(page_id, 'page_post_engagements', token, since, until))
+    s('profile_views', _meta_sum_metric(page_id, 'page_views_total', token, since, until))
+    s('reactions',     _meta_sum_metric(page_id, 'page_actions_post_reactions_total', token, since, until))
+    adds = _meta_sum_metric(page_id, 'page_fan_adds', token, since, until)
+    rem  = _meta_sum_metric(page_id, 'page_fan_removes', token, since, until)
+    s('followers_increase', adds); s('followers_decrease', rem)
+    if adds is not None or rem is not None:
+        s('net_new_followers', (adds or 0) - (rem or 0))
+    try:
+        p = _meta_get('/' + page_id, {'fields': 'followers_count,fan_count', 'access_token': token})
+        s('followers', p.get('followers_count') if p.get('followers_count') is not None else p.get('fan_count'))
+        s('page_likes', p.get('fan_count'))
+    except Exception:
+        pass
+    return out
+
+
+def _meta_ig_insights(ig_id, token, since, until):
+    out = {}
+    def s(k, v):
+        if v is not None: out[k] = v
+    tv = {'metric_type': 'total_value'}
+    s('reach',                _meta_sum_metric(ig_id, 'reach', token, since, until))
+    s('profile_views',        _meta_sum_metric(ig_id, 'profile_views', token, since, until))
+    s('impressions',          _meta_sum_metric(ig_id, 'views', token, since, until, tv))
+    s('engaged_users_daily',  _meta_sum_metric(ig_id, 'accounts_engaged', token, since, until, tv))
+    s('engagements',          _meta_sum_metric(ig_id, 'total_interactions', token, since, until, tv))
+    s('likes',                _meta_sum_metric(ig_id, 'likes', token, since, until, tv))
+    s('comments',             _meta_sum_metric(ig_id, 'comments', token, since, until, tv))
+    s('shares',               _meta_sum_metric(ig_id, 'shares', token, since, until, tv))
+    s('saves',                _meta_sum_metric(ig_id, 'saves', token, since, until, tv))
+    s('profile_cta_clicks',   _meta_sum_metric(ig_id, 'profile_links_taps', token, since, until, tv))
+    try:
+        p = _meta_get('/' + ig_id, {'fields': 'followers_count', 'access_token': token})
+        s('followers', p.get('followers_count'))
+    except Exception:
+        pass
+    return out
+
+
+def _cron_meta_platforms(proj, month):
+    """Pull this project's private IG/FB insights for the month, gated to the
+    platforms the project actually tracks. Returns [] when no Meta token is set,
+    no FB/IG handle exists, or the page can't be resolved."""
+    if not META_ACCESS_TOKEN:
+        return []
+    handles = proj.get('handles') or {}
+    plats   = set(proj.get('platforms') or [])
+    want_fb = ('facebook'  in plats) or bool(handles.get('facebook'))
+    want_ig = ('instagram' in plats) or bool(handles.get('instagram'))
+    if not (want_fb or want_ig):
+        return []
+    meta = _meta_resolve(proj, META_ACCESS_TOKEN)
+    if not meta:
+        return []
+    since, until = _meta_month_range(month)
+    out = []
+    if want_ig and meta.get('igId'):
+        ig = _meta_ig_insights(meta['igId'], meta['pageToken'], since, until)
+        if ig:
+            out.append(dict(platform='instagram', found=True, **ig))
+    if want_fb and meta.get('pageId'):
+        fb = _meta_fb_insights(meta['pageId'], meta['pageToken'], since, until)
+        if fb:
+            out.append(dict(platform='facebook', found=True, **fb))
+    return out
 
 
 # ──────────────────────────────────────────────────────────────────────────────

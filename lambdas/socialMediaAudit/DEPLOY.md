@@ -3,8 +3,16 @@
 Async Social Media Audit backend. Region: `ap-southeast-1`, account `167633412846`.
 
 ## DEPLOYED (2026-06-15) — live resources
-- **Lambda:** `socialMediaAudit` (python3.13, timeout 180, mem 256), role `socialMediaAudit-role` (AWSLambdaBasicExecutionRole + inline `sma-dynamodb`). Env: `APIFY_TOKEN`, `CLAUDE_API_KEY`.
+- **Lambda:** `socialMediaAudit` (python3.13, timeout **900** [was 180; bumped for the cron poll loop], mem 256), role `socialMediaAudit-role` (AWSLambdaBasicExecutionRole + inline `sma-dynamodb`). Env: `APIFY_TOKEN`, `CLAUDE_API_KEY`, `DATAFORSEO_AUTH`, `META_ACCESS_TOKEN`, `CRON_MAX_WAIT_SECS`.
 - **DynamoDB:** `sma_jobs` (PK jobId, TTL on `ttl`), `sma_snapshots` (PK brand_platform, SK ts).
+
+## Daily auto-capture (cron) — added 2026-06-22
+Monthly Social Reports refresh themselves daily, no user trigger.
+- **EventBridge rule** `socialMediaAudit-daily-capture` → `cron(0 22 * * ? *)` (22:00 UTC = 06:00 SGT), target = this Lambda, Input `{"action":"cron_capture_all"}`. Resource policy sid `eventbridge-daily-capture` lets `events.amazonaws.com` invoke.
+- **Flow:** `cron_capture_all` scans `social_report_projects` and async self-invokes `cron_capture_one` per project (each gets its own ≤900s budget). `cron_capture_one` re-captures the CURRENT month (overwrites daily so the in-progress month stays live): runs the Apify pipeline with `_no_cache:true` (bypasses the 30-day scrape cache for fresh data), overlays Meta Graph private IG/FB insights, preserves manual-only platforms (Xiaohongshu) + any user-written recommendations, then `report_save_month` as `daily-cron@auto`.
+- **`META_ACCESS_TOKEN`** must be a long-lived **Business Manager System User token** (non-expiring) with `pages_show_list, pages_read_engagement, read_insights, instagram_basic, instagram_manage_insights, business_management` and the client Pages assigned. Empty ⇒ cron runs Apify-only (Meta silently skipped). User access tokens expire (≤60 days) and will break the cron — use a System User token.
+- **Cost note:** `_no_cache` means every project re-scrapes all platforms + competitors every day (true-daily was the explicit requirement). Lower frequency by editing the rule's schedule expression.
+- **Manual test:** `aws lambda invoke --function-name socialMediaAudit --cli-binary-format raw-in-base64-out --payload '{"action":"cron_capture_all"}' out.json` (or target one project with `{"action":"cron_capture_one","projectId":"<pid>"}`).
 - **Endpoint:** REST API `vceg7jm8w0`, stage `socialMediaAudit`, root resource POST+OPTIONS → AWS_PROXY →
   `https://vceg7jm8w0.execute-api.ap-southeast-1.amazonaws.com/socialMediaAudit`
 - **NOTE:** Lambda Function URLs are blocked at the account level (returned `Forbidden` even with a correct
