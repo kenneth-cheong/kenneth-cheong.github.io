@@ -1588,16 +1588,36 @@ def claude_chat_with_tools(body):
         {
             "name": "monday_graphql",
             "description": (
-                "Execute a GraphQL query against the Monday.com API. "
+                "Execute a GraphQL query against the Monday.com API (API-Version 2024-04). "
                 "Use this to discover boards, fetch items, column values, updates, "
-                "people assignments, statuses, and any other workspace data."
+                "people assignments, statuses, and any other workspace data.\n"
+                "SCHEMA RULES — verify EVERY query against these before sending (a violation = a hard API error):\n"
+                "1. Top-level `items` on a board is DEPRECATED. ALWAYS use "
+                "`items_page(limit:, cursor:) { cursor items { ... } }` nested inside `boards { ... }`. "
+                "Never query `items` at the board level, and never put `items_page` at the root.\n"
+                "2. `creator_name` does NOT exist — use `creator { id name }`.\n"
+                "3. There is no `board_ids`, top-level `column_id`, or `column_value` argument. "
+                "Use singular `board_id`, and `columns: [{ column_id: \"...\", column_values: [\"...\"] }]` "
+                "(an array of objects).\n"
+                "4. `updates_page` does NOT exist on an item — use `updates(limit:) { id body created_at creator { id name } }`.\n"
+                "5. `items_page_by_column_values(...)` returns an items_page shape — unwrap it as `{ cursor items { ... } }`, never as raw items.\n"
+                "6. To paginate, follow the returned `cursor` with `next_items_page(cursor: \"...\", limit:) { cursor items { ... } }`.\n"
+                "Correct templates:\n"
+                "  • Board items: { boards(ids: [BOARD_ID]) { items_page(limit: 100) { cursor items { id name column_values { id text value } creator { id name } } } } }\n"
+                "  • By column value: { boards(ids: [BOARD_ID]) { items_page_by_column_values(board_id: BOARD_ID, columns: [{column_id: \"status\", column_values: [\"Done\"]}]) { cursor items { id name column_values { id text value } } } } }\n"
+                "  • Item updates: { items(ids: [ITEM_ID]) { updates(limit: 5) { id body created_at creator { id name } } } }"
             ),
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "A valid Monday.com GraphQL query string."
+                        "description": (
+                            "A valid Monday.com GraphQL query string. Must follow the SCHEMA RULES in the "
+                            "tool description: use items_page (never bare items), creator { id name } (never "
+                            "creator_name), board_id + columns:[{column_id,column_values}] (never board_ids), "
+                            "and updates(limit:) (never updates_page)."
+                        )
                     }
                 },
                 "required": ["query"]
