@@ -25,6 +25,9 @@ import { CREDIT_COSTS, PLANS } from '@shared/catalog.mjs';
 function run(steps, { onDone } = {}) {
   const usable = safeSteps(steps);
   if (!usable.length) { onDone?.(); return; }
+  // Run onDone exactly once, on whichever way the tour ends.
+  let finished = false;
+  const finish = () => { if (finished) return; finished = true; onDone?.(); };
   const d = driver({
     showProgress: true,
     animate: true,
@@ -38,7 +41,13 @@ function run(steps, { onDone } = {}) {
     doneBtnText: 'Got it',
     progressText: '{{current}} / {{total}}',
     steps: usable,
-    onDestroyed: () => onDone?.(),
+    // driver.js v1.4 only fires `onDestroyed` when a step element is active at
+    // teardown — clicking "Got it" on the final (centered) step destroys WITHOUT
+    // it, so cleanup would silently never run. `onDestroyStarted` fires on every
+    // exit path (Done, ✕, Esc, overlay click); we run the cleanup there and tear
+    // down ourselves. `onDestroyed` is kept as a belt-and-braces fallback.
+    onDestroyStarted: () => { finish(); d.destroy(); },
+    onDestroyed: () => finish(),
   });
   d.drive();
   return d;
@@ -822,6 +831,120 @@ export function startToolTour(tool, fields, hooks = {}) {
   hooks.preview?.();
   setTimeout(() => {
     run(steps, { onDone: () => { markSeen(`tool:${tool.id}`); hooks.clear?.(); } });
+  }, 120);
+}
+
+// ── Social Media Audit tour (bespoke page, not the generic ToolRunner) ────────
+// Mirrors startToolTour: `hooks.preview()` pre-fills the brand/profile/competitor
+// form with a real asana.com worked example and renders both result scorecards on
+// the page (Phase 1 live data + Phase 2 strategy), so the walkthrough annotates a
+// genuine run. `hooks.clear()` resets the whole form + both results on exit (Done,
+// ✕, Esc or click-away). Steps whose target isn't on-screen are dropped.
+export function startSocialAuditTour(tool, hooks = {}) {
+  const cost = CREDIT_COSTS[tool.cost] ?? 0;
+  const steps = [
+    {
+      popover: {
+        title: 'Social Media Audit',
+        description:
+          lead('Pulls live profile &amp; engagement data from Instagram, TikTok, Facebook, LinkedIn &amp; YouTube, then generates a strategic content-gap &amp; competitor audit in one pass.') +
+          `<p class="dm-ex-note">${tool.category} · ${cost} credits per run · ~30–150s (two phases)</p>` +
+          note('We’ve filled this in with a real <b>asana.com</b> example and rendered the result below, so you can see exactly what you get.'),
+      },
+    },
+    {
+      element: '[data-tour="sma-brand"]',
+      popover: {
+        title: 'Brand & campaign',
+        description:
+          lead('Only the <b>brand name</b> is required.') +
+          note('Leave industry, goals and audience blank and AI fills them in before the audit — we’ve pre-filled them here so you can see the shape.'),
+        side: 'bottom', align: 'start',
+      },
+    },
+    {
+      element: '[data-tour="sma-autofind"]',
+      popover: {
+        title: 'Auto-find details',
+        description: 'One click asks AI to fill the campaign context <i>and</i> discover the brand’s social profiles + competitors — so you rarely type more than a name. Always confirm the handles it finds.',
+        side: 'bottom', align: 'start',
+      },
+    },
+    {
+      element: '[data-tour="sma-profiles"]',
+      popover: {
+        title: 'Profiles to audit',
+        description:
+          lead('The handles whose live data gets scraped in Phase 1.') +
+          note('<b>Auto-find profiles</b> guesses them from the brand + website (badged <i>from site</i> / <i>from search</i>). Untick or edit any that look wrong before running.'),
+        side: 'top', align: 'start',
+      },
+    },
+    {
+      element: '[data-tour="sma-competitors"]',
+      popover: {
+        title: 'Competitors (optional)',
+        description: 'Add up to 3 rivals — they’re benchmarked side-by-side and mined for content gaps and tactics to copy. Auto-find suggests them, or add your own.',
+        side: 'top', align: 'start',
+      },
+    },
+    {
+      element: '[data-tour="sma-context"]',
+      popover: {
+        title: 'Optional context',
+        description: 'Paste a content calendar or RFQ notes, or attach briefs / brand guidelines (PDF, DOCX, TXT…). Text is extracted in your browser and fed to the analysis — the more context, the sharper the audit.',
+        side: 'top', align: 'start',
+      },
+    },
+    {
+      element: '[data-tour="sma-mode"]',
+      popover: {
+        title: 'Starter vs Pro',
+        description:
+          lead('<b>Starter</b> — competitor &amp; content-gap audit from first-call inputs.') +
+          note('<b>Pro</b> reveals extra fields for your exported analytics and adds content pillars, campaign angles, organic/paid integration, social SEO, blog-to-social repurposing and creative fixes.'),
+        side: 'top', align: 'start',
+      },
+    },
+    {
+      element: '[data-tour="sma-run"]',
+      popover: {
+        title: 'Run it (give it a moment)',
+        description: `On your own data you’d hit run here — it costs <b>${cost} credits</b> and runs two phases (live scrape → strategy), so it takes ~30–150s with live progress. We’ve pre-run the example so you can see the output ↓`,
+        side: 'top', align: 'start',
+      },
+    },
+    {
+      element: () => document.querySelector('[data-tour="sma-results"]'),
+      popover: {
+        title: 'What you get back — live',
+        description:
+          lead('A visual <b>scorecard</b> (Phase 1: live followers, engagement, posting cadence, recent posts, competitor benchmark) followed by the <b>strategy audit</b> (Phase 2: content pillars, gaps, recommended platforms and a prioritised action plan).') +
+          note('This is the <b>real rendered result</b>, exactly like your own run.'),
+        side: 'top', align: 'start',
+      },
+    },
+    {
+      popover: {
+        title: 'Confused by a result? Just ask',
+        description:
+          lead('<b>Right-click</b> any card or row and the assistant explains it in plain English — or tells you what to do about it.') +
+          note('Want one figure explained? <b>Highlight just that text first</b>, then right-click.'),
+      },
+    },
+    {
+      popover: {
+        title: 'That’s the tour',
+        description:
+          lead('We’ll clear this example now so the form is yours to fill in.') +
+          note('Replay this any time from the <b>Tour</b> button next to the title.'),
+      },
+    },
+  ];
+
+  hooks.preview?.();
+  setTimeout(() => {
+    run(steps, { onDone: () => { markSeen('tool:social-audit'); hooks.clear?.(); } });
   }, 120);
 }
 

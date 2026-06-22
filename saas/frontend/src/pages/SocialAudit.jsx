@@ -5,8 +5,9 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { api, ApiError } from '../lib/api.js';
 import { toast } from '../lib/ui.js';
-import { Loader2, Wand2, Plus, X, Microscope, ScanSearch } from 'lucide-react';
+import { Loader2, Wand2, Plus, X, Microscope, ScanSearch, Compass } from 'lucide-react';
 import { renderSMAScorecard, renderSocialAudit, installSmaGlobals } from '../lib/smaRender.js';
+import { startSocialAuditTour, hasSeen, markSeen } from '../lib/tours.js';
 // Bundled (not CDN) so the strict production CSP serves them from 'self'. FA's
 // webfonts are emitted as hashed same-origin assets; scoping the import to this
 // page keeps the icon font out of every other route's bundle.
@@ -33,6 +34,122 @@ const PRO_FIELDS = [
   { id: 'blog_performance', label: 'Blog performance', ph: 'Posting frequency, traffic, top blog topics…' },
   { id: 'ga4_content', label: 'GA4 content data', ph: 'Top landing pages, social referral traffic, content conversions…' },
 ];
+
+// ── Guided-tour worked example (asana.com) ───────────────────────────────────
+// A real, coherent run used by the tour: the form values it pre-fills, plus the
+// two result payloads fed straight through the page's own renderers (Phase 1
+// live scorecard + Phase 2 strategy audit), so the walkthrough annotates a
+// genuine-looking result rather than a static mock. Grounded in the same
+// asana.com worked example the rest of the product tours use.
+const TOUR_EXAMPLE = {
+  brand: 'Asana',
+  domain: 'https://asana.com',
+  industry: 'Work management software (B2B SaaS)',
+  goals: 'Grow awareness with team leads; drive free-trial signups',
+  audience: 'Operations & marketing leads at 50–500-person companies; productivity-minded, mostly US/UK, B2B.',
+  plat: {
+    instagram: { checked: true, handle: '@asana', source: 'website' },
+    tiktok: { checked: true, handle: '@asana', source: 'search' },
+    facebook: { checked: true, handle: 'Asana', source: 'website' },
+    linkedin: { checked: true, handle: 'asana', source: 'website' },
+    youtube: { checked: true, handle: '@asana', source: 'search' },
+  },
+  competitors: [
+    { platform: 'instagram', handle: 'mondaydotcom', name: 'monday.com', source: 'search' },
+    { platform: 'instagram', handle: 'clickup', name: 'ClickUp', source: 'search' },
+    { platform: 'instagram', handle: 'trello', name: 'Trello', source: 'search' },
+  ],
+  calendars: 'Roughly 4 posts/wk on IG & LinkedIn, mostly product tips and customer stories. Light on video.',
+  rfq: 'Wants to grow short-form video and benchmark against monday.com & ClickUp before committing budget.',
+};
+
+const TOUR_SCORECARD = {
+  overall_score: 78,
+  overall_health: 'Strong',
+  executive_summary: 'Asana keeps a polished, consistent presence across five platforms with strong LinkedIn and Instagram engagement. Cadence is healthy, but short-form video is under-used versus ClickUp and monday.com, and Facebook engagement has gone flat.',
+  platforms: [
+    { platform: 'instagram', handle: '@asana', found: true, followers: 142000, followers_growth_30d: 1800, engagement_rate: 1.9, posts_per_week: 4, days_since_last_post: 1, avg_likes: 540, avg_video_views: 8200, content_mix: { video: 3, image: 8, carousel: 5 }, profile_completeness: { score: 95 }, top_hashtags: ['#workmanagement', '#productivity', '#teamwork', '#asana', '#futureofwork'], posts: [
+      { type: 'carousel', text: '5 ways to run a calmer sprint planning 🧘', likes: 610, comments: 18 },
+      { type: 'video', text: 'AI status updates in 30 seconds ⚡', likes: 880, comments: 31, views: 12400 },
+      { type: 'image', text: 'Your Monday, but organised.', likes: 430, comments: 9 },
+    ] },
+    { platform: 'tiktok', handle: '@asana', found: true, followers: 18600, followers_growth_30d: 420, engagement_rate: 3.4, posts_per_week: 1, days_since_last_post: 9, avg_likes: 760, avg_video_views: 21000, content_mix: { video: 12, image: 0, carousel: 0 }, profile_completeness: { score: 80 }, top_hashtags: ['#worktok', '#productivity', '#corporatelife'], posts: [
+      { type: 'video', text: 'POV: your to-do list finally makes sense', likes: 1900, comments: 64, views: 48000 },
+    ] },
+    { platform: 'facebook', handle: 'Asana', found: true, followers: 312000, followers_growth_30d: -200, engagement_rate: 0.4, posts_per_week: 3, days_since_last_post: 2, avg_likes: 90, content_mix: { video: 2, image: 6, carousel: 2 }, profile_completeness: { score: 90 }, top_hashtags: [] },
+    { platform: 'linkedin', handle: 'asana', found: true, followers: 486000, followers_growth_30d: 5400, engagement_rate: 2.6, posts_per_week: 5, days_since_last_post: 1, avg_likes: 720, content_mix: { video: 4, image: 7, carousel: 6 }, profile_completeness: { score: 100 }, top_hashtags: ['#leadership', '#worktrends', '#productivity'] },
+    { platform: 'youtube', handle: '@asana', found: true, followers: 54000, followers_growth_30d: 300, engagement_rate: 1.1, posts_per_week: 1, days_since_last_post: 6, avg_video_views: 9400, content_mix: { video: 8, image: 0, carousel: 0 }, profile_completeness: { score: 85 }, top_hashtags: [] },
+  ],
+  creative: {
+    brand_consistency: { score: 88, notes: 'Strong, recognisable system — consistent coral/purple palette and rounded type across nearly every post.' },
+    tone_of_voice: 'Friendly, calm and expert — practical productivity advice without jargon.',
+    visual_style: 'Clean, lots of whitespace, brand-coral accents and simple iconography. Mixes product UI shots with illustrated tips.',
+    colour_palette: { dominant: ['Coral', 'Deep purple', 'Off-white'], coherence: 'Consistent', notes: 'Coral CTA accent used consistently; backgrounds stay light and uncluttered.' },
+    design_quality: { score: 84, layout: 'Generous whitespace and clear hierarchy; carousels follow a consistent cover → tips → CTA structure.', template_use: 'Templated carousels', typography: 'Single rounded sans, two weights — readable on mobile.' },
+    content_themes: ['Productivity tips', 'Product features', 'Remote / async work', 'Customer stories'],
+    content_pillars: ['Work smarter', 'Inside Asana', 'Future of work'],
+    standout_observations: ['Carousels consistently outperform single images', 'AI-feature posts get ~1.6× the average engagement'],
+    recommendations: ['Lean into short-form video — highest-engagement format but lowest volume', 'Repurpose top LinkedIn carousels to Instagram', 'Add captions/subtitles to every TikTok and Reel'],
+    posts_analyzed: 42, images_analyzed: 30,
+  },
+  indicators: [
+    { label: 'Posting consistency', value: 'Healthy (4–5 / wk)', status: 'good', source: 'Live profiles' },
+    { label: 'Video share of mix', value: 'Low (~18%)', status: 'warn', source: 'Live profiles' },
+    { label: 'TikTok cadence', value: '1 / wk', status: 'warn', source: 'TikTok' },
+    { label: 'Facebook engagement', value: '0.4%', status: 'bad', source: 'Facebook' },
+    { label: 'Profile completeness', value: '90% avg', status: 'good', source: 'Live profiles' },
+  ],
+  competitors: [
+    { name: 'monday.com', handle: 'mondaydotcom', platform: 'instagram', followers: 165000, engagement_rate: 1.2, posts_per_week: 6, days_since_last_post: 1, avg_likes: 410, top_hashtags: ['#monday', '#workos', '#productivity'], content_mix: { video: 6, image: 5, carousel: 4 }, top_posts: [{ type: 'video', text: 'Automations that run your week for you', likes: 980, comments: 22, views: 33000 }] },
+    { name: 'ClickUp', handle: 'clickup', platform: 'instagram', followers: 138000, engagement_rate: 1.6, posts_per_week: 7, days_since_last_post: 0, avg_likes: 520, top_hashtags: ['#clickup', '#productivity'], content_mix: { video: 9, image: 3, carousel: 3 }, top_posts: [{ type: 'video', text: 'One app to replace them all 👀', likes: 1500, comments: 48, views: 61000 }] },
+    { name: 'Trello', handle: 'trello', platform: 'instagram', followers: 121000, engagement_rate: 0.9, posts_per_week: 3, days_since_last_post: 4, avg_likes: 300, content_mix: { video: 2, image: 6, carousel: 2 } },
+  ],
+  competitor_insights: {
+    doing_better: ['ClickUp posts 7×/wk and leans heavily on short-form video', 'monday.com’s automation demos rack up high saves & shares'],
+    content_gaps: ['Short-form “how-to” video', 'Behind-the-scenes / team culture', 'User-generated content & testimonials'],
+    tactics_to_copy: ['ClickUp’s punchy sub-15s feature demos', 'monday.com’s bold, colour-blocked thumbnails'],
+  },
+  brand_health: { branded_search_volume: 201000, web_mentions: 48000, gbp_rating: 4.6, gbp_reviews: 1240 },
+  strengths: ['Top-tier LinkedIn presence (486k, 2.6% ER)', 'Highly consistent brand system', 'Strong carousel performance'],
+  gaps: ['Under-investing in short-form video', 'Facebook engagement near zero', 'TikTok cadence too low to compound'],
+  action_plan: [
+    { action: 'Triple short-form video output (Reels + TikTok)', priority: 'high', expected_impact: 'Highest-engagement format; closes the gap with ClickUp' },
+    { action: 'Repurpose top LinkedIn carousels to Instagram weekly', priority: 'medium', expected_impact: 'More reach from proven content at low effort' },
+    { action: 'Rethink or downscale Facebook', priority: 'low', expected_impact: 'Reallocate effort to higher-ROI platforms' },
+  ],
+};
+
+const TOUR_SCA = {
+  overall_health: 'Strong',
+  executive_summary: 'Asana has a mature, well-branded social presence that over-indexes on static and long-form content. The biggest growth lever is short-form video, where competitors are pulling ahead. Tightening platform focus and a clear pillar structure will compound the existing strengths.',
+  current_state: {
+    summary: 'Active and consistent across five platforms, strongest on LinkedIn and Instagram. Video is under-represented relative to the category.',
+    active_platforms: ['Instagram', 'TikTok', 'Facebook', 'LinkedIn', 'YouTube'],
+    strengths: ['Consistent brand system', 'Strong LinkedIn thought leadership', 'Reliable posting cadence'],
+    gaps: ['Low short-form video output', 'Weak Facebook engagement', 'TikTok under-utilised'],
+  },
+  competitor_comparison: [
+    { competitor: 'ClickUp', doing_better: 'High-volume short-form video (7×/wk)', opportunity: 'Match video cadence with repurposed product clips' },
+    { competitor: 'monday.com', doing_better: 'Shareable automation demos & bold thumbnails', opportunity: 'Launch a recurring “workflow of the week” demo series' },
+    { competitor: 'Trello', doing_better: 'Lightweight, playful tone', opportunity: 'Add more personality to product posts' },
+  ],
+  missing_content_types: ['Short-form how-to video', 'Behind-the-scenes / culture', 'User-generated content', 'Founder / expert POV'],
+  recommended_platforms: [
+    { platform: 'Instagram + TikTok', why: 'Highest engagement upside; where the category’s attention is shifting' },
+    { platform: 'LinkedIn', why: 'Your strongest channel for reaching decision-makers — keep investing' },
+  ],
+  content_pillars: [
+    { pillar: 'Work smarter', rationale: 'Practical productivity tips that earn saves & shares', formats: ['Carousels', 'Short video', 'Infographics'] },
+    { pillar: 'Inside Asana', rationale: 'Product features & customer stories that build trust', formats: ['Demos', 'Case-study Reels'] },
+    { pillar: 'Future of work', rationale: 'Thought leadership that positions Asana as a category expert', formats: ['LinkedIn posts', 'Talking-head video'] },
+  ],
+  posting_cadence: 'Instagram 4–5×/wk (≥2 video), TikTok 3–4×/wk, LinkedIn 5×/wk, Facebook 2×/wk (repurposed). Aim for ~40% video within 90 days.',
+  action_plan: [
+    { action: 'Stand up a short-form video engine (2–3 clips/wk)', priority: 'high', owner: 'Social lead', expected_impact: 'Closes the video gap; lifts IG/TikTok reach' },
+    { action: 'Define the 3-pillar calendar and batch a month ahead', priority: 'medium', owner: 'Content team', expected_impact: 'Consistency + a clearer brand narrative' },
+    { action: 'Audit Facebook; cut or repurpose', priority: 'low', owner: 'Social lead', expected_impact: 'Reallocate time to higher-ROI channels' },
+  ],
+};
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Default to DeepSeek unless the user has explicitly chosen Claude (mirrors the
@@ -167,6 +284,54 @@ export default function SocialAudit() {
   useEffect(() => { installSmaGlobals(); }, []);
   // Prefill the website from the active project once it loads.
   useEffect(() => { if (!domain && active?.domain) setDomain(active.domain); /* eslint-disable-next-line */ }, [active]);
+
+  // Guided tour: pre-fill a real asana.com worked example + render both result
+  // scorecards on the page, then walk the form field-by-field; clear it all on
+  // exit (Done, ✕, Esc or click-away) so the form is the user's to fill in.
+  function launchTour() {
+    startSocialAuditTour(TOOL, {
+      preview: () => {
+        setBrand(TOUR_EXAMPLE.brand);
+        setDomain(TOUR_EXAMPLE.domain);
+        setIndustry(TOUR_EXAMPLE.industry);
+        setGoals(TOUR_EXAMPLE.goals);
+        setAudience(TOUR_EXAMPLE.audience);
+        setPlat(() => Object.fromEntries(SMA_PLATFORMS.map((p) => [p.key, { ...(TOUR_EXAMPLE.plat[p.key] || { checked: false, handle: '', source: '' }) }])));
+        setCompetitors(TOUR_EXAMPLE.competitors.map((c) => ({ ...c })));
+        setCalendars(TOUR_EXAMPLE.calendars);
+        setRfq(TOUR_EXAMPLE.rfq);
+        setMode('starter');
+        setSuggestStatus({ tone: 'ok', text: 'AI filled the campaign context. Review and edit if anything looks off, then Run Audit.' });
+        setDiscoverStatus({ tone: 'ok', text: 'Found 5 profile(s). Confirm each is the correct account, then Run Audit.' });
+        setCompStatus({ tone: 'ok', text: 'Found 3 competitor(s). Confirm each is correct before auditing.' });
+        installSmaGlobals();
+        setScorecardHtml(renderSMAScorecard(TOUR_SCORECARD));
+        setScaHtml(renderSocialAudit(TOUR_SCA));
+      },
+      clear: () => {
+        setBrand(''); setDomain(active?.domain || ''); setIndustry(''); setGoals(''); setAudience('');
+        setPlat(Object.fromEntries(SMA_PLATFORMS.map((p) => [p.key, { checked: true, handle: '', source: '' }])));
+        setCompetitors([]);
+        setCalendars(''); setRfq(''); setSmaFiles([]);
+        setMode('starter');
+        setSuggestStatus(null); setDiscoverStatus(null); setCompStatus(null);
+        setError(''); setScaError('');
+        setScorecardHtml(null); setScaHtml(null);
+      },
+    });
+  }
+
+  // First time a user opens this tool, auto-run its guided tour once.
+  useEffect(() => {
+    if (!unlocked || hasSeen('tool:social-audit')) return;
+    const t = setTimeout(() => {
+      if (hasSeen('tool:social-audit')) return;
+      markSeen('tool:social-audit');
+      launchTour();
+    }, 700);
+    return () => clearTimeout(t);
+    /* eslint-disable-next-line */
+  }, [unlocked]);
 
   const onCredits = (res) => { if (typeof res?.creditsRemaining === 'number') setCredits(res.creditsRemaining); };
   const gateError = (e) => {
@@ -396,7 +561,17 @@ export default function SocialAudit() {
 
   return (
     <div className="mx-auto max-w-3xl pb-12">
-      <h1 className="text-2xl font-bold">Social Media Audit</h1>
+      <div className="flex items-center gap-3">
+        <h1 className="text-2xl font-bold">Social Media Audit</h1>
+        <button
+          type="button"
+          onClick={launchTour}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:border-brand-300 hover:text-brand-600"
+          title="Guided walkthrough with a real example"
+        >
+          <Compass size={14} aria-hidden /> Tour
+        </button>
+      </div>
       <p className="mt-1 text-slate-600">
         Pulls live profile &amp; engagement data from Instagram, TikTok, Facebook, LinkedIn &amp; YouTube,
         then generates a strategic content-gap &amp; competitor audit in one pass. Auto-find the brand's
@@ -404,7 +579,7 @@ export default function SocialAudit() {
       </p>
 
       {/* Brand & campaign */}
-      <div className="card mt-6 p-5">
+      <div className="card mt-6 p-5" data-tour="sma-brand">
         <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Brand &amp; campaign</h2>
         <p className="mt-1 text-xs text-slate-400">Only the brand name is required — leave the rest blank and AI will fill them in (you can edit before auditing).</p>
         <div className="mt-3 space-y-3">
@@ -413,7 +588,7 @@ export default function SocialAudit() {
             <input className="field mt-1" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. MediaOne" disabled={busy} />
           </div>
           <button type="button" onClick={autoFindDetails} disabled={busy || findingDetails}
-            className="btn-ghost text-xs text-brand-700">
+            data-tour="sma-autofind" className="btn-ghost text-xs text-brand-700">
             {findingDetails ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />} Auto-find details
           </button>
           <Status s={suggestStatus} />
@@ -439,7 +614,7 @@ export default function SocialAudit() {
       </div>
 
       {/* Profiles */}
-      <div className="card mt-4 p-5">
+      <div className="card mt-4 p-5" data-tour="sma-profiles">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Profiles to audit</h2>
           <button type="button" onClick={discoverProfiles} disabled={busy || findingProfiles} className="btn-ghost text-xs text-brand-700">
@@ -462,7 +637,7 @@ export default function SocialAudit() {
       </div>
 
       {/* Competitors */}
-      <div className="card mt-4 p-5">
+      <div className="card mt-4 p-5" data-tour="sma-competitors">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Competitors <span className="font-normal normal-case text-slate-400">(optional, up to 3)</span></h2>
           <button type="button" onClick={discoverCompetitors} disabled={busy || findingComps} className="btn-ghost text-xs text-brand-700">
@@ -496,7 +671,7 @@ export default function SocialAudit() {
       </div>
 
       {/* Optional context */}
-      <div className="card mt-4 p-5">
+      <div className="card mt-4 p-5" data-tour="sma-context">
         <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Optional context</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div>
@@ -516,7 +691,7 @@ export default function SocialAudit() {
       </div>
 
       {/* Mode toggle */}
-      <div className="card mt-4 p-5">
+      <div className="card mt-4 p-5" data-tour="sma-mode">
         <div className="inline-flex overflow-hidden rounded-lg border border-brand-200">
           {['starter', 'pro'].map((m) => (
             <button key={m} type="button" onClick={() => setMode(m)} disabled={busy}
@@ -549,7 +724,7 @@ export default function SocialAudit() {
 
       {/* Run */}
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        <button onClick={runAudit} disabled={busy} className="btn-primary">
+        <button onClick={runAudit} disabled={busy} data-tour="sma-run" className="btn-primary">
           {busy ? <Loader2 size={16} className="animate-spin" /> : (mode === 'pro' ? <Microscope size={16} /> : <ScanSearch size={16} />)}
           {busy ? 'Running…' : `Run Audit${mode === 'pro' ? ' (Pro)' : ''} · ${cost} cr`}
         </button>
@@ -559,7 +734,7 @@ export default function SocialAudit() {
       {scaError && <p className="mt-2 text-sm text-red-600">{scaError}</p>}
 
       {/* Results — bespoke HTML scorecards (Font Awesome styled, ported 1:1). */}
-      <div ref={resultsRef} className="mt-6 space-y-4">
+      <div ref={resultsRef} data-tour="sma-results" className="mt-6 space-y-4">
         {scorecardHtml && <div dangerouslySetInnerHTML={{ __html: scorecardHtml }} />}
         {scaHtml && <div dangerouslySetInnerHTML={{ __html: scaHtml }} />}
       </div>
