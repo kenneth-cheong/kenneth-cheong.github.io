@@ -3570,7 +3570,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2173</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2174</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -7418,6 +7418,33 @@
             return false;
         }
 
+        // Proactively refresh a Google token that is expired or within 60s of expiring,
+        // so server-side tools (Google Chat, GSC, GA4, Ads) never receive a stale token
+        // and 401. The Lambda uses whatever token we send, so freshness must be ensured
+        // here, before the request. Returns the current (possibly refreshed) token.
+        async function ensureFreshGoogleToken(service) {
+            const token = localStorage.getItem(`googleToken_${service}`);
+            if (!token) return null;
+            const expiresAt = parseInt(localStorage.getItem(`googleToken_${service}_expires`) || '0', 10);
+            if (expiresAt && Date.now() > expiresAt - 60000) {
+                const ok = await tryRefreshToken(service);
+                if (ok) {
+                    if (service === 'Workspace') window.gchatAccessToken = localStorage.getItem('googleToken_Workspace');
+                } else {
+                    console.warn(`[GOOGLE AUTH] Could not refresh ${service} token before request — it may be expired.`);
+                    if (service === 'Workspace' && typeof showToast === 'function') {
+                        showToast('Your Google session has expired — please reconnect Google in Connectors.', 'error', 6000);
+                    }
+                }
+            }
+            return localStorage.getItem(`googleToken_${service}`);
+        }
+
+        // Keep tokens fresh through long idle sessions so they never expire mid-conversation.
+        setInterval(() => {
+            ['Workspace', 'Gsc', 'Ga4', 'Ads'].forEach(s => { ensureFreshGoogleToken(s).catch(() => {}); });
+        }, 10 * 60 * 1000);
+
         function updateServiceUI(service, connected) {
             const btnConnect = document.getElementById(`btnConnect${service}`);
             const btnDisconnect = document.getElementById(`btnDisconnect${service}`);
@@ -9787,7 +9814,7 @@
             8. send_message: Post a new message to a Google Chat space.
             9. list_mcp_tools: List all available Google Chat tools (debug utility).
             10. get_gsc_performance: For Google Search Console (clicks, impressions).
-            11. get_ga4_report: For Google Analytics (sessions, users, conversions).
+            11. get_ga4_report: For Google Analytics (sessions, totalUsers, conversions). GA4 metric names are exact — use 'totalUsers' (NOT 'users'), 'screenPageViews' (NOT 'pageviews'), 'averageSessionDuration' (NOT 'avgSessionDuration').
             12. get_ads_report: For Google Ads performance (cost, CPC, ROAS).
             13. save_memory_note: STRICT MANDATE. Use this whenever you learn a new preference, fact, or logic about the user or their projects. Always include a "tag" field (one of: "Preference", "Strategy", "Fact", "Process", "Constraint") and a "teams" array (one or more of: "SEO", "SEM", "SMM", "BD", "Everyone" — use multiple if the memory applies to multiple teams, use ["Everyone"] if broad).
             14. get_seranking_report: Fetch keyword rankings and positions for a specific SE Ranking campaign. You MUST use this tool when the user asks about SEO keywords, rankings, or SE Ranking data.
@@ -10358,6 +10385,12 @@
                     }
                     if (imgs.length) deepseekImages = imgs.slice(0, 4);
                 }
+
+                // Refresh any near-expiry Google tokens before sending — the Lambda's
+                // Google Chat / GSC / GA4 / Ads tools use the tokens in this payload, so a
+                // stale one would 401 mid-request. ensureFreshGoogleToken is a no-op for
+                // tokens that aren't connected or aren't close to expiring.
+                await Promise.all(['Workspace', 'Gsc', 'Ga4', 'Ads'].map(s => ensureFreshGoogleToken(s).catch(() => null)));
 
                 const capturedProvider = getLlmProvider();
                 const res = await cbFetchWithRetry(MONDAY_LAMBDA_URL, {

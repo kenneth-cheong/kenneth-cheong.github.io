@@ -1126,6 +1126,37 @@ def run_gsc_performance(site_url, tool_input, token):
     except Exception as e:
         return {"error": str(e)}
 
+# Common metric/dimension aliases → their exact GA4 Data API names. The model (and
+# older callers) often pass intuitive names like "users" or "pageviews", which the
+# GA4 API rejects with a 400. Normalise them before the request.
+GA4_METRIC_ALIASES = {
+    "users": "totalUsers",
+    "totalusers": "totalUsers",
+    "activeusers": "activeUsers",
+    "newusers": "newUsers",
+    "pageviews": "screenPageViews",
+    "pageview": "screenPageViews",
+    "views": "screenPageViews",
+    "screenpageviews": "screenPageViews",
+    "sessions": "sessions",
+    "avgsessionduration": "averageSessionDuration",
+    "averagesessionduration": "averageSessionDuration",
+    "sessionduration": "averageSessionDuration",
+    "bouncerate": "bounceRate",
+    "engagementrate": "engagementRate",
+    "conversion": "conversions",
+    "conversions": "conversions",
+    "revenue": "totalRevenue",
+    "totalrevenue": "totalRevenue",
+    "eventcount": "eventCount",
+}
+
+def _normalize_ga4_metric(name):
+    if not isinstance(name, str):
+        return name
+    cleaned = name.strip()
+    return GA4_METRIC_ALIASES.get(cleaned.lower(), cleaned)
+
 def run_ga4_report(property_id, tool_input, token):
     url = f"https://analyticsdata.googleapis.com/v1beta/{property_id}:runReport"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
@@ -1139,20 +1170,32 @@ def run_ga4_report(property_id, tool_input, token):
         end = tool_input.get('endDate', 'today')
         payload['dateRanges'] = [{"startDate": start, "endDate": end}]
 
-    # GA4 API requires metrics/dimensions as array of objects {name: ...}, not plain strings
+    # GA4 API requires metrics/dimensions as array of objects {name: ...}, not plain
+    # strings — and the metric names must be exact, so alias-normalise them first.
     raw_metrics = tool_input.get('metrics')
     if raw_metrics:
-        payload['metrics'] = [{"name": m} if isinstance(m, str) else m for m in raw_metrics]
+        payload['metrics'] = [{"name": _normalize_ga4_metric(m)} if isinstance(m, str) else m for m in raw_metrics]
     else:
-        payload['metrics'] = [{"name": "sessions"}, {"name": "activeUsers"}]
+        payload['metrics'] = [{"name": "sessions"}, {"name": "totalUsers"}]
 
     raw_dims = tool_input.get('dimensions')
     if raw_dims:
         payload['dimensions'] = [{"name": d} if isinstance(d, str) else d for d in raw_dims]
-        
+
     try:
         print(f"[GA4] Querying {property_id} with payload: {payload}")
         r = requests.post(url, headers=headers, json=payload, timeout=30)
+        # Graceful degradation: GA4 returns 400 naming the offending metric/dimension
+        # (e.g. bounceRate unavailable on some properties). Drop the flagged field(s)
+        # and retry once rather than failing the whole report.
+        if r.status_code == 400 and payload.get('metrics'):
+            detail = r.text or ""
+            bad = [m['name'] for m in payload['metrics'] if isinstance(m, dict) and m.get('name') and m['name'] in detail]
+            if bad:
+                kept = [m for m in payload['metrics'] if not (isinstance(m, dict) and m.get('name') in bad)]
+                payload['metrics'] = kept or [{"name": "sessions"}, {"name": "totalUsers"}]
+                print(f"[GA4] Dropping invalid metric(s) {bad} and retrying with {payload['metrics']}")
+                r = requests.post(url, headers=headers, json=payload, timeout=30)
         if r.status_code != 200:
             return {"error": f"GA4 API {r.status_code}", "detail": r.text[:500]}
         return r.json()
@@ -1694,7 +1737,13 @@ def claude_chat_with_tools(body):
         },
         {
             "name": "get_ga4_report",
-            "description": "Fetch Google Analytics 4 report data (sessions, users, conversions).",
+            "description": (
+                "Fetch Google Analytics 4 report data (sessions, totalUsers, conversions). "
+                "Use EXACT GA4 Data API metric names: 'totalUsers' (not 'users'), "
+                "'screenPageViews' (not 'pageviews'), 'averageSessionDuration' (not 'avgSessionDuration'). "
+                "Common aliases are auto-corrected and unavailable metrics (e.g. bounceRate on some "
+                "properties) are dropped gracefully, but prefer the exact names."
+            ),
             "input_schema": {
                 "type": "object",
                 "properties": {
