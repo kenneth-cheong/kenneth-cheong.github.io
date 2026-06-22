@@ -1059,6 +1059,177 @@
         .col-filter-row .cf-clear:hover {
             color: var(--accent);
         }
+
+        /* ===== Mobile menu button + drawer backdrop (hidden on desktop) ===== */
+        #mobileMenuBtn {
+            display: none;
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text-main);
+            font-size: 1.15rem;
+            cursor: pointer;
+            z-index: 1300;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #mobileBackdrop {
+            display: none;
+        }
+
+        /* ======================= Responsive layer ======================= */
+        @media (max-width: 768px) {
+            /* Sidebar becomes an off-canvas drawer */
+            aside {
+                position: fixed;
+                top: 0;
+                left: 0;
+                height: 100vh;
+                width: 270px !important;
+                padding: 24px !important;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                z-index: 1500;
+                box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+            }
+
+            aside.mobile-open {
+                transform: translateX(0);
+            }
+
+            /* Force the expanded look inside the drawer even though .collapsed is set */
+            aside.collapsed .logo,
+            aside.collapsed .nav-label,
+            aside.collapsed .nav-item span:not(.nav-icon) {
+                opacity: 1;
+                visibility: visible;
+                width: auto;
+                white-space: normal;
+            }
+
+            aside.collapsed .nav-item {
+                justify-content: flex-start;
+                padding: 12px 16px;
+            }
+
+            aside.collapsed .nav-icon {
+                margin-right: 12px;
+                font-size: 1.1rem;
+                width: 24px;
+            }
+
+            aside.collapsed .sidebar-profile {
+                justify-content: flex-start;
+                gap: 12px;
+            }
+
+            aside.collapsed .profile-info {
+                display: block;
+            }
+
+            /* Hide the desktop collapse arrow */
+            .toggle-sidebar {
+                display: none;
+            }
+
+            /* Show the hamburger */
+            #mobileMenuBtn {
+                display: flex;
+            }
+
+            /* Drawer backdrop */
+            #mobileBackdrop {
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.55);
+                backdrop-filter: blur(2px);
+                z-index: 1400;
+            }
+
+            #mobileBackdrop.show {
+                display: block;
+            }
+
+            /* Main content: leave room at top for hamburger + AI pill */
+            main {
+                padding: 72px 16px 24px;
+            }
+
+            section {
+                padding: 8px 0;
+            }
+
+            .header {
+                flex-wrap: wrap;
+                gap: 16px;
+                margin-bottom: 24px;
+            }
+
+            .header h1 {
+                font-size: 1.5rem;
+            }
+
+            /* Collapse multi-column grids */
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+                margin-bottom: 24px;
+            }
+
+            .top-shortlist {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .config-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .interview-cards-container {
+                grid-template-columns: 1fr;
+                padding: 12px 0;
+            }
+
+            .action-panel {
+                padding: 20px;
+            }
+
+            .upload-area {
+                padding: 28px 16px;
+            }
+
+            /* Tables scroll horizontally instead of crushing to one char per line */
+            .table-container {
+                overflow-x: auto;
+            }
+
+            table {
+                table-layout: auto;
+                min-width: 640px;
+            }
+
+            /* Modals */
+            .modal-content {
+                padding: 24px;
+                border-radius: 20px;
+                width: 100%;
+            }
+
+            #cvViewerModal {
+                padding: 12px;
+            }
+
+            /* Keep the AI-engine pill clear of the hamburger */
+            #recruitEngineBtn {
+                right: 12px !important;
+            }
+        }
     </style>
 </head>
 
@@ -1078,6 +1249,10 @@
     </div>
 
     <div id="recruitmentApp">
+        <button id="mobileMenuBtn" onclick="toggleMobileSidebar()" aria-label="Open menu">
+            <i class="fas fa-bars"></i>
+        </button>
+        <div id="mobileBackdrop" onclick="closeMobileSidebar()"></div>
         <aside id="sidebar" class="collapsed" onmouseenter="expandSidebar()" onmouseleave="collapseSidebar()">
             <div class="logo">MediaOne Recruitment</div>
 
@@ -2541,6 +2716,7 @@
                 const el = document.getElementById(id);
                 if (el) el.style.display = 'none';
             });
+            closeMobileSidebar(); // close the drawer after navigating on mobile
         }
 
         function showSettings() {
@@ -3148,13 +3324,27 @@
 
 
         function expandSidebar() {
+            if (window.innerWidth <= 768) return; // drawer mode on mobile, ignore hover
             const sidebar = document.getElementById('sidebar');
             sidebar.classList.remove('collapsed');
         }
 
         function collapseSidebar() {
+            if (window.innerWidth <= 768) return; // drawer mode on mobile, ignore hover
             const sidebar = document.getElementById('sidebar');
             sidebar.classList.add('collapsed');
+        }
+
+        // ── Mobile off-canvas drawer ──────────────────────────────────────
+        function toggleMobileSidebar() {
+            const open = document.getElementById('sidebar').classList.toggle('mobile-open');
+            document.getElementById('mobileBackdrop').classList.toggle('show', open);
+        }
+
+        function closeMobileSidebar() {
+            document.getElementById('sidebar').classList.remove('mobile-open');
+            const bd = document.getElementById('mobileBackdrop');
+            if (bd) bd.classList.remove('show');
         }
 
         function getStatusOptions(currentStatus) {
