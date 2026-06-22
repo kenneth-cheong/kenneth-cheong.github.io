@@ -150,9 +150,9 @@
                     if (resp.status >= 500) {
                         // HTTP server error (incl. 502/504 gateway)
                         resp.clone().text().then(function (t) {
-                            report({ function: label, inputs: body, error: 'HTTP ' + resp.status, apiResponse: t });
+                            report({ function: label, inputs: body, error: 'HTTP ' + resp.status, apiResponse: t, silent: true });
                         }).catch(function () {
-                            report({ function: label, inputs: body, error: 'HTTP ' + resp.status });
+                            report({ function: label, inputs: body, error: 'HTTP ' + resp.status, silent: true });
                         });
                     } else if (resp.ok) {
                         // Many of these Lambdas return HTTP 200 with an error envelope
@@ -169,7 +169,7 @@
                                     errVal = 'statusCode ' + j.statusCode;
                                     try { var bb = (typeof j.body === 'string') ? JSON.parse(j.body) : j.body; if (bb && bb.error) errVal = bb.error; } catch (e) { }
                                 }
-                                if (errVal) report({ function: label, inputs: body, error: errVal, apiResponse: t });
+                                if (errVal) report({ function: label, inputs: body, error: errVal, apiResponse: t, silent: true });
                             }).catch(function () { });
                         }
                     }
@@ -177,7 +177,7 @@
                 return resp;
             }, function (err) {
                 // Network / CORS failure
-                if (!skip) { try { report({ function: label, inputs: body, error: err }); } catch (e) { } }
+                if (!skip) { try { report({ function: label, inputs: body, error: err, silent: true }); } catch (e) { } }
                 throw err;
             });
         };
