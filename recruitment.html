@@ -1463,8 +1463,69 @@
                         </button>
                     </div>
                 </div>
+
+                <div class="card" style="max-width: 800px;">
+                    <div class="card-title">Scheduled Sending <i class="fas fa-paper-plane"></i></div>
+                    <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 16px;">
+                        From a candidate's profile you can <strong>Schedule</strong> an invitation to be
+                        sent later — for example one week from now. Scheduled invitations are delivered
+                        automatically by the platform even when you're offline; no setup is needed.
+                    </p>
+                    <div style="display: flex; align-items: flex-start; gap: 12px; background: var(--glass); border: 1px solid var(--border); border-radius: 12px; padding: 16px; font-size: 0.82rem;">
+                        <i class="fas fa-circle-info" style="color: var(--primary-light); margin-top: 2px;"></i>
+                        <div style="color: var(--text-dim);">
+                            Scheduled mail is sent from MediaOne's verified mailbox with
+                            <strong>your address as Reply-To</strong>, so candidate replies land in your inbox.
+                            The instant <strong>Email</strong> button still opens your own mail client as before.
+                        </div>
+                    </div>
+                </div>
             </section>
         </main>
+
+        <!-- Schedule Email Modal -->
+        <div id="scheduleEmailModal" class="modal">
+            <div class="modal-content" style="max-width: 520px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <h2 style="margin: 0;">Schedule Invitation <i class="fas fa-clock" style="color: var(--secondary);"></i></h2>
+                    <button onclick="closeScheduleEmailModal()" style="background: none; border: none; color: var(--text-dim); font-size: 1.5rem; cursor: pointer; padding: 4px 8px; line-height: 1;" onmouseover="this.style.color='white'" onmouseout="this.style.color='var(--text-dim)'">&times;</button>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 20px;">
+                    Sent from <strong id="scheduleSenderEmail">your Gmail</strong> to
+                    <strong id="scheduleRecipientEmail">the candidate</strong> at the chosen time.
+                </p>
+
+                <div class="form-group">
+                    <label>When to send</label>
+                    <select id="scheduleWhen" onchange="onScheduleWhenChange()"
+                        style="background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); color: white;">
+                        <option value="3600">In 1 hour</option>
+                        <option value="86400">In 1 day</option>
+                        <option value="259200">In 3 days</option>
+                        <option value="604800" selected>In 1 week</option>
+                        <option value="1209600">In 2 weeks</option>
+                        <option value="custom">Custom date &amp; time…</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="scheduleCustomWrap" style="display: none;">
+                    <label>Pick date &amp; time</label>
+                    <input type="datetime-local" id="scheduleCustomAt" onchange="updateSchedulePreview()"
+                        style="background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); color: white;">
+                </div>
+
+                <div style="background: rgba(99, 102, 241, 0.1); border-radius: 12px; padding: 14px; margin-bottom: 20px; border: 1px solid rgba(99, 102, 241, 0.2); font-size: 0.82rem;">
+                    Scheduled for: <strong id="schedulePreview" style="color: var(--primary-light);">—</strong>
+                </div>
+
+                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <button class="btn" style="background: var(--glass); color: var(--text-main); border: 1px solid var(--border);" onclick="closeScheduleEmailModal()">Cancel</button>
+                    <button class="btn btn-primary" id="scheduleConfirmBtn" onclick="confirmScheduleEmail()">
+                        <i class="fas fa-paper-plane"></i> Schedule Send
+                    </button>
+                </div>
+            </div>
+        </div>
 
         <!-- Create/Edit Job Modal -->
         <div id="jobModal" class="modal">
@@ -1678,6 +1739,11 @@
                             </button>
                             <button class="btn"
                                 style="background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);"
+                                onclick="openScheduleEmailModal()">
+                                <i class="fas fa-clock"></i> Schedule
+                            </button>
+                            <button class="btn"
+                                style="background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);"
                                 onclick="copyShareLink(editingCandId)">
                                 <i class="fas fa-share-alt"></i> Share
                             </button>
@@ -1807,6 +1873,14 @@
         // --- Authentication & Session Management ---
         const GOOGLE_CLIENT_ID = '1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com';
         const VERIFY_ENDPOINT = 'https://ts9k398yn8.execute-api.ap-southeast-1.amazonaws.com/googleLogin';
+
+        // --- Scheduled "send on behalf" delivery (Amazon SES backend) ---
+        // recruitment.html POSTs a {to,subject,body,sendAt} row to this HTTP API;
+        // an EventBridge-cron Lambda (recruitmentEmailDispatcher) later delivers each
+        // due row via Amazon SES — From a verified mediaone.co sender and Reply-To the
+        // recruiter who scheduled it. No per-user authorization is required.
+        // Backend source: recruitment-lambdas/  (acct 167633412846, ap-southeast-1).
+        const SCHEDULED_EMAIL_ENDPOINT = 'https://lm82p1te4c.execute-api.ap-southeast-1.amazonaws.com';
 
         const DEFAULT_EMAIL_SUBJECT = "Interview Invitation: {{job_title}} - {{candidate_name}}";
         const DEFAULT_EMAIL_BODY = `Ref: {{reference_url}}\n\nDear {{candidate_name}},\n\nThank you for applying for {{job_title}}.\n\nI would like to invite you to schedule a Zoom interview here:\nhttps://calendly.com/tom-mediaone/45mins\n\nYours Sincerely,\n{{sender_name}}`;
@@ -5129,34 +5203,48 @@
             }
         }
 
+        // Email address of the currently logged-in recruiter (the sender).
+        function getLoggedUserEmail() {
+            const u = (state.users || []).find(u => String(u.id) === String(state.loggedUserId));
+            if (u && u.email) return u.email;
+            try {
+                const stored = JSON.parse(localStorage.getItem('recruitment_user') || '{}');
+                return stored.email || '';
+            } catch (e) { return ''; }
+        }
+
+        // Build the resolved {to, subject, body} for a candidate's invitation,
+        // applying the saved template + placeholder substitutions. Shared by the
+        // instant "Email" (mailto) path and the scheduled "Send on behalf" path.
+        function buildCandidateEmail(c) {
+            const job = state.jobs.find(j => String(j.id) === String(c.jobId));
+
+            const url = new URL(window.location.href);
+            url.searchParams.set('candidateId', c.id);
+            const candidateBoardUrl = url.toString();
+
+            const replacer = (text) => text
+                .replace(/{{candidate_name}}/g, c.name)
+                .replace(/{{job_title}}/g, job ? job.title : 'Position')
+                .replace(/{{reference_url}}/g, candidateBoardUrl)
+                .replace(/{{sender_name}}/g, state.currentUser || 'Recruitment Team');
+
+            return {
+                to: c.email,
+                subject: replacer(state.emailTemplate.subject),
+                body: replacer(state.emailTemplate.body)
+            };
+        }
+
         function sendCandidateEmail() {
             const c = state.candidates.find(cand => String(cand.id) === String(editingCandId));
             if (!c || !c.email) {
                 alert("No email address found for this candidate. Please add one first.");
                 return;
             }
-            const job = state.jobs.find(j => String(j.id) === String(c.jobId));
 
-            // Construct reference URL
-            const url = new URL(window.location.href);
-            url.searchParams.set('candidateId', c.id);
-            const candidateBoardUrl = url.toString();
-
-            const subjectRaw = state.emailTemplate.subject;
-            const bodyRaw = state.emailTemplate.body;
-
-            const replacer = (text) => {
-                return text
-                    .replace(/{{candidate_name}}/g, c.name)
-                    .replace(/{{job_title}}/g, job ? job.title : 'Position')
-                    .replace(/{{reference_url}}/g, candidateBoardUrl)
-                    .replace(/{{sender_name}}/g, state.currentUser || 'Recruitment Team');
-            };
-
-            const subject = encodeURIComponent(replacer(subjectRaw));
-            const body = encodeURIComponent(replacer(bodyRaw));
-
-            const mailtoUrl = `mailto:${c.email}?subject=${subject}&body=${body}`;
+            const mail = buildCandidateEmail(c);
+            const mailtoUrl = `mailto:${mail.to}?subject=${encodeURIComponent(mail.subject)}&body=${encodeURIComponent(mail.body)}`;
 
             // Use a temporary hidden link to trigger the mailto without navigating the current page
             const link = document.createElement('a');
@@ -5171,6 +5259,95 @@
                     document.body.removeChild(link);
                 }
             }, 500);
+        }
+
+        // ---------------------------------------------------------------------
+        // Schedule a "send on behalf" delivery
+        // ---------------------------------------------------------------------
+        async function scheduledEmailApi(payload) {
+            if (!SCHEDULED_EMAIL_ENDPOINT) throw new Error('Scheduling backend not configured yet (SCHEDULED_EMAIL_ENDPOINT is empty).');
+            const res = await fetch(SCHEDULED_EMAIL_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            return typeof data.body === 'string' ? JSON.parse(data.body) : (data.body || data);
+        }
+
+        // Resolve the selected option to an absolute send time (ms epoch).
+        function getScheduledSendAt() {
+            const sel = document.getElementById('scheduleWhen').value;
+            if (sel === 'custom') {
+                const v = document.getElementById('scheduleCustomAt').value;
+                return v ? new Date(v).getTime() : null;
+            }
+            return Date.now() + (parseInt(sel, 10) * 1000);
+        }
+
+        function updateSchedulePreview() {
+            const at = getScheduledSendAt();
+            const el = document.getElementById('schedulePreview');
+            if (!at || isNaN(at)) { el.textContent = '—'; return; }
+            el.textContent = new Date(at).toLocaleString();
+        }
+
+        function onScheduleWhenChange() {
+            const custom = document.getElementById('scheduleWhen').value === 'custom';
+            document.getElementById('scheduleCustomWrap').style.display = custom ? '' : 'none';
+            updateSchedulePreview();
+        }
+
+        async function openScheduleEmailModal() {
+            const c = state.candidates.find(cand => String(cand.id) === String(editingCandId));
+            if (!c || !c.email) {
+                alert("No email address found for this candidate. Please add one first.");
+                return;
+            }
+            document.getElementById('scheduleSenderEmail').textContent = getLoggedUserEmail() || 'your address';
+            document.getElementById('scheduleRecipientEmail').textContent = c.email;
+            document.getElementById('scheduleWhen').value = '604800'; // default 1 week
+            onScheduleWhenChange();
+            document.getElementById('scheduleEmailModal').style.display = 'flex';
+        }
+
+        function closeScheduleEmailModal() {
+            document.getElementById('scheduleEmailModal').style.display = 'none';
+        }
+
+        async function confirmScheduleEmail() {
+            const c = state.candidates.find(cand => String(cand.id) === String(editingCandId));
+            if (!c) return closeScheduleEmailModal();
+
+            const sendAt = getScheduledSendAt();
+            if (!sendAt || isNaN(sendAt)) return showToast('Pick a valid date & time.', 'error');
+            if (sendAt < Date.now() + 60000) return showToast('Choose a time at least a minute from now.', 'error');
+
+            const mail = buildCandidateEmail(c);
+            const btn = document.getElementById('scheduleConfirmBtn');
+            const prev = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scheduling…';
+            try {
+                const r = await scheduledEmailApi({
+                    action: 'schedule',
+                    senderEmail: getLoggedUserEmail(),
+                    candidateId: c.id,
+                    to: mail.to,
+                    subject: mail.subject,
+                    body: mail.body,
+                    sendAt: new Date(sendAt).toISOString()
+                });
+                if (r.success === false) throw new Error(r.message || 'Scheduling failed.');
+                showToast(`Invitation scheduled for ${new Date(sendAt).toLocaleString()}.`, 'success', 4000);
+                closeScheduleEmailModal();
+            } catch (e) {
+                console.error('Schedule failed:', e);
+                showToast('Could not schedule: ' + e.message, 'error', 5000);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = prev;
+            }
         }
 
         function rejectCurrentCandidate() {
