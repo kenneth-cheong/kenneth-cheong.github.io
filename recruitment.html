@@ -1670,10 +1670,10 @@
         </main>
 
         <!-- Schedule Email Modal -->
-        <div id="scheduleEmailModal" class="modal">
+        <div id="scheduleEmailModal" class="modal" style="z-index: 2000;">
             <div class="modal-content" style="max-width: 520px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <h2 style="margin: 0;">Schedule Invitation <i class="fas fa-clock" style="color: var(--secondary);"></i></h2>
+                    <h2 style="margin: 0;">Schedule Email <i class="fas fa-clock" style="color: var(--secondary);"></i></h2>
                     <button onclick="closeScheduleEmailModal()" style="background: none; border: none; color: var(--text-dim); font-size: 1.5rem; cursor: pointer; padding: 4px 8px; line-height: 1;" onmouseover="this.style.color='white'" onmouseout="this.style.color='var(--text-dim)'">&times;</button>
                 </div>
                 <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 20px;">
@@ -1703,6 +1703,18 @@
 
                 <!-- Scheduling form (shown when authorized) -->
                 <div id="scheduleForm" style="display: none;">
+                    <div class="form-group">
+                        <label>Subject</label>
+                        <input type="text" id="scheduleSubject" placeholder="Email subject"
+                            style="background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); color: white;">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Message</label>
+                        <textarea id="scheduleBody" rows="10" placeholder="Email body"
+                            style="background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); color: white; resize: vertical;"></textarea>
+                    </div>
+
                     <div class="form-group">
                         <label>When to send</label>
                         <select id="scheduleWhen" onchange="onScheduleWhenChange()"
@@ -1965,7 +1977,7 @@
                             <button class="btn"
                                 style="background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);"
                                 onclick="openScheduleEmailModal()">
-                                <i class="fas fa-clock"></i> Schedule
+                                <i class="fas fa-clock"></i> Schedule Email
                             </button>
                             <button class="btn"
                                 style="background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);"
@@ -2111,8 +2123,8 @@
         const GMAIL_AUTH_ENDPOINT = 'https://hp1ad5xwck.execute-api.ap-southeast-1.amazonaws.com';
         const SCHEDULED_EMAIL_ENDPOINT = 'https://lm82p1te4c.execute-api.ap-southeast-1.amazonaws.com';
 
-        const DEFAULT_EMAIL_SUBJECT = "Interview Invitation: {{job_title}} - {{candidate_name}}";
-        const DEFAULT_EMAIL_BODY = `Ref: {{reference_url}}\n\nDear {{candidate_name}},\n\nThank you for applying for {{job_title}}.\n\nI would like to invite you to schedule a Zoom interview here:\nhttps://calendly.com/tom-mediaone/45mins\n\nYours Sincerely,\n{{sender_name}}`;
+        const DEFAULT_EMAIL_SUBJECT = "Application Update";
+        const DEFAULT_EMAIL_BODY = `Dear {{candidate_name}},\n\nThank you for taking the time to apply and speak with us.\n\nWe genuinely appreciate your interest in the role, and we want you to know that you have clear talent, potential and many positive qualities. It was not an easy decision, as we met several strong candidates during this process.\n\nAfter careful consideration, we have decided to move forward with another candidate whose experience and profile are more closely aligned with what we are looking for at this stage.\n\nPlease do not take this as a reflection of your abilities. You clearly have promise, and we encourage you to keep pursuing opportunities that match your strengths and ambitions.\n\nWe wish you every success in your job search and future career. Good luck with your next opportunity, and thank you once again for your interest in joining us.\n\nWarm regards,\n\n{{sender_name}}`;
 
         let state = {
             jobs: [],
@@ -5667,6 +5679,10 @@
             document.getElementById('scheduleSenderEmail2').textContent = email || 'your Gmail';
             document.getElementById('scheduleRecipientEmail').textContent = c.email;
             document.getElementById('scheduleAuthEmail').textContent = email || 'your account';
+            // Pre-fill the editable subject/body from the saved template (placeholders resolved).
+            const mail = buildCandidateEmail(c);
+            document.getElementById('scheduleSubject').value = mail.subject;
+            document.getElementById('scheduleBody').value = mail.body;
             // Always open the modal first so the click clearly does something, then resolve auth.
             setScheduleModalState('loading');
             document.getElementById('scheduleEmailModal').style.display = 'flex';
@@ -5722,7 +5738,7 @@
         }
 
         async function cancelScheduledSend(id) {
-            if (!confirm('Cancel this scheduled invitation? It will not be sent.')) return;
+            if (!confirm('Cancel this scheduled email? It will not be sent.')) return;
             try {
                 await scheduledEmailApi({ action: 'cancel', id, senderEmail: getLoggedUserEmail() });
                 showToast('Scheduled invitation cancelled.', 'success');
@@ -5740,7 +5756,11 @@
             if (!sendAt || isNaN(sendAt)) return showToast('Pick a valid date & time.', 'error');
             if (sendAt < Date.now() + 60000) return showToast('Choose a time at least a minute from now.', 'error');
 
-            const mail = buildCandidateEmail(c);
+            // Use the (possibly edited) subject/body from the form.
+            const subject = document.getElementById('scheduleSubject').value.trim();
+            const body = document.getElementById('scheduleBody').value.trim();
+            if (!subject || !body) return showToast('Subject and message cannot be empty.', 'error');
+
             const btn = document.getElementById('scheduleConfirmBtn');
             const prev = btn.innerHTML;
             btn.disabled = true;
@@ -5750,13 +5770,13 @@
                     action: 'schedule',
                     senderEmail: getLoggedUserEmail(),
                     candidateId: c.id,
-                    to: mail.to,
-                    subject: mail.subject,
-                    body: mail.body,
+                    to: c.email,
+                    subject: subject,
+                    body: body,
                     sendAt: new Date(sendAt).toISOString()
                 });
                 if (r.success === false) throw new Error(r.message || 'Scheduling failed.');
-                showToast(`Invitation scheduled for ${new Date(sendAt).toLocaleString()}.`, 'success', 4000);
+                showToast(`Email scheduled for ${new Date(sendAt).toLocaleString()}.`, 'success', 4000);
                 closeScheduleEmailModal();
             } catch (e) {
                 console.error('Schedule failed:', e);
