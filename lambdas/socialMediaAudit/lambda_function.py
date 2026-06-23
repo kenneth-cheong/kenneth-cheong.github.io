@@ -1306,12 +1306,20 @@ def fetch_brand_health(domain, brand, location='Singapore', language='English'):
 # Content Analysis page types we treat as "social/web mentions".
 CA_PAGE_TYPES = ['ecommerce', 'news', 'blogs', 'message-boards', 'organization']
 
-# Source key → (Google site: filter, human label) for the SERP fallback layer.
+# Source key → (Google site: expression, human label) for the SERP layer. The
+# expression is parenthesised so it groups correctly when AND-ed with the term
+# group, e.g.  (site:twitter.com OR site:x.com) ("Brand" OR "Alias")  — verified
+# that without the parens Google mis-scopes the X query to all of twitter.com.
 LISTEN_SITES = {
-    'reddit':  ('reddit.com',                        'Reddit'),
-    'twitter': ('twitter.com OR site:x.com',         'Twitter / X'),
-    'forums':  ('forums.hardwarezone.com.sg',        'HardwareZone & SG forums'),
+    'reddit':  ('site:reddit.com',                  'Reddit'),
+    'twitter': ('(site:twitter.com OR site:x.com)', 'Twitter / X'),
+    'forums':  ('site:forums.hardwarezone.com.sg',  'HardwareZone & SG forums'),
 }
+
+
+def _ca_lang_code(language):
+    """Map a DataForSEO language_name to the 2-letter code its filters expect."""
+    return {'english': 'en'}.get((language or '').strip().lower(), 'en')
 
 
 def _ca_dominant_sentiment(content_info):
@@ -1325,13 +1333,28 @@ def _ca_dominant_sentiment(content_info):
     return best
 
 
-def _serp_site_mentions(brand, site, location, language, headers, limit=6):
-    """One Google site: search for the brand — used for Reddit/X/forum coverage."""
+def _mostly_non_latin(text):
+    """True if a title is predominantly non-Latin script — DataForSEO's language
+    tag mislabels some Thai/CJK/Arabic/Cyrillic pages as 'en', so the request-side
+    language filter lets them through; this drops them from the feed. Accented
+    Latin (Spanish/French) stays since most of its letters are still ASCII."""
+    letters = [c for c in (text or '') if c.isalpha()]
+    if not letters:
+        return False
+    latin = sum(1 for c in letters if c.isascii())
+    return latin / len(letters) < 0.5
+
+
+def _serp_site_mentions(terms, site_expr, location, language, headers, limit=8):
+    """One Google site: search covering every term via a grouped OR query — used
+    for Reddit/X/forum coverage that Content Analysis doesn't index natively.
+    Boolean OR works natively in Google SERP (unlike Content Analysis)."""
     out = []
     try:
+        phrase = '(' + ' OR '.join(f'"{t}"' for t in terms) + ')'
         r = requests.post(f'{DFS_BASE}/serp/google/organic/live/advanced',
                           headers=headers, timeout=25,
-                          json=[{'keyword': f'site:{site} "{brand}"',
+                          json=[{'keyword': f'{site_expr} {phrase}',
                                  'location_name': location, 'language_name': language,
                                  'depth': max(10, limit)}])
         res = (((r.json().get('tasks') or [{}])[0].get('result')) or [{}])[0] or {}
@@ -1351,90 +1374,128 @@ def _serp_site_mentions(brand, site, location, language, headers, limit=6):
 
 def fetch_social_listening(brand, domain, location='Singapore', language='English', cfg=None):
     cfg = cfg or {}
-    out = {'enabled': True, 'summary': None, 'mentions': [], 'trend': [],
-           'platforms': {}, 'note': None}
+    out = {'enabled': True, 'summary': None, 'mentions': [],
+           'platforms': {}, 'terms': [], 'note': None}
     auth = os.environ.get('DATAFORSEO_AUTH')
     if not auth or not brand:
         out['note'] = 'Set DATAFORSEO_AUTH to populate social listening.'
         return out
     headers = {'Authorization': auth, 'Content-Type': 'application/json'}
     sources = cfg.get('sources') or ['web', 'reddit', 'twitter', 'forums']
+    lang_code = _ca_lang_code(language)
 
-    def _summary():
+    # Search terms = brand + the user's "extra terms to track", deduped case-
+    # insensitively and capped. Content Analysis has no boolean OR (verified:
+    # "Nike OR Adidas" returns fewer hits than either term), so each term costs
+    # its own call — the cap bounds that. Google SERP DOES support OR, so the
+    # platform layer folds all terms into one query per platform.
+    MAX_TERMS = 5
+    terms, seen = [], set()
+    for t in [brand] + list(cfg.get('keywords') or []):
+        t = (t or '').strip()
+        if t and t.lower() not in seen:
+            seen.add(t.lower())
+            terms.append(t)
+        if len(terms) >= MAX_TERMS:
+            break
+    out['terms'] = terms
+
+    # ---- Content Analysis: one call per term, then merge ----
+    def _summary_one(term):
         try:
             r = requests.post(f'{DFS_BASE}/content_analysis/summary/live',
                               headers=headers, timeout=30,
-                              json=[{'keyword': brand, 'page_type': CA_PAGE_TYPES,
+                              json=[{'keyword': term, 'page_type': CA_PAGE_TYPES,
                                      'positive_connotation_threshold': 0.4,
                                      'sentiments_connotation_threshold': 0.4}])
-            res = (((r.json().get('tasks') or [{}])[0].get('result')) or [{}])[0] or {}
-            ct = res.get('connotation_types') or {}
-            return {
-                'total_mentions': res.get('total_count') if res.get('total_count') is not None
-                                  else res.get('count'),
-                'sentiment': {'positive': ct.get('positive'),
-                              'negative': ct.get('negative'),
-                              'neutral':  ct.get('neutral')},
-                'top_domains': [d.get('domain') for d in (res.get('top_domains') or [])[:8]
-                                if isinstance(d, dict) and d.get('domain')],
-            }
+            return (((r.json().get('tasks') or [{}])[0].get('result')) or [{}])[0] or {}
         except Exception:
-            return None
+            return {}
 
-    def _mentions():
+    def _mentions_one(term):
         try:
+            # language filter cuts the foreign-language noise the bare keyword
+            # otherwise pulls in (verified the filter works on this endpoint).
             r = requests.post(f'{DFS_BASE}/content_analysis/search/live',
                               headers=headers, timeout=30,
-                              json=[{'keyword': brand, 'page_type': CA_PAGE_TYPES,
+                              json=[{'keyword': term, 'page_type': CA_PAGE_TYPES,
                                      'search_mode': 'one_per_domain', 'limit': 20,
-                                     'order_by': ['content_info.date_published,desc']}])
+                                     'order_by': ['content_info.date_published,desc'],
+                                     'filters': [['language', '=', lang_code]]}])
             res = (((r.json().get('tasks') or [{}])[0].get('result')) or [{}])[0] or {}
-            mentions = []
-            for it in (res.get('items') or []):
+            return res.get('items') or []
+        except Exception:
+            return []
+
+    def _merge_summaries(results):
+        total, have_total = 0, False
+        sent, have_sent = {'positive': 0, 'negative': 0, 'neutral': 0}, False
+        dom = {}
+        for res in results:
+            tc = res.get('total_count')
+            tc = res.get('count') if tc is None else tc
+            if isinstance(tc, (int, float)):
+                total += tc; have_total = True
+            ct = res.get('connotation_types') or {}
+            for k in sent:
+                v = ct.get(k)
+                if isinstance(v, (int, float)):
+                    sent[k] += v; have_sent = True
+            for d in (res.get('top_domains') or []):
+                if isinstance(d, dict) and d.get('domain'):
+                    dom[d['domain']] = dom.get(d['domain'], 0) + (d.get('count') or 0)
+        return {
+            'total_mentions': total if have_total else None,
+            'sentiment': sent if have_sent else
+                         {'positive': None, 'negative': None, 'neutral': None},
+            'top_domains': [k for k, _ in sorted(dom.items(),
+                                                 key=lambda kv: kv[1], reverse=True)[:8]],
+        }
+
+    def _merge_mentions(items_lists):
+        # Interleave terms (round-robin) so one busy term doesn't fill the feed,
+        # dedupe by URL, cap at 20.
+        from itertools import zip_longest
+        merged, seen_urls = [], set()
+        for row in zip_longest(*items_lists) if items_lists else []:
+            for it in row:
+                if not it:
+                    continue
+                url = it.get('url')
+                if not url or url in seen_urls:
+                    continue
                 ci = it.get('content_info') or {}
+                title = ci.get('title') or ci.get('main_title') or ''
+                if _mostly_non_latin(title):   # mislabeled-foreign page → skip
+                    continue
+                seen_urls.add(url)
                 pt = it.get('page_types')
-                mentions.append({
-                    'url': it.get('url'),
+                merged.append({
+                    'url': url,
                     'domain': it.get('domain'),
-                    'title': (ci.get('title') or ci.get('main_title') or it.get('url') or '')[:160],
+                    'title': (title or url or '')[:160],
                     'snippet': (ci.get('snippet') or ci.get('highlighted_text') or '')[:240],
                     'date': ci.get('date_published'),
                     'sentiment': _ca_dominant_sentiment(ci),
                     'page_type': (pt[0] if isinstance(pt, list) and pt else it.get('page_type')),
                 })
-            return mentions[:20]
-        except Exception:
-            return []
+                if len(merged) >= 20:
+                    return merged
+        return merged
 
-    def _trend():
-        try:
-            from datetime import timedelta
-            date_from = (datetime.now(timezone.utc) - timedelta(days=365)).strftime('%Y-%m-%d')
-            r = requests.post(f'{DFS_BASE}/content_analysis/phrase_trends/live',
-                              headers=headers, timeout=30,
-                              json=[{'keyword': brand, 'page_type': CA_PAGE_TYPES,
-                                     'date_from': date_from, 'date_group': 'month'}])
-            res = (((r.json().get('tasks') or [{}])[0].get('result')) or [{}])[0] or {}
-            return [{'date': it.get('date_to') or it.get('date_from'),
-                     'count': it.get('count')}
-                    for it in (res.get('items') or []) if it.get('count') is not None]
-        except Exception:
-            return []
-
-    with ThreadPoolExecutor(max_workers=6) as ex:
-        web_futs, plat_futs = {}, {}
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        sum_futs = ment_futs = []
         if 'web' in sources:
-            web_futs = {'summary': ex.submit(_summary),
-                        'mentions': ex.submit(_mentions),
-                        'trend': ex.submit(_trend)}
-        for key, (site, label) in LISTEN_SITES.items():
+            sum_futs  = [ex.submit(_summary_one, t) for t in terms]
+            ment_futs = [ex.submit(_mentions_one, t) for t in terms]
+        plat_futs = {}
+        for key, (site_expr, label) in LISTEN_SITES.items():
             if key in sources:
-                plat_futs[key] = (label, ex.submit(_serp_site_mentions, brand, site,
+                plat_futs[key] = (label, ex.submit(_serp_site_mentions, terms, site_expr,
                                                    location, language, headers))
-        if web_futs:
-            out['summary']  = web_futs['summary'].result()
-            out['mentions'] = web_futs['mentions'].result()
-            out['trend']    = web_futs['trend'].result()
+        if 'web' in sources:
+            out['summary']  = _merge_summaries([f.result() for f in sum_futs])
+            out['mentions'] = _merge_mentions([f.result() for f in ment_futs])
         for key, (label, fut) in plat_futs.items():
             out['platforms'][key] = {'label': label, 'results': fut.result()}
 
