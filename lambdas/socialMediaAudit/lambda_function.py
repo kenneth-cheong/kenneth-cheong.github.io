@@ -81,6 +81,33 @@ META_API          = 'https://graph.facebook.com/v23.0'
 # pages_show_list, pages_read_engagement, read_insights, instagram_basic,
 # instagram_manage_insights + business_management, and the client Pages assigned.
 META_ACCESS_TOKEN = os.environ.get('META_ACCESS_TOKEN', '')
+
+# ── OAuth "Connect with …" (Monthly Social Reports) ──────────────────────────
+# Lets a non-technical user authorise a client's Meta/LinkedIn/TikTok/YouTube
+# account with one click instead of pasting a raw access token. The browser runs
+# the consent dialog and hands us an authorization CODE; we exchange it here for
+# an access token using the app SECRET (which must never reach the frontend).
+#   • Client IDs are public — the frontend needs them to build the auth URL, so
+#     oauth_config exposes them. Secrets stay server-side only.
+#   • Each platform's app must be registered by the agency, the redirect URI
+#     below whitelisted, and (Meta/LinkedIn) pass the platform's App Review for
+#     the insights scopes. See DEPLOY.md → "OAuth setup".
+#   • YouTube/Google is handled fully in-browser via Google Identity Services
+#     (no secret, no server exchange) so only its client_id is read here.
+OAUTH_REDIRECT_URI   = os.environ.get('OAUTH_REDIRECT_URI', 'https://app.digimetrics.ai/oauth-callback.html')
+META_OAUTH_CLIENT_ID     = os.environ.get('META_OAUTH_CLIENT_ID', '')
+META_OAUTH_CLIENT_SECRET = os.environ.get('META_OAUTH_CLIENT_SECRET', '')
+META_OAUTH_SCOPES        = os.environ.get('META_OAUTH_SCOPES',
+    'pages_show_list,pages_read_engagement,read_insights,instagram_basic,instagram_manage_insights,business_management')
+LINKEDIN_OAUTH_CLIENT_ID     = os.environ.get('LINKEDIN_OAUTH_CLIENT_ID', '')
+LINKEDIN_OAUTH_CLIENT_SECRET = os.environ.get('LINKEDIN_OAUTH_CLIENT_SECRET', '')
+LINKEDIN_OAUTH_SCOPES        = os.environ.get('LINKEDIN_OAUTH_SCOPES',
+    'r_organization_social r_organization_admin')
+TIKTOK_OAUTH_CLIENT_ID     = os.environ.get('TIKTOK_OAUTH_CLIENT_ID', '')        # TikTok "client key"
+TIKTOK_OAUTH_CLIENT_SECRET = os.environ.get('TIKTOK_OAUTH_CLIENT_SECRET', '')
+TIKTOK_OAUTH_SCOPES        = os.environ.get('TIKTOK_OAUTH_SCOPES',
+    'user.info.basic,user.info.profile,user.info.stats,video.list')
+GOOGLE_OAUTH_CLIENT_ID     = os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '')        # YouTube — frontend GIS only
 # How long a single cron_capture_one waits for its Apify runs before finalizing
 # with whatever finished. Keep below the Lambda timeout (set to 900s for cron).
 CRON_MAX_WAIT_SECS = int(os.environ.get('CRON_MAX_WAIT_SECS', '660'))
@@ -174,6 +201,11 @@ def lambda_handler(event, context):
             return _resp(200, report_recommend(body))
         if action == 'report_extract_pdf':
             return _resp(200, report_extract_pdf(body))
+        # ── OAuth "Connect with …" for per-client platform connections ───────
+        if action == 'oauth_config':
+            return _resp(200, oauth_config(body))
+        if action == 'oauth_exchange':
+            return _resp(200, oauth_exchange(body))
         # ── Daily auto-capture (scheduled, no user trigger) ──────────────────
         if action == 'cron_capture_all':
             return _resp(200, cron_capture_all(body))
@@ -1599,6 +1631,10 @@ def report_save_project(body):
         'handles':     data.get('handles')     if data.get('handles')     is not None else existing.get('handles', {}),
         'platforms':   data.get('platforms')   if data.get('platforms')   is not None else existing.get('platforms', []),
         'competitors': data.get('competitors') if data.get('competitors') is not None else existing.get('competitors', []),
+        # Per-client OAuth/token connections {meta:{token,name}, linkedin:{...}, …}.
+        # Holds platform access tokens, so it must survive reload (was previously
+        # accepted from the client but never persisted) and is encrypted at rest.
+        'connections': data.get('connections') if data.get('connections') is not None else existing.get('connections', {}),
         'tagged_posts':data.get('tagged_posts')if data.get('tagged_posts')is not None else existing.get('tagged_posts', []),
         'months':      existing.get('months', []),
         'created':     existing.get('created') or now,
@@ -1839,6 +1875,148 @@ def report_extract_pdf(body):
         return {'extracted': out, 'ai': True}
     except Exception as e:
         return {'extracted': None, 'ai': False, 'error': str(e)[:200]}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# OAuth "Connect with …" — turn a one-click consent into a stored access token
+#
+# The browser runs the platform's consent dialog and gets back an authorization
+# CODE (never a secret). It posts that code here; we swap it for an access token
+# using the app secret and return {token, name} shaped exactly like the old
+# paste-a-token path, so the frontend stores it through the same channel.
+# YouTube/Google is the exception — its token is obtained fully in-browser via
+# Google Identity Services, so only its client_id is surfaced (no exchange here).
+# ──────────────────────────────────────────────────────────────────────────────
+def oauth_config(body):
+    """Public OAuth config the frontend needs to build consent URLs. Exposes
+    client IDs + scopes + redirect URI ONLY — never secrets. `configured` tells
+    the UI whether to offer the one-click button or fall back to Advanced paste."""
+    return {
+        'redirect_uri': OAUTH_REDIRECT_URI,
+        'platforms': {
+            'meta': {
+                'configured': bool(META_OAUTH_CLIENT_ID and META_OAUTH_CLIENT_SECRET),
+                'client_id': META_OAUTH_CLIENT_ID, 'scopes': META_OAUTH_SCOPES,
+                'flow': 'code', 'authorize': f'{META_API}/dialog/oauth'},
+            'linkedin': {
+                'configured': bool(LINKEDIN_OAUTH_CLIENT_ID and LINKEDIN_OAUTH_CLIENT_SECRET),
+                'client_id': LINKEDIN_OAUTH_CLIENT_ID, 'scopes': LINKEDIN_OAUTH_SCOPES,
+                'flow': 'code', 'authorize': 'https://www.linkedin.com/oauth/v2/authorization'},
+            'tiktok': {
+                'configured': bool(TIKTOK_OAUTH_CLIENT_ID and TIKTOK_OAUTH_CLIENT_SECRET),
+                'client_id': TIKTOK_OAUTH_CLIENT_ID, 'scopes': TIKTOK_OAUTH_SCOPES,
+                'flow': 'code', 'authorize': 'https://www.tiktok.com/v2/auth/authorize/'},
+            'youtube': {
+                'configured': bool(GOOGLE_OAUTH_CLIENT_ID),
+                'client_id': GOOGLE_OAUTH_CLIENT_ID,
+                'scopes': 'https://www.googleapis.com/auth/youtube.readonly',
+                'flow': 'gis'},
+        },
+    }
+
+
+def oauth_exchange(body):
+    """Exchange an authorization code (meta/linkedin/tiktok) for an access token.
+    Returns {token, name, expires_in?} identical in shape to the paste path so the
+    frontend persists it the same way. YouTube tokens are obtained in-browser."""
+    platform = (body.get('platform') or '').strip().lower()
+    code     = (body.get('code') or '').strip()
+    # The redirect URI in the exchange MUST byte-match the one used at consent.
+    # The frontend echoes it back; fall back to our configured default.
+    redirect = (body.get('redirect_uri') or OAUTH_REDIRECT_URI).strip()
+    if not code:
+        raise RuntimeError('Missing authorization code.')
+    if platform == 'meta':
+        return _oauth_meta(code, redirect)
+    if platform == 'linkedin':
+        return _oauth_linkedin(code, redirect)
+    if platform == 'tiktok':
+        return _oauth_tiktok(code, redirect)
+    raise RuntimeError(f'OAuth exchange not supported for platform: {platform or "(none)"}')
+
+
+def _oauth_meta(code, redirect):
+    if not (META_OAUTH_CLIENT_ID and META_OAUTH_CLIENT_SECRET):
+        raise RuntimeError('Meta sign-in is not set up on the server (META_OAUTH_CLIENT_ID/SECRET).')
+    # 1) code → short-lived user token
+    d = requests.get(f'{META_API}/oauth/access_token', timeout=20, params={
+        'client_id': META_OAUTH_CLIENT_ID, 'client_secret': META_OAUTH_CLIENT_SECRET,
+        'redirect_uri': redirect, 'code': code}).json()
+    if d.get('error'):
+        raise RuntimeError('Meta: ' + (d['error'].get('message') or 'token exchange failed'))
+    short = d.get('access_token')
+    if not short:
+        raise RuntimeError('Meta returned no access token.')
+    # 2) short → long-lived (≈60 days) so monthly pulls keep working unattended
+    token, expires = short, d.get('expires_in')
+    try:
+        d2 = requests.get(f'{META_API}/oauth/access_token', timeout=20, params={
+            'grant_type': 'fb_exchange_token', 'client_id': META_OAUTH_CLIENT_ID,
+            'client_secret': META_OAUTH_CLIENT_SECRET, 'fb_exchange_token': short}).json()
+        if d2.get('access_token'):
+            token = d2['access_token']; expires = d2.get('expires_in', expires)
+    except Exception:
+        pass   # keep the short-lived token rather than fail the whole connect
+    name = 'Meta account'
+    try:
+        name = requests.get(f'{META_API}/me', timeout=15,
+                            params={'access_token': token, 'fields': 'name'}).json().get('name') or name
+    except Exception:
+        pass
+    out = {'token': token, 'name': name}
+    if expires:
+        out['expires_in'] = expires
+    return out
+
+
+def _oauth_linkedin(code, redirect):
+    if not (LINKEDIN_OAUTH_CLIENT_ID and LINKEDIN_OAUTH_CLIENT_SECRET):
+        raise RuntimeError('LinkedIn sign-in is not set up on the server (LINKEDIN_OAUTH_CLIENT_ID/SECRET).')
+    d = requests.post('https://www.linkedin.com/oauth/v2/accessToken', timeout=20,
+                      headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                      data={'grant_type': 'authorization_code', 'code': code,
+                            'redirect_uri': redirect, 'client_id': LINKEDIN_OAUTH_CLIENT_ID,
+                            'client_secret': LINKEDIN_OAUTH_CLIENT_SECRET}).json()
+    token = d.get('access_token')
+    if not token:
+        raise RuntimeError('LinkedIn: ' + (d.get('error_description') or d.get('error') or 'token exchange failed'))
+    name = 'LinkedIn account'
+    try:
+        name = requests.get('https://api.linkedin.com/v2/userinfo', timeout=15,
+                            headers={'Authorization': 'Bearer ' + token}).json().get('name') or name
+    except Exception:
+        pass
+    out = {'token': token, 'name': name}
+    if d.get('expires_in'):
+        out['expires_in'] = d['expires_in']
+    return out
+
+
+def _oauth_tiktok(code, redirect):
+    if not (TIKTOK_OAUTH_CLIENT_ID and TIKTOK_OAUTH_CLIENT_SECRET):
+        raise RuntimeError('TikTok sign-in is not set up on the server (TIKTOK_OAUTH_CLIENT_ID/SECRET).')
+    d = requests.post('https://open.tiktokapis.com/v2/oauth/token/', timeout=20,
+                      headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                      data={'client_key': TIKTOK_OAUTH_CLIENT_ID,
+                            'client_secret': TIKTOK_OAUTH_CLIENT_SECRET, 'code': code,
+                            'grant_type': 'authorization_code', 'redirect_uri': redirect}).json()
+    token = d.get('access_token')
+    if not token:
+        raise RuntimeError('TikTok: ' + (d.get('error_description') or d.get('error') or 'token exchange failed'))
+    name = 'TikTok account'
+    try:
+        ui = requests.get('https://open.tiktokapis.com/v2/user/info/', timeout=15,
+                          headers={'Authorization': 'Bearer ' + token},
+                          params={'fields': 'display_name'}).json()
+        name = (((ui.get('data') or {}).get('user') or {}).get('display_name')) or name
+    except Exception:
+        pass
+    out = {'token': token, 'name': name}
+    if d.get('expires_in'):
+        out['expires_in'] = d['expires_in']
+    if d.get('open_id'):
+        out['open_id'] = d['open_id']
+    return out
 
 
 # ──────────────────────────────────────────────────────────────────────────────
