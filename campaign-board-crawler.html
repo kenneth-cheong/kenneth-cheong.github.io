@@ -6505,7 +6505,7 @@ ${JSON.stringify(contextData)}`;
             <div class="tour-option-icon"><i class="fas fa-route"></i></div>
             <div class="tour-option-content">
                 <div class="tour-option-title">Complete Tour</div>
-                <div class="tour-option-desc">Full walkthrough with 35+ steps covering every feature & term</div>
+                <div class="tour-option-desc">Full walkthrough covering every feature & term</div>
             </div>
         </button>
 
@@ -6537,7 +6537,15 @@ ${JSON.stringify(contextData)}`;
             <div class="tour-option-icon"><i class="fas fa-eye"></i></div>
             <div class="tour-option-content">
                 <div class="tour-option-title">View Modes</div>
-                <div class="tour-option-desc">Manager, Auditor, and Timeliness views explained</div>
+                <div class="tour-option-desc">Today, By Staff, All Campaigns, Timeliness & Hygiene views explained</div>
+            </div>
+        </button>
+
+        <button class="tour-option" onclick="startTour('hygiene')">
+            <div class="tour-option-icon"><i class="fas fa-broom"></i></div>
+            <div class="tour-option-content">
+                <div class="tour-option-title">Hygiene &amp; Date Health</div>
+                <div class="tour-option-desc">Find boards with lapsed/blank dates, group by CSM, nudge owners &amp; export</div>
             </div>
         </button>
 
@@ -6601,6 +6609,7 @@ ${JSON.stringify(contextData)}`;
                 : tourName === 'glossary' ? getGlossarySteps()
                 : tourName === 'filtering' ? getFilteringSteps()
                 : tourName === 'views' ? getViewsSteps()
+                : tourName === 'hygiene' ? getHygieneTourSteps()
                 : tourName === 'chat' ? getChatSteps()
                 : [];
 
@@ -6744,6 +6753,50 @@ ${JSON.stringify(contextData)}`;
                         2. Click the "My Focus" button<br>
                         3. View your campaigns sorted by Priority Score<br><br>
                         Perfect for daily standup prep!`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '🧹 Lapsed Date Range',
+                        description: `<strong>Definition:</strong> A campaign item whose date range <em>ended in the past</em> and was never moved forward.<br><br>
+                        <strong>Example:</strong> A task scheduled to finish Mar 28 that is still open today — the dates lapsed.<br><br>
+                        <strong>Where:</strong> Counted per board in the <strong>Hygiene</strong> view. Shown as a <span style="color:#f87171;font-weight:700">red</span> "LAPSED Nd" badge.`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '⬜ Blank Date Range',
+                        description: `<strong>Definition:</strong> A campaign item with <em>no date and no timeline set at all</em> — it was never planned.<br><br>
+                        <strong>Why it matters:</strong> Blank items can't be tracked or chased. A board full of blanks usually means onboarding was never finished.<br><br>
+                        <strong>Where:</strong> Counted per board in the <strong>Hygiene</strong> view. Shown as a grey "NO DATES SET" badge.`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '⏱️ Dates Untouched',
+                        description: `<strong>Definition:</strong> How long since a board's date columns were last edited, read from Monday's activity logs (falls back to the item's edit time).<br><br>
+                        <strong>Why it matters:</strong> A lapsed board that nobody has touched in months is rotting; one edited last week is just mid-flight. Set-and-forgotten boards rank worse.`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '🔔 Cadence / Overdue for Update',
+                        description: `<strong>Definition:</strong> The expected number of days between date updates on a board. Set it in the Hygiene control bar.<br><br>
+                        Any board whose dates have been <strong>untouched longer than your cadence</strong> is flagged <span style="color:#fca5a5;font-weight:700">"Overdue for update"</span>.`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '⚠️ At-risk Score',
+                        description: `<strong>Definition:</strong> A combined ranking that weights a board's stale date ranges by its <em>late-delivery rate</em> from the Timeliness view.<br><br>
+                        Boards that are <strong>both</strong> stale <strong>and</strong> chronically late float to the top — the real fires. Load the Timeliness view once to activate it.`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '✅ Active Statuses',
+                        description: `<strong>Definition:</strong> Which repository (Master Board) campaign statuses count as "active" and therefore get scanned by the Hygiene view.<br><br>
+                        Pick them explicitly in the <strong>Active statuses</strong> popover — e.g. include "Active"/"Ongoing", exclude "Completed"/"Paused".`,
                     }
                 },
                 {
@@ -6900,7 +6953,7 @@ ${JSON.stringify(contextData)}`;
                     element: '.view-toggle-container',
                     popover: {
                         title: '👁️ View Modes',
-                        description: 'Four views: Today (your prioritised worklist), By Staff (manager cards), All Campaigns (table), Timeliness (completion analytics).',
+                        description: 'Five views: Today (your prioritised worklist), By Staff (manager cards), All Campaigns (table), Timeliness (completion analytics), Hygiene (boards with un-updated dates).',
                     }
                 },
                 {
@@ -6911,6 +6964,16 @@ ${JSON.stringify(contextData)}`;
                         • <span style="color:#10b981">Negative</span> = Early ✓<br>
                         • <span style="color:#ef4444">Positive</span> = Late ✗<br><br>
                         Tracks team estimation accuracy over time.`,
+                    }
+                },
+                {
+                    element: '#view-hygiene',
+                    popover: {
+                        title: '🧹 Hygiene',
+                        description: `Ranks active campaign boards by <em>un-updated</em> date ranges:<br><br>
+                        • <span style="color:#f87171">Lapsed</span> = date range ended in the past<br>
+                        • <strong>Blank</strong> = no date / timeline set<br><br>
+                        Group by board or CSM, flag boards "overdue for update", and copy a nudge for the owner. For a deep dive, run the dedicated <strong>Hygiene & Date Health</strong> tour.`,
                     }
                 },
                 {
@@ -6930,7 +6993,9 @@ ${JSON.stringify(contextData)}`;
                         • <strong>Days Overdue</strong>: Today - Deadline<br>
                         • <strong>Priority Score</strong>: Auto-urgency ranking<br>
                         • <strong>CS Manager</strong>: From Master Board<br>
-                        • <strong>Completion Delta</strong>: Finish - Deadline<br><br>
+                        • <strong>Completion Delta</strong>: Finish - Deadline<br>
+                        • <span style="color:#f87171">Lapsed</span> / <strong>Blank</strong>: Hygiene date issues<br>
+                        • <strong>At-risk</strong>: Stale weighted by lateness<br><br>
                         Click <strong>Tour Guide</strong> in the header anytime to revisit!`,
                     }
                 }
@@ -7036,7 +7101,7 @@ ${JSON.stringify(contextData)}`;
                 {
                     element: '.view-toggle-container',
                     popover: {
-                        title: '👁️ Four View Modes',
+                        title: '👁️ Five View Modes',
                         description: 'Switch between different ways of looking at your data.',
                     }
                 },
@@ -7067,6 +7132,59 @@ ${JSON.stringify(contextData)}`;
                         title: '📊 Timeliness View',
                         description: `Tracks completion accuracy. <strong>Completion Delta</strong> = Finish Date - Deadline.<br><br>
                         Negative = Early. Positive = Late. Helps improve estimation over time.`,
+                    }
+                },
+                {
+                    element: '#view-hygiene',
+                    popover: {
+                        title: '🧹 Hygiene View',
+                        description: `Ranks your <strong>active</strong> campaign boards by how many date ranges are <em>un-updated</em> — <span style="color:#f87171">lapsed</span> (ended in the past) or blank (never set).<br><br>
+                        Group <strong>By board</strong> or <strong>By CSM</strong>, switch to a <strong>Heatmap</strong>, sort by count / % / At-risk, copy a nudge for the owner, or export to CSV. It pulls active campaigns straight from the repository — pick which statuses count under <strong>Active statuses</strong>.`,
+                    }
+                }
+            ];
+        }
+
+        function getHygieneTourSteps() {
+            return [
+                {
+                    element: '#view-hygiene',
+                    popover: {
+                        title: '🧹 Hygiene View',
+                        description: `Find <strong>active</strong> campaign boards with many <em>un-updated</em> date ranges so neglected campaigns surface before clients notice. Open it from this toggle, then let it scan.`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '🔴 Lapsed vs ⬜ Blank',
+                        description: `Each board's score combines two failure modes:<br><br>
+                        • <span style="color:#f87171;font-weight:700">Lapsed</span> — a date range whose end is in the past.<br>
+                        • <strong>Blank</strong> — an item with no date and no timeline at all.<br><br>
+                        The split is shown on every row so you know whether a board was abandoned or never planned.`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '✅ Active Statuses',
+                        description: `Only campaigns the repository marks active get scanned. Use the <strong>Active statuses</strong> popover to choose exactly which statuses count (e.g. include "Active"/"Ongoing", exclude "Completed"/"Paused"), then <strong>Apply &amp; rescan</strong>.`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '👤 By Board / By CSM',
+                        description: `Toggle <strong>By CSM</strong> to roll staleness up per CS Manager — see who owns the most neglected boards — or stay <strong>By board</strong> and switch to the <strong>Heatmap</strong> for an at-a-glance picture when there are many boards.`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '⏱️ Untouched, Cadence & At-risk',
+                        description: `"Dates untouched" comes from activity logs. Set a <strong>Cadence</strong> to flag boards left too long ("Overdue for update"). Sort by <strong>At-risk</strong> to weight stale boards by their late-delivery rate (load the Timeliness view once to enable it).`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '🔔 Act on it',
+                        description: `Expand any board to see the offending items, <strong>Copy nudge</strong> a ready-to-paste message for the owner, <strong>Export</strong> the leaderboard to CSV, or hit <strong>Ask AI</strong> for a prioritised "fix this first" shortlist.`,
                     }
                 }
             ];
