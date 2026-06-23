@@ -2924,7 +2924,7 @@
             filtered.forEach(i => {
                 if (kind === 'overdue' && i.status === 'overdue') add(i);
                 else if (kind === 'escalations' && _campaignEscalated(camps[i.bId])) add(i);
-                else if (kind === 'kwbehind' && _campaignKwBehind(i.bId)) add(i);
+                else if (kind === 'kwbehind' && _campaignKwBehind(i.bId, i.bName)) add(i);
             });
             state.selectedStaffNames = match;
             updateFilteredUI();
@@ -3102,8 +3102,8 @@
             const mgrWorkload = filtered.length;
             const mgrOverdue = filtered.filter(i => i.status === 'overdue').length;
             const mgrEscalations = mgrCampList.filter(_campaignEscalated).length;
-            const mgrKwBehind = mgrCampList.filter(c => _campaignKwBehind(c.id)).length;
-            const mgrAnyKw = mgrCampList.some(c => _kwTargets()[c.id]);
+            const mgrKwBehind = mgrCampList.filter(c => _campaignKwBehind(c.id, c.name)).length;
+            const mgrAnyKw = mgrCampList.some(c => _cbPaceFor(c.id, c.name));
             const mgrHealth = { green: 0, amber: 0, orange: 0, red: 0 };
             mgrCampList.forEach(c => { mgrHealth[_successSignal(c).key]++; });
 
@@ -3313,7 +3313,33 @@
             else               { key = 'red';    label = 'Critically behind'; color = 'var(--danger)';  }
             return { target, current, expected, gap, mNow, mTot, key, label, color };
         }
-        function _campaignKwBehind(bId) { const p = _keywordPace(_kwTargets()[bId]); return p && (p.key === 'orange' || p.key === 'red'); }
+        // Auto keyword pacing, sourced live from the cockpit's SEO Trajectory Tracker.
+        // The cockpit (index.html) persists per-campaign pacing to localStorage
+        // 'cbcSeoPacing' on each fetch; both pages are same-origin so we read it here.
+        // Matched by normalised campaign name. Returns the same shape as _keywordPace
+        // (so callers/renderers are interchangeable) but flagged auto:true.
+        function _cbSeoPacing() { try { return (JSON.parse(localStorage.getItem('cbcSeoPacing') || '{}').map) || {}; } catch (_) { return {}; } }
+        function _cbAutoPace(name) {
+            const key = String(name || '').trim().toLowerCase();
+            if (!key) return null;
+            const e = _cbSeoPacing()[key];
+            if (!e || e.kpi == null || e.p1 == null) return null;
+            let pkey, label, color;
+            if (!e.isBehind)            { pkey = 'green';  label = 'On pace';           color = 'var(--success)'; }
+            else if ((e.pctBehind || 0) <= 25) { pkey = 'orange'; label = 'Behind pace'; color = 'var(--warning)'; }
+            else                        { pkey = 'red';    label = 'Critically behind'; color = 'var(--danger)';  }
+            return { target: e.kpi, current: e.p1, expected: e.expected, gap: Math.max(0, (e.expected || 0) - (e.p1 || 0)),
+                     pctBehind: e.pctBehind, pctProgress: e.pctProgress, resultLabel: e.resultLabel || 'P1 KWs',
+                     key: pkey, label, color, auto: true };
+        }
+        // Unified resolver: an explicit manual target wins (user override); otherwise
+        // fall back to the auto pace from the cockpit. Returns null when neither exists.
+        function _cbPaceFor(bId, name) {
+            const manual = _kwTargets()[bId];
+            if (manual) { const p = _keywordPace(manual); if (p) { p.auto = false; return p; } }
+            return _cbAutoPace(name);
+        }
+        function _campaignKwBehind(bId, name) { const p = _cbPaceFor(bId, name); return p && (p.key === 'orange' || p.key === 'red'); }
 
         function cbEditKwTarget(bId) { state.kwEditing = bId; renderConsultantView(getFilteredItems()); }
         function cbCancelKwTarget() { state.kwEditing = null; renderConsultantView(getFilteredItems()); }
@@ -3469,8 +3495,8 @@
             const avgScore = signals.length ? Math.round(signals.reduce((s, x) => s + x.score, 0) / signals.length) : 0;
             const atRisk = signals.filter(s => s.score < 70).length;
             const avgColor = avgScore >= 70 ? 'var(--success)' : avgScore >= 40 ? 'var(--warning)' : 'var(--danger)';
-            const kwBehind = camps.filter(c => _campaignKwBehind(c.id)).length;
-            const anyKwTargets = camps.some(c => _kwTargets()[c.id]);
+            const kwBehind = camps.filter(c => _campaignKwBehind(c.id, c.name)).length;
+            const anyKwTargets = camps.some(c => _cbPaceFor(c.id, c.name));
 
             const kpiFilter = state.consultantKpiFilter || null;
             const kpi = (val, lab, color, fkey) => {
@@ -3502,7 +3528,7 @@
             if (kpiFilter === 'overdue') visibleCamps = camps.filter(c => c.counts.overdue > 0);
             else if (kpiFilter === 'approvals') visibleCamps = camps.filter(c => c.items.some(i => _cbApprovalStatus(i.itemStatus) || _cbApprovalStatus(i.masterCsmStatus) || _cbApprovalStatus(i.csmCampaignStatus)));
             else if (kpiFilter === 'risk') visibleCamps = camps.filter(c => _successSignal(c).score < 80);
-            else if (kpiFilter === 'kwbehind') visibleCamps = camps.filter(c => _campaignKwBehind(c.id));
+            else if (kpiFilter === 'kwbehind') visibleCamps = camps.filter(c => _campaignKwBehind(c.id, c.name));
             if (kpiFilter) {
                 const flabel = { overdue: 'with overdue items', approvals: 'awaiting approval', risk: 'needing attention', kwbehind: 'behind on keyword Page-1 pace' }[kpiFilter] || '';
                 html += `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);border-radius:10px;margin-bottom:14px;font-size:13px;color:var(--text);">
@@ -3547,9 +3573,10 @@
                     </div>`;
                 }).join('');
 
-                // Keyword Page-1 pacing flag + inline target editor.
+                // Keyword Page-1 pacing flag + inline target editor. Auto-sourced from the
+                // cockpit SEO Trajectory Tracker when available; a manual target overrides it.
                 const kwT = _kwTargets()[c.id];
-                const pace = _keywordPace(kwT);
+                const pace = _cbPaceFor(c.id, c.name);
                 const editingKw = state.kwEditing === c.id;
                 let kwRow;
                 if (editingKw) {
@@ -3567,10 +3594,16 @@
                         </div>
                     </div>`;
                 } else if (pace) {
+                    const autoTag = pace.auto
+                        ? `<span title="Live from the cockpit SEO Trajectory Tracker — no manual entry needed" style="font-size:9px;font-weight:700;color:var(--primary);background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);border-radius:8px;padding:1px 6px;margin-left:6px;">AUTO</span>`
+                        : '';
+                    const detail = pace.auto
+                        ? `${pace.current} of ${pace.target} ${pace.resultLabel} <span style="color:var(--muted);">(expected ~${pace.expected} at ${pace.pctProgress}% elapsed${pace.pctBehind > 0 ? `, ${pace.pctBehind}% behind` : ''})</span>`
+                        : `${pace.current}% on Page 1 vs ${pace.target}% target <span style="color:var(--muted);">(expected ~${pace.expected}% by month ${pace.mNow}/${pace.mTot}${pace.gap > 0 ? `, ${pace.gap}pt behind` : ''})</span>`;
                     kwRow = `<div style="display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-left:3px solid ${pace.color};border-radius:8px;padding:8px 11px;margin:10px 0;">
                         <span style="width:9px;height:9px;border-radius:50%;background:${pace.color};flex-shrink:0;"></span>
-                        <span style="font-size:12px;color:var(--text);"><b style="color:${pace.color};">KW Page-1: ${pace.label}</b> — ${pace.current}% on Page 1 vs ${pace.target}% target <span style="color:var(--muted);">(expected ~${pace.expected}% by month ${pace.mNow}/${pace.mTot}${pace.gap > 0 ? `, ${pace.gap}pt behind` : ''})</span></span>
-                        <button onclick="cbEditKwTarget('${c.id}')" title="Edit target" style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;"><i class="fas fa-pen"></i></button>
+                        <span style="font-size:12px;color:var(--text);"><b style="color:${pace.color};">KW Page-1: ${pace.label}</b>${autoTag} — ${detail}</span>
+                        <button onclick="cbEditKwTarget('${c.id}')" title="${pace.auto ? 'Set a manual override' : 'Edit target'}" style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;"><i class="fas fa-pen"></i></button>
                     </div>`;
                 } else {
                     kwRow = `<div style="margin:10px 0;"><button onclick="cbEditKwTarget('${c.id}')" style="background:none;border:1px dashed var(--border);color:var(--muted);border-radius:8px;padding:7px 11px;cursor:pointer;font-size:12px;"><i class="fas fa-bullseye" style="margin-right:5px;opacity:.7;"></i>Set keyword Page-1 target</button></div>`;
