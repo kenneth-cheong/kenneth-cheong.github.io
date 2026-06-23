@@ -1345,6 +1345,17 @@ def _mostly_non_latin(text):
     return latin / len(letters) < 0.5
 
 
+# Coupon/voucher aggregators dominate brand keyword results but aren't real
+# "mentions". spam_score / content_quality_score don't flag them (a coupon page
+# scored quality=100), so filter on the tell-tale domain names + listing titles.
+_PROMO_DOMAIN_RE = re.compile(r'(voucher|coupon|promo|discount|cashback|giftcard|couponcode)', re.I)
+_PROMO_TITLE_RE  = re.compile(r'(free shipping|promo code|coupon code|discount code|\d+%\s*(off|discount)|save up to \d|cashback)', re.I)
+
+
+def _is_promo_noise(domain, title):
+    return bool(_PROMO_DOMAIN_RE.search(domain or '')) or bool(_PROMO_TITLE_RE.search(title or ''))
+
+
 def _serp_site_mentions(terms, site_expr, location, language, headers, limit=8):
     """One Google site: search covering every term via a grouped OR query — used
     for Reddit/X/forum coverage that Content Analysis doesn't index natively.
@@ -1466,7 +1477,9 @@ def fetch_social_listening(brand, domain, location='Singapore', language='Englis
                     continue
                 ci = it.get('content_info') or {}
                 title = ci.get('title') or ci.get('main_title') or ''
-                if _mostly_non_latin(title):   # mislabeled-foreign page → skip
+                if _mostly_non_latin(title):              # mislabeled-foreign page → skip
+                    continue
+                if _is_promo_noise(it.get('domain'), title):  # coupon/voucher spam → skip
                     continue
                 seen_urls.add(url)
                 pt = it.get('page_types')
