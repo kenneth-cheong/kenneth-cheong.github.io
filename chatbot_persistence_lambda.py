@@ -92,7 +92,20 @@ def handle_save_conversation(db, data, headers):
     
     messages = data.get('messages', [])
     title = data.get('title')
-    
+
+    # Data-loss guard: never let an empty-message save clobber a conversation that
+    # already has content. A failed load followed by an autosave used to overwrite
+    # whole threads with []. Checked across every userId spelling for this id.
+    if not messages:
+        existing = db.conversations.find_one(
+            {"conversationId": conv_id, "messages": {"$exists": True, "$not": {"$size": 0}}}
+        )
+        if existing:
+            return response(200, {
+                "success": True, "conversationId": conv_id,
+                "skipped": "empty_messages_guard"
+            }, headers)
+
     if not title and messages:
         # Generate a title from the first user message
         first_user_msg = next((m for m in messages if m.get('role') == 'user'), None)
@@ -130,11 +143,19 @@ def handle_fetch_conversations(db, data, headers):
             {"conversationId": 1, "userId": 1, "title": 1, "lastUpdated": 1, "mode": 1}
         ).sort("lastUpdated", -1).limit(300)
 
+        # Collapse duplicate documents that share a conversationId (artifacts of a past
+        # userId-format change). conversationId is unique per conversation, so the cursor
+        # is already sorted newest-first — keep the first (most recent) sighting of each.
         conversations = []
+        seen = set()
         for c in cursor:
+            cid = c.get("conversationId")
+            if cid in seen:
+                continue
+            seen.add(cid)
             uid = c.get("userId") or ""
             conversations.append({
-                "conversationId": c.get("conversationId"),
+                "conversationId": cid,
                 "userId": uid,
                 "userLabel": uid.replace("user_", ""),
                 "title": c.get("title") or "Untitled",
@@ -154,11 +175,25 @@ def handle_get_conversation(db, data, headers):
     if not conv_id:
         return response(400, {"error": "Missing conversationId"}, headers)
 
-    # When viewing another user's conversation (fetchAll mode), search by ID only
-    query = {"conversationId": conv_id} if fetch_all else {"conversationId": conv_id, "userId": user_id}
-    conv = db.conversations.find_one(query)
-    if not conv:
-        return response(404, {"error": "Conversation not found"}, headers)
+    if fetch_all:
+        # When viewing by ID (own load or admin view), there may be more than one
+        # document for this conversationId: a past userId-format change (e.g.
+        # "user_x" vs "user__x_") left some conversations with duplicate records.
+        # conversationId is a UUID unique per conversation — shared copies are forked
+        # with a fresh id (see chatbot.html) — so any duplicates are the SAME person's
+        # drifted records. A plain find_one() could return the empty twin and open the
+        # chat blank, so prefer the requester's own non-empty copy, then fall back to
+        # the richest copy by message count, then most recent.
+        candidates = list(db.conversations.find({"conversationId": conv_id}))
+        if not candidates:
+            return response(404, {"error": "Conversation not found"}, headers)
+        own = [c for c in candidates if c.get("userId") == user_id and (c.get("messages") or [])]
+        pool = own or candidates
+        conv = max(pool, key=lambda c: (len(c.get("messages") or []), str(c.get("lastUpdated") or "")))
+    else:
+        conv = db.conversations.find_one({"conversationId": conv_id, "userId": user_id})
+        if not conv:
+            return response(404, {"error": "Conversation not found"}, headers)
 
     return response(200, {"conversation": conv}, headers)
 
