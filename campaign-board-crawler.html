@@ -2223,7 +2223,7 @@
                 '[MO] Done', '[MO] Not Needed'
             ]),
             timeliness: { data: [], loaded: false, loading: false, expandedStaff: new Set(), selectedStaff: new Set(), showDeleted: false, progress: { done: 0, total: 0 }, tableSort: { key: 'delta', dir: 'desc' }, expandedBoards: new Set() },
-            hygiene: { data: [], loaded: false, loading: false, progress: { done: 0, total: 0 }, expandedBoards: new Set(), sortBy: 'count', filter: 'both' },
+            hygiene: { data: [], loaded: false, loading: false, progress: { done: 0, total: 0 }, expandedBoards: new Set(), expandedCsm: new Set(), sortBy: 'count', filter: 'both', groupBy: 'board', display: 'list', activeStatuses: null, cadenceDays: 14, pickerOpen: false },
             completionLabels: new Set(['Done', 'Completed', 'Signed Off', 'Launched', 'Live', 'Approved'])
         };
 
@@ -3751,13 +3751,27 @@
 
         const HYGIENE_INACTIVE_RE = /abandon|complet|expired|terminat|paus|on ?hold|churn|cancel|lost|ended|dormant|inactive|archiv/i;
 
-        // A campaign counts as active if the master repository gives it a non-empty
-        // status that is NOT one of the clearly-finished/parked states.
+        // Split a campaign's status string(s) into distinct tokens.
+        function hygieneStatusTokens(master) {
+            const raw = ((master?.status || '') + ' / ' + (master?.csmStatus || ''));
+            return [...new Set(raw.split(/\s*\/\s*|,/).map(s => s.trim()).filter(s => s && s !== '-' && s !== '...'))];
+        }
+
+        // A campaign counts as active if the user-picked status set matches (when set),
+        // otherwise fall back to "not a clearly finished/parked status".
         function isHygieneActive(master) {
-            if (!master) return false;
-            const s = ((master.status || '') + ' ' + (master.csmStatus || '')).trim();
-            if (!s || s === '-' || s === '...') return false;
-            return !HYGIENE_INACTIVE_RE.test(s);
+            const toks = hygieneStatusTokens(master);
+            if (!toks.length) return false;
+            const sel = state.hygiene.activeStatuses;
+            if (sel && sel.size) return toks.some(t => sel.has(t));
+            return toks.some(t => !HYGIENE_INACTIVE_RE.test(t));
+        }
+
+        // All distinct status tokens present across the master repository.
+        function hygieneAllStatuses() {
+            const set = new Set();
+            Object.values(state.masterCampaignMap || {}).forEach(m => hygieneStatusTokens(m).forEach(t => set.add(t)));
+            return [...set].sort((a, b) => a.localeCompare(b));
         }
 
         async function fetchHygieneData() {
@@ -3767,26 +3781,33 @@
             state.hygiene.data = [];
             renderHygieneView();
 
-            // Make sure the master repository is loaded — active detection depends on it.
+            // Active detection depends on the master repository.
             if (!state.masterDataLoaded) {
                 try { await (state.masterFetchPromise || fetchMasterCampaignData()); } catch (e) { console.warn('Hygiene: master load failed', e); }
             }
 
-            // Candidate boards = selected folders' boards that map to an ACTIVE campaign.
-            const boardsToQuery = [];
-            const seen = new Set();
+            // Candidate boards = folder-selected active boards UNION master active rows
+            // that carry a [Tech] Board ID — so the scan no longer depends on folder
+            // selection and follows the repository directly.
+            const candidates = new Map(); // id -> {id, name, master}
             state.selectedFolderIds.forEach(fid => {
                 const f = state.folders.find(x => x.id === fid);
                 if (!f) return;
                 f.boards.forEach(b => {
                     if (b.name.toLowerCase().includes('template')) return;
-                    if (seen.has(b.id)) return;
                     const master = getMasterDataFromMap(b.name, b.id);
                     if (!isHygieneActive(master)) return;
-                    seen.add(b.id);
-                    boardsToQuery.push({ id: b.id, name: b.name, master });
+                    if (!candidates.has(b.id)) candidates.set(b.id, { id: b.id, name: b.name, master });
                 });
             });
+            Object.values(state.masterCampaignMap || {}).forEach(m => {
+                if (!isHygieneActive(m)) return;
+                (m.boardIds || []).forEach(bid => {
+                    if (candidates.has(bid)) return;
+                    candidates.set(bid, { id: bid, name: m.name, master: { masterName: m.name, status: m.status, csmStatus: m.csmStatus, csm: m.csm, timeline: m.timeline, techSummary: m.techSummary } });
+                });
+            });
+            const boardsToQuery = [...candidates.values()];
 
             state.hygiene.progress = { done: 0, total: boardsToQuery.length };
             renderHygieneView();
@@ -3797,13 +3818,13 @@
 
             async function processBoard(b) {
                 try {
-                    // Items (all of them, paginated) + activity logs in parallel.
-                    const [items, rawLogs] = await Promise.all([
+                    const [boardData, rawLogs] = await Promise.all([
                         (async () => {
-                            let cursor = null; const acc = [];
+                            let cursor = null; const acc = []; let bn = b.name;
                             do {
                                 const idata = await monday(`query($id:[ID!],$c:String){
                                     boards(ids:$id){
+                                        name
                                         items_page(limit:500,cursor:$c){
                                             cursor
                                             items{
@@ -3819,12 +3840,15 @@
                                         }
                                     }
                                 }`, { id: [b.id], c: cursor }, false);
-                                const page = idata.boards?.[0]?.items_page;
+                                const board = idata.boards?.[0];
+                                if (!board) break;
+                                if (board.name) bn = board.name;
+                                const page = board.items_page;
                                 if (!page) break;
                                 acc.push(...page.items);
                                 cursor = page.cursor;
                             } while (cursor);
-                            return acc;
+                            return { items: acc, name: bn };
                         })(),
                         (async () => {
                             try {
@@ -3836,27 +3860,24 @@
                         })()
                     ]);
 
+                    const items = boardData.items;
                     if (!items.length) { return; }
 
-                    // Identify which columns on this board are date / timeline columns.
                     const dateColIds = new Set();
                     items.forEach(i => i.column_values.forEach(cv => {
                         if (cv.type === 'date' || cv.type === 'timeline' || cv.type === 'timerange') dateColIds.add(cv.id);
                     }));
-                    // Board isn't date-tracked at all → nothing to audit, skip it.
                     if (!dateColIds.size) { return; }
 
-                    // Most-recent edit timestamp per item on any date/timeline column.
                     const lastDateEdit = {};
                     rawLogs.forEach(log => {
                         if (log.event !== 'update_column_value') return;
                         try {
                             const d = JSON.parse(log.data);
-                            const colId = d.column_id;
-                            const isDateCol = dateColIds.has(colId) || /date|timerange|timeline/i.test(d.column_type || '');
+                            const isDateCol = dateColIds.has(d.column_id) || /date|timerange|timeline/i.test(d.column_type || '');
                             if (!isDateCol) return;
                             const itemId = String(d.pulse_id);
-                            if (lastDateEdit[itemId]) return; // logs are newest-first → keep first hit
+                            if (lastDateEdit[itemId]) return; // logs are newest-first
                             const raw = log.created_at;
                             lastDateEdit[itemId] = /^\d+$/.test(String(raw)) ? Number(raw) : new Date(raw).getTime();
                         } catch {}
@@ -3869,7 +3890,7 @@
                     items.forEach(i => {
                         const sv = i.column_values.find(cv => cv.label !== undefined);
                         const label = (sv?.label || '').trim();
-                        if (label && state.excludedStatusLabels.has(label)) return; // skip Done/Archive/etc.
+                        if (label && state.excludedStatusLabels.has(label)) return;
 
                         const dateCvs = i.column_values.filter(cv => dateColIds.has(cv.id));
                         const populated = dateCvs.filter(cv => cv.date || cv.to || cv.from);
@@ -3886,7 +3907,6 @@
                         if (!populated.length) {
                             kind = 'blank'; blank++;
                         } else {
-                            // Use the latest end across all populated date/timeline columns.
                             populated.forEach(cv => {
                                 const e = new Date(cv.date || cv.to).getTime();
                                 if (!isNaN(e) && (endTs === null || e > endTs)) endTs = e;
@@ -3912,12 +3932,14 @@
 
                     const stale = lapsed + blank;
                     if (total === 0) return;
+                    const m = b.master || {};
 
                     state.hygiene.data.push({
-                        bId: b.id, bName: b.name,
-                        masterName: (b.master && b.master.masterName && b.master.masterName !== '-') ? b.master.masterName : b.name,
-                        masterStatus: (b.master && b.master.status && b.master.status !== '-') ? b.master.status : '',
-                        csm: (b.master && b.master.csm && b.master.csm[0] && b.master.csm[0] !== '-') ? b.master.csm : [],
+                        bId: b.id, bName: boardData.name || b.name,
+                        masterName: (m.masterName && m.masterName !== '-') ? m.masterName : (boardData.name || b.name),
+                        masterStatus: (m.status && m.status !== '-') ? m.status : '',
+                        csm: (m.csm && m.csm[0] && m.csm[0] !== '-') ? m.csm : [],
+                        techSummary: (m.techSummary || '').trim(),
                         total, lapsed, blank, ok, stale,
                         stalePct: total ? stale / total : 0,
                         oldestLapseDays, untouchedDays: maxUntouchedDays,
@@ -3941,24 +3963,126 @@
             renderHygieneView();
         }
 
+        // ---- Hygiene controls / actions ----
         function setHygieneSort(key) { state.hygiene.sortBy = key; renderHygieneView(); }
         function setHygieneFilter(kind) { state.hygiene.filter = kind; renderHygieneView(); }
+        function setHygieneGroup(g) { state.hygiene.groupBy = g; renderHygieneView(); }
+        function setHygieneDisplay(d) { state.hygiene.display = d; renderHygieneView(); }
+        function setHygieneCadence(v) { const n = parseInt(v, 10); state.hygiene.cadenceDays = isNaN(n) ? 0 : n; renderHygieneView(); }
         function toggleHygieneBoard(bId) {
             if (state.hygiene.expandedBoards.has(bId)) state.hygiene.expandedBoards.delete(bId);
             else state.hygiene.expandedBoards.add(bId);
             renderHygieneView();
         }
+        function toggleHygieneCsm(name) {
+            if (state.hygiene.expandedCsm.has(name)) state.hygiene.expandedCsm.delete(name);
+            else state.hygiene.expandedCsm.add(name);
+            renderHygieneView();
+        }
         function refreshHygiene() { state.hygiene.loaded = false; state.hygiene.data = []; fetchHygieneData(); }
 
+        function toggleHygienePicker() {
+            const H = state.hygiene;
+            if (!H.pickerOpen && H.activeStatuses === null) {
+                // seed with heuristic-active tokens so the user sees sensible defaults
+                H.activeStatuses = new Set(hygieneAllStatuses().filter(t => !HYGIENE_INACTIVE_RE.test(t)));
+            }
+            H.pickerOpen = !H.pickerOpen;
+            renderHygieneView();
+        }
+        function toggleHygieneStatus(tok) {
+            const s = state.hygiene.activeStatuses || (state.hygiene.activeStatuses = new Set());
+            if (s.has(tok)) s.delete(tok); else s.add(tok);
+            renderHygieneView();
+        }
+        function applyHygieneStatuses() { state.hygiene.pickerOpen = false; refreshHygiene(); }
+
+        function copyHygieneText(text, msg) {
+            const done = () => { showToast(msg); setTimeout(hideToast, 2000); };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+            } else { fallbackCopy(text, done); }
+            function fallbackCopy(t, cb) {
+                const ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); cb(); } catch (e) {} document.body.removeChild(ta);
+            }
+        }
+
+        function nudgeHygieneBoard(bId) {
+            const b = state.hygiene.data.find(x => x.bId === bId);
+            if (!b) return;
+            const lines = [];
+            lines.push(`Campaign hygiene nudge — ${b.masterName}`);
+            if (b.csm.length) lines.push(`CSM: ${b.csm.join(', ')}`);
+            lines.push(`Board: ${b.bName}`);
+            lines.push(`${b.stale} un-updated date ranges (${b.lapsed} lapsed, ${b.blank} blank) of ${b.total} items.`);
+            if (b.oldestLapseDays > 0) lines.push(`Oldest lapse: ${b.oldestLapseDays} days ago.`);
+            lines.push('');
+            lines.push('Items needing attention:');
+            b.items.slice(0, 40).forEach(it => lines.push(`- ${it.kind === 'blank' ? '[no dates] ' : '[lapsed ' + it.daysOverdue + 'd] '}${it.name}`));
+            copyHygieneText(lines.join('\n'), 'Nudge copied — paste into Monday / Slack');
+        }
+
+        function hygieneOnTimeMap() {
+            if (!state.timeliness.loaded || !state.timeliness.data.length) return null;
+            const m = {};
+            state.timeliness.data.forEach(d => {
+                (m[d.bId] = m[d.bId] || { t: 0, on: 0 });
+                m[d.bId].t++; if (d.deltaDays <= 0) m[d.bId].on++;
+            });
+            return m;
+        }
+
+        function exportHygieneCSV() {
+            const otMap = hygieneOnTimeMap();
+            const rows = [['Campaign', 'Board', 'CSM', 'Status', 'Total items', 'Lapsed', 'Blank', 'Stale', 'Stale %', 'Oldest lapse (d)', 'Dates untouched (d)', 'On-time %']];
+            state.hygiene.data.slice().sort((a, b) => b.stale - a.stale).forEach(b => {
+                const ot = otMap && otMap[b.bId] ? Math.round(otMap[b.bId].on / otMap[b.bId].t * 100) + '%' : '';
+                rows.push([b.masterName, b.bName, b.csm.join('; '), b.masterStatus, b.total, b.lapsed, b.blank, b.stale, Math.round(b.stalePct * 100) + '%', b.oldestLapseDays, b.untouchedDays, ot]);
+            });
+            const csv = rows.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'campaign-hygiene.csv'; a.click();
+            URL.revokeObjectURL(url);
+            showToast('Leaderboard exported to CSV'); setTimeout(hideToast, 2000);
+        }
+
+        function askAIHygiene() {
+            const panel = document.getElementById('chat-panel');
+            if (panel && !panel.classList.contains('open')) toggleChat();
+            const input = document.getElementById('chat-input');
+            if (!input) return;
+            input.value = 'Using the campaign hygiene data, give me a prioritized shortlist of which boards to fix first this week. For each, name the owner (CSM), what specifically is wrong (lapsed vs blank, how long untouched), and a one-line recommended action.';
+            sendChatMessage();
+        }
+
+        // ---- Hygiene shared formatting helpers ----
         function hygieneMetric(b, filter) {
             return filter === 'past' ? b.lapsed : filter === 'blank' ? b.blank : b.stale;
         }
+        function hygieneSev(b, filter) {
+            const m = hygieneMetric(b, filter);
+            if (m >= 10 || b.stalePct >= 0.5) return { c: '#f87171', l: 'Critical' };
+            if (m >= 4 || b.stalePct >= 0.25) return { c: '#fbbf24', l: 'Watch' };
+            return { c: '#4ade80', l: 'OK' };
+        }
+        function hygieneFmtDate(ts) { return ts == null ? '' : new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+        function hygieneAge(d) { return d == null ? 'unknown' : d <= 0 ? 'today' : d === 1 ? '1 day' : d < 60 ? `${d} days` : `${Math.round(d / 30)} mo`; }
 
         function renderHygieneView() {
             const container = document.getElementById('hygiene-container');
             if (!container) return;
             const H = state.hygiene;
-            const { loading, loaded, data, progress, filter, sortBy } = H;
+            const { loading, loaded, data, progress, filter, sortBy, groupBy, display, cadenceDays } = H;
+
+            // Tab badge — passive alert of how many boards need attention
+            const tab = document.getElementById('view-hygiene');
+            if (tab) {
+                const need = data.filter(b => b.stale > 0).length;
+                tab.innerHTML = `<i class="fas fa-broom"></i> Hygiene${loaded && need ? ` <span style="background:#f87171;color:#0f172a;font-size:10px;font-weight:700;border-radius:9px;padding:1px 6px;margin-left:2px;">${need}</span>` : ''}`;
+            }
 
             if (loading && data.length === 0) {
                 container.innerHTML = `<div style="padding:60px; text-align:center; color:var(--muted);">
@@ -3976,15 +4100,7 @@
                 return;
             }
 
-            const sev = b => {
-                const m = hygieneMetric(b, filter);
-                if (m >= 10 || b.stalePct >= 0.5) return { c: '#f87171', l: 'critical' };
-                if (m >= 4 || b.stalePct >= 0.25) return { c: '#fbbf24', l: 'watch' };
-                return { c: '#4ade80', l: 'ok' };
-            };
-            const fmtDate = ts => ts == null ? '' : new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-            const ageLabel = d => d == null ? 'unknown' : d <= 0 ? 'today' : d === 1 ? '1 day' : d < 60 ? `${d} days` : `${Math.round(d / 30)} mo`;
-
+            const otMap = hygieneOnTimeMap();
             let html = '';
 
             // Progress banner while streaming
@@ -4006,138 +4122,282 @@
             const boardsWithStale = data.filter(b => b.stale > 0).length;
             const totalLapsed = data.reduce((s, b) => s + b.lapsed, 0);
             const totalBlank = data.reduce((s, b) => s + b.blank, 0);
+            const overdueUpd = cadenceDays > 0 ? data.filter(b => b.stale > 0 && b.untouchedDays > cadenceDays).length : 0;
             html += `<div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:stretch;">
-                <div class="stat-card" style="flex:1; min-width:120px; text-align:center;">
+                <div class="stat-card" style="flex:1; min-width:110px; text-align:center;">
                     <div class="stat-value">${data.length}</div>
                     <div class="stat-label">Active boards scanned</div>
                 </div>
-                <div class="stat-card" style="flex:1; min-width:120px; text-align:center; border-bottom:2px solid var(--warning);">
+                <div class="stat-card" style="flex:1; min-width:110px; text-align:center; border-bottom:2px solid var(--warning);">
                     <div class="stat-value" style="color:${boardsWithStale ? '#fbbf24' : '#4ade80'}">${boardsWithStale}</div>
                     <div class="stat-label">Boards needing attention</div>
                 </div>
-                <div class="stat-card" style="flex:1; min-width:120px; text-align:center; border-bottom:2px solid var(--danger);">
+                <div class="stat-card" style="flex:1; min-width:110px; text-align:center; border-bottom:2px solid var(--danger);">
                     <div class="stat-value" style="color:#f87171">${totalLapsed}</div>
                     <div class="stat-label">Lapsed date ranges</div>
                 </div>
-                <div class="stat-card" style="flex:1; min-width:120px; text-align:center; border-bottom:2px solid var(--muted);">
+                <div class="stat-card" style="flex:1; min-width:110px; text-align:center; border-bottom:2px solid var(--muted);">
                     <div class="stat-value" style="color:#94a3b8">${totalBlank}</div>
                     <div class="stat-label">Blank date ranges</div>
                 </div>
-                <div style="display:flex; align-items:center; gap:8px; margin-left:auto;">
-                    <button class="btn btn-secondary" onclick="refreshHygiene()" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px;">
-                        <i class="fas fa-redo"></i> Refresh
-                    </button>
+                <div class="stat-card" style="flex:1; min-width:110px; text-align:center;" title="Boards with stale ranges whose dates haven't been touched within your cadence">
+                    <div class="stat-value" style="color:${overdueUpd ? '#f87171' : '#4ade80'}">${overdueUpd}</div>
+                    <div class="stat-label">Overdue for update</div>
                 </div>
             </div>`;
 
-            // Controls: filter chips + sort toggle
+            // Sticky control bar
             const chip = (key, label) => `<div class="chip ${filter === key ? 'active' : ''}" onclick="setHygieneFilter('${key}')" style="cursor:pointer;">${label}</div>`;
-            html += `<div style="display:flex; gap:10px; margin-bottom:14px; align-items:center; flex-wrap:wrap;">
-                <span style="font-size:11px; color:var(--muted); text-transform:uppercase; font-weight:700;">Rank by</span>
-                ${chip('both', 'Lapsed + Blank')}
-                ${chip('past', 'Lapsed only')}
-                ${chip('blank', 'Blank only')}
-                <div style="flex:1;"></div>
-                <span style="font-size:11px; color:var(--muted);">Sort:</span>
-                <div class="chip ${sortBy === 'count' ? 'active' : ''}" onclick="setHygieneSort('count')" style="cursor:pointer;">Count</div>
-                <div class="chip ${sortBy === 'pct' ? 'active' : ''}" onclick="setHygieneSort('pct')" style="cursor:pointer;">% of board</div>
+            const segBtn = (val, cur, fn, label, icon) => `<div onclick="${fn}('${val}')" style="cursor:pointer; padding:5px 11px; font-size:12px; border-radius:7px; ${cur === val ? 'background:var(--primary); color:#0f172a; font-weight:600;' : 'color:var(--muted);'}">${icon ? `<i class="fas ${icon}"></i> ` : ''}${label}</div>`;
+            html += `<div style="position:sticky; top:0; z-index:20; background:var(--bg); padding:8px 0 10px; border-bottom:1px solid var(--border); margin-bottom:14px;">
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <div style="display:inline-flex; background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:2px;">
+                        ${segBtn('board', groupBy, 'setHygieneGroup', 'By board', 'fa-clipboard-list')}
+                        ${segBtn('csm', groupBy, 'setHygieneGroup', 'By CSM', 'fa-user-tie')}
+                    </div>
+                    ${groupBy === 'board' ? `<div style="display:inline-flex; background:var(--surface); border:1px solid var(--border); border-radius:9px; padding:2px;">
+                        ${segBtn('list', display, 'setHygieneDisplay', 'List', 'fa-list')}
+                        ${segBtn('heatmap', display, 'setHygieneDisplay', 'Heatmap', 'fa-th-large')}
+                    </div>` : ''}
+                    <div style="flex:1;"></div>
+                    <div style="position:relative;">
+                        <button class="btn btn-secondary" onclick="toggleHygienePicker()" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px;" title="Choose which repository statuses count as active">
+                            <i class="fas fa-sliders-h"></i> Active statuses${H.activeStatuses ? ` (${H.activeStatuses.size})` : ''}
+                        </button>
+                        ${H.pickerOpen ? renderHygienePicker() : ''}
+                    </div>
+                    <label style="font-size:11px; color:var(--muted); display:flex; align-items:center; gap:6px;" title="Flag boards whose dates haven't been touched within this many days">
+                        Cadence
+                        <input type="number" min="0" value="${cadenceDays}" onchange="setHygieneCadence(this.value)" style="width:54px; padding:5px 7px; font-size:12px; background:var(--surface); border:1px solid var(--border); border-radius:7px; color:var(--text);">
+                        d
+                    </label>
+                    <button class="btn btn-secondary" onclick="askAIHygiene()" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px;"><i class="fas fa-robot"></i> Ask AI</button>
+                    <button class="btn btn-secondary" onclick="exportHygieneCSV()" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px;"><i class="fas fa-file-csv"></i> Export</button>
+                    <button class="btn btn-secondary" onclick="refreshHygiene()" style="font-size:12px; padding:6px 12px; display:flex; align-items:center; gap:6px;"><i class="fas fa-redo"></i> Refresh</button>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:10px; align-items:center; flex-wrap:wrap;">
+                    <span style="font-size:11px; color:var(--muted); text-transform:uppercase; font-weight:700;">Rank by</span>
+                    ${chip('both', 'Lapsed + Blank')}
+                    ${chip('past', 'Lapsed only')}
+                    ${chip('blank', 'Blank only')}
+                    <div style="flex:1;"></div>
+                    <span style="font-size:11px; color:var(--muted);">Sort:</span>
+                    <div class="chip ${sortBy === 'count' ? 'active' : ''}" onclick="setHygieneSort('count')" style="cursor:pointer;">Count</div>
+                    <div class="chip ${sortBy === 'pct' ? 'active' : ''}" onclick="setHygieneSort('pct')" style="cursor:pointer;">% of board</div>
+                    <div class="chip ${sortBy === 'risk' ? 'active' : ''}" onclick="setHygieneSort('risk')" style="cursor:pointer;" title="${otMap ? 'Stale ranges weighted by the board late-delivery rate' : 'Open the Timeliness view first to weight by lateness'}">At-risk${otMap ? '' : ' *'}</div>
+                </div>
             </div>`;
 
-            // Build & sort the leaderboard
-            const rows = data.filter(b => hygieneMetric(b, filter) > 0).sort((a, b) => {
+            if (groupBy === 'csm') {
+                html += renderHygieneByCsm(otMap);
+            } else if (display === 'heatmap') {
+                html += renderHygieneHeatmap(otMap);
+            } else {
+                html += renderHygieneList(otMap);
+            }
+
+            // Footnote
+            html += `<div style="font-size:11px; color:var(--muted); margin-top:10px; padding:8px 12px; background:rgba(255,255,255,0.03); border-radius:8px; border:1px solid var(--border);">
+                <i class="fas fa-info-circle"></i> Active campaigns come from the integrated campaign info repository (statuses you choose in “Active statuses”).
+                "Lapsed" = a date range whose end is in the past; "blank" = an item with no date and no timeline. Excludes statuses you've hidden (Done, Archive, …).
+                "Dates untouched" comes from board activity logs (falls back to item edit time). ${otMap ? '' : '<i class="fas fa-asterisk" style="font-size:8px;"></i> At-risk sort uses lateness once the Timeliness view has been loaded.'}
+            </div>`;
+
+            container.innerHTML = html;
+        }
+
+        function renderHygienePicker() {
+            const all = hygieneAllStatuses();
+            const sel = state.hygiene.activeStatuses || new Set();
+            if (!all.length) return `<div style="position:absolute; right:0; top:38px; z-index:40; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px; width:240px; font-size:12px; color:var(--muted); box-shadow:0 10px 30px rgba(0,0,0,0.4);">No statuses found yet — connect & let the repository load.</div>`;
+            return `<div style="position:absolute; right:0; top:38px; z-index:40; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px; width:260px; max-height:340px; overflow-y:auto; box-shadow:0 10px 30px rgba(0,0,0,0.4);">
+                <div style="font-size:11px; text-transform:uppercase; font-weight:700; color:var(--muted); margin-bottom:8px;">Count these statuses as active</div>
+                ${all.map(t => `<label style="display:flex; align-items:center; gap:8px; padding:5px 4px; font-size:12px; color:var(--text); cursor:pointer;">
+                    <input type="checkbox" ${sel.has(t) ? 'checked' : ''} onchange="toggleHygieneStatus('${t.replace(/'/g, "\\'")}')" style="accent-color:var(--primary);">
+                    ${t}
+                </label>`).join('')}
+                <button class="btn btn-primary" onclick="applyHygieneStatuses()" style="width:100%; margin-top:10px; font-size:12px; padding:7px;">Apply & rescan</button>
+            </div>`;
+        }
+
+        function hygieneSortRows(rows, otMap) {
+            const { filter, sortBy } = state.hygiene;
+            return rows.filter(b => hygieneMetric(b, filter) > 0).sort((a, b) => {
                 if (sortBy === 'pct') {
                     const pa = a.total ? hygieneMetric(a, filter) / a.total : 0;
                     const pb = b.total ? hygieneMetric(b, filter) / b.total : 0;
                     if (pb !== pa) return pb - pa;
                 }
+                if (sortBy === 'risk') {
+                    const ra = hygieneRiskScore(a, otMap), rb = hygieneRiskScore(b, otMap);
+                    if (rb !== ra) return rb - ra;
+                }
                 const ma = hygieneMetric(a, filter), mb = hygieneMetric(b, filter);
                 if (mb !== ma) return mb - ma;
                 return (b.untouchedDays || 0) - (a.untouchedDays || 0);
             });
+        }
+        function hygieneRiskScore(b, otMap) {
+            const ot = otMap && otMap[b.bId] ? otMap[b.bId] : null;
+            const lateFactor = ot ? (1 - ot.on / ot.t) : 0;
+            return b.stale * (1 + lateFactor);
+        }
 
-            if (!rows.length) {
-                html += `<div style="padding:48px; text-align:center; color:var(--muted);">
-                    <i class="fas fa-check-circle" style="font-size:26px; color:#4ade80; opacity:0.7; display:block; margin-bottom:12px;"></i>
-                    <div style="font-size:14px;">${loading ? 'No issues found yet…' : 'No ' + (filter === 'past' ? 'lapsed' : filter === 'blank' ? 'blank' : 'stale') + ' date ranges on any active campaign board. 🎉'}</div>
-                </div>`;
-                container.innerHTML = html;
-                return;
-            }
+        function hygieneEmpty(msg) {
+            return `<div style="padding:48px; text-align:center; color:var(--muted);">
+                <i class="fas fa-check-circle" style="font-size:26px; color:#4ade80; opacity:0.7; display:block; margin-bottom:12px;"></i>
+                <div style="font-size:14px;">${msg}</div>
+            </div>`;
+        }
 
+        function renderHygieneList(otMap) {
+            const H = state.hygiene;
+            const { filter, cadenceDays } = H;
+            const rows = hygieneSortRows(H.data, otMap);
+            if (!rows.length) return hygieneEmpty(H.loading ? 'No issues found yet…' : 'No ' + (filter === 'past' ? 'lapsed' : filter === 'blank' ? 'blank' : 'stale') + ' date ranges on any active campaign board. 🎉');
             const maxMetric = Math.max(...rows.map(b => hygieneMetric(b, filter)), 1);
+            return rows.map(b => hygieneBoardCard(b, filter, maxMetric, otMap, cadenceDays)).join('');
+        }
 
-            rows.forEach(b => {
-                const s = sev(b);
-                const metric = hygieneMetric(b, filter);
-                const barPct = Math.round(metric / maxMetric * 100);
-                const expanded = H.expandedBoards.has(b.bId);
-                const csm = b.csm.length ? b.csm.join(', ') : '—';
+        function hygieneBoardCard(b, filter, maxMetric, otMap, cadenceDays) {
+            const s = hygieneSev(b, filter);
+            const metric = hygieneMetric(b, filter);
+            const barPct = Math.round(metric / maxMetric * 100);
+            const expanded = state.hygiene.expandedBoards.has(b.bId);
+            const csm = b.csm.length ? b.csm.join(', ') : '—';
+            const ot = otMap && otMap[b.bId] ? Math.round(otMap[b.bId].on / otMap[b.bId].t * 100) : null;
+            const overdueUpd = cadenceDays > 0 && b.untouchedDays > cadenceDays;
 
-                html += `<div style="background:var(--surface); border:1px solid var(--border); border-left:3px solid ${s.c}; border-radius:12px; margin-bottom:10px; overflow:hidden;">
-                    <div onclick="toggleHygieneBoard('${b.bId}')" style="display:flex; align-items:center; gap:14px; padding:14px 16px; cursor:pointer;">
-                        <span style="width:10px; height:10px; border-radius:50%; background:${s.c}; flex-shrink:0;"></span>
+            let h = `<div style="background:var(--surface); border:1px solid var(--border); border-left:3px solid ${s.c}; border-radius:12px; margin-bottom:10px; overflow:hidden;">
+                <div onclick="toggleHygieneBoard('${b.bId}')" style="display:flex; align-items:center; gap:14px; padding:14px 16px; cursor:pointer;">
+                    <span style="width:10px; height:10px; border-radius:50%; background:${s.c}; flex-shrink:0;" title="${s.l}"></span>
+                    <div style="flex:1; min-width:0;">
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                            <span style="font-weight:600; font-size:14px; color:var(--text);">${b.masterName}</span>
+                            <span style="font-size:9px; font-weight:700; letter-spacing:.04em; padding:1px 6px; border-radius:8px; background:${s.c}22; color:${s.c};">${s.l.toUpperCase()}</span>
+                            ${b.masterStatus ? `<span style="font-size:10px; padding:2px 7px; border-radius:10px; background:rgba(56,189,248,0.12); color:#7dd3fc; white-space:nowrap;">${b.masterStatus}</span>` : ''}
+                            ${ot != null ? `<span style="font-size:10px; padding:2px 7px; border-radius:10px; background:${ot >= 80 ? 'rgba(74,222,128,0.12)' : ot >= 60 ? 'rgba(251,191,36,0.12)' : 'rgba(248,113,113,0.12)'}; color:${ot >= 80 ? '#4ade80' : ot >= 60 ? '#fbbf24' : '#f87171'};" title="On-time delivery rate (from Timeliness)">${ot}% on-time</span>` : ''}
+                            ${overdueUpd ? `<span style="font-size:10px; padding:2px 7px; border-radius:10px; background:rgba(248,113,113,0.15); color:#fca5a5;"><i class="fas fa-clock"></i> overdue for update</span>` : ''}
+                        </div>
+                        <div style="font-size:11px; color:var(--muted); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            <i class="fas fa-clipboard-list" style="opacity:0.5;"></i> ${b.bName}
+                            &nbsp;·&nbsp; <i class="fas fa-user-tie" style="opacity:0.5;"></i> ${csm}
+                        </div>
+                        ${b.techSummary ? `<div style="font-size:11px; color:var(--muted); margin-top:4px; font-style:italic; opacity:0.85; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"><i class="fas fa-quote-left" style="font-size:8px; opacity:0.5;"></i> ${b.techSummary}</div>` : ''}
+                        <div style="font-size:11px; margin-top:5px; color:var(--muted);">
+                            <span style="color:#f87171;">${b.lapsed} lapsed</span> ·
+                            <span style="color:#cbd5e1;">${b.blank} blank</span>
+                            ${b.oldestLapseDays > 0 ? ` ·&nbsp; oldest lapse: <span style="color:var(--text);">${hygieneAge(b.oldestLapseDays)}</span>` : ''}
+                            ${b.untouchedDays > 0 ? ` ·&nbsp; <i class="fas fa-clock" style="opacity:0.6;"></i> dates untouched: <span style="color:var(--text);">${hygieneAge(b.untouchedDays)}</span>` : ''}
+                        </div>
+                    </div>
+                    <div style="width:140px; flex-shrink:0; text-align:right;">
+                        <div style="font-size:22px; font-weight:700; color:${s.c}; line-height:1;">${metric}<span style="font-size:12px; color:var(--muted); font-weight:400;"> / ${b.total}</span></div>
+                        <div style="height:6px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden; margin-top:6px;">
+                            <div style="height:100%; width:${barPct}%; background:${s.c}; border-radius:3px;"></div>
+                        </div>
+                        <div style="font-size:10px; color:var(--muted); margin-top:3px;">${Math.round(b.stalePct * 100)}% of board</div>
+                    </div>
+                    <i class="fas fa-chevron-${expanded ? 'up' : 'down'}" style="color:var(--muted); flex-shrink:0;"></i>
+                </div>`;
+
+            if (expanded) {
+                const visible = b.items.filter(it => filter === 'past' ? it.kind === 'lapsed' : filter === 'blank' ? it.kind === 'blank' : true);
+                visible.sort((x, y) => { if (x.kind !== y.kind) return x.kind === 'blank' ? -1 : 1; return (y.daysOverdue || 0) - (x.daysOverdue || 0); });
+                h += `<div style="border-top:1px solid var(--border); background:rgba(0,0,0,0.15); padding:6px 0;">
+                    <div style="display:flex; align-items:center; gap:14px; padding:6px 16px;">
+                        <a href="https://view.monday.com/boards/${b.bId}" target="_blank" onclick="event.stopPropagation()" style="font-size:11px; color:var(--primary);"><i class="fas fa-external-link-alt"></i> Open board in Monday</a>
+                        <button onclick="event.stopPropagation(); nudgeHygieneBoard('${b.bId}')" class="btn btn-secondary" style="font-size:11px; padding:4px 10px; display:flex; align-items:center; gap:6px;"><i class="fas fa-bell"></i> Copy nudge for ${csm === '—' ? 'owner' : csm.split(',')[0]}</button>
+                    </div>`;
+                visible.forEach(it => {
+                    const isBlank = it.kind === 'blank';
+                    const badge = isBlank
+                        ? `<span style="font-size:9px; padding:2px 6px; border-radius:8px; background:rgba(148,163,184,0.18); color:#cbd5e1; font-weight:600;">NO DATES SET</span>`
+                        : `<span style="font-size:9px; padding:2px 6px; border-radius:8px; background:rgba(248,113,113,0.18); color:#fca5a5; font-weight:600;">LAPSED ${it.daysOverdue}d</span>`;
+                    const range = isBlank ? '' : `<span style="font-size:11px; color:var(--muted);">ended ${hygieneFmtDate(it.endTs)}</span>`;
+                    const touched = `<span style="font-size:10px; color:var(--muted);"><i class="fas fa-clock" style="opacity:0.5;"></i> dates ${it.editSource === 'none' ? 'never tracked' : (it.editSource === 'log' ? 'last set' : 'item edited')} ${it.untouchedDays != null ? hygieneAge(it.untouchedDays) + ' ago' : ''}</span>`;
+                    h += `<div style="display:flex; align-items:center; gap:10px; padding:7px 16px; border-top:1px solid rgba(255,255,255,0.04);">
+                        ${badge}
+                        <span style="flex:1; min-width:0; font-size:12px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${it.name}${it.status ? ` <span style="font-size:10px; color:var(--muted);">· ${it.status}</span>` : ''}</span>
+                        ${range}
+                        ${touched}
+                    </div>`;
+                });
+                h += `</div>`;
+            }
+            h += `</div>`;
+            return h;
+        }
+
+        function renderHygieneByCsm(otMap) {
+            const H = state.hygiene;
+            const { filter } = H;
+            const map = {};
+            H.data.forEach(b => {
+                const owners = b.csm.length ? b.csm : ['Unassigned'];
+                owners.forEach(c => {
+                    const m = (map[c] = map[c] || { csm: c, boards: [], lapsed: 0, blank: 0, stale: 0, total: 0 });
+                    m.boards.push(b); m.lapsed += b.lapsed; m.blank += b.blank; m.stale += b.stale; m.total += b.total;
+                });
+            });
+            const metric = c => filter === 'past' ? c.lapsed : filter === 'blank' ? c.blank : c.stale;
+            let rows = Object.values(map).filter(c => metric(c) > 0).sort((a, b) => metric(b) - metric(a));
+            if (!rows.length) return hygieneEmpty(H.loading ? 'No issues found yet…' : 'No stale date ranges for any CS Manager. 🎉');
+            const maxMetric = Math.max(...rows.map(metric), 1);
+
+            return rows.map(c => {
+                const expanded = H.expandedCsm.has(c.csm);
+                const sevColor = metric(c) >= 20 ? '#f87171' : metric(c) >= 8 ? '#fbbf24' : '#4ade80';
+                const barPct = Math.round(metric(c) / maxMetric * 100);
+                const boardsNeeding = c.boards.filter(b => b.stale > 0).length;
+                let h = `<div style="background:var(--surface); border:1px solid var(--border); border-left:3px solid ${sevColor}; border-radius:12px; margin-bottom:10px; overflow:hidden;">
+                    <div onclick="toggleHygieneCsm('${c.csm.replace(/'/g, "\\'")}')" style="display:flex; align-items:center; gap:14px; padding:14px 16px; cursor:pointer;">
+                        <i class="fas fa-user-tie" style="color:${sevColor};"></i>
                         <div style="flex:1; min-width:0;">
-                            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                                <span style="font-weight:600; font-size:14px; color:var(--text);">${b.masterName}</span>
-                                ${b.masterStatus ? `<span style="font-size:10px; padding:2px 7px; border-radius:10px; background:rgba(56,189,248,0.12); color:#7dd3fc; white-space:nowrap;">${b.masterStatus}</span>` : ''}
-                            </div>
-                            <div style="font-size:11px; color:var(--muted); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                                <i class="fas fa-clipboard-list" style="opacity:0.5;"></i> ${b.bName}
-                                &nbsp;·&nbsp; <i class="fas fa-user-tie" style="opacity:0.5;"></i> ${csm}
-                            </div>
-                            <div style="font-size:11px; margin-top:5px; color:var(--muted);">
-                                <span style="color:#f87171;">${b.lapsed} lapsed</span> ·
-                                <span style="color:#cbd5e1;">${b.blank} blank</span>
-                                ${b.oldestLapseDays > 0 ? ` ·&nbsp; oldest lapse: <span style="color:var(--text);">${ageLabel(b.oldestLapseDays)}</span>` : ''}
-                                ${b.untouchedDays > 0 ? ` ·&nbsp; <i class="fas fa-clock" style="opacity:0.6;"></i> dates untouched: <span style="color:var(--text);">${ageLabel(b.untouchedDays)}</span>` : ''}
+                            <div style="font-weight:600; font-size:14px; color:var(--text);">${c.csm}</div>
+                            <div style="font-size:11px; color:var(--muted); margin-top:3px;">
+                                <span style="color:#f87171;">${c.lapsed} lapsed</span> · <span style="color:#cbd5e1;">${c.blank} blank</span>
+                                &nbsp;·&nbsp; ${boardsNeeding} board${boardsNeeding === 1 ? '' : 's'} needing attention
                             </div>
                         </div>
                         <div style="width:140px; flex-shrink:0; text-align:right;">
-                            <div style="font-size:22px; font-weight:700; color:${s.c}; line-height:1;">${metric}<span style="font-size:12px; color:var(--muted); font-weight:400;"> / ${b.total}</span></div>
+                            <div style="font-size:22px; font-weight:700; color:${sevColor}; line-height:1;">${metric(c)}<span style="font-size:12px; color:var(--muted); font-weight:400;"> stale</span></div>
                             <div style="height:6px; background:rgba(255,255,255,0.08); border-radius:3px; overflow:hidden; margin-top:6px;">
-                                <div style="height:100%; width:${barPct}%; background:${s.c}; border-radius:3px;"></div>
+                                <div style="height:100%; width:${barPct}%; background:${sevColor}; border-radius:3px;"></div>
                             </div>
-                            <div style="font-size:10px; color:var(--muted); margin-top:3px;">${Math.round(b.stalePct * 100)}% of board</div>
                         </div>
                         <i class="fas fa-chevron-${expanded ? 'up' : 'down'}" style="color:var(--muted); flex-shrink:0;"></i>
                     </div>`;
-
                 if (expanded) {
-                    const visible = b.items.filter(it => filter === 'past' ? it.kind === 'lapsed' : filter === 'blank' ? it.kind === 'blank' : true);
-                    // Blank first, then lapsed by most overdue
-                    visible.sort((x, y) => {
-                        if (x.kind !== y.kind) return x.kind === 'blank' ? -1 : 1;
-                        return (y.daysOverdue || 0) - (x.daysOverdue || 0);
-                    });
-                    html += `<div style="border-top:1px solid var(--border); background:rgba(0,0,0,0.15); padding:6px 0;">
-                        <a href="https://view.monday.com/boards/${b.bId}" target="_blank" onclick="event.stopPropagation()" style="display:inline-block; font-size:11px; color:var(--primary); padding:6px 16px;"><i class="fas fa-external-link-alt"></i> Open board in Monday</a>`;
-                    visible.forEach(it => {
-                        const isBlank = it.kind === 'blank';
-                        const badge = isBlank
-                            ? `<span style="font-size:9px; padding:2px 6px; border-radius:8px; background:rgba(148,163,184,0.18); color:#cbd5e1; font-weight:600;">NO DATES SET</span>`
-                            : `<span style="font-size:9px; padding:2px 6px; border-radius:8px; background:rgba(248,113,113,0.18); color:#fca5a5; font-weight:600;">LAPSED ${it.daysOverdue}d</span>`;
-                        const range = isBlank ? '' : `<span style="font-size:11px; color:var(--muted);">ended ${fmtDate(it.endTs)}</span>`;
-                        const touched = `<span style="font-size:10px; color:var(--muted);"><i class="fas fa-clock" style="opacity:0.5;"></i> dates ${it.editSource === 'none' ? 'never tracked' : (it.editSource === 'log' ? 'last set' : 'item edited')} ${it.untouchedDays != null ? ageLabel(it.untouchedDays) + ' ago' : ''}</span>`;
-                        html += `<div style="display:flex; align-items:center; gap:10px; padding:7px 16px; border-top:1px solid rgba(255,255,255,0.04);">
-                            ${badge}
-                            <span style="flex:1; min-width:0; font-size:12px; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${it.name}${it.status ? ` <span style="font-size:10px; color:var(--muted);">· ${it.status}</span>` : ''}</span>
-                            ${range}
-                            ${touched}
-                        </div>`;
-                    });
-                    html += `</div>`;
+                    const bs = hygieneSortRows(c.boards, otMap);
+                    const maxB = Math.max(...bs.map(b => hygieneMetric(b, filter)), 1);
+                    h += `<div style="border-top:1px solid var(--border); background:rgba(0,0,0,0.15); padding:8px;">${bs.map(b => hygieneBoardCard(b, filter, maxB, otMap, H.cadenceDays)).join('')}</div>`;
                 }
-                html += `</div>`;
-            });
+                h += `</div>`;
+                return h;
+            }).join('');
+        }
 
-            // Footnote
-            html += `<div style="font-size:11px; color:var(--muted); margin-top:10px; padding:8px 12px; background:rgba(255,255,255,0.03); border-radius:8px; border:1px solid var(--border);">
-                <i class="fas fa-info-circle"></i> Active campaigns are pulled from the integrated campaign info repository (status not in: completed/expired/terminated/paused/etc).
-                "Lapsed" = a date range whose end is in the past; "blank" = an item with no date and no timeline.
-                Excludes statuses you've hidden (Done, Archive, …). "Dates untouched" comes from board activity logs (falls back to item edit time).
-            </div>`;
-
-            container.innerHTML = html;
+        function renderHygieneHeatmap(otMap) {
+            const H = state.hygiene;
+            const { filter } = H;
+            const rows = hygieneSortRows(H.data, otMap);
+            if (!rows.length) return hygieneEmpty(H.loading ? 'No issues found yet…' : 'No stale date ranges on any active campaign board. 🎉');
+            const maxMetric = Math.max(...rows.map(b => hygieneMetric(b, filter)), 1);
+            const tiles = rows.map(b => {
+                const s = hygieneSev(b, filter);
+                const metric = hygieneMetric(b, filter);
+                const grow = Math.max(1, Math.round(metric / maxMetric * 8));
+                const min = 120 + grow * 14;
+                return `<div onclick="setHygieneDisplay('list'); state.hygiene.expandedBoards.add('${b.bId}'); renderHygieneView();" title="${b.masterName} — ${metric} stale of ${b.total}; dates untouched ${hygieneAge(b.untouchedDays)}"
+                    style="flex:${grow} 1 ${min}px; min-width:${min}px; background:${s.c}1a; border:1px solid ${s.c}55; border-radius:10px; padding:12px; cursor:pointer; overflow:hidden;">
+                    <div style="font-size:12px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${b.masterName}</div>
+                    <div style="font-size:24px; font-weight:700; color:${s.c}; margin-top:6px; line-height:1;">${metric}<span style="font-size:11px; color:var(--muted); font-weight:400;"> / ${b.total}</span></div>
+                    <div style="font-size:10px; color:var(--muted); margin-top:5px;">${b.lapsed} lapsed · ${b.blank} blank</div>
+                    <div style="font-size:10px; color:var(--muted); margin-top:2px;"><i class="fas fa-clock" style="opacity:0.5;"></i> ${hygieneAge(b.untouchedDays)}</div>
+                </div>`;
+            }).join('');
+            return `<div style="display:flex; flex-wrap:wrap; gap:10px; align-items:stretch;">${tiles}</div>`;
         }
 
         async function fetchTimelinessData() {
@@ -5742,6 +6002,20 @@
         }
 
         function buildChatContext() {
+            // Hygiene view feeds the leaderboard instead of the audit item list.
+            if (state.viewMode === 'hygiene' && state.hygiene.loaded) {
+                const otMap = hygieneOnTimeMap();
+                const boards = state.hygiene.data.slice().sort((a, b) => b.stale - a.stale).slice(0, 60).map(b => ({
+                    campaign: b.masterName, board: b.bName, csManager: b.csm, status: b.masterStatus,
+                    totalItems: b.total, lapsed: b.lapsed, blank: b.blank, stale: b.stale,
+                    stalePct: Math.round(b.stalePct * 100), oldestLapseDays: b.oldestLapseDays,
+                    datesUntouchedDays: b.untouchedDays,
+                    onTimePct: otMap && otMap[b.bId] ? Math.round(otMap[b.bId].on / otMap[b.bId].t * 100) : null,
+                    summary: (b.techSummary || '').slice(0, 220)
+                }));
+                return { viewMode: 'hygiene', scannedBoards: state.hygiene.data.length, boardsNeedingAttention: state.hygiene.data.filter(b => b.stale > 0).length, boards };
+            }
+
             let filtered = getFilteredItems();
 
             // If in manager view and staff cards are selected, scope down to those people
