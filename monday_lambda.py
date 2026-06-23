@@ -3032,20 +3032,34 @@ def _audit_recommendations(body):
         f"- {i.get('label', '')}: {i.get('affected', 0)} of {total_pages} pages affected"
         for i in issues
     )
-    system = 'You are a technical SEO expert providing actionable audit recommendations.'
+    system = (
+        'You are a senior technical SEO specialist producing an audit that an untrained '
+        'or lightly-trained salesperson can present to a prospect, while also flagging which '
+        'items a junior team member can fix versus which must be escalated to a senior specialist.'
+    )
     user = (
         f'A site audit of "{site_url}" ({total_pages} pages crawled) found the following issues:\n\n'
         f'{issue_list}\n\n'
-        'Generate 5-7 prioritised, actionable recommendations to fix these issues. '
+        'Generate 5-7 prioritised, actionable recommendations to fix these issues, ordered so the '
+        'list reads as a sensible sequence of work (do the highest-impact, foundational items first). '
         'Return ONLY a JSON array with no markdown, where each item has:\n'
         '- priority: "high", "medium", or "low"\n'
+        '- category: the single best-fit gap area, one of exactly: '
+        '"technical", "content", "authority", "metadata", "ux", "schema", "internal_linking"\n'
         '- title: short title (max 8 words)\n'
         '- issue: one sentence describing the problem\n'
+        '- root_cause: one sentence on the likely underlying cause (not just the symptom)\n'
         '- recommendation: 1-2 sentences of specific actionable advice\n'
-        '- impact: one sentence on the SEO/UX benefit of fixing this\n\n'
+        '- impact: one sentence on the SEO/UX benefit of fixing this\n'
+        '- effort: rough resource estimate, one of "S" (a few hours), "M" (1-2 days), "L" (multi-day / specialist)\n'
+        '- handling: "internal" if a CSM or junior can action it, or "escalate" if it needs a senior SEO specialist\n'
+        '- handling_reason: short reason for the handling choice (max 14 words)\n'
+        '- talking_point: one plain-English sentence a salesperson can say to the client about this (no jargon)\n\n'
+        'Across the set, make sure metadata, internal linking and authority/backlink gaps are surfaced '
+        'as their own items whenever the issues imply them — do not fold everything into "technical". '
         'JSON array only, no other text.'
     )
-    return _call_claude_simple(system, user, max_tokens=2500)
+    return _call_claude_simple(system, user, max_tokens=3500)
 
 
 def _competitor_insights(body):
