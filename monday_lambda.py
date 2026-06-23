@@ -1026,6 +1026,12 @@ def search_google_chat_messages_standard(access_token, query, order_by="CREATE_T
         return {"error": str(e)}
 
 def run_google_ads_report(customer_id, query, token):
+    # GAQL has no metrics.cpc field (UNRECOGNIZED_FIELD) — the correct field is
+    # metrics.average_cpc. Rewrite the common LLM mistake deterministically so the
+    # call succeeds even if the model ignores the tool-description guidance. Use a
+    # word boundary so we don't clobber metrics.cpc_* style fields if any appear.
+    if query:
+        query = re.sub(r'metrics\.cpc\b(?!_)', 'metrics.average_cpc', query)
     url = f"https://googleads.googleapis.com/v22/customers/{customer_id}/googleAds:searchStream"
     headers = {
         "Authorization": f"Bearer {token}",
@@ -1758,12 +1764,12 @@ def claude_chat_with_tools(body):
         },
         {
             "name": "get_ads_report",
-            "description": "Fetch performance data from Google Ads using GAQL. Metrics include cost_micros, clicks, impressions, conversions, etc.",
+            "description": "Fetch performance data from Google Ads using GAQL (API v22). Valid metric fields include metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.conversions, metrics.average_cpc, metrics.ctr, metrics.average_cpm. NOTE: there is no metrics.cpc field — use metrics.average_cpc instead (it is in micros, divide by 1,000,000 for the dollar CPC).",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "customerId": {"type": "string", "description": "The Google Ads Customer ID."},
-                    "query": {"type": "string", "description": "The GAQL query string."}
+                    "query": {"type": "string", "description": "The GAQL query string. GAQL does NOT support OR inside a WHERE clause (e.g. \"campaign.name LIKE '%a%' OR campaign.name LIKE '%b%'\" is invalid). To match several name fragments, issue separate get_ads_report calls (one LIKE per query) and merge the results yourself, or use a single broader LIKE. Use metrics.average_cpc, never metrics.cpc."}
                 },
                 "required": ["customerId", "query"]
             }
