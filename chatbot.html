@@ -10842,8 +10842,15 @@
                 if (src.includes('\\n')) src = src.replace(/\\n/g, '\n').replace(/\\t/g, '  ');
                 const wrapper = document.createElement('div');
                 wrapper.className = 'mermaid-diagram';
+                const id = `mermaid-${Date.now()}-${Math.random().toString(36).slice(2)}`;
                 try {
-                    const id = `mermaid-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                    // Validate first. mermaid.render() injects its "Syntax error in text"
+                    // bomb SVG into <body> on bad input (an orphan that escapes our catch),
+                    // so gate on parse() which only reports validity and renders nothing.
+                    let valid = false;
+                    try { valid = (await mermaid.parse(src, { suppressErrors: true })) !== false; }
+                    catch(_) { valid = false; }
+                    if (!valid) throw new Error('Invalid diagram syntax');
                     const { svg } = await mermaid.render(id, src);
                     wrapper.innerHTML = svg;
                     // Size the container to a comfortable height before pan-zoom init
@@ -10880,6 +10887,10 @@
                     }
                     hasVisual = true;
                 } catch(e) {
+                    // Belt-and-suspenders: drop any orphan render/error node mermaid may have
+                    // appended to <body> (e.g. the "Syntax error in text" bomb) so it never
+                    // floats outside the chat.
+                    document.querySelectorAll(`#${id}, #d${id}, body > svg[id^="mermaid-"]`).forEach(n => n.remove());
                     wrapper.innerHTML = `<div style="color:#ef4444; font-size:0.75rem; padding:8px;">Diagram error: ${e.message}</div><pre style="font-size:0.7rem; opacity:0.6;">${src}</pre>`;
                 }
                 code.closest('pre')?.replaceWith(wrapper);
