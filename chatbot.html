@@ -10239,8 +10239,13 @@
                         }
                     } else {
                         // For non-images, extract text and append it to the message
-                        let fileContent = await extractText(att);
-                        if (fileContent) {
+                        let fileContent = "";
+                        try {
+                            fileContent = await extractText(att);
+                        } catch (e) {
+                            console.warn(`[ATTACH] Failed to extract text from ${att.name}:`, e);
+                        }
+                        if (fileContent && fileContent.trim()) {
                             const remaining = MAX_DOC_CHARS_TOTAL - docCharsUsed;
                             if (remaining <= 0) {
                                 currentContent[0].text += `\n\n[Attached file ${att.name} omitted — combined document size limit reached]`;
@@ -10252,7 +10257,16 @@
                             docCharsUsed += fileContent.length;
                             currentContent[0].text += `\n\n--- CONTENT OF ${att.name} ---\n${fileContent}\n--- END OF ${att.name} ---`;
                         } else {
-                            currentContent[0].text += `\n\n[User attached file: ${att.name}]`;
+                            // Extraction produced no text — don't pretend the doc is here. Tell the
+                            // model AND the user why, so "I don't have the document" never recurs silently.
+                            const ext = (att.name.split('.').pop() || '').toLowerCase();
+                            const readable = ['pdf','docx','xlsx','xls','txt','csv','md'];
+                            currentContent[0].text += readable.includes(ext)
+                                ? `\n\n[Attached file "${att.name}" was received but no readable text could be extracted — it may be a scanned/image-only PDF or an empty file. Ask the user to paste the text or send a text-based version.]`
+                                : `\n\n[Attached file "${att.name}" is a .${ext} file I can't read directly. Ask the user to upload it as PDF, DOCX, XLSX, CSV, TXT or MD, or to paste the content.]`;
+                            showToast(readable.includes(ext)
+                                ? `Couldn't read text from "${att.name}" — it may be a scanned/image PDF.`
+                                : `"${att.name}" (.${ext}) isn't a readable format — try PDF, DOCX, XLSX, CSV or TXT.`, 'error', 7000);
                         }
                     }
                 }
@@ -10293,6 +10307,12 @@
                 // Replace the last history item (which was the plain text user message) with the full content block
                 if (history.length > 0 && history[history.length - 1].role === 'user') {
                     history[history.length - 1].content = currentContent;
+                } else if (!opts.autoContinue) {
+                    // The typed message was empty (e.g. a document attached with no text), so the
+                    // current turn was dropped from the DOM-built history above. Push it explicitly —
+                    // otherwise currentContent (the ONLY carrier of the extracted document text) is
+                    // never sent and the model replies "I don't have the document".
+                    history.push({ role: 'user', content: currentContent });
                 }
 
                 // Auto-continuation: no user bubble was added, so history ends on the
