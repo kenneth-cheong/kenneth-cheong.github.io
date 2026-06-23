@@ -275,6 +275,7 @@ def handle_start(body):
         'domain': body.get('domain') or '',
         'location': body.get('location') or 'Singapore',
         'extra_context': (body.get('extra_context') or '')[:40000],
+        'listening': _ddb_clean(body.get('social_listening') or {}),
         'runs': _ddb_clean(runs),
         'comp_runs': _ddb_clean(comp_runs),
         'created': _now_iso(),
@@ -752,7 +753,16 @@ def handle_finalize(body):
                 m['found'] = True   # _analyze_creative skips entries without it
                 comp_creative_jobs.append((entry, c.get('name') or c.get('handle'), c['platform'], m))
 
-        brand_health = fetch_brand_health(item.get('domain'), brand, item.get('location') or 'Singapore')
+        # Brand-health + social-listening both hit DataForSEO; fetch concurrently.
+        # Listening is opt-in (frontend sets enabled) so daily cron captures skip it.
+        _loc        = item.get('location') or 'Singapore'
+        _listen_cfg = item.get('listening') or {}
+        with ThreadPoolExecutor(max_workers=2) as _bx:
+            _bh_fut = _bx.submit(fetch_brand_health, item.get('domain'), brand, _loc)
+            _sl_fut = (_bx.submit(fetch_social_listening, brand, item.get('domain'), _loc, 'English', _listen_cfg)
+                       if _listen_cfg.get('enabled') else None)
+            brand_health     = _bh_fut.result()
+            social_listening = _sl_fut.result() if _sl_fut else None
         indicators   = _flatten_indicators(client_metrics, brand_health)
 
         # Creative/design/colour eval for the brand AND each competitor — run
@@ -776,6 +786,7 @@ def handle_finalize(body):
             'platforms': [_platform_card(p, m) for p, m in client_metrics.items()],
             'indicators': indicators,
             'brand_health': brand_health,
+            'social_listening': social_listening,
             'creative': creative,
             'competitors': [c for c in competitor_metrics if c.get('followers') is not None],
         })
@@ -1281,6 +1292,151 @@ def fetch_brand_health(domain, brand, location='Singapore', language='English'):
             out['gbp_reviews'] = rating.get('votes_count')
     except Exception:
         pass
+
+    return out
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Social listening — brand mentions + sentiment across the open web (DataForSEO
+# Content Analysis: blogs, forums/message-boards, news, e-commerce, with native
+# sentiment) PLUS Google site: searches for Reddit, Twitter/X and SG forums that
+# Content Analysis doesn't cover natively. All best-effort: any failure leaves the
+# field empty so the audit still renders. Opt-in via cfg.enabled (set by frontend).
+# ──────────────────────────────────────────────────────────────────────────────
+# Content Analysis page types we treat as "social/web mentions".
+CA_PAGE_TYPES = ['ecommerce', 'news', 'blogs', 'message-boards', 'organization']
+
+# Source key → (Google site: filter, human label) for the SERP fallback layer.
+LISTEN_SITES = {
+    'reddit':  ('reddit.com',                        'Reddit'),
+    'twitter': ('twitter.com OR site:x.com',         'Twitter / X'),
+    'forums':  ('forums.hardwarezone.com.sg',        'HardwareZone & SG forums'),
+}
+
+
+def _ca_dominant_sentiment(content_info):
+    """Pick the strongest of positive/negative/neutral for one mention."""
+    ct = (content_info or {}).get('connotation_types') or {}
+    best, score = None, 0
+    for k in ('positive', 'negative', 'neutral'):
+        v = ct.get(k)
+        if isinstance(v, (int, float)) and v > score:
+            best, score = k, v
+    return best
+
+
+def _serp_site_mentions(brand, site, location, language, headers, limit=6):
+    """One Google site: search for the brand — used for Reddit/X/forum coverage."""
+    out = []
+    try:
+        r = requests.post(f'{DFS_BASE}/serp/google/organic/live/advanced',
+                          headers=headers, timeout=25,
+                          json=[{'keyword': f'site:{site} "{brand}"',
+                                 'location_name': location, 'language_name': language,
+                                 'depth': max(10, limit)}])
+        res = (((r.json().get('tasks') or [{}])[0].get('result')) or [{}])[0] or {}
+        for it in (res.get('items') or []):
+            if it.get('type') != 'organic' or not it.get('url'):
+                continue
+            out.append({'url': it.get('url'),
+                        'title': (it.get('title') or '')[:160],
+                        'snippet': (it.get('description') or '')[:200],
+                        'date': it.get('timestamp')})
+            if len(out) >= limit:
+                break
+    except Exception:
+        pass
+    return out
+
+
+def fetch_social_listening(brand, domain, location='Singapore', language='English', cfg=None):
+    cfg = cfg or {}
+    out = {'enabled': True, 'summary': None, 'mentions': [], 'trend': [],
+           'platforms': {}, 'note': None}
+    auth = os.environ.get('DATAFORSEO_AUTH')
+    if not auth or not brand:
+        out['note'] = 'Set DATAFORSEO_AUTH to populate social listening.'
+        return out
+    headers = {'Authorization': auth, 'Content-Type': 'application/json'}
+    sources = cfg.get('sources') or ['web', 'reddit', 'twitter', 'forums']
+
+    def _summary():
+        try:
+            r = requests.post(f'{DFS_BASE}/content_analysis/summary/live',
+                              headers=headers, timeout=30,
+                              json=[{'keyword': brand, 'page_type': CA_PAGE_TYPES,
+                                     'positive_connotation_threshold': 0.4,
+                                     'sentiments_connotation_threshold': 0.4}])
+            res = (((r.json().get('tasks') or [{}])[0].get('result')) or [{}])[0] or {}
+            ct = res.get('connotation_types') or {}
+            return {
+                'total_mentions': res.get('total_count') if res.get('total_count') is not None
+                                  else res.get('count'),
+                'sentiment': {'positive': ct.get('positive'),
+                              'negative': ct.get('negative'),
+                              'neutral':  ct.get('neutral')},
+                'top_domains': [d.get('domain') for d in (res.get('top_domains') or [])[:8]
+                                if isinstance(d, dict) and d.get('domain')],
+            }
+        except Exception:
+            return None
+
+    def _mentions():
+        try:
+            r = requests.post(f'{DFS_BASE}/content_analysis/search/live',
+                              headers=headers, timeout=30,
+                              json=[{'keyword': brand, 'page_type': CA_PAGE_TYPES,
+                                     'search_mode': 'one_per_domain', 'limit': 20,
+                                     'order_by': ['content_info.date_published,desc']}])
+            res = (((r.json().get('tasks') or [{}])[0].get('result')) or [{}])[0] or {}
+            mentions = []
+            for it in (res.get('items') or []):
+                ci = it.get('content_info') or {}
+                pt = it.get('page_types')
+                mentions.append({
+                    'url': it.get('url'),
+                    'domain': it.get('domain'),
+                    'title': (ci.get('title') or ci.get('main_title') or it.get('url') or '')[:160],
+                    'snippet': (ci.get('snippet') or ci.get('highlighted_text') or '')[:240],
+                    'date': ci.get('date_published'),
+                    'sentiment': _ca_dominant_sentiment(ci),
+                    'page_type': (pt[0] if isinstance(pt, list) and pt else it.get('page_type')),
+                })
+            return mentions[:20]
+        except Exception:
+            return []
+
+    def _trend():
+        try:
+            from datetime import timedelta
+            date_from = (datetime.now(timezone.utc) - timedelta(days=365)).strftime('%Y-%m-%d')
+            r = requests.post(f'{DFS_BASE}/content_analysis/phrase_trends/live',
+                              headers=headers, timeout=30,
+                              json=[{'keyword': brand, 'page_type': CA_PAGE_TYPES,
+                                     'date_from': date_from, 'date_group': 'month'}])
+            res = (((r.json().get('tasks') or [{}])[0].get('result')) or [{}])[0] or {}
+            return [{'date': it.get('date_to') or it.get('date_from'),
+                     'count': it.get('count')}
+                    for it in (res.get('items') or []) if it.get('count') is not None]
+        except Exception:
+            return []
+
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        web_futs, plat_futs = {}, {}
+        if 'web' in sources:
+            web_futs = {'summary': ex.submit(_summary),
+                        'mentions': ex.submit(_mentions),
+                        'trend': ex.submit(_trend)}
+        for key, (site, label) in LISTEN_SITES.items():
+            if key in sources:
+                plat_futs[key] = (label, ex.submit(_serp_site_mentions, brand, site,
+                                                   location, language, headers))
+        if web_futs:
+            out['summary']  = web_futs['summary'].result()
+            out['mentions'] = web_futs['mentions'].result()
+            out['trend']    = web_futs['trend'].result()
+        for key, (label, fut) in plat_futs.items():
+            out['platforms'][key] = {'label': label, 'results': fut.result()}
 
     return out
 
