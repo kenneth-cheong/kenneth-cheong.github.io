@@ -3126,6 +3126,7 @@
                     ${mgrKpi(mgrEscalations, 'Escalations', mgrEscalations ? '#f97316' : 'var(--success)', mgrEscalations ? "managerDrill('escalations')" : '', mgrEscalations ? 'Drill down to staff on escalated campaigns' : '')}
                     ${mgrKpi(mgrCampList.length, 'Campaigns', 'var(--text)')}
                     ${_satisfactionTileHtml()}
+                    ${_cbNpsTile(_cbNpsForCampaignNames(mgrCampList.map(c => c.name)), 'NPS', 'No NPS responses tagged to these campaigns yet — capture them in the cockpit')}
                     ${mgrAnyKw ? mgrKpi(mgrKwBehind, 'Behind on KW', mgrKwBehind ? 'var(--warning)' : 'var(--success)', mgrKwBehind ? "managerDrill('kwbehind')" : '', mgrKwBehind ? 'Drill down to staff on campaigns behind keyword pace' : '') : pendingTile('KW Page-1', '<i class="fas fa-bullseye"></i> KW Page-1')}
                 </div>
                 <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;">
@@ -3365,6 +3366,54 @@
         }
         function cbUpdateSatisfactionTile() { const el = document.getElementById('mgr-sat-tile'); if (el) el.outerHTML = _satisfactionTileHtml(); }
 
+        // ── NPS (shared with the cockpit) ───────────────────────────────────
+        // The cockpit (index.html) records client NPS responses in localStorage
+        // under 'cockpitNpsResponses'. This page runs same-origin — standalone or
+        // as the cockpit's iframe — so it reads the very same store; no separate
+        // feed needed. NPS = %promoters − %detractors (range −100…+100); promoters
+        // score 9–10, passives 7–8, detractors 0–6. Per-campaign rollups match on
+        // the response's `campaign` tag (case-insensitive) against the board name.
+        const NPS_STORE_KEY = 'cockpitNpsResponses';
+        function _cbNpsLoad() {
+            try { return JSON.parse(localStorage.getItem(NPS_STORE_KEY)) || []; }
+            catch (e) { return []; }
+        }
+        function _cbNpsCompute(responses) {
+            const n = responses.length;
+            const promoters  = responses.filter(r => r.score >= 9).length;
+            const detractors = responses.filter(r => r.score <= 6).length;
+            const score = n ? Math.round((promoters / n - detractors / n) * 100) : null;
+            return { n, promoters, passives: n - promoters - detractors, detractors, score };
+        }
+        function _cbNpsForCampaign(name) {
+            if (!name) return _cbNpsCompute([]);
+            const key = String(name).trim().toLowerCase();
+            return _cbNpsCompute(_cbNpsLoad().filter(r => (r.campaign || '').trim().toLowerCase() === key));
+        }
+        function _cbNpsForCampaignNames(names) {
+            const set = new Set((names || []).map(n => String(n || '').trim().toLowerCase()).filter(Boolean));
+            if (!set.size) return _cbNpsCompute([]);
+            return _cbNpsCompute(_cbNpsLoad().filter(r => set.has((r.campaign || '').trim().toLowerCase())));
+        }
+        function _cbNpsColor(score) {
+            if (score == null) return 'var(--muted)';
+            if (score >= 50) return 'var(--success)';
+            if (score >= 0)  return '#0ea5e9';
+            return 'var(--danger)';
+        }
+        // KPI tile for an NPS rollup. Falls back to a "no responses" dashed tile.
+        function _cbNpsTile(m, label, titleWhenEmpty) {
+            if (!m.n) return `<div title="${titleWhenEmpty || 'No NPS responses logged yet — capture them in the cockpit'}" style="flex:1;min-width:112px;background:var(--surface);border:1px dashed var(--border);border-radius:12px;padding:12px 14px;opacity:.75;">
+                    <div style="font-size:1.05rem;font-weight:800;color:var(--muted);line-height:1;"><i class="fas fa-face-smile"></i> ${label}</div>
+                    <div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:5px;">No responses yet</div>
+                </div>`;
+            const col = _cbNpsColor(m.score);
+            return `<div title="Net Promoter Score across ${m.n} response(s): ${m.promoters} promoters · ${m.passives} passives · ${m.detractors} detractors" style="flex:1;min-width:112px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;">
+                    <div style="font-size:1.5rem;font-weight:800;color:${col};line-height:1;">${m.score > 0 ? '+' : ''}${m.score}</div>
+                    <div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:5px;">${label} · ${m.n} response${m.n !== 1 ? 's' : ''}</div>
+                </div>`;
+        }
+
         function renderConsultantView(filtered) {
             const container = document.getElementById('consultant-container');
             if (!container) return;
@@ -3444,7 +3493,7 @@
                 ${kpi(totApprovals, 'Awaiting approval', totApprovals ? 'var(--warning)' : 'var(--muted)', totApprovals ? 'approvals' : '')}
                 ${kpi(avgScore + '%', 'Avg pacing health', avgColor)}
                 ${kpi(atRisk, 'Campaigns at risk', atRisk ? 'var(--warning)' : 'var(--success)', atRisk ? 'risk' : '')}
-                ${pendingTileC('NPS', '<i class="fas fa-face-smile"></i> NPS')}
+                ${_cbNpsTile(_cbNpsForCampaignNames(camps.map(c => c.name)), 'NPS', "No NPS responses tagged to this consultant's campaigns yet — capture them in the cockpit")}
                 ${anyKwTargets ? kpi(kwBehind, 'Behind on KW', kwBehind ? 'var(--warning)' : 'var(--success)', kwBehind ? 'kwbehind' : '') : pendingTileC('KW Page-1', '<i class="fas fa-bullseye"></i> KW Page-1')}
             </div>`;
 
@@ -3465,6 +3514,7 @@
             // Per-campaign cards.
             visibleCamps.forEach(c => {
                 const sig = _successSignal(c);
+                const np = _cbNpsForCampaign(c.name);
                 const tl = _consultantTimeline(c.items[0]?.masterTimeline);
                 const masterName = c.items[0]?.masterName;
                 const csmStatus = c.items[0]?.masterCsmStatus && c.items[0].masterCsmStatus !== '-' ? c.items[0].masterCsmStatus : (c.items[0]?.csmCampaignStatus || '');
@@ -3560,6 +3610,7 @@
                         ${c.counts.overdue > 0 ? `<span class="board-tag overdue">${c.counts.overdue} overdue</span>` : ''}
                         ${c.counts.soon > 0 ? `<span class="board-tag soon">${c.counts.soon} due soon</span>` : ''}
                         ${approvals.length ? `<span class="board-tag" style="background:rgba(245,158,11,0.12);color:var(--warning);border:1px solid rgba(245,158,11,0.3);">${approvals.length} awaiting approval</span>` : ''}
+                        ${np.n ? `<span class="board-tag" title="Client NPS for this campaign — ${np.promoters} promoters · ${np.passives} passives · ${np.detractors} detractors" style="background:${_cbNpsColor(np.score)}1a;color:${_cbNpsColor(np.score)};border:1px solid ${_cbNpsColor(np.score)}40;"><i class="fas fa-face-smile" style="margin-right:4px;opacity:.8;"></i>NPS ${np.score > 0 ? '+' : ''}${np.score} · ${np.n}</span>` : ''}
                     </div>
 
                     ${kwRow}
