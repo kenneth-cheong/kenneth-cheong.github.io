@@ -6524,6 +6524,9 @@ ${JSON.stringify(contextData)}`;
 
     <!-- ===================== TOUR GUIDE SYSTEM ===================== -->
     <style>
+        /* On the live finale step we render our own in-page card, so hide the
+           driver popover but keep the dimmed overlay as a backdrop. */
+        body.tour-finale .driver-popover { display: none !important; }
         .driver-popover {
             background: rgba(30, 41, 59, 0.98) !important;
             backdrop-filter: blur(20px);
@@ -6817,10 +6820,17 @@ ${JSON.stringify(contextData)}`;
                 doneBtnText: 'Finish ✓',
                 allowClose: true,
                 overlayOpacity: 0.65,
-                steps: available
+                steps: available,
+                // Whichever way the tour ends (Finish, close, Esc, overlay click),
+                // tear down any in-page finale card we rendered.
+                onDestroyed: () => { removeTourRecapCard(); activeTourDriver = null; }
             });
+            activeTourDriver = drv;
             drv.drive();
         }
+
+        // The live finale card stores the running tour so its "Finish" button can close it.
+        let activeTourDriver = null;
 
         // ----- TOUR STEP DEFINITIONS -----
 
@@ -7173,22 +7183,81 @@ ${JSON.stringify(contextData)}`;
                     }
                 },
                 {
-                    popover: {
-                        title: '🎉 Tour Complete!',
-                        description: `<strong>Key Terms Recap:</strong><br>
-                        • <span style="color:#ef4444">Overdue</span>: Past deadline<br>
-                        • <span style="color:#f59e0b">Soon</span>: 1-7 days<br>
-                        • <span style="color:#38bdf8">2 Weeks</span>: 8-14 days<br>
-                        • <strong>Days Overdue</strong>: Today - Deadline<br>
-                        • <strong>Priority Score</strong>: Auto-urgency ranking<br>
-                        • <strong>CS Manager</strong>: From Master Board<br>
-                        • <strong>Completion Delta</strong>: Finish - Deadline<br>
-                        • <span style="color:#f87171">Lapsed</span> / <strong>Blank</strong>: Hygiene date issues<br>
-                        • <strong>At-risk</strong>: Stale weighted by lateness<br><br>
-                        Click <strong>Tour Guide</strong> in the header anytime to revisit!`,
-                    }
+                    // Finale: instead of a static recap dialog, render a live snapshot of the
+                    // current audit straight into the page. It is removed when the tour exits.
+                    onHighlightStarted: () => renderTourRecapCard(),
+                    onDeselected: () => removeTourRecapCard()
                 }
             ];
+        }
+
+        // ----- LIVE FINALE CARD (rendered in-place, not in a driver popover) -----
+
+        // Pull the current value of a header stat card, falling back to '0'.
+        function _tourStat(id) {
+            const el = document.getElementById(id);
+            const v = el ? (el.textContent || '').trim() : '';
+            return v === '' ? '0' : v;
+        }
+
+        function renderTourRecapCard() {
+            removeTourRecapCard();
+
+            const boards = _tourStat('stat-boards');
+            const overdue = _tourStat('stat-overdue');
+            const soon = _tourStat('stat-soon');
+            const twoW = _tourStat('stat-2w');
+            const scanned = _tourStat('stat-items');
+            const hasData = [boards, overdue, soon, twoW, scanned].some(v => v !== '0');
+
+            const tile = (val, label, color) => `
+                <div style="flex:1;min-width:84px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:12px;padding:12px 10px;text-align:center;">
+                    <div style="font-size:24px;font-weight:800;color:${color};line-height:1;">${val}</div>
+                    <div style="font-size:10px;color:var(--muted);margin-top:6px;letter-spacing:.04em;text-transform:uppercase;">${label}</div>
+                </div>`;
+
+            const body = hasData
+                ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 8px;">
+                        ${tile(scanned, 'Scanned', 'var(--text)')}
+                        ${tile(boards, 'Boards', 'var(--text)')}
+                        ${tile(overdue, 'Overdue', 'var(--danger)')}
+                        ${tile(soon, 'Soon', 'var(--warning)')}
+                        ${tile(twoW, '2 Weeks', 'var(--primary)')}
+                   </div>
+                   <p style="font-size:12px;color:var(--muted);margin:6px 0 0;">This is your current audit — the same numbers update live as you filter and re-scan.</p>`
+                : `<p style="font-size:13px;color:var(--muted);margin:18px 0 4px;">Connect and run an audit, and this snapshot will fill with your live campaign numbers — Scanned tasks, Boards, and Overdue / Soon / 2-Week counts.</p>`;
+
+            const card = document.createElement('div');
+            card.id = 'tour-recap-card';
+            card.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:100050;width:min(440px,92vw);background:var(--surface,#1e293b);border:1px solid var(--border);border-radius:18px;padding:26px 26px 22px;box-shadow:0 24px 60px rgba(0,0,0,0.55);';
+            card.innerHTML = `
+                <div style="font-size:20px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:8px;">🎉 Tour Complete!</div>
+                ${body}
+                <button id="tour-recap-finish" style="margin-top:18px;width:100%;background:var(--primary);color:var(--bg,#0f172a);border:none;border-radius:10px;padding:11px;font-size:13px;font-weight:700;cursor:pointer;">Finish ✓</button>
+                <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:10px;">Reopen anytime via <strong>Tour Guide</strong> in the header.</div>`;
+            document.body.appendChild(card);
+            document.body.classList.add('tour-finale'); // hides the driver popover for this step
+            document.getElementById('tour-recap-finish').onclick = () => {
+                if (activeTourDriver) activeTourDriver.destroy(); else removeTourRecapCard();
+            };
+
+            // driver.js doesn't reliably fire onDestroyed on programmatic destroy(), so
+            // watch the body's `driver-active` class instead: when the tour tears down
+            // (Finish, Esc, or overlay click) the class drops and we clear the card.
+            if (_tourRecapObserver) _tourRecapObserver.disconnect();
+            _tourRecapObserver = new MutationObserver(() => {
+                if (!document.body.classList.contains('driver-active')) removeTourRecapCard();
+            });
+            _tourRecapObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        }
+
+        let _tourRecapObserver = null;
+
+        function removeTourRecapCard() {
+            if (_tourRecapObserver) { _tourRecapObserver.disconnect(); _tourRecapObserver = null; }
+            document.body.classList.remove('tour-finale');
+            const el = document.getElementById('tour-recap-card');
+            if (el) el.remove();
         }
 
         function getQuickTourSteps() {
