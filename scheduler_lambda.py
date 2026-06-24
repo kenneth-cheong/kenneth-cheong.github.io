@@ -117,23 +117,42 @@ def lambda_handler(event, context):
         elif action == 'invoke_lambda':
             function_name = body.get('functionName')
             payload = body.get('payload', {})
-            
+
+            # Fire-and-forget for long-running jobs (e.g. the daily overdue check)
+            if body.get('async'):
+                resp = lambda_client.invoke(
+                    FunctionName=function_name,
+                    InvocationType='Event',
+                    Payload=json.dumps(payload)
+                )
+                return {
+                    "statusCode": 200,
+                    "headers": headers,
+                    "body": json.dumps({
+                        "statusCode": resp.get('StatusCode'),
+                        "async": True,
+                        "functionError": resp.get('FunctionError'),
+                        "logs": "Invoked asynchronously; check CloudWatch for output.",
+                        "payload": json.dumps({"started": True})
+                    })
+                }
+
             resp = lambda_client.invoke(
                 FunctionName=function_name,
                 InvocationType='RequestResponse',
                 Payload=json.dumps(payload),
                 LogType='Tail'
             )
-            
+
             import base64
             log_result = base64.b64decode(resp.get('LogResult', '')).decode('utf-8')
-            
+
             # Read streaming response
             response_payload = resp['Payload'].read().decode('utf-8')
-            
+
             return {
-                "statusCode": 200, 
-                "headers": headers, 
+                "statusCode": 200,
+                "headers": headers,
                 "body": json.dumps({
                     "statusCode": resp.get('StatusCode'),
                     "functionError": resp.get('FunctionError'),
