@@ -3570,7 +3570,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2192</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2217</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -9818,6 +9818,7 @@
             12. get_ads_report: For Google Ads performance (cost, CPC, ROAS).
             13. save_memory_note: STRICT MANDATE. Use this whenever you learn a new preference, fact, or logic about the user or their projects. Always include a "tag" field (one of: "Preference", "Strategy", "Fact", "Process", "Constraint") and a "teams" array (one or more of: "SEO", "SEM", "SMM", "BD", "Everyone" — use multiple if the memory applies to multiple teams, use ["Everyone"] if broad).
             14. get_seranking_report: Fetch keyword rankings and positions for a specific SE Ranking campaign. You MUST use this tool when the user asks about SEO keywords, rankings, or SE Ranking data.
+            14b. get_seranking_backlinks: Fetch the backlinks tracked in a SE Ranking campaign's Backlink Monitoring (total backlinks, referring domains, dofollow/nofollow split, sample links). Use the site_id from 'loaded_seranking_campaigns'. If a campaign returns no backlinks, fall back to dataforseo_backlinks_summary or get_ahrefs_report using the campaign's domain.
             15. get_meta_ads_report: Fetch Meta (Facebook/Instagram) Ads performance data — spend, impressions, clicks, CTR, CPM, CPC, ROAS, results, and cost per result. Use this whenever the user asks about Meta Ads, Facebook Ads, Instagram Ads, or paid social performance. The ad_account_id values are in the synced context under 'meta_ad_account_ids'.
             16. get_linkedin_ads_report: Fetch LinkedIn Ads performance data — spend, impressions, clicks, CTR, CPM, CPC, conversions, and cost per conversion. Use this whenever the user asks about LinkedIn Ads or B2B paid social performance. The account_id values are in the synced context under 'linkedin_ad_account_ids'. Use the linkedin_access_token from synced context for API calls.
             17. dataforseo_serp: ALWAYS use this tool to fetch LIVE Google SERP results for any keyword. Never answer from training data — call this tool whenever the user asks about SERP results, search rankings, or who ranks for a keyword.
@@ -9996,6 +9997,7 @@
             SE RANKING CRITICAL RULES:
             - NEVER ask the user for an SE Ranking Site ID. The Site IDs are already in the synced context under 'loaded_seranking_campaigns'.
             - When the user asks about SE Ranking keywords or rankings, immediately call get_seranking_report with the site_id from 'loaded_seranking_campaigns'.
+            - When the user asks about backlinks, referring domains, or anchor text for a campaign, call get_seranking_backlinks with the same site_id. If it returns no backlinks (monitoring not configured), fall back to dataforseo_backlinks_summary or get_ahrefs_report using that campaign's domain.
             - SE Ranking Site IDs are 7-8 digits (e.g., 9297227). Monday.com Item IDs are 10 digits — NEVER use Monday IDs for SE Ranking.
             - If multiple campaigns are loaded, fetch all of them and combine the results.
 
