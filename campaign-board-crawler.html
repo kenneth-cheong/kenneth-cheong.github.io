@@ -1042,6 +1042,38 @@
             color: var(--bg);
         }
 
+        /* Top-level persona mode switcher (Consultant / Team Lead / Client Success) */
+        .mode-switcher {
+            display: flex;
+            gap: 6px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 4px;
+        }
+
+        .mode-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 7px;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--muted);
+            cursor: pointer;
+            transition: all 0.18s;
+            white-space: nowrap;
+        }
+
+        .mode-btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.04); }
+
+        .mode-btn.active {
+            background: var(--primary);
+            color: var(--bg);
+            box-shadow: 0 1px 6px rgba(99, 102, 241, 0.4);
+        }
+
         .staff-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -2049,30 +2081,13 @@
 
                         <div style="flex: 1;"></div>
 
-                        <select id="user-selector" class="user-selector" onchange="setCurrentUser(this.value)" title="Select yourself to scope Today view to your tasks">
-                            <option value="">Select Me...</option>
+                        <select id="user-selector" class="user-selector" onchange="setCurrentUser(this.value)" title="Who are you? Sets your identity — highlights your rows everywhere and is the default person in Consultant mode.">
+                            <option value="">You ▾</option>
                         </select>
 
-                        <div class="view-toggle-container">
-                            <div class="view-toggle-btn" id="view-today" onclick="setViewMode('today')">
-                                <i class="fas fa-bullseye"></i> Today
-                            </div>
-                            <div class="view-toggle-btn" id="view-manager" onclick="setViewMode('manager')">
-                                <i class="fas fa-users-cog"></i> By Staff
-                            </div>
-                            <div class="view-toggle-btn" id="view-consultant" onclick="setViewMode('consultant')">
-                                <i class="fas fa-user-chart"></i><i class="fas fa-id-badge"></i> Consultant
-                            </div>
-                            <div class="view-toggle-btn" id="view-auditor" onclick="setViewMode('auditor')">
-                                <i class="fas fa-table"></i> All Campaigns
-                            </div>
-                            <div class="view-toggle-btn" id="view-timeliness" onclick="setViewMode('timeliness')">
-                                <i class="fas fa-chart-line"></i> Timeliness
-                            </div>
-                            <div class="view-toggle-btn" id="view-hygiene" onclick="setViewMode('hygiene')" title="Active campaign boards ranked by lapsed / blank date ranges">
-                                <i class="fas fa-broom"></i> Hygiene
-                            </div>
-                        </div>
+                        <!-- Persona mode switcher + its contextual sub-views (populated by renderNav) -->
+                        <div class="mode-switcher" id="mode-switcher"></div>
+                        <div class="view-toggle-container" id="subview-tabs"></div>
                     </div>
 
                     <!-- Floating Settings Popover -->
@@ -2091,11 +2106,14 @@
 
                 <div id="results-scroll-area"
                     style="flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; position: relative;">
+                    <!-- Consultant-mode person picker, shared by the Portfolio & Worklist tabs -->
+                    <div id="consultant-person-bar" style="display: none;"></div>
                     <div id="today-container" style="display: none;"></div>
                     <div id="consultant-container" style="display: none;"></div>
                     <div id="timeliness-container" style="display: none;"></div>
                     <div id="hygiene-container" style="display: none;"></div>
                     <div id="manager-grid-container" style="display: none;"></div>
+                    <div id="cs-kpi-strip" style="display: none;"></div>
                     <div id="auditor-table-container" class="table-container"
                         style="background: var(--surface); border-radius: 12px; border: 1px solid var(--border);">
                         <table style="width: 100%; border-collapse: separate; border-spacing: 0;">
@@ -2208,6 +2226,9 @@
             masterCampaignMap: {}, // Map of Board Name substring -> { csm: [] }
             updateMetadata: {}, // { itemId: { page: 1, hasMore: true, loadingMore: false } }
             viewMode: 'manager',
+            mode: 'teamlead',              // persona mode: consultant | teamlead | clientsuccess
+            modeLastView: {},              // remembers the last sub-view used in each mode
+            teamSort: 'member',            // Team Lead details ordering: member | urgency
             selectedStaffNames: new Set(),
             consultantName: '',            // selected consultant for the Consultant Dashboard view
             currentUser: localStorage.getItem('current_user') || '',
@@ -2229,7 +2250,10 @@
 
         window.onload = () => {
             const hashView = location.hash.replace(/^#view=/, '');
-            if (hashView && ['today','manager','auditor','timeliness','hygiene'].includes(hashView)) state.viewMode = hashView;
+            if (hashView && ['today','manager','consultant','auditor','timeliness','hygiene'].includes(hashView)) state.viewMode = hashView;
+            state.mode = VIEW_MODE_GROUP[state.viewMode] || 'teamlead';
+            state.modeLastView[state.mode] = state.viewMode;
+            renderNav();
             if (state.apiKey) { document.getElementById('api-key').value = state.apiKey; connectMonday(); }
         };
 
@@ -2282,7 +2306,7 @@
         function renderUserSelector() {
             const sel = document.getElementById('user-selector');
             if (!sel) return;
-            sel.innerHTML = '<option value="">Select Me...</option>' +
+            sel.innerHTML = '<option value="">You ▾</option>' +
                 state.mondayUsers.map(u => `<option value="${u.name.replace(/"/g, '&quot;')}" ${state.currentUser === u.name ? 'selected' : ''}>${u.name}</option>`).join('');
         }
 
@@ -2852,6 +2876,50 @@
             });
         }
 
+        // Client Success mode header: org-wide KPIs over ALL tasks (filters still apply).
+        function renderCsKpiStrip(filtered) {
+            const el = document.getElementById('cs-kpi-strip');
+            if (!el) return;
+
+            const camps = {};
+            filtered.forEach(i => {
+                if (!camps[i.bId]) camps[i.bId] = { id: i.bId, name: i.bName, items: [], counts: { overdue: 0, soon: 0, v2w: 0 } };
+                camps[i.bId].items.push(i);
+                camps[i.bId].counts[i.status === '2w' ? 'v2w' : i.status]++;
+            });
+            const list = Object.values(camps);
+            const overdue = filtered.filter(i => i.status === 'overdue').length;
+            const escalations = list.filter(_campaignEscalated).length;
+            const approvals = filtered.filter(i => _cbApprovalStatus(i.itemStatus) || _cbApprovalStatus(i.masterCsmStatus) || _cbApprovalStatus(i.csmCampaignStatus)).length;
+            const health = { green: 0, amber: 0, orange: 0, red: 0 };
+            list.forEach(c => { health[_successSignal(c).key]++; });
+
+            const kpi = (val, lab, color) => `<div style="flex:1;min-width:104px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;">
+                    <div style="font-size:1.5rem;font-weight:800;color:${color};line-height:1;">${val}</div>
+                    <div style="font-size:11px;color:var(--muted);font-weight:600;margin-top:4px;">${lab}</div>
+                </div>`;
+            const chip = (n, label, color) => `<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:${color};"><span style="width:9px;height:9px;border-radius:50%;background:${color};display:inline-block;"></span>${n} ${label}</span>`;
+
+            el.innerHTML = `
+                <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+                    ${kpi(filtered.length, 'Open tasks', 'var(--text)')}
+                    ${kpi(list.length, 'Campaigns', 'var(--text)')}
+                    ${kpi(overdue, 'Overdue', overdue ? 'var(--danger)' : 'var(--success)')}
+                    ${kpi(escalations, 'Escalations', escalations ? '#f97316' : 'var(--success)')}
+                    ${kpi(approvals, 'Awaiting approval', approvals ? 'var(--warning)' : 'var(--muted)')}
+                    ${_satisfactionTileHtml()}
+                    ${_cbNpsTile(_cbNpsForCampaignNames(list.map(c => c.name)), 'NPS', 'No NPS responses tagged to these campaigns yet — capture them in the cockpit')}
+                </div>
+                <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;">
+                    <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;">Campaign health</span>
+                    ${chip(health.green, 'On track', 'var(--success)')}
+                    ${chip(health.amber, 'Watch', '#eab308')}
+                    ${chip(health.orange, 'At risk', 'var(--warning)')}
+                    ${chip(health.red, 'Critical', 'var(--danger)')}
+                </div>`;
+            cbLoadSatisfaction(); // fills the satisfaction tile once data arrives
+        }
+
         function renderAuditorView(filtered) {
             const groups = {};
             filtered.forEach(i => {
@@ -2916,6 +2984,11 @@
         function selectStaffCard(name) {
             if (state.selectedStaffNames.has(name)) state.selectedStaffNames.delete(name);
             else state.selectedStaffNames.add(name);
+            updateFilteredUI();
+        }
+
+        function setTeamSort(s) {
+            state.teamSort = s;
             updateFilteredUI();
         }
 
@@ -2991,10 +3064,15 @@
             const container = document.getElementById('today-container');
             if (!container) return;
 
-            // Scope: everyone by default; selecting yourself narrows to your tasks
-            const scopedToUser = !!state.currentUser;
+            // Scope: in Consultant mode the worklist follows that one consultant
+            // (the Portfolio picker, falling back to your identity); elsewhere it
+            // narrows to you when you've picked yourself in "Select Me…".
+            const scopePerson = state.mode === 'consultant'
+                ? (state.consultantName || state.currentUser)
+                : state.currentUser;
+            const scopedToUser = !!scopePerson;
             let items = filtered.slice();
-            if (scopedToUser) items = items.filter(i => (i.people || []).some(p => p === state.currentUser));
+            if (scopedToUser) items = items.filter(i => (i.people || []).some(p => p === scopePerson));
 
             const buckets = {
                 overdue: items.filter(i => i.status === 'overdue'),
@@ -3011,8 +3089,8 @@
             html += `
                 <div class="today-header">
                     <div>
-                        <div class="today-title"><i class="fas fa-bullseye"></i> What to work on ${scopedToUser ? '&mdash; ' + todayEsc(state.currentUser) : 'today'}</div>
-                        <div class="today-subtitle">${scopedToUser ? 'Your prioritised worklist, most urgent first.' : 'Team worklist &mdash; pick yourself in &ldquo;Select Me&hellip;&rdquo; to focus on just your tasks.'}</div>
+                        <div class="today-title"><i class="fas fa-bullseye"></i> What to work on ${scopedToUser ? '&mdash; ' + todayEsc(scopePerson) : 'today'}</div>
+                        <div class="today-subtitle">${scopedToUser ? (state.mode === 'consultant' && scopePerson !== state.currentUser ? todayEsc(scopePerson) + '&rsquo;s prioritised worklist, most urgent first.' : 'Your prioritised worklist, most urgent first.') : 'Team worklist &mdash; pick a consultant in the Portfolio tab, or yourself in the &ldquo;You&rdquo; selector.'}</div>
                     </div>
                     <div class="today-summary-stats">
                         <div class="today-sum overdue"><b>${overdueN}</b> overdue</div>
@@ -3165,13 +3243,36 @@
                 `;
             });
             gridHtml += '</div>';
-            gridContainer.innerHTML = summaryHtml + (sortedStaff.length ? gridHtml : '<div style="padding:40px; text-align:center; color:var(--muted)">No staff data found matching your filters.</div>');
+
+            // Sort control for the details table: group by member, or one flat
+            // priority-ranked list across everyone selected.
+            const sortToggle = `
+                <div style="display:flex;align-items:center;gap:10px;margin:0 4px 14px;">
+                    <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;">Sort tasks</span>
+                    <div class="view-toggle-container">
+                        <div class="view-toggle-btn ${state.teamSort === 'member' ? 'active' : ''}" onclick="setTeamSort('member')"><i class="fas fa-user-group"></i> By member</div>
+                        <div class="view-toggle-btn ${state.teamSort === 'urgency' ? 'active' : ''}" onclick="setTeamSort('urgency')"><i class="fas fa-fire"></i> By urgency</div>
+                    </div>
+                    <span style="font-size:11px;color:var(--muted);">${state.teamSort === 'urgency' ? 'Selected members’ tasks, most urgent first' : 'Grouped per selected member'}</span>
+                </div>`;
+            gridContainer.innerHTML = summaryHtml + (sortedStaff.length ? gridHtml + sortToggle : '<div style="padding:40px; text-align:center; color:var(--muted)">No staff data found matching your filters.</div>');
             cbLoadSatisfaction(); // fills the satisfaction tile once data arrives
 
             // Render Details Table for Selected Staff
             let tableHtml = '';
             const selectedNames = [...state.selectedStaffNames].filter(n => staffGroups[n]);
-            if (selectedNames.length > 0) {
+            if (selectedNames.length > 0 && state.teamSort === 'urgency') {
+                // One flat list across every selected member, most urgent first.
+                const seen = new Set();
+                const flat = [];
+                selectedNames.forEach(name => Object.values(staffGroups[name].campaigns).forEach(c => c.items.forEach(i => {
+                    if (!seen.has(i.id)) { seen.add(i.id); flat.push(i); }
+                })));
+                flat.sort((a, b) => (calcPriority(b) - calcPriority(a)) || ((b.daysOverdue || 0) - (a.daysOverdue || 0)));
+                tableHtml = flat.length
+                    ? `<tr class="staff-group-header"><td colspan="7"><i class="fas fa-fire" style="margin-right:8px;"></i>${flat.length} task(s) across ${selectedNames.length} member(s) &mdash; most urgent first</td></tr>` + flat.map(i => renderItemRow(i, true)).join('')
+                    : '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted);">No open tasks for the selected members.</td></tr>';
+            } else if (selectedNames.length > 0) {
                 selectedNames.forEach(name => {
                     const s = staffGroups[name];
                     const sortedCampaigns = sortCampaignGroups(Object.values(s.campaigns));
@@ -3249,7 +3350,9 @@
         function setConsultant(name) {
             state.consultantKpiFilter = null;
             state.consultantName = name || '';
-            renderConsultantView(getFilteredItems());
+            // Refresh whichever Consultant-mode tab is active (Portfolio or Worklist)
+            // plus the shared picker bar.
+            updateFilteredUI();
         }
 
         function _cbApprovalStatus(s) {
@@ -3445,6 +3548,43 @@
                 </div>`;
         }
 
+        // Consultant-mode person picker — lives above the view containers so it shows
+        // on BOTH the Portfolio and Worklist tabs. Persistent <select>: built once,
+        // options refreshed only when the roster changes and it isn't being used, so
+        // it survives the many re-renders that fire during progressive board loading.
+        function renderConsultantPicker(filtered) {
+            const bar = document.getElementById('consultant-person-bar');
+            if (!bar) return;
+
+            const people = {};
+            filtered.forEach(i => i.people.forEach(p => {
+                if (p.toLowerCase().includes('deleted')) return;
+                (people[p] = people[p] || []).push(i);
+            }));
+            const names = Object.keys(people).sort((a, b) => a.localeCompare(b));
+            // Effective person: an explicit pick, else your own identity when present.
+            const effective = state.consultantName || (state.currentUser && people[state.currentUser] ? state.currentUser : '');
+
+            if (!document.getElementById('cm-person-select')) {
+                bar.innerHTML = `
+                    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;">
+                        <span style="font-size:13px;font-weight:700;color:var(--text);"><i class="fas fa-id-badge" style="margin-right:6px;color:var(--primary);"></i>Consultant</span>
+                        <select id="cm-person-select" onchange="setConsultant(this.value)" class="user-selector" style="min-width:220px;">
+                            <option value="">Select a consultant…</option>
+                        </select>
+                        <span style="font-size:11px;color:var(--muted);">Drives the Portfolio &amp; Worklist tabs below</span>
+                    </div>`;
+            }
+            const sel = document.getElementById('cm-person-select');
+            const sig = names.join('\n') + '|' + effective;
+            if (sel && sel.dataset.sig !== sig && document.activeElement !== sel) {
+                sel.innerHTML = '<option value="">Select a consultant…</option>' +
+                    names.map(n => `<option value="${n.replace(/"/g, '&quot;')}" ${n === effective ? 'selected' : ''}>${n}${state.currentUser === n ? ' (you)' : ''}</option>`).join('');
+                sel.value = effective;
+                sel.dataset.sig = sig;
+            }
+        }
+
         function renderConsultantView(filtered) {
             const container = document.getElementById('consultant-container');
             if (!container) return;
@@ -3462,18 +3602,11 @@
             if (!name && state.currentUser && people[state.currentUser]) name = state.currentUser;
             if (name && !people[name]) name = ''; // chosen person filtered out
 
-            const picker = `
-                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;">
-                    <span style="font-size:13px;font-weight:700;color:var(--text);"><i class="fas fa-id-badge" style="margin-right:6px;color:var(--primary);"></i>Consultant Dashboard</span>
-                    <select onchange="setConsultant(this.value)" class="user-selector" style="min-width:220px;">
-                        <option value="">Select a consultant…</option>
-                        ${names.map(n => `<option value="${n.replace(/"/g, '&quot;')}" ${n === name ? 'selected' : ''}>${n}${state.currentUser === n ? ' (you)' : ''}</option>`).join('')}
-                    </select>
-                    <span style="font-size:11px;color:var(--muted);">Per-campaign timeline · pacing · deliverables · approvals · next action</span>
-                </div>`;
-
+            // The person picker now lives at the mode level (renderConsultantPicker),
+            // shown on both the Portfolio and Worklist tabs — this view just renders
+            // the chosen consultant's body into its container.
             if (!name) {
-                container.innerHTML = picker + `
+                container.innerHTML = `
                     <div style="padding:50px 20px;text-align:center;color:var(--muted);">
                         <i class="fas fa-id-badge" style="font-size:26px;opacity:0.3;display:block;margin-bottom:12px;"></i>
                         Select a consultant above to see their campaign portfolio, pacing and next actions.
@@ -3516,7 +3649,7 @@
                     <div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:5px;">${label}: source pending</div>
                 </div>`;
 
-            let html = picker;
+            let html = '';
             html += `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
                 ${kpi(camps.length, 'Campaigns', 'var(--text)')}
                 ${kpi(totDeliverables, 'Open deliverables', 'var(--text)')}
@@ -3674,7 +3807,7 @@
             container.innerHTML = html;
         }
 
-        function renderItemRow(i) {
+        function renderItemRow(i, showBoard = false) {
             let tagClass = 'tag-overdue';
             let tagLabel = 'Overdue';
             let daysColor = 'var(--danger)';
@@ -3705,6 +3838,7 @@
                     </div>
                     ${pScore >= 20 ? `<span class="priority-dot ${pTier.cls}" title="Priority: ${pTier.label} (score ${pScore})"></span>` : ''}
                     <a href="https://${state.slug}.monday.com/boards/${i.bId}/pulses/${i.id}" target="_blank" class="item-link">${i.name} <i class="fas fa-external-link-alt" style="font-size:0.8em"></i></a>
+                    ${showBoard ? `<span class="folder-sub" style="margin-left:6px;">in ${i.bName}</span>` : ''}
                 </td>
                 <td><div class="person-badge"><i class="far fa-user"></i> ${i.people.join(', ')}</div></td>
                 <td><div class="person-badge" style="border-color:var(--success); color:var(--success)"><i class="fas fa-user-shield"></i> ${i.csManagers.join(', ')}</div></td>
@@ -3732,14 +3866,58 @@
             return html;
         }
 
+        // ── Persona modes ────────────────────────────────────────────────────────
+        // Three modes frame the dashboard by "whose tasks": one consultant, a chosen
+        // set of team members, or everyone. Each owns the sub-views that fit it.
+        const MODE_META = {
+            consultant:    { label: 'Consultant',    icon: 'fa-user',      title: 'One consultant’s tasks' },
+            teamlead:      { label: 'Team Lead',      icon: 'fa-users',     title: 'Selected team members — sort by member or urgency' },
+            clientsuccess: { label: 'Client Success', icon: 'fa-handshake', title: 'All tasks, across every consultant' },
+        };
+        const MODE_VIEWS = {
+            consultant:    [ { v: 'consultant', label: 'Portfolio', icon: 'fa-id-badge' }, { v: 'today', label: 'Worklist', icon: 'fa-bullseye' } ],
+            teamlead:      [ { v: 'manager', label: 'By Staff', icon: 'fa-users-cog' } ],
+            clientsuccess: [ { v: 'auditor', label: 'All Campaigns', icon: 'fa-table' }, { v: 'timeliness', label: 'Timeliness', icon: 'fa-chart-line' }, { v: 'hygiene', label: 'Hygiene', icon: 'fa-broom' } ],
+        };
+        const MODE_DEFAULT_VIEW = { consultant: 'consultant', teamlead: 'manager', clientsuccess: 'auditor' };
+        const VIEW_MODE_GROUP = { today: 'consultant', consultant: 'consultant', manager: 'teamlead', auditor: 'clientsuccess', timeliness: 'clientsuccess', hygiene: 'clientsuccess' };
+
+        // Rebuild the two-level nav (mode buttons + the active mode's sub-tabs).
+        // Cheap to call on every render; buttons hold no focus/scroll state.
+        function renderNav() {
+            const modeWrap = document.getElementById('mode-switcher');
+            const subWrap = document.getElementById('subview-tabs');
+            if (!modeWrap || !subWrap) return;
+            const mode = state.mode;
+            modeWrap.innerHTML = Object.keys(MODE_META).map(m => {
+                const meta = MODE_META[m];
+                return `<div class="mode-btn ${m === mode ? 'active' : ''}" id="mode-${m}" onclick="setMode('${m}')" title="${meta.title}"><i class="fas ${meta.icon}"></i> ${meta.label}</div>`;
+            }).join('');
+            const views = MODE_VIEWS[mode] || [];
+            // A single-view mode has nothing to switch between, so hide the sub-tab bar.
+            subWrap.style.display = views.length > 1 ? 'flex' : 'none';
+            subWrap.innerHTML = views.map(vw =>
+                `<div class="view-toggle-btn ${vw.v === state.viewMode ? 'active' : ''}" id="view-${vw.v}" onclick="setViewMode('${vw.v}')"><i class="fas ${vw.icon}"></i> ${vw.label}</div>`
+            ).join('');
+        }
+
+        function setMode(m) {
+            if (!MODE_META[m]) return;
+            state.mode = m;
+            setViewMode(state.modeLastView[m] || MODE_DEFAULT_VIEW[m]);
+        }
+
         function setViewMode(v) {
             state.viewMode = v;
+            state.mode = VIEW_MODE_GROUP[v] || state.mode;
+            state.modeLastView[state.mode] = v;
             if (v === 'timeliness' && !state.timeliness.loaded && !state.timeliness.loading) {
                 fetchTimelinessData();
             }
             if (v === 'hygiene' && !state.hygiene.loaded && !state.hygiene.loading) {
                 fetchHygieneData();
             }
+            renderNav();
             updateFilteredUI();
         }
 
@@ -4917,10 +5095,8 @@
         }
 
         function updateFilteredUI() {
-            // Sync View Toggle
-            document.querySelectorAll('.view-toggle-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.id === 'view-' + state.viewMode);
-            });
+            // Sync the persona mode switcher + sub-tabs
+            renderNav();
             // Sync stat-card active state
             document.querySelectorAll('.stat-card').forEach(c => {
                 c.classList.toggle('active', c.dataset.status === state.filters.status);
@@ -4949,9 +5125,17 @@
             const todayContainer = document.getElementById('today-container');
             const consultantContainer = document.getElementById('consultant-container');
             const hygieneContainer = document.getElementById('hygiene-container');
+            const csKpiStrip = document.getElementById('cs-kpi-strip');
+            const personBar = document.getElementById('consultant-person-bar');
             // Hide every view container by default; the active branch re-shows its own.
             if (consultantContainer) consultantContainer.style.display = 'none';
             if (hygieneContainer) hygieneContainer.style.display = 'none';
+            if (csKpiStrip) csKpiStrip.style.display = 'none';
+            // The consultant person picker spans both tabs of Consultant mode.
+            if (personBar) {
+                if (state.mode === 'consultant') { personBar.style.display = 'block'; renderConsultantPicker(filtered); }
+                else personBar.style.display = 'none';
+            }
             if (state.viewMode === 'hygiene') {
                 gridContainer.style.display = 'none';
                 if (auditorTable) auditorTable.style.display = 'none';
@@ -4989,6 +5173,8 @@
                 if (auditorTable) auditorTable.style.display = 'block';
                 if (timelinessContainer) timelinessContainer.style.display = 'none';
                 if (todayContainer) todayContainer.style.display = 'none';
+                if (csKpiStrip) csKpiStrip.style.display = 'block';
+                renderCsKpiStrip(filtered);
                 renderAuditorView(filtered);
             }
         }
@@ -6749,7 +6935,7 @@ ${JSON.stringify(contextData)}`;
                         title: '🎯 My Focus',
                         description: `<strong>Definition:</strong> A personal filter mode that shows ONLY campaigns where you are listed as a Person or CS Manager.<br><br>
                         <strong>How to use:</strong><br>
-                        1. Select your name from the "Select Me..." dropdown<br>
+                        1. Select your name from the "You" dropdown<br>
                         2. Click the "My Focus" button<br>
                         3. View your campaigns sorted by Priority Score<br><br>
                         Perfect for daily standup prep!`,
@@ -6950,10 +7136,10 @@ ${JSON.stringify(contextData)}`;
                     }
                 },
                 {
-                    element: '.view-toggle-container',
+                    element: '#mode-switcher',
                     popover: {
-                        title: '👁️ View Modes',
-                        description: 'Five views: Today (your prioritised worklist), By Staff (manager cards), All Campaigns (table), Timeliness (completion analytics), Hygiene (boards with un-updated dates).',
+                        title: '🎭 Modes',
+                        description: 'Three modes by whose tasks you need: <strong>Consultant</strong> (one person — Portfolio + Worklist), <strong>Team Lead</strong> (selected members, sorted by member or urgency), and <strong>Client Success</strong> (everything — All Campaigns, Timeliness, Hygiene). Each mode reveals its own sub-tabs.',
                     }
                 },
                 {
@@ -7109,7 +7295,7 @@ ${JSON.stringify(contextData)}`;
                     element: '#view-today',
                     popover: {
                         title: '🎯 Today View',
-                        description: 'Your prioritised worklist — bucketed into Overdue, Due This Week, and Coming Up. Select yourself in "Select Me…" to scope it to just your tasks.',
+                        description: 'Your prioritised worklist — bucketed into Overdue, Due This Week, and Coming Up. Select yourself in the "You" picker to scope it to just your tasks.',
                     }
                 },
                 {
