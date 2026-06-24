@@ -2127,7 +2127,7 @@ def oauth_config(body):
             'meta': {
                 'configured': bool(META_OAUTH_CLIENT_ID and META_OAUTH_CLIENT_SECRET),
                 'client_id': META_OAUTH_CLIENT_ID, 'scopes': META_OAUTH_SCOPES,
-                'flow': 'code', 'authorize': f'{META_API}/dialog/oauth'},
+                'flow': 'code', 'authorize': 'https://www.facebook.com/v23.0/dialog/oauth'},
             'linkedin': {
                 'configured': bool(LINKEDIN_OAUTH_CLIENT_ID and LINKEDIN_OAUTH_CLIENT_SECRET),
                 'client_id': LINKEDIN_OAUTH_CLIENT_ID, 'scopes': LINKEDIN_OAUTH_SCOPES,
