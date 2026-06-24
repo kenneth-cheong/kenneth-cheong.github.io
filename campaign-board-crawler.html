@@ -2085,7 +2085,7 @@
 
                         <div style="flex: 1;"></div>
 
-                        <select id="user-selector" class="user-selector" onchange="setCurrentUser(this.value)" title="Who are you? Sets your identity — highlights your rows everywhere and is the default person in Consultant mode.">
+                        <select id="user-selector" class="user-selector" onchange="setCurrentUser(this.value)" title="Who are you? Sets your identity — highlights your rows everywhere and is the person shown in Consultant mode (Portfolio + Worklist). Switch it to view another consultant.">
                             <option value="">You ▾</option>
                         </select>
 
@@ -2109,8 +2109,6 @@
 
                 <div id="results-scroll-area"
                     style="flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; position: relative;">
-                    <!-- Consultant-mode person picker, shared by the Portfolio & Worklist tabs -->
-                    <div id="consultant-person-bar" style="display: none;"></div>
                     <div id="today-container" style="display: none;"></div>
                     <div id="consultant-container" style="display: none;"></div>
                     <div id="timeliness-container" style="display: none;"></div>
@@ -2233,7 +2231,6 @@
             modeLastView: {},              // remembers the last sub-view used in each mode
             teamSort: 'member',            // Team Lead details ordering: member | urgency
             selectedStaffNames: new Set(),
-            consultantName: '',            // selected consultant for the Consultant Dashboard view
             currentUser: localStorage.getItem('current_user') || '',
             mondayUsers: [],
             boardColumnSettings: {},
@@ -3067,12 +3064,9 @@
             const container = document.getElementById('today-container');
             if (!container) return;
 
-            // Scope: in Consultant mode the worklist follows that one consultant
-            // (the Portfolio picker, falling back to your identity); elsewhere it
-            // narrows to you when you've picked yourself in "Select Me…".
-            const scopePerson = state.mode === 'consultant'
-                ? (state.consultantName || state.currentUser)
-                : state.currentUser;
+            // Scope follows your header "You ▾" identity in every mode; in Consultant
+            // mode that one person drives both the Portfolio and this Worklist tab.
+            const scopePerson = state.currentUser;
             const scopedToUser = !!scopePerson;
             let items = filtered.slice();
             if (scopedToUser) items = items.filter(i => (i.people || []).some(p => p === scopePerson));
@@ -3350,14 +3344,6 @@
             renderConsultantView(getFilteredItems());
         }
 
-        function setConsultant(name) {
-            state.consultantKpiFilter = null;
-            state.consultantName = name || '';
-            // Refresh whichever Consultant-mode tab is active (Portfolio or Worklist)
-            // plus the shared picker bar.
-            updateFilteredUI();
-        }
-
         function _cbApprovalStatus(s) {
             return /approval|review|waiting|pending|client|sign[\s-]?off|feedback|to approve|for approval/i.test(s || '');
         }
@@ -3551,43 +3537,6 @@
                 </div>`;
         }
 
-        // Consultant-mode person picker — lives above the view containers so it shows
-        // on BOTH the Portfolio and Worklist tabs. Persistent <select>: built once,
-        // options refreshed only when the roster changes and it isn't being used, so
-        // it survives the many re-renders that fire during progressive board loading.
-        function renderConsultantPicker(filtered) {
-            const bar = document.getElementById('consultant-person-bar');
-            if (!bar) return;
-
-            const people = {};
-            filtered.forEach(i => i.people.forEach(p => {
-                if (p.toLowerCase().includes('deleted')) return;
-                (people[p] = people[p] || []).push(i);
-            }));
-            const names = Object.keys(people).sort((a, b) => a.localeCompare(b));
-            // Effective person: an explicit pick, else your own identity when present.
-            const effective = state.consultantName || (state.currentUser && people[state.currentUser] ? state.currentUser : '');
-
-            if (!document.getElementById('cm-person-select')) {
-                bar.innerHTML = `
-                    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;">
-                        <span style="font-size:13px;font-weight:700;color:var(--text);"><i class="fas fa-id-badge" style="margin-right:6px;color:var(--primary);"></i>Consultant</span>
-                        <select id="cm-person-select" onchange="setConsultant(this.value)" class="user-selector" style="min-width:220px;">
-                            <option value="">Select a consultant…</option>
-                        </select>
-                        <span style="font-size:11px;color:var(--muted);">Drives the Portfolio &amp; Worklist tabs below</span>
-                    </div>`;
-            }
-            const sel = document.getElementById('cm-person-select');
-            const sig = names.join('\n') + '|' + effective;
-            if (sel && sel.dataset.sig !== sig && document.activeElement !== sel) {
-                sel.innerHTML = '<option value="">Select a consultant…</option>' +
-                    names.map(n => `<option value="${n.replace(/"/g, '&quot;')}" ${n === effective ? 'selected' : ''}>${n}${state.currentUser === n ? ' (you)' : ''}</option>`).join('');
-                sel.value = effective;
-                sel.dataset.sig = sig;
-            }
-        }
-
         function renderConsultantView(filtered) {
             const container = document.getElementById('consultant-container');
             if (!container) return;
@@ -3600,20 +3549,17 @@
             }));
             const names = Object.keys(people).sort((a, b) => a.localeCompare(b));
 
-            // Default to the chosen consultant, else the logged-in user if present.
-            let name = state.consultantName;
-            if (!name && state.currentUser && people[state.currentUser]) name = state.currentUser;
-            if (name && !people[name]) name = ''; // chosen person filtered out
+            // Consultant mode follows the header "You ▾" identity — one selector for
+            // the whole app. Switch the header picker to view a different consultant.
+            let name = state.currentUser;
+            if (name && !people[name]) name = ''; // your identity filtered out of this view
 
-            // The person picker now lives at the mode level (renderConsultantPicker),
-            // shown on both the Portfolio and Worklist tabs — this view just renders
-            // the chosen consultant's body into its container.
             if (!name) {
                 container.innerHTML = `
                     <div style="padding:50px 20px;text-align:center;color:var(--muted);">
                         <i class="fas fa-id-badge" style="font-size:26px;opacity:0.3;display:block;margin-bottom:12px;"></i>
-                        Select a consultant above to see their campaign portfolio, pacing and next actions.
-                        ${names.length ? `<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">${names.slice(0, 12).map(n => `<button onclick="setConsultant('${n.replace(/'/g, "\\'")}')" class="board-tag" style="cursor:pointer;background:rgba(99,102,241,0.12);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3);padding:5px 10px;">${n}</button>`).join('')}</div>` : ''}
+                        Pick a consultant from the <strong>You ▾</strong> menu (top-right) to see their campaign portfolio, pacing and next actions.
+                        ${names.length ? `<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">${names.slice(0, 12).map(n => `<button onclick="setCurrentUser('${n.replace(/'/g, "\\'")}')" class="board-tag" style="cursor:pointer;background:rgba(99,102,241,0.12);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3);padding:5px 10px;">${n}</button>`).join('')}</div>` : ''}
                     </div>`;
                 return;
             }
@@ -5129,16 +5075,10 @@
             const consultantContainer = document.getElementById('consultant-container');
             const hygieneContainer = document.getElementById('hygiene-container');
             const csKpiStrip = document.getElementById('cs-kpi-strip');
-            const personBar = document.getElementById('consultant-person-bar');
             // Hide every view container by default; the active branch re-shows its own.
             if (consultantContainer) consultantContainer.style.display = 'none';
             if (hygieneContainer) hygieneContainer.style.display = 'none';
             if (csKpiStrip) csKpiStrip.style.display = 'none';
-            // The consultant person picker spans both tabs of Consultant mode.
-            if (personBar) {
-                if (state.mode === 'consultant') { personBar.style.display = 'block'; renderConsultantPicker(filtered); }
-                else personBar.style.display = 'none';
-            }
             if (state.viewMode === 'hygiene') {
                 gridContainer.style.display = 'none';
                 if (auditorTable) auditorTable.style.display = 'none';
@@ -7145,7 +7085,7 @@ ${JSON.stringify(contextData)}`;
                     element: '#user-selector',
                     popover: {
                         title: '👤 Select Yourself',
-                        description: 'Choose your name to scope the Today view to your tasks and highlight your rows in all views.',
+                        description: 'Choose your name to scope the Worklist to your tasks and highlight your rows in all views. In Consultant mode this also picks whose Portfolio you see — switch it to view another consultant.',
                     }
                 },
                 {
