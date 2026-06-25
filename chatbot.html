@@ -9952,7 +9952,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             11. get_ga4_report: For Google Analytics (sessions, totalUsers, conversions). GA4 metric names are exact — use 'totalUsers' (NOT 'users'), 'screenPageViews' (NOT 'pageviews'), 'averageSessionDuration' (NOT 'avgSessionDuration').
             12. get_ads_report: For Google Ads performance (cost, CPC, ROAS).
             12b. get_ads_change_history: Pull Google Ads CHANGE HISTORY (who changed what, when) and flag campaigns/accounts NOT optimised recently. Use for any "change history", "recent optimisations", "who edited this account", or "which campaigns haven't been touched lately" request. Defaults to flagging anything with no agency change (email contains 'mediaone.co') in 14 days; only the last 30 days of history exist.
-            13. save_memory_note: STRICT MANDATE. Use this whenever you learn a new preference, fact, or logic about the user or their projects. Always include a "tag" field (one of: "Preference", "Strategy", "Fact", "Process", "Constraint") and a "teams" array (one or more of: "SEO", "SEM", "SMM", "BD", "Everyone" — use multiple if the memory applies to multiple teams, use ["Everyone"] if broad).
+            13. save_memory_note: Persist DURABLE knowledge ONLY — things that CANNOT be re-pulled from a connector: a user preference/instruction, a strategic decision and its rationale, client relationship/request/context, a reusable workflow, or a stable ID mapping (which account/site ID belongs to which client). Always include a "tag" field (one of: "Preference", "Strategy", "Fact", "Process", "Constraint") and a "teams" array (one or more of: "SEO", "SEM", "SMM", "BD", "Everyone" — use multiple if the memory applies to multiple teams, use ["Everyone"] if broad). DO NOT save point-in-time connector data you can re-fetch on demand — keyword positions/volumes/CPC, GA4 / Google Ads / Meta / LinkedIn / TikTok metrics, live SERP results, backlink or Domain-Rating counts, or Monday board item counts/statuses. If a note is essentially a metric snapshot, skip it and re-pull when needed.
             14. get_seranking_report: Fetch keyword rankings and positions for a specific SE Ranking campaign. You MUST use this tool when the user asks about SEO keywords, rankings, or SE Ranking data.
             14b. get_seranking_backlinks: Fetch the backlinks tracked in a SE Ranking campaign's Backlink Monitoring (total backlinks, referring domains, dofollow/nofollow split, sample links). Use the site_id from 'loaded_seranking_campaigns'. If a campaign returns no backlinks, fall back to dataforseo_backlinks_summary or get_ahrefs_report using the campaign's domain.
             15. get_meta_ads_report: Fetch Meta (Facebook/Instagram) Ads performance data — spend, impressions, clicks, CTR, CPM, CPC, ROAS, results, and cost per result. Use this whenever the user asks about Meta Ads, Facebook Ads, Instagram Ads, or paid social performance. The ad_account_id values are in the synced context under 'meta_ad_account_ids'.
@@ -12741,10 +12741,17 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     // that haven't synced yet, and drop anything we've tombstoned.
                     const cloudArr = body.insights;
                     const cloudIds = new Set(cloudArr.map(i => String(i.id)));
+                    // Honour the server's persistent tombstones. Without this, a
+                    // local copy of a server-deleted item counts as "local-only"
+                    // and gets re-pushed, resurrecting it for everyone. We fold the
+                    // cloud tombstones into our own store so this browser stops
+                    // resurrecting them and converges to the cleaned set.
+                    const cloudTomb = Array.isArray(body.deleted_ids) ? body.deleted_ids.map(String) : [];
+                    cloudTomb.forEach(addDeletedInsightId);
+                    const tomb = new Set([...getDeletedInsightIds().map(String), ...cloudTomb]);
                     const localOnly = learnedInsights.filter(
-                        i => i && i.id != null && !cloudIds.has(String(i.id))
+                        i => i && i.id != null && !cloudIds.has(String(i.id)) && !tomb.has(String(i.id))
                     );
-                    const tomb = new Set(getDeletedInsightIds().map(String));
                     let merged = [...localOnly, ...cloudArr].filter(
                         i => i && i.id != null && !tomb.has(String(i.id))
                     );
@@ -12755,7 +12762,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     // contributed local-only items, so the cloud catches up.
                     const fixed = normalizeAllInsights();
                     localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
-                    if (fixed || localOnly.length || tomb.size) pushInsightsToCloud();
+                    if (fixed || localOnly.length) pushInsightsToCloud();
                     renderInsights();
                 }
             } catch (err) {

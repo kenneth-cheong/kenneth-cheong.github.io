@@ -222,9 +222,18 @@ def handle_save_insights(db, body, headers):
     # client (especially the shared "global_shared_insights" doc) clobber items
     # added/edited by other sessions since its last pull. We union the stored
     # array with the incoming one (incoming wins on id collision), then apply
-    # explicit tombstones so real deletions still propagate.
+    # tombstones so real deletions still propagate.
     existing_doc = db.insights.find_one({"email": email.lower()}) or {}
     existing = existing_doc.get('insights', [])
+
+    # PERSISTENT tombstones. Deletions used to live only in the deleting browser's
+    # localStorage, so a different (or stale) client that still held the item would
+    # re-push it on its next sync and resurrect it for everyone. We now persist the
+    # tombstone set on the shared doc and union prior + incoming ids, so once an id
+    # is deleted it stays deleted no matter who pushes a stale copy later.
+    tombstones = set(str(t) for t in existing_doc.get('deleted_ids', []))
+    for did in (deleted_ids or []):
+        tombstones.add(str(did))
 
     merged = {}
     for ins in existing:
@@ -234,24 +243,37 @@ def handle_save_insights(db, body, headers):
         if isinstance(ins, dict) and 'id' in ins:
             merged[str(ins['id'])] = ins  # incoming wins (edits/new)
 
-    for did in (deleted_ids or []):
-        merged.pop(str(did), None)
+    for did in tombstones:
+        merged.pop(did, None)
 
     insights = list(merged.values())
+    # Cap the tombstone list so it cannot grow without bound (ids are unique
+    # timestamps, so dropping the oldest can never collide with a live item).
+    tomb_list = sorted(tombstones)[-3000:]
 
     db.insights.update_one(
         {"email": email.lower()},
-        {"$set": {"insights": insights, "updated_at": datetime.utcnow()}},
+        {"$set": {"insights": insights, "deleted_ids": tomb_list,
+                  "updated_at": datetime.utcnow()}},
         upsert=True
     )
-    return response(200, {"status": "success", "insights": insights}, headers)
+    return response(200, {"status": "success", "insights": insights,
+                          "deleted_ids": tomb_list}, headers)
 
 def handle_get_insights(db, body, headers):
     email = body.get('email')
     if not email:
         return response(400, {"error": "Email missing"}, headers)
     doc = db.insights.find_one({"email": email.lower()})
-    return response(200, {"insights": doc.get('insights', []) if doc else []}, headers)
+    if not doc:
+        return response(200, {"insights": [], "deleted_ids": []}, headers)
+    # Defensively strip tombstoned ids (in case an old write left them in the
+    # array) and hand the tombstone list back so clients can converge their own
+    # localStorage instead of re-pushing deleted items.
+    tombstones = set(str(t) for t in doc.get('deleted_ids', []))
+    items = [i for i in doc.get('insights', [])
+             if not (isinstance(i, dict) and str(i.get('id')) in tombstones)]
+    return response(200, {"insights": items, "deleted_ids": sorted(tombstones)}, headers)
 
 def handle_save_app_setting(db, body, headers):
     # Shared, account-wide key/value settings (one doc per name, NOT scoped to a user)

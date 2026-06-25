@@ -2151,11 +2151,20 @@ def claude_chat_with_tools(body):
         },
         {
             "name": "save_memory_note",
-            "description": "STRICT MANDATE. Use this tool whenever you learn a new preference, fact, or logic about the user or their projects to remember for future sessions.",
+            "description": (
+                "Persist a DURABLE insight for future sessions. Use ONLY for knowledge that "
+                "CANNOT be re-pulled from a connector: user preferences/instructions, strategic "
+                "decisions and their rationale, client relationships/requests/context, reusable "
+                "workflows, and stable ID mappings (e.g. which account/site ID belongs to a client). "
+                "DO NOT save point-in-time data that a tool can re-fetch on demand — keyword "
+                "positions/volumes/CPC, GA4 / Google Ads / Meta / LinkedIn / TikTok metrics, live "
+                "SERP results, backlink or Domain-Rating counts, or Monday board item counts/statuses. "
+                "If a note is essentially a metric snapshot, do NOT save it; re-pull it when needed."
+            ),
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "text": {"type": "string", "description": "The specific insight to remember (e.g., 'User prefers tables for SEO data')."},
+                    "text": {"type": "string", "description": "The specific durable insight to remember (e.g., 'User prefers tables for SEO data'). Must NOT be a re-pullable metric snapshot."},
                     "tag": {"type": "string", "enum": ["Preference", "Project Logic", "Fact", "General"], "description": "Category of the memory."}
                 },
                 "required": ["text", "tag"]
