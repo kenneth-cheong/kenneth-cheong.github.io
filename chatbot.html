@@ -10156,6 +10156,16 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             - Emit at most one [PROPOSE: ...] per response.
 
             ════════════════════════════════════════════════
+            ARCHIVE FINDINGS TO THE MONDAY BOARD — OFFER, DON'T AUTO-DO
+            ════════════════════════════════════════════════
+            When the conversation has been working against ONE specific campaign Monday board and has produced something worth keeping — an analysis, a set of recommendations, a decision, or a status recap — proactively OFFER in one short line to log a summary to that board so the team sees it in context (e.g. "Want me to log this summary to the [board] board?"). Never do it unsolicited; only act once the user says yes.
+            When the user accepts, use the monday_graphql tool against the board currently in focus (use the loaded/selected board_id — NEVER guess one) and follow this flow:
+              1. List the board's groups (\`groups { id title }\`) and choose the most relevant one; if unsure, say which group you'll use and default to the top group.
+              2. Find-or-create a single recurring item named exactly "AI Chatbot Discussions" in that group: query the group's items first and reuse its id if it already exists, otherwise create_item it.
+              3. Post the recap as an UPDATE on that item with create_update. Open the body with a dated heading (e.g. "AI Chatbot summary — <today's date>"), then a concise recap of the key findings and any recommended next steps — not the whole transcript. Keep the body on one line, escape any double-quotes inside it, and use <br> for line breaks (Monday renders the body as HTML).
+            Steps 2–3 WRITE to Monday, so they go through the [PROPOSE: ...] gate above: propose the create-item + post-update in one line and only run the mutations after approval. Listing groups/items (reads) need no proposal. See the create_item / create_update templates in the MONDAY.COM GRAPHQL RULES below.
+
+            ════════════════════════════════════════════════
             DIGIMETRICS PLATFORM TOOLS — PROACTIVE RECOMMENDATIONS
             ════════════════════════════════════════════════
             The full Digimetrics platform lives at https://app.digimetrics.ai. You MUST proactively recommend the relevant tool whenever a user's question maps to one — answer their question first, then add a short recommendation at the end. Use this trigger→tool mapping:
@@ -10337,6 +10347,10 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
               • Items by column value: \`{ boards(ids: [BOARD_ID]) { items_page_by_column_values(board_id: BOARD_ID, columns: [{column_id: "status", column_values: ["Done"]}]) { cursor items { id name column_values { id text value } } } } }\`
               • Updates on an item: \`{ items(ids: [ITEM_ID]) { updates(limit: 5) { id body created_at creator { id name } } } }\`
               • Updates WITH their replies (use this whenever the user asks about replies, comment threads, or responses to an update): \`{ items(ids: [ITEM_ID]) { updates(limit: 5) { id body created_at creator { id name } replies { id body created_at creator { id name } } } } }\`
+              • List a board's groups: \`{ boards(ids: [BOARD_ID]) { groups { id title } } }\`
+              • Items within one group (e.g. to find an existing item by name): \`{ boards(ids: [BOARD_ID]) { groups(ids: ["GROUP_ID"]) { items_page(limit: 50) { items { id name } } } }\`
+              • Create an item in a group (MUTATION): \`mutation { create_item(board_id: BOARD_ID, group_id: "GROUP_ID", item_name: "AI Chatbot Discussions") { id } }\`
+              • Post an update on an item (MUTATION): \`mutation { create_update(item_id: ITEM_ID, body: "<b>AI Chatbot summary — 2026-06-25</b><br>line one<br>line two") { id } }\` — body is a one-line GraphQL string with any inner double-quotes escaped; Monday renders it as HTML so use <br>, <b>, <ul>/<li> for structure.
 
             GRACEFUL ERROR HANDLING:
             - Ahrefs: if get_ahrefs_report returns {"error":"Not found"} (or similar), do NOT crash or fabricate — reply with a graceful message like "That domain isn't indexed in Ahrefs yet." and offer an alternative.
@@ -11228,8 +11242,8 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             if (cardEl) cardEl.innerHTML = '<div class="action-propose-text" style="color:#94a3b8; margin:0;"><i class="fas fa-times"></i> Dismissed — I won\'t do that.</div>';
         }
 
-        // ── Export answer tables to Excel (SheetJS) ───────────────────────────
-        // Any <table> inside a bot reply gets an "Export to Excel" button. Works on
+        // ── Export answer tables (Excel / CSV / PDF / Google Sheet) ───────────
+        // Any <table> inside a bot reply gets an "Export ▾" dropdown. Works on
         // restored messages too; idempotent via the data-xlsx-ready flag.
         function cbAddTableExports(msgEl) {
             try {
@@ -11239,33 +11253,187 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 content.querySelectorAll('table').forEach(table => {
                     if (table.dataset.xlsxReady) return;
                     table.dataset.xlsxReady = '1';
-                    const bar = document.createElement('div');
-                    bar.style.cssText = 'display:flex;justify-content:flex-end;margin:4px 0 2px;';
-                    const btn = document.createElement('button');
-                    btn.type = 'button';
-                    btn.innerHTML = '<i class="fas fa-file-excel"></i> Export to Excel';
-                    btn.style.cssText = 'display:inline-flex;align-items:center;gap:6px;font-size:0.7rem;font-weight:600;color:#fff;background:#1d6f42;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;';
-                    btn.addEventListener('click', () => cbExportTableToXlsx(table, btn));
-                    bar.appendChild(btn);
-                    table.parentNode.insertBefore(bar, table);
+                    table.parentNode.insertBefore(cbBuildExportMenu(table), table);
                 });
-            } catch (e) { console.warn('[XLSX export] setup failed:', e); }
+            } catch (e) { console.warn('[table export] setup failed:', e); }
+        }
+
+        // Builds the "Export ▾" button + dropdown menu for a single table.
+        function cbBuildExportMenu(table) {
+            const bar = document.createElement('div');
+            bar.style.cssText = 'display:flex;justify-content:flex-end;margin:4px 0 2px;';
+
+            const wrap = document.createElement('div');
+            wrap.style.cssText = 'position:relative;display:inline-block;';
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.innerHTML = '<i class="fas fa-download"></i> Export <i class="fas fa-caret-down" style="margin-left:2px;"></i>';
+            btn.style.cssText = 'display:inline-flex;align-items:center;gap:6px;font-size:0.7rem;font-weight:600;color:#fff;background:#1d6f42;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;';
+
+            const menu = document.createElement('div');
+            menu.style.cssText = 'display:none;position:absolute;right:0;top:calc(100% + 4px);background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 6px 20px rgba(15,23,42,0.15);padding:4px;z-index:50;min-width:170px;';
+
+            const items = [
+                { icon: 'fa-file-excel',  color: '#1d6f42', label: 'Excel (.xlsx)',  fn: () => cbExportTableToXlsx(table, btn) },
+                { icon: 'fa-file-csv',    color: '#0f766e', label: 'CSV (.csv)',     fn: () => cbExportTableToCsv(table) },
+                { icon: 'fa-file-pdf',    color: '#b91c1c', label: 'PDF',            fn: () => cbExportTableToPdf(table) },
+                { icon: 'fa-table',       color: '#188038', label: 'Google Sheet',   fn: () => cbExportTableToGoogleSheet(table, btn) }
+            ];
+            items.forEach(it => {
+                const mi = document.createElement('button');
+                mi.type = 'button';
+                mi.innerHTML = `<i class="fas ${it.icon}" style="color:${it.color};width:16px;text-align:center;"></i> ${it.label}`;
+                mi.style.cssText = 'display:flex;align-items:center;gap:8px;width:100%;text-align:left;font-size:0.72rem;font-weight:500;color:#1e293b;background:none;border:none;border-radius:6px;padding:7px 10px;cursor:pointer;';
+                mi.addEventListener('mouseenter', () => mi.style.background = '#f1f5f9');
+                mi.addEventListener('mouseleave', () => mi.style.background = 'none');
+                mi.addEventListener('click', () => { menu.style.display = 'none'; it.fn(); });
+                menu.appendChild(mi);
+            });
+
+            const closeMenu = (e) => { if (!wrap.contains(e.target)) { menu.style.display = 'none'; document.removeEventListener('click', closeMenu); } };
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const open = menu.style.display === 'block';
+                menu.style.display = open ? 'none' : 'block';
+                if (!open) setTimeout(() => document.addEventListener('click', closeMenu), 0);
+            });
+
+            wrap.appendChild(btn);
+            wrap.appendChild(menu);
+            bar.appendChild(wrap);
+            return bar;
+        }
+
+        function cbExportStamp() { return new Date().toISOString().slice(0, 10); }
+
+        function cbFlashBtn(btn, label) {
+            if (!btn) return;
+            const orig = btn.innerHTML;
+            btn.innerHTML = `<i class="fas fa-check"></i> ${label}`;
+            setTimeout(() => { btn.innerHTML = orig; }, 1800);
         }
 
         function cbExportTableToXlsx(table, btn) {
             try {
                 if (typeof XLSX === 'undefined') { alert('Excel export library is still loading — try again in a moment.'); return; }
                 const wb = XLSX.utils.table_to_book(table, { sheet: 'Data', raw: true });
-                const stamp = new Date().toISOString().slice(0, 10);
-                XLSX.writeFile(wb, `digimetrics-${stamp}.xlsx`);
-                if (btn) {
-                    const orig = btn.innerHTML;
-                    btn.innerHTML = '<i class="fas fa-check"></i> Downloaded';
-                    setTimeout(() => { btn.innerHTML = orig; }, 1800);
-                }
+                XLSX.writeFile(wb, `digimetrics-${cbExportStamp()}.xlsx`);
+                cbFlashBtn(btn, 'Downloaded');
             } catch (e) {
                 console.error('[XLSX export] failed:', e);
                 alert('Sorry, could not export this table to Excel.');
+            }
+        }
+
+        function cbExportTableToCsv(table) {
+            try {
+                if (typeof XLSX === 'undefined') { alert('Export library is still loading — try again in a moment.'); return; }
+                const wb = XLSX.utils.table_to_book(table, { sheet: 'Data', raw: true });
+                const csv = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]);
+                const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `digimetrics-${cbExportStamp()}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            } catch (e) {
+                console.error('[CSV export] failed:', e);
+                alert('Sorry, could not export this table to CSV.');
+            }
+        }
+
+        function cbExportTableToPdf(table) {
+            try {
+                const win = window.open('', '_blank');
+                if (!win) { alert('Please allow pop-ups to export as PDF.'); return; }
+                win.document.write(`<!doctype html><html><head><title>digimetrics-${cbExportStamp()}</title>
+<style>
+  body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:24px;color:#1e293b;}
+  table{border-collapse:collapse;width:100%;font-size:12px;}
+  th,td{border:1px solid #cbd5e1;padding:6px 10px;text-align:left;vertical-align:top;}
+  thead th{background:#1e293b;color:#f1f5f9;}
+  tbody tr:nth-child(even){background:#f8fafc;}
+</style></head><body>${table.outerHTML}</body></html>`);
+                win.document.close();
+                win.focus();
+                // Give the new document a tick to lay out before invoking print.
+                setTimeout(() => { try { win.print(); } catch (_) {} }, 350);
+            } catch (e) {
+                console.error('[PDF export] failed:', e);
+                alert('Sorry, could not export this table to PDF.');
+            }
+        }
+
+        // Drive write token (drive.file). Cached in-memory for its lifetime so a
+        // user only consents once per session, not once per export.
+        let _driveToken = null, _driveTokenExpires = 0, _driveTokenClient = null;
+        function cbGetDriveToken() {
+            return new Promise((resolve, reject) => {
+                if (_driveToken && Date.now() < _driveTokenExpires - 60000) { resolve(_driveToken); return; }
+                if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
+                    reject(new Error('Google Identity Services not loaded')); return;
+                }
+                const clientId = _googleClientId
+                    || (document.getElementById('googleClientId') && document.getElementById('googleClientId').value.trim())
+                    || '1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com';
+                if (!_driveTokenClient) {
+                    _driveTokenClient = google.accounts.oauth2.initTokenClient({
+                        client_id: clientId,
+                        scope: 'https://www.googleapis.com/auth/drive.file',
+                        callback: () => {} // replaced per-request below
+                    });
+                }
+                _driveTokenClient.callback = (resp) => {
+                    if (resp && resp.access_token) {
+                        _driveToken = resp.access_token;
+                        _driveTokenExpires = Date.now() + ((resp.expires_in || 3600) * 1000);
+                        resolve(_driveToken);
+                    } else {
+                        reject(new Error((resp && resp.error) || 'Authorization failed'));
+                    }
+                };
+                _driveTokenClient.requestAccessToken({ prompt: _driveToken ? '' : 'consent' });
+            });
+        }
+
+        async function cbExportTableToGoogleSheet(table, btn) {
+            if (typeof XLSX === 'undefined') { showToast('Export library is still loading — try again in a moment.', 'error'); return; }
+            try {
+                showToast('Authorising Google Drive…', 'loading');
+                const token = await cbGetDriveToken();
+                showToast('Creating Google Sheet…', 'loading');
+
+                // Build an .xlsx in memory, then let Drive convert it to a native Sheet.
+                const wb = XLSX.utils.table_to_book(table, { sheet: 'Data', raw: true });
+                const xlsxArray = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+
+                const boundary = '-------dm' + cbExportStamp() + Math.round(performance.now());
+                const meta = { name: `digimetrics-${cbExportStamp()}`, mimeType: 'application/vnd.google-apps.spreadsheet' };
+                const head = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n` +
+                             `--${boundary}\r\nContent-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\r\n`;
+                const foot = `\r\n--${boundary}--`;
+                const body = new Blob([head, new Uint8Array(xlsxArray), foot], { type: 'multipart/related; boundary=' + boundary });
+
+                const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'multipart/related; boundary=' + boundary },
+                    body
+                });
+                const data = await res.json();
+                if (!res.ok || !data.id) {
+                    throw new Error((data.error && data.error.message) || `HTTP ${res.status}`);
+                }
+                const link = data.webViewLink || `https://docs.google.com/spreadsheets/d/${data.id}/edit`;
+                showToast('Google Sheet created — opening…', 'success');
+                window.open(link, '_blank');
+                cbFlashBtn(btn, 'Sheet created');
+            } catch (e) {
+                console.error('[Google Sheet export] failed:', e);
+                showToast('Could not create Google Sheet: ' + (e.message || 'error'), 'error');
             }
         }
 
