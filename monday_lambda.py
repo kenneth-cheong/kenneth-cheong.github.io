@@ -1135,6 +1135,105 @@ def search_google_chat_messages_standard(access_token, query, order_by="CREATE_T
     except Exception as e:
         return {"error": str(e)}
 
+def get_calendar_freebusy(access_token, emails, time_min=None, time_max=None, timezone_name="Asia/Singapore"):
+    """Look up Google Calendar free/busy for one or more colleagues.
+
+    Rides on the same Workspace OAuth token (the calendar.readonly scope is now
+    part of the Workspace consent). Returns, per email, the busy {start,end}
+    intervals inside the requested window, plus a `visible` flag that is False
+    when that person's calendar isn't shared with the requesting user (Google's
+    freeBusy reports a per-calendar `notFound`/`notACalendarUser` error in that
+    case). This is AVAILABILITY ONLY — freeBusy never exposes event titles,
+    locations, or attendees, so it's safe to surface for any colleague.
+    """
+    if not access_token:
+        return {"error": "google_auth_expired", "auth_expired": True,
+                "message": "No Google access token was supplied. Ask the user to connect Google Workspace in Settings."}
+
+    # Accept a single string ("a@x.com, b@x.com") or a list.
+    if isinstance(emails, str):
+        emails = [e.strip() for e in emails.replace(";", ",").split(",")]
+    emails = [e for e in (emails or []) if e and "@" in e]
+    if not emails:
+        return {"error": "no_emails", "message": "No valid colleague email addresses were provided."}
+    emails = emails[:25]  # freeBusy hard-caps the items list
+
+    def _coerce(ts, day_end=False):
+        """Best-effort RFC3339. Tolerates date-only and offset-less inputs."""
+        if not ts:
+            return None
+        ts = str(ts).strip()
+        if "T" not in ts:  # date only → expand to a full-day bound
+            ts += "T23:59:59" if day_end else "T00:00:00"
+        # If no timezone offset present, assume UTC.
+        if not (ts.endswith("Z") or "+" in ts[11:] or ts[11:].count("-") > 0):
+            ts += "Z"
+        return ts
+
+    now = datetime.now(timezone.utc)
+    tmin = _coerce(time_min) or now.isoformat().replace("+00:00", "Z")
+    tmax = _coerce(time_max, day_end=True) or (now + timedelta(days=7)).isoformat().replace("+00:00", "Z")
+
+    payload = {
+        "timeMin": tmin,
+        "timeMax": tmax,
+        "timeZone": timezone_name or "Asia/Singapore",
+        "items": [{"id": e} for e in emails],
+    }
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+
+    try:
+        r = requests.post("https://www.googleapis.com/calendar/v3/freeBusy",
+                          headers=headers, json=payload, timeout=20)
+        if r.status_code in (401, 403):
+            # Distinguish an expired token from a token that simply lacks the
+            # newly-added calendar scope — both need a reconnect, but the message
+            # should tell the user to re-grant the calendar permission.
+            return {
+                "error": "google_calendar_auth",
+                "auth_expired": True,
+                "message": ("Calendar access isn't available on the current Google session. "
+                            "Ask the user to reconnect Google Workspace (Settings → Connections "
+                            "→ Google Workspace) and approve the Calendar permission, then retry."),
+                "detail": r.text[:300],
+            }
+        if r.status_code != 200:
+            return {"error": f"Google Calendar API HTTP {r.status_code}", "detail": r.text[:500]}
+
+        data = r.json()
+        cals = data.get("calendars", {}) or {}
+        results = []
+        for email in emails:
+            entry = cals.get(email, {}) or {}
+            errs = entry.get("errors") or []
+            if errs:
+                reason = errs[0].get("reason", "unknown")
+                results.append({
+                    "email": email,
+                    "visible": False,
+                    "reason": reason,
+                    "note": ("Calendar not shared with you or no such user."
+                             if reason in ("notFound", "notACalendarUser")
+                             else f"Calendar error: {reason}"),
+                })
+            else:
+                busy = entry.get("busy", []) or []
+                results.append({
+                    "email": email,
+                    "visible": True,
+                    "busy": busy,
+                    "free": len(busy) == 0,
+                })
+        return {
+            "window": {"timeMin": tmin, "timeMax": tmax, "timeZone": payload["timeZone"]},
+            "availability": results,
+            "note": ("Times are RFC3339 in the requested timezone. 'busy' lists the only "
+                     "occupied intervals; all other time in the window is free. This is "
+                     "free/busy only — no event titles or details are exposed."),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
 def run_google_ads_report(customer_id, query, token):
     url = f"https://googleads.googleapis.com/v22/customers/{customer_id}/googleAds:searchStream"
     headers = {
@@ -1473,6 +1572,7 @@ TOOL_LABELS = {
     "get_ahrefs_report":               "Fetching Ahrefs data",
     "get_moz_da":                      "Fetching Moz DA/PA",
     "search_knowledge_base":           "Searching knowledge base",
+    "check_calendar_availability":     "Checking calendar availability",
     "analyze_image":                   "Reading image with Claude",
 }
 
@@ -2302,6 +2402,45 @@ def claude_chat_with_tools(body):
                     "top_k": {"type": "integer", "description": "How many matches to return (1-10). Defaults to 4."}
                 },
                 "required": ["query"]
+            }
+        },
+        {
+            "name": "check_calendar_availability",
+            "description": (
+                "Check the Google Calendar AVAILABILITY (free/busy) of one or more colleagues by email. "
+                "Use this when the user asks things like 'is Tom free this afternoon?', 'when is Natalie "
+                "available tomorrow?', 'find a 30-min slot Nathan and I both have on Thursday', or 'who's "
+                "free for a 3pm meeting?'. It returns only busy/free time blocks — never event titles, "
+                "locations, or attendees — so it is safe for any colleague whose calendar is shared. "
+                "Provide the time window as RFC3339 timestamps; today's date is given in the system prompt, "
+                "so compute concrete start/end times from relative phrases ('tomorrow', 'this week'). The "
+                "default timezone is Asia/Singapore. If a colleague's calendar isn't shared, the result "
+                "marks them visible:false with a reason — relay that rather than guessing their schedule. "
+                "If the result says calendar access isn't available, tell the user to reconnect Google "
+                "Workspace and approve the Calendar permission."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "emails": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "One or more colleague email addresses to check (e.g. ['tom@mediaone.co'])."
+                    },
+                    "start_time": {
+                        "type": "string",
+                        "description": "Window start as RFC3339 (e.g. '2026-06-26T09:00:00+08:00') or a date 'YYYY-MM-DD'. Defaults to now."
+                    },
+                    "end_time": {
+                        "type": "string",
+                        "description": "Window end as RFC3339 or date 'YYYY-MM-DD'. Defaults to 7 days after start."
+                    },
+                    "timezone": {
+                        "type": "string",
+                        "description": "IANA timezone for the window and results. Defaults to 'Asia/Singapore'."
+                    }
+                },
+                "required": ["emails"]
             }
         }
     ]
@@ -3229,6 +3368,25 @@ def claude_chat_with_tools(body):
                             "content":     json.dumps(result_data)
                         })
                         tool_call_log.append(f"Searched knowledge base for: {kb_query}")
+
+                    elif tool_name == "check_calendar_availability":
+                        # Calendar free/busy rides on the Workspace token (calendar.readonly scope).
+                        cal_token = (body.get('google_tokens', {}).get('calendar')
+                                     or body.get('google_tokens', {}).get('workspace')
+                                     or body.get('google_access_token'))
+                        cal_emails = tool_input.get("emails") or []
+                        cal_start = tool_input.get("start_time")
+                        cal_end = tool_input.get("end_time")
+                        cal_tz = tool_input.get("timezone", "Asia/Singapore")
+                        print(f"[TOOLS] Calendar free/busy for {cal_emails}")
+                        result_data = get_calendar_freebusy(cal_token, cal_emails, cal_start, cal_end, cal_tz)
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     json.dumps(result_data)
+                        })
+                        _who = ", ".join(cal_emails) if isinstance(cal_emails, list) else str(cal_emails)
+                        tool_call_log.append(f"Checked calendar availability for {_who}")
 
                     elif tool_name == "analyze_image":
                         # DeepSeek vision bridge: run Claude's vision on a stored image.
