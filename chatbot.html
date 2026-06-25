@@ -10173,41 +10173,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             - If multiple campaigns are loaded, fetch all of them and combine the results.
 
             LEARNED MEMORIES (Context):
-            ${(() => {
-                const ut = localStorage.getItem('userTeam') || '';
-                const teamOk = (i) => { const tm = i.teams || (i.team ? [i.team] : ['Everyone']); return !ut || ut === 'Everyone' || tm.includes('Everyone') || tm.includes(ut); };
-                const pool = learnedInsights.filter(teamOk);
-                // Active-context terms: the current question + loaded boards + SE Ranking campaigns.
-                let ctx = (typeof text === 'string' ? text : '').toLowerCase();
-                try { (window.activeBoards || []).forEach(b => { ctx += ' ' + String(b.name || '').toLowerCase(); }); } catch (e) {}
-                try { const sc = JSON.parse(localStorage.getItem('syncedContext') || '{}'); (sc.loaded_seranking_campaigns || []).forEach(c => { ctx += ' ' + String(c.title || '').toLowerCase() + ' ' + String(c.domain || '').toLowerCase(); }); } catch (e) {}
-                const STOP = new Set(['this','that','with','from','have','what','about','when','your','their','client','clients','report','reports','please','google','singapore','keyword','keywords','campaign','campaigns','data','page','pages','show','give','need','want','analysis','analyse','analyze','update','updated','content','search','social','media','account','accounts','performance','today','month','metrics','please']);
-                const terms = new Set((ctx.match(/[a-z0-9][a-z0-9'&.-]{3,}/g) || []).filter(w => !STOP.has(w)));
-                const recency = (i) => parseFloat(i.id) || 0;
-                const byRecent = (a, b) => recency(b) - recency(a);
-                const ALWAYS = new Set(['Preference','Constraint','Process']);
-                // A note is client-specific if it carries a campaign code, domain, or board/account/site id.
-                const CLIENT_RE = /\d{2}-\d{2}\/[a-z]{2,}|\bboard\b|customer\s*id|site[_\s]*id|account\s*id|[a-z0-9][a-z0-9-]*\.(com|sg|net|org|io|co)\b/i;
-                const isClient = (i) => CLIENT_RE.test(i.text || '');
-                // Always-on: preferences/constraints/process + any non-client-specific rule.
-                const alwaysOn = pool.filter(i => ALWAYS.has(i.tag) || !isClient(i))
-                    .sort((a, b) => ((ALWAYS.has(b.tag) ? 1 : 0) - (ALWAYS.has(a.tag) ? 1 : 0)) || byRecent(a, b))
-                    .slice(0, 25);
-                const alwaysIds = new Set(alwaysOn.map(i => i.id));
-                // Contextual: client-specific notes, kept only when relevant to the active context.
-                const score = (i) => { const t = (i.text || '').toLowerCase(); let s = 0; terms.forEach(w => { if (t.includes(w)) s++; }); return s; };
-                let contextual = pool.filter(i => !alwaysIds.has(i.id));
-                if (terms.size) {
-                    contextual = contextual.map(i => ({ i, s: score(i) })).filter(x => x.s > 0)
-                        .sort((a, b) => (b.s - a.s) || byRecent(a.i, b.i)).map(x => x.i);
-                } else {
-                    contextual = contextual.sort(byRecent);
-                }
-                contextual = contextual.slice(0, 12);
-                const chosen = [...alwaysOn, ...contextual];
-                const MAX_INSIGHT_CHARS = 400;
-                return JSON.stringify(chosen.map(i => { const tm = i.teams || (i.team ? [i.team] : ['Everyone']); const txt = (i.text || '').length > MAX_INSIGHT_CHARS ? i.text.slice(0, MAX_INSIGHT_CHARS) + '…' : (i.text || ''); return `[${i.tag}][Teams: ${tm.join('+')}] ${txt}`; }));
-            })()}
+            ${formatInsightsForPrompt(selectMemoriesForPrompt(typeof text === 'string' ? text : ''))}
             ${localStorage.getItem('userTeam') && localStorage.getItem('userTeam') !== 'Everyone' ? `USER'S TEAM: ${localStorage.getItem('userTeam')} — Only apply team-specific memories relevant to this team.` : ''}
 
             CURRENT CONTEXT:
@@ -10695,8 +10661,10 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 const responseProvider = data.provider || capturedProvider;
 
                 // Handle Automated Memory Updates
+                let pendingMemSaves = null;
                 if (data.memory_updates && data.memory_updates.length > 0) {
                     const currentUser = getCurrentUser();
+                    pendingMemSaves = [];
                     data.memory_updates.forEach(updateStr => {
                         try {
                             const jsonStr = updateStr.replace('MEM_SAVE: ', '');
@@ -10708,16 +10676,22 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                             // Coerce tag + teams into the canonical filter vocabulary
                             // (the AI sometimes invents tags like "Project Logic").
                             normalizeInsight(insight);
+                            // Peek for a near-duplicate so the in-chat chip can offer a real Undo.
+                            const dup = findDuplicateInsight(insight);
+                            const rec = dup
+                                ? { action: 'merged', id: dup.id, prev: { text: dup.text, tag: dup.tag, teams: [...(dup.teams || ['Everyone'])], date: dup.date }, text: insight.text }
+                                : { action: 'added', id: insight.id, prev: null, text: insight.text };
                             mergeOrAddInsight(insight); // update a near-duplicate in place instead of piling up
+                            pendingMemSaves.push(rec);
                         } catch (e) { console.error("Memory parsing error", e); }
                     });
                     localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
                     renderInsights();
                     pushInsightsToCloud(); // Auto-learned insights synced to cloud
-                    showToast('AI memory updated automatically', 'info');
                 }
 
                 addMessage("bot", reply, toolLog, null, false, null, thinkingText, responseProvider);
+                if (pendingMemSaves && pendingMemSaves.length) renderMemoryChips(pendingMemSaves); // P2: inline memory chips
 
                 // Self-continuation: the model stopped with work still pending. Post the
                 // partial message (above), then auto-send a hidden "continue" turn so the
@@ -12510,11 +12484,43 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
     </div>
 
     <!-- Learning Insights Modal -->
+    <style>
+        /* Memory UI: in-chat chips, groups, pins, bulk bar, preview */
+        .mem-chip-row { display:flex; flex-wrap:wrap; gap:6px; margin:2px 0 14px 0; padding-left:4px; }
+        .mem-chip { display:flex; align-items:center; gap:8px; background:#eef2ff; border:1px solid #c7d2fe; color:#3730a3; border-radius:10px; padding:6px 10px; font-size:0.72rem; max-width:100%; }
+        .mem-chip .mem-chip-txt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:360px; }
+        .mem-chip button { background:#fff; color:#4338ca; border:1px solid #c7d2fe; border-radius:6px; padding:2px 8px; font-size:0.68rem; font-weight:700; cursor:pointer; }
+        .mem-chip button:hover { background:#e0e7ff; }
+        .mem-chip button:disabled { opacity:0.6; cursor:default; }
+        .mem-chip.undone { background:#f1f5f9; border-color:#e2e8f0; color:#64748b; }
+        .insight-group { margin-bottom:10px; }
+        .insight-group-head { display:flex; align-items:center; gap:8px; cursor:pointer; padding:8px 10px; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:8px; }
+        .insight-group-head:hover { background:#e2e8f0; }
+        .insight-group-name { font-weight:800; font-size:0.78rem; color:#1e293b; }
+        .insight-group-count { margin-left:auto; background:#1e293b; color:#f1f5f9; border-radius:10px; padding:1px 8px; font-size:0.65rem; font-weight:700; }
+        .insight-group-body { padding-top:8px; display:flex; flex-direction:column; gap:10px; }
+        .insight-check { width:15px; height:15px; cursor:pointer; accent-color:#6366f1; flex:none; }
+        .insight-pin { border:none; background:transparent; color:#cbd5e1; cursor:pointer; font-size:0.72rem; padding:2px; }
+        .insight-pin.on, .insight-pin:hover { color:#f59e0b; }
+        .insight-card.pinned { border-left:3px solid #f59e0b; }
+        .insight-stale { background:#fef3c7; color:#92400e; border:1px solid #fde68a; border-radius:6px; padding:1px 6px; font-size:0.58rem; font-weight:700; text-transform:uppercase; }
+        .toast-undo-btn { margin-left:10px; background:#fff; color:#4338ca; border:1px solid #c7d2fe; border-radius:6px; padding:2px 10px; font-size:0.72rem; font-weight:700; cursor:pointer; }
+        #insightBulkBar { padding:10px 32px; background:#eef2ff; border-bottom:1px solid #e0e7ff; gap:10px; align-items:center; }
+        #insightBulkBar select, #insightBulkBar button { padding:5px 10px; border:1px solid #c7d2fe; border-radius:8px; font-size:0.74rem; font-weight:700; background:#fff; color:#4338ca; cursor:pointer; }
+        #insightBulkCount { font-weight:800; font-size:0.76rem; color:#3730a3; }
+        .prev-item { padding:4px 0; border-bottom:1px dashed #e2e8f0; color:#475569; line-height:1.4; }
+        .prev-tag { display:inline-block; background:#1e293b; color:#f1f5f9; border-radius:5px; padding:0 6px; font-size:0.6rem; font-weight:700; margin-right:6px; }
+    </style>
     <div id="learningModalOverlay" class="learning-modal-overlay" onclick="closeLearningModal()">
         <div class="learning-modal" onclick="event.stopPropagation()">
             <div class="learning-modal-header">
                 <h2><i class="fas fa-brain"></i> Learned Insights</h2>
                 <div style="display:flex; gap:12px;">
+                    <button class="btn btn-outline" onclick="openInjectionPreview()"
+                        title="Preview exactly which memories the bot would use for a given question"
+                        style="padding:6px 12px; font-size:0.75rem;">
+                        <i class="fas fa-eye"></i> Preview
+                    </button>
                     <button class="btn btn-outline" onclick="addSampleInsight()"
                         title="Add a custom note to AI memory"
                         style="padding:6px 12px; font-size:0.75rem;">
@@ -12588,6 +12594,39 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     <option value="za">Z → A</option>
                 </select>
                 <span id="insightCount" style="font-size: 0.72rem; color: #94a3b8; white-space: nowrap; padding-left: 4px;"></span>
+            </div>
+            <!-- Bulk action bar (U2) — appears when one or more cards are selected -->
+            <div id="insightBulkBar" style="display:none;">
+                <span id="insightBulkCount">0 selected</span>
+                <select onchange="if(this.value){bulkSetTag(this.value);this.value='';}" title="Set tag for selected">
+                    <option value="">Set tag…</option>
+                    <option value="Preference">Preference</option>
+                    <option value="Strategy">Strategy</option>
+                    <option value="Fact">Fact</option>
+                    <option value="Process">Process</option>
+                    <option value="Constraint">Constraint</option>
+                </select>
+                <select onchange="if(this.value){bulkSetTeam(this.value);this.value='';}" title="Set team for selected">
+                    <option value="">Set team…</option>
+                    <option value="Everyone">Everyone</option>
+                    <option value="SEO">SEO</option>
+                    <option value="SEM">SEM</option>
+                    <option value="SMM">SMM</option>
+                    <option value="BD">BD</option>
+                </select>
+                <button onclick="bulkDeleteInsights()" style="color:#b91c1c; border-color:#fecaca;"><i class="fas fa-trash"></i> Delete</button>
+                <button onclick="clearInsightSelection()">Clear</button>
+            </div>
+            <!-- Injection preview panel (U4) -->
+            <div id="insightPreviewPanel" style="display:none; padding:12px 32px; border-bottom:1px solid #f1f5f9; background:#fffbeb;">
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <input id="insightPreviewQuery" type="text" placeholder="Type a sample question to see exactly which memories the bot would use…"
+                        onkeydown="if(event.key==='Enter')runInjectionPreview()"
+                        style="flex:1; padding:8px 12px; border:1px solid #fde68a; border-radius:8px; font-size:0.82rem; font-family:inherit; background:#fff; color:#334155;">
+                    <button class="btn btn-primary" onclick="runInjectionPreview()" style="padding:8px 16px; font-size:0.78rem;">Preview</button>
+                    <button class="btn btn-outline" onclick="document.getElementById('insightPreviewPanel').style.display='none'" style="padding:8px 14px; font-size:0.78rem;">Close</button>
+                </div>
+                <div id="insightPreviewResult" style="margin-top:10px; font-size:0.78rem; max-height:220px; overflow:auto;"></div>
             </div>
             <div class="insights-list" id="insightsList">
                 <!-- Insights will be injected here -->
@@ -12728,6 +12767,223 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             }
             learnedInsights.unshift(insight);
             return false;
+        }
+
+        // ── Memory UI helpers (grouping, age, pin, bulk, preview, in-chat chips) ───
+        let selectedInsightIds = new Set();
+        let insightCollapsed = {};
+        function escHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+        function relativeAge(id) {
+            const ts = parseFloat(id); if (!ts) return '';
+            const days = Math.floor((Date.now() - ts) / 86400000);
+            if (days <= 0) return 'today';
+            if (days === 1) return '1 day ago';
+            if (days < 30) return days + ' days ago';
+            const mo = Math.floor(days / 30);
+            return mo + (mo === 1 ? ' month' : ' months') + ' ago';
+        }
+        function isStaleInsight(ins) {
+            if (!ins || ins.pinned) return false;
+            if (['Preference', 'Constraint', 'Process'].includes(ins.tag)) return false;
+            const ts = parseFloat(ins.id); if (!ts) return false;
+            return (Date.now() - ts) > 90 * 86400000; // 90 days
+        }
+        // Derive a client/project bucket for grouping. Non-client rules → "General / Preferences".
+        const MEM_CLIENT_RE = /\d{2}-\d{2}\/[a-z]{2,}|\bboard\b|customer\s*id|site[_\s]*id|account\s*id|[a-z0-9][a-z0-9-]*\.(com|sg|net|org|io|co)\b/i;
+        function insightGroupKey(ins) {
+            const t = (ins.text || '').trim();
+            if (['Preference', 'Constraint', 'Process'].includes(ins.tag) || !MEM_CLIENT_RE.test(t)) return 'General / Preferences';
+            const m = t.match(/^([A-Za-z0-9][\w'’&.\- ]{1,40}?)\s*(?:\(|—|–|:|\[|-)/);
+            let key = m ? m[1].trim() : t.split(/\s+/).slice(0, 3).join(' ');
+            key = key.replace(/\s+(by|the|pte|ltd)$/i, '').trim();
+            return key || 'Other';
+        }
+        function toggleInsightGroup(k) { insightCollapsed[k] = !insightCollapsed[k]; renderInsights(); }
+
+        // Single source of truth for which memories get injected into the prompt.
+        // Used by both the system-prompt build and the "Preview what the bot sees" panel.
+        function selectMemoriesForPrompt(queryText) {
+            const ut = localStorage.getItem('userTeam') || '';
+            const teamOk = (i) => { const tm = i.teams || (i.team ? [i.team] : ['Everyone']); return !ut || ut === 'Everyone' || tm.includes('Everyone') || tm.includes(ut); };
+            const pool = learnedInsights.filter(teamOk);
+            let ctx = (typeof queryText === 'string' ? queryText : '').toLowerCase();
+            try { (window.activeBoards || []).forEach(b => { ctx += ' ' + String(b.name || '').toLowerCase(); }); } catch (e) {}
+            try { const sc = JSON.parse(localStorage.getItem('syncedContext') || '{}'); (sc.loaded_seranking_campaigns || []).forEach(c => { ctx += ' ' + String(c.title || '').toLowerCase() + ' ' + String(c.domain || '').toLowerCase(); }); } catch (e) {}
+            const STOP = new Set(['this','that','with','from','have','what','about','when','your','their','client','clients','report','reports','please','google','singapore','keyword','keywords','campaign','campaigns','data','page','pages','show','give','need','want','analysis','analyse','analyze','update','updated','content','search','social','media','account','accounts','performance','today','month','metrics']);
+            const terms = new Set((ctx.match(/[a-z0-9][a-z0-9'&.-]{3,}/g) || []).filter(w => !STOP.has(w)));
+            const recency = (i) => parseFloat(i.id) || 0;
+            const byRecent = (a, b) => recency(b) - recency(a);
+            const ALWAYS = new Set(['Preference', 'Constraint', 'Process']);
+            const isClient = (i) => MEM_CLIENT_RE.test(i.text || '');
+            const isPinned = (i) => !!i.pinned;
+            // Always-on: prefs/constraints/process + pinned + any non-client rule.
+            const alwaysOn = pool.filter(i => ALWAYS.has(i.tag) || isPinned(i) || !isClient(i))
+                .sort((a, b) => ((ALWAYS.has(b.tag) || b.pinned ? 1 : 0) - (ALWAYS.has(a.tag) || a.pinned ? 1 : 0)) || byRecent(a, b))
+                .slice(0, 25);
+            const alwaysIds = new Set(alwaysOn.map(i => i.id));
+            const score = (i) => { const t = (i.text || '').toLowerCase(); let s = 0; terms.forEach(w => { if (t.includes(w)) s++; }); return s; };
+            let contextual = pool.filter(i => !alwaysIds.has(i.id));
+            if (terms.size) {
+                contextual = contextual.map(i => ({ i, s: score(i) })).filter(x => x.s > 0)
+                    .sort((a, b) => (b.s - a.s) || byRecent(a.i, b.i)).map(x => x.i);
+            } else {
+                contextual = contextual.sort(byRecent);
+            }
+            contextual = contextual.slice(0, 12);
+            return { alwaysOn, contextual, chosen: [...alwaysOn, ...contextual] };
+        }
+        function formatInsightsForPrompt(sel) {
+            const MAX = 400;
+            return JSON.stringify((sel.chosen || []).map(i => { const tm = i.teams || (i.team ? [i.team] : ['Everyone']); const txt = (i.text || '').length > MAX ? i.text.slice(0, MAX) + '…' : (i.text || ''); return `[${i.tag}][Teams: ${tm.join('+')}] ${txt}`; }));
+        }
+
+        // One card's markup (used by renderInsights inside each group).
+        function insightCardHTML(insight) {
+            const teams = insight.teams || (insight.team ? [insight.team] : ['Everyone']);
+            const checked = selectedInsightIds.has(String(insight.id)) ? 'checked' : '';
+            const pinned = !!insight.pinned;
+            const stale = isStaleInsight(insight);
+            const age = relativeAge(insight.id);
+            return `
+                <div class="insight-card${pinned ? ' pinned' : ''}" id="insight-${insight.id}">
+                    <div class="insight-meta">
+                        <input type="checkbox" class="insight-check" ${checked} onclick="toggleInsightSelect('${insight.id}', this.checked)" title="Select for bulk action">
+                        <select class="insight-tag-select" onchange="saveInsightTag('${insight.id}', this.value)" title="Change tag">
+                            ${['Preference','Strategy','Fact','Process','Constraint'].map(t => `<option value="${t}"${insight.tag === t ? ' selected' : ''}>${t}</option>`).join('')}
+                        </select>
+                        <div class="insight-teams" id="teams-${insight.id}" style="position:relative;">
+                            ${teams.map(t => `<span class="insight-team-chip team-${String(t).toLowerCase()}" onclick="removeTeamFromInsight('${insight.id}','${t}')" title="Click to remove">${t} ×</span>`).join('')}
+                            <button class="insight-team-add" onclick="showAddTeamDropdown('${insight.id}', this)" title="Add team">+</button>
+                        </div>
+                        <span class="insight-date" title="${escHtml(insight.date || '')}">${age || escHtml(insight.date || '')}</span>
+                        ${stale ? '<span class="insight-stale" title="Older than 90 days — review or pin">stale</span>' : ''}
+                        <div style="margin-left:auto; display:flex; align-items:center; gap:6px;">
+                            <button class="insight-pin${pinned ? ' on' : ''}" onclick="togglePinInsight('${insight.id}')" title="${pinned ? 'Pinned — always kept in context' : 'Pin (always keep in context)'}"><i class="fas fa-thumbtack"></i></button>
+                            <span class="insight-source" style="font-weight:700; color:#64748b; text-transform:uppercase; font-size:0.6rem;">${escHtml(insight.source || 'Manual')}</span>
+                            ${(insight.user && !String(insight.user).toLowerCase().startsWith('[object')) ? `<span style="font-size:0.6rem; background:#f1f5f9; padding:2px 6px; border-radius:4px; color:#475569;"><i class="fas fa-user" style="font-size:0.5rem;"></i> ${escHtml(insight.user)}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="insight-text" id="text-${insight.id}" contenteditable="false">${escHtml(insight.text)}</div>
+                    <div class="insight-actions">
+                        <button class="insight-btn edit-btn" onclick="toggleEdit('${insight.id}')" title="Edit memory" style="color:#6366f1;"><i class="fas fa-edit"></i></button>
+                        <button class="insight-btn save-btn" onclick="saveInsight('${insight.id}')" title="Save memory" style="color:#10b981; display:none;"><i class="fas fa-check"></i></button>
+                        <button class="insight-btn delete-btn" onclick="deleteInsight('${insight.id}')" title="Remove memory"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>`;
+        }
+
+        // Pin / bulk-select plumbing
+        function togglePinInsight(id) {
+            const i = learnedInsights.find(x => String(x.id) === String(id)); if (!i) return;
+            i.pinned = !i.pinned;
+            localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
+            pushInsightsToCloud(); renderInsights();
+            showToast(i.pinned ? 'Pinned — always kept in context' : 'Unpinned', 'info');
+        }
+        function toggleInsightSelect(id, checked) { if (checked) selectedInsightIds.add(String(id)); else selectedInsightIds.delete(String(id)); updateBulkBar(); }
+        function clearInsightSelection() { selectedInsightIds.clear(); document.querySelectorAll('.insight-check').forEach(c => c.checked = false); updateBulkBar(); }
+        function updateBulkBar() {
+            const bar = document.getElementById('insightBulkBar'); const cnt = document.getElementById('insightBulkCount');
+            if (!bar) return; const n = selectedInsightIds.size;
+            bar.style.display = n ? 'flex' : 'none';
+            if (cnt) cnt.textContent = n + ' selected';
+        }
+        function bulkSetTag(tag) {
+            if (!tag) return;
+            [...selectedInsightIds].forEach(id => { const i = learnedInsights.find(x => String(x.id) === id); if (i) i.tag = tag; });
+            localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
+            renderInsights(); pushInsightsToCloud(); showToast('Tag updated for selected', 'info');
+        }
+        function bulkSetTeam(team) {
+            if (!team) return;
+            [...selectedInsightIds].forEach(id => { const i = learnedInsights.find(x => String(x.id) === id); if (i) { i.teams = [team]; delete i.team; } });
+            localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
+            renderInsights(); pushInsightsToCloud(); showToast('Team updated for selected', 'info');
+        }
+        function bulkDeleteInsights() {
+            const ids = [...selectedInsightIds]; if (!ids.length) return;
+            const removed = learnedInsights.filter(i => ids.includes(String(i.id)));
+            learnedInsights = learnedInsights.filter(i => !ids.includes(String(i.id)));
+            localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
+            clearInsightSelection(); renderInsights();
+            // Defer the cloud tombstone for 6s so Undo is clean (no server-side resurrection fight).
+            let committed = false;
+            const t = setTimeout(() => { committed = true; ids.forEach(addDeletedInsightId); pushInsightsToCloud(); }, 6000);
+            showUndoToast(`${ids.length} memor${ids.length > 1 ? 'ies' : 'y'} deleted`, () => {
+                if (committed) return; clearTimeout(t);
+                learnedInsights.unshift(...removed);
+                localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
+                renderInsights();
+            });
+        }
+
+        // Toast with an Undo button (U5)
+        function showUndoToast(message, onUndo) {
+            let c = document.querySelector('.toast-container');
+            if (!c) { c = document.createElement('div'); c.className = 'toast-container'; document.body.appendChild(c); }
+            const t = document.createElement('div'); t.className = 'toast info';
+            t.innerHTML = `<i class="fas fa-info-circle"></i><span>${escHtml(message)}</span>`;
+            const b = document.createElement('button'); b.textContent = 'Undo'; b.className = 'toast-undo-btn';
+            let done = false;
+            b.onclick = () => { if (done) return; done = true; try { onUndo && onUndo(); } catch (e) {} t.classList.add('hiding'); setTimeout(() => t.remove(), 300); };
+            t.appendChild(b); c.appendChild(t);
+            setTimeout(() => { if (!t.classList.contains('hiding')) { t.classList.add('hiding'); setTimeout(() => t.remove(), 400); } }, 6000);
+        }
+
+        // In-chat "🧠 Remembered" chips with Undo / Edit / Pin (P2)
+        function renderMemoryChips(list) {
+            const ml = document.getElementById('messageList'); if (!ml || !list || !list.length) return;
+            window._memUndo = window._memUndo || {};
+            const wrap = document.createElement('div'); wrap.className = 'mem-chip-row';
+            list.forEach(s => {
+                const cid = 'memchip-' + Math.random().toString(36).slice(2);
+                window._memUndo[cid] = s;
+                const verb = s.action === 'merged' ? 'Updated memory' : 'Remembered';
+                const short = (s.text || '').slice(0, 90) + ((s.text || '').length > 90 ? '…' : '');
+                const chip = document.createElement('div'); chip.className = 'mem-chip'; chip.id = cid;
+                chip.innerHTML = `<i class="fas fa-brain"></i><span class="mem-chip-txt" title="${escHtml(s.text || '')}">${verb}: ${escHtml(short)}</span>`
+                    + `<button onclick="undoMemoryChip('${cid}')">Undo</button>`
+                    + `<button onclick="openLearningModal(); setTimeout(() => highlightInsight('${s.id}'), 350)">Edit</button>`
+                    + `<button onclick="pinMemoryChip('${cid}', this)">Pin</button>`;
+                wrap.appendChild(chip);
+            });
+            ml.appendChild(wrap); ml.scrollTop = ml.scrollHeight;
+        }
+        function undoMemoryChip(cid) {
+            const s = (window._memUndo || {})[cid]; if (!s) return;
+            if (s.action === 'added') { learnedInsights = learnedInsights.filter(i => String(i.id) !== String(s.id)); addDeletedInsightId(s.id); }
+            else if (s.action === 'merged' && s.prev) { const i = learnedInsights.find(x => String(x.id) === String(s.id)); if (i) { i.text = s.prev.text; i.tag = s.prev.tag; i.teams = s.prev.teams; i.date = s.prev.date; } }
+            localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
+            renderInsights(); pushInsightsToCloud();
+            const el = document.getElementById(cid); if (el) { el.classList.add('undone'); el.innerHTML = '<i class="fas fa-rotate-left"></i><span>Memory change undone</span>'; }
+        }
+        function pinMemoryChip(cid, btn) {
+            const s = (window._memUndo || {})[cid]; if (!s) return;
+            const i = learnedInsights.find(x => String(x.id) === String(s.id));
+            if (i) { i.pinned = true; localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights)); pushInsightsToCloud(); renderInsights(); }
+            if (btn) { btn.textContent = 'Pinned'; btn.disabled = true; }
+        }
+        function highlightInsight(id) {
+            const el = document.getElementById('insight-' + id); if (!el) return;
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.style.transition = 'background .3s'; el.style.background = '#fef9c3';
+            setTimeout(() => { el.style.background = ''; }, 1600);
+        }
+
+        // "Preview what the bot sees" (U4) — runs the exact injection selector for a typed query.
+        function openInjectionPreview() {
+            const p = document.getElementById('insightPreviewPanel'); if (!p) return;
+            p.style.display = 'block';
+            const q = document.getElementById('insightPreviewQuery'); if (q) { q.focus(); }
+        }
+        function runInjectionPreview() {
+            const q = (document.getElementById('insightPreviewQuery')?.value || '').trim();
+            const sel = selectMemoriesForPrompt(q);
+            const res = document.getElementById('insightPreviewResult'); if (!res) return;
+            const fmt = (arr) => arr.length ? arr.map(i => `<div class="prev-item"><span class="prev-tag">${escHtml(i.tag)}</span>${escHtml((i.text || '').slice(0, 150))}${(i.text || '').length > 150 ? '…' : ''}</div>`).join('') : '<em style="color:#94a3b8;">none</em>';
+            res.innerHTML = `<div style="margin-bottom:8px;"><b>${sel.alwaysOn.length}</b> always-on rule(s) + <b>${sel.contextual.length}</b> context-matched note(s) would be injected${q ? ' for this query' : ' (no query — recency fallback)'}.</div>`
+                + `<div style="font-weight:700; color:#1e293b; margin:6px 0 2px;">Always-on</div>${fmt(sel.alwaysOn)}`
+                + `<div style="font-weight:700; color:#1e293b; margin:10px 0 2px;">Context-matched</div>${fmt(sel.contextual)}`;
         }
 
         if (normalizeAllInsights()) localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
@@ -12893,6 +13149,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                         <p>No insights learned yet. The AI will start taking notes as you interact with it!</p>
                     </div>
                 `;
+                clearInsightSelection();
                 return;
             }
 
@@ -12903,43 +13160,35 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                         <p>No memories match your filters.</p>
                     </div>
                 `;
+                updateBulkBar();
                 return;
             }
 
-            list.innerHTML = filtered.map((insight, index) => `
-                <div class="insight-card" id="insight-${insight.id}">
-                    <div class="insight-meta">
-                        <select class="insight-tag-select" onchange="saveInsightTag('${insight.id}', this.value)" title="Change tag">
-                            ${['Preference','Strategy','Fact','Process','Constraint'].map(t =>
-                                `<option value="${t}"${insight.tag === t ? ' selected' : ''}>${t}</option>`
-                            ).join('')}
-                        </select>
-                        <div class="insight-teams" id="teams-${insight.id}" style="position:relative;">
-                            ${(insight.teams || (insight.team ? [insight.team] : ['Everyone'])).map(t =>
-                                `<span class="insight-team-chip team-${t.toLowerCase()}" onclick="removeTeamFromInsight('${insight.id}','${t}')" title="Click to remove">${t} ×</span>`
-                            ).join('')}
-                            <button class="insight-team-add" onclick="showAddTeamDropdown('${insight.id}', this)" title="Add team">+</button>
-                        </div>
-                        <span class="insight-date">${insight.date}</span>
-                        <div style="margin-left: auto; display: flex; align-items: center; gap: 6px;">
-                            <span class="insight-source" style="font-weight:700; color: #64748b; text-transform: uppercase; font-size: 0.6rem;">${insight.source || 'Manual'}</span>
-                            ${(insight.user && !insight.user.toLowerCase().startsWith('[object')) ? `<span style="font-size: 0.6rem; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; color: #475569;"><i class="fas fa-user" style="font-size: 0.5rem;"></i> ${insight.user}</span>` : ''}
-                        </div>
+            // Group by client/project for scannability (U1).
+            const groups = {};
+            filtered.forEach(ins => { const k = insightGroupKey(ins); (groups[k] = groups[k] || []).push(ins); });
+            const keys = Object.keys(groups).sort((a, b) => {
+                if (a === 'General / Preferences') return -1;
+                if (b === 'General / Preferences') return 1;
+                return a.localeCompare(b);
+            });
+            list.innerHTML = keys.map(k => {
+                const items = groups[k];
+                const collapsed = !!insightCollapsed[k];
+                const kEsc = escHtml(k).replace(/'/g, "\\'");
+                return `
+                <div class="insight-group">
+                    <div class="insight-group-head" onclick="toggleInsightGroup('${kEsc}')">
+                        <i class="fas fa-chevron-${collapsed ? 'right' : 'down'}"></i>
+                        <span class="insight-group-name">${escHtml(k)}</span>
+                        <span class="insight-group-count">${items.length}</span>
                     </div>
-                    <div class="insight-text" id="text-${insight.id}" contenteditable="false">${insight.text}</div>
-                    <div class="insight-actions">
-                        <button class="insight-btn edit-btn" onclick="toggleEdit('${insight.id}')" title="Edit memory" style="color: #6366f1;">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="insight-btn save-btn" onclick="saveInsight('${insight.id}')" title="Save memory" style="color: #10b981; display: none;">
-                            <i class="fas fa-check"></i>
-                        </button>
-                        <button class="insight-btn delete-btn" onclick="deleteInsight('${insight.id}')" title="Remove memory">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                    <div class="insight-group-body" style="${collapsed ? 'display:none;' : ''}">
+                        ${items.map(insightCardHTML).join('')}
                     </div>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
+            updateBulkBar();
         }
 
         function toggleEdit(id) {
@@ -13056,14 +13305,28 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
         }
 
         function deleteInsight(id) {
-            if (confirm('Are you sure you want the AI to forget this information?')) {
-                learnedInsights = learnedInsights.filter(i => i.id != id);
-                addDeletedInsightId(id); // tombstone so the cloud merge doesn't resurrect it
+            const idx = learnedInsights.findIndex(i => i.id == id);
+            if (idx < 0) return;
+            const removed = learnedInsights[idx];
+            const pos = idx;
+            learnedInsights.splice(idx, 1);
+            localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
+            renderInsights();
+            // Defer the cloud tombstone + push for 6s so Undo is clean (the server now
+            // PERSISTS tombstones, so committing immediately would make undo fight it).
+            let committed = false;
+            const t = setTimeout(() => {
+                committed = true;
+                addDeletedInsightId(id);
+                pushInsightsToCloud();
+            }, 6000);
+            showUndoToast('Memory deleted', () => {
+                if (committed) return;
+                clearTimeout(t);
+                learnedInsights.splice(Math.min(pos, learnedInsights.length), 0, removed);
                 localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
                 renderInsights();
-                pushInsightsToCloud(); // Sync deletion to cloud
-                showToast('AI memory updated', 'info');
-            }
+            });
         }
 
         async function classifyInsight(text) {
