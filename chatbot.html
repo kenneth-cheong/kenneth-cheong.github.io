@@ -3765,6 +3765,29 @@
                 <div id="connectionsOverviewGrid" style="display:grid; grid-template-columns:1fr 1fr; gap:6px 10px;"></div>
             </div>
 
+            <!-- Client Report Format Section -->
+            <div class="collapsible-section" id="reportFormatSection">
+                <div class="collapsible-header" onclick="this.closest('.collapsible-section').classList.toggle('active'); initReportFormatEditor()">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--primary-navy);"><i class="fas fa-file-lines" style="margin-right: 8px; opacity: 0.5;"></i> Client Report Format</span>
+                    <i class="fas fa-chevron-down toggle-icon" style="font-size: 0.8rem; opacity: 0.5;"></i>
+                </div>
+                <div class="collapsible-content">
+                    <div class="form-group">
+                        <label style="display:block; margin-bottom:6px; font-weight:600;">House format for client-facing Insights + Recommendations reports. Shared across the whole team — the chatbot follows this verbatim.</label>
+                        <textarea id="reportFormatInput" rows="10" style="width:100%; font-family:inherit; font-size:0.8rem; line-height:1.45; padding:10px; border:1px solid #e2e8f0; border-radius:10px; resize:vertical; box-sizing:border-box;" placeholder="Loading…"></textarea>
+                    </div>
+                    <div style="display:flex; gap:8px; margin-top:8px;">
+                        <button onclick="saveReportFormatFromUI()" style="flex:1; padding:9px; border-radius:10px; border:none; background:var(--primary-navy); color:#fff; font-size:0.82rem; font-weight:600; cursor:pointer; font-family:inherit;">
+                            <i class="fas fa-floppy-disk" style="font-size:0.75rem; margin-right:5px;"></i> Save format
+                        </button>
+                        <button onclick="resetReportFormatToDefault()" title="Reset to the built-in default (then Save to apply)" style="padding:9px 12px; border-radius:10px; border:1px solid #e2e8f0; background:#f8fafc; font-size:0.82rem; font-weight:600; cursor:pointer; color:var(--primary-navy); font-family:inherit;">
+                            Reset
+                        </button>
+                    </div>
+                    <div id="reportFormatStatus" style="font-size:0.72rem; color:#94a3b8; margin-top:6px;"></div>
+                </div>
+            </div>
+
             <!-- Voice Output Section -->
             <div class="collapsible-section" id="voiceSection">
                 <div class="collapsible-header" onclick="this.closest('.collapsible-section').classList.toggle('active'); initTtsVoiceList()">
@@ -4559,6 +4582,70 @@
 
         // Persistence State
         var PERSISTENCE_API_URL = 'https://t9pw69cg8d.execute-api.ap-southeast-1.amazonaws.com/chatbotPersistence';
+
+        // ── Client report format (editable, account-wide setting) ──────────────────
+        // The MediaOne house format for client-facing reports. Stored server-side via
+        // the persistence Lambda (app setting 'reportFormat') so the whole team edits it
+        // in ONE place; loaded at startup, cached in localStorage, and injected verbatim
+        // into the system prompt. Falls back to this default when nothing is stored.
+        const DEFAULT_REPORT_FORMAT = `When the user wants a client-facing report (as opposed to an internal deep-dive), use exactly TWO sections and nothing else:
+1. **Insights** — 5–6 bullet points. Each bullet = one short headline finding with its key metric inline, followed by a one-sentence supporting explanation. Keep performance numbers inside these bullets; do not add separate data tables.
+2. **Recommendations (Next Strategy)** — 5–6 bullet points. Each = a concise titled action followed by a brief one- to two-sentence rationale ("because…").
+Recommendations must focus on FUTURE opportunities and growth that support renewal and continued collaboration — budget scaling, expanding high-performing keywords/audiences, new channels, bid adjustments on proven segments. Do NOT fill this section with routine ongoing-optimisation chores (pausing keywords, adding negatives, housekeeping); mention those only briefly if essential, never as the headline strategy.
+Keep it clean and easy to copy-paste: no second-person "you", concise bullets, short supporting paragraphs (not walls of text).`;
+        function getReportFormat() {
+            return (localStorage.getItem('mediaoneReportFormat') || '').trim() || DEFAULT_REPORT_FORMAT;
+        }
+        async function loadReportFormat() {
+            try {
+                const res = await fetch(PERSISTENCE_API_URL, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'get_app_setting', name: 'reportFormat' })
+                });
+                const result = await res.json();
+                const data = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body || result);
+                const val = (data && data.value) ? String(data.value).trim() : '';
+                if (val) localStorage.setItem('mediaoneReportFormat', val);
+                else localStorage.removeItem('mediaoneReportFormat');
+            } catch (e) { console.warn('[reportFormat] load failed; using default', e); }
+        }
+        async function saveReportFormat(value) {
+            const v = (value || '').trim();
+            const res = await fetch(PERSISTENCE_API_URL, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'save_app_setting', name: 'reportFormat', value: v, updatedBy: (localStorage.getItem('clientEmail') || '') })
+            });
+            if (!res.ok) throw new Error('save failed ' + res.status);
+            if (v) localStorage.setItem('mediaoneReportFormat', v);
+            else localStorage.removeItem('mediaoneReportFormat');
+            return true;
+        }
+        async function initReportFormatEditor() {
+            const ta = document.getElementById('reportFormatInput');
+            if (!ta) return;
+            await loadReportFormat();          // pull the latest shared value
+            ta.value = getReportFormat();
+        }
+        async function saveReportFormatFromUI() {
+            const ta = document.getElementById('reportFormatInput');
+            const status = document.getElementById('reportFormatStatus');
+            if (!ta) return;
+            try {
+                if (status) status.textContent = 'Saving…';
+                await saveReportFormat(ta.value);
+                if (status) status.textContent = 'Saved — applies to the whole team on their next chat.';
+                if (typeof showToast === 'function') showToast('Report format saved', 'success', 4000);
+            } catch (e) {
+                if (status) status.textContent = 'Save failed: ' + e.message;
+                if (typeof showToast === 'function') showToast('Could not save report format', 'error', 5000);
+            }
+        }
+        function resetReportFormatToDefault() {
+            const ta = document.getElementById('reportFormatInput');
+            if (ta) ta.value = DEFAULT_REPORT_FORMAT;
+            const status = document.getElementById('reportFormatStatus');
+            if (status) status.textContent = 'Reset to default — click Save format to apply.';
+        }
         // Always start a fresh conversation on page load / reload. Past chats are
         // already saved to cloud history (browse them via the history sidebar), so
         // nothing is lost — we just don't auto-restore the previous session into the
@@ -5266,6 +5353,7 @@
             
             await loadSettings();
             pullInsightsFromCloud(); // Refresh memories on load
+            loadReportFormat();      // Refresh the shared client-report format setting
 
             // Auto-sync on page load — runs after loadSettings() so window.activeBoards is ready
             if ((window.activeBoards || []).length > 0 || currentMode === 'internal') {
@@ -10049,11 +10137,7 @@
             ════════════════════════════════════════════════
             CLIENT REPORT TEMPLATE (insights + recommendations — the MediaOne house style)
             ════════════════════════════════════════════════
-            When the user wants a client-facing report (as opposed to an internal deep-dive), use exactly TWO sections and nothing else:
-            1. **Insights** — 5–6 bullet points. Each bullet = one short headline finding with its key metric inline, followed by a one-sentence supporting explanation. Keep performance numbers inside these bullets; do not add separate data tables.
-            2. **Recommendations (Next Strategy)** — 5–6 bullet points. Each = a concise titled action followed by a brief one- to two-sentence rationale ("because…").
-            Recommendations must focus on FUTURE opportunities and growth that support renewal and continued collaboration — budget scaling, expanding high-performing keywords/audiences, new channels, bid adjustments on proven segments. Do NOT fill this section with routine ongoing-optimisation chores (pausing keywords, adding negatives, housekeeping); mention those only briefly if essential, never as the headline strategy.
-            Keep it clean and easy to copy-paste: no second-person "you", concise bullets, short supporting paragraphs (not walls of text).
+            ${getReportFormat()}
             ════════════════════════════════════════════════
 
             MONDAY.COM GRAPHQL RULES (monday_graphql tool — DO NOT VIOLATE; verify EVERY query against this before sending):
