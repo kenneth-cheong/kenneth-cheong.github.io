@@ -10173,7 +10173,41 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             - If multiple campaigns are loaded, fetch all of them and combine the results.
 
             LEARNED MEMORIES (Context):
-            ${(() => { const ut = localStorage.getItem('userTeam') || ''; const relevant = learnedInsights.filter(i => { const teams = i.teams || (i.team ? [i.team] : ['Everyone']); return !ut || ut === 'Everyone' || teams.includes('Everyone') || teams.includes(ut); }); const MAX_INSIGHT_CHARS = 400; return JSON.stringify(relevant.slice(0, 30).map(i => { const teams = i.teams || (i.team ? [i.team] : ['Everyone']); const txt = i.text.length > MAX_INSIGHT_CHARS ? i.text.slice(0, MAX_INSIGHT_CHARS) + '…' : i.text; return `[${i.tag}][Teams: ${teams.join('+')}] ${txt}`; })); })()}
+            ${(() => {
+                const ut = localStorage.getItem('userTeam') || '';
+                const teamOk = (i) => { const tm = i.teams || (i.team ? [i.team] : ['Everyone']); return !ut || ut === 'Everyone' || tm.includes('Everyone') || tm.includes(ut); };
+                const pool = learnedInsights.filter(teamOk);
+                // Active-context terms: the current question + loaded boards + SE Ranking campaigns.
+                let ctx = (typeof text === 'string' ? text : '').toLowerCase();
+                try { (window.activeBoards || []).forEach(b => { ctx += ' ' + String(b.name || '').toLowerCase(); }); } catch (e) {}
+                try { const sc = JSON.parse(localStorage.getItem('syncedContext') || '{}'); (sc.loaded_seranking_campaigns || []).forEach(c => { ctx += ' ' + String(c.title || '').toLowerCase() + ' ' + String(c.domain || '').toLowerCase(); }); } catch (e) {}
+                const STOP = new Set(['this','that','with','from','have','what','about','when','your','their','client','clients','report','reports','please','google','singapore','keyword','keywords','campaign','campaigns','data','page','pages','show','give','need','want','analysis','analyse','analyze','update','updated','content','search','social','media','account','accounts','performance','today','month','metrics','please']);
+                const terms = new Set((ctx.match(/[a-z0-9][a-z0-9'&.-]{3,}/g) || []).filter(w => !STOP.has(w)));
+                const recency = (i) => parseFloat(i.id) || 0;
+                const byRecent = (a, b) => recency(b) - recency(a);
+                const ALWAYS = new Set(['Preference','Constraint','Process']);
+                // A note is client-specific if it carries a campaign code, domain, or board/account/site id.
+                const CLIENT_RE = /\d{2}-\d{2}\/[a-z]{2,}|\bboard\b|customer\s*id|site[_\s]*id|account\s*id|[a-z0-9][a-z0-9-]*\.(com|sg|net|org|io|co)\b/i;
+                const isClient = (i) => CLIENT_RE.test(i.text || '');
+                // Always-on: preferences/constraints/process + any non-client-specific rule.
+                const alwaysOn = pool.filter(i => ALWAYS.has(i.tag) || !isClient(i))
+                    .sort((a, b) => ((ALWAYS.has(b.tag) ? 1 : 0) - (ALWAYS.has(a.tag) ? 1 : 0)) || byRecent(a, b))
+                    .slice(0, 25);
+                const alwaysIds = new Set(alwaysOn.map(i => i.id));
+                // Contextual: client-specific notes, kept only when relevant to the active context.
+                const score = (i) => { const t = (i.text || '').toLowerCase(); let s = 0; terms.forEach(w => { if (t.includes(w)) s++; }); return s; };
+                let contextual = pool.filter(i => !alwaysIds.has(i.id));
+                if (terms.size) {
+                    contextual = contextual.map(i => ({ i, s: score(i) })).filter(x => x.s > 0)
+                        .sort((a, b) => (b.s - a.s) || byRecent(a.i, b.i)).map(x => x.i);
+                } else {
+                    contextual = contextual.sort(byRecent);
+                }
+                contextual = contextual.slice(0, 12);
+                const chosen = [...alwaysOn, ...contextual];
+                const MAX_INSIGHT_CHARS = 400;
+                return JSON.stringify(chosen.map(i => { const tm = i.teams || (i.team ? [i.team] : ['Everyone']); const txt = (i.text || '').length > MAX_INSIGHT_CHARS ? i.text.slice(0, MAX_INSIGHT_CHARS) + '…' : (i.text || ''); return `[${i.tag}][Teams: ${tm.join('+')}] ${txt}`; }));
+            })()}
             ${localStorage.getItem('userTeam') && localStorage.getItem('userTeam') !== 'Everyone' ? `USER'S TEAM: ${localStorage.getItem('userTeam')} — Only apply team-specific memories relevant to this team.` : ''}
 
             CURRENT CONTEXT:
@@ -10674,7 +10708,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                             // Coerce tag + teams into the canonical filter vocabulary
                             // (the AI sometimes invents tags like "Project Logic").
                             normalizeInsight(insight);
-                            learnedInsights.unshift(insight);
+                            mergeOrAddInsight(insight); // update a near-duplicate in place instead of piling up
                         } catch (e) { console.error("Memory parsing error", e); }
                     });
                     localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
@@ -12653,6 +12687,49 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             return changed;
         }
 
+        // ── Save-time dedup/merge ─────────────────────────────────────────────────
+        // The bot used to append a near-identical note every time it re-analysed the
+        // same client (Augustine ×7, Livera ×3). Before adding a new note we look for
+        // an existing one covering the same subject and, if found, update it IN PLACE
+        // instead of growing the list.
+        function insightTokens(t) {
+            return new Set((String(t || '').toLowerCase().match(/[a-z0-9][a-z0-9'&.-]{3,}/g) || []));
+        }
+        function insightSimilarity(a, b) {
+            const A = insightTokens(a), B = insightTokens(b);
+            if (!A.size || !B.size) return 0;
+            let inter = 0; A.forEach(w => { if (B.has(w)) inter++; });
+            return inter / (A.size + B.size - inter); // Jaccard
+        }
+        function findDuplicateInsight(cand) {
+            const codeM = (cand.text || '').match(/\d{2}-\d{2}\/[A-Za-z]{2,}-?\d*/); // e.g. 25-08/AEH-01
+            const code = codeM ? codeM[0] : null;
+            let best = null, bestSim = 0;
+            for (const ex of learnedInsights) {
+                if (!ex || ex.id === cand.id) continue;
+                const sim = insightSimilarity(cand.text, ex.text);
+                const sameCode = code && (ex.text || '').includes(code);
+                // High overlap, OR same campaign code with moderate overlap, counts as a dup.
+                if ((sim >= 0.6 || (sameCode && sim >= 0.4)) && sim > bestSim) { best = ex; bestSim = sim; }
+            }
+            return best;
+        }
+        // Update an existing near-duplicate in place, else prepend. Returns true if merged.
+        function mergeOrAddInsight(insight) {
+            const dup = findDuplicateInsight(insight);
+            if (dup) {
+                dup.text = insight.text;
+                dup.tag = insight.tag || dup.tag;
+                dup.teams = insight.teams || dup.teams;
+                dup.date = insight.date || dup.date;
+                dup.source = insight.source || dup.source;
+                dup.user = insight.user || dup.user;
+                return true;
+            }
+            learnedInsights.unshift(insight);
+            return false;
+        }
+
         if (normalizeAllInsights()) localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
         // Initial cloud pull
         setTimeout(pullInsightsFromCloud, 1000);
@@ -13039,7 +13116,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             }
 
             const currentUser = getCurrentUser();
-            learnedInsights.unshift({
+            const newNote = {
                 tag,
                 teams,
                 text,
@@ -13047,7 +13124,9 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 source: "Manual",
                 user: currentUser,
                 id: Date.now()
-            });
+            };
+            normalizeInsight(newNote);
+            mergeOrAddInsight(newNote); // update a near-duplicate in place instead of piling up
 
             localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
             input.value = "";
