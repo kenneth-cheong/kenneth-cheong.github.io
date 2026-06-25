@@ -209,15 +209,38 @@ def handle_delete_conversation(db, data, headers):
 
 def handle_save_insights(db, body, headers):
     email = body.get('email')
-    insights = body.get('insights', [])
+    incoming = body.get('insights', [])
+    deleted_ids = body.get('deleted_ids', [])
     if not email:
         return response(400, {"error": "Email missing"}, headers)
+
+    # Merge by id instead of replacing the whole array. A blind $set let any
+    # client (especially the shared "global_shared_insights" doc) clobber items
+    # added/edited by other sessions since its last pull. We union the stored
+    # array with the incoming one (incoming wins on id collision), then apply
+    # explicit tombstones so real deletions still propagate.
+    existing_doc = db.insights.find_one({"email": email.lower()}) or {}
+    existing = existing_doc.get('insights', [])
+
+    merged = {}
+    for ins in existing:
+        if isinstance(ins, dict) and 'id' in ins:
+            merged[str(ins['id'])] = ins
+    for ins in incoming:
+        if isinstance(ins, dict) and 'id' in ins:
+            merged[str(ins['id'])] = ins  # incoming wins (edits/new)
+
+    for did in (deleted_ids or []):
+        merged.pop(str(did), None)
+
+    insights = list(merged.values())
+
     db.insights.update_one(
         {"email": email.lower()},
         {"$set": {"insights": insights, "updated_at": datetime.utcnow()}},
         upsert=True
     )
-    return response(200, {"status": "success"}, headers)
+    return response(200, {"status": "success", "insights": insights}, headers)
 
 def handle_get_insights(db, body, headers):
     email = body.get('email')

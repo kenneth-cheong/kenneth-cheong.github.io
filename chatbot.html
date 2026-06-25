@@ -12400,6 +12400,23 @@
     <script>
         let learnedInsights = JSON.parse(localStorage.getItem('chatBotInsights')) || [];
 
+        // ── Deletion tombstones ───────────────────────────────────────────────────
+        // The cloud now MERGES insights by id (it no longer blindly replaces the
+        // array), so a plain delete would resurrect on the next merge. We keep a
+        // local tombstone list and send it as deleted_ids on every push so real
+        // deletions propagate. Capped so it can't grow without bound.
+        function getDeletedInsightIds() {
+            try { return JSON.parse(localStorage.getItem('chatBotInsightsDeleted')) || []; }
+            catch (e) { return []; }
+        }
+        function addDeletedInsightId(id) {
+            const ids = getDeletedInsightIds().map(String);
+            if (!ids.includes(String(id))) ids.push(String(id));
+            // keep the most recent 500 tombstones
+            const capped = ids.slice(-500);
+            localStorage.setItem('chatBotInsightsDeleted', JSON.stringify(capped));
+        }
+
         // ── Memory normalisation ──────────────────────────────────────────────────
         // The tag/team filters assume a fixed vocabulary. AI-learned notes and
         // cloud-pulled data sometimes arrive with off-vocabulary tags (e.g.
@@ -12469,8 +12486,6 @@
         if (normalizeAllInsights()) localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
         // Initial cloud pull
         setTimeout(pullInsightsFromCloud, 1000);
-        // Initial cloud pull
-        setTimeout(pullInsightsFromCloud, 1000);
 
         function openLearningModal() {
             renderInsights();
@@ -12500,7 +12515,8 @@
                     body: JSON.stringify({
                         action: 'save_insights',
                         email: email.toLowerCase(),
-                        insights: learnedInsights
+                        insights: learnedInsights,
+                        deleted_ids: getDeletedInsightIds()
                     })
                 });
             } catch (e) {
@@ -12547,13 +12563,29 @@
                 const body = typeof data.body === 'string' ? JSON.parse(data.body) : (data.body || data);
 
                 if (body.insights && Array.isArray(body.insights)) {
-                    learnedInsights = body.insights;
+                    // MERGE cloud into local instead of overwriting. A blind
+                    // assignment used to wipe items that were just added locally
+                    // (and not yet pushed) and, worse, propagate an empty/short
+                    // cloud snapshot into every client's localStorage. We union by
+                    // id (cloud is canonical for shared ids), keep local-only items
+                    // that haven't synced yet, and drop anything we've tombstoned.
+                    const cloudArr = body.insights;
+                    const cloudIds = new Set(cloudArr.map(i => String(i.id)));
+                    const localOnly = learnedInsights.filter(
+                        i => i && i.id != null && !cloudIds.has(String(i.id))
+                    );
+                    const tomb = new Set(getDeletedInsightIds().map(String));
+                    let merged = [...localOnly, ...cloudArr].filter(
+                        i => i && i.id != null && !tomb.has(String(i.id))
+                    );
+                    learnedInsights = merged;
+
                     // Cloud data can carry off-vocabulary tags / missing teams — clean it
-                    // before it reaches the filters. Re-push if we actually fixed anything
-                    // so the cleanup is durable instead of re-running on every pull.
+                    // before it reaches the filters. Re-push if we cleaned anything OR
+                    // contributed local-only items, so the cloud catches up.
                     const fixed = normalizeAllInsights();
                     localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
-                    if (fixed) pushInsightsToCloud();
+                    if (fixed || localOnly.length || tomb.size) pushInsightsToCloud();
                     renderInsights();
                 }
             } catch (err) {
@@ -12772,6 +12804,7 @@
         function deleteInsight(id) {
             if (confirm('Are you sure you want the AI to forget this information?')) {
                 learnedInsights = learnedInsights.filter(i => i.id != id);
+                addDeletedInsightId(id); // tombstone so the cloud merge doesn't resurrect it
                 localStorage.setItem('chatBotInsights', JSON.stringify(learnedInsights));
                 renderInsights();
                 pushInsightsToCloud(); // Sync deletion to cloud
