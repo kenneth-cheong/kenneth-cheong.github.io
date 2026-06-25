@@ -32,6 +32,30 @@ def clean_email(raw):
     m = re.search(r'[\w.+-]+@[\w-]+\.[\w.-]*[\w]', str(raw))
     return m.group(0).lower() if m else 'unknown'
 
+
+def ahrefs_bare_domain(raw):
+    """Reduce any user/LLM-supplied target to a bare registrable host for Ahrefs.
+
+    Handles full URLs (strips scheme + path + query), 'www.', ports and stray
+    whitespace. NOTE: never use str.lstrip('https://') for this — lstrip strips a
+    *character set*, so 'shinesecurity.sg'.lstrip('https://') => 'inesecurity.sg'.
+    """
+    if not raw:
+        return ""
+    host = str(raw).strip()
+    # If it looks like a URL (has a scheme or a path), parse out the netloc.
+    if "//" in host:
+        host = host.split("//", 1)[1]
+    # Drop anything after the first '/', '?' or '#'.
+    for sep in ("/", "?", "#"):
+        host = host.split(sep, 1)[0]
+    host = host.strip().lower()
+    if host.startswith("www."):
+        host = host[4:]
+    # Strip an explicit port (example.com:443).
+    host = host.split(":", 1)[0]
+    return host
+
 MONDAY_API_KEY = os.environ.get('MONDAY_API_KEY') or os.environ.get('MONDAY_TOKEN')
 MONDAY_API_URL = "https://api.monday.com/v2"
 SERANKING_TOKEN = os.environ.get('SERANKING_TOKEN') or "4181980cafdc89bc7bd8c7e9d26725f18cd617ef"
@@ -586,8 +610,17 @@ def run_tiktok_report(access_token, advertiser_id, start_date, end_date,
         return {"error": str(e)}
 
 def run_meta_ads_report(access_token, ad_account_id, start_date, end_date,
-                        level="account", time_increment=None, fields=None):
-    """Fetch a Meta (Facebook/Instagram) Ads Insights report for a single ad account."""
+                        level="account", time_increment=None, fields=None,
+                        name_contains=None):
+    """Fetch a Meta (Facebook/Instagram) Ads Insights report for a single ad account.
+
+    Each row carries the entity name + id for its level (campaign_name/campaign_id,
+    adset_name/adset_id, ad_name/ad_id) so results are identifiable and filterable.
+    When name_contains is given, rows are filtered to entities whose name contains that
+    substring (case-insensitive). Because account-level rows have no entity name, a name
+    filter auto-upgrades the level to 'campaign' so the filter can actually apply — this is
+    what makes requests like "only campaigns containing MO" return the right subset instead
+    of an account-level total."""
     if not access_token:
         return {"error": "Missing Meta access token. Connect Meta Ads first."}
     if not ad_account_id:
@@ -597,10 +630,28 @@ def run_meta_ads_report(access_token, ad_account_id, start_date, end_date,
     acct = str(ad_account_id)
     if not acct.startswith("act_"):
         acct = "act_" + acct
+
+    # A name filter is meaningless at account level (no per-entity names) — pull campaigns.
+    name_contains = (name_contains or "").strip()
+    if name_contains and level == "account":
+        level = "campaign"
+
+    # The name/id fields Meta returns for each aggregation level.
+    NAME_FIELD = {"campaign": "campaign_name", "adset": "adset_name", "ad": "ad_name"}
+    ID_FIELD   = {"campaign": "campaign_id",   "adset": "adset_id",   "ad": "ad_id"}
+    name_field = NAME_FIELD.get(level)
+
     if not fields:
         fields = ["spend", "impressions", "clicks", "ctr", "cpc", "cpm",
                   "reach", "frequency", "actions", "action_values",
                   "purchase_roas", "cost_per_action_type"]
+    else:
+        fields = list(fields)
+    # Always include the entity name + id so rows are identifiable and name-filterable.
+    for f in (NAME_FIELD.get(level), ID_FIELD.get(level)):
+        if f and f not in fields:
+            fields.append(f)
+
     params = {
         "access_token": access_token,
         "level": level,
@@ -620,14 +671,30 @@ def run_meta_ads_report(access_token, ad_account_id, start_date, end_date,
         if isinstance(data, dict) and data.get("error"):
             err = data["error"]
             return {"error": err.get("message", "Meta API error"), "code": err.get("code"), "raw": err}
-        return {
+        rows = data.get("data", [])
+        total_count = len(rows)
+        out = {
             "ad_account_id": acct,
             "start_date": start_date,
             "end_date": end_date,
             "level": level,
-            "rows": data.get("data", []),
+            "rows": rows,
             "paging": data.get("paging", {})
         }
+        if name_contains and name_field:
+            needle = name_contains.lower()
+            rows = [row for row in rows if needle in str(row.get(name_field, "")).lower()]
+            out["rows"] = rows
+            out["name_filter"] = name_contains
+            out["matched_count"] = len(rows)
+            out["total_count"] = total_count
+            out["matched_names"] = [row.get(name_field) for row in rows]
+            if not rows:
+                out["note"] = (f"No {level}s matched a name containing '{name_contains}'. "
+                               f"{total_count} {level}(s) ran in this account for the period. "
+                               f"Report this to the user and ask for the exact campaign name — "
+                               f"do NOT fall back to account-level totals as if they were the filtered subset.")
+        return out
     except Exception as e:
         return {"error": str(e)}
 
@@ -836,7 +903,18 @@ def run_monday_graphql(query, variables=None, api_key=None):
         if "errors" in data and data["errors"]:
             error_msg = data["errors"][0].get("message", "GraphQL error")
             print(f"[MONDAY-GQL] ERROR: {error_msg}")
-            return {"error": error_msg, "graphql_errors": data["errors"]}
+            result = {"error": error_msg, "graphql_errors": data["errors"]}
+            # Give Claude an actionable recovery hint for the most common self-inflicted errors
+            # so it retries correctly instead of looping the same broken query.
+            low = error_msg.lower()
+            if "cursor" in low:
+                result["hint"] = ("The cursor is stale or invalid. Re-run the query WITHOUT a cursor "
+                                  "to restart pagination from the first page, then only follow the fresh "
+                                  "cursor returned by that response.")
+            elif "column_values" in low and ("argument" in low or "'id'" in low):
+                result["hint"] = ("`column_values` takes a plural list `ids` argument: "
+                                  "column_values(ids: [\"col1\", \"col2\"]). There is no `id:` or `filter:` argument.")
+            return result
         return data.get("data", data)
     except requests.exceptions.Timeout:
         return {"error": "Monday.com API timed out"}
@@ -877,7 +955,9 @@ def run_google_chat_mcp_tool(tool_name, tool_input, access_token):
     try:
         print(f"[MCP] Calling {tool_name} with {json.dumps(tool_input)}")
         r = requests.post(mcp_endpoint, headers=headers, json=payload, timeout=30)
-        
+
+        if r.status_code in (401, 403):
+            return _gchat_error(r)
         if r.status_code != 200:
             return {"error": f"MCP API HTTP {r.status_code}", "detail": r.text[:500]}
             
@@ -919,19 +999,39 @@ def run_google_chat_mcp_tool(tool_name, tool_input, access_token):
 
 
 # ── Google Chat Standard API helper ──────────────────────────────────────────
+def _gchat_error(r):
+    """Translate a non-200 Google Chat response into an actionable error dict.
+    401/403 almost always means the user's Google access token expired or was
+    revoked — surface a reconnect instruction instead of a raw HTTP error so the
+    model tells the user to re-link Google rather than retrying blindly."""
+    if r.status_code in (401, 403):
+        return {
+            "error": "google_auth_expired",
+            "auth_expired": True,
+            "message": ("Your Google session has expired or is missing the required Chat "
+                        "permission. Ask the user to reconnect Google (Settings → Connections "
+                        "→ Google Workspace) and try again."),
+            "detail": r.text[:300],
+        }
+    return {"error": f"Google Chat API HTTP {r.status_code}", "detail": r.text[:500]}
+
+
 def list_google_chat_spaces_standard(access_token, page_size=100):
     """
     Directly call the Google Chat API (v1) to list spaces.
     Useful as a fallback if MCP tools fail.
     """
+    if not access_token:
+        return {"error": "google_auth_expired", "auth_expired": True,
+                "message": "No Google access token was supplied. Ask the user to connect Google Workspace in Settings."}
     url = "https://chat.googleapis.com/v1/spaces"
     headers = {"Authorization": f"Bearer {access_token}"}
     params = {"pageSize": page_size}
-    
+
     try:
         r = requests.get(url, headers=headers, params=params, timeout=20)
         if r.status_code != 200:
-            return {"error": f"Google Chat API HTTP {r.status_code}", "detail": r.text[:500]}
+            return _gchat_error(r)
         return r.json()
     except Exception as e:
         return {"error": str(e)}
@@ -940,16 +1040,19 @@ def list_google_chat_messages_standard(access_token, space_name, page_size=20, f
     """
     Directly call the Google Chat API (v1) to list messages in a space.
     """
+    if not access_token:
+        return {"error": "google_auth_expired", "auth_expired": True,
+                "message": "No Google access token was supplied. Ask the user to connect Google Workspace in Settings."}
     url = f"https://chat.googleapis.com/v1/{space_name}/messages"
     headers = {"Authorization": f"Bearer {access_token}"}
     params = {"pageSize": page_size}
     if filter_str:
         params["filter"] = filter_str
-    
+
     try:
         r = requests.get(url, headers=headers, params=params, timeout=20)
         if r.status_code != 200:
-            return {"error": f"Google Chat API HTTP {r.status_code}", "detail": r.text[:500]}
+            return _gchat_error(r)
         return r.json()
     except Exception as e:
         return {"error": str(e)}
@@ -960,17 +1063,24 @@ def search_google_chat_messages_standard(access_token, query, order_by="CREATE_T
     Step 1: Try the admin search endpoint.
     Step 2 (Fallback): List all spaces, fuzzy-match by name, then fetch messages from matching space.
     """
+    if not access_token:
+        return {"error": "google_auth_expired", "auth_expired": True,
+                "message": "No Google access token was supplied. Ask the user to connect Google Workspace in Settings."}
     headers = {"Authorization": f"Bearer {access_token}"}
-    
+
     # Step 1: Try admin search endpoint first
     url = "https://chat.googleapis.com/v1/spaces/-/messages:search"
     params = {"query": query, "orderBy": order_by}
-    
+
     try:
         print(f"[GCHAT] Searching via Standard API: {query}")
         r = requests.get(url, headers=headers, params=params, timeout=20)
         if r.status_code == 200:
             return r.json()
+        # An expired/revoked token won't be fixed by the space-name fallback — bail early
+        # with an actionable message rather than firing a second doomed request.
+        if r.status_code in (401, 403):
+            return _gchat_error(r)
         print(f"[GCHAT] Admin search failed ({r.status_code}), using space-name fallback.")
     except Exception as e:
         print(f"[GCHAT] Admin search exception: {e}")
@@ -986,7 +1096,7 @@ def search_google_chat_messages_standard(access_token, query, order_by="CREATE_T
                 params_spaces["pageToken"] = next_page_token
             res = requests.get("https://chat.googleapis.com/v1/spaces", headers=headers, params=params_spaces, timeout=20)
             if res.status_code != 200:
-                return {"error": f"Google Chat API {res.status_code}", "detail": res.text[:400]}
+                return _gchat_error(res)
             data = res.json()
             all_spaces.extend(data.get("spaces", []))
             next_page_token = data.get("nextPageToken")
@@ -1026,12 +1136,6 @@ def search_google_chat_messages_standard(access_token, query, order_by="CREATE_T
         return {"error": str(e)}
 
 def run_google_ads_report(customer_id, query, token):
-    # GAQL has no metrics.cpc field (UNRECOGNIZED_FIELD) — the correct field is
-    # metrics.average_cpc. Rewrite the common LLM mistake deterministically so the
-    # call succeeds even if the model ignores the tool-description guidance. Use a
-    # word boundary so we don't clobber metrics.cpc_* style fields if any appear.
-    if query:
-        query = re.sub(r'metrics\.cpc\b(?!_)', 'metrics.average_cpc', query)
     url = f"https://googleads.googleapis.com/v22/customers/{customer_id}/googleAds:searchStream"
     headers = {
         "Authorization": f"Bearer {token}",
@@ -1047,6 +1151,135 @@ def run_google_ads_report(customer_id, query, token):
         return r.json()
     except Exception as e:
         return {"error": str(e)}
+
+def run_google_ads_change_history(customer_id, token, days=30,
+                                  agency_email_contains="mediaone.co",
+                                  flag_after_days=14, campaign_contains=None,
+                                  limit=1000):
+    """Pull Google Ads change history (the change_event resource) for an account and
+    summarise optimisation recency. Google only retains change_event for the last 30 days
+    and requires an explicit date range + LIMIT, so `days` is capped at 30.
+
+    For each campaign it finds the most recent change made by an "agency" user (email
+    containing agency_email_contains, default 'mediaone.co') and flags campaigns with no
+    such change in the last flag_after_days days — i.e. accounts/campaigns that have not
+    been optimised recently. This answers "which campaigns haven't been touched by us lately"."""
+    from datetime import datetime, timedelta
+    if not customer_id:
+        return {"error": "Missing customer_id"}
+    if not token:
+        return {"error": "Missing Google Ads token. Connect Google Ads first."}
+    try:
+        days = int(days)
+    except (TypeError, ValueError):
+        days = 30
+    days = max(1, min(days, 30))  # change_event is retained for 30 days only
+    try:
+        flag_after_days = int(flag_after_days)
+    except (TypeError, ValueError):
+        flag_after_days = 14
+    try:
+        lim = min(max(int(limit), 1), 10000)
+    except (TypeError, ValueError):
+        lim = 1000
+
+    since_str = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    query = (
+        "SELECT change_event.change_date_time, change_event.user_email, "
+        "change_event.change_resource_type, change_event.resource_change_operation, "
+        "change_event.changed_fields, change_event.campaign, campaign.name "
+        "FROM change_event "
+        f"WHERE change_event.change_date_time >= '{since_str}' "
+        "ORDER BY change_event.change_date_time DESC "
+        f"LIMIT {lim}"
+    )
+
+    raw = run_google_ads_report(customer_id, query, token)
+    if isinstance(raw, dict) and raw.get("error"):
+        return raw
+
+    # searchStream returns a list of {"results": [...]} batches (or a single dict).
+    results = []
+    if isinstance(raw, list):
+        for batch in raw:
+            results.extend((batch or {}).get("results", []))
+    elif isinstance(raw, dict):
+        results.extend(raw.get("results", []))
+
+    needle = (agency_email_contains or "").lower().strip()
+    now = datetime.utcnow()
+
+    def _days_since(dt_str):
+        if not dt_str:
+            return None
+        try:
+            base = dt_str.split("+")[0].split(".")[0].strip()
+            return round((now - datetime.strptime(base, "%Y-%m-%d %H:%M:%S")).total_seconds() / 86400, 1)
+        except Exception:
+            return None
+
+    events = []
+    campaign_last_agency = {}   # campaign name -> latest agency change datetime
+    all_campaigns = set()
+    agency_event_count = 0
+    last_agency_change = None
+
+    for row in results:
+        ce = row.get("changeEvent", {}) or {}
+        email = (ce.get("userEmail") or "").strip()
+        when = ce.get("changeDateTime") or ""
+        camp = (row.get("campaign", {}) or {}).get("name") or ce.get("campaign") or "(account-level)"
+        if campaign_contains and campaign_contains.lower() not in str(camp).lower():
+            continue
+        all_campaigns.add(camp)
+        is_agency = bool(needle) and needle in email.lower()
+        events.append({
+            "when": when,
+            "user_email": email,
+            "is_agency": is_agency,
+            "campaign": camp,
+            "resource_type": ce.get("changeResourceType"),
+            "operation": ce.get("resourceChangeOperation"),
+            "changed_fields": ce.get("changedFields"),
+        })
+        if is_agency:
+            agency_event_count += 1
+            if when and (last_agency_change is None or when > last_agency_change):
+                last_agency_change = when
+            if not campaign_last_agency.get(camp) or when > campaign_last_agency[camp]:
+                campaign_last_agency[camp] = when
+
+    campaign_flags = []
+    for camp in sorted(all_campaigns):
+        last = campaign_last_agency.get(camp)
+        dsince = _days_since(last)
+        campaign_flags.append({
+            "campaign": camp,
+            "last_agency_change": last,
+            "days_since_agency_change": dsince,
+            "unoptimised": (last is None) or (dsince is not None and dsince > flag_after_days),
+        })
+
+    days_since_last_agency = _days_since(last_agency_change)
+    MAX_EVENTS = 200
+    return {
+        "customer_id": customer_id,
+        "window_days": days,
+        "agency_email_contains": agency_email_contains,
+        "flag_after_days": flag_after_days,
+        "total_events": len(events),
+        "agency_events": agency_event_count,
+        "last_agency_change": last_agency_change,
+        "days_since_last_agency_change": days_since_last_agency,
+        "account_unoptimised": (last_agency_change is None) or (days_since_last_agency is not None and days_since_last_agency > flag_after_days),
+        "unoptimised_campaigns": [c for c in campaign_flags if c["unoptimised"]],
+        "campaign_optimisation": campaign_flags,
+        "events": events[:MAX_EVENTS],
+        "events_truncated": len(events) > MAX_EVENTS,
+        "note": ("change_event is only available for the last 30 days. 'unoptimised' = no change by a "
+                 f"user whose email contains '{agency_email_contains}' within {flag_after_days} days. "
+                 "Account-level changes are grouped under '(account-level)'."),
+    }
 
 def run_gsc_performance(site_url, tool_input, token):
     import urllib.parse
@@ -1224,8 +1457,10 @@ TOOL_LABELS = {
     "get_gsc_performance":             "Pulling Search Console data",
     "get_ga4_report":                  "Fetching GA4 analytics",
     "get_ads_report":                  "Fetching Google Ads data",
+    "get_ads_change_history":          "Pulling Google Ads change history",
     "save_memory_note":                "Saving to memory",
     "get_seranking_report":            "Fetching SE Ranking positions",
+    "get_seranking_backlinks":         "Fetching SE Ranking backlinks",
     "get_meta_ads_report":             "Fetching Meta Ads data",
     "get_linkedin_ads_report":         "Fetching LinkedIn Ads data",
     "get_tiktok_ads_report":           "Fetching TikTok Ads data",
@@ -1649,8 +1884,10 @@ def claude_chat_with_tools(body):
                 "Use singular `board_id`, and `columns: [{ column_id: \"...\", column_values: [\"...\"] }]` "
                 "(an array of objects).\n"
                 "4. `updates_page` does NOT exist on an item — use `updates(limit:) { id body created_at creator { id name } }`.\n"
-                "5. `items_page_by_column_values(...)` returns an items_page shape — unwrap it as `{ cursor items { ... } }`, never as raw items.\n"
+                "5. `items_page_by_column_values(...)` returns an items_page shape — unwrap it as `{ cursor items { ... } }`, never as raw items. The top-level entry point is `items_page_by_column_values(...)` — there is NO `items_by_column_values`.\n"
                 "6. To paginate, follow the returned `cursor` with `next_items_page(cursor: \"...\", limit:) { cursor items { ... } }`.\n"
+                "7. `column_values` takes a PLURAL `ids` argument that is a LIST — `column_values(ids: [\"status\", \"date\"]) { id text value }`. There is NO `id:` (singular) argument and NO `filter:` argument on `column_values`; using either is a hard API error.\n"
+                "8. CURSORS ARE SINGLE-USE AND OPAQUE. Only ever pass a `cursor` value that came back from the immediately preceding `items_page`/`next_items_page` response in THIS conversation. Never reuse a cursor twice, never guess or hand-write one, and never reuse a cursor from an earlier turn — doing so returns 'Invalid or corrupted cursor'. To start over, omit `cursor` entirely.\n"
                 "Correct templates:\n"
                 "  • Board items: { boards(ids: [BOARD_ID]) { items_page(limit: 100) { cursor items { id name column_values { id text value } creator { id name } } } } }\n"
                 "  • By column value: { boards(ids: [BOARD_ID]) { items_page_by_column_values(board_id: BOARD_ID, columns: [{column_id: \"status\", column_values: [\"Done\"]}]) { cursor items { id name column_values { id text value } } } } }\n"
@@ -1764,14 +2001,38 @@ def claude_chat_with_tools(body):
         },
         {
             "name": "get_ads_report",
-            "description": "Fetch performance data from Google Ads using GAQL (API v22). Valid metric fields include metrics.cost_micros, metrics.clicks, metrics.impressions, metrics.conversions, metrics.average_cpc, metrics.ctr, metrics.average_cpm. NOTE: there is no metrics.cpc field — use metrics.average_cpc instead (it is in micros, divide by 1,000,000 for the dollar CPC).",
+            "description": "Fetch performance data from Google Ads using GAQL. Metrics include cost_micros, clicks, impressions, conversions, etc.",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "customerId": {"type": "string", "description": "The Google Ads Customer ID."},
-                    "query": {"type": "string", "description": "The GAQL query string. GAQL does NOT support OR inside a WHERE clause (e.g. \"campaign.name LIKE '%a%' OR campaign.name LIKE '%b%'\" is invalid). To match several name fragments, issue separate get_ads_report calls (one LIKE per query) and merge the results yourself, or use a single broader LIKE. Use metrics.average_cpc, never metrics.cpc."}
+                    "query": {"type": "string", "description": "The GAQL query string."}
                 },
                 "required": ["customerId", "query"]
+            }
+        },
+        {
+            "name": "get_ads_change_history",
+            "description": (
+                "Pull Google Ads CHANGE HISTORY (who changed what, when) for an account and flag "
+                "campaigns/accounts that have NOT been optimised recently. Use this whenever the user "
+                "asks about change history, recent optimisations, who edited an account, or wants to "
+                "find accounts/campaigns not touched lately. By default it flags anything with no change "
+                "from an agency user (email containing 'mediaone.co') in the last 14 days. Google only "
+                "retains change history for the last 30 days. Returns per-campaign last-agency-change "
+                "dates, an unoptimised_campaigns list, and the raw events. Distinct from get_ads_report, "
+                "which only returns performance metrics, not the audit trail."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "customerId": {"type": "string", "description": "The Google Ads Customer ID."},
+                    "days": {"type": "integer", "description": "How many days of change history to pull (1-30; default 30). Google retains at most 30 days."},
+                    "agency_email_contains": {"type": "string", "description": "Substring identifying agency users in the change log. Default 'mediaone.co'. A change counts as an 'optimisation' only if made by a user whose email contains this."},
+                    "flag_after_days": {"type": "integer", "description": "Flag a campaign/account as unoptimised if it has had no agency change within this many days. Default 14."},
+                    "campaign_contains": {"type": "string", "description": "Optional case-insensitive campaign-name filter to scope the audit to specific campaigns."}
+                },
+                "required": ["customerId"]
             }
         },
         {
@@ -1782,6 +2043,28 @@ def claude_chat_with_tools(body):
                 "properties": {
                     "siteId": {"type": "string", "description": "The SE Ranking Site ID (Campaign ID)."},
                     "includePositions": {"type": "boolean", "description": "Whether to fetch current ranking positions (pos, change, date)."}
+                },
+                "required": ["siteId"]
+            }
+        },
+        {
+            "name": "get_seranking_backlinks",
+            "description": (
+                "Fetch the monitored backlinks tracked inside a SE Ranking project/campaign. "
+                "Use this when the user asks about backlinks, referring domains, anchor text, or "
+                "dofollow/nofollow links for one of their SE Ranking campaigns. Takes the SE Ranking "
+                "Site ID (from 'loaded_seranking_campaigns' in context). Returns a summary (total "
+                "backlinks, unique referring domains, dofollow/nofollow split) plus a sample of "
+                "individual links. Note: this reflects SE Ranking's own Backlink Monitoring list — if "
+                "a project has no backlink monitoring configured the list comes back empty, in which "
+                "case fall back to dataforseo_backlinks_summary or get_ahrefs_report using the "
+                "campaign's domain."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "siteId": {"type": "string", "description": "The SE Ranking Site ID (Campaign ID) from loaded_seranking_campaigns."},
+                    "limit": {"type": "integer", "description": "Max individual backlinks to include in the sample (default 50).", "default": 50}
                 },
                 "required": ["siteId"]
             }
@@ -1949,7 +2232,10 @@ def claude_chat_with_tools(body):
                 "whenever the user asks about Meta Ads, Facebook Ads, Instagram Ads, or paid social "
                 "performance. The ad_account_id values are in the synced context / CURRENT CONTEXT under "
                 "'meta_ad_account_ids'. Call once per ad_account_id. For a daily breakdown set "
-                "time_increment to 1."
+                "time_increment to 1. To analyse only specific campaigns (e.g. agency-managed "
+                "campaigns whose names contain 'MO'), set level='campaign' and pass name_contains "
+                "— rows come back with campaign_name/campaign_id and only the matching campaigns. "
+                "Never report account-level totals as if they were a name-filtered subset."
             ),
             "input_schema": {
                 "type": "object",
@@ -1957,9 +2243,10 @@ def claude_chat_with_tools(body):
                     "ad_account_id": {"type": "string", "description": "The Meta ad account ID (e.g. 'act_123456789'; the 'act_' prefix is added automatically if missing). Found in synced context under 'meta_ad_account_ids'."},
                     "start_date": {"type": "string", "description": "Start date (YYYY-MM-DD)."},
                     "end_date": {"type": "string", "description": "End date (YYYY-MM-DD)."},
-                    "level": {"type": "string", "enum": ["account", "campaign", "adset", "ad"], "description": "Aggregation level. Defaults to 'account'."},
+                    "level": {"type": "string", "enum": ["account", "campaign", "adset", "ad"], "description": "Aggregation level. Defaults to 'account'. Rows at campaign/adset/ad level include the entity name + id. Use 'campaign' whenever the user names or filters by campaign."},
                     "time_increment": {"type": "integer", "description": "Set to 1 for a daily time series. Omit for a single aggregated total."},
-                    "fields": {"type": "array", "items": {"type": "string"}, "description": "Optional Insights field list. Defaults to spend, impressions, clicks, ctr, cpc, cpm, reach, frequency, actions, action_values, purchase_roas, cost_per_action_type."}
+                    "fields": {"type": "array", "items": {"type": "string"}, "description": "Optional Insights field list. Defaults to spend, impressions, clicks, ctr, cpc, cpm, reach, frequency, actions, action_values, purchase_roas, cost_per_action_type."},
+                    "name_contains": {"type": "string", "description": "Case-insensitive substring to filter campaigns/ad sets/ads by name (e.g. 'MO' for agency-managed campaigns). If level is 'account' it auto-upgrades to 'campaign'. The result reports matched_count, total_count, and matched_names so you can confirm the filter."}
                 },
                 "required": ["ad_account_id", "start_date", "end_date"]
             }
@@ -2375,12 +2662,34 @@ def claude_chat_with_tools(body):
                         print(f"[TOOLS] Fetching Google Ads Report for {customerId}")
                         result_data = run_google_ads_report(customerId, query, ads_token)
                         result_str = json.dumps(result_data)
-                        
+
                         tool_results.append({
                             "type":        "tool_result",
                             "tool_use_id": tool_id,
                             "content":     result_str
                         })
+
+                    elif tool_name == "get_ads_change_history":
+                        customerId = tool_input.get("customerId")
+                        ads_token = body.get('google_tokens', {}).get('ads')
+                        print(f"[TOOLS] Fetching Google Ads change history for {customerId}")
+                        result_data = run_google_ads_change_history(
+                            customerId,
+                            ads_token,
+                            tool_input.get("days", 30),
+                            tool_input.get("agency_email_contains", "mediaone.co"),
+                            tool_input.get("flag_after_days", 14),
+                            tool_input.get("campaign_contains")
+                        )
+                        result_str = json.dumps(result_data)
+                        if len(result_str) > 40000:
+                            result_str = result_str[:40000] + "\n... [result truncated, narrow days or campaign_contains]"
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     result_str
+                        })
+                        tool_call_log.append(f"Pulled Google Ads change history for {customerId}")
 
                     elif tool_name == "get_gsc_performance":
                         siteUrl = tool_input.get("siteUrl")
@@ -2487,6 +2796,92 @@ def claude_chat_with_tools(body):
                             "content": json.dumps(result_data)
                         })
                         tool_call_log.append(f"Fetched SE Ranking rankings for Site {site_id}")
+
+                    elif tool_name == "get_seranking_backlinks":
+                        site_id = str(tool_input.get("siteId", ""))
+                        limit = tool_input.get("limit", 50)
+
+                        # Same guard as get_seranking_report: a 10+ digit id is almost
+                        # certainly a Monday item id, not a SE Ranking site id.
+                        if len(site_id) >= 10:
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": tool_id,
+                                "content": json.dumps({"error": f"Error: Site ID '{site_id}' looks like a Monday.com Item ID, not a SE Ranking Site ID. Use the site_id from 'loaded_seranking_campaigns'."}),
+                                "is_error": True
+                            })
+                            continue
+
+                        ser_headers = {"Authorization": f"Token {SERANKING_TOKEN}", "Content-Type": "application/json"}
+                        try:
+                            bl_res = requests.get(f'https://api4.seranking.com/backlinks/{site_id}', headers=ser_headers, timeout=25)
+                            links = bl_res.json() if bl_res.status_code == 200 else []
+                            if not isinstance(links, list):
+                                links = []
+
+                            def _host(u):
+                                try:
+                                    return (u or "").split("//")[-1].split("/")[0].lower().lstrip("www.")
+                                except Exception:
+                                    return ""
+                            def _truthy(v):
+                                return str(v).lower() in ("1", "true", "yes")
+
+                            ref_domains = set()
+                            dofollow = nofollow = 0
+                            for b in links:
+                                if not isinstance(b, dict):
+                                    continue
+                                ref_domains.add(_host(b.get("url_from") or b.get("source_url") or b.get("from")))
+                                # SE Ranking exposes nofollow as a flag; absence implies dofollow.
+                                if _truthy(b.get("nofollow")):
+                                    nofollow += 1
+                                else:
+                                    dofollow += 1
+                            ref_domains.discard("")
+
+                            sample = []
+                            for b in links[:limit]:
+                                if not isinstance(b, dict):
+                                    continue
+                                sample.append({
+                                    "from": b.get("url_from") or b.get("source_url") or b.get("from"),
+                                    "to": b.get("url_to") or b.get("target_url") or b.get("to"),
+                                    "anchor": b.get("anchor"),
+                                    "nofollow": _truthy(b.get("nofollow")),
+                                    "first_seen": b.get("first_seen") or b.get("date_added"),
+                                    "last_visited": b.get("last_visited") or b.get("last_check"),
+                                })
+
+                            result_data = {
+                                "site_id": site_id,
+                                "source": "seranking_backlink_monitoring",
+                                "summary": {
+                                    "total_backlinks": len(links),
+                                    "referring_domains": len(ref_domains),
+                                    "dofollow": dofollow,
+                                    "nofollow": nofollow,
+                                },
+                                "sample_backlinks": sample,
+                            }
+                            if len(links) == 0:
+                                result_data["note"] = ("This SE Ranking campaign has no backlinks in its Backlink Monitoring list "
+                                                       "(the feature may not be configured for this project). For live backlink data, "
+                                                       "use dataforseo_backlinks_summary or get_ahrefs_report with the campaign's domain.")
+
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": tool_id,
+                                "content": json.dumps(result_data)
+                            })
+                            tool_call_log.append(f"Fetched SE Ranking backlinks for Site {site_id} ({len(links)} links)")
+                        except Exception as e:
+                            tool_results.append({
+                                "type": "tool_result",
+                                "tool_use_id": tool_id,
+                                "content": json.dumps({"error": str(e)}),
+                                "is_error": True
+                            })
 
                     elif tool_name == "get_dataforseo_keyword_suggestions":
                         seeds = tool_input.get("keywords", [])
@@ -2655,7 +3050,8 @@ def claude_chat_with_tools(body):
                             tool_input.get("end_date"),
                             tool_input.get("level", "account"),
                             tool_input.get("time_increment"),
-                            tool_input.get("fields")
+                            tool_input.get("fields"),
+                            tool_input.get("name_contains")
                         )
                         result_str = json.dumps(result_data)
                         if len(result_str) > 40000:
@@ -2691,50 +3087,83 @@ def claude_chat_with_tools(body):
                         tool_call_log.append(f"Fetched LinkedIn Ads report for account {account_id}")
 
                     elif tool_name == "get_ahrefs_report":
-                        domain = tool_input.get("domain", "").strip().lstrip("https://").lstrip("http://").rstrip("/")
+                        domain = ahrefs_bare_domain(tool_input.get("domain", ""))
                         action = tool_input.get("action", "overview")
                         print(f"[TOOLS] Fetching Ahrefs {action} for {domain}")
                         ahrefs_key = AHREFS_API_KEY
                         if not ahrefs_key:
                             result_data = {"error": "AHREFS_API_KEY is not configured on the server"}
+                        elif not domain:
+                            result_data = {"error": "No valid domain supplied. Pass a bare domain like 'example.com'."}
                         else:
                             ahrefs_headers = {
                                 "Authorization": f"Bearer {ahrefs_key}",
                                 "Accept": "application/json"
                             }
+                            # Ahrefs v3 requires a 'date' on the snapshot endpoints; it returns the
+                            # latest data on or before this date. Use today (UTC).
+                            ahrefs_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                            base = "https://api.ahrefs.com/v3/site-explorer"
+
+                            def _ah_get(path, params):
+                                """GET an Ahrefs v3 endpoint; return (ok, json_or_error_dict)."""
+                                try:
+                                    r = requests.get(f"{base}/{path}", headers=ahrefs_headers,
+                                                     params=params, timeout=30)
+                                    if r.status_code == 200:
+                                        return True, r.json()
+                                    # 404 "Not found" => domain not in Ahrefs index (or no data).
+                                    if r.status_code == 404:
+                                        return False, {
+                                            "not_in_ahrefs": True,
+                                            "message": (f"'{domain}' was not found in the Ahrefs index "
+                                                        f"(it may be too new or too small to be crawled). "
+                                                        f"Try get_dataforseo_* tools for this domain instead."),
+                                        }
+                                    return False, {"error": f"Ahrefs HTTP {r.status_code}: {r.text[:300]}"}
+                                except Exception as ah_e:
+                                    return False, {"error": str(ah_e)}
+
                             try:
                                 if action == "overview":
-                                    r_ah = requests.get(
-                                        "https://api.ahrefs.com/v3/site-explorer/overview",
-                                        headers=ahrefs_headers,
-                                        params={"target": domain, "mode": "domain"},
-                                        timeout=30
-                                    )
-                                    result_data = r_ah.json() if r_ah.status_code == 200 else {"error": r_ah.text[:500]}
+                                    # No single 'overview' endpoint exists in v3 — compose one from
+                                    # domain-rating + metrics + backlinks-stats.
+                                    ok_dr, dr = _ah_get("domain-rating",
+                                                        {"target": domain, "date": ahrefs_date})
+                                    if not ok_dr and dr.get("not_in_ahrefs"):
+                                        result_data = dr
+                                    else:
+                                        ok_m, met = _ah_get("metrics",
+                                                            {"target": domain, "mode": "domain", "date": ahrefs_date})
+                                        ok_b, bls = _ah_get("backlinks-stats",
+                                                            {"target": domain, "mode": "domain", "date": ahrefs_date})
+                                        result_data = {
+                                            "domain": domain,
+                                            "domain_rating": (dr.get("domain_rating") if ok_dr else dr),
+                                            "metrics": (met.get("metrics") if ok_m else met),
+                                            "backlinks_stats": (bls.get("metrics") if ok_b else bls),
+                                        }
                                 elif action == "keywords":
-                                    r_ah = requests.get(
-                                        "https://api.ahrefs.com/v3/site-explorer/organic-keywords",
-                                        headers=ahrefs_headers,
-                                        params={"target": domain, "mode": "domain", "limit": 50, "order_by": "volume:desc"},
-                                        timeout=30
-                                    )
-                                    result_data = r_ah.json() if r_ah.status_code == 200 else {"error": r_ah.text[:500]}
+                                    ok, data = _ah_get("organic-keywords", {
+                                        "target": domain, "mode": "domain", "date": ahrefs_date,
+                                        "select": "keyword,best_position,volume,sum_traffic,keyword_difficulty",
+                                        "order_by": "volume:desc", "limit": 50,
+                                    })
+                                    result_data = data
                                 elif action == "backlinks":
-                                    r_ah = requests.get(
-                                        "https://api.ahrefs.com/v3/site-explorer/all-backlinks",
-                                        headers=ahrefs_headers,
-                                        params={"target": domain, "mode": "domain", "limit": 50, "order_by": "domain_rating_source:desc"},
-                                        timeout=30
-                                    )
-                                    result_data = r_ah.json() if r_ah.status_code == 200 else {"error": r_ah.text[:500]}
+                                    ok, data = _ah_get("all-backlinks", {
+                                        "target": domain, "mode": "domain",
+                                        "select": "url_from,url_to,domain_rating_source,anchor,first_seen",
+                                        "order_by": "domain_rating_source:desc", "limit": 50,
+                                    })
+                                    result_data = data
                                 elif action == "competitors":
-                                    r_ah = requests.get(
-                                        "https://api.ahrefs.com/v3/site-explorer/competing-domains",
-                                        headers=ahrefs_headers,
-                                        params={"target": domain, "mode": "domain", "limit": 20},
-                                        timeout=30
-                                    )
-                                    result_data = r_ah.json() if r_ah.status_code == 200 else {"error": r_ah.text[:500]}
+                                    ok, data = _ah_get("organic-competitors", {
+                                        "target": domain, "mode": "domain", "date": ahrefs_date,
+                                        "select": "competitor_domain,domain_rating,keywords_common,keywords_competitor,traffic",
+                                        "order_by": "keywords_common:desc", "limit": 20,
+                                    })
+                                    result_data = data
                                 else:
                                     result_data = {"error": f"Unknown action: {action}"}
                             except Exception as ah_e:

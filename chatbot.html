@@ -8412,6 +8412,25 @@
         async function fetchGoogleDriveFileContent(file) {
             if (!getWorkspaceToken()) return null;
             try {
+                // Google Sheets: a text/csv export only returns the FIRST tab (the cause of the
+                // "only reads the first tab" complaint). Export as XLSX instead — that preserves
+                // every tab — and convert each sheet to CSV with the SheetJS library already loaded.
+                if (file.mimeType === 'application/vnd.google-apps.spreadsheet' && typeof XLSX !== 'undefined') {
+                    const xlsxUrl = `https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=${encodeURIComponent('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')}`;
+                    const xres = await fetch(xlsxUrl, { headers: { 'Authorization': `Bearer ${window.gchatAccessToken}` } });
+                    if (xres.ok) {
+                        const buf = await xres.arrayBuffer();
+                        const wb = XLSX.read(buf, { type: 'array' });
+                        let out = '';
+                        wb.SheetNames.forEach(name => {
+                            const csv = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
+                            if (csv && csv.trim()) out += `--- Tab: ${name} ---\n${csv}\n\n`;
+                        });
+                        if (out.trim()) return out.substring(0, 40000); // multi-tab needs more room
+                    }
+                    // If the XLSX path failed, fall through to the plain CSV export below.
+                }
+
                 let url;
                 const exportableTypes = {
                     'application/vnd.google-apps.document': 'text/plain',
@@ -9743,13 +9762,22 @@
             input.style.height = 'auto';
             showTyping(true, text);
 
-            // Build history from message list (last 6 turns)
-            // Truncate EVERY message (both roles) and enforce a total budget so a single
-            // huge turn (e.g. an inlined site crawl) can never blow the 200k token limit.
+            // Build history from the message list. Send a generous recent window (was 6 —
+            // too short, which made the bot "forget" earlier turns in the same chat) and
+            // ALWAYS pin the first user turn (the original brief/task) so a long chat can
+            // never evict it. Per-message + total budgets keep us well under the token ceiling.
             const history = [];
             const MAX_MSG_CHARS   = 4000;   // per-message cap (~1k tokens) — applies to user AND assistant
+            const MAX_TASK_CHARS  = 8000;   // the pinned original brief gets a larger cap
             const MAX_TOTAL_CHARS = 80000;  // total history budget (~20k tokens), excluding current message
-            const messageNodes = Array.from(document.querySelectorAll('.message')).slice(-6);
+            const RECENT_TURNS    = 20;     // recent bubbles to send (was 6)
+            const allChatNodes = Array.from(document.querySelectorAll('.message')).filter(m => m.id !== 'welcomeMessage');
+            const firstUserNode = allChatNodes.find(m => m.classList.contains('user'));
+            const recentNodes   = allChatNodes.slice(-RECENT_TURNS);
+            // Pin the original brief only when it falls outside the recent window.
+            const pinFirstTask  = firstUserNode && !recentNodes.includes(firstUserNode);
+            let droppedOlderContext = allChatNodes.length > recentNodes.length;
+            const messageNodes  = pinFirstTask ? [firstUserNode, ...recentNodes] : recentNodes;
             messageNodes.forEach(m => {
                 if (m.id === 'welcomeMessage') return;
                 const role = m.classList.contains('user') ? 'user' : 'assistant';
@@ -9762,9 +9790,10 @@
                 let content = clone.innerText.trim();
                 if (!content) return;
 
-                // Truncate ANY long message to avoid token overflow
-                if (content.length > MAX_MSG_CHARS) {
-                    content = content.slice(0, MAX_MSG_CHARS) + '\n…[truncated in history — full message shown above]';
+                // Truncate ANY long message to avoid token overflow (the pinned brief keeps more).
+                const cap = (pinFirstTask && m === firstUserNode) ? MAX_TASK_CHARS : MAX_MSG_CHARS;
+                if (content.length > cap) {
+                    content = content.slice(0, cap) + '\n…[truncated in history — full message shown above]';
                 }
 
                 if (history.length > 0 && history[history.length - 1].role === role) {
@@ -9774,15 +9803,28 @@
                 }
             });
 
-            // Enforce total budget: drop oldest messages until under MAX_TOTAL_CHARS
+            // Enforce total budget: drop the oldest NON-pinned turns first so the original
+            // brief at index 0 survives. The pin is dropped only as a last resort.
             const _histSize = () => history.reduce((n, h) => n + (typeof h.content === 'string' ? h.content.length : 0), 0);
+            const _pinned = (pinFirstTask && history[0] && history[0].role === 'user') ? 1 : 0;
+            while (history.length > _pinned + 1 && _histSize() > MAX_TOTAL_CHARS) {
+                history.splice(_pinned, 1);
+                droppedOlderContext = true;
+            }
             while (history.length > 1 && _histSize() > MAX_TOTAL_CHARS) {
                 history.shift();
+                droppedOlderContext = true;
             }
 
             // Ensure history starts with 'user' (Anthropic requirement)
             while (history.length > 0 && history[0].role !== 'user') {
                 history.shift();
+            }
+
+            // If we pinned the original brief but trimmed the turns between it and the recent
+            // window, tell the model so it treats the gap honestly instead of inventing the middle.
+            if (pinFirstTask && droppedOlderContext && history.length && history[0].role === 'user') {
+                history[0].content += "\n\n[This was the original brief at the start of the conversation. Some intermediate turns have been trimmed for length — if you need details from them, ask the user instead of guessing.]";
             }
 
             // System prompt with context
@@ -9816,6 +9858,7 @@
             10. get_gsc_performance: For Google Search Console (clicks, impressions).
             11. get_ga4_report: For Google Analytics (sessions, totalUsers, conversions). GA4 metric names are exact — use 'totalUsers' (NOT 'users'), 'screenPageViews' (NOT 'pageviews'), 'averageSessionDuration' (NOT 'avgSessionDuration').
             12. get_ads_report: For Google Ads performance (cost, CPC, ROAS).
+            12b. get_ads_change_history: Pull Google Ads CHANGE HISTORY (who changed what, when) and flag campaigns/accounts NOT optimised recently. Use for any "change history", "recent optimisations", "who edited this account", or "which campaigns haven't been touched lately" request. Defaults to flagging anything with no agency change (email contains 'mediaone.co') in 14 days; only the last 30 days of history exist.
             13. save_memory_note: STRICT MANDATE. Use this whenever you learn a new preference, fact, or logic about the user or their projects. Always include a "tag" field (one of: "Preference", "Strategy", "Fact", "Process", "Constraint") and a "teams" array (one or more of: "SEO", "SEM", "SMM", "BD", "Everyone" — use multiple if the memory applies to multiple teams, use ["Everyone"] if broad).
             14. get_seranking_report: Fetch keyword rankings and positions for a specific SE Ranking campaign. You MUST use this tool when the user asks about SEO keywords, rankings, or SE Ranking data.
             14b. get_seranking_backlinks: Fetch the backlinks tracked in a SE Ranking campaign's Backlink Monitoring (total backlinks, referring domains, dofollow/nofollow split, sample links). Use the site_id from 'loaded_seranking_campaigns'. If a campaign returns no backlinks, fall back to dataforseo_backlinks_summary or get_ahrefs_report using the campaign's domain.
@@ -9836,6 +9879,8 @@
             IMPORTANT: Not all projects have data — if a project returns total=0 with a 'note' field it is not configured; try other matching projects.
 
             GOOGLE DRIVE: You CAN access the user's Google Drive. When the user selects Drive folders in the connector and loads data, the extracted text of those documents is provided to you in SYNCED CONTEXT under "drive_documents" (each has folder, file, type, content). The user can ALSO paste a Google Drive / Docs / Sheets / Slides URL directly into the chat — the linked file's or folder's text is fetched automatically and appended to their message inside "--- GOOGLE DRIVE FILE/FOLDER: ... ---" markers; read and use that content directly. When asked whether you can access Drive or about a Drive folder's contents, check drive_documents and the pasted-link content and answer from it directly — do NOT say you lack Drive access. If no drive_documents are present and no link was pasted, tell the user to either paste a Drive link or select the folder(s) in the Google Drive Folders picker and click "Load Data" (only readable Docs/Sheets/Slides/text files return content).
+
+            UPLOADED FILES: You CAN read files the user uploads directly into the chat — PDF, DOCX, XLSX/XLS (every tab/sheet), CSV, TXT and MD are extracted to text and appended to their message. Pasted Google Sheets links are also read in full, across all tabs. NEVER tell the user you "cannot read Excel" or spreadsheet uploads — read the extracted content directly. Only scanned/image-only PDFs or unsupported binaries fail to extract; if that happens, say exactly that and ask for a text-based version.
 
             ════════════════════════════════════════════════
             DIGIMETRICS PLATFORM TOOLS — PROACTIVE RECOMMENDATIONS
@@ -9973,6 +10018,42 @@
             - Invent context not in the data
             - Recommend anything that did not pass the gates
             If a tool call fails or returns insufficient data, surface the failure explicitly ("Could not retrieve [platform] data — [reason]") rather than fabricating a section.
+            ════════════════════════════════════════════════
+
+            ════════════════════════════════════════════════
+            DATA GROUNDING — VERIFY OR ABSTAIN (applies to EVERY response, not just reports)
+            ════════════════════════════════════════════════
+            NEVER invent, recall, or estimate data. Every number, stat, quote, campaign name, or fact you state must come from THIS conversation's tool results, attachments, or synced context.
+            - If the user references a file, PDF, sheet, prior list, or earlier message that is NOT present in your current context, say so plainly: "I don't have that in front of me right now — can you re-share it?" Do NOT reconstruct it from memory of a past session, from training data, or from a plausible guess.
+            - "Learned memories" are preferences and process notes, NOT a data source. Never present a remembered figure as if it were pulled live.
+            - If asked for figures you have not pulled this turn, pull them with a tool first; if you cannot, state that you could not retrieve them. An honest "I don't have this" always beats a confident wrong number.
+            - When you DO state a metric, anchor it to its source (e.g. "per the May Google Ads pull", "from the PDF you attached").
+
+            ════════════════════════════════════════════════
+            ACCOUNT ↔ CLIENT VERIFICATION (before ANY client-named report)
+            ════════════════════════════════════════════════
+            A connected ad account does NOT automatically belong to the client the user named. Before reporting on a named client:
+            - Confirm the connected/selected account NAME matches the client. If the account name and the client name differ (e.g. account "HL Assurance" but the user asked about "United Medicare"), STOP and ask the user to confirm which account is correct — do not assume they are the same, and do not assume a client runs on a platform just because an account is linked there.
+            - Never label a report with a client name unless the data source for that report is verified as that client's account. Phrasing like "which appears to be X's account" is a red flag — if you are guessing, ask instead.
+            - State the exact account (name + id) and date range your figures came from at the TOP of every report, so any mismatch is visible to the user.
+            - When a name filter is requested (e.g. campaigns containing "MO"), apply it explicitly and list which campaigns matched. If the tool cannot return campaign names to filter on, say so and ask the user to supply the campaign list — do NOT silently report account-level totals as if they were the filtered subset.
+
+            ════════════════════════════════════════════════
+            EDITING & FORMATTING PRESERVATION
+            ════════════════════════════════════════════════
+            When the user asks you to change ONE aspect of content you already produced (e.g. "don't use em dashes", "remove the word X", "make it shorter"), change ONLY that aspect. PRESERVE all existing structure — headings, bullet points, numbered lists, line breaks, and paragraph separation. Re-emit the full content with the single requested change applied; do NOT collapse lists into one paragraph, strip markdown, or restructure unless explicitly told to.
+            - "no em dashes" = replace the — character with a comma, colon, or full stop. It does NOT mean flatten the layout.
+            - Keep each bullet readable on its own line; never concatenate multiple points into one long run-on line.
+            In client-facing reports, do NOT use the word "you"/"your" (write about the campaign/account in the third person) and avoid the word "collapse".
+
+            ════════════════════════════════════════════════
+            CLIENT REPORT TEMPLATE (insights + recommendations — the MediaOne house style)
+            ════════════════════════════════════════════════
+            When the user wants a client-facing report (as opposed to an internal deep-dive), use exactly TWO sections and nothing else:
+            1. **Insights** — 5–6 bullet points. Each bullet = one short headline finding with its key metric inline, followed by a one-sentence supporting explanation. Keep performance numbers inside these bullets; do not add separate data tables.
+            2. **Recommendations (Next Strategy)** — 5–6 bullet points. Each = a concise titled action followed by a brief one- to two-sentence rationale ("because…").
+            Recommendations must focus on FUTURE opportunities and growth that support renewal and continued collaboration — budget scaling, expanding high-performing keywords/audiences, new channels, bid adjustments on proven segments. Do NOT fill this section with routine ongoing-optimisation chores (pausing keywords, adding negatives, housekeeping); mention those only briefly if essential, never as the headline strategy.
+            Keep it clean and easy to copy-paste: no second-person "you", concise bullets, short supporting paragraphs (not walls of text).
             ════════════════════════════════════════════════
 
             MONDAY.COM GRAPHQL RULES (monday_graphql tool — DO NOT VIOLATE; verify EVERY query against this before sending):
