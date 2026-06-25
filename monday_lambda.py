@@ -1897,6 +1897,26 @@ def claude_chat_with_tools(body):
         model = body.get('model') or os.environ.get('CLAUDE_MODEL', 'claude-haiku-4-5')
 
     system     = body.get('system', '')
+
+    # Ground the model in the real current date/time (Singapore). Tools such as
+    # check_calendar_availability ask the model to compute date windows from
+    # "today"; with no injected date the model guesses and can land a day off.
+    # Prepend an authoritative date line — handle both a plain-string system and
+    # a list of content blocks (prompt-caching shape) without disturbing existing
+    # cache_control breakpoints.
+    _now_sgt = datetime.now(SGT)
+    _date_line = (
+        "Current date & time: " + _now_sgt.strftime('%A, %d %B %Y, %H:%M')
+        + " (Asia/Singapore, UTC+8). Treat this as 'today' for ALL date math and "
+        "relative dates ('today', 'tomorrow', 'this week', 'next Monday')."
+    )
+    if isinstance(system, list):
+        system = [{"type": "text", "text": _date_line}] + system
+    elif system:
+        system = _date_line + "\n\n" + system
+    else:
+        system = _date_line
+
     messages   = list(body.get('messages', []))   # mutable copy for the loop
     max_tokens = int(body.get('max_tokens', 4096))
     thinking   = body.get('thinking')  # e.g. {"type": "enabled", "budget_tokens": 8000}
