@@ -1878,6 +1878,17 @@
             color: #334155;
         }
 
+        .ms-bulk-actions button.ms-sel-toggle.active {
+            background: #2563eb;
+            color: #fff;
+            border-color: #2563eb;
+        }
+
+        .ms-bulk-actions button.ms-sel-toggle.active:hover {
+            background: #1d4ed8;
+            color: #fff;
+        }
+
         .ms-search i {
             color: #94a3b8;
             font-size: 0.8rem;
@@ -5467,14 +5478,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 if (welcomeMsg) {
                     const msgContent = welcomeMsg.querySelector('.msg-content');
                     if (msgContent) {
-                        msgContent.innerHTML = `
-                            <strong>👋 Internal Mode Active.</strong> Here's how to query your campaigns:
-                            <ol style="margin:10px 0 4px; padding-left:20px; line-height:2;">
-                                <li><strong>Campaign Board Focus</strong> (top bar) — search and select one or more Monday boards, then click <strong>Load Selected Data</strong>.</li>
-                                <li><strong>Settings panel</strong> (right) — optionally narrow by Campaign name, Staff, or add Advanced Filters. Connect Google Workspace to include Chat spaces and Drive folders in your context.</li>
-                                <li>Once loaded, ask me anything — campaign status, team activity, updates, and more.</li>
-                            </ol>
-                        `;
+                        msgContent.innerHTML = cbBuildInternalWelcomeContent();
                     }
                 }
                 // Load from cache for instant population; live fetch deferred until panel is expanded
@@ -5695,14 +5699,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             if (currentMode === 'internal') {
                 msg.innerHTML = `
-                    <div class="msg-content">
-                        <strong>👋 Internal Mode Active.</strong> Here's how to query your campaigns:
-                        <ol style="margin:10px 0 4px; padding-left:20px; line-height:2;">
-                            <li><strong>Campaign Board Focus</strong> (top bar) — search and select one or more Monday boards, then click <strong>Load Selected Data</strong>.</li>
-                            <li><strong>Settings panel</strong> (right) — optionally narrow by Campaign name, Staff, or add Advanced Filters. Connect Google Workspace to include Chat spaces and Drive folders in your context.</li>
-                            <li>Once loaded, ask me anything — campaign status, team activity, updates, and more.</li>
-                        </ol>
-                    </div>
+                    <div class="msg-content">${cbBuildInternalWelcomeContent()}</div>
                     <span class="time">${timeStr}</span>
                 `;
             } else {
@@ -5818,6 +5815,75 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             const count = states.filter(s => s.on).length;
             const badge = document.getElementById('integrationsCount');
             if (badge) badge.textContent = count + '/' + states.length;
+            cbRefreshInternalWelcome();
+        }
+
+        // ── Internal-mode welcome: live snapshot of active connectors + focus selections ──
+        function cbBuildInternalWelcomeContent() {
+            let states = [];
+            try { states = cbGetConnectionStates(); } catch (e) { states = []; }
+            const active = states.filter(s => s.on);
+
+            const connChip = (s) => {
+                const sub = s.acct ? String(s.acct) : '';
+                return `<span style="display:inline-flex; align-items:center; gap:6px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:999px; padding:4px 11px; font-size:0.72rem; font-weight:600; color:#166534; margin:3px 5px 3px 0; max-width:100%;">
+                    <span style="width:7px; height:7px; border-radius:50%; background:#10b981; box-shadow:0 0 0 3px rgba(16,185,129,0.18); flex-shrink:0;"></span>
+                    ${escapeHtml(s.name)}${sub ? `<span style="color:#16a34a; opacity:.75; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:150px;">· ${escapeHtml(sub)}</span>` : ''}
+                </span>`;
+            };
+
+            const connectorsHtml = active.length
+                ? active.map(connChip).join('')
+                : `<span style="font-size:0.78rem; color:#94a3b8;">No connectors active yet — open <strong>Settings</strong> to connect Monday.com, Google Workspace, and more.</span>`;
+
+            const get = (id) => { try { return (msState[id] && msState[id].selected) || []; } catch (e) { return []; } };
+            const nm = (x) => (x && typeof x === 'object') ? (x.name || x.id || '') : x;
+            const groups = [
+                { label: 'Boards',        items: get('msBoardDropdown').map(nm).filter(Boolean) },
+                { label: 'Campaigns',     items: get('msItemDropdown').map(nm).filter(Boolean) },
+                { label: 'Staff',         items: get('msStaffDropdown').map(nm).filter(Boolean) },
+                { label: 'Chat spaces',   items: get('msChatSpaceDropdown').map(nm).filter(Boolean) },
+                { label: 'Drive folders', items: get('msGDriveFolderDropdown').map(nm).filter(Boolean) },
+            ].filter(g => g.items.length);
+
+            const focusChip = (t) => `<span style="display:inline-block; background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; border-radius:6px; padding:2px 8px; font-size:0.72rem; font-weight:600; margin:3px 5px 0 0;">${escapeHtml(t)}</span>`;
+
+            let focusHtml;
+            if (groups.length) {
+                focusHtml = groups.map(g => {
+                    const shown = g.items.slice(0, 5);
+                    const extra = g.items.length - shown.length;
+                    return `<div style="margin:7px 0 0;">
+                        <span style="font-size:0.68rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.03em;">${g.label} (${g.items.length})</span><br>
+                        ${shown.map(focusChip).join('')}${extra > 0 ? `<span style="display:inline-block; color:#94a3b8; font-size:0.72rem; font-weight:600; margin:3px 0 0 2px;">+${extra} more</span>` : ''}
+                    </div>`;
+                }).join('');
+            } else {
+                focusHtml = `<span style="font-size:0.78rem; color:#94a3b8;">Nothing selected yet — use <strong>Campaign Board Focus</strong> above to pick boards, then click <strong>Load Selected Data</strong>. Narrow by campaign or staff in Settings.</span>`;
+            }
+
+            return `
+                <strong>👋 Internal Mode Active.</strong>
+                <div style="margin-top:12px;">
+                    <div style="font-size:0.68rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.03em; margin-bottom:6px;"><i class="fas fa-plug" style="opacity:.55; margin-right:4px;"></i>Active connectors${active.length ? ` (${active.length})` : ''}</div>
+                    <div style="line-height:1.9;">${connectorsHtml}</div>
+                </div>
+                <div style="margin-top:14px;">
+                    <div style="font-size:0.68rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.03em; margin-bottom:2px;"><i class="fas fa-crosshairs" style="opacity:.55; margin-right:4px;"></i>Items in focus</div>
+                    <div>${focusHtml}</div>
+                </div>
+                <div style="margin-top:14px; font-size:0.78rem; color:#64748b;">Ask me anything about these campaigns — status, team activity, updates, and more.</div>
+            `;
+        }
+
+        function cbRefreshInternalWelcome() {
+            try {
+                if (typeof currentMode !== 'undefined' && currentMode !== 'internal') return;
+                const welcomeMsg = document.getElementById('welcomeMessage');
+                if (!welcomeMsg) return;
+                const msgContent = welcomeMsg.querySelector('.msg-content');
+                if (msgContent) msgContent.innerHTML = cbBuildInternalWelcomeContent();
+            } catch (e) { /* welcome not present — ignore */ }
         }
 
         function cbOpenConnectorSection(sectionId) {
@@ -6348,7 +6414,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
 
         // Show the visibility pill as soon as the DOM is ready (identity may have
         // been resolved before the header existed).
-        window.addEventListener('DOMContentLoaded', function () { try { refreshVisibilityIndicator(); } catch (e) {} });
+        window.addEventListener('DOMContentLoaded', function () { try { refreshVisibilityIndicator(); } catch (e) {} try { msEnsureSelectedToggle(document); } catch (e) {} });
 
         // ---- Load shared conversation from URL param ----
         window.addEventListener('load', async function checkSharedConversation() {
@@ -6409,6 +6475,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
         function toggleSERankingDropdown() {
             const dropdown = document.getElementById('serankingDropdown');
             dropdown.classList.toggle('active');
+            msEnsureSelectedToggle(document.getElementById('serankingMultiSelect'));
         }
 
         // Close dropdown when clicking outside
@@ -6481,13 +6548,17 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             const list = document.getElementById('serankingOptionsList');
             if (!list) return;
 
-            const filtered = window.allSERankingSites.filter(s =>
+            let filtered = window.allSERankingSites.filter(s =>
                 s.title.toLowerCase().includes(filter) ||
                 (s.url && s.url.toLowerCase().includes(filter))
             );
 
+            const selectedOnly = document.getElementById('serankingMultiSelect')?.dataset.selectedOnly === '1';
+            if (selectedOnly) filtered = filtered.filter(s => window.selectedSERankingSites.includes(String(s.id)));
+
             if (filtered.length === 0) {
-                list.innerHTML = '<div style="padding: 10px; font-size: 0.7rem; color: #94a3b8; text-align: center;">No matches</div>';
+                const msg = selectedOnly ? (filter ? 'No selected campaigns match' : 'Nothing selected yet') : 'No matches';
+                list.innerHTML = `<div style="padding: 10px; font-size: 0.7rem; color: #94a3b8; text-align: center;">${msg}</div>`;
                 return;
             }
 
@@ -6518,6 +6589,12 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             // But for performance with 160 items, we just update the specific checkbox
             const cb = document.getElementById(`ser_check_${id}`);
             if (cb) cb.checked = (index === -1);
+
+            // In "selected only" view the list shows just selected items, so re-render
+            // (cheap — only the selected subset is drawn) to drop a just-removed item
+            if (document.getElementById('serankingMultiSelect')?.dataset.selectedOnly === '1') {
+                renderSERankingSites((document.getElementById('serankingSearchInput')?.value || '').toLowerCase());
+            }
         }
 
         function updateSelectedCount() {
@@ -6557,6 +6634,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
 
         function toggleWorkDuoDropdown() {
             document.getElementById('workduoDropdown').classList.toggle('active');
+            msEnsureSelectedToggle(document.getElementById('workduoMultiSelect'));
         }
         document.addEventListener('click', (e) => {
             const c = document.getElementById('workduoMultiSelect');
@@ -6611,10 +6689,16 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
         function renderWorkDuoProjects(filter = '') {
             const list = document.getElementById('workduoOptionsList');
             if (!list) return;
-            const filtered = window.allWorkDuoProjects.filter(p =>
+            let filtered = window.allWorkDuoProjects.filter(p =>
                 (p.name || '').toLowerCase().includes(filter) || (p.id || '').toLowerCase().includes(filter)
             );
-            if (!filtered.length) { list.innerHTML = '<div style="padding:10px; font-size:0.7rem; color:#94a3b8; text-align:center;">No matches</div>'; return; }
+            const selectedOnly = document.getElementById('workduoMultiSelect')?.dataset.selectedOnly === '1';
+            if (selectedOnly) filtered = filtered.filter(p => window.selectedWorkDuoProjectIds.includes(String(p.id)));
+            if (!filtered.length) {
+                const msg = selectedOnly ? (filter ? 'No selected projects match' : 'Nothing selected yet') : 'No matches';
+                list.innerHTML = `<div style="padding:10px; font-size:0.7rem; color:#94a3b8; text-align:center;">${msg}</div>`;
+                return;
+            }
             list.innerHTML = filtered.map(p => {
                 const id = String(p.id);
                 const checked = window.selectedWorkDuoProjectIds.includes(id);
@@ -6638,6 +6722,9 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             updateWorkDuoCount();
             const cb = document.getElementById(`wduo_${id}`);
             if (cb) cb.checked = (idx === -1);
+            if (document.getElementById('workduoMultiSelect')?.dataset.selectedOnly === '1') {
+                renderWorkDuoProjects((document.getElementById('workduoSearchInput')?.value || '').toLowerCase());
+            }
         }
 
         function selectAllWorkDuo() {
@@ -6822,6 +6909,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             const panel = dd.querySelector('.ms-panel');
             const trigger = dd.querySelector('.ms-trigger');
             const isOpen = panel.classList.contains('open');
+            msEnsureSelectedToggle(dd);
 
             // Close all other panels
             document.querySelectorAll('.ms-panel.open').forEach(p => {
@@ -6847,11 +6935,14 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             const dd = document.getElementById(dropdownId);
             const options = dd.querySelectorAll('.ms-option');
             const qLower = query.toLowerCase();
+            const selectedOnly = dd.dataset.selectedOnly === '1';
             let visibleCount = 0;
 
             options.forEach(opt => {
                 const label = (opt.dataset.label || '').toLowerCase();
-                const match = !query || label.includes(qLower);
+                const matchesSearch = !query || label.includes(qLower);
+                const matchesSelected = !selectedOnly || opt.classList.contains('selected');
+                const match = matchesSearch && matchesSelected;
                 opt.style.display = match ? '' : 'none';
                 if (match) visibleCount++;
             });
@@ -6864,10 +6955,57 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     emptyEl.className = 'ms-empty';
                     dd.querySelector('.ms-options').appendChild(emptyEl);
                 }
-                emptyEl.textContent = `No matches for "${query}"`;
+                emptyEl.textContent = selectedOnly
+                    ? (query ? `No selected items match "${query}"` : 'Nothing selected yet')
+                    : `No matches for "${query}"`;
                 emptyEl.style.display = '';
             } else if (emptyEl) {
                 emptyEl.style.display = 'none';
+            }
+        }
+
+        // ── "Show selected only" toggle for every multi-select dropdown ──
+        // Covers both the generic .ms-dropdown family (board/campaign/staff/
+        // spaces/folders/dynamic filters) and the SE Ranking / WorkDuo
+        // .multi-select-container family. The on/off flag is stored on the
+        // dropdown root's dataset so every re-render honours it.
+        function msEnsureSelectedToggle(scopeEl) {
+            const scope = scopeEl || document;
+            scope.querySelectorAll('.ms-bulk-actions').forEach(bar => {
+                const root = bar.closest('.ms-dropdown, .multi-select-container');
+                if (!root) return;
+                let btn = bar.querySelector('.ms-sel-toggle');
+                if (!btn) {
+                    btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'ms-sel-toggle';
+                    btn.title = 'Show only the items you have selected';
+                    btn.innerHTML = '<i class="fas fa-filter"></i> Selected';
+                    btn.addEventListener('click', () => toggleSelectedOnly(btn));
+                    bar.appendChild(btn);
+                }
+                btn.classList.toggle('active', root.dataset.selectedOnly === '1');
+            });
+        }
+
+        function toggleSelectedOnly(btn) {
+            const root = btn.closest('.ms-dropdown, .multi-select-container');
+            if (!root) return;
+            const on = root.dataset.selectedOnly === '1';
+            root.dataset.selectedOnly = on ? '' : '1';
+            root.querySelectorAll('.ms-sel-toggle').forEach(b => b.classList.toggle('active', !on));
+            reapplyDropdownVisibility(root);
+        }
+
+        function reapplyDropdownVisibility(root) {
+            if (!root) return;
+            if (root.classList.contains('ms-dropdown')) {
+                const input = root.querySelector('.ms-search input');
+                filterMsOptions(root.id, input ? input.value : '');
+            } else if (root.id === 'serankingMultiSelect') {
+                filterSERankingSites();
+            } else if (root.id === 'workduoMultiSelect') {
+                filterWorkDuoProjects();
             }
         }
 
@@ -6944,6 +7082,8 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
         }
 
         function renderMsTrigger(dropdownId) {
+            // Keep the internal-mode welcome card in sync with focus selections
+            cbRefreshInternalWelcome();
             const dd = document.getElementById(dropdownId);
             const trigger = dd.querySelector('.ms-trigger');
             const state = msState[dropdownId];
@@ -7021,6 +7161,9 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     <span>${name}</span>
                 </div>`;
             }).join('');
+
+            // Re-apply search + "selected only" visibility after rebuilding the list
+            filterMsOptions(dropdownId, query);
         }
 
         function populateMsDropdown(dropdownId, options) {
