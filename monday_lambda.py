@@ -2056,7 +2056,13 @@ def claude_chat_with_tools(body):
                 "Correct templates:\n"
                 "  • Board items: { boards(ids: [BOARD_ID]) { items_page(limit: 100) { cursor items { id name column_values { id text value } creator { id name } } } } }\n"
                 "  • By column value: { boards(ids: [BOARD_ID]) { items_page_by_column_values(board_id: BOARD_ID, columns: [{column_id: \"status\", column_values: [\"Done\"]}]) { cursor items { id name column_values { id text value } } } } }\n"
-                "  • Item updates: { items(ids: [ITEM_ID]) { updates(limit: 5) { id body created_at creator { id name } } } }"
+                "  • Item updates: { items(ids: [ITEM_ID]) { updates(limit: 5) { id body created_at creator { id name } } } }\n"
+                "MUTATIONS (this tool can write, not just read — used e.g. to archive a chat summary to a board):\n"
+                "  • Board groups: { boards(ids: [BOARD_ID]) { groups { id title } } }\n"
+                "  • Items in one group (find an item by name): { boards(ids: [BOARD_ID]) { groups(ids: [\"GROUP_ID\"]) { items_page(limit: 50) { items { id name } } } } }\n"
+                "  • Create item: mutation { create_item(board_id: BOARD_ID, group_id: \"GROUP_ID\", item_name: \"AI Chatbot Discussions\") { id } }\n"
+                "  • Post update on an item: mutation { create_update(item_id: ITEM_ID, body: \"<b>Heading</b><br>line one<br>line two\") { id } } "
+                "(body is a one-line GraphQL string with inner double-quotes escaped; Monday renders it as HTML — use <br>, <b>, <ul>/<li>)."
             ),
             "input_schema": {
                 "type": "object",
