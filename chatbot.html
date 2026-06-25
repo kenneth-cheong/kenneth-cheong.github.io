@@ -5355,8 +5355,13 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             pullInsightsFromCloud(); // Refresh memories on load
             loadReportFormat();      // Refresh the shared client-report format setting
 
-            // Auto-sync on page load — runs after loadSettings() so window.activeBoards is ready
-            if ((window.activeBoards || []).length > 0 || currentMode === 'internal') {
+            // Auto-sync on page load — runs after loadSettings() so window.activeBoards is ready.
+            // Internal mode no longer force-loads the entire campaign board on load: dropdowns
+            // populate instantly from cache (loadInternalCache) and lazily on filter-panel expand
+            // (fetchFilterOptions), and the full item load runs only when the user clicks
+            // "Load Selected Data". Mirrors index.html's lazy behaviour so no fetch — and no
+            // "Step 1/5: Fetching Monday Data…" toast — fires until the user actually asks for it.
+            if (currentMode !== 'internal' && (window.activeBoards || []).length > 0) {
                 console.log("[AUTO-SYNC] Starting background sync...");
                 setTimeout(syncMondayToOpenAI, 1000);
             }
