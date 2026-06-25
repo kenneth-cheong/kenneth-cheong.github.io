@@ -1135,16 +1135,45 @@ def search_google_chat_messages_standard(access_token, query, order_by="CREATE_T
     except Exception as e:
         return {"error": str(e)}
 
-def get_calendar_freebusy(access_token, emails, time_min=None, time_max=None, timezone_name="Asia/Singapore"):
-    """Look up Google Calendar free/busy for one or more colleagues.
+def _calendar_freebusy_single(access_token, email, tmin, tmax, timezone_name):
+    """Free/busy fallback for one calendar (no titles). Returns a result dict
+    in the same shape get_calendar_schedule emits, or None on hard failure."""
+    payload = {"timeMin": tmin, "timeMax": tmax, "timeZone": timezone_name,
+               "items": [{"id": email}]}
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+    try:
+        r = requests.post("https://www.googleapis.com/calendar/v3/freeBusy",
+                          headers=headers, json=payload, timeout=20)
+        if r.status_code != 200:
+            return None
+        entry = (r.json().get("calendars", {}) or {}).get(email, {}) or {}
+        errs = entry.get("errors") or []
+        if errs:
+            reason = errs[0].get("reason", "unknown")
+            return {"email": email, "visible": False, "reason": reason,
+                    "note": ("Calendar not shared with you or no such user."
+                             if reason in ("notFound", "notACalendarUser")
+                             else f"Calendar error: {reason}")}
+        busy = entry.get("busy", []) or []
+        return {"email": email, "visible": True, "details_visible": False,
+                "busy": busy, "free": len(busy) == 0,
+                "note": "Only free/busy is shared for this colleague — titles aren't visible."}
+    except Exception:
+        return None
 
-    Rides on the same Workspace OAuth token (the calendar.readonly scope is now
-    part of the Workspace consent). Returns, per email, the busy {start,end}
-    intervals inside the requested window, plus a `visible` flag that is False
-    when that person's calendar isn't shared with the requesting user (Google's
-    freeBusy reports a per-calendar `notFound`/`notACalendarUser` error in that
-    case). This is AVAILABILITY ONLY — freeBusy never exposes event titles,
-    locations, or attendees, so it's safe to surface for any colleague.
+
+def get_calendar_schedule(access_token, emails, time_min=None, time_max=None, timezone_name="Asia/Singapore"):
+    """Look up colleagues' Google Calendar SCHEDULE — with event details by default.
+
+    Rides on the Workspace OAuth token (calendar.readonly scope). For each email
+    it calls events.list to return full event details (title, start/end, location,
+    attendee count, all-day flag). When a colleague only shares free/busy (or the
+    event is private), titles aren't available — it falls back to freeBusy busy
+    blocks so availability still works. Per email returns one of:
+      • visible:true, details_visible:true, events:[{title,start,end,…}]
+      • visible:true, details_visible:false, busy:[{start,end}]   (free/busy only)
+      • visible:false, reason:…                                    (not shared)
+    Events the owner marked Private surface with title "(private)".
     """
     if not access_token:
         return {"error": "google_auth_expired", "auth_expired": True,
@@ -1156,7 +1185,7 @@ def get_calendar_freebusy(access_token, emails, time_min=None, time_max=None, ti
     emails = [e for e in (emails or []) if e and "@" in e]
     if not emails:
         return {"error": "no_emails", "message": "No valid colleague email addresses were provided."}
-    emails = emails[:25]  # freeBusy hard-caps the items list
+    emails = emails[:25]
 
     def _coerce(ts, day_end=False):
         """Best-effort RFC3339. Tolerates date-only and offset-less inputs."""
@@ -1173,66 +1202,82 @@ def get_calendar_freebusy(access_token, emails, time_min=None, time_max=None, ti
     now = datetime.now(timezone.utc)
     tmin = _coerce(time_min) or now.isoformat().replace("+00:00", "Z")
     tmax = _coerce(time_max, day_end=True) or (now + timedelta(days=7)).isoformat().replace("+00:00", "Z")
+    tz = timezone_name or "Asia/Singapore"
+    headers = {"Authorization": f"Bearer {access_token}"}
 
-    payload = {
-        "timeMin": tmin,
-        "timeMax": tmax,
-        "timeZone": timezone_name or "Asia/Singapore",
-        "items": [{"id": e} for e in emails],
-    }
-    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
-
-    try:
-        r = requests.post("https://www.googleapis.com/calendar/v3/freeBusy",
-                          headers=headers, json=payload, timeout=20)
-        if r.status_code in (401, 403):
-            # Distinguish an expired token from a token that simply lacks the
-            # newly-added calendar scope — both need a reconnect, but the message
-            # should tell the user to re-grant the calendar permission.
-            return {
-                "error": "google_calendar_auth",
-                "auth_expired": True,
-                "message": ("Calendar access isn't available on the current Google session. "
-                            "Ask the user to reconnect Google Workspace (Settings → Connections "
-                            "→ Google Workspace) and approve the Calendar permission, then retry."),
-                "detail": r.text[:300],
+    auth_failed = False  # a 401 on the FIRST calendar means the whole session lacks calendar scope
+    results = []
+    for idx, email in enumerate(emails):
+        try:
+            params = {
+                "timeMin": tmin, "timeMax": tmax, "timeZone": tz,
+                "singleEvents": "true", "orderBy": "startTime", "maxResults": 50,
             }
-        if r.status_code != 200:
-            return {"error": f"Google Calendar API HTTP {r.status_code}", "detail": r.text[:500]}
+            r = requests.get(
+                f"https://www.googleapis.com/calendar/v3/calendars/{requests.utils.quote(email)}/events",
+                headers=headers, params=params, timeout=20)
 
-        data = r.json()
-        cals = data.get("calendars", {}) or {}
-        results = []
-        for email in emails:
-            entry = cals.get(email, {}) or {}
-            errs = entry.get("errors") or []
-            if errs:
-                reason = errs[0].get("reason", "unknown")
-                results.append({
-                    "email": email,
-                    "visible": False,
-                    "reason": reason,
-                    "note": ("Calendar not shared with you or no such user."
-                             if reason in ("notFound", "notACalendarUser")
-                             else f"Calendar error: {reason}"),
+            if r.status_code == 401:
+                if idx == 0:
+                    auth_failed = True
+                    break
+                # token died mid-loop — fall back, then surface a soft error
+                fb = _calendar_freebusy_single(access_token, email, tmin, tmax, tz)
+                results.append(fb or {"email": email, "visible": False, "reason": "auth"})
+                continue
+
+            if r.status_code in (403, 404):
+                # No "see all event details" access — try free/busy instead.
+                fb = _calendar_freebusy_single(access_token, email, tmin, tmax, tz)
+                results.append(fb or {
+                    "email": email, "visible": False, "reason": "not_shared",
+                    "note": "Calendar not shared with you or no such user."})
+                continue
+
+            if r.status_code != 200:
+                results.append({"email": email, "visible": False,
+                                "reason": f"http_{r.status_code}", "detail": r.text[:200]})
+                continue
+
+            items = r.json().get("items", []) or []
+            events = []
+            for it in items:
+                start = it.get("start", {}) or {}
+                end = it.get("end", {}) or {}
+                all_day = "date" in start
+                events.append({
+                    "title": it.get("summary") or "(private)",
+                    "start": start.get("dateTime") or start.get("date"),
+                    "end": end.get("dateTime") or end.get("date"),
+                    "all_day": all_day,
+                    "location": it.get("location"),
+                    "attendee_count": len(it.get("attendees", []) or []) or None,
+                    "status": it.get("status"),
                 })
-            else:
-                busy = entry.get("busy", []) or []
-                results.append({
-                    "email": email,
-                    "visible": True,
-                    "busy": busy,
-                    "free": len(busy) == 0,
-                })
+            results.append({
+                "email": email, "visible": True, "details_visible": True,
+                "event_count": len(events), "free": len(events) == 0, "events": events,
+            })
+        except Exception as e:
+            results.append({"email": email, "visible": False, "reason": "exception", "detail": str(e)})
+
+    if auth_failed:
         return {
-            "window": {"timeMin": tmin, "timeMax": tmax, "timeZone": payload["timeZone"]},
-            "availability": results,
-            "note": ("Times are RFC3339 in the requested timezone. 'busy' lists the only "
-                     "occupied intervals; all other time in the window is free. This is "
-                     "free/busy only — no event titles or details are exposed."),
+            "error": "google_calendar_auth",
+            "auth_expired": True,
+            "message": ("Calendar access isn't available on the current Google session. "
+                        "Ask the user to reconnect Google Workspace (Settings → Connections "
+                        "→ Google Workspace) and approve the Calendar permission, then retry."),
         }
-    except Exception as e:
-        return {"error": str(e)}
+
+    return {
+        "window": {"timeMin": tmin, "timeMax": tmax, "timeZone": tz},
+        "schedule": results,
+        "note": ("Times are RFC3339 in the requested timezone. Each colleague's 'events' lists "
+                 "their meetings with titles; all other time in the window is free. Where only "
+                 "'busy' blocks are returned, that colleague shares free/busy only (no titles). "
+                 "Titles shown '(private)' are events the owner marked private."),
+    }
 
 def run_google_ads_report(customer_id, query, token):
     url = f"https://googleads.googleapis.com/v22/customers/{customer_id}/googleAds:searchStream"
@@ -2427,17 +2472,20 @@ def claude_chat_with_tools(body):
         {
             "name": "check_calendar_availability",
             "description": (
-                "Check the Google Calendar AVAILABILITY (free/busy) of one or more colleagues by email. "
-                "Use this when the user asks things like 'is Tom free this afternoon?', 'when is Natalie "
-                "available tomorrow?', 'find a 30-min slot Nathan and I both have on Thursday', or 'who's "
-                "free for a 3pm meeting?'. It returns only busy/free time blocks — never event titles, "
-                "locations, or attendees — so it is safe for any colleague whose calendar is shared. "
-                "Provide the time window as RFC3339 timestamps; today's date is given in the system prompt, "
-                "so compute concrete start/end times from relative phrases ('tomorrow', 'this week'). The "
-                "default timezone is Asia/Singapore. If a colleague's calendar isn't shared, the result "
-                "marks them visible:false with a reason — relay that rather than guessing their schedule. "
-                "If the result says calendar access isn't available, tell the user to reconnect Google "
-                "Workspace and approve the Calendar permission."
+                "Look up one or more colleagues' Google Calendar SCHEDULE by email. By DEFAULT it returns "
+                "full event DETAILS — meeting titles, start/end times, location, and attendee counts — so "
+                "use it both for 'what's on Nathan's calendar today?' / 'show me Tom's meetings tomorrow' "
+                "AND for availability questions like 'is Tom free this afternoon?', 'find a 30-min slot "
+                "Nathan and I both have on Thursday', or 'who's free at 3pm?' (infer free gaps from the "
+                "events). Provide the time window as RFC3339 timestamps; today's date is given in the "
+                "system prompt, so compute concrete start/end times from relative phrases ('today', "
+                "'tomorrow', 'this week'). Default timezone is Asia/Singapore. Per colleague the result is "
+                "one of: details_visible:true with an 'events' list; visible:true + details_visible:false "
+                "with 'busy' blocks (that person shares free/busy only — no titles); or visible:false with "
+                "a reason (calendar not shared) — relay that rather than guessing. Titles shown '(private)' "
+                "are events marked private. When you have details, present the actual meeting titles and "
+                "times by default, not just free/busy. If the result says calendar access isn't available, "
+                "tell the user to reconnect Google Workspace and approve the Calendar permission."
             ),
             "input_schema": {
                 "type": "object",
@@ -3398,8 +3446,8 @@ def claude_chat_with_tools(body):
                         cal_start = tool_input.get("start_time")
                         cal_end = tool_input.get("end_time")
                         cal_tz = tool_input.get("timezone", "Asia/Singapore")
-                        print(f"[TOOLS] Calendar free/busy for {cal_emails}")
-                        result_data = get_calendar_freebusy(cal_token, cal_emails, cal_start, cal_end, cal_tz)
+                        print(f"[TOOLS] Calendar schedule for {cal_emails}")
+                        result_data = get_calendar_schedule(cal_token, cal_emails, cal_start, cal_end, cal_tz)
                         tool_results.append({
                             "type":        "tool_result",
                             "tool_use_id": tool_id,
