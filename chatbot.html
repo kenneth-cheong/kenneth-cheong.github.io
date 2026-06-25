@@ -1455,6 +1455,22 @@
             border-radius: 12px;
         }
 
+        /* Proactive UI: follow-up suggestion chips + action-proposal cards */
+        .suggest-chip-row { margin-top: 10px; padding-top: 8px; border-top: 1px dashed #e2e8f0; }
+        .suggest-chip-label { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #94a3b8; margin-bottom: 6px; }
+        .suggest-chip-label i { color: #f59e0b; margin-right: 4px; }
+        .suggest-chip-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+        .suggest-chip { font-size: 0.76rem; font-weight: 600; color: #1e40af; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 999px; padding: 5px 12px; cursor: pointer; transition: all 0.15s; text-align: left; line-height: 1.3; }
+        .suggest-chip:hover { background: #2563eb; color: #fff; border-color: #2563eb; }
+        .action-propose-card { margin-top: 10px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 10px 12px; }
+        .action-propose-text { font-size: 0.8rem; font-weight: 600; color: #92400e; margin-bottom: 8px; line-height: 1.4; }
+        .action-propose-text i { margin-right: 5px; }
+        .action-propose-btns { display: flex; gap: 6px; }
+        .action-propose-approve { font-size: 0.74rem; font-weight: 700; color: #fff; background: #16a34a; border: none; border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+        .action-propose-approve:hover { background: #15803d; }
+        .action-propose-dismiss { font-size: 0.74rem; font-weight: 600; color: #64748b; background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+        .action-propose-dismiss:hover { background: #f1f5f9; }
+
         .connector-prompt-icon {
             width: 36px;
             height: 36px;
@@ -9628,7 +9644,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                         summaryLines.push(`📧 **Gmail** — ${gmailData.length} thread${gmailData.length !== 1 ? 's' : ''} loaded`);
                     }
 
-                    addMessage('bot', `✅ **Data loaded successfully!** You can now ask me anything about the context below.\n\n${summaryLines.join('\n')}`);
+                    addMessage('bot', `✅ **Data loaded successfully!** You can now ask me anything about the context below.\n\n${summaryLines.join('\n')}\n\n**Want me to dig in?**\n[SUGGEST: What needs my attention across these campaigns?]\n[SUGGEST: Summarise the status of everything I just loaded]\n[SUGGEST: Flag any risks, anomalies, or stale campaigns]`);
                     return;
 
             } catch (error) {
@@ -10117,6 +10133,27 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             GOOGLE DRIVE: You CAN access the user's Google Drive. When the user selects Drive folders in the connector and loads data, the extracted text of those documents is provided to you in SYNCED CONTEXT under "drive_documents" (each has folder, file, type, content). The user can ALSO paste a Google Drive / Docs / Sheets / Slides URL directly into the chat — the linked file's or folder's text is fetched automatically and appended to their message inside "--- GOOGLE DRIVE FILE/FOLDER: ... ---" markers; read and use that content directly. When asked whether you can access Drive or about a Drive folder's contents, check drive_documents and the pasted-link content and answer from it directly — do NOT say you lack Drive access. If no drive_documents are present and no link was pasted, tell the user to either paste a Drive link or select the folder(s) in the Google Drive Folders picker and click "Load Data" (only readable Docs/Sheets/Slides/text files return content).
 
             UPLOADED FILES: You CAN read files the user uploads directly into the chat — PDF, DOCX, XLSX/XLS (every tab/sheet), CSV, TXT and MD are extracted to text and appended to their message. Pasted Google Sheets links are also read in full, across all tabs. NEVER tell the user you "cannot read Excel" or spreadsheet uploads — read the extracted content directly. Only scanned/image-only PDFs or unsupported binaries fail to extract; if that happens, say exactly that and ask for a text-based version.
+
+            ════════════════════════════════════════════════
+            HOW TO WORK — PROACTIVE COLLABORATOR, NOT A PASSIVE Q&A BOT
+            ════════════════════════════════════════════════
+            You are a campaign-analyst teammate. Don't just answer the literal question — think one step ahead and move the work forward.
+            1. CLARIFY WHEN AMBIGUOUS: If a request is missing something you genuinely need to answer well (which client/account, which period, which metric), ask ONE focused clarifying question instead of guessing — UNLESS a sensible default is obvious, in which case state the assumption briefly and proceed. Never ask more than one clarifying question at a time.
+            2. PLAN MULTI-STEP WORK: For a request that needs several tool calls or steps, open with a one-line plan ("I'll pull X, compare to Y, then flag Z"), then carry it out in the SAME turn. Never wait for permission to READ data.
+            3. FLAG WHAT YOU NOTICE: When the data you pulled reveals a risk, anomaly, or opportunity the user did not ask about (spend spike, ranking drop, CPA blow-out, a stale/untouched campaign, missing tracking, pacing off), surface it briefly even if unprompted — clearly separated from the direct answer (e.g. a short "⚠️ Worth noting" line).
+            4. SUGGEST FOLLOW-UPS: At the VERY END of your response, propose up to 3 specific, high-value next questions the user is likely to want next, each on its OWN line, in this exact format:
+               [SUGGEST: the exact question text]
+               Make them concrete and grounded in the current context/data — e.g. "[SUGGEST: Compare this to last month]", "[SUGGEST: Which campaigns drove the drop?]", "[SUGGEST: Draft a client update on this]". The client turns these into one-tap chips and hides the raw markers. Omit them for trivial chit-chat or when no useful follow-up exists. Never explain the markers.
+
+            ════════════════════════════════════════════════
+            ACTIONS THAT CHANGE THINGS — PROPOSE FIRST, ACT ON APPROVAL
+            ════════════════════════════════════════════════
+            Before doing anything that WRITES to or leaves a system — posting or replying to a Monday update, changing a Monday status/column (a monday_graphql mutation), sending a Google Chat message, or sending an email — do NOT execute it immediately. First state exactly what you will do, then emit on its own line:
+               [PROPOSE: one-line plain-English description of the exact action, including the target and the change]
+            The client renders this as an Approve / Dismiss card. Only AFTER the user approves (their next message will say so) do you actually run the tool. If the user dismisses, do not perform it.
+            - Reading/fetching data NEVER needs a proposal — do it immediately.
+            - Drafting content (an email, an update, a caption) is fine to show inline; only the act of SENDING/POSTING/CHANGING needs [PROPOSE: ...].
+            - Emit at most one [PROPOSE: ...] per response.
 
             ════════════════════════════════════════════════
             DIGIMETRICS PLATFORM TOOLS — PROACTIVE RECOMMENDATIONS
@@ -10922,7 +10959,20 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             thinkingText = stripDirectives(thinkingText);
 
             // Clean OpenAI source citations (e.g., 【82:0†source】)
-            const cleanText = text.replace(/【\d+:\d+†source】/g, '').trim();
+            let cleanText = text.replace(/【\d+:\d+†source】/g, '').trim();
+
+            // Extract proactive directives from bot replies and strip them from the
+            // visible/copied/persisted text: follow-up suggestion chips ([SUGGEST: ...])
+            // and action proposals ([PROPOSE: ...]). Rendered as interactive UI below.
+            const followupSuggestions = [];
+            const actionProposals = [];
+            if (sender === 'bot') {
+                cleanText = cleanText
+                    .replace(/\[SUGGEST:\s*([^\]]+)\]/gi, (_, q) => { const t = q.trim(); if (t) followupSuggestions.push(t); return ''; })
+                    .replace(/\[PROPOSE:\s*([^\]]+)\]/gi, (_, d) => { const t = d.trim(); if (t) actionProposals.push(t); return ''; })
+                    .replace(/[ \t]*\n{3,}/g, '\n\n')
+                    .trim();
+            }
 
             // Resolve the label for this user message — prefer Google-authed user
             const _googleUser = (() => { try { return JSON.parse(localStorage.getItem('googleUser') || 'null'); } catch { return null; } })();
@@ -11088,6 +11138,9 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             // Markdown source rather than the rendered (and possibly mutated) HTML.
             msg._rawText = cleanText;
             list.appendChild(msg);
+            if (sender === 'bot' && (followupSuggestions.length || actionProposals.length)) {
+                cbRenderProactiveUI(msg, followupSuggestions, actionProposals);
+            }
             if (sender === 'bot' && !isRestoring) {
                 const convoActive = window.VoiceConvo && VoiceConvo.isActive();
                 if (ttsEnabled || convoActive) {
@@ -11102,6 +11155,77 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             // User-sent messages always snap to bottom; bot replies respect the
             // reader's scroll position and surface a "jump to latest" pill instead.
             cbScrollChatToBottom(sender === 'user');
+        }
+
+        // ── Proactive UI: render follow-up chips + action-proposal cards ──────
+        function cbRenderProactiveUI(msgEl, suggestions, proposals) {
+            const content = msgEl.querySelector('.msg-content');
+            if (!content) return;
+
+            // Action proposals → Approve / Dismiss cards (write/external actions)
+            (proposals || []).forEach(desc => {
+                const card = document.createElement('div');
+                card.className = 'action-propose-card';
+                const txt = document.createElement('div');
+                txt.className = 'action-propose-text';
+                txt.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i>' + escapeHtml(desc);
+                const btns = document.createElement('div');
+                btns.className = 'action-propose-btns';
+                const ok = document.createElement('button');
+                ok.type = 'button';
+                ok.className = 'action-propose-approve';
+                ok.innerHTML = '<i class="fas fa-check"></i> Approve';
+                ok.addEventListener('click', () => cbApproveAction(card, desc));
+                const no = document.createElement('button');
+                no.type = 'button';
+                no.className = 'action-propose-dismiss';
+                no.innerHTML = '<i class="fas fa-times"></i> Dismiss';
+                no.addEventListener('click', () => cbDismissAction(card));
+                btns.appendChild(ok); btns.appendChild(no);
+                card.appendChild(txt); card.appendChild(btns);
+                content.appendChild(card);
+            });
+
+            // Follow-up suggestions → one-tap chips
+            if (suggestions && suggestions.length) {
+                const row = document.createElement('div');
+                row.className = 'suggest-chip-row';
+                const label = document.createElement('div');
+                label.className = 'suggest-chip-label';
+                label.innerHTML = '<i class="fas fa-lightbulb"></i> Suggested next steps';
+                row.appendChild(label);
+                const wrap = document.createElement('div');
+                wrap.className = 'suggest-chip-wrap';
+                suggestions.slice(0, 4).forEach(q => {
+                    const chip = document.createElement('button');
+                    chip.type = 'button';
+                    chip.className = 'suggest-chip';
+                    chip.textContent = q;
+                    chip.addEventListener('click', () => cbAskSuggestion(q));
+                    wrap.appendChild(chip);
+                });
+                row.appendChild(wrap);
+                content.appendChild(row);
+            }
+        }
+
+        // Send a suggested follow-up as if the user typed it (reuses all send guards).
+        function cbAskSuggestion(text) {
+            const input = document.getElementById('userInput');
+            if (!input) return;
+            input.value = text;
+            handleSendMessage();
+        }
+
+        // Approve a proposed write/external action: confirm so the model executes it
+        // via its existing tools on the next turn.
+        function cbApproveAction(cardEl, desc) {
+            if (cardEl) cardEl.innerHTML = '<div class="action-propose-text" style="color:#16a34a; margin:0;"><i class="fas fa-check"></i> Approved — running…</div>';
+            cbAskSuggestion('Approved — please go ahead and ' + desc);
+        }
+
+        function cbDismissAction(cardEl) {
+            if (cardEl) cardEl.innerHTML = '<div class="action-propose-text" style="color:#94a3b8; margin:0;"><i class="fas fa-times"></i> Dismissed — I won\'t do that.</div>';
         }
 
         // ── Export answer tables to Excel (SheetJS) ───────────────────────────
@@ -14226,6 +14350,14 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             function closeSettings() {
                 if (settingsSidebar && settingsSidebar.classList.contains('active')) toggleSettings();
             }
+            // Connectors (Monday, Google, SE Ranking…) live inside the collapsed
+            // "Integrations & Connectors" master group — expand it so those steps
+            // highlight the real section instead of a hidden/zero-height element.
+            function expandConnectors() {
+                openSettings();
+                const grp = document.getElementById('integrationsGroup');
+                if (grp && !grp.classList.contains('active')) grp.classList.add('active');
+            }
 
             // Start clean — close any open sidebars
             closeSettings();
@@ -14288,6 +14420,46 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                         onDeselected: openSettings
                     },
                     {
+                        element: '#connectionsOverview',
+                        popover: {
+                            title: '🔌 Connections Overview',
+                            description: 'An at-a-glance status grid for every service — see what\'s connected, which account is signed in, and connect or switch accounts right here.',
+                            side: 'right',
+                            align: 'start'
+                        },
+                        onHighlightStarted: openSettings
+                    },
+                    {
+                        element: '#reportFormatSection',
+                        popover: {
+                            title: '📄 Client Report Format',
+                            description: 'Define your house format for client-facing Insights &amp; Recommendations reports. It\'s shared across the whole team, and the chatbot follows it verbatim.',
+                            side: 'right',
+                            align: 'start'
+                        },
+                        onHighlightStarted: openSettings
+                    },
+                    {
+                        element: '#voiceSection',
+                        popover: {
+                            title: '🔊 Voice Output',
+                            description: 'Pick the voice, speaking speed, and recognition language used for spoken replies and hands-free voice mode.',
+                            side: 'right',
+                            align: 'start'
+                        },
+                        onHighlightStarted: openSettings
+                    },
+                    {
+                        element: '#integrationsGroup',
+                        popover: {
+                            title: '🧩 Integrations &amp; Connectors',
+                            description: 'Every data connector lives here — Monday.com, Google, SE Ranking, Ahrefs, Meta / LinkedIn / TikTok Ads and more. Let\'s open it up and look at the key ones.',
+                            side: 'right',
+                            align: 'start'
+                        },
+                        onHighlightStarted: openSettings
+                    },
+                    {
                         element: '#authSection',
                         popover: {
                             title: '🔑 Monday.com Authentication',
@@ -14295,7 +14467,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                             side: 'right',
                             align: 'start'
                         },
-                        onHighlightStarted: openSettings
+                        onHighlightStarted: expandConnectors
                     },
                     {
                         element: '#googleChatSection',
@@ -14305,17 +14477,17 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                             side: 'right',
                             align: 'start'
                         },
-                        onHighlightStarted: openSettings
+                        onHighlightStarted: expandConnectors
                     },
                     {
                         element: '#serankingSection',
                         popover: {
                             title: '📊 SE Ranking',
-                            description: 'Connect your SE Ranking account to pull live keyword rankings and campaign data directly into chat. Enter your API key in Settings to enable this.',
+                            description: 'Pick the SE Ranking campaigns to pre-load into context, so the AI can pull live keyword rankings and campaign data directly into chat.',
                             side: 'right',
                             align: 'start'
                         },
-                        onHighlightStarted: openSettings
+                        onHighlightStarted: expandConnectors
                     },
                     // ── Back to main chat ─────────────────────────────────────
                     {
