@@ -76,6 +76,10 @@ def lambda_handler(event, context):
             return handle_save_insights(db, body, headers)
         elif action == 'get_insights':
             return handle_get_insights(db, body, headers)
+        elif action == 'save_app_setting':
+            return handle_save_app_setting(db, body, headers)
+        elif action == 'get_app_setting':
+            return handle_get_app_setting(db, body, headers)
         else:
             return response(400, {"error": f"Unsupported action: {action}"}, headers)
 
@@ -248,6 +252,34 @@ def handle_get_insights(db, body, headers):
         return response(400, {"error": "Email missing"}, headers)
     doc = db.insights.find_one({"email": email.lower()})
     return response(200, {"insights": doc.get('insights', []) if doc else []}, headers)
+
+def handle_save_app_setting(db, body, headers):
+    # Shared, account-wide key/value settings (one doc per name, NOT scoped to a user)
+    # so the whole team edits in one place — e.g. the client report-format template.
+    name = body.get('name')
+    value = body.get('value')
+    if not name:
+        return response(400, {"error": "Missing setting name"}, headers)
+    db.app_settings.update_one(
+        {"name": name},
+        {"$set": {"value": value,
+                  "updated_by": body.get('updatedBy') or body.get('updated_by') or '',
+                  "updated_at": datetime.utcnow()}},
+        upsert=True
+    )
+    return response(200, {"status": "success", "name": name}, headers)
+
+def handle_get_app_setting(db, body, headers):
+    name = body.get('name')
+    if not name:
+        return response(400, {"error": "Missing setting name"}, headers)
+    doc = db.app_settings.find_one({"name": name})
+    return response(200, {
+        "name": name,
+        "value": (doc.get('value') if doc else None),
+        "updated_by": (doc.get('updated_by') if doc else None),
+        "updated_at": (doc.get('updated_at') if doc else None),
+    }, headers)
 
 class JSONEncoder(json.JSONEncoder):
     def default(self, o):
