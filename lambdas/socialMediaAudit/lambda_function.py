@@ -2100,10 +2100,10 @@ def report_save_month(body):
         UpdateExpression='SET months = :m, updated = :u, updated_by = :w',
         ExpressionAttributeValues={':m': _enc(idx), ':u': now, ':w': who})
 
-    # Daily time-series — when capturing the CURRENT month, also snapshot this
-    # day's KPIs so the dashboard tracks day-by-day, not just month-on-month.
-    # Past-month backfills are monthly roll-ups, so they don't write a daily point.
-    if month == _current_month() and (kpis or {}):
+    # Daily time-series — a LIVE scrape reflects today's numbers (whatever month
+    # bucket it's filed under), so stamp a daily KPI snapshot dated today. Manual
+    # past-month entries (typed/PDF) aren't live, so they don't write a daily point.
+    if data.get('live') and (kpis or {}):
         try:
             _rdays().put_item(Item=_enc({
                 'projectId': pid, 'date': _sgt_date(),
@@ -2564,16 +2564,26 @@ def cron_capture_one(body):
         raise RuntimeError('Unknown project.')
     proj = _dec(proj)
 
-    # 1. Apify scrape (organic, public) — same pipeline as the UI's "Capture".
-    sc = _cron_apify_scorecard(proj, month)
-
-    # 2. Meta Graph overlay (private owner-only IG/FB insights).
+    # 1. Meta Graph insights FIRST — private/owner-only AND free. Pulling these
+    #    before the paid Apify scrape lets us skip Apify entirely for any platform
+    #    Meta already covers, so we only pay for what's NOT available privately
+    #    (e.g. TikTok / YouTube / LinkedIn / Xiaohongshu).
+    meta_platforms, meta_error = [], None
     try:
         meta_platforms = _cron_meta_platforms(proj, month)
-        sc = _merge_meta_platforms(sc, meta_platforms)
     except Exception as e:
+        meta_error = str(e)[:200]
+    meta_covered = {p.get('platform') for p in meta_platforms if p.get('platform')}
+
+    # 2. Apify scrape (paid, public) — only for platforms Meta couldn't supply.
+    sc = _cron_apify_scorecard(proj, month, skip=meta_covered)
+
+    # 3. Overlay the free Meta metrics (adds IG/FB cards when Apify was skipped
+    #    for them; merges field-level when both ran).
+    sc = _merge_meta_platforms(sc, meta_platforms)
+    if meta_error:
         sc = sc or {}
-        sc['_meta_error'] = str(e)[:200]
+        sc['_meta_error'] = meta_error
 
     # 3. Preserve any platforms from the existing month NOT re-captured here
     #    (e.g. manual-only Xiaohongshu rows) plus user-written recommendations.
@@ -2597,20 +2607,22 @@ def cron_capture_one(body):
     recs = prev_recs or {'executive_summary': sc.get('executive_summary', ''),
                          'overall_health': sc.get('overall_health')}
     report_save_month({'data': {'projectId': pid, 'month': month, 'scorecard': sc,
-                                'kpis': kpis, 'recommendations': recs},
+                                'kpis': kpis, 'recommendations': recs, 'live': True},
                        'currentUser': {'email': 'daily-cron@auto'}})
     return {'ok': True, 'projectId': pid, 'month': month,
             'platforms': [c.get('platform') for c in (sc.get('platforms') or [])],
             'meta_error': sc.get('_meta_error')}
 
 
-def _cron_apify_scorecard(proj, month):
+def _cron_apify_scorecard(proj, month, skip=None):
     """Run the Apify pipeline synchronously (start → wait → finalize) and return
     the computed scorecard, or {} when the project has no live (scrapable)
-    platforms or the scrape yields nothing."""
+    platforms or the scrape yields nothing. `skip` lists platforms already
+    covered for free by Meta — they're excluded so we don't pay Apify for them."""
+    skip = skip or set()
     handles = proj.get('handles') or {}
     live = [p for p in (proj.get('platforms') or [])
-            if p in ACTORS and (handles.get(p) or '').strip()]
+            if p in ACTORS and (handles.get(p) or '').strip() and p not in skip]
     if not live or not APIFY_TOKEN:
         return {}
     try:
