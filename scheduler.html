@@ -370,6 +370,22 @@
             background: var(--bg-color);
         }
 
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        th.sortable:hover {
+            color: var(--text);
+        }
+
+        th .sort-arrow {
+            display: inline-block;
+            width: 0.75em;
+            color: var(--primary, #2563eb);
+        }
+
         .badge {
             display: inline-flex;
             align-items: center;
@@ -1125,16 +1141,6 @@
                     </div>
 
                     <div class="form-control">
-                        <select id="filter-runtime" class="input-field" onchange="handleFilterChange()">
-                            <option value="All">All Languages</option>
-                            <option value="python3.10" selected>Python 3.10</option>
-                            <option value="nodejs20.x">Node.js 20.x</option>
-                            <option value="go1.x">Go 1.x</option>
-                            <option value="java21">Java 21</option>
-                        </select>
-                    </div>
-
-                    <div class="form-control">
                         <select id="filter-status" class="input-field" onchange="handleFilterChange()">
                             <option value="All">All Status</option>
                             <option value="Active">Active</option>
@@ -1150,13 +1156,6 @@
                         </label>
                     </div>
 
-                    <div style="margin-left: auto;" class="form-control">
-                        <select id="filter-sort" class="input-field" onchange="handleFilterChange()">
-                            <option value="Name">Sort by Name</option>
-                            <option value="Recently Updated">Recently Updated</option>
-                            <option value="Schedule Count">Schedule Count</option>
-                        </select>
-                    </div>
                 </div>
 
                 <!-- Main Table -->
@@ -1164,11 +1163,11 @@
                     <table id="main-table">
                         <thead>
                             <tr>
-                                <th>Task Name</th>
-                                <th>Language</th>
-                                <th>Last Updated</th>
-                                <th>Schedules</th>
-                                <th>Status</th>
+                                <th class="sortable" data-sort="functionName" onclick="sortTable('functionName')">Task Name <span class="sort-arrow"></span></th>
+                                <th class="sortable" data-sort="runtime" onclick="sortTable('runtime')">Language <span class="sort-arrow"></span></th>
+                                <th class="sortable" data-sort="lastModified" onclick="sortTable('lastModified')">Last Updated <span class="sort-arrow"></span></th>
+                                <th class="sortable" data-sort="scheduleCount" onclick="sortTable('scheduleCount')">Schedules <span class="sort-arrow"></span></th>
+                                <th class="sortable" data-sort="status" onclick="sortTable('status')">Status <span class="sort-arrow"></span></th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -1303,7 +1302,7 @@
                                 placeholder="What does this function do?">
                         </div>
                         <input type="hidden" id="cl-package" value="Zip">
-                        <input type="hidden" id="cl-runtime" value="python3.10">
+                        <input type="hidden" id="cl-runtime" value="python3.13">
                         <input type="hidden" id="cl-region" value="ap-southeast-1">
                         <input type="hidden" id="cl-arch" value="x86_64">
                     </div>
@@ -1772,7 +1771,9 @@
             filteredLambdas: [],
             activity: [],
             wizardStep: 1,
-            selectedLambdaNameForSchedule: null
+            selectedLambdaNameForSchedule: null,
+            sortKey: 'functionName',
+            sortDir: 'asc'
         };
 
 
@@ -1850,29 +1851,57 @@
         function applyFilters() {
             const search = document.getElementById('filter-search').value.toLowerCase();
             const region = document.getElementById('filter-region').value;
-            const runtime = document.getElementById('filter-runtime').value;
             const status = document.getElementById('filter-status').value;
             const hasSchedule = document.getElementById('filter-has-schedule').checked;
-            const sort = document.getElementById('filter-sort').value;
 
             state.filteredLambdas = state.lambdas.filter(l => {
                 if (search && !l.functionName.toLowerCase().includes(search) && !l.functionArn.toLowerCase().includes(search)) return false;
                 if (region !== 'All' && l.region !== region) return false;
-                if (runtime !== 'All' && l.runtime !== runtime) return false;
                 if (status !== 'All' && l.status !== status) return false;
                 if (hasSchedule && !l.hasSchedule) return false;
                 return true;
             });
 
+            const accessor = SORT_ACCESSORS[state.sortKey] || SORT_ACCESSORS.functionName;
+            const dir = state.sortDir === 'desc' ? -1 : 1;
             state.filteredLambdas.sort((a, b) => {
-                if (sort === 'Name') return a.functionName.localeCompare(b.functionName);
-                if (sort === 'Recently Updated') return new Date(b.lastModified) - new Date(a.lastModified);
-                if (sort === 'Schedule Count') return b.scheduleCount - a.scheduleCount;
-                return 0;
+                const va = accessor(a), vb = accessor(b);
+                const cmp = typeof va === 'string' ? va.localeCompare(vb) : (va - vb);
+                return cmp * dir;
             });
 
             renderSummary();
             renderTable();
+            updateSortIndicators();
+        }
+
+        const SORT_ACCESSORS = {
+            functionName: l => l.functionName.toLowerCase(),
+            runtime: l => (l.runtime || '').toLowerCase(),
+            lastModified: l => new Date(l.lastModified).getTime() || 0,
+            scheduleCount: l => l.scheduleCount || 0,
+            status: l => (l.status || '').toLowerCase()
+        };
+
+        function sortTable(key) {
+            if (!SORT_ACCESSORS[key]) return;
+            if (state.sortKey === key) {
+                state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                state.sortKey = key;
+                state.sortDir = 'asc';
+            }
+            applyFilters();
+        }
+
+        function updateSortIndicators() {
+            document.querySelectorAll('#main-table th.sortable').forEach(th => {
+                const arrow = th.querySelector('.sort-arrow');
+                if (!arrow) return;
+                arrow.textContent = th.dataset.sort === state.sortKey
+                    ? (state.sortDir === 'asc' ? '▲' : '▼')
+                    : '';
+            });
         }
 
         function handleFilterChange() {
@@ -2657,7 +2686,7 @@
                 'daily-report': {
                     name: 'daily-report-generator',
                     desc: 'Generates and emails a daily status report',
-                    runtime: 'python3.10',
+                    runtime: 'python3.13',
                     code: 'def lambda_handler(event, context):\n    print("Generating daily report...")\n    return {\n        "statusCode": 200,\n        "body": "Report generated successfully"\n    }',
                     hasSchedule: true,
                     schName: 'daily-report-schedule',
@@ -2667,7 +2696,7 @@
                 'db-cleanup': {
                     name: 'database-cleanup',
                     desc: 'Cleans up old records from the database',
-                    runtime: 'python3.10',
+                    runtime: 'python3.13',
                     code: 'def lambda_handler(event, context):\n    print("Cleaning up database...")\n    return {\n        "statusCode": 200,\n        "body": "Cleanup complete"\n    }',
                     hasSchedule: true,
                     schName: 'weekly-cleanup-schedule',
@@ -2677,7 +2706,7 @@
                 'health-check': {
                     name: 'system-health-check',
                     desc: 'Pings endpoints to verify system health',
-                    runtime: 'python3.10',
+                    runtime: 'python3.13',
                     code: 'import json\n\ndef lambda_handler(event, context):\n    print("System is healthy")\n    return {\n        "statusCode": 200,\n        "body": json.dumps("System is healthy")\n    }',
                     hasSchedule: true,
                     schName: 'health-check-schedule',
@@ -2687,7 +2716,7 @@
                 'reminder-email': {
                     name: 'task-reminder-bot',
                     desc: 'Sends automatic email reminders for pending tasks',
-                    runtime: 'python3.10',
+                    runtime: 'python3.13',
                     code: 'import json\nimport boto3\n\ndef lambda_handler(event, context):\n    print("Scanning for pending tasks...")\n    # Example: Integrate with SES to send emails\n    # ses = boto3.client("ses")\n    # ses.send_email(Source="alerts@example.com", Destination={"ToAddresses": ["user@example.com"]}, Message={...})\n    \n    return {\n        "statusCode": 200,\n        "body": json.dumps("Reminders processed")\n    }',
                     hasSchedule: true,
                     schName: 'reminder-schedule',
@@ -3017,7 +3046,7 @@ You have access to 3 ready-made templates that you can offer to the user:
 
 Your goal is to gather exactly three things from the user naturally (or apply them automatically if they choose a template):
 1. Task Name (a short hyphenated string like 'daily-report')
-2. Language (must be exactly 'nodejs20.x', 'python3.10', or 'go1.x')
+2. Language (must be exactly 'python3.13', 'python3.12', or 'nodejs20.x'; default to 'python3.13' unless the user asks otherwise)
 3. Schedule Expression (convert their time into an AWS EventBridge format, either rate(...) or cron(...) expression).
 
 If the user asks for templates or ideas, suggest the 3 templates above.
@@ -3025,7 +3054,7 @@ Chat with the user to gather these. Once you have all three (or they choose a te
 \`\`\`json
 {
   "taskName": "daily-report",
-  "language": "python3.10",
+  "language": "python3.13",
   "schedule": "cron(0 8 ? * MON-FRI *)"
 }
 \`\`\`
@@ -3225,7 +3254,7 @@ If you output the JSON, also say a brief confirmation message saying you've fill
                         element: '.toolbar',
                         popover: {
                             title: '🔍 Filter & Search',
-                            description: 'Search by function name or ARN, filter by runtime or status, or toggle to show only scheduled tasks. Use <b>Sort</b> to order by name, last updated, or schedule count.',
+                            description: 'Search by function name or ARN, filter by status, or toggle to show only scheduled tasks. Click any <b>column header</b> to sort — click again to reverse the order.',
                             side: 'bottom',
                             align: 'start'
                         }
