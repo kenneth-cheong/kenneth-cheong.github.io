@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+import random
 import requests
 import boto3
 import xml.etree.ElementTree as ET
@@ -61,14 +62,51 @@ def handle_learnings(action, event):
 
 
 # ==============================================================================
-# Anthropic Messages API helper — backoff retries + server-tool continuation
+# Anthropic Messages API helper — backoff retries + circuit breaker
 # ==============================================================================
-def _anthropic_request(api_key, request_body, max_retries=3, max_continuations=4):
+# (connect, read) timeout. The read timeout is set well above the ~26.5s that
+# was previously cutting long classification calls short and surfacing as 502s.
+_ANTHROPIC_TIMEOUT = (10, 120)
+
+# Circuit breaker. Lambda keeps module globals alive across warm invocations, so
+# this state persists between calls: after a run of consecutive failures (e.g.
+# the API is timing out) we "open" the breaker and fail fast for a short
+# cool-down instead of making every caller sit through three slow timeouts and
+# keep hammering an API that is already struggling.
+_CB_FAIL_THRESHOLD = 4      # consecutive failures before the breaker opens
+_CB_COOLDOWN_SECS  = 30     # how long to stay open before a trial request
+_anthropic_circuit = {'fails': 0, 'opened_at': 0.0}
+
+
+class AnthropicCircuitOpen(RuntimeError):
+    """Raised when the Anthropic circuit breaker is open (cooling down)."""
+
+
+def _anthropic_backoff(attempt):
+    """Exponential backoff (1, 2, 4, 8s cap) with jitter so concurrent retries
+    don't fire in lockstep and synchronise their next attempt."""
+    base = min(2 ** attempt, 8)
+    return base + random.uniform(0, 0.5 * base)
+
+
+def _anthropic_request(api_key, request_body, max_retries=3,
+                       max_continuations=4, timeout=_ANTHROPIC_TIMEOUT):
     """POST to the Anthropic Messages API with exponential-backoff retries on
-    transient failures (timeouts, connection errors, 429/5xx/529), and
-    transparent continuation of the server-side tool loop when the model
-    returns stop_reason == 'pause_turn' (e.g. while using web_fetch/web_search).
+    transient failures (timeouts, connection errors, 429/5xx/529), a circuit
+    breaker that fails fast after repeated failures, and transparent
+    continuation of the server-side tool loop when the model returns
+    stop_reason == 'pause_turn' (e.g. while using web_fetch/web_search).
     Returns the final response JSON (dict). Raises on unrecoverable failure."""
+    # Circuit breaker: while open and still cooling down, fail fast.
+    if _anthropic_circuit['opened_at']:
+        if (time.time() - _anthropic_circuit['opened_at']) < _CB_COOLDOWN_SECS:
+            raise AnthropicCircuitOpen(
+                "Anthropic API circuit breaker is open after repeated timeouts; "
+                "cooling down — please retry in a few seconds."
+            )
+        # Cool-down elapsed → fall through and allow a single trial ("half-open")
+        # request; success below resets the breaker, failure re-opens it.
+
     headers = {
         'x-api-key':         api_key,
         'anthropic-version': '2023-06-01',
@@ -83,21 +121,30 @@ def _anthropic_request(api_key, request_body, max_retries=3, max_continuations=4
             try:
                 resp = requests.post(
                     'https://api.anthropic.com/v1/messages',
-                    headers=headers, json=body, timeout=90,
+                    headers=headers, json=body, timeout=timeout,
                 )
                 if resp.status_code in (429, 500, 502, 503, 504, 529):
                     last_err = f"HTTP {resp.status_code}: {resp.text[:200]}"
-                    time.sleep(min(2 ** attempt, 8))
+                    time.sleep(_anthropic_backoff(attempt))
                     continue
                 resp_json = resp.json()
                 break
             except requests.exceptions.RequestException as e:
                 last_err = str(e)
-                time.sleep(min(2 ** attempt, 8))
+                time.sleep(_anthropic_backoff(attempt))
         if resp_json is None:
+            # Record the failure and trip the breaker once we hit the threshold.
+            _anthropic_circuit['fails'] += 1
+            if _anthropic_circuit['fails'] >= _CB_FAIL_THRESHOLD:
+                _anthropic_circuit['opened_at'] = time.time()
+                print(f"[aiOptimiser] Anthropic circuit breaker OPENED after "
+                      f"{_anthropic_circuit['fails']} consecutive failures")
             raise RuntimeError(
                 f"Anthropic request failed after {max_retries} retries: {last_err}"
             )
+        # A response came back → the API is healthy; reset the breaker.
+        _anthropic_circuit['fails']     = 0
+        _anthropic_circuit['opened_at'] = 0.0
         # Server-tool loop hit its iteration cap — resume the same turn.
         if resp_json.get('stop_reason') == 'pause_turn' and continuations < max_continuations:
             continuations += 1
@@ -683,6 +730,15 @@ def build_structured_prompt(action, body):
 
     if action == 'news_classify':
         articles = body.get('articles', [])
+        # Bound the request size: a very long article list inflates both the
+        # prompt and the JSON the model has to emit, which is what was pushing
+        # this call past its read timeout and surfacing as a 502. Cap to a sane
+        # batch so a single classification stays comfortably inside the window.
+        _NEWS_CLASSIFY_CAP = 40
+        if len(articles) > _NEWS_CLASSIFY_CAP:
+            print(f"[aiOptimiser] news_classify: capping {len(articles)} articles "
+                  f"to {_NEWS_CLASSIFY_CAP}")
+            articles = articles[:_NEWS_CLASSIFY_CAP]
         date_str = body.get('date', '')
         article_list = '\n'.join(
             '[{i}] title: "{t}" | source: "{s}" | date: "{d}" | url: "{u}" | description: "{desc}"'.format(

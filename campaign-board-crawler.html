@@ -2259,24 +2259,51 @@
 
         async function monday(query, variables = {}, toastMsg = "Connecting to Monday...") {
             if (toastMsg !== false) showToast(toastMsg);
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 60000); // Increased to 60s
+            const MAX_ATTEMPTS = 3;
+            let lastErr = null;
             try {
-                const r = await fetch(LAMBDA, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'get_monday_data', query, variables, api_key: state.apiKey }),
-                    signal: controller.signal
-                });
-                clearTimeout(timeout);
-                const res = await r.json();
-                const data = typeof res.body === 'string' ? JSON.parse(res.body) : (res.body || res);
-                if (data.errors) throw new Error(data.errors[0].message);
-                if (data.error) throw new Error(data.error);
-                return data.data || data;
-            } catch (err) {
-                if (err.name === 'AbortError') throw new Error("Connection Timeout (25s). Monday is responding slowly.");
-                throw err;
+                for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+                    const controller = new AbortController();
+                    const timeout = setTimeout(() => controller.abort(), 60000);
+                    try {
+                        const r = await fetch(LAMBDA, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ action: 'get_monday_data', query, variables, api_key: state.apiKey }),
+                            signal: controller.signal
+                        });
+                        clearTimeout(timeout);
+                        if (!r.ok) throw new Error(`Monday gateway HTTP ${r.status}`);
+                        const res = await r.json();
+                        const data = typeof res.body === 'string' ? JSON.parse(res.body) : (res.body || res);
+                        if (data.errors) throw new Error(data.errors[0].message);
+                        if (data.error) throw new Error(data.error);
+                        return data.data || data;
+                    } catch (err) {
+                        clearTimeout(timeout);
+                        lastErr = err;
+                        // Only retry transient failures: aborted timeouts, network/CORS
+                        // drops ("Failed to fetch" surfaces as a TypeError), and 5xx
+                        // gateway errors. GraphQL/data errors are deterministic, so
+                        // surface them immediately instead of wasting retries.
+                        const msg = err.message || '';
+                        const transient = err.name === 'AbortError'
+                            || err.name === 'TypeError'
+                            || /Failed to fetch|NetworkError|gateway HTTP 5/i.test(msg);
+                        if (!transient || attempt === MAX_ATTEMPTS) break;
+                        if (toastMsg !== false) showToast(`Monday is slow — retrying (${attempt + 1}/${MAX_ATTEMPTS})...`);
+                        await new Promise(resolve => setTimeout(resolve, 800 * attempt)); // 0.8s, 1.6s backoff
+                    }
+                }
+                // Exhausted retries (or hit a non-retryable error) — throw a clear message.
+                const msg = (lastErr && lastErr.message) || '';
+                if (lastErr && lastErr.name === 'AbortError') {
+                    throw new Error("Monday timed out after 60s — it's responding slowly. Please try again in a moment.");
+                }
+                if (lastErr && (lastErr.name === 'TypeError' || /Failed to fetch|NetworkError/i.test(msg))) {
+                    throw new Error(`Couldn't reach Monday after ${MAX_ATTEMPTS} attempts (network or connection issue). Check your connection and retry.`);
+                }
+                throw lastErr || new Error("Unknown Monday error");
             } finally {
                 if (toastMsg !== false) hideToast();
             }

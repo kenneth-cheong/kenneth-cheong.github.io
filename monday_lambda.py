@@ -914,6 +914,12 @@ def run_monday_graphql(query, variables=None, api_key=None):
             elif "column_values" in low and ("argument" in low or "'id'" in low):
                 result["hint"] = ("`column_values` takes a plural list `ids` argument: "
                                   "column_values(ids: [\"col1\", \"col2\"]). There is no `id:` or `filter:` argument.")
+            elif "doesn't exist on type" in low or "cannot query field" in low or "didn't exist on type" in low:
+                result["hint"] = ("That field doesn't exist on the Monday type. Items have NO direct "
+                                  "`status` field (and no direct field for any column) — read column "
+                                  "values via `column_values(ids: [\"status\"]) { id text value }`, where "
+                                  "`text` is the status label. Use `creator { id name }` not `creator_name`, "
+                                  "and `items_page { items { ... } }` not a bare `items` field on a board.")
             return result
         return data.get("data", data)
     except requests.exceptions.Timeout:
@@ -1118,7 +1124,26 @@ def search_google_chat_messages_standard(access_token, query, order_by="CREATE_T
                 best_space = space
         
         if not best_space or best_score == 0:
-            return {"error": "Space not found", "detail": f"No space matching '{query}' found among {len(all_spaces)} spaces. Try using exact keywords.", "spaces_checked": len(all_spaces)}
+            # No fuzzy match — the query was probably not an actual space name
+            # (e.g. a domain like "fareasthospitality.com" or a topic). Instead
+            # of dead-ending, return the real space names (the list_my_spaces
+            # data) so Claude can pick the closest one and retry.
+            space_names = sorted(
+                n for n in (
+                    (s.get("displayName") or s.get("name") or "") for s in all_spaces
+                ) if n
+            )
+            return {
+                "error": "Space not found",
+                "detail": (f"No space matching '{query}' found among {len(all_spaces)} spaces. "
+                           f"'{query}' looks like a topic or domain rather than a space name."),
+                "spaces_checked": len(all_spaces),
+                "available_spaces": space_names[:200],
+                "hint": ("The query did not match any space name. Pick the closest match from "
+                         "available_spaces and call search_messages_standard again with that exact "
+                         "space name, or call list_my_spaces to browse all spaces. Do NOT report "
+                         "failure to the user before trying at least one real space name."),
+            }
         
         space_id = best_space["name"]  # e.g. "spaces/XXXXXXXX"
         print(f"[GCHAT] Matched space: {best_space.get('displayName')} ({space_id}) with score {best_score}")
@@ -1613,6 +1638,7 @@ TOOL_LABELS = {
     "dataforseo_backlinks_summary":    "Fetching backlink summary",
     "dataforseo_domain_rank_overview": "Analyzing domain rank",
     "dataforseo_ranked_keywords":      "Fetching ranked keywords",
+    "workduo_list_projects":           "Listing WorkDuo projects",
     "get_workduo_report":              "Fetching AI visibility data",
     "get_ahrefs_report":               "Fetching Ahrefs data",
     "get_moz_da":                      "Fetching Moz DA/PA",
@@ -2052,6 +2078,7 @@ def claude_chat_with_tools(body):
                 "5. `items_page_by_column_values(...)` returns an items_page shape — unwrap it as `{ cursor items { ... } }`, never as raw items. The top-level entry point is `items_page_by_column_values(...)` — there is NO `items_by_column_values`.\n"
                 "6. To paginate, follow the returned `cursor` with `next_items_page(cursor: \"...\", limit:) { cursor items { ... } }`.\n"
                 "7. `column_values` takes a PLURAL `ids` argument that is a LIST — `column_values(ids: [\"status\", \"date\"]) { id text value }`. There is NO `id:` (singular) argument and NO `filter:` argument on `column_values`; using either is a hard API error.\n"
+                "7b. An item has NO direct `status` field — and no direct field for ANY column (status, date, people, numbers, dropdown, …). Writing `items { status { label } }`, `items { status }`, or any column title as a field on the item is a hard API error ('Field ... doesn't exist on type Item'). A status column's value comes from `column_values(ids: [\"status\"]) { id text value }`: the `text` field is the human-readable label (e.g. \"Done\", \"Stuck\"), and `value` is the raw JSON. To read a status, query `items { id name column_values(ids: [\"status\"]) { id text value } }`.\n"
                 "8. CURSORS ARE SINGLE-USE AND OPAQUE. Only ever pass a `cursor` value that came back from the immediately preceding `items_page`/`next_items_page` response in THIS conversation. Never reuse a cursor twice, never guess or hand-write one, and never reuse a cursor from an earlier turn — doing so returns 'Invalid or corrupted cursor'. To start over, omit `cursor` entirely.\n"
                 "Correct templates:\n"
                 "  • Board items: { boards(ids: [BOARD_ID]) { items_page(limit: 100) { cursor items { id name column_values { id text value } creator { id name } } } } }\n"
@@ -2515,6 +2542,42 @@ def claude_chat_with_tools(body):
                     }
                 },
                 "required": ["emails"]
+            }
+        },
+        {
+            "name": "workduo_list_projects",
+            "description": (
+                "List the WorkDuo AI-visibility projects available to this account. Use this FIRST when "
+                "the user asks about AI visibility / AI search presence / LLM visibility / WorkDuo and you "
+                "don't already have the entity_id, so you can find the right project's entity_id and "
+                "project_id to pass to get_workduo_report. (If projects are already listed in the system "
+                "context with their entity ids, you can skip this and call get_workduo_report directly.)"
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "search": {"type": "string", "description": "Optional case-insensitive substring to filter projects by name (e.g. a brand or client name)."}
+                }
+            }
+        },
+        {
+            "name": "get_workduo_report",
+            "description": (
+                "Fetch WorkDuo AI-visibility metrics (visibility, share-of-voice, mentions, average position) "
+                "for one entity over a date range. ALWAYS use this when the user asks about AI visibility, AI "
+                "search presence, LLM visibility, or WorkDuo. You need the entity_id — get it from "
+                "workduo_list_projects or from the projects listed in the system context. Dates default to the "
+                "trailing 30 days if omitted."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "entity_id":  {"type": "string", "description": "The WorkDuo entity id to report on (from workduo_list_projects)."},
+                    "project_id": {"type": "string", "description": "The WorkDuo project id the entity belongs to (recommended; from workduo_list_projects)."},
+                    "start_date": {"type": "string", "description": "Start date 'YYYY-MM-DD'. Defaults to 30 days ago."},
+                    "end_date":   {"type": "string", "description": "End date 'YYYY-MM-DD'. Defaults to today."}
+                },
+                "required": ["entity_id"]
             }
         }
     ]
@@ -3480,12 +3543,46 @@ def claude_chat_with_tools(body):
                         })
                         tool_call_log.append(f"Analyzed image with Claude: {question[:80]}")
 
-                    else:
-                        # Unknown tool — return an error so Claude can recover
+                    elif tool_name == "workduo_list_projects":
+                        search = tool_input.get("search", "")
+                        print(f"[TOOLS] Listing WorkDuo projects (search={search!r})")
+                        result_data = _workduo_list_projects_compact(search)
                         tool_results.append({
                             "type":        "tool_result",
                             "tool_use_id": tool_id,
-                            "content":     json.dumps({"error": f"Unknown tool: {tool_name}"}),
+                            "content":     json.dumps(result_data),
+                        })
+                        tool_call_log.append(f"Listed WorkDuo projects ({result_data.get('count', 0)})")
+
+                    elif tool_name == "get_workduo_report":
+                        entity_id  = tool_input.get("entity_id", "")
+                        project_id = tool_input.get("project_id", "")
+                        start_date = tool_input.get("start_date", "")
+                        end_date   = tool_input.get("end_date", "")
+                        print(f"[TOOLS] WorkDuo report entity={entity_id} {start_date}..{end_date}")
+                        result_data = _workduo_get_report(entity_id, project_id, start_date, end_date)
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     json.dumps(result_data),
+                        })
+                        tool_call_log.append(f"Pulled WorkDuo AI-visibility report for {entity_id}")
+
+                    else:
+                        # Unknown tool (usually a hallucinated name, e.g.
+                        # "workduo_list_projects"). Return the list of REAL tool
+                        # names so Claude can re-issue the call against a valid
+                        # one instead of repeating the bad name or giving up.
+                        valid_names = [t.get("name") for t in tools if t.get("name")]
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     json.dumps({
+                                "error": f"Unknown tool: {tool_name}",
+                                "valid_tools": valid_names,
+                                "hint": ("That tool does not exist. Choose the closest tool from "
+                                         "valid_tools and call it instead — do not invent tool names."),
+                            }),
                             "is_error":    True
                         })
 
@@ -3620,6 +3717,70 @@ def _get_workduo_projects():
             break
         page += 1
     return {"statusCode": 200, "body": json.dumps({"projects": all_projects})}
+
+
+def _workduo_default_dates():
+    """(start, end) for the trailing 30 days as 'YYYY-MM-DD'."""
+    end = datetime.now(timezone.utc).date()
+    return (end - timedelta(days=30)).isoformat(), end.isoformat()
+
+
+def _workduo_list_projects_compact(search=""):
+    """Compact project list for chatbot tool use: project_id, name, entity_id.
+    Returns a plain dict (not a Lambda envelope) suitable as a tool result."""
+    res = _get_workduo_projects()
+    if res.get("statusCode") != 200:
+        try:
+            return {"error": json.loads(res.get("body", "{}")).get("error", "WorkDuo error")}
+        except Exception:
+            return {"error": "Failed to list WorkDuo projects"}
+    projects = json.loads(res["body"]).get("projects", [])
+    s = (search or "").strip().lower()
+    out = []
+    for p in projects:
+        name = p.get("name", "")
+        if s and s not in name.lower():
+            continue
+        out.append({
+            "project_id": p.get("id"),
+            "name":       name,
+            "entity_id":  (p.get("entity") or {}).get("id", ""),
+        })
+    return {"count": len(out), "projects": out}
+
+
+def _workduo_get_report(entity_id, project_id="", start_date="", end_date=""):
+    """Fetch WorkDuo AI-visibility metrics for one entity over a date range.
+    Returns a plain dict (not a Lambda envelope) suitable as a tool result."""
+    if not entity_id:
+        return {"error": "entity_id is required — call workduo_list_projects first to find it."}
+    if not start_date or not end_date:
+        s, e = _workduo_default_dates()
+        start_date = start_date or s
+        end_date   = end_date or e
+    try:
+        r = requests.get(
+            f"{WORKDUO_API_BASE}/data/v1/metrics/entities/{entity_id}",
+            params={"projectId": project_id, "dateRange": "custom",
+                    "startDate": start_date, "endDate": end_date},
+            headers={"Authorization": _workduo_auth()},
+            timeout=20,
+        )
+        if r.status_code != 200:
+            return {"error": f"WorkDuo API {r.status_code}", "detail": r.text[:300]}
+        rows = [
+            {"date":       row["date"][:10],
+             "visibility": row.get("visibility", 0),
+             "sov":        row.get("sov", 0),
+             "mentions":   row.get("mentions", 0),
+             "position":   row.get("position", 0)}
+            for row in r.json().get("data", [])
+        ]
+        return {"entity_id": entity_id, "project_id": project_id,
+                "start_date": start_date, "end_date": end_date,
+                "row_count": len(rows), "rows": rows}
+    except Exception as ex:
+        return {"error": str(ex)}
 
 
 def _geo_fetch_workduo_direct(entities, start_date, end_date):
