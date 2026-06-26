@@ -34,7 +34,7 @@ import base64
 import statistics
 from decimal import Decimal
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import requests
 import boto3
@@ -56,6 +56,7 @@ CACHE_TABLE  = os.environ.get('SMA_CACHE_TABLE', 'sma_apify_cache')
 #                            — one captured month; full scorecard + AI recs + KPIs.
 REPORT_PROJECTS_TABLE = os.environ.get('REPORT_PROJECTS_TABLE', 'social_report_projects')
 REPORT_MONTHS_TABLE   = os.environ.get('REPORT_MONTHS_TABLE', 'social_report_months')
+REPORT_DAYS_TABLE     = os.environ.get('REPORT_DAYS_TABLE', 'social_report_days')
 HAIKU_MODEL  = 'claude-haiku-4-5-20251001'
 # Vision-capable model for the content/creative audit (visual style + theme).
 # Sonnet reasons over imagery noticeably better than Haiku; it runs once per
@@ -199,6 +200,8 @@ def lambda_handler(event, context):
             return _resp(200, report_save_month(body))
         if action == 'report_get_month':
             return _resp(200, report_get_month(body))
+        if action == 'report_daily_series':
+            return _resp(200, report_daily_series(body))
         if action == 'report_delete_month':
             return _resp(200, report_delete_month(body))
         if action == 'report_save_tags':
@@ -1964,6 +1967,7 @@ def _narrate(brand, client_metrics, competitor_metrics, brand_health, indicators
 
 def _rprojects(): return boto3.resource('dynamodb', region_name=REGION).Table(REPORT_PROJECTS_TABLE)
 def _rmonths():   return boto3.resource('dynamodb', region_name=REGION).Table(REPORT_MONTHS_TABLE)
+def _rdays():     return boto3.resource('dynamodb', region_name=REGION).Table(REPORT_DAYS_TABLE)
 
 def _enc(obj):
     """Encode for DynamoDB writes — JSON round-trip turns floats into Decimal
@@ -2095,7 +2099,41 @@ def report_save_month(body):
         Key={'projectId': pid},
         UpdateExpression='SET months = :m, updated = :u, updated_by = :w',
         ExpressionAttributeValues={':m': _enc(idx), ':u': now, ':w': who})
+
+    # Daily time-series — when capturing the CURRENT month, also snapshot this
+    # day's KPIs so the dashboard tracks day-by-day, not just month-on-month.
+    # Past-month backfills are monthly roll-ups, so they don't write a daily point.
+    if month == _current_month() and (kpis or {}):
+        try:
+            _rdays().put_item(Item=_enc({
+                'projectId': pid, 'date': _sgt_date(),
+                'kpis': kpis, 'month': month, 'savedAt': now, 'savedBy': who,
+            }))
+        except Exception:
+            pass
     return {'ok': True, 'month': month, 'months': _dec(_enc(idx))}
+
+
+def _sgt_date():
+    """SGT (UTC+8) calendar date — the agency's market and the day a 06:00-SGT
+    cron run represents."""
+    return (datetime.now(timezone.utc) + timedelta(hours=8)).strftime('%Y-%m-%d')
+
+
+def report_daily_series(body):
+    """Daily KPI time-series for a project's Overview charts. Returns up to the
+    most recent `days` daily snapshots (default 90, max 400), oldest-first."""
+    data = body.get('data') or {}
+    pid  = (body.get('projectId') or data.get('projectId') or '').strip()
+    if not pid:
+        raise RuntimeError('Missing projectId.')
+    days = int(body.get('days') or data.get('days') or 90)
+    days = max(1, min(days, 400))
+    resp = _rdays().query(KeyConditionExpression=Key('projectId').eq(pid),
+                          ScanIndexForward=False, Limit=days)
+    rows = sorted((_dec(it) for it in resp.get('Items', [])),
+                  key=lambda r: str(r.get('date')))
+    return {'series': rows}
 
 def report_get_month(body):
     """One month's full payload (scorecard rehydrated, recommendations, kpis)."""
