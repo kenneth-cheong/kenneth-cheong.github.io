@@ -98,6 +98,17 @@ OVERDUE_HOURS = int(os.environ.get("OVERDUE_HOURS", "24"))
 # thread (cc/cc:/fyr/fyi @Name, or the actual request is addressed to someone
 # else) is NOT treated as overdue — only messages directed AT them count.
 COUNT_CC = os.environ.get("COUNT_CC", "0") == "1"
+# A campaign line item whose Status column matches one of these terms is
+# considered resolved/handled, and its update threads are skipped entirely (no
+# overdue flag) — even if the consultant never typed a textual reply. Match is
+# case-insensitive substring, so "[MO] Done" matches "done" and "[MO] Not
+# Needed" matches "not needed". Set RESOLVED_STATUSES empty to disable.
+DONE_STATUS_COL = os.environ.get("DONE_STATUS_COL", "status")
+RESOLVED_STATUSES = [
+    s.strip().lower() for s in os.environ.get(
+        "RESOLVED_STATUSES", "done,not needed,completed,won't do,wont do"
+    ).split(",") if s.strip()
+]
 MAX_ITEMS_PER_BOARD = int(os.environ.get("MAX_ITEMS_PER_BOARD", "100"))
 # Number of campaign boards fetched concurrently (I/O-bound).
 MAX_WORKERS = int(os.environ.get("MAX_WORKERS", "8"))
@@ -317,6 +328,7 @@ query ($board: [ID!]) {
       items {
         id
         name
+        column_values(ids: ["%s"]) { id text }
         updates(limit: 25) {
           id
           text_body
@@ -333,12 +345,22 @@ query ($board: [ID!]) {
     }
   }
 }
-""" % MAX_ITEMS_PER_BOARD
+""" % (MAX_ITEMS_PER_BOARD, DONE_STATUS_COL)
+
+
+def _is_resolved_status(status_text):
+    """True if a line item's Status marks it handled (Done / Not Needed / ...)."""
+    if not RESOLVED_STATUSES:
+        return False
+    low = (status_text or "").lower()
+    return any(term in low for term in RESOLVED_STATUSES)
 
 
 def fetch_board_threads(board_id, since_dt):
     """Return list of thread dicts for a campaign board, restricted to threads
-    with any activity since `since_dt`."""
+    with any activity since `since_dt`. Line items whose Status is resolved
+    (Done / Not Needed / ...) are skipped entirely — a status change is how staff
+    mark work handled, so we don't chase a missing textual reply on them."""
     try:
         data = monday_gql(BOARD_UPDATES_QUERY, {"board": [board_id]})
     except Exception as e:
@@ -348,7 +370,15 @@ def fetch_board_threads(board_id, since_dt):
     if not boards or not boards[0]:
         return []
     threads = []
+    skipped_resolved = 0
     for it in boards[0]["items_page"]["items"]:
+        status_text = ""
+        for c in it.get("column_values") or []:
+            if c.get("id") == DONE_STATUS_COL:
+                status_text = c.get("text") or ""
+        if _is_resolved_status(status_text):
+            skipped_resolved += 1
+            continue  # item is marked handled — don't judge its threads
         for up in it.get("updates") or []:
             posts = []
             root_ts = _parse_dt(up.get("created_at"))
@@ -377,6 +407,9 @@ def fetch_board_threads(board_id, since_dt):
                 "item_name": it["name"],
                 "posts": posts,
             })
+    if skipped_resolved:
+        print("Board %s: skipped %d resolved (Done/Not Needed) line items"
+              % (board_id, skipped_resolved))
     return threads
 
 
