@@ -154,8 +154,11 @@ export async function spendCredits({ userId, cost, action = 'spend', tool, meta 
         new UpdateCommand({
           TableName: TABLES.users,
           Key: { userId },
+          // Also tick a lifetime "credits used" counter so the admin user list
+          // can show total consumption without scanning every run. Seeded by the
+          // activity backfill for accounts that spent before this shipped.
           UpdateExpression:
-            'SET credits = :nm, topupCredits = :nt, updatedAt = :now',
+            'SET credits = :nm, topupCredits = :nt, updatedAt = :now, creditsSpentTotal = if_not_exists(creditsSpentTotal, :z) + :cost',
           // Optimistic lock: only commit if neither bucket changed since read.
           ConditionExpression: 'credits = :om AND topupCredits = :ot',
           ExpressionAttributeValues: {
@@ -163,6 +166,8 @@ export async function spendCredits({ userId, cost, action = 'spend', tool, meta 
             ':nt': topup - fromTopup,
             ':om': monthly,
             ':ot': topup,
+            ':cost': cost,
+            ':z': 0,
             ':now': new Date().toISOString(),
           },
           ReturnValues: 'UPDATED_NEW',
@@ -295,13 +300,29 @@ export async function scanAllUsers() {
 // excluded from user scans). Keep the surface small + defaulted so a missing
 // row, or a missing key on it, reads as the safe default.
 const SETTINGS_ID = 'settings:global';
-const DEFAULT_SETTINGS = { passwordAuthEnabled: true };
+const DEFAULT_SETTINGS = {
+  passwordAuthEnabled: true,
+  // Support-ticket lifecycle (admin-tunable). Days; 0 disables that behaviour.
+  ticketReminderDays: 3,   // cadence of "please respond" nudges while awaiting the client
+  ticketAutoCloseDays: 7,  // inactivity before a ticket auto-closes
+};
 const isSingleton = (userId) => String(userId || '').startsWith('settings:');
+
+/** Defaulted, typed view of the settings singleton — tolerates a missing row or
+ *  missing keys by falling back to DEFAULT_SETTINGS. */
+function viewSettings(item) {
+  const s = item || {};
+  const num = (v, d) => (Number.isFinite(v) ? v : d);
+  return {
+    passwordAuthEnabled: s.passwordAuthEnabled !== false,
+    ticketReminderDays: num(s.ticketReminderDays, DEFAULT_SETTINGS.ticketReminderDays),
+    ticketAutoCloseDays: num(s.ticketAutoCloseDays, DEFAULT_SETTINGS.ticketAutoCloseDays),
+  };
+}
 
 /** Public, defaulted view of the platform settings. */
 export async function getSettings() {
-  const item = await getUser(SETTINGS_ID);
-  return { ...DEFAULT_SETTINGS, passwordAuthEnabled: item ? item.passwordAuthEnabled !== false : true };
+  return viewSettings(await getUser(SETTINGS_ID));
 }
 
 /** Merge a partial patch onto the settings singleton; returns the new view. */
@@ -315,7 +336,7 @@ export async function updateSettings(patch = {}, adminEmail) {
     updatedBy: adminEmail || current.updatedBy || null,
   };
   await putUser(next);
-  return { passwordAuthEnabled: next.passwordAuthEnabled !== false };
+  return viewSettings(next);
 }
 
 /** Free-tier monthly refill — atomic + idempotent per period via a condition on
@@ -682,6 +703,17 @@ export async function addTicketMessage({ userId, ticketId, author, authorEmail, 
     ExpressionAttributeValues: { ':m': messages, ':la': msg.ts, ':st': newStatus },
   }));
   return { ticket: { ...t, messages, status: newStatus, lastActivityAt: msg.ts }, message: msg };
+}
+
+/** Stamp that we nudged the client, so reminders fire on a cadence rather than
+ *  on every scheduler run. Does NOT touch lastActivityAt (a reminder is not
+ *  ticket activity — it must not push back the auto-close clock). */
+export async function markTicketReminded(userId, ticketId) {
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.tickets, Key: { userId, ticketId },
+    UpdateExpression: 'SET lastReminderAt = :r ADD reminderCount :one',
+    ExpressionAttributeValues: { ':r': new Date().toISOString(), ':one': 1 },
+  }));
 }
 
 export async function setTicketStatus(userId, ticketId, status) {
@@ -1160,13 +1192,14 @@ export async function latestRunTs(userId) {
   return Items?.[0]?.ts || null;
 }
 
-/** One-time backfill: derive lastLoginAt (from the newest session) and
- *  lastToolUseAt (from the newest run) for every account that lacks them, so the
- *  audience filters are useful from day one rather than only going forward.
- *  Only fills gaps — never overwrites a live value. Returns a small summary. */
+/** One-time backfill: derive lastLoginAt (from the newest session),
+ *  lastToolUseAt (from the newest run) and creditsSpentTotal (summed over run
+ *  history) for every account that lacks them, so the audience filters and the
+ *  admin "credits used" column are useful from day one rather than only going
+ *  forward. Only fills gaps — never overwrites a live value. Returns a summary. */
 export async function backfillActivity() {
   const users = await audienceCandidates();
-  let loginFilled = 0, toolFilled = 0;
+  let loginFilled = 0, toolFilled = 0, creditsFilled = 0;
   for (const u of users) {
     const patch = {};
     if (!u.lastLoginAt) {
@@ -1178,6 +1211,13 @@ export async function backfillActivity() {
       const ts = await latestRunTs(u.userId);
       if (ts) patch.lastToolUseAt = ts;
     }
+    if (u.creditsSpentTotal == null) {
+      // Sum lifetime spend from the run ledger (one-time scan; cheap at MVP
+      // volume). Seeded to 0 even with no runs so future spends increment from a
+      // known base rather than re-triggering this branch.
+      const { totalCreditsSpent } = await toolUsageCounts(u.userId);
+      patch.creditsSpentTotal = totalCreditsSpent || 0;
+    }
     if (!Object.keys(patch).length) continue;
     const names = Object.keys(patch);
     await ddb.send(new UpdateCommand({
@@ -1187,8 +1227,9 @@ export async function backfillActivity() {
     }));
     if (patch.lastLoginAt) loginFilled++;
     if (patch.lastToolUseAt) toolFilled++;
+    if (patch.creditsSpentTotal) creditsFilled++;
   }
-  return { scanned: users.length, loginFilled, toolFilled };
+  return { scanned: users.length, loginFilled, toolFilled, creditsFilled };
 }
 
 /** Append a broadcast audit row (who sent what, to whom, on which channels).

@@ -170,6 +170,13 @@ export const handler = async (event) => {
     if (!isAdmin(me.email)) return json(403, { error: 'admin_only' });
     const patch = {};
     if (typeof body.passwordAuthEnabled === 'boolean') patch.passwordAuthEnabled = body.passwordAuthEnabled;
+    // Ticket lifecycle: whole days, 0 disables, capped at a year to avoid typos.
+    for (const key of ['ticketReminderDays', 'ticketAutoCloseDays']) {
+      if (body[key] === undefined) continue;
+      const n = Number(body[key]);
+      if (!Number.isInteger(n) || n < 0 || n > 365) return badRequest(`${key} must be a whole number of days between 0 and 365.`);
+      patch[key] = n;
+    }
     if (!Object.keys(patch).length) return badRequest('No valid setting provided.');
     const settings = await updateSettings(patch, c.email);
     console.log(JSON.stringify({ audit: 'admin_settings', admin: c.email, patch, at: new Date().toISOString() }));
@@ -362,7 +369,10 @@ function shape(u) {
     credits: invited ? (u.credits || 0) : totalCredits(u),
     monthlyCredits: u.credits || 0,
     topupCredits: u.topupCredits || 0,
+    creditsSpent: u.creditsSpentTotal || 0,
     hasSubscription: !!u.stripeCustomerId,
     createdAt: u.createdAt,
+    lastLoginAt: u.lastLoginAt || null,
+    lastToolUseAt: u.lastToolUseAt || null,
   };
 }

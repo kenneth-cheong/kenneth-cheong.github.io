@@ -41,11 +41,20 @@ function AdminSettings() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
+  // Editable copy of the ticket-lifecycle numbers (strings while typing).
+  const [tForm, setTForm] = useState({ ticketReminderDays: '', ticketAutoCloseDays: '' });
 
   useEffect(() => {
     let live = true;
     api.adminSettings()
-      .then(({ settings }) => live && setSettings(settings))
+      .then(({ settings }) => {
+        if (!live) return;
+        setSettings(settings);
+        setTForm({
+          ticketReminderDays: String(settings.ticketReminderDays ?? 3),
+          ticketAutoCloseDays: String(settings.ticketAutoCloseDays ?? 7),
+        });
+      })
       .catch(() => live && setError('Could not load settings.'));
     return () => { live = false; };
   }, []);
@@ -61,6 +70,30 @@ function AdminSettings() {
       setError(e?.payload?.error === 'admin_only'
         ? 'Only a primary admin can change this setting.'
         : (e?.message || 'Could not save. Please try again.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveTickets(e) {
+    e.preventDefault();
+    const reminder = Number(tForm.ticketReminderDays);
+    const close = Number(tForm.ticketAutoCloseDays);
+    if (![reminder, close].every((n) => Number.isInteger(n) && n >= 0 && n <= 365)) {
+      setError('Enter whole numbers of days between 0 and 365.');
+      return;
+    }
+    setBusy(true); setError(''); setMsg('');
+    try {
+      const { settings } = await api.adminSetSettings({ ticketReminderDays: reminder, ticketAutoCloseDays: close });
+      setSettings(settings);
+      setTForm({ ticketReminderDays: String(settings.ticketReminderDays), ticketAutoCloseDays: String(settings.ticketAutoCloseDays) });
+      setMsg('Saved.');
+      setTimeout(() => setMsg(''), 2500);
+    } catch (e) {
+      setError(e?.payload?.error === 'admin_only'
+        ? 'Only a primary admin can change these settings.'
+        : (e?.payload?.error || e?.message || 'Could not save. Please try again.'));
     } finally {
       setBusy(false);
     }
@@ -96,9 +129,55 @@ function AdminSettings() {
             {settings?.passwordAuthEnabled ? 'Enabled' : 'Disabled'}
           </span>
         </p>
-        {msg && <p className="mt-2 text-sm text-emerald-600">{msg}</p>}
-        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
       </div>
+
+      <form className="card mt-4 p-5" onSubmit={saveTickets}>
+        <h2 className="text-base font-semibold">Support ticket reminders &amp; auto-close</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          When support has replied and is waiting on the client, send a reminder email every so many days,
+          and automatically close the ticket if there&apos;s still no response. Applies to the daily
+          maintenance job. Set a value to <span className="font-medium">0</span> to turn that behaviour off.
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-sm font-medium">Remind the client every</span>
+            <div className="mt-1 flex items-center gap-2">
+              <input
+                type="number" min="0" max="365" step="1" inputMode="numeric"
+                className="field w-24" disabled={busy || !settings}
+                value={tForm.ticketReminderDays}
+                onChange={(e) => setTForm((f) => ({ ...f, ticketReminderDays: e.target.value }))}
+              />
+              <span className="text-sm text-slate-500">days</span>
+            </div>
+          </label>
+          <label className="block">
+            <span className="text-sm font-medium">Auto-close after</span>
+            <div className="mt-1 flex items-center gap-2">
+              <input
+                type="number" min="0" max="365" step="1" inputMode="numeric"
+                className="field w-24" disabled={busy || !settings}
+                value={tForm.ticketAutoCloseDays}
+                onChange={(e) => setTForm((f) => ({ ...f, ticketAutoCloseDays: e.target.value }))}
+              />
+              <span className="text-sm text-slate-500">days of no reply</span>
+            </div>
+          </label>
+        </div>
+        {Number(tForm.ticketReminderDays) > 0 && Number(tForm.ticketAutoCloseDays) > 0
+          && Number(tForm.ticketReminderDays) >= Number(tForm.ticketAutoCloseDays) && (
+          <p className="mt-3 text-sm text-amber-600">
+            Heads up: the reminder interval is longer than the auto-close window, so the ticket will close
+            before any reminder is sent.
+          </p>
+        )}
+        <button type="submit" className="btn-primary mt-4" disabled={busy || !settings}>
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+      </form>
+
+      {msg && <p className="mt-3 text-sm text-emerald-600">{msg}</p>}
+      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
     </div>
   );
 }
@@ -384,9 +463,21 @@ function AdminNotifications() {
 }
 
 // ── Users ────────────────────────────────────────────────────────────────────
+// Date fields the range filter can target, keyed to the user projection.
+const DATE_FIELDS = [
+  { key: 'lastLoginAt', label: 'Last login' },
+  { key: 'lastToolUseAt', label: 'Last tool use' },
+  { key: 'createdAt', label: 'Signed up' },
+];
+
 function AdminUsers() {
   const [users, setUsers] = useState(null);
   const [q, setQ] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');     // all | client | staff
+  const [statusFilter, setStatusFilter] = useState('all');  // all | active | paused | inactive | invited
+  const [dateField, setDateField] = useState('lastLoginAt');
+  const [fromDate, setFromDate] = useState('');             // YYYY-MM-DD (inclusive)
+  const [toDate, setToDate] = useState('');                 // YYYY-MM-DD (inclusive, end of day)
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
@@ -418,7 +509,23 @@ function AdminUsers() {
   }
   function flash(t) { setMsg(t); setTimeout(() => setMsg(''), 2500); }
 
-  const rows = (users || []).filter((u) => q === '' || (u.email + u.name).toLowerCase().includes(q.toLowerCase()));
+  // Range is inclusive on both ends; `toDate` covers the whole selected day.
+  const fromMs = fromDate ? Date.parse(fromDate) : null;
+  const toMs = toDate ? Date.parse(toDate) + 86399999 : null;
+  const rows = (users || []).filter((u) => {
+    if (q && !((u.email || '') + (u.name || '')).toLowerCase().includes(q.toLowerCase())) return false;
+    if (roleFilter !== 'all' && (u.role || 'client') !== roleFilter) return false;
+    if (statusFilter !== 'all' && (u.status || 'active') !== statusFilter) return false;
+    if (fromMs != null || toMs != null) {
+      const ms = u[dateField] ? Date.parse(u[dateField]) : NaN;
+      if (Number.isNaN(ms)) return false; // no activity on this field → out of range
+      if (fromMs != null && ms < fromMs) return false;
+      if (toMs != null && ms > toMs) return false;
+    }
+    return true;
+  });
+  const filtersActive = roleFilter !== 'all' || statusFilter !== 'all' || fromDate || toDate;
+  function clearFilters() { setRoleFilter('all'); setStatusFilter('all'); setFromDate(''); setToDate(''); }
 
   return (
     <div>
@@ -426,6 +533,55 @@ function AdminUsers() {
         <button onClick={() => setCreating(true)} className="btn-primary px-3 py-2 text-sm">+ New user</button>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search email / name…"
           className="w-64 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
+      </div>
+
+      {/* Filters: role / status pickers + a date range over a chosen activity field. */}
+      <div className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5">
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+          Role
+          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}
+            className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm">
+            <option value="all">All</option>
+            <option value="client">Client</option>
+            <option value="staff">Staff</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+          Status
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+            className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm">
+            <option value="all">All</option>
+            <option value="active">Active</option>
+            <option value="paused">Paused</option>
+            <option value="inactive">Inactive</option>
+            <option value="invited">Invited</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+          Date range on
+          <select value={dateField} onChange={(e) => setDateField(e.target.value)}
+            className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm">
+            {DATE_FIELDS.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+          From
+          <input type="date" value={fromDate} max={toDate || undefined} onChange={(e) => setFromDate(e.target.value)}
+            className="rounded border border-slate-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none" />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+          To
+          <input type="date" value={toDate} min={fromDate || undefined} onChange={(e) => setToDate(e.target.value)}
+            className="rounded border border-slate-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none" />
+        </label>
+        {filtersActive && (
+          <button onClick={clearFilters} className="btn-ghost px-2.5 py-1.5 text-xs">Clear filters</button>
+        )}
+        {users && (
+          <span className="ml-auto self-center text-xs text-slate-400">
+            {rows.length} of {users.length} user{users.length === 1 ? '' : 's'}
+          </span>
+        )}
       </div>
       {creating && <CreateUserDialog onClose={() => setCreating(false)} onCreated={(u) => { setCreating(false); flash(`Created ${u.email} (${u.role})`); load(); }} />}
       {msg && <div className="mt-3 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">{msg}</div>}
@@ -458,6 +614,12 @@ function AdminUsers() {
             { key: 'monthlyCredits', label: 'Monthly', align: 'right', numeric: true, render: (u) => (u.monthlyCredits ?? 0).toLocaleString() },
             { key: 'topupCredits', label: 'Top-up', align: 'right', numeric: true, render: (u) => <span className="text-brand-600">{(u.topupCredits ?? 0).toLocaleString()}</span> },
             { key: 'credits', label: 'Total', align: 'right', numeric: true, render: (u) => <span className="font-semibold">{(u.credits ?? 0).toLocaleString()}</span> },
+            { key: 'creditsSpent', label: 'Used', align: 'right', numeric: true, tip: 'Lifetime credits this user has spent on tool runs.',
+              render: (u) => <span className="text-slate-500 tabular-nums">{(u.creditsSpent ?? 0).toLocaleString()}</span> },
+            { key: 'lastLoginAt', label: 'Last login', numeric: false, accessor: (u) => u.lastLoginAt || '',
+              render: (u) => <span className="whitespace-nowrap text-xs text-slate-500">{u.lastLoginAt ? fmtWhen(u.lastLoginAt) : '—'}</span> },
+            { key: 'lastToolUseAt', label: 'Last tool use', numeric: false, accessor: (u) => u.lastToolUseAt || '',
+              render: (u) => <span className="whitespace-nowrap text-xs text-slate-500">{u.lastToolUseAt ? fmtWhen(u.lastToolUseAt) : '—'}</span> },
             { key: 'adjust', label: 'Adjust credits', sortable: false, render: (u) => (
                 <div className="flex gap-1">
                   <button className="btn-ghost px-2 py-1 text-xs" onClick={() => adjust(u, 'monthly')}>± Monthly</button>
