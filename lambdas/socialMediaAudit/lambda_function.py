@@ -204,6 +204,8 @@ def lambda_handler(event, context):
             return _resp(200, report_daily_series(body))
         if action == 'report_backfill_meta':
             return _resp(200, report_backfill_meta(body))
+        if action == 'meta_pages':
+            return _resp(200, meta_pages(body))
         if action == 'report_delete_month':
             return _resp(200, report_delete_month(body))
         if action == 'report_save_tags':
@@ -2196,6 +2198,23 @@ def _followers_by_date(brand, platforms, days):
             if last is not None:
                 out[d] = out.get(d, 0) + last
     return out
+
+def meta_pages(body):
+    """List the pages the agency's Meta system-user token can actually read
+    (assigned + accessible), so the UI can show which clients are 'Meta-ready'
+    (free private insights) and let the user match handles to them."""
+    if not META_ACCESS_TOKEN:
+        return {'configured': False, 'pages': [], 'count': 0}
+    pages = _meta_pages(META_ACCESS_TOKEN)
+    out = []
+    for p in pages:
+        iba = p.get('instagram_business_account') or {}
+        out.append({'id': p.get('id'), 'name': p.get('name'),
+                    'username': p.get('username'),
+                    'ig_username': iba.get('username'), 'has_ig': bool(iba.get('id'))})
+    out.sort(key=lambda x: (x.get('name') or '').lower())
+    return {'configured': True, 'count': len(out), 'pages': out}
+
 
 def report_backfill_meta(body):
     """Backfill ONE past month using Meta only (free, historical). Pulls the
