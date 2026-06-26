@@ -3597,7 +3597,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2281</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2282</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -10334,6 +10334,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             - "Learned memories" are preferences and process notes, NOT a data source. Never present a remembered figure as if it were pulled live.
             - If asked for figures you have not pulled this turn, pull them with a tool first; if you cannot, state that you could not retrieve them. An honest "I don't have this" always beats a confident wrong number.
             - When you DO state a metric, anchor it to its source (e.g. "per the May Google Ads pull", "from the PDF you attached").
+            - When the user has uploaded a document (shown as "--- CONTENT OF <file> ---" blocks) as the basis for the task, treat THAT document as the primary source of truth for this conversation. Do NOT substitute or blend in figures, brand names, or campaign details from synced context or a different account unless the user explicitly asks. If the uploaded document and the synced context disagree, follow the document and say so. Uploaded documents stay valid for the whole conversation — never claim you "don't have the document" while a CONTENT OF block for it is present.
 
             ════════════════════════════════════════════════
             ACCOUNT ↔ CLIENT VERIFICATION (before ANY client-named report)
@@ -10602,6 +10603,11 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 const MAX_DOC_CHARS_TOTAL = 40000;
                 let docCharsUsed = 0;
                 const _isDeepseek = getLlmProvider() === 'deepseek';
+                // Documents persist for the WHOLE conversation, not just the turn they were
+                // uploaded on. _cbSessionDocs is the running store; _freshDocNames tracks the
+                // ones attached THIS turn so we don't inject them twice.
+                window._cbSessionDocs = window._cbSessionDocs || [];
+                const _freshDocNames = new Set();
                 for (const att of activeAttachments) {
                     if (att.type && att.type.startsWith('image/')) {
                         if (_isDeepseek) {
@@ -10646,6 +10652,14 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                             }
                             docCharsUsed += fileContent.length;
                             currentContent[0].text += `\n\n--- CONTENT OF ${att.name} ---\n${fileContent}\n--- END OF ${att.name} ---`;
+                            // Remember this doc so it stays available on later turns of the
+                            // conversation (the next turn rebuilds history from the DOM, which
+                            // never contains the extracted text).
+                            _freshDocNames.add(att.name);
+                            const _ex = window._cbSessionDocs.find(d => d.name === att.name);
+                            if (_ex) { _ex.text = fileContent; }
+                            else { window._cbSessionDocs.push({ name: att.name, text: fileContent }); }
+                            if (window._cbSessionDocs.length > 5) window._cbSessionDocs = window._cbSessionDocs.slice(-5);
                         } else {
                             // Extraction produced no text — don't pretend the doc is here. Tell the
                             // model AND the user why, so "I don't have the document" never recurs silently.
@@ -10691,6 +10705,24 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                             }
                         }
                         tEl && tEl.remove && tEl.remove();
+                    }
+                }
+
+                // Re-attach documents uploaded EARLIER in this conversation so the model keeps
+                // them on every turn. Without this the extracted text lives only on the turn it
+                // was uploaded (it is never rendered to the DOM), so the next turn rebuilds
+                // history from the DOM and the model wrongly says "I don't have the document"
+                // and falls back to another account's synced context.
+                if (!opts.autoContinue) {
+                    for (const _doc of (window._cbSessionDocs || [])) {
+                        if (_freshDocNames.has(_doc.name)) continue;      // already included this turn
+                        if (!_doc.text || !_doc.text.trim()) continue;
+                        const _remaining = MAX_DOC_CHARS_TOTAL - docCharsUsed;
+                        if (_remaining <= 0) break;
+                        let _t = _doc.text;
+                        if (_t.length > _remaining) _t = _t.slice(0, _remaining) + '\n…[document truncated — too long to include in full]';
+                        docCharsUsed += _t.length;
+                        currentContent[0].text += `\n\n--- CONTENT OF ${_doc.name} (uploaded earlier in this conversation) ---\n${_t}\n--- END OF ${_doc.name} ---`;
                     }
                 }
 
