@@ -2026,6 +2026,10 @@ def report_save_project(body):
         # accepted from the client but never persisted) and is encrypted at rest.
         'connections': data.get('connections') if data.get('connections') is not None else existing.get('connections', {}),
         'tagged_posts':data.get('tagged_posts')if data.get('tagged_posts')is not None else existing.get('tagged_posts', []),
+        # Social-listening config — extra terms to track + the on/off flag the
+        # monthly capture (runMonth) reads. Brand name is always tracked server-side.
+        'listenKeywords': data.get('listenKeywords') if data.get('listenKeywords') is not None else existing.get('listenKeywords', []),
+        'listenEnabled':  data.get('listenEnabled')  if data.get('listenEnabled')  is not None else existing.get('listenEnabled', True),
         'months':      existing.get('months', []),
         'created':     existing.get('created') or now,
         'created_by':  existing.get('created_by') or who,
