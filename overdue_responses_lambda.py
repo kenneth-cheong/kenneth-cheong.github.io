@@ -52,6 +52,7 @@ Environment variables
 """
 
 import os
+import re
 import json
 import time
 import urllib.request
@@ -68,6 +69,16 @@ MONDAY_API_VERSION = "2024-10"
 ICIR_BOARD_ID = os.environ.get("ICIR_BOARD_ID", "2845615047")
 HUDDLE_BOARD_ID = os.environ.get("HUDDLE_BOARD_ID", "1313736399")
 OVERDUE_GROUP_ID = os.environ.get("OVERDUE_GROUP_ID", "group_mm4mfgk7")
+# monday account slug, used to build deep links to the triggering update.
+MONDAY_SLUG = os.environ.get("MONDAY_SLUG", "mediaone-business-group-pte-ltd")
+
+
+def build_update_url(board_id, item_id, update_id):
+    """Permalink straight to the triggering update/reply on the campaign board."""
+    if not item_id:
+        return "https://%s.monday.com/boards/%s" % (MONDAY_SLUG, board_id)
+    return "https://%s.monday.com/boards/%s/pulses/%s/posts/%s" % (
+        MONDAY_SLUG, board_id, item_id, update_id)
 
 # ICIR column ids (verified against the live board)
 COL_CAMPAIGN_CODE = "text_mkzhnmbv"      # Campaign Code
@@ -83,6 +94,10 @@ LLM_MODEL = os.environ.get("LLM_MODEL", "deepseek-chat")
 DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions"
 LOOKBACK_DAYS = int(os.environ.get("LOOKBACK_DAYS", "14"))
 OVERDUE_HOURS = int(os.environ.get("OVERDUE_HOURS", "24"))
+# When false (default), a consultant who is only carbon-copied / FYI'd on a
+# thread (cc/cc:/fyr/fyi @Name, or the actual request is addressed to someone
+# else) is NOT treated as overdue — only messages directed AT them count.
+COUNT_CC = os.environ.get("COUNT_CC", "0") == "1"
 MAX_ITEMS_PER_BOARD = int(os.environ.get("MAX_ITEMS_PER_BOARD", "100"))
 # Number of campaign boards fetched concurrently (I/O-bound).
 MAX_WORKERS = int(os.environ.get("MAX_WORKERS", "8"))
@@ -402,15 +417,56 @@ def judge_threads(api_key, label_names, threads, now_iso, debug_sink=None):
         for lbl, names in label_names.items()
     )
 
+    if COUNT_CC:
+        step1 = (
+            "STEP 1. Find every message (the ROOT update or any reply) whose text "
+            "contains that consultant's display name (mentions appear after '@'). "
+            "Treat ALL mentions equally: a direct '@Name', a 'cc @Name', an "
+            "'fyr @Name', or an informational note like '@Name marking this as not "
+            "needed' ALL count. The reason for the mention is IRRELEVANT.\n"
+        )
+        skip_rule = (
+            "Do NOT skip a mention because it 'doesn't need a reply', is a cc, is "
+            "informational, or seems closed — only the presence/absence of a later "
+            "message by that consultant matters. "
+        )
+        example = (
+            "Worked example — thread X: ROOT at 2026-06-01T00:00Z 'tech audit "
+            "approved cc @Yeoh Choon Ling'; later replies are all authored by other "
+            "people, none by Yeoh Choon Ling. If now is 2026-06-05, then Choon Ling "
+            "IS overdue (a cc with no later message from them counts).\n\n"
+        )
+    else:
+        step1 = (
+            "STEP 1. Find every message (the ROOT update or any reply) that is "
+            "DIRECTED AT that consultant — it asks them to do something, asks them a "
+            "question, or hands them a task, naming them after '@'. DO NOT count a "
+            "message where the consultant is merely carbon-copied or kept in the "
+            "loop: their '@name' comes after 'cc', 'cc:', 'fyr', 'fyi', or the "
+            "actual request/question is plainly addressed to a DIFFERENT person and "
+            "the consultant is only copied. If, across the whole thread, the "
+            "consultant is ONLY ever cc'd / FYI'd and never directly asked, they are "
+            "NOT overdue — output nothing for them.\n"
+        )
+        skip_rule = (
+            "Apart from the cc/FYI exclusion above, do NOT skip a directed request "
+            "because it 'seems closed' or 'looks low priority' — only whether they "
+            "were directly asked and whether a later reply by them exists matters. "
+        )
+        example = (
+            "Worked example A — ROOT 'hi @Janine Wong , tech audit approved, please "
+            "proceed ... cc @Yeoh Choon Ling': the request is to Janine and Choon "
+            "Ling is only cc'd, so Choon Ling is NOT overdue. Worked example B — "
+            "ROOT 'hi @Yeoh Choon Ling , please start KWP, eta 29 June': this is "
+            "directed at Choon Ling, so if she posts no later reply and it is >%d h "
+            "old, she IS overdue.\n\n" % OVERDUE_HOURS
+        )
+
     system = (
-        "You are a MECHANICAL text matcher, NOT a judge of whether a reply is "
-        "warranted or important. The current time is %s (UTC).\n\n"
+        "You decide whether a consultant was DIRECTLY asked to act on a thread and "
+        "has not replied. The current time is %s (UTC).\n\n"
         "For each consultant in the user's list, and each thread, do exactly this:\n"
-        "STEP 1. Find every message (the ROOT update or any reply) whose text "
-        "contains that consultant's display name (mentions appear after '@'). "
-        "Treat ALL mentions equally: a direct '@Name', a 'cc @Name', an "
-        "'fyr @Name', or an informational note like '@Name marking this as not "
-        "needed' ALL count. The reason for the mention is IRRELEVANT.\n"
+        "%s"
         "STEP 2. Take the LAST (latest timestamp) such message — the last mention.\n"
         "STEP 3. Check whether that SAME consultant authored any message in the "
         "SAME thread with a timestamp strictly AFTER that last mention (match by "
@@ -418,15 +474,10 @@ def judge_threads(api_key, label_names, threads, now_iso, debug_sink=None):
         "STEP 4. Output the consultant as OVERDUE for that thread if, and only if, "
         "(a) they authored NO later message in the thread, AND (b) the last "
         "mention is more than %d hours before the current time.\n\n"
-        "Do NOT skip a mention because it 'doesn't need a reply', is a cc, is "
-        "informational, or seems closed — only the presence/absence of a later "
-        "message by that consultant matters. Only consider the consultants the "
-        "user lists; ignore mentions of anyone else. Report each (consultant, "
-        "thread) at most once.\n\n"
-        "Worked example — thread X: ROOT at 2026-06-01T00:00Z 'tech audit "
-        "approved cc @Yeoh Choon Ling'; later replies are all authored by other "
-        "people, none by Yeoh Choon Ling. If now is 2026-06-05, then Choon Ling "
-        "IS overdue (a cc with no later message from them counts).\n\n"
+        "%s"
+        "Only consider the consultants the user lists; ignore mentions of anyone "
+        "else. Report each (consultant, thread) at most once.\n\n"
+        "%s"
         "Respond with ONLY a JSON object of this exact shape:\n"
         '{\"overdue\": [{\"consultant\": \"<label exactly as given>\", '
         '\"update_id\": \"<the thread update_id>\", '
@@ -434,7 +485,7 @@ def judge_threads(api_key, label_names, threads, now_iso, debug_sink=None):
         '\"mention_author\": \"<who wrote it>\", '
         '\"mention_date\": \"<the ISO timestamp of that message>\"}]}\n'
         "If nothing qualifies, return {\"overdue\": []}."
-        % (now_iso, OVERDUE_HOURS)
+        % (now_iso, step1, OVERDUE_HOURS, skip_rule, example)
     )
     user = ("Consultants to audit:\n%s\n\nThreads:\n%s" % (consultant_block, transcript))
 
@@ -475,9 +526,20 @@ def _key(board_id, update_id, consultant):
     return "OR-KEY:%s:%s:%s" % (board_id, update_id, (consultant or "").replace(" ", "_"))
 
 
-def existing_keys():
-    """Collect the OR-KEY markers already present on items in the OVERDUE group."""
-    keys = set()
+_URL_SIG_RE = re.compile(r"/boards/(\d+)/pulses/\d+/posts/(\d+)")
+
+
+def existing_signatures():
+    """Read items already in the OVERDUE group and return two dedupe sets:
+
+      legacy : OR-KEY markers (older items stored the full details blob, which
+               carried an `OR-KEY:<board>:<update>:<consultant>` token).
+      sigs   : `<board>:<update>:<user_id>` signatures rebuilt from the new-style
+               Additional Info (a permalink to the triggering update) plus the
+               assigned-person column. Equivalent dedupe identity, no marker text.
+    """
+    legacy = set()
+    sigs = set()
     cursor = None
     group_query = """
     query ($board: [ID!], $group: [String!], $cursor: String) {
@@ -485,12 +547,12 @@ def existing_keys():
         groups(ids: $group) {
           items_page(limit: 200, cursor: $cursor) {
             cursor
-            items { id name column_values(ids: ["%s"]) { id text } }
+            items { id name column_values(ids: ["%s","%s"]) { id text value } }
           }
         }
       }
     }
-    """ % HUDDLE_TEXT_COL
+    """ % (HUDDLE_TEXT_COL, HUDDLE_PEOPLE_COL)
     pages = 0
     while True:
         data = monday_gql(group_query, {"board": [HUDDLE_BOARD_ID],
@@ -500,15 +562,32 @@ def existing_keys():
             break
         page = groups[0]["items_page"]
         for it in page["items"]:
-            blob = it["name"] + " " + " ".join((c.get("text") or "") for c in it["column_values"])
-            for token in blob.split():
+            text_val = ""
+            person_id = ""
+            for c in it["column_values"]:
+                if c["id"] == HUDDLE_TEXT_COL:
+                    text_val = c.get("text") or ""
+                elif c["id"] == HUDDLE_PEOPLE_COL:
+                    try:
+                        v = json.loads(c.get("value") or "{}")
+                        pts = v.get("personsAndTeams") or []
+                        if pts:
+                            person_id = str(pts[0].get("id"))
+                    except Exception:
+                        pass
+            # legacy OR-KEY tokens (item name or Additional Info blob)
+            for token in (it["name"] + " " + text_val).split():
                 if token.startswith("OR-KEY:"):
-                    keys.add(token)
+                    legacy.add(token)
+            # new-style signature from the permalink + assignee
+            m = _URL_SIG_RE.search(text_val)
+            if m and person_id:
+                sigs.add("%s:%s:%s" % (m.group(1), m.group(2), person_id))
         cursor = page.get("cursor")
         pages += 1
         if not cursor or pages > 20:
             break
-    return keys
+    return legacy, sigs
 
 
 CREATE_ITEM_MUTATION = """
@@ -518,10 +597,37 @@ mutation ($board: ID!, $group: String!, $name: String!, $cols: JSON!) {
 }
 """
 
+CREATE_UPDATE_MUTATION = """
+mutation ($item: ID!, $body: String!) {
+  create_update(item_id: $item, body: $body) { id }
+}
+"""
+
+
+def _html_escape(s):
+    return ((s or "")
+            .replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;").replace('"', "&quot;"))
+
+
+def post_mention_update(item_id, finding):
+    """Post the message that tagged the consultant as an update on the new item,
+    with a link back to the original update/reply on the campaign board."""
+    author = _html_escape(finding.get("mention_author") or "-")
+    when = _html_escape((finding.get("mention_date") or "")[:10])
+    msg = _html_escape((finding.get("mention_text") or "").strip())
+    url = finding.get("update_url") or ""
+    body = (
+        "<b>\U0001F514 Tagged by %s on %s</b><br>%s<br><br>"
+        "\U0001F517 <a href=\"%s\">View the original update on monday.com</a>"
+    ) % (author, when, msg, url)
+    monday_gql(CREATE_UPDATE_MUTATION, {"item": int(item_id), "body": body})
+
 
 def create_overdue_item(finding):
     name = finding["item_label"]
-    cols = {HUDDLE_TEXT_COL: finding["details"]}
+    # Additional Info now holds just the permalink to the triggering update.
+    cols = {HUDDLE_TEXT_COL: finding.get("update_url") or ""}
     if finding.get("user_id"):
         cols[HUDDLE_PEOPLE_COL] = {"personsAndTeams": [{"id": int(finding["user_id"]), "kind": "person"}]}
     data = monday_gql(CREATE_ITEM_MUTATION, {
@@ -530,7 +636,13 @@ def create_overdue_item(finding):
         "name": name[:255],
         "cols": json.dumps(cols),
     })
-    return data["create_item"]["id"]
+    new_id = data["create_item"]["id"]
+    # Attach the tagging message as an update on the freshly-created item.
+    try:
+        post_mention_update(new_id, finding)
+    except Exception as e:
+        print("WARN could not post mention update on item %s: %s" % (new_id, e))
+    return new_id
 
 
 # ----------------------------------------------------------------------------
@@ -606,12 +718,13 @@ def lambda_handler(event, context):
              len(set(list(SEO_CONSULTANTS) + list(GEO_CONSULTANTS))),
              ", ".join(sorted(resolved.keys()))))
 
-    # Step 4 prep: existing keys for dedupe
+    # Step 4 prep: existing items for dedupe (legacy OR-KEY tokens + new-style
+    # board:update:user signatures rebuilt from the permalink + assignee).
     try:
-        seen = existing_keys()
+        seen_keys, seen_sigs = existing_signatures()
     except Exception as e:
         print("WARN could not read existing OVERDUE items: %s" % e)
-        seen = set()
+        seen_keys, seen_sigs = set(), set()
 
     # Global roster display names (label -> [names to look for]).
     label_names = {}
@@ -642,6 +755,7 @@ def lambda_handler(event, context):
                     "board_id": board_id,
                     "info": info,
                     "item_name": t.get("item_name", "-"),
+                    "item_id": t.get("item_id"),
                 }
         return out
 
@@ -685,6 +799,7 @@ def lambda_handler(event, context):
             continue
         board_id, info = ctx["board_id"], ctx["info"]
         item_name = ctx["item_name"]
+        item_id = ctx.get("item_id")
         if lbl not in info["consultants"]:
             continue  # consultant not actually assigned to this campaign
         # Guard against mis-attribution: the quoted mention must actually name
@@ -702,38 +817,34 @@ def lambda_handler(event, context):
             dropped_too_recent += 1
             print("DROP too-recent: %s mention at %s" % (lbl, o.get("mention_date")))
             continue
-        key = _key(board_id, upd, lbl)
-        if key in seen:
-            continue
-        seen.add(key)
         user = resolved.get(lbl, {})
-        details = (
-            "Consultant: %s\n"
-            "Campaign: %s (%s)\n"
-            "Line item: %s\n"
-            "Tagged by: %s on %s\n"
-            "Message: %s\n"
-            "Board: https://mediaone-business-group-pte-ltd.monday.com/boards/%s\n"
-            "%s"
-        ) % (
-            lbl, info["campaign_name"], info["campaign_code"] or "-",
-            item_name or "-", o.get("mention_author", "-"),
-            o.get("mention_date", "-"), (o.get("mention_text") or "").strip(),
-            board_id, key,
-        )
-        item_label = "%s — %s (%s)" % (lbl, info["campaign_name"], info["campaign_code"] or "no code")
+        uid = user.get("user_id")
+        # Dedupe identity: legacy OR-KEY (older items) OR the new
+        # board:update:user signature (rebuilt from the permalink + assignee).
+        key = _key(board_id, upd, lbl)
+        sig = "%s:%s:%s" % (board_id, upd, uid) if uid else None
+        if key in seen_keys or (sig and sig in seen_sigs):
+            continue
+        seen_keys.add(key)
+        if sig:
+            seen_sigs.add(sig)
+        update_url = build_update_url(board_id, item_id, upd)
+        # Item name is just the campaign — the consultant is shown in the
+        # "Assigned to" people column, so no name prefix is needed.
+        item_label = "%s (%s)" % (info["campaign_name"], info["campaign_code"] or "no code")
         findings.append({
             "consultant": lbl,
-            "user_id": user.get("user_id"),
+            "user_id": uid,
             "campaign_name": info["campaign_name"],
             "campaign_code": info["campaign_code"],
             "board_id": board_id,
+            "item_id": item_id,
             "item_name": item_name,
             "mention_text": o.get("mention_text"),
             "mention_author": o.get("mention_author"),
             "mention_date": o.get("mention_date"),
             "item_label": item_label,
-            "details": details,
+            "update_url": update_url,
             "key": key,
         })
 
