@@ -3597,7 +3597,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2279</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2280</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -5267,7 +5267,9 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             // User can click Load Data again to re-sync (uses 30-min cache so it's fast).
             localStorage.removeItem('syncedContext');
 
-            document.getElementById('messageList').innerHTML = '';
+            // Rebuild the welcome message so a fresh conversation opens with a live
+            // snapshot of the connected integrations (instead of a blank screen).
+            resetConversation();
             const sidebar = document.getElementById('historySidebar');
             if (sidebar.classList.contains('active')) toggleHistory();
             updateCloudStatus('synced', 'New Chat Started');
@@ -5723,6 +5725,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     <div class="msg-content">
                         <strong>👋 Hello!</strong> I'm your campaign intelligence assistant.<br><br>
                         Open <strong>Settings</strong> on the right to connect your Monday.com API key, then use the <strong>Campaign Board Focus</strong> bar above to select boards and click <strong>Load Selected Data</strong>.
+                        ${cbBuildConnectionsStatusBlock()}
                     </div>
                     <span class="time">${timeStr}</span>
                 `;
@@ -5834,24 +5837,28 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             cbRefreshInternalWelcome();
         }
 
-        // ── Internal-mode welcome: live snapshot of active connectors + focus selections ──
-        function cbBuildInternalWelcomeContent() {
+        // ── Integration status block: every connector with a live on/off dot ──
+        // Reused on the New Chat welcome (both modes) so a fresh conversation always
+        // opens with a snapshot of which integrations are connected.
+        function cbBuildConnectionsStatusBlock() {
             let states = [];
             try { states = cbGetConnectionStates(); } catch (e) { states = []; }
-            const active = states.filter(s => s.on);
-
-            const connChip = (s) => {
-                const sub = s.acct ? String(s.acct) : '';
-                return `<span style="display:inline-flex; align-items:center; gap:6px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:999px; padding:4px 11px; font-size:0.72rem; font-weight:600; color:#166534; margin:3px 5px 3px 0; max-width:100%;">
-                    <span style="width:7px; height:7px; border-radius:50%; background:#10b981; box-shadow:0 0 0 3px rgba(16,185,129,0.18); flex-shrink:0;"></span>
-                    ${escapeHtml(s.name)}${sub ? `<span style="color:#16a34a; opacity:.75; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:150px;">· ${escapeHtml(sub)}</span>` : ''}
+            const connectedCount = states.filter(s => s.on).length;
+            const chip = (s) => {
+                const acct = s.on && s.acct ? String(s.acct) : '';
+                return `<span style="display:inline-flex; align-items:center; gap:6px; background:${s.on ? '#f0fdf4' : '#f8fafc'}; border:1px solid ${s.on ? '#bbf7d0' : '#e2e8f0'}; border-radius:999px; padding:4px 11px; font-size:0.72rem; font-weight:600; color:${s.on ? '#166534' : '#94a3b8'}; margin:3px 5px 3px 0; max-width:100%;">
+                    <span style="width:7px; height:7px; border-radius:50%; flex-shrink:0; background:${s.on ? '#10b981' : '#cbd5e1'}; ${s.on ? 'box-shadow:0 0 0 3px rgba(16,185,129,0.18);' : ''}"></span>
+                    ${escapeHtml(s.name)}${acct ? `<span style="color:#16a34a; opacity:.75; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:150px;">· ${escapeHtml(acct)}</span>` : ''}
                 </span>`;
             };
+            return `<div>
+                    <div style="font-size:0.68rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.03em; margin-bottom:6px;"><i class="fas fa-plug" style="opacity:.55; margin-right:4px;"></i>Integration status <span style="color:#10b981;">(${connectedCount}/${states.length} connected)</span></div>
+                    <div style="line-height:1.9;">${states.map(chip).join('')}</div>
+                </div>`;
+        }
 
-            const connectorsHtml = active.length
-                ? active.map(connChip).join('')
-                : `<span style="font-size:0.78rem; color:#94a3b8;">No connectors active yet — open <strong>Settings</strong> to connect Monday.com, Google Workspace, and more.</span>`;
-
+        // ── Internal-mode welcome: live integration status + focus selections ──
+        function cbBuildInternalWelcomeContent() {
             const get = (id) => { try { return (msState[id] && msState[id].selected) || []; } catch (e) { return []; } };
             const nm = (x) => (x && typeof x === 'object') ? (x.name || x.id || '') : x;
             const groups = [
@@ -5879,10 +5886,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             }
 
             return `
-                <div>
-                    <div style="font-size:0.68rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.03em; margin-bottom:6px;"><i class="fas fa-plug" style="opacity:.55; margin-right:4px;"></i>Active connectors${active.length ? ` (${active.length})` : ''}</div>
-                    <div style="line-height:1.9;">${connectorsHtml}</div>
-                </div>
+                ${cbBuildConnectionsStatusBlock()}
                 <div style="margin-top:14px;">
                     <div style="font-size:0.68rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:0.03em; margin-bottom:2px;"><i class="fas fa-crosshairs" style="opacity:.55; margin-right:4px;"></i>Items in focus</div>
                     <div>${focusHtml}</div>

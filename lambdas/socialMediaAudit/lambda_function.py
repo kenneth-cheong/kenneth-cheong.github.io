@@ -146,10 +146,12 @@ ACTORS = {
     # `author`), so one actor covers both — the old company-detail actor only
     # returned the profile and its input schema since broke (identifier->array).
     'linkedin':  'harvestapi~linkedin-company-posts',
-    # X/Twitter: apidojo's Tweet Scraper V2 returns one item per tweet with the
-    # profile (followers/verified/avatar/bio) nested under `author` — same shape
-    # family as TikTok/YouTube. NOTE: paid actor — subscribe to it on Apify first.
-    'twitter':   'apidojo~tweet-scraper',
+    # X/Twitter intentionally left out: apidojo~tweet-scraper is pay-per-result and
+    # returns data only on a PAID Apify plan (free plan → {"noResults":true} rows).
+    # The extraction plumbing (_build_input/_extract `author` profile/_to_epoch
+    # Twitter-date parsing) is kept inert; to re-enable, uncomment the line below
+    # AND restore the 'twitter' entry in PLATS in index.html.
+    # 'twitter':   'apidojo~tweet-scraper',
 }
 
 # Facebook needs two actors: pages-scraper returns the profile (followers, etc.)
