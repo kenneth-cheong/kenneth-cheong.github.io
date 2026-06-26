@@ -12,7 +12,7 @@ import {
   addTracked, listTracked, countTracked, removeTracked, appendSnapshot, mergeSnapshots,
   listMetrics,
   exportAllUserData, deleteAllUserData, bumpTokenVersion, revokeSession,
-  listAccessGrants, respondAccess, updateOnboarding,
+  listAccessGrants, respondAccess, updateOnboarding, setEmailOptOut,
 } from '../lib/dynamo.mjs';
 import { rankPosition, rankHistory } from '../lib/rank.mjs';
 import { UPSTREAMS } from '../metering/upstreams.mjs';
@@ -133,6 +133,15 @@ export const handler = async (event) => {
       if (typeof body.acceptedTermsVersion === 'string') patch.acceptedTermsVersion = clampStr(body.acceptedTermsVersion, 20);
       if (!Object.keys(patch).length) return badRequest('Nothing to update.');
       return ok({ onboarding: await updateOnboarding(user.userId, patch) });
+    }
+
+    // ── Email preferences: opt in/out of product-update broadcast emails ──────
+    // (Transactional mail — verification, password reset, ticket replies — is
+    // always sent and unaffected by this flag.)
+    if (method === 'POST' && path.endsWith('/me/email-prefs')) {
+      if (typeof body.emailOptOut !== 'boolean') return badRequest('emailOptOut (boolean) required.');
+      await setEmailOptOut(user.userId, body.emailOptOut);
+      return ok({ emailOptOut: body.emailOptOut });
     }
 
     // ── Consent: list + respond to staff data-access requests ────────────────

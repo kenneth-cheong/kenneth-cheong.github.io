@@ -1,0 +1,60 @@
+import { useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { api } from '../lib/api.js';
+
+// Landing page for the one-click unsubscribe link in product-update emails
+// (/unsubscribe?token=…). Public — works whether or not the recipient is signed
+// in. The token is opt-out-only; re-clicking simply re-applies it (idempotent).
+export default function Unsubscribe() {
+  const [params] = useSearchParams();
+  const [status, setStatus] = useState('working'); // 'working' | 'done' | 'error'
+  const [message, setMessage] = useState('Updating your email preferences…');
+  const ran = useRef(false);
+
+  useEffect(() => {
+    if (ran.current) return; // guard React 18 StrictMode double-invoke
+    ran.current = true;
+    const token = params.get('token');
+    if (!token) { setStatus('error'); setMessage('This unsubscribe link is missing its token.'); return; }
+    (async () => {
+      try {
+        await api.unsubscribeEmail(token);
+        setStatus('done');
+      } catch (err) {
+        setStatus('error');
+        setMessage(err?.payload?.error || err?.message || 'This unsubscribe link is invalid or has expired.');
+      }
+    })();
+  }, [params]);
+
+  return (
+    <div className="grid min-h-screen place-items-center bg-gradient-to-b from-brand-50 to-white px-4">
+      <div className="card w-full max-w-md p-8 text-center">
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand-600 text-2xl font-bold text-white">D</div>
+        {status === 'working' && (
+          <div className="mt-6 flex items-center justify-center gap-2 text-sm text-slate-500">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-brand-600" />
+            {message}
+          </div>
+        )}
+        {status === 'done' && (
+          <>
+            <h1 className="mt-6 text-lg font-bold text-slate-800">You're unsubscribed</h1>
+            <p className="mt-2 text-sm text-slate-500">
+              You'll no longer receive product-update emails. Account emails (sign-in, billing,
+              and support replies) will still be sent. You can opt back in any time from
+              <span className="font-medium"> Account → Email preferences</span>.
+            </p>
+            <Link to="/" className="btn-primary mt-5 inline-flex">Back to Digimetrics</Link>
+          </>
+        )}
+        {status === 'error' && (
+          <>
+            <p className="mt-6 text-sm text-red-600">{message}</p>
+            <Link to="/" className="btn-primary mt-5 inline-flex">Back to Digimetrics</Link>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

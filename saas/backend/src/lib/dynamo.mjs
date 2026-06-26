@@ -27,6 +27,7 @@ export const TABLES = {
   tracked: process.env.TRACKED_TABLE,
   metrics: process.env.METRICS_TABLE,
   conversations: process.env.CONVERSATIONS_TABLE,
+  broadcasts: process.env.BROADCASTS_TABLE,
 };
 
 const rid = () => Math.random().toString(36).slice(2, 8);
@@ -525,6 +526,20 @@ export async function saveRun({ userId, tool, toolName, inputs, result, creditsU
     TableName: TABLES.runs,
     Item: { userId, runId, tool, toolName: toolName || tool, inputs: inputs || {}, result: result || {}, preview, target: deriveTarget(inputs), creditsUsed, projectId, ts },
   }));
+  // Stamp the user's last tool-use time for the broadcast audience filter. This
+  // is the same source the backfill derives from (newest run ts == max here), so
+  // the live value and a rebuilt one never diverge. Best-effort — a failed touch
+  // must never sink the run the user already paid for.
+  try {
+    await ddb.send(new UpdateCommand({
+      TableName: TABLES.users, Key: { userId },
+      UpdateExpression: 'SET lastToolUseAt = :t',
+      // Only a real user record should carry this — guard against creating a
+      // phantom item if userId somehow doesn't resolve to an account.
+      ConditionExpression: 'attribute_exists(userId)',
+      ExpressionAttributeValues: { ':t': ts },
+    }));
+  } catch (e) { if (e.name !== 'ConditionalCheckFailedException') console.error('touch_last_tool_use', userId, e.message); }
   return { runId, ts };
 }
 
@@ -716,11 +731,13 @@ export async function scanOpenTickets() {
 }
 
 // ── In-platform notifications ────────────────────────────────────────────────
-export async function addNotification({ userId, title, body, ticketId }) {
+// `link` is an optional in-app path (e.g. "/pricing") the bell navigates to on
+// click — used by broadcast notifications that aren't tied to a support ticket.
+export async function addNotification({ userId, title, body, ticketId, link }) {
   const ts = new Date().toISOString();
   await ddb.send(new PutCommand({
     TableName: TABLES.notifications,
-    Item: { userId, notifId: `${ts}#${rid()}`, title, body: body || '', ticketId: ticketId || null, read: false, ts },
+    Item: { userId, notifId: `${ts}#${rid()}`, title, body: body || '', ticketId: ticketId || null, link: link || null, read: false, ts },
   }));
 }
 
@@ -971,9 +988,13 @@ export async function addSession({ userId, sid, device, ip }) {
   list.push({ sid, device: device || 'Unknown device', ip: ip || '', createdAt: now, lastSeenAt: now });
   list.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))); // newest first
   const sessions = list.slice(0, MAX_SESSIONS); // keep the newest N → oldest evicted
+  // `lastLoginAt` is bumped here (the single per-login choke point — issueSession
+  // calls addSession once for Google/password/verify/reset) so the audience
+  // filter can target dormant users. Forward-only: there's no login history to
+  // recover, but the activity backfill seeds it from the newest session.
   await ddb.send(new UpdateCommand({
     TableName: TABLES.users, Key: { userId },
-    UpdateExpression: 'SET sessions = :s, updatedAt = :now',
+    UpdateExpression: 'SET sessions = :s, updatedAt = :now, lastLoginAt = :now',
     ExpressionAttributeValues: { ':s': sessions, ':now': now },
   }));
   return sessions;
@@ -1103,6 +1124,91 @@ export async function deleteAllUserData(userId) {
     } while (ExclusiveStartKey);
   }
   await ddb.send(new DeleteCommand({ TableName: TABLES.users, Key: { userId } }));
+}
+
+// ── Broadcast notifications (admin → filtered audience) ──────────────────────
+// Real, sign-in-able accounts only — drops the settings singleton AND unlinked
+// `pending:` invites (no session/inbox of their own yet). This is the pool the
+// audience filter runs over; at MVP volume a full scan is fine (same call the
+// monthly refill already makes).
+export async function audienceCandidates() {
+  return (await scanAllUsers()).filter((u) => !u.provision && !String(u.userId || '').startsWith('pending:'));
+}
+
+/** Set/clear a user's product-email opt-out (atomic, single attribute). Used by
+ *  the one-click unsubscribe link and the Account email-preference toggle. */
+export async function setEmailOptOut(userId, value) {
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.users, Key: { userId },
+    UpdateExpression: 'SET notifyEmailOptOut = :v, updatedAt = :now',
+    ConditionExpression: 'attribute_exists(userId)',
+    ExpressionAttributeValues: { ':v': !!value, ':now': new Date().toISOString() },
+  })).catch((e) => { if (e.name !== 'ConditionalCheckFailedException') throw e; });
+}
+
+/** Newest run timestamp for a user (or null) — the source the activity backfill
+ *  uses to seed lastToolUseAt on accounts that ran tools before tracking began. */
+export async function latestRunTs(userId) {
+  const { Items } = await ddb.send(new QueryCommand({
+    TableName: TABLES.runs,
+    KeyConditionExpression: 'userId = :u',
+    ExpressionAttributeValues: { ':u': userId },
+    ProjectionExpression: 'ts',
+    ScanIndexForward: false, // newest first (runId is timestamp-prefixed)
+    Limit: 1,
+  }));
+  return Items?.[0]?.ts || null;
+}
+
+/** One-time backfill: derive lastLoginAt (from the newest session) and
+ *  lastToolUseAt (from the newest run) for every account that lacks them, so the
+ *  audience filters are useful from day one rather than only going forward.
+ *  Only fills gaps — never overwrites a live value. Returns a small summary. */
+export async function backfillActivity() {
+  const users = await audienceCandidates();
+  let loginFilled = 0, toolFilled = 0;
+  for (const u of users) {
+    const patch = {};
+    if (!u.lastLoginAt) {
+      // Newest session's last-seen (fallback created) time, if any.
+      const newest = (u.sessions || []).map((s) => s.lastSeenAt || s.createdAt).filter(Boolean).sort().pop();
+      if (newest) patch.lastLoginAt = newest;
+    }
+    if (!u.lastToolUseAt) {
+      const ts = await latestRunTs(u.userId);
+      if (ts) patch.lastToolUseAt = ts;
+    }
+    if (!Object.keys(patch).length) continue;
+    const names = Object.keys(patch);
+    await ddb.send(new UpdateCommand({
+      TableName: TABLES.users, Key: { userId: u.userId },
+      UpdateExpression: 'SET ' + names.map((k, i) => `${k} = :v${i}`).join(', '),
+      ExpressionAttributeValues: Object.fromEntries(names.map((k, i) => [`:v${i}`, patch[k]])),
+    }));
+    if (patch.lastLoginAt) loginFilled++;
+    if (patch.lastToolUseAt) toolFilled++;
+  }
+  return { scanned: users.length, loginFilled, toolFilled };
+}
+
+/** Append a broadcast audit row (who sent what, to whom, on which channels).
+ *  Constant partition key so the whole log is one ordered query, newest first. */
+export async function recordBroadcast(entry) {
+  const ts = new Date().toISOString();
+  const item = { pk: 'broadcast', broadcastId: `${ts}#${rid()}`, ts, ...entry };
+  await ddb.send(new PutCommand({ TableName: TABLES.broadcasts, Item: item }));
+  return item;
+}
+
+export async function listBroadcasts(limit = 50) {
+  const { Items } = await ddb.send(new QueryCommand({
+    TableName: TABLES.broadcasts,
+    KeyConditionExpression: 'pk = :p',
+    ExpressionAttributeValues: { ':p': 'broadcast' },
+    ScanIndexForward: false,
+    Limit: limit,
+  }));
+  return Items || [];
 }
 
 export { ddb };

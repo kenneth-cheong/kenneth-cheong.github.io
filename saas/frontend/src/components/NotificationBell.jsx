@@ -37,6 +37,8 @@ export default function NotificationBell() {
   function go(n) {
     setOpen(false);
     if (n.ticketId) navigate(`/support/${encodeURIComponent(n.ticketId)}`);
+    // Broadcast notifications may carry an in-app deep link (must be a local path).
+    else if (n.link && n.link.startsWith('/')) navigate(n.link);
   }
 
   return (

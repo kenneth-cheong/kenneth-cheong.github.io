@@ -20,6 +20,8 @@ export default function Account() {
   const [revoking, setRevoking] = useState(false);
   const [sessions, setSessions] = useState(null);
   const [grants, setGrants] = useState(null);
+  const [emailOptOut, setEmailOptOut] = useState(null); // null = loading
+  const [emailBusy, setEmailBusy] = useState(false);
   const plan = PLANS[user.tier];
   // The current device's session id lives in the refresh token (decode locally).
   const currentSid = (() => {
@@ -39,7 +41,7 @@ export default function Account() {
     if (location.hash !== '#billing' || !docs) return;
     document.getElementById('billing')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [location.hash, docs]);
-  useEffect(() => { api.me().then((d) => setSessions(d.user?.sessions || [])).catch(() => setSessions([])); }, []);
+  useEffect(() => { api.me().then((d) => { setSessions(d.user?.sessions || []); setEmailOptOut(!!d.user?.emailOptOut); }).catch(() => setSessions([])); }, []);
   useEffect(() => { api.accessRequests().then((d) => setGrants(d.grants || [])).catch(() => setGrants([])); }, []);
 
   async function answerAccess(id, action) {
@@ -55,6 +57,14 @@ export default function Account() {
     setSessions((s) => (s || []).filter((x) => x.sid !== sid));
     try { await api.revokeSession(sid); if (sid === currentSid) logout(); }
     catch (e) { toast(e.message, 'error'); }
+  }
+
+  async function toggleEmailPref(nextOptOut) {
+    setEmailBusy(true);
+    setEmailOptOut(nextOptOut); // optimistic
+    try { await api.setEmailPrefs(nextOptOut); toast(nextOptOut ? 'Unsubscribed from product updates.' : 'Subscribed to product updates.', 'success'); }
+    catch (e) { setEmailOptOut(!nextOptOut); toast(e.message, 'error'); }
+    finally { setEmailBusy(false); }
   }
 
   async function buyTopup(packId) {
@@ -245,6 +255,35 @@ export default function Account() {
               </li>
             ))}
           </ul>
+        )}
+      </div>
+
+      {/* ── Email preferences (product-update broadcasts) ──────────────── */}
+      <div className="card mt-4 p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="font-bold">Email preferences</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Product updates &amp; announcements. Account emails (sign-in, billing, and support
+              replies) are always sent and aren't affected by this.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={emailOptOut === false}
+            disabled={emailBusy || emailOptOut === null}
+            onClick={() => toggleEmailPref(!emailOptOut)}
+            className={`relative mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-50 ${emailOptOut === false ? 'bg-brand-600' : 'bg-slate-300'}`}
+          >
+            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${emailOptOut === false ? 'translate-x-5' : 'translate-x-1'}`} />
+          </button>
+        </div>
+        {emailOptOut !== null && (
+          <p className="mt-3 text-sm font-medium">
+            Product-update emails:{' '}
+            <span className={emailOptOut === false ? 'text-emerald-600' : 'text-slate-500'}>{emailOptOut === false ? 'On' : 'Off'}</span>
+          </p>
         )}
       </div>
 

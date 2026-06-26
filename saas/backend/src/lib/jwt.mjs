@@ -49,6 +49,18 @@ export function verifyVerifyToken(token) {
   return t;
 }
 
+// Email-unsubscribe token (embedded in product-update emails). Long-lived — an
+// unsubscribe link must keep working long after the email was sent. Carries no
+// nonce: re-clicking simply re-applies the (idempotent) opt-out.
+export function signUnsubToken(userId) {
+  return jwt.sign({ sub: userId, typ: 'unsub' }, SECRET, { expiresIn: '365d', issuer: 'digimetrics-saas' });
+}
+export function verifyUnsubToken(token) {
+  const t = jwt.verify(token, SECRET, { issuer: 'digimetrics-saas' });
+  if (t.typ !== 'unsub') throw new Error('bad unsub token');
+  return t;
+}
+
 // Single-use password-reset token. `jti` is a nonce stored on the user record so
 // a reset link can only be redeemed once (cleared after use).
 export function signResetToken(userId, jti) {

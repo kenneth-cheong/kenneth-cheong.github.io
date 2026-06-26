@@ -3597,7 +3597,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2291</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2292</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -4574,6 +4574,48 @@
     </div>
 
     <script>
+        // ── Safe storage shim ───────────────────────────────────────────────
+        // In some contexts (Safari Private mode, embedded/cross-origin frames, or
+        // browsers with site storage blocked) merely *accessing* localStorage
+        // throws a SecurityError. That used to halt this whole script at the very
+        // first `localStorage.getItem(...)` below, leaving hoisted functions like
+        // fetchHistory() callable but later `let` state (e.g. _allHistoryConvs)
+        // stuck in the temporal dead zone — surfacing in the History panel as
+        // "Cannot access '_allHistoryConvs' before initialization". Swap in an
+        // in-memory polyfill so every call site keeps working (non-persistent)
+        // instead of throwing.
+        (function ensureStorage() {
+            function makeMemoryStorage() {
+                let store = {};
+                return {
+                    getItem(k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },
+                    setItem(k, v) { store[k] = String(v); },
+                    removeItem(k) { delete store[k]; },
+                    clear() { store = {}; },
+                    key(i) { return Object.keys(store)[i] ?? null; },
+                    get length() { return Object.keys(store).length; }
+                };
+            }
+            ['localStorage', 'sessionStorage'].forEach(function(name) {
+                let ok = false;
+                try {
+                    const s = window[name];
+                    const t = '__storage_test__';
+                    s.setItem(t, '1');
+                    s.removeItem(t);
+                    ok = true;
+                } catch (e) { ok = false; }
+                if (!ok) {
+                    try {
+                        Object.defineProperty(window, name, { value: makeMemoryStorage(), configurable: true });
+                    } catch (e2) {
+                        try { window[name] = makeMemoryStorage(); } catch (e3) {}
+                    }
+                    console.warn('[storage] ' + name + ' unavailable — using in-memory fallback');
+                }
+            });
+        })();
+
         let isSyncing = false;
         let threadId = localStorage.getItem('threadId') || null;
         let currentMode = 'internal';

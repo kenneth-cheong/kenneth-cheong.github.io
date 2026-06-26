@@ -17,7 +17,7 @@ export default function Admin() {
     <div>
       <h1 className="text-2xl font-bold">Admin</h1>
       <div className="mt-3 flex gap-1 border-b border-slate-200">
-        {[['users', 'Users'], ['tickets', 'Support tickets'], ['settings', 'Settings']].map(([k, label]) => (
+        {[['users', 'Users'], ['notifications', 'Notifications'], ['tickets', 'Support tickets'], ['settings', 'Settings']].map(([k, label]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
@@ -27,7 +27,7 @@ export default function Admin() {
           </button>
         ))}
       </div>
-      {tab === 'users' ? <AdminUsers /> : tab === 'tickets' ? <AdminTickets /> : <AdminSettings />}
+      {tab === 'users' ? <AdminUsers /> : tab === 'notifications' ? <AdminNotifications /> : tab === 'tickets' ? <AdminTickets /> : <AdminSettings />}
     </div>
   );
 }
@@ -98,6 +98,286 @@ function AdminSettings() {
         </p>
         {msg && <p className="mt-2 text-sm text-emerald-600">{msg}</p>}
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ── Broadcast notifications ──────────────────────────────────────────────────
+// Build a target audience from sign-up / last-login / last-tool-use date filters
+// (+ optional tier/status narrowing), preview who it reaches, then send an
+// in-app and/or email broadcast. Server enforces staff-only + the audience cap.
+const CLAUSES = [
+  { key: 'signup', label: 'Signed up', help: 'when the account was created' },
+  { key: 'lastLogin', label: 'Last login', help: 'tracked from when this shipped' },
+  { key: 'lastToolUse', label: 'Last tool use', help: 'backfilled from run history' },
+];
+const BROADCAST_STATUSES = ['active', 'paused', 'inactive'];
+
+function AdminNotifications() {
+  // Audience filter state.
+  const [clauses, setClauses] = useState({
+    signup: { enabled: false, type: 'after', days: 7 },
+    lastLogin: { enabled: false, type: 'before', days: 30 },
+    lastToolUse: { enabled: false, type: 'before', days: 14 },
+  });
+  const [match, setMatch] = useState('all');
+  const [tiers, setTiers] = useState(new Set());
+  const [statuses, setStatuses] = useState(new Set(['active']));
+
+  // Composer state.
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [link, setLink] = useState('');
+  const [channels, setChannels] = useState({ inApp: true, email: false });
+
+  // Async + result state.
+  const [preview, setPreview] = useState(null); // { count, sample, capped, maxAudience }
+  const [previewing, setPreviewing] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [error, setError] = useState('');
+  const [history, setHistory] = useState(null);
+  const [backfilling, setBackfilling] = useState(false);
+
+  const loadHistory = () => api.adminBroadcastHistory().then((d) => setHistory(d.broadcasts || [])).catch(() => setHistory([]));
+  useEffect(() => { loadHistory(); }, []);
+
+  function setClause(key, patch) {
+    setClauses((c) => ({ ...c, [key]: { ...c[key], ...patch } }));
+    setPreview(null); // any audience change invalidates a prior preview
+  }
+  function toggleIn(set, setter, value) {
+    const next = new Set(set);
+    next.has(value) ? next.delete(value) : next.add(value);
+    setter(next); setPreview(null);
+  }
+
+  function buildFilter() {
+    const f = { match };
+    for (const { key } of CLAUSES) {
+      const cl = clauses[key];
+      if (cl.enabled && Number.isFinite(Number(cl.days))) f[key] = { type: cl.type, days: Number(cl.days) };
+    }
+    if (tiers.size) f.tiers = [...tiers];
+    if (statuses.size) f.statuses = [...statuses];
+    return f;
+  }
+
+  async function doPreview() {
+    setPreviewing(true); setError(''); setMsg('');
+    try { setPreview(await api.adminBroadcastPreview(buildFilter())); }
+    catch (e) { setError(e?.payload?.error || 'Could not preview the audience.'); }
+    finally { setPreviewing(false); }
+  }
+
+  async function doSend() {
+    setError(''); setMsg('');
+    if (!title.trim()) { setError('Add a title.'); return; }
+    if (!body.trim()) { setError('Add a message.'); return; }
+    if (!channels.inApp && !channels.email) { setError('Pick at least one channel.'); return; }
+    if (link && !link.startsWith('/')) { setError('Link must be an in-app path starting with “/”.'); return; }
+    const count = preview?.count;
+    const who = count != null ? `${count} user${count === 1 ? '' : 's'}` : 'the matching users';
+    const via = [channels.inApp && 'in-app', channels.email && 'email'].filter(Boolean).join(' + ');
+    if (!confirm(`Send "${title.trim()}" to ${who} via ${via}? This can't be undone.`)) return;
+    setSending(true);
+    try {
+      const { broadcast } = await api.adminBroadcastSend({
+        filter: buildFilter(), title: title.trim(), body: body.trim(),
+        link: link.trim() || undefined, channels,
+      });
+      const parts = [`${broadcast.inAppSent || 0} in-app`];
+      if (channels.email) parts.push(`${broadcast.emailSent || 0} email${broadcast.emailSkippedOptOut ? `, ${broadcast.emailSkippedOptOut} opted out` : ''}`);
+      setMsg(`Sent to ${broadcast.audienceCount} user${broadcast.audienceCount === 1 ? '' : 's'} (${parts.join(' · ')}).`);
+      setTitle(''); setBody(''); setLink(''); setPreview(null);
+      loadHistory();
+    } catch (e) { setError(e?.payload?.error || 'Could not send the broadcast.'); }
+    finally { setSending(false); }
+  }
+
+  async function doBackfill() {
+    if (!confirm('Seed last-login and last-tool-use from existing sessions + run history? Safe to run anytime — it only fills missing values.')) return;
+    setBackfilling(true); setError(''); setMsg('');
+    try {
+      const r = await api.adminBackfillActivity();
+      setMsg(`Backfill done — scanned ${r.scanned} users, filled ${r.loginFilled} logins + ${r.toolFilled} tool-use dates.`);
+    } catch (e) { setError(e?.payload?.error || 'Backfill failed.'); }
+    finally { setBackfilling(false); }
+  }
+
+  return (
+    <div className="mt-4 grid gap-4 lg:grid-cols-2">
+      {/* ── Audience builder ── */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold">Audience</h2>
+          <select value={match} onChange={(e) => { setMatch(e.target.value); setPreview(null); }}
+            className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-xs">
+            <option value="all">Match ALL date rules</option>
+            <option value="any">Match ANY date rule</option>
+          </select>
+        </div>
+        <p className="mt-1 text-xs text-slate-500">Leave all date rules off to target everyone (after the tier/status narrowing below).</p>
+
+        <div className="mt-3 space-y-2">
+          {CLAUSES.map(({ key, label, help }) => {
+            const cl = clauses[key];
+            return (
+              <div key={key} className={`rounded-lg border p-2.5 ${cl.enabled ? 'border-brand-200 bg-brand-50/40' : 'border-slate-200'}`}>
+                <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <input type="checkbox" checked={cl.enabled} onChange={(e) => setClause(key, { enabled: e.target.checked })} className="h-4 w-4" />
+                  {label}
+                  <span className="font-normal text-xs text-slate-400">· {help}</span>
+                </label>
+                {cl.enabled && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 pl-6 text-sm">
+                    <select value={cl.type} onChange={(e) => setClause(key, { type: e.target.value })}
+                      className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm">
+                      <option value="before">more than</option>
+                      <option value="after">within the last</option>
+                    </select>
+                    <input type="number" min="0" value={cl.days} onChange={(e) => setClause(key, { days: e.target.value })}
+                      className="w-20 rounded border border-slate-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none" />
+                    <span className="text-slate-500">days ago</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-4">
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Tiers</h3>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {TIER_ORDER.map((t) => (
+                <button key={t} type="button" onClick={() => toggleIn(tiers, setTiers, t)}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium ${tiers.has(t) ? 'border-brand-500 bg-brand-100 text-brand-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                  {PLANS[t].name}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-[11px] text-slate-400">{tiers.size ? '' : 'All tiers'}</p>
+          </div>
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Status</h3>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {BROADCAST_STATUSES.map((s) => (
+                <button key={s} type="button" onClick={() => toggleIn(statuses, setStatuses, s)}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${statuses.has(s) ? 'border-brand-500 bg-brand-100 text-brand-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                  {s}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-[11px] text-slate-400">{statuses.size ? '' : 'Any status'}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-3">
+          <button onClick={doPreview} disabled={previewing} className="btn-ghost px-3 py-2 text-sm disabled:opacity-50">
+            {previewing ? 'Previewing…' : 'Preview audience'}
+          </button>
+          {preview && (
+            <span className="text-sm font-semibold text-slate-700">
+              {preview.count.toLocaleString()} user{preview.count === 1 ? '' : 's'}
+              {preview.capped && <span className="ml-1 text-red-600">· exceeds cap of {preview.maxAudience}</span>}
+            </span>
+          )}
+        </div>
+
+        {preview?.sample?.length > 0 && (
+          <div className="mt-3 max-h-44 overflow-y-auto rounded-lg border border-slate-100">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-slate-50 text-left text-slate-400">
+                <tr><th className="px-2 py-1 font-medium">User</th><th className="px-2 py-1 font-medium">Tier</th><th className="px-2 py-1 font-medium">Last login</th><th className="px-2 py-1 font-medium">Last tool</th></tr>
+              </thead>
+              <tbody>
+                {preview.sample.map((u) => (
+                  <tr key={u.userId} className="border-t border-slate-50">
+                    <td className="px-2 py-1"><div className="font-medium text-slate-600">{u.email}</div></td>
+                    <td className="px-2 py-1 text-slate-500">{u.tier}</td>
+                    <td className="px-2 py-1 whitespace-nowrap text-slate-400">{u.lastLoginAt ? fmtWhen(u.lastLoginAt) : '—'}</td>
+                    <td className="px-2 py-1 whitespace-nowrap text-slate-400">{u.lastToolUseAt ? fmtWhen(u.lastToolUseAt) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {preview && preview.count > preview.sample.length && <p className="mt-1.5 text-[11px] text-slate-400">Showing first {preview.sample.length} of {preview.count.toLocaleString()}.</p>}
+
+        <div className="mt-4 border-t border-slate-100 pt-3">
+          <button onClick={doBackfill} disabled={backfilling} className="text-xs text-slate-500 underline hover:text-slate-700 disabled:opacity-50">
+            {backfilling ? 'Backfilling…' : 'Backfill last-login / last-tool-use from history'}
+          </button>
+          <p className="mt-1 text-[11px] text-slate-400">Run once so the date filters reflect activity from before this feature shipped.</p>
+        </div>
+      </div>
+
+      {/* ── Composer ── */}
+      <div className="card flex flex-col p-5">
+        <h2 className="text-base font-semibold">Message</h2>
+
+        <label className="mt-3 block text-sm font-medium text-slate-700">Title</label>
+        <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder="What's new in Digimetrics"
+          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
+
+        <label className="mt-3 block text-sm font-medium text-slate-700">Message</label>
+        <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={2000} rows={5} placeholder="Write your update… (blank lines start a new paragraph in the email)"
+          className="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-brand-500 focus:outline-none" />
+
+        <label className="mt-3 block text-sm font-medium text-slate-700">In-app link <span className="font-normal text-slate-400">(optional)</span></label>
+        <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="/pricing"
+          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
+        <p className="mt-1 text-[11px] text-slate-400">A path inside the app (e.g. /pricing). Clicking the notification opens it.</p>
+
+        <div className="mt-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Channels</h3>
+          <div className="mt-2 space-y-2">
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={channels.inApp} onChange={(e) => setChannels((c) => ({ ...c, inApp: e.target.checked }))} className="h-4 w-4" />
+              In-app notification <span className="text-xs text-slate-400">· shows in the bell</span>
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" checked={channels.email} onChange={(e) => setChannels((c) => ({ ...c, email: e.target.checked }))} className="h-4 w-4" />
+              Email <span className="text-xs text-slate-400">· skips opted-out users; includes an unsubscribe link</span>
+            </label>
+          </div>
+        </div>
+
+        {msg && <div className="mt-4 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">{msg}</div>}
+        {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+
+        <div className="mt-4 flex items-center justify-between">
+          <span className="text-xs text-slate-400">{preview ? `Will reach ${preview.count.toLocaleString()} user${preview.count === 1 ? '' : 's'}.` : 'Preview the audience first.'}</span>
+          <button onClick={doSend} disabled={sending} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">{sending ? 'Sending…' : 'Send broadcast'}</button>
+        </div>
+      </div>
+
+      {/* ── History ── */}
+      <div className="card p-5 lg:col-span-2">
+        <h2 className="text-base font-semibold">Recent broadcasts</h2>
+        {history === null ? <p className="mt-3 text-sm text-slate-400">Loading…</p>
+          : history.length === 0 ? <p className="mt-3 text-sm text-slate-400">No broadcasts sent yet.</p>
+          : (
+            <div className="mt-3 divide-y divide-slate-100">
+              {history.map((b) => (
+                <div key={b.broadcastId} className="flex items-start justify-between gap-4 py-2.5">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-slate-800">{b.title}</div>
+                    <div className="truncate text-xs text-slate-500">{b.body}</div>
+                    <div className="mt-0.5 text-[11px] text-slate-400">
+                      by {b.sentBy} · {fmtWhen(b.ts)}
+                      {b.channels?.inApp && ` · ${b.inAppSent || 0} in-app`}
+                      {b.channels?.email && ` · ${b.emailSent || 0} email`}
+                    </div>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{(b.audienceCount || 0).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
       </div>
     </div>
   );

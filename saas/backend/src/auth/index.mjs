@@ -15,11 +15,12 @@ import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { OAuth2Client } from 'google-auth-library';
 import {
   getUser, getUserByEmail, putUser, getProvision, deleteProvision, addSession, validateSession, bumpTokenVersion,
-  getSettings,
+  getSettings, setEmailOptOut,
 } from '../lib/dynamo.mjs';
 import {
   signAccess, signRefresh, verify,
   signVerifyToken, verifyVerifyToken, signResetToken, verifyResetToken,
+  verifyUnsubToken,
 } from '../lib/jwt.mjs';
 import { hashPassword, verifyPassword, isValidPassword } from '../lib/password.mjs';
 import { sendEmail } from '../lib/email.mjs';
@@ -60,6 +61,11 @@ export const handler = async (event) => {
   // Public pre-auth config so the login page knows which methods to show.
   if (path.endsWith('/config')) return ok({ passwordAuthEnabled: (await getSettings()).passwordAuthEnabled });
 
+  // Public one-click unsubscribe from product-update emails (the link target the
+  // broadcast footer carries). Token-authenticated, idempotent, and independent
+  // of the password-auth setting — it must keep working from old emails.
+  if (path.endsWith('/notify/unsubscribe')) return handleUnsubscribe(body);
+
   // Google + token refresh are always available; the email/password family is
   // gated by the admin-controlled platform setting.
   if (path.endsWith('/refresh')) return handleRefresh(body);
@@ -80,6 +86,16 @@ export const handler = async (event) => {
 
   return handleGoogle(body, meta);
 };
+
+// ── Email unsubscribe (public, token-authenticated) ──────────────────────────
+async function handleUnsubscribe({ token }) {
+  if (!token) return badRequest('token required');
+  let claims;
+  try { claims = verifyUnsubToken(token); }
+  catch { return badRequest('This unsubscribe link is invalid or has expired.'); }
+  await setEmailOptOut(claims.sub, true);
+  return ok({ unsubscribed: true });
+}
 
 // ── Shared helpers ───────────────────────────────────────────────────────────
 

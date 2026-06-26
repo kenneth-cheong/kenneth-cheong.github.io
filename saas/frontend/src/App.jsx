@@ -5,6 +5,7 @@ import Layout from './components/Layout.jsx';
 import Login from './pages/Login.jsx';
 import VerifyEmail from './pages/VerifyEmail.jsx';
 import ResetPassword from './pages/ResetPassword.jsx';
+import Unsubscribe from './pages/Unsubscribe.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import { Terms, Privacy } from './pages/Legal.jsx';
 import NotFound from './pages/NotFound.jsx';
@@ -77,6 +78,7 @@ export default function App() {
         {/* Email-link landings — must work pre-auth; they auto-log-in on success. */}
         <Route path="/verify" element={<VerifyEmail />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/unsubscribe" element={<Unsubscribe />} />
         <Route path="*" element={<Login />} />
       </Routes>
     );
@@ -104,6 +106,8 @@ export default function App() {
           <Route path="/admin" element={<Admin />} />
           <Route path="/legal/terms" element={<Terms />} />
           <Route path="/legal/privacy" element={<Privacy />} />
+          {/* Also reachable when signed in (the email link may open in a logged-in tab). */}
+          <Route path="/unsubscribe" element={<Unsubscribe />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

@@ -225,4 +225,14 @@ export const api = {
   adminStatus: (userId, status) => call('/admin/status', { method: 'POST', body: { userId, status } }),
   adminSettings: () => call('/admin/settings'),
   adminSetSettings: (patch) => call('/admin/settings', { method: 'POST', body: patch }),
+  // Broadcast notifications — preview an audience, send, view history, and the
+  // one-time activity backfill (seeds last-login / last-tool-use from history).
+  adminBroadcastPreview: (filter) => call('/admin/notifications/preview', { method: 'POST', body: { filter } }),
+  adminBroadcastSend: ({ filter, title, body, link, channels }) =>
+    call('/admin/notifications/send', { method: 'POST', body: { filter, title, body, link, channels } }),
+  adminBroadcastHistory: () => call('/admin/notifications/history'),
+  adminBackfillActivity: () => call('/admin/notifications/backfill', { method: 'POST' }),
+  // Product-email preference (Account toggle) + the public one-click unsubscribe.
+  setEmailPrefs: (emailOptOut) => call('/me/email-prefs', { method: 'POST', body: { emailOptOut } }),
+  unsubscribeEmail: (token) => call('/notify/unsubscribe', { method: 'POST', body: { token }, auth: false }),
 };

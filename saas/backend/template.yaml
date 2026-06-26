@@ -240,6 +240,23 @@ Resources:
         - { AttributeName: userId, KeyType: HASH }
         - { AttributeName: notifId, KeyType: RANGE }
 
+  # Broadcast audit log — one row per admin broadcast (filter, channels, counts).
+  # Constant partition key ('broadcast') so the whole history is one ordered query.
+  BroadcastsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - { AttributeName: pk, AttributeType: S }
+        - { AttributeName: broadcastId, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pk, KeyType: HASH }
+        - { AttributeName: broadcastId, KeyType: RANGE }
+
   # Ticket attachments (screenshots / files). PRIVATE — objects are served only
   # via short-lived presigned GET URLs the app mints on read (see lib/s3.mjs).
   AttachmentsBucket:
@@ -349,6 +366,8 @@ Resources:
         Forgot: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /auth/forgot, Method: POST } }
         Reset: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /auth/reset, Method: POST } }
         Resend: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /auth/resend, Method: POST } }
+        # Public one-click unsubscribe from product-update emails (token-authed).
+        Unsubscribe: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /notify/unsubscribe, Method: POST } }
 
   # ── Profile + usage (authed) ────────────────────────────────────────────
   MeFn:
@@ -492,6 +511,7 @@ Resources:
         MeAccess: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/access, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         MeAccessRespond: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/access/respond, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         MeOnboarding: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/onboarding, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        MeEmailPrefs: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/email-prefs, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         AuditSynthesize: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /audit/synthesize, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Run: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/me/runs/{runId}', Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Projects: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /projects, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
@@ -627,10 +647,14 @@ Resources:
     Properties:
       CodeUri: .build/admin/
       Handler: index.handler
+      # Broadcast send fans out in-app writes + SES emails across the audience;
+      # give it headroom over the 30s default for larger lists.
+      Timeout: 120
       Environment:
         Variables:
           ADMIN_EMAILS: !Ref AdminEmails
           SES_FROM: !Ref SesFrom
+          BROADCASTS_TABLE: !Ref BroadcastsTable
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
@@ -638,6 +662,8 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref RunsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref ConversationsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref NotificationsTable }
+        # Broadcast audit log (audience filter, channels, send counts).
+        - DynamoDBCrudPolicy: { TableName: !Ref BroadcastsTable }
         - Statement:
             - Effect: Allow
               Action: [ses:SendEmail, ses:SendRawEmail]
@@ -654,6 +680,10 @@ Resources:
         Status: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/status, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         SettingsGet: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/settings, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         SettingsSet: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/settings, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        BroadcastHistory: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/history, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        BroadcastPreview: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/preview, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        BroadcastSend: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/send, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        BroadcastBackfill: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/backfill, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
 
   # ── Observability: SNS topic + CloudWatch alarms ────────────────────────
   # The topic (and email subscription) only exist when AlarmEmail is set; the

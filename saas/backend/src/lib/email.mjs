@@ -6,14 +6,20 @@ import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 const ses = new SESClient({});
 const FROM = process.env.SES_FROM;
 
-export async function sendEmail({ to, subject, text }) {
+export async function sendEmail({ to, subject, text, html }) {
   const recipients = (Array.isArray(to) ? to : [to]).filter(Boolean);
   if (!FROM || !recipients.length) return false;
+  // SES requires at least one body part. Most callers send plain text; broadcast
+  // emails pass `html` (with `text` as the multipart fallback for plain readers).
+  const Body = {};
+  if (text) Body.Text = { Data: text };
+  if (html) Body.Html = { Data: html };
+  if (!Body.Text && !Body.Html) return false;
   try {
     await ses.send(new SendEmailCommand({
       Source: FROM,
       Destination: { ToAddresses: recipients },
-      Message: { Subject: { Data: subject }, Body: { Text: { Data: text } } },
+      Message: { Subject: { Data: subject }, Body },
     }));
     return true;
   } catch (e) {
