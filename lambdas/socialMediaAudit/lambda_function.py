@@ -146,6 +146,10 @@ ACTORS = {
     # `author`), so one actor covers both — the old company-detail actor only
     # returned the profile and its input schema since broke (identifier->array).
     'linkedin':  'harvestapi~linkedin-company-posts',
+    # X/Twitter: apidojo's Tweet Scraper V2 returns one item per tweet with the
+    # profile (followers/verified/avatar/bio) nested under `author` — same shape
+    # family as TikTok/YouTube. NOTE: paid actor — subscribe to it on Apify first.
+    'twitter':   'apidojo~tweet-scraper',
 }
 
 # Facebook needs two actors: pages-scraper returns the profile (followers, etc.)
@@ -914,6 +918,11 @@ def _build_input(platform, handle):
         # costlier per-reaction / per-comment scrapes — we only need the totals.
         return {'targetUrls': [url], 'maxPosts': 20,
                 'scrapeReactions': False, 'scrapeComments': False}
+    if platform == 'twitter':
+        # accept a bare @handle, a handle, or a full profile URL → bare handle.
+        if user.startswith('http'):
+            user = user.rstrip('/').split('/')[-1]
+        return {'twitterHandles': [user], 'maxItems': 24, 'sort': 'Latest'}
     return {'usernames': [user]}
 
 
@@ -951,7 +960,9 @@ def _extract(platform, items, post_items=None):
         posts = _collect_posts('linkedin', items, head)
         return _metrics_from(followers, None, False, '', '', '', pfp, posts)
 
-    prof = head.get('authorMeta') if isinstance(head.get('authorMeta'), dict) else head
+    # TikTok nests the profile under `authorMeta`; X/Twitter under `author`.
+    prof = (head.get('authorMeta') if isinstance(head.get('authorMeta'), dict)
+            else head.get('author') if isinstance(head.get('author'), dict) else head)
 
     # YouTube (streamers~youtube-scraper) returns one item PER VIDEO with the
     # channel fields flat on each item (numberOfSubscribers/isChannelVerified/
@@ -966,8 +977,8 @@ def _extract(platform, items, post_items=None):
     bio       = _g(prof, 'biography', 'bio', 'channelDescription', 'description', 'about', 'signature', default='')
     link      = _g(prof, 'externalUrl', 'website', 'link', 'externalUrls', 'bioLink', default='')
     category  = _g(prof, 'businessCategoryName', 'category', 'categoryName', default='')
-    pfp       = _g(prof, 'profilePicUrl', 'channelAvatarUrl', 'avatar', 'profileImage',
-                   'originalAvatarUrl', 'thumbnailUrl', default='')
+    pfp       = _g(prof, 'profilePicUrl', 'channelAvatarUrl', 'profilePicture', 'avatar',
+                   'profileImage', 'originalAvatarUrl', 'thumbnailUrl', default='')
 
     if post_items:
         post_head = post_items[0] if isinstance(post_items[0], dict) else {}
@@ -1039,10 +1050,10 @@ def _collect_posts(platform, items, head):
         if reactions is not None and (likes is None or reactions > likes):
             likes = reactions
         out.append({
-            'ts':       _g(p, 'timestamp', 'createTime', 'publishedAt', 'date', 'taken_at', 'time'),
+            'ts':       _g(p, 'timestamp', 'createTime', 'publishedAt', 'date', 'taken_at', 'time', 'createdAt'),
             'likes':    likes,
-            'comments': _num(_g(p, 'commentsCount', 'comments', 'commentCount')),
-            'shares':   _num(_g(p, 'sharesCount', 'shares', 'shareCount', 'reshareCount', 'repostCount')),
+            'comments': _num(_g(p, 'commentsCount', 'comments', 'commentCount', 'replyCount')),
+            'shares':   _num(_g(p, 'sharesCount', 'shares', 'shareCount', 'reshareCount', 'repostCount', 'retweetCount', 'quoteCount')),
             'views':    _num(_g(p, 'videoViewCount', 'playCount', 'views', 'viewCount', 'viewsCount')),
             'type':     _post_type(p),
             'hashtags': re.findall(r'#(\w+)', text),
@@ -2816,6 +2827,11 @@ def _to_epoch(ts):
         return ts / 1000 if ts > 1e11 else ts
     try:
         return datetime.fromisoformat(str(ts).replace('Z', '+00:00')).timestamp()
+    except (ValueError, TypeError):
+        pass
+    # X/Twitter `createdAt`, e.g. "Wed Jun 25 12:00:00 +0000 2026" — not ISO.
+    try:
+        return datetime.strptime(str(ts), '%a %b %d %H:%M:%S %z %Y').timestamp()
     except (ValueError, TypeError):
         return None
 
