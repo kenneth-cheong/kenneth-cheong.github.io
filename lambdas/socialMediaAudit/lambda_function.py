@@ -2122,18 +2122,78 @@ def _sgt_date():
 
 def report_daily_series(body):
     """Daily KPI time-series for a project's Overview charts. Returns up to the
-    most recent `days` daily snapshots (default 90, max 400), oldest-first."""
+    most recent `days` daily snapshots (default 90, max 400), oldest-first.
+
+    Full daily KPI rows live in social_report_days (forward-accruing). To give the
+    followers chart immediate history, we ALSO backfill a followers-by-day series
+    from the long-standing sma_snapshots table and merge it underneath — real day
+    rows always win; backfilled dates carry followers only."""
     data = body.get('data') or {}
     pid  = (body.get('projectId') or data.get('projectId') or '').strip()
     if not pid:
         raise RuntimeError('Missing projectId.')
     days = int(body.get('days') or data.get('days') or 90)
     days = max(1, min(days, 400))
+
     resp = _rdays().query(KeyConditionExpression=Key('projectId').eq(pid),
                           ScanIndexForward=False, Limit=days)
-    rows = sorted((_dec(it) for it in resp.get('Items', [])),
-                  key=lambda r: str(r.get('date')))
-    return {'series': rows}
+    by_date = {r['date']: r for r in (_dec(it) for it in resp.get('Items', [])) if r.get('date')}
+
+    try:
+        proj = _rprojects().get_item(Key={'projectId': pid}).get('Item')
+        if proj:
+            proj = _dec(proj)
+            brand = (proj.get('brand') or proj.get('name') or '').strip().lower()
+            for date, fol in _followers_by_date(brand, proj.get('platforms') or [], days).items():
+                if date not in by_date:
+                    by_date[date] = {'projectId': pid, 'date': date,
+                                     'kpis': {'followers': fol}, 'backfilled': True}
+                elif (by_date[date].get('kpis') or {}).get('followers') is None:
+                    by_date[date].setdefault('kpis', {})['followers'] = fol
+    except Exception:
+        pass   # backfill is best-effort; never break the real series
+
+    series = sorted(by_date.values(), key=lambda r: str(r.get('date')))[-days:]
+    return {'series': series}
+
+
+def _followers_by_date(brand, platforms, days):
+    """Daily total followers from sma_snapshots: per platform, take the last value
+    of each SGT day, forward-fill across the window, then sum — so the total line
+    stays smooth even when a platform misses a day."""
+    if not brand or not platforms:
+        return {}
+    cutoff = int(time.time() - (days + 2) * 86400)
+    plat_series, all_dates = {}, set()
+    for p in platforms:
+        try:
+            resp = _snaps().query(
+                KeyConditionExpression=Key('brand_platform').eq(f'{brand}#{p}') & Key('ts').gte(cutoff),
+                ScanIndexForward=True)
+        except Exception:
+            continue
+        dmap = {}
+        for it in resp.get('Items', []):
+            fol = it.get('followers')
+            if fol is None:
+                continue
+            d = (datetime.fromtimestamp(float(it['ts']), timezone.utc) + timedelta(hours=8)).strftime('%Y-%m-%d')
+            dmap[d] = int(fol)   # later ts in the same day overwrites
+        if dmap:
+            plat_series[p] = dmap
+            all_dates.update(dmap.keys())
+    if not all_dates:
+        return {}
+    dates = sorted(all_dates)
+    out = {}
+    for dmap in plat_series.values():
+        last = None
+        for d in dates:
+            if d in dmap:
+                last = dmap[d]
+            if last is not None:
+                out[d] = out.get(d, 0) + last
+    return out
 
 def report_get_month(body):
     """One month's full payload (scorecard rehydrated, recommendations, kpis)."""
