@@ -202,6 +202,8 @@ def lambda_handler(event, context):
             return _resp(200, report_get_month(body))
         if action == 'report_daily_series':
             return _resp(200, report_daily_series(body))
+        if action == 'report_backfill_meta':
+            return _resp(200, report_backfill_meta(body))
         if action == 'report_delete_month':
             return _resp(200, report_delete_month(body))
         if action == 'report_save_tags':
@@ -2195,6 +2197,52 @@ def _followers_by_date(brand, platforms, days):
                 out[d] = out.get(d, 0) + last
     return out
 
+def report_backfill_meta(body):
+    """Backfill ONE past month using Meta only (free, historical). Pulls the
+    private IG/FB insights + post grid for `month` and merges them into that
+    month — leaving any non-Meta platforms (LinkedIn/TikTok/etc.) untouched,
+    since scraping those can't reconstruct a past month and would cost Apify.
+    Returns has_data so a caller can walk backwards until Meta runs dry."""
+    pid   = (body.get('projectId') or (body.get('data') or {}).get('projectId') or '').strip()
+    month = (body.get('month') or (body.get('data') or {}).get('month') or '').strip()
+    if not pid or not re.match(r'^\d{4}-\d{2}$', month):
+        raise RuntimeError('Need projectId + month (YYYY-MM).')
+    proj = _rprojects().get_item(Key={'projectId': pid}).get('Item')
+    if not proj:
+        raise RuntimeError('Unknown project.')
+    proj = _dec(proj)
+    try:
+        meta_platforms = _cron_meta_platforms(proj, month)
+    except Exception as e:
+        return {'ok': False, 'month': month, 'has_data': False, 'meta_error': str(e)[:200]}
+    # "Has data" = anything period-specific came back (followers alone is the
+    # current value, so it doesn't count as historical evidence).
+    def _has(c):
+        return bool(c.get('posts')) or any(c.get(k) is not None for k in
+                   ('reach', 'impressions', 'engagements', 'profile_views', 'saves'))
+    has_data = any(_has(c) for c in meta_platforms)
+    if not has_data:
+        return {'ok': True, 'month': month, 'has_data': False,
+                'platforms': [c.get('platform') for c in meta_platforms]}
+    # Merge into the existing month so a prior capture's other platforms survive.
+    existing = _rmonths().get_item(Key={'projectId': pid, 'month': month}).get('Item')
+    prev_sc, prev_recs = {}, None
+    if existing:
+        prev_recs = _dec(existing.get('recommendations'))
+        if isinstance(existing.get('scorecard'), str):
+            try: prev_sc = json.loads(existing['scorecard'])
+            except ValueError: prev_sc = {}
+    sc = _merge_meta_platforms(prev_sc or {}, meta_platforms)
+    kpis = _kpis_from_scorecard(sc)
+    recs = prev_recs or {'executive_summary': sc.get('executive_summary', ''),
+                         'overall_health': sc.get('overall_health')}
+    report_save_month({'data': {'projectId': pid, 'month': month, 'scorecard': sc,
+                                'kpis': kpis, 'recommendations': recs},
+                       'currentUser': {'email': 'meta-backfill@auto'}})
+    return {'ok': True, 'month': month, 'has_data': True,
+            'platforms': [c.get('platform') for c in meta_platforms]}
+
+
 def report_get_month(body):
     """One month's full payload (scorecard rehydrated, recommendations, kpis)."""
     pid   = (body.get('projectId') or '').strip()
@@ -2852,6 +2900,90 @@ def _meta_ig_insights(ig_id, token, since, until):
     return out
 
 
+def _meta_in_window(rows, since, until):
+    """Keep only posts whose timestamp falls in the month window (defensive — some
+    edges don't honour since/until server-side)."""
+    out = []
+    for r in rows:
+        e = _to_epoch(r.get('ts'))
+        if e is None or (since <= e < until):
+            out.append(r)
+    return out
+
+
+def _meta_ig_posts(ig_id, token, since, until):
+    """This month's Instagram posts in the internal post shape (for the grid +
+    post-derived metrics). Needs instagram_basic."""
+    try:
+        rows = _meta_get('/' + ig_id + '/media', {
+            'fields': 'caption,media_type,media_product_type,media_url,thumbnail_url,'
+                      'permalink,like_count,comments_count,timestamp',
+            'since': since, 'until': until, 'limit': 50, 'access_token': token}).get('data') or []
+    except Exception:
+        return []
+    out = []
+    for m in rows:
+        mt = (m.get('media_type') or '').upper()
+        pt = (m.get('media_product_type') or '').upper()
+        typ = 'video' if (mt == 'VIDEO' or pt == 'REELS') else ('carousel' if mt == 'CAROUSEL_ALBUM' else 'image')
+        text = m.get('caption') or ''
+        out.append({
+            'ts': m.get('timestamp'), 'likes': _num(m.get('like_count')),
+            'comments': _num(m.get('comments_count')), 'shares': None, 'views': None,
+            'type': typ, 'hashtags': re.findall(r'#(\w+)', text),
+            'text': ' '.join(text.split())[:160], 'caption': ' '.join(text.split())[:400],
+            'image': m.get('thumbnail_url') or m.get('media_url') or '',
+            'url': m.get('permalink') or ''})
+    return _meta_in_window(out, since, until)
+
+
+def _meta_fb_posts(page_id, token, since, until):
+    """This month's Facebook Page posts in the internal post shape. Needs
+    pages_read_engagement + pages_read_user_content."""
+    try:
+        rows = _meta_get('/' + page_id + '/posts', {
+            'fields': 'message,created_time,permalink_url,full_picture,status_type,'
+                      'attachments{media_type},likes.summary(true).limit(0),'
+                      'comments.summary(true).limit(0),shares',
+            'since': since, 'until': until, 'limit': 50, 'access_token': token}).get('data') or []
+    except Exception:
+        return []
+    out = []
+    for p in rows:
+        att = (((p.get('attachments') or {}).get('data') or [{}]) or [{}])[0]
+        mt = (att.get('media_type') or p.get('status_type') or '').lower()
+        typ = 'video' if 'video' in mt else ('carousel' if ('album' in mt or 'carousel' in mt) else 'image')
+        text = p.get('message') or ''
+        out.append({
+            'ts': p.get('created_time'),
+            'likes': _num((((p.get('likes') or {}).get('summary') or {}).get('total_count'))),
+            'comments': _num((((p.get('comments') or {}).get('summary') or {}).get('total_count'))),
+            'shares': _num((p.get('shares') or {}).get('count')), 'views': None,
+            'type': typ, 'hashtags': re.findall(r'#(\w+)', text),
+            'text': ' '.join(text.split())[:160], 'caption': ' '.join(text.split())[:400],
+            'image': p.get('full_picture') or '', 'url': p.get('permalink_url') or ''})
+    return _meta_in_window(out, since, until)
+
+
+def _meta_card(platform, posts, insights):
+    """Build a scorecard platform card from Meta data: post-derived analytics
+    (grid, cadence, content mix, avg likes, engagement rate) computed via the
+    shared _metrics_from, with the private insight metrics layered on top
+    (authoritative for followers/reach/impressions/saves/etc.)."""
+    card = {'platform': platform, 'found': True}
+    if posts:
+        d = _metrics_from(insights.get('followers'), None, False, '', '', '', '', posts)
+        for k in ('avg_likes', 'avg_comments', 'engagement_rate', 'avg_video_views',
+                  'posts_per_week', 'days_since_last_post', 'content_mix', 'top_vs_median',
+                  'hashtag_count', 'top_hashtags', 'post_sample', 'top_posts', 'posts',
+                  'captions', 'image_urls'):
+            v = d.get(k)
+            if v is not None:
+                card[k] = v
+    card.update(insights)
+    return card
+
+
 def _cron_meta_platforms(proj, month):
     """Pull this project's private IG/FB insights for the month, gated to the
     platforms the project actually tracks. Returns [] when no Meta token is set,
@@ -2870,13 +3002,15 @@ def _cron_meta_platforms(proj, month):
     since, until = _meta_month_range(month)
     out = []
     if want_ig and meta.get('igId'):
-        ig = _meta_ig_insights(meta['igId'], meta['pageToken'], since, until)
-        if ig:
-            out.append(dict(platform='instagram', found=True, **ig))
+        ig    = _meta_ig_insights(meta['igId'], meta['pageToken'], since, until)
+        posts = _meta_ig_posts(meta['igId'], meta['pageToken'], since, until)
+        if ig or posts:
+            out.append(_meta_card('instagram', posts, ig))
     if want_fb and meta.get('pageId'):
-        fb = _meta_fb_insights(meta['pageId'], meta['pageToken'], since, until)
-        if fb:
-            out.append(dict(platform='facebook', found=True, **fb))
+        fb    = _meta_fb_insights(meta['pageId'], meta['pageToken'], since, until)
+        posts = _meta_fb_posts(meta['pageId'], meta['pageToken'], since, until)
+        if fb or posts:
+            out.append(_meta_card('facebook', posts, fb))
     return out
 
 
