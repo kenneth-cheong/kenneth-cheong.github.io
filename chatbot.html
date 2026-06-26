@@ -3597,7 +3597,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2280</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2281</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -5223,6 +5223,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 if (convData) {
                     currentConversationId = convData.conversationId;
                     chatHistory = convData.messages || [];
+                    window._cbSessionDocs = [];   // don't carry the prior conversation's uploaded docs into this one
                     currentConvShared = !!convData.shared;
                     refreshVisibilityIndicator();
                     localStorage.setItem('chatbot_conversationId', currentConversationId);
@@ -5256,6 +5257,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
 
             currentConversationId = null;
             chatHistory = [];
+            window._cbSessionDocs = [];   // drop documents uploaded in the previous conversation
             currentConvShared = false;
             refreshVisibilityIndicator();
             localStorage.removeItem('chatbot_conversationId');
@@ -6468,6 +6470,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 // Load messages into history but fork by clearing the conversation ID —
                 // the next saveConversation() will create a new conversation for this user
                 chatHistory = conv.messages || [];
+                window._cbSessionDocs = [];   // forked copy starts without inherited uploaded docs
                 currentConversationId = null;
                 currentConvShared = false; // forked copy starts private to this user
                 refreshVisibilityIndicator();
