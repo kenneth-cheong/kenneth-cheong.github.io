@@ -770,6 +770,7 @@ def handle_finalize(body):
         extra_ctx = item.get('extra_context') or ''
         with ThreadPoolExecutor(max_workers=5) as ex:
             brand_fut = ex.submit(_analyze_creative, brand, client_metrics, extra_ctx)
+            sent_fut  = ex.submit(_content_sentiment, brand, client_metrics)
             comp_futs = [(entry, ex.submit(_analyze_creative, name, {plat: cm}, '',
                                            MAX_CREATIVE_IMAGES_COMP))
                          for (entry, name, plat, cm) in comp_creative_jobs]
@@ -779,6 +780,12 @@ def handle_finalize(body):
                     entry['creative'] = fut.result()
                 except Exception:
                     entry['creative'] = None
+            content_sentiment = sent_fut.result()
+
+        # Benchmark block (Share of Voice / format mix / word cloud / sentiment).
+        benchmark = _compute_benchmark(brand, client_metrics, competitor_metrics)
+        if content_sentiment:
+            benchmark['content_sentiment'] = content_sentiment
 
         scorecard    = _narrate(brand, client_metrics, competitor_metrics, brand_health,
                                 indicators, extra_ctx, creative=creative)
@@ -788,6 +795,7 @@ def handle_finalize(body):
             'brand_health': brand_health,
             'social_listening': social_listening,
             'creative': creative,
+            'benchmark': benchmark,
             'competitors': [c for c in competitor_metrics if c.get('followers') is not None],
         })
         _jobs().update_item(Key={'jobId': job_id},
@@ -1535,6 +1543,147 @@ def _platform_card(platform, m):
         'profile_completeness': m.get('profile_completeness'),
         'posts': m.get('posts') or [],
     }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Benchmark block — Share of Voice, format mix, word cloud, content sentiment.
+# Everything but sentiment is deterministic, computed straight off the Apify
+# scrape (own brand + competitors). Mirrors Brandwatch's Content-Analysis widgets.
+# ──────────────────────────────────────────────────────────────────────────────
+_POSTS_PER_MONTH = 4.345    # weeks → month, for monthly-volume estimates
+
+_WC_STOP = set('''a an the and or but if then else for to of in on at by with from
+into onto over under up down out off as is are was were be been being am do does did
+have has had having will would shall should can could may might must not no nor yes
+this that these those it its we our us you your they their them he she his her i me
+my mine ours so than too very just also about more most many much get got new now
+one two three all any each both few how what when where which who whom why youre were
+im dont cant wont lets via per amp rt http https www com co than then there here out
+up out new more best top good great love like make made making your you'''.split())
+
+
+def _entity_totals(name, is_brand, parts):
+    """Aggregate one entity's metrics across its tracked platform(s)."""
+    followers = sum((p.get('followers') or 0) for p in parts)
+    posts = sum(((p.get('posts_per_week') or 0) * _POSTS_PER_MONTH) for p in parts)
+    eng = 0.0
+    for p in parts:
+        ppm = (p.get('posts_per_week') or 0) * _POSTS_PER_MONTH
+        eng += ppm * ((p.get('avg_likes') or 0) + (p.get('avg_comments') or 0))
+    return {'name': name, 'is_brand': is_brand,
+            'followers': round(followers), 'posts': round(posts, 1),
+            'engagement': round(eng)}
+
+
+def _sov(entities, field):
+    total = sum(e[field] for e in entities) or 0
+    out = [{'name': e['name'], 'is_brand': e['is_brand'], 'value': e[field],
+            'pct': round(e[field] / total * 100, 1) if total else 0} for e in entities]
+    return sorted(out, key=lambda x: -x['value'])
+
+
+def _mix_pct(mix):
+    mix = mix or {}
+    v, i, c = mix.get('video', 0) or 0, mix.get('image', 0) or 0, mix.get('carousel', 0) or 0
+    tot = v + i + c
+    if not tot:
+        return None
+    return {'video': round(v / tot * 100), 'image': round(i / tot * 100),
+            'carousel': round(c / tot * 100)}
+
+
+def _agg_mix(dicts):
+    out = {'video': 0, 'image': 0, 'carousel': 0}
+    for m in dicts:
+        for kk in out:
+            out[kk] += (m or {}).get(kk, 0) or 0
+    return out
+
+
+def _word_cloud(captions, brand, limit=40):
+    brand_toks = set(re.findall(r'[a-z0-9]+', (brand or '').lower()))
+    counts = {}
+    for cap in captions:
+        for tok in re.findall(r"[A-Za-z][A-Za-z'’]+", cap or ''):
+            w = tok.lower().replace('’', "'").strip("'")
+            if len(w) < 3 or w in _WC_STOP or w in brand_toks:
+                continue
+            counts[w] = counts.get(w, 0) + 1
+    top = sorted(counts.items(), key=lambda kv: -kv[1])[:limit]
+    multi = [{'word': w, 'count': n} for w, n in top if n > 1]
+    return multi or [{'word': w, 'count': n} for w, n in top]
+
+
+def _compute_benchmark(brand, client_metrics, competitor_metrics):
+    """Deterministic benchmark block (no AI): share of voice, format mix, word cloud."""
+    brand_parts = [m for m in client_metrics.values() if m.get('found')]
+    entities = []
+    if brand_parts:
+        entities.append(_entity_totals(brand, True, brand_parts))
+    by_name = {}    # a competitor name may span >1 platform
+    for c in competitor_metrics:
+        if c.get('followers') is None:
+            continue
+        by_name.setdefault(c.get('name') or c.get('handle') or 'Competitor', []).append(c)
+    for name, parts in by_name.items():
+        entities.append(_entity_totals(name, False, parts))
+
+    sov = {}
+    if len(entities) >= 2:
+        sov = {'audience':   _sov(entities, 'followers'),
+               'activity':   _sov(entities, 'posts'),
+               'engagement': _sov(entities, 'engagement')}
+
+    fmt = []
+    if brand_parts:
+        bm = _mix_pct(_agg_mix([p.get('content_mix') for p in brand_parts]))
+        if bm:
+            fmt.append({'name': brand, 'is_brand': True, **bm})
+    for name, parts in by_name.items():
+        cm = _mix_pct(_agg_mix([p.get('content_mix') for p in parts]))
+        if cm:
+            fmt.append({'name': name, 'is_brand': False, **cm})
+
+    captions = [cap for m in brand_parts for cap in (m.get('captions') or [])]
+    return {'share_of_voice': sov, 'format_mix': fmt,
+            'word_cloud': _word_cloud(captions, brand),
+            'tracked_set': [e['name'] for e in entities]}
+
+
+def _content_sentiment(brand, client_metrics):
+    """Classify the tone of the brand's own recent post captions via Haiku.
+    Returns {positive, neutral, negative, total, summary} or None."""
+    api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
+    if not api_key:
+        return None
+    caps = [cap for m in client_metrics.values() if m.get('found')
+            for cap in (m.get('captions') or []) if cap and len(cap.strip()) > 4][:40]
+    if len(caps) < 3:
+        return None
+    numbered = '\n'.join(f'{i + 1}. {c[:280]}' for i, c in enumerate(caps))
+    prompt = (
+        f"Classify the sentiment/tone of each of {brand}'s social post captions below "
+        "as positive, neutral, or negative — judged by the audience's likely emotional "
+        "read of the message. Then give a one-line summary of the overall content tone.\n\n"
+        "Respond with STRICT JSON only, no prose:\n"
+        '{"positive":<int>,"neutral":<int>,"negative":<int>,'
+        '"summary":"<=20 words on the overall tone of the content"}\n'
+        "The three counts must sum to the number of captions below.\n\nCAPTIONS:\n" + numbered)
+    try:
+        r = requests.post('https://api.anthropic.com/v1/messages',
+                          headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01',
+                                   'content-type': 'application/json'},
+                          json={'model': HAIKU_MODEL, 'max_tokens': 300,
+                                'messages': [{'role': 'user', 'content': prompt}]},
+                          timeout=40)
+        txt = ''.join(b.get('text', '') for b in (r.json().get('content') or [])
+                      if b.get('type') == 'text')
+        txt = re.sub(r'^```[a-z]*\n?|```$', '', txt.strip()).strip()
+        out = json.loads(txt)
+        out['total'] = len(caps)
+        return out
+    except Exception:
+        return None
 
 
 def _flatten_indicators(client_metrics, brand_health):
