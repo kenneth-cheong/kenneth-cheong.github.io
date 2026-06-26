@@ -865,7 +865,15 @@ def _apify_items(dataset_id):
         r = requests.get(f'{APIFY_BASE}/datasets/{dataset_id}/items',
                          params={'token': APIFY_TOKEN, 'clean': 'true'}, timeout=30)
         data = r.json()
-        return data if isinstance(data, list) else []
+        if not isinstance(data, list):
+            return []
+        # Some actors emit control/marker rows instead of data — notably apidojo's
+        # tweet-scraper returns `{"noResults": true}` placeholder rows (e.g. when
+        # the Apify account is on the free plan and the paid actor is gated).
+        # Drop them so an empty scrape reads as "no data" (found=False) rather than
+        # a card full of blank posts.
+        return [it for it in data
+                if not (isinstance(it, dict) and (it.get('noResults') or it.get('noResult')))]
     except (requests.exceptions.RequestException, ValueError):
         return []
 
