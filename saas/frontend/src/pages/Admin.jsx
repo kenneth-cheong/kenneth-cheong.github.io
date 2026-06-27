@@ -591,6 +591,7 @@ function AdminUsers() {
         <SortableTable
           rows={rows}
           rowKey={(u) => u.userId}
+          stickyFirstCol
           emptyText={users === null ? 'Loading…' : 'No matching users.'}
           columns={[
             { key: 'user', label: 'User', accessor: (u) => u.name || u.email || '',
