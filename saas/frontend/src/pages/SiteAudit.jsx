@@ -4,7 +4,7 @@ import { AUDIT_TOOLS, toolById, tierMeets, tierRank, CREDIT_COSTS, PLANS } from 
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { api, ApiError } from '../lib/api.js';
-import { toast } from '../lib/ui.js';
+import { toast, markStepDone } from '../lib/ui.js';
 import { Check, Loader2, AlertTriangle, ChevronRight } from 'lucide-react';
 
 const RUN_URL = import.meta.env.VITE_RUN_URL || '';
@@ -88,6 +88,7 @@ export default function SiteAudit() {
       const { report, creditsRemaining } = await api.auditSynthesize(site, good);
       if (typeof creditsRemaining === 'number') setCredits(creditsRemaining);
       setReport(report);
+      markStepDone('audit'); // ticks the "Run a site health check" setup step
     } catch (e) {
       toast(e instanceof ApiError && e.status === 402 ? 'Out of credits for the summary — top up to finish.' : (e.message || 'Could not build the report.'), 'error');
     } finally {

@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import LineChart from '../components/LineChart.jsx';
 import { api } from '../lib/api.js';
-import { toast, downloadCsv } from '../lib/ui.js';
+import { toast, downloadCsv, markStepDone } from '../lib/ui.js';
 
 const PERIODS = [['7', '7d'], ['28', '28d'], ['90', '90d'], ['all', 'All'], ['custom', 'Custom']];
 
@@ -36,7 +36,7 @@ export default function Tracking() {
     e.preventDefault();
     if (!keyword.trim() || !domain.trim()) return;
     setBusy(true);
-    try { await api.addTracked(keyword.trim(), domain.trim(), 'Singapore', activeId); setKeyword(''); toast('Keyword tracked', 'success'); load(); }
+    try { await api.addTracked(keyword.trim(), domain.trim(), 'Singapore', activeId); markStepDone('tracking'); setKeyword(''); toast('Keyword tracked', 'success'); load(); }
     catch (err) { toast(err.message, 'error'); }
     finally { setBusy(false); }
   }
@@ -47,6 +47,7 @@ export default function Tracking() {
     setBusy(true);
     try {
       const { tracked } = await api.addTrackedBulk(kws, domain.trim(), 'Singapore', activeId);
+      markStepDone('tracking');
       setTracked(tracked || []); setBulkText('');
       toast(`Added ${kws.length} keyword${kws.length > 1 ? 's' : ''} — checking positions…`, 'success');
       refreshAll(); // populate positions for the freshly-added keywords

@@ -7,7 +7,7 @@ import { useProjects } from '../context/ProjectContext.jsx';
 import { api } from '../lib/api.js';
 import ToolCard from '../components/ToolCard.jsx';
 import { CategoryIcon } from '../lib/icons.jsx';
-import { getRecent } from '../lib/ui.js';
+import { getRecent, isStepDone } from '../lib/ui.js';
 
 const GOAL_ICON = { TrendingUp, Stethoscope, PenLine, LineChart, Sparkles, Swords, BarChart3 };
 
@@ -83,6 +83,10 @@ export default function Dashboard() {
   const ranTools = getRecent();
   const stepDone = (step) => {
     if (step.connect) return googleConnected;
+    // The Health Check and Rank Tracking don't run through ToolRunner, so they
+    // record their own completion markers rather than appearing in `ranTools`.
+    if (step.to === '/audit') return isStepDone('audit');
+    if (step.to === '/tracking') return isStepDone('tracking');
     const toolId = step.to?.startsWith('/tool/') ? step.to.slice('/tool/'.length) : null;
     return toolId ? ranTools.includes(toolId) : ranTools.length > 0;
   };

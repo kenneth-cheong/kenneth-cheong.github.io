@@ -79,6 +79,16 @@ export function getRecent() {
   try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; }
 }
 
+// Onboarding-step completion markers for actions that aren't plain tool runs
+// (the Site Health Check and Rank Tracking don't go through ToolRunner, so they
+// never hit `pushRecent`). The setup checklist reads these for accurate ticks.
+export function markStepDone(key) {
+  try { localStorage.setItem(`dm_step_${key}`, '1'); } catch { /* ignore */ }
+}
+export function isStepDone(key) {
+  try { return localStorage.getItem(`dm_step_${key}`) === '1'; } catch { return false; }
+}
+
 // Per-tool last-used inputs.
 export function saveLastInput(toolId, values) {
   try { localStorage.setItem(`dm_lastinput_${toolId}`, JSON.stringify(values)); } catch { /* ignore */ }
