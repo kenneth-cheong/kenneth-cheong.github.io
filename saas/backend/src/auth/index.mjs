@@ -448,5 +448,7 @@ function publicUser(u) {
     hasPassword: !!u.passwordHash,
     createdAt: u.createdAt,            // drives "is this a brand-new account" in the UI
     onboarding: u.onboarding || null,  // welcome flow / chosen goal / dismissed checklist
+    profile: u.profile || {},          // progressive-profiling answers
+    profileBonusGranted: !!u.profileBonusGrantedAt, // one-time completion reward already paid?
   };
 }

@@ -26,6 +26,7 @@ const primaryNav = [
 ];
 const menuNav = [
   { to: '/account', label: 'Account' },
+  { to: '/profile', label: 'Profile' },
   { to: '/account#billing', label: 'Billing' },
   { to: '/usage', label: 'Usage' },
   { to: '/pricing', label: 'Pricing' },

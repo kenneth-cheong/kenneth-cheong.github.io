@@ -37,6 +37,7 @@ function lazyWithReload(factory) {
 const ToolRunner = lazyWithReload(() => import('./pages/ToolRunner.jsx'));
 const Pricing = lazyWithReload(() => import('./pages/Pricing.jsx'));
 const Account = lazyWithReload(() => import('./pages/Account.jsx'));
+const Profile = lazyWithReload(() => import('./pages/Profile.jsx'));
 const Usage = lazyWithReload(() => import('./pages/Usage.jsx'));
 const Admin = lazyWithReload(() => import('./pages/Admin.jsx'));
 const History = lazyWithReload(() => import('./pages/History.jsx'));
@@ -98,6 +99,7 @@ export default function App() {
           <Route path="/social-audit" element={<SocialAudit />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/account" element={<Account />} />
+          <Route path="/profile" element={<Profile />} />
           <Route path="/usage" element={<Usage />} />
           <Route path="/history" element={<History />} />
           <Route path="/support" element={<Support />} />

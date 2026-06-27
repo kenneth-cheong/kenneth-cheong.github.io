@@ -82,8 +82,25 @@ export function AuthProvider({ children }) {
     } catch { /* best-effort; local patch already applied */ }
   }, []);
 
+  // Save progressive-profiling answers. Optimistically merges locally, then
+  // reconciles profile / completion-bonus flag / credit balance from the server
+  // (authoritative). Returns the server response so callers can toast the bonus;
+  // rethrows on failure so the Profile form can show an error.
+  const saveProfile = useCallback(async (patch) => {
+    setUser((u) => (u ? { ...u, profile: { ...(u.profile || {}), ...patch } } : u));
+    const res = await api.saveProfile(patch);
+    setUser((u) => (u ? {
+      ...u,
+      profile: res.profile ?? u.profile,
+      // server pays the bonus once; never flip the flag back to false locally
+      profileBonusGranted: u.profileBonusGranted || !!res.bonusGranted,
+      credits: typeof res.credits === 'number' ? res.credits : u.credits,
+    } : u));
+    return res;
+  }, []);
+
   return (
-    <AuthCtx.Provider value={{ user, loading, loginWithGoogle, loginWithPassword, signup, resendVerification, forgotPassword, verifyEmail, resetPassword, logout, refresh, setCredits, setOnboarding }}>
+    <AuthCtx.Provider value={{ user, loading, loginWithGoogle, loginWithPassword, signup, resendVerification, forgotPassword, verifyEmail, resetPassword, logout, refresh, setCredits, setOnboarding, saveProfile }}>
       {children}
     </AuthCtx.Provider>
   );

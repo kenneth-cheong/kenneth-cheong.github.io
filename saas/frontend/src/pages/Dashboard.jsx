@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { api } from '../lib/api.js';
 import ToolCard from '../components/ToolCard.jsx';
+import ProfilePrompt from '../components/ProfilePrompt.jsx';
 import { CategoryIcon } from '../lib/icons.jsx';
 import { getRecent, isStepDone } from '../lib/ui.js';
 
@@ -142,6 +143,9 @@ export default function Dashboard() {
           </ol>
         </div>
       )}
+
+      {/* Progressive-profiling nudge — self-hides when complete/rewarded/snoozed */}
+      {!searching && !activeGoal && <ProfilePrompt />}
 
       {/* ───────── Simple mode: goal-first ───────── */}
       {simple && !searching ? (

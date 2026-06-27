@@ -57,6 +57,49 @@ export async function updateOnboarding(userId, patch = {}) {
   return onboarding;
 }
 
+// Merge a partial patch into the user's `profile` map (progressive-profiling
+// answers). Same read-modify-write shape as updateOnboarding so sibling keys
+// aren't clobbered. The CALLER (POST /me/profile) is responsible for whitelisting
+// keys + validating values against PROFILE_FIELDS — this just persists. Returns
+// the merged profile map.
+export async function updateProfile(userId, patch = {}) {
+  const now = new Date().toISOString();
+  const user = await getUser(userId);
+  if (!user) return null;
+  const profile = { ...(user.profile || {}), ...patch, updatedAt: now };
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.users,
+    Key: { userId },
+    UpdateExpression: 'SET profile = :p, updatedAt = :u',
+    ExpressionAttributeValues: { ':p': profile, ':u': now },
+  }));
+  return profile;
+}
+
+// One-time "completed your whole profile" reward. The grant must happen AT MOST
+// once per account even under concurrent requests, so we first claim the slot
+// with a conditional write (stamps profileBonusGrantedAt only if it's absent);
+// only if that claim wins do we grant the rollover tokens. Returns true when the
+// bonus was granted by THIS call, false if it was already claimed.
+export async function claimProfileBonus({ userId, amount }) {
+  const now = new Date().toISOString();
+  try {
+    await ddb.send(new UpdateCommand({
+      TableName: TABLES.users,
+      Key: { userId },
+      UpdateExpression: 'SET profileBonusGrantedAt = :now, updatedAt = :now',
+      ConditionExpression: 'attribute_not_exists(profileBonusGrantedAt)',
+      ExpressionAttributeValues: { ':now': now },
+    }));
+  } catch (err) {
+    if (err.name === 'ConditionalCheckFailedException') return false; // already claimed
+    throw err;
+  }
+  // Claim won → grant the tokens (also writes the credit ledger).
+  await grantTopupCredits({ userId, amount, action: 'profile_bonus', meta: { reason: 'profile_completed' } });
+  return true;
+}
+
 export async function getUserByStripeCustomer(customerId) {
   const { Items } = await ddb.send(
     new QueryCommand({

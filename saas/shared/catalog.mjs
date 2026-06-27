@@ -710,3 +710,92 @@ const TABS = {
 export function tabsFor(tool) {
   return TABS[tool?.id] || null;
 }
+
+// ── User profile (progressive profiling) ─────────────────────────────────────
+// A richer picture of who each account is, collected a little at a time: the
+// Dashboard surfaces 1–2 unanswered questions; completing the WHOLE profile
+// grants a one-time PROFILE_BONUS of rollover tokens. This schema is the single
+// source of truth for both the frontend (renders inputs by `type`) and the
+// backend (whitelists keys + validates select/multiselect against `options`).
+//
+//   key         — stored under user.profile[key]
+//   group       — section, keyed into PROFILE_GROUPS
+//   type        — 'text' | 'textarea' | 'select' | 'multiselect'
+//   options     — allowed values for select/multiselect (also drives validation)
+//   required    — counts toward completion (the bonus needs every required key)
+export const PROFILE_GROUPS = {
+  firmographics: 'About your company',
+  marketing: 'Your marketing',
+  targeting: 'Who you target',
+  contact: 'Contact & preferences',
+};
+
+export const PROFILE_BONUS = 50; // rollover tokens granted once, on full completion
+
+export const PROFILE_FIELDS = [
+  // ── Firmographics ──
+  { key: 'companyName', label: 'Company name', group: 'firmographics', type: 'text',
+    placeholder: 'Acme Pte Ltd', required: true },
+  { key: 'industry', label: 'Industry', group: 'firmographics', type: 'select', required: true,
+    options: ['E-commerce', 'SaaS / Technology', 'Professional services', 'Healthcare', 'Education',
+      'Real estate', 'Finance / Insurance', 'Travel / Hospitality', 'Manufacturing', 'Retail',
+      'Media / Publishing', 'Non-profit', 'Agency', 'Other'] },
+  { key: 'companySize', label: 'Company size', group: 'firmographics', type: 'select', required: true,
+    options: ['Just me', '2–10', '11–50', '51–200', '201–1000', '1000+'] },
+  { key: 'role', label: 'Your role', group: 'firmographics', type: 'select', required: true,
+    options: ['Owner / Founder', 'Marketing manager', 'SEO / Content specialist',
+      'Agency / Consultant', 'Sales', 'Developer', 'Other'] },
+
+  // ── Marketing ──
+  { key: 'primaryGoal', label: 'Primary goal', group: 'marketing', type: 'select', required: true,
+    options: GOALS.map((g) => g.label) },
+  { key: 'monthlyBudget', label: 'Monthly marketing budget', group: 'marketing', type: 'select', required: true,
+    options: ['Under $500', '$500–$2k', '$2k–$5k', '$5k–$20k', '$20k–$50k', '$50k+', 'Not sure'] },
+  { key: 'channels', label: 'Channels you use', group: 'marketing', type: 'multiselect', required: true,
+    options: ['SEO', 'Google Ads', 'Meta Ads', 'LinkedIn', 'TikTok', 'Email', 'Content / Blog', 'Organic social'] },
+  { key: 'seoExperience', label: 'SEO experience', group: 'marketing', type: 'select', required: true,
+    options: ['Beginner', 'Intermediate', 'Advanced'] },
+
+  // ── Targeting & geo ──
+  { key: 'targetMarkets', label: 'Target markets', group: 'targeting', type: 'multiselect', required: true,
+    options: ['Singapore', 'Malaysia', 'Indonesia', 'Thailand', 'Vietnam', 'Philippines',
+      'Australia', 'United States', 'United Kingdom', 'India', 'Global'] },
+  { key: 'targetAudience', label: 'Target audience', group: 'targeting', type: 'textarea', required: true,
+    placeholder: 'e.g. SME owners in F&B looking to grow online orders' },
+  { key: 'competitors', label: 'Main competitors', group: 'targeting', type: 'textarea', required: false,
+    placeholder: 'One per line, or comma-separated' },
+
+  // ── Contact & preferences ──
+  { key: 'phone', label: 'Phone / WhatsApp', group: 'contact', type: 'text', required: false,
+    placeholder: '+65 …' },
+  { key: 'timezone', label: 'Timezone', group: 'contact', type: 'select', required: true,
+    options: ['SGT (UTC+8)', 'MYT (UTC+8)', 'WIB (UTC+7)', 'ICT (UTC+7)', 'IST (UTC+5:30)',
+      'GMT (UTC+0)', 'EST (UTC−5)', 'PST (UTC−8)', 'AEST (UTC+10)', 'Other'] },
+  { key: 'contactMethod', label: 'Preferred contact', group: 'contact', type: 'select', required: true,
+    options: ['Email', 'Phone', 'WhatsApp'] },
+  { key: 'heardFrom', label: 'How did you hear about us?', group: 'contact', type: 'select', required: true,
+    options: ['Google search', 'Referral', 'Social media', 'Advertisement', 'Event / Webinar', 'Other'] },
+];
+
+export const PROFILE_FIELD_KEYS = PROFILE_FIELDS.map((f) => f.key);
+export const PROFILE_REQUIRED_KEYS = PROFILE_FIELDS.filter((f) => f.required).map((f) => f.key);
+
+// A single answer is "filled" if it's a non-empty string or a non-empty array.
+export function profileValueFilled(v) {
+  if (Array.isArray(v)) return v.length > 0;
+  return typeof v === 'string' ? v.trim().length > 0 : v != null && v !== '';
+}
+
+// Shared completion rule (used by the frontend progress bar AND the backend
+// bonus gate, so the two can never drift): every required key is filled.
+export function isProfileComplete(profile) {
+  const p = profile || {};
+  return PROFILE_REQUIRED_KEYS.every((k) => profileValueFilled(p[k]));
+}
+
+// How many required fields are answered — drives the progress bar / "x of y".
+export function profileProgress(profile) {
+  const p = profile || {};
+  const done = PROFILE_REQUIRED_KEYS.filter((k) => profileValueFilled(p[k])).length;
+  return { done, total: PROFILE_REQUIRED_KEYS.length };
+}

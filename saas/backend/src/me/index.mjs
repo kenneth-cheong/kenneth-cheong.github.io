@@ -39,6 +39,8 @@ export const handler = async (event) => {
         isAdmin: isStaff(user),
         createdAt: user.createdAt,            // drives "is this a brand-new account" in the UI
         onboarding: user.onboarding || null,  // welcome flow / chosen goal / dismissed checklist
+        profile: user.profile || {},          // progressive-profiling answers (Profile page + Dashboard card)
+        profileBonusGranted: !!user.profileBonusGrantedAt, // one-time completion reward already paid?
         emailOptOut: !!user.notifyEmailOptOut, // product-update email preference (Account toggle)
         sessions: (user.sessions || []).map((s) => ({ sid: s.sid, device: s.device, ip: s.ip, lastSeenAt: s.lastSeenAt, createdAt: s.createdAt })),
       },
