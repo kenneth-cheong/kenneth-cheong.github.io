@@ -13,10 +13,11 @@ import {
   listMetrics,
   exportAllUserData, deleteAllUserData, bumpTokenVersion, revokeSession,
   listAccessGrants, respondAccess, updateOnboarding, setEmailOptOut,
+  updateProfile, claimProfileBonus,
 } from '../lib/dynamo.mjs';
 import { rankPosition, rankHistory } from '../lib/rank.mjs';
 import { UPSTREAMS } from '../metering/upstreams.mjs';
-import { CREDIT_COSTS, INTEGRATIONS, PLANS } from '../../../shared/catalog.mjs';
+import { CREDIT_COSTS, INTEGRATIONS, PLANS, PROFILE_FIELDS, PROFILE_BONUS, isProfileComplete } from '../../../shared/catalog.mjs';
 import { buildChatSystem } from '../lib/assistant.mjs';
 import { integrationSummary } from '../../../shared/connectors.mjs';
 import { connectorConfigured, providersInFamilyOf, familyOf, authorizeUrl, exchangeCodeFor, listAccountsFor, detectAccountFor } from '../lib/integrations.mjs';
@@ -133,6 +134,44 @@ export const handler = async (event) => {
       if (typeof body.acceptedTermsVersion === 'string') patch.acceptedTermsVersion = clampStr(body.acceptedTermsVersion, 20);
       if (!Object.keys(patch).length) return badRequest('Nothing to update.');
       return ok({ onboarding: await updateOnboarding(user.userId, patch) });
+    }
+
+    // ── Progressive profiling: save profile answers, reward on completion ──────
+    // Accepts ONLY known PROFILE_FIELDS keys (same safety posture as onboarding —
+    // can't write arbitrary user fields) and validates select/multiselect values
+    // against the field's declared `options`. When the merge completes the WHOLE
+    // profile for the first time, grant a one-time PROFILE_BONUS of tokens.
+    if (method === 'POST' && path.endsWith('/me/profile')) {
+      const incoming = body.patch && typeof body.patch === 'object' ? body.patch : null;
+      if (!incoming) return badRequest('patch (object) required.');
+      const patch = {};
+      for (const f of PROFILE_FIELDS) {
+        if (!(f.key in incoming)) continue;
+        const raw = incoming[f.key];
+        if (f.type === 'multiselect') {
+          const arr = Array.isArray(raw) ? raw : [];
+          // keep declared options only, de-dup, cap length
+          const allowed = new Set(f.options || []);
+          patch[f.key] = [...new Set(arr.map((v) => clampStr(v, 60)).filter((v) => !f.options || allowed.has(v)))].slice(0, 30);
+        } else if (f.type === 'select') {
+          const v = clampStr(raw, 60);
+          if (v === '' || (f.options && f.options.includes(v))) patch[f.key] = v;
+        } else {
+          // text / textarea
+          patch[f.key] = clampStr(raw, f.type === 'textarea' ? 2000 : 200);
+        }
+      }
+      if (!Object.keys(patch).length) return badRequest('No valid profile fields to update.');
+      const profile = await updateProfile(user.userId, patch);
+      // Grant the completion bonus once. Guard on the prior flag to skip the
+      // conditional write in the common case; claimProfileBonus is itself atomic.
+      let bonusGranted = false;
+      const complete = isProfileComplete(profile);
+      if (complete && !user.profileBonusGrantedAt) {
+        bonusGranted = await claimProfileBonus({ userId: user.userId, amount: PROFILE_BONUS });
+      }
+      const fresh = await getUser(user.userId);
+      return ok({ profile, complete, bonusGranted, bonusAmount: bonusGranted ? PROFILE_BONUS : 0, credits: totalCredits(fresh) });
     }
 
     // ── Email preferences: opt in/out of product-update broadcast emails ──────
@@ -366,9 +405,12 @@ export const handler = async (event) => {
       const ownerId = asAgent && body.ownerUserId ? body.ownerUserId : user.userId;
       const author = asAgent ? 'agent' : 'user';
       const { ticket } = await addTicketMessage({ userId: ownerId, ticketId, author, authorEmail: user.email, body: text, attachments: body.attachments || [] });
-      if (author === 'agent') await notifyReply(ownerId, ticket, text);
+      // For an agent reply, return whether the customer was actually emailed so
+      // the admin UI can warn the staff member when delivery failed.
+      let email = null;
+      if (author === 'agent') email = await notifyReply(ownerId, ticket, text);
       else if (SUPPORT_INBOX) await sendEmail({ to: SUPPORT_INBOX, subject: `Reply on ${ticket.id}`, text: `${user.email} replied:\n\n${text}` });
-      return ok({ ticket });
+      return ok({ ticket, email });
     }
     if (method === 'POST' && path.includes('/close')) {
       // Admins can close any user's ticket by passing the owner's id.
@@ -457,14 +499,21 @@ async function oauthCallback(event) {
   }
 }
 
+// Notify the ticket owner of an agent reply. The in-app notification always
+// fires; the email is best-effort. Returns delivery info so the replying staff
+// member can be warned when the customer wasn't reached by email.
+//   delivered: true  → email sent, false → send failed, null → no address on file
 async function notifyReply(ownerId, ticket, text) {
   await addNotification({ userId: ownerId, title: `Support replied to ${ticket.id}`, body: text.slice(0, 120), ticketId: ticket.ticketId });
-  const to = [ticket.userEmail, ...(ticket.additionalEmails || [])].filter(Boolean);
-  await sendEmail({
-    to,
-    subject: `Re: ${ticket.subject} [${ticket.id}]`,
-    text: `Support has replied to your ticket ${ticket.id}:\n\n${text}\n\nView it: ${APP_ORIGIN}/support/${encodeURIComponent(ticket.ticketId)}`,
-  });
+  const recipients = [ticket.userEmail, ...(ticket.additionalEmails || [])].filter(Boolean);
+  const delivered = recipients.length
+    ? await sendEmail({
+        to: recipients,
+        subject: `Re: ${ticket.subject} [${ticket.id}]`,
+        text: `Support has replied to your ticket ${ticket.id}:\n\n${text}\n\nView it: ${APP_ORIGIN}/support/${encodeURIComponent(ticket.ticketId)}`,
+      })
+    : null;
+  return { recipients, delivered };
 }
 
 async function assistantReply(user, messages) {

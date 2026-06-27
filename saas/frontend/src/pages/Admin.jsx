@@ -907,6 +907,7 @@ function AdminTicketDetail({ summary, onBack }) {
   const [ticket, setTicket] = useState(null);
   const [reply, setReply] = useState('');
   const [busy, setBusy] = useState(false);
+  const [warn, setWarn] = useState('');
   const threadRef = useRef(null);
 
   const load = () => api.adminTicket(summary.userId, summary.ticketId).then((d) => setTicket(d.ticket)).catch(() => setTicket(false));
@@ -915,8 +916,18 @@ function AdminTicketDetail({ summary, onBack }) {
 
   async function send() {
     if (!reply.trim()) return;
-    setBusy(true);
-    try { const { ticket: t } = await api.adminReplyTicket(summary.userId, summary.ticketId, reply.trim()); setTicket(t); setReply(''); }
+    setBusy(true); setWarn('');
+    try {
+      const { ticket: t, email } = await api.adminReplyTicket(summary.userId, summary.ticketId, reply.trim());
+      setTicket(t); setReply('');
+      // The customer always gets an in-app notification; warn only when the
+      // EMAIL didn't reach them, so staff can follow up another way.
+      if (email && email.delivered === false) {
+        setWarn(`Your reply was saved and the customer was notified in-app, but the email to ${email.recipients?.join(', ') || 'the customer'} could not be delivered — they were NOT emailed. SES may still be in the sandbox, or the address bounced. Follow up another way if it's urgent.`);
+      } else if (email && email.delivered === null) {
+        setWarn('Your reply was saved and posted in-app, but this customer has no email address on file, so no email was sent.');
+      }
+    }
     catch { /* surfaced by the disabled state resetting */ } finally { setBusy(false); }
   }
   async function close() {
@@ -968,6 +979,14 @@ function AdminTicketDetail({ summary, onBack }) {
           );
         })}
       </div>
+
+      {warn && (
+        <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">
+          <span aria-hidden="true">⚠️</span>
+          <span>{warn}</span>
+          <button onClick={() => setWarn('')} className="ml-auto text-amber-500 hover:text-amber-700" aria-label="Dismiss">✕</button>
+        </div>
+      )}
 
       {/* Reply as the support agent. */}
       <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
