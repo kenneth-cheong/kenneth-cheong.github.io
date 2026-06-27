@@ -91,14 +91,15 @@ async function call(path, { method = 'GET', body, auth = true, base, _retried = 
 // Streaming chat: POSTs to the streaming Function URL and calls onDelta(text)
 // as tokens arrive. Returns { conversationId, reply }. Refreshes the access
 // token once on 401/403; throws ApiError on non-2xx so the caller can fall back.
-export async function chatStream(messages, conversationId, onDelta, _retried = false) {
+export async function chatStream(messages, conversationId, onDelta, { signal } = {}, _retried = false) {
   const res = await fetch(CHAT_STREAM_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
     body: JSON.stringify({ messages, conversationId }),
+    signal,
   });
   if ((res.status === 401 || res.status === 403) && !_retried && (await tryRefresh())) {
-    return chatStream(messages, conversationId, onDelta, true);
+    return chatStream(messages, conversationId, onDelta, { signal }, true);
   }
   if (!res.ok || !res.body) {
     const payload = await res.json().catch(() => ({}));

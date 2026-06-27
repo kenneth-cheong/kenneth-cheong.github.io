@@ -25,6 +25,17 @@ function renderMessage(text, chipFor) {
   return out;
 }
 
+// Animated "assistant is typing" indicator — three bouncing dots.
+function TypingDots() {
+  return (
+    <span className="inline-flex items-center gap-1 py-1" role="status" aria-label="Assistant is typing">
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.3s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.15s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" />
+    </span>
+  );
+}
+
 // Relative "time ago" for the history list.
 function ago(iso) {
   const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -89,6 +100,9 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
   const threadRef = useRef(null);
   const msgsRef = useRef(msgs); msgsRef.current = msgs;
   const askedRef = useRef(null);
+  const inputRef = useRef(null);
+  const abortRef = useRef(null);          // AbortController for the in-flight stream
+  const stickRef = useRef(true);          // is the thread scrolled near the bottom?
 
   const OUT_OF_CREDITS = "You're out of credits — top up or upgrade to keep chatting.";
 
@@ -103,21 +117,33 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
     // ── Streaming path (token-by-token) — falls back to buffered chat on error. ──
     if (chatStreamAvailable) {
       setMsgs((m) => [...m, { role: 'assistant', content: '' }]); // bubble we stream into
+      const ac = new AbortController();
+      abortRef.current = ac;
       let acc = '';
       try {
         const { conversationId: cid } = await chatStream(next, conversationId, (delta) => {
           acc += delta;
           setMsgs((m) => { const c = m.slice(); c[c.length - 1] = { role: 'assistant', content: acc }; return c; });
-        });
+        }, { signal: ac.signal });
         if (cid) setConversationId(cid);
         setCredits(Math.max(0, (user?.credits || 0) - COST)); // stream can't return the balance; correct on next /me
+        abortRef.current = null;
         setBusy(false);
         return;
       } catch (err) {
-        // Drop the empty placeholder; show 402 or fall through to the fallback.
-        setMsgs((m) => (m.length && m[m.length - 1].role === 'assistant' && !m[m.length - 1].content ? m.slice(0, -1) : m));
+        abortRef.current = null;
+        // Drop the empty placeholder so we don't leave a blank bubble behind.
+        const dropEmpty = (m) => (m.length && m[m.length - 1].role === 'assistant' && !m[m.length - 1].content ? m.slice(0, -1) : m);
+        // User hit Stop: keep whatever streamed in, don't re-send via the fallback.
+        if (err?.name === 'AbortError') {
+          setMsgs(dropEmpty);
+          setCredits(Math.max(0, (user?.credits || 0) - COST)); // message was sent; correct on next /me
+          setBusy(false);
+          return;
+        }
+        setMsgs(dropEmpty);
         if (err instanceof ApiError && err.status === 402) {
-          setMsgs((m) => [...m, { role: 'assistant', content: OUT_OF_CREDITS }]);
+          setMsgs((m) => [...m, { role: 'assistant', content: OUT_OF_CREDITS, error: true }]);
           setBusy(false);
           return;
         }
@@ -133,7 +159,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
       if (typeof creditsRemaining === 'number') setCredits(creditsRemaining);
     } catch (err) {
       const msg = err instanceof ApiError && err.status === 402 ? OUT_OF_CREDITS : `Error: ${err.message}`;
-      setMsgs((m) => [...m, { role: 'assistant', content: msg }]);
+      setMsgs((m) => [...m, { role: 'assistant', content: msg, error: true }]);
     } finally {
       setBusy(false);
     }
@@ -145,6 +171,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
     setMsgs([GREETING]);
     setDraft('');
     setView('chat');
+    stickRef.current = true;
   }
 
   const loadConvos = useCallback(async () => {
@@ -159,6 +186,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
   async function openConversation(id) {
     setView('chat');
     setBusy(true);
+    stickRef.current = true;
     try {
       const { conversation } = await api.conversation(id);
       setMsgs(conversation?.messages?.length ? conversation.messages : [GREETING]);
@@ -174,9 +202,23 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
     if (id === conversationId) newChat();
   }
 
+  // Auto-scroll to the newest message — but only if the user is already near the
+  // bottom, so streaming tokens don't yank them back while they read history.
   useEffect(() => {
-    if (view === 'chat' && threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight;
+    if (view === 'chat' && threadRef.current && stickRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight;
   }, [msgs, open, busy, view]);
+
+  // Track whether the thread is pinned to the bottom (within ~80px).
+  function onThreadScroll() {
+    const el = threadRef.current;
+    if (el) stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  }
+
+  // Focus the input when the panel opens, when returning to the chat view, and
+  // after a reply finishes — so you can keep typing without reaching for the mouse.
+  useEffect(() => {
+    if (open && view === 'chat' && !busy) inputRef.current?.focus();
+  }, [open, view, busy]);
 
   // Auto-send a question forwarded from the right-click "Explain this" menu.
   useEffect(() => {
@@ -272,20 +314,22 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
         </div>
       ) : (
         <>
-          <div ref={threadRef} className="flex-1 space-y-3 overflow-y-auto p-3">
+          <div ref={threadRef} onScroll={onThreadScroll} className="flex-1 space-y-3 overflow-y-auto p-3">
             {msgs.map((m, i) => (
               <div
                 key={i}
                 className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
                   m.role === 'user'
                     ? 'ml-auto rounded-br-sm bg-brand-600 text-white'
-                    : 'rounded-bl-sm bg-slate-100 text-slate-800'
+                    : m.error
+                      ? 'rounded-bl-sm border border-red-200 bg-red-50 text-red-700'
+                      : 'rounded-bl-sm bg-slate-100 text-slate-800'
                 }`}
               >
-                {m.role === 'assistant' ? renderMessage(m.content, chipFor) : m.content}
+                {m.role === 'assistant' ? (m.content ? renderMessage(m.content, chipFor) : <TypingDots />) : m.content}
               </div>
             ))}
-            {busy && msgs[msgs.length - 1]?.role === 'user' && <div className="w-16 rounded-2xl rounded-bl-sm bg-slate-100 px-3 py-2 text-sm text-slate-400">…</div>}
+            {busy && msgs[msgs.length - 1]?.role === 'user' && <div className="w-fit rounded-2xl rounded-bl-sm bg-slate-100 px-3 py-2"><TypingDots /></div>}
             {msgs.length <= 1 && !busy && (
               <div className="flex flex-wrap gap-2 pt-1">
                 {suggestions.map((s) => (
@@ -300,14 +344,22 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
 
           <form onSubmit={send} className="flex items-center gap-2 border-t border-slate-100 p-2">
             <input
+              ref={inputRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder="Ask anything…"
               className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
             />
-            <button disabled={busy} className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
-              Send
-            </button>
+            {busy && chatStreamAvailable ? (
+              <button type="button" onClick={() => abortRef.current?.abort()}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                Stop
+              </button>
+            ) : (
+              <button disabled={busy} className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">
+                Send
+              </button>
+            )}
           </form>
           <div className="px-3 pb-2 text-center text-[11px] text-slate-400">
             Out of credits? <Link to="/account" className="text-brand-600">Top up</Link> or <Link to="/pricing" className="text-brand-600">upgrade</Link>
