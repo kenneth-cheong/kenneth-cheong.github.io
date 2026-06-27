@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AUDIT_TOOLS, toolById, tierMeets, CREDIT_COSTS } from '@shared/catalog.mjs';
+import { AUDIT_TOOLS, toolById, tierMeets, tierRank, CREDIT_COSTS, PLANS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { api, ApiError } from '../lib/api.js';
@@ -46,6 +46,13 @@ export default function SiteAudit() {
   const runnable = AUDIT_TOOLS.filter((a) => { const t = toolById(a.id); return t && tierMeets(user.tier, t.minTier); });
   const cost = runnable.reduce((sum, a) => sum + (CREDIT_COSTS[toolById(a.id)?.cost] ?? 0), 0) + (CREDIT_COSTS.ai_short ?? 1);
   const locked = runnable.length === 0;
+  // Lowest plan that unlocks any of the audit checks — what the user must reach.
+  const neededTier = AUDIT_TOOLS
+    .map((a) => toolById(a.id)?.minTier)
+    .filter(Boolean)
+    .sort((x, y) => tierRank(x) - tierRank(y))[0];
+  const neededPlan = PLANS[neededTier]?.name || 'a paid';
+  const currentPlan = PLANS[user.tier]?.name || user.tier;
 
   async function run() {
     const site = url.trim();
@@ -93,8 +100,9 @@ export default function SiteAudit() {
       <div className="mx-auto max-w-2xl">
         <h1 className="text-2xl font-bold">Site Health Check</h1>
         <div className="card mt-6 p-6 text-center">
-          <p className="text-slate-600">A one-click audit of your site’s SEO, page quality and AI-readiness — with a score and prioritised fixes.</p>
-          <Link to="/pricing" className="btn-primary mt-4 inline-block">Upgrade to run a health check</Link>
+          <p className="font-medium text-slate-800">The Site Health Check isn’t included in your {currentPlan} plan.</p>
+          <p className="mt-2 text-slate-600">It’s a one-click audit of your site’s SEO, page quality and AI-readiness — with a score and prioritised fixes. Upgrade to {neededPlan} or higher to run it.</p>
+          <Link to="/pricing" className="btn-primary mt-4 inline-block">Upgrade to {neededPlan}</Link>
         </div>
       </div>
     );
