@@ -3597,7 +3597,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2313</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2315</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -11223,10 +11223,21 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 }
             }
 
-            const toolHtml = toolLog
+            // The tool log occasionally swells with the model's full markdown answer
+            // leaking into tool_calls_summary (headings, bold, tables) — a giant noisy
+            // raw-md dump that marked renders as a literal code block. Detect that
+            // signature (markdown prose / sheer size) and suppress it (3); keep genuine,
+            // concise tool-call summaries and render them cleanly (1, escape first +
+            // normalize single/double-escaped \\n).
+            const toolLogIsLeak = toolLog && (
+                toolLog.length > 3000 ||
+                /(^|\\n|\n)#{2,}\s/.test(toolLog) ||
+                (toolLog.match(/\*\*/g) || []).length >= 6
+            );
+            const toolHtml = (toolLog && !toolLogIsLeak)
                 ? `<details class="tool-log">
                     <summary class="tool-log-label"><i class="fas ${toolIcon}"></i> ${toolLabel}</summary>
-                    <div class="tool-log-content">${marked.parse(toolLog.replace(/\\n/g, '\n'))}</div>
+                    <div class="tool-log-content">${marked.parse(escapeHtml(toolLog).replace(/\\+n/g, '\n'))}</div>
                    </details>`
                 : '';
 
