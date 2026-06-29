@@ -155,22 +155,29 @@ export const handler = async (event) => {
       if (!isEmail(form.email)) return badRequest('A valid email is required.');
 
       const version = clampStr(body.version, 20) || 'unversioned';
+      const acceptedAt = new Date().toISOString();
+      // Proof-of-consent record (per the NDA's Electronic Acceptance section):
+      // capture IP + device/browser alongside the account/org details + version.
+      const ip = event.requestContext?.http?.sourceIp || 'unknown';
+      const userAgent = clampStr(event.headers?.['user-agent'] || event.headers?.['User-Agent'] || '', 400);
       const firstTime = user.onboarding?.acceptedNda !== true;
       const onboarding = await updateOnboarding(user.userId, {
         acceptedNda: true,
-        acceptedNdaAt: new Date().toISOString(),
+        acceptedNdaAt: acceptedAt,
         acceptedNdaVersion: version,
+        acceptedNdaIp: ip,
+        acceptedNdaUserAgent: userAgent,
         nda: form,
       });
 
-      // Notify Tom (best-effort — acceptance is already saved). Only on the first
-      // acceptance so re-runs after a version bump don't spam the inbox.
+      // Notify Tom + Kenneth (best-effort — acceptance is already saved). Only on
+      // the first acceptance so re-runs after a version bump don't spam the inbox.
       if (firstTime) {
-        const stamp = new Date().toISOString();
         const rows = [
           ['Name', form.name], ['Organisation', form.organisation], ['UEN', form.uen],
           ['Telephone', form.telephone], ['Email', form.email],
-          ['Account', user.email || '—'], ['Accepted at', stamp], ['NDA version', version],
+          ['Account', user.email || '—'], ['Accepted at', acceptedAt], ['NDA version', version],
+          ['IP address', ip], ['Device / browser', userAgent || '—'],
         ];
         const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         const text = ['A new Digimetrics Free Trial + NDA acceptance was submitted.', '',

@@ -20,7 +20,7 @@ export const TERMS_VERSION = '2026-06-19';
  * bumping this re-prompts every trial user with the NDA gate. Keep in sync with
  * the NDA copy in TrialNdaGate.jsx.
  */
-export const NDA_VERSION = '2026-06-29';
+export const NDA_VERSION = '2026-06-29.2';
 
 /** Tier ordering — index = rank. Used for `userTier >= requiredTier` checks. */
 export const TIER_ORDER = ['free', 'starter', 'pro', 'expert'];
