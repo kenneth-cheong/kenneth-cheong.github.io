@@ -28,7 +28,8 @@ import Stripe from 'stripe';
 // Only used by account deletion (to cancel an active subscription so a deleted
 // account isn't billed). Null when no key is configured.
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
-import { sendEmail, SUPPORT_INBOX } from '../lib/email.mjs';
+import { sendEmail, sendRawEmail, SUPPORT_INBOX } from '../lib/email.mjs';
+import { buildAcceptancePdf } from '../lib/pdf.mjs';
 import { isStaff, accountBlocked } from '../lib/admin.mjs';
 import { ok, badRequest, unauthorized, forbidden, paymentRequired, tooManyRequests, serverError, parseBody, claims, preflight, isEmail, clampStr } from '../lib/http.mjs';
 import { rateLimit, APP_LIMITS } from '../lib/ratelimit.mjs';
@@ -172,28 +173,50 @@ export const handler = async (event) => {
 
       // Notify Tom + Kenneth (best-effort — acceptance is already saved). Only on
       // the first acceptance so re-runs after a version bump don't spam the inbox.
+      // The full details ride along as a one-page "Acceptance Record" PDF; the
+      // email body itself is a short summary.
       if (firstTime) {
-        const rows = [
-          ['Name', form.name], ['Organisation', form.organisation], ['UEN', form.uen],
-          ['Telephone', form.telephone], ['Email', form.email],
-          ['Account', user.email || '—'], ['Accepted at', acceptedAt], ['NDA version', version],
-          ['IP address', ip], ['Device / browser', userAgent || '—'],
-        ];
-        const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const text = ['A new Digimetrics Free Trial + NDA acceptance was submitted.', '',
-          ...rows.map(([k, v]) => `${k}: ${v}`)].join('\n');
-        const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;">`
-          + `<h2 style="color:#1d4ed8;margin:0 0 4px;">New Free Trial + NDA acceptance</h2>`
-          + `<p style="color:#475569;margin:0 0 18px;">The trial user confirmed they are authorised to accept the Digimetrics Free Trial and NDA Terms.</p>`
-          + `<table style="border-collapse:collapse;font-size:14px;">`
-          + rows.map(([k, v]) => `<tr><td style="padding:6px 14px 6px 0;color:#64748b;white-space:nowrap;vertical-align:top;">${esc(k)}</td><td style="padding:6px 0;color:#0f172a;font-weight:600;">${esc(v)}</td></tr>`).join('')
-          + `</table></div>`;
+        const subject = `Digimetrics Free Trial + NDA accepted — ${form.organisation || form.name}`;
+        const text = [
+          `${form.name} (${form.organisation}) accepted the Digimetrics Free Trial + NDA.`,
+          '',
+          `Email: ${form.email}`,
+          `Account: ${user.email || '—'}`,
+          `Accepted at (UTC): ${acceptedAt}`,
+          `NDA version: ${version}`,
+          '',
+          'Full details are in the attached Acceptance Record (PDF).',
+        ].join('\n');
+        const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;color:#0f172a;">`
+          + `<h2 style="color:#1d4ed8;margin:0 0 6px;">New Free Trial + NDA acceptance</h2>`
+          + `<p style="color:#475569;margin:0 0 14px;"><b>${form.name}</b> (${form.organisation}) confirmed they are authorised to accept the Digimetrics Free Trial and NDA Terms.</p>`
+          + `<p style="color:#475569;margin:0;font-size:14px;">Email: ${form.email}<br>Account: ${user.email || '—'}<br>Accepted at (UTC): ${acceptedAt}<br>NDA version: ${version}</p>`
+          + `<p style="color:#64748b;margin:16px 0 0;font-size:13px;">The full proof-of-consent details are in the attached <b>Acceptance Record (PDF)</b>.</p>`
+          + `</div>`;
+
+        let pdf = null;
         try {
-          await sendEmail({
-            to: ['tom@mediaone.co', 'kenneth@mediaone.co'],
-            subject: `Digimetrics Free Trial + NDA accepted — ${form.organisation || form.name}`,
-            text, html,
+          pdf = await buildAcceptancePdf({
+            formName: form.name, organisation: form.organisation, uen: form.uen,
+            telephone: form.telephone, formEmail: form.email,
+            accountEmail: user.email, acceptedAt, ip, userAgent, version,
           });
+        } catch (e) { console.warn('nda_pdf_failed', e.message); }
+
+        const safeOrg = (form.organisation || form.name || 'trial-user').replace(/[^a-z0-9]+/gi, '-').slice(0, 40);
+        const filename = `Digimetrics-NDA-Acceptance-${safeOrg}.pdf`;
+        try {
+          if (pdf) {
+            await sendRawEmail({
+              to: ['tom@mediaone.co', 'kenneth@mediaone.co'],
+              replyTo: form.email,
+              subject, text, html,
+              attachments: [{ filename, contentType: 'application/pdf', content: pdf }],
+            });
+          } else {
+            // PDF generation failed — still send the notification without it.
+            await sendEmail({ to: ['tom@mediaone.co', 'kenneth@mediaone.co'], subject, text, html });
+          }
         } catch (e) { console.warn('nda_notify_failed', e.message); }
       }
 
