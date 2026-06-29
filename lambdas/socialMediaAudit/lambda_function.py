@@ -106,7 +106,13 @@ META_OAUTH_CONFIG_ID     = os.environ.get('META_OAUTH_CONFIG_ID', '')
 LINKEDIN_OAUTH_CLIENT_ID     = os.environ.get('LINKEDIN_OAUTH_CLIENT_ID', '')
 LINKEDIN_OAUTH_CLIENT_SECRET = os.environ.get('LINKEDIN_OAUTH_CLIENT_SECRET', '')
 LINKEDIN_OAUTH_SCOPES        = os.environ.get('LINKEDIN_OAUTH_SCOPES',
-    'r_organization_social r_organization_admin')
+    # Community Management API: rw_organization_admin → page/follower/share
+    # reporting; r_organization_social → read org posts (for the post grid).
+    'rw_organization_admin r_organization_social')
+LINKEDIN_API         = 'https://api.linkedin.com/rest'
+# LinkedIn versions the REST API monthly (YYYYMM) and sunsets versions after ~12
+# months — bump LINKEDIN_API_VERSION via env when the current default expires.
+LINKEDIN_API_VERSION = os.environ.get('LINKEDIN_API_VERSION', '202606')
 TIKTOK_OAUTH_CLIENT_ID     = os.environ.get('TIKTOK_OAUTH_CLIENT_ID', '')        # TikTok "client key"
 TIKTOK_OAUTH_CLIENT_SECRET = os.environ.get('TIKTOK_OAUTH_CLIENT_SECRET', '')
 TIKTOK_OAUTH_SCOPES        = os.environ.get('TIKTOK_OAUTH_SCOPES',
@@ -2646,12 +2652,22 @@ def cron_capture_one(body):
         meta_error = str(e)[:200]
     meta_covered = {p.get('platform') for p in meta_platforms if p.get('platform')}
 
-    # 2. Apify scrape (paid, public) — only for platforms Meta couldn't supply.
-    sc = _cron_apify_scorecard(proj, month, skip=meta_covered)
+    # 1b. LinkedIn private org analytics via the per-client connected token —
+    #     also free/owner-only, so pull before Apify and skip its paid scrape too.
+    li_platforms = []
+    try:
+        li_platforms = _cron_linkedin_platforms(proj, month)
+    except Exception as e:
+        meta_error = ((meta_error + ' | ') if meta_error else '') + 'LinkedIn: ' + str(e)[:160]
+    covered = meta_covered | {p.get('platform') for p in li_platforms if p.get('platform')}
 
-    # 3. Overlay the free Meta metrics (adds IG/FB cards when Apify was skipped
-    #    for them; merges field-level when both ran).
+    # 2. Apify scrape (paid, public) — only for platforms not covered privately.
+    sc = _cron_apify_scorecard(proj, month, skip=covered)
+
+    # 3. Overlay the free private metrics (adds cards when Apify was skipped for
+    #    them; merges field-level when both ran).
     sc = _merge_meta_platforms(sc, meta_platforms)
+    sc = _merge_meta_platforms(sc, li_platforms)
     if meta_error:
         sc = sc or {}
         sc['_meta_error'] = meta_error
@@ -3035,6 +3051,194 @@ def _cron_meta_platforms(proj, month):
         if fb or posts:
             out.append(_meta_card('facebook', posts, fb))
     return out
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# LinkedIn (Community Management API) — private org analytics via the per-client
+# connected member token (must hold ADMINISTRATOR on the company page). Unlike
+# Meta (one global system token), LinkedIn org stats need a member token, so we
+# read it from proj['connections']['linkedin']. Cards match _meta_card's shape.
+# ──────────────────────────────────────────────────────────────────────────────
+def _li_get(path, token, params=None):
+    r = requests.get(LINKEDIN_API + path, params=params or {}, timeout=25, headers={
+        'Authorization': 'Bearer ' + token,
+        'LinkedIn-Version': LINKEDIN_API_VERSION,
+        'X-Restli-Protocol-Version': '2.0.0'})
+    j = r.json() if r.content else {}
+    if isinstance(j, dict) and (j.get('serviceErrorCode') or (j.get('status') and int(j['status']) >= 400)):
+        raise RuntimeError(j.get('message') or j.get('error_description') or f'LinkedIn API {r.status_code}')
+    return j
+
+
+def _li_norm_slug(h):
+    """The tracked LinkedIn handle → a company vanityName slug. Personal profiles
+    (/in/…) return '' since org analytics don't apply to them."""
+    s = str(h or '').strip().lower()
+    s = re.sub(r'^https?://(www\.)?linkedin\.com/', '', s)
+    m = re.search(r'company/([a-z0-9_\-%.]+)', s)
+    if m:
+        return m.group(1).strip('/')
+    s = s.lstrip('@').strip('/')
+    if s.startswith('in/') or '/' in s:
+        return ''
+    return s
+
+
+def _li_resolve_org(proj, token):
+    """Resolve {id,name} for the org this client tracks. Prefer a direct
+    vanityName lookup from the handle; else fall back to the single org the
+    token administers."""
+    slug = _li_norm_slug((proj.get('handles') or {}).get('linkedin'))
+    if slug:
+        try:
+            els = _li_get('/organizations', token, {'q': 'vanityName', 'vanityName': slug}).get('elements') or []
+            if els:
+                o = els[0]
+                return {'id': str(o.get('id')), 'name': o.get('localizedName') or slug}
+        except Exception:
+            pass
+    try:
+        els = _li_get('/organizationAcls', token,
+                      {'q': 'roleAssignee', 'role': 'ADMINISTRATOR', 'state': 'APPROVED'}).get('elements') or []
+        urns = [e.get('organization') or e.get('organizationTarget') for e in els]
+        ids  = sorted({u.rsplit(':', 1)[-1] for u in urns if u})
+        if len(ids) == 1:
+            oid, name = ids[0], (slug or 'LinkedIn')
+            try:
+                o = _li_get('/organizations/' + oid, token, {'fields': 'id,localizedName,vanityName'})
+                name = o.get('localizedName') or name
+            except Exception:
+                pass
+            return {'id': oid, 'name': name}
+    except Exception:
+        pass
+    return None
+
+
+def _li_network_size(oid, token):
+    try:
+        d = _li_get('/networkSizes/urn:li:organization:' + oid, token, {'edgeType': 'CompanyFollowedByMember'})
+        return _num(d.get('firstDegreeSize'))
+    except Exception:
+        return None
+
+
+def _li_time_intervals(since_ms, until_ms):
+    return f'(timeRange:(start:{since_ms},end:{until_ms}),timeGranularityType:DAY)'
+
+
+def _li_share_stats(oid, token, since_ms, until_ms):
+    """Sum this month's daily organic share statistics → impressions, reach,
+    interactions, engagement rate. Raises on access errors so the caller can
+    surface a 'reconnect / missing scope' note."""
+    els = _li_get('/organizationalEntityShareStatistics', token, {
+        'q': 'organizationalEntity',
+        'organizationalEntity': 'urn:li:organization:' + oid,
+        'timeIntervals': _li_time_intervals(since_ms, until_ms)}).get('elements') or []
+    agg = {'impressionCount': 0, 'uniqueImpressionsCount': 0, 'clickCount': 0,
+           'likeCount': 0, 'commentCount': 0, 'shareCount': 0}
+    got = False
+    for e in els:
+        t = e.get('totalShareStatistics') or {}
+        for k in agg:
+            agg[k] += _num(t.get(k)) or 0
+        got = True
+    if not got:
+        return {}
+    out = {}
+    def s(k, v):
+        if v:
+            out[k] = v
+    s('impressions', agg['impressionCount'])
+    reach = agg['uniqueImpressionsCount'] or None
+    s('reach', reach); s('page_reach', reach)
+    s('clicks', agg['clickCount']); s('likes', agg['likeCount'])
+    s('comments', agg['commentCount']); s('shares', agg['shareCount'])
+    interactions = agg['likeCount'] + agg['commentCount'] + agg['shareCount'] + agg['clickCount']
+    s('engagements', interactions)
+    if agg['impressionCount']:
+        out['engagement_rate'] = round(interactions / agg['impressionCount'] * 100, 2)
+    return out
+
+
+def _li_follower_gains(oid, token, since_ms, until_ms):
+    try:
+        els = _li_get('/organizationalEntityFollowerStatistics', token, {
+            'q': 'organizationalEntity',
+            'organizationalEntity': 'urn:li:organization:' + oid,
+            'timeIntervals': _li_time_intervals(since_ms, until_ms)}).get('elements') or []
+    except Exception:
+        return {}
+    total, got = 0, False
+    for e in els:
+        g = e.get('followerGains') or {}
+        total += (_num(g.get('organicFollowerGain')) or 0) + (_num(g.get('paidFollowerGain')) or 0)
+        got = True
+    if not got:
+        return {}
+    return {'followers_increase': total, 'net_new_followers': total, 'followers_growth_30d': total}
+
+
+def _li_posts(oid, token, since, until):
+    """Best-effort post grid for the month. Per-post engagement isn't fetched
+    (would cost one socialActions call each); aggregate engagement comes from
+    share statistics. Degrades to [] if r_organization_social isn't granted."""
+    try:
+        els = _li_get('/posts', token, {'q': 'author',
+                                        'author': 'urn:li:organization:' + oid,
+                                        'count': 25}).get('elements') or []
+    except Exception:
+        return []
+    out = []
+    for p in els:
+        created = p.get('createdAt') or p.get('publishedAt') or p.get('firstPublishedAt')
+        e = _to_epoch(created)
+        if e is not None and not (since <= e < until):
+            continue
+        text = p.get('commentary') if isinstance(p.get('commentary'), str) else ''
+        text = text or ''
+        out.append({
+            'ts': created, 'likes': None, 'comments': None, 'shares': None, 'views': None,
+            'type': 'image', 'hashtags': re.findall(r'#(\w+)', text),
+            'text': ' '.join(text.split())[:160], 'caption': ' '.join(text.split())[:400],
+            'image': '', 'url': ''})
+    return out
+
+
+def _li_insights(oid, token, month):
+    since, until = _meta_month_range(month)
+    since_ms, until_ms = since * 1000, until * 1000
+    out = _li_share_stats(oid, token, since_ms, until_ms)   # core (may raise on access error)
+    fol = _li_network_size(oid, token)
+    if fol is not None:
+        out['followers'] = fol
+    out.update(_li_follower_gains(oid, token, since_ms, until_ms))
+    return out
+
+
+def _cron_linkedin_platforms(proj, month):
+    """Pull this project's private LinkedIn org analytics for the month using the
+    per-client connected token. Returns [] (→ Apify public scrape falls back)
+    when LinkedIn isn't tracked or no token is connected. Raises on a resolved
+    org we can't read (surfaced to the caller as a reconnect/scope hint)."""
+    plats   = set(proj.get('platforms') or [])
+    handles = proj.get('handles') or {}
+    if not (('linkedin' in plats) or handles.get('linkedin')):
+        return []
+    token = ((proj.get('connections') or {}).get('linkedin') or {}).get('token')
+    if not token:
+        return []
+    org = _li_resolve_org(proj, token)
+    if not org:
+        raise RuntimeError('LinkedIn connected but no admin company page matched this handle.')
+    insights = _li_insights(org['id'], token, month)
+    if not insights:
+        return []
+    since, until = _meta_month_range(month)
+    card = _meta_card('linkedin', _li_posts(org['id'], token, since, until), insights)
+    if org.get('name'):
+        card['account_name'] = org['name']
+    return [card]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
