@@ -9,6 +9,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.0.1/dist/chartjs-plugin-annotation.min.js"></script>
@@ -810,10 +812,21 @@
                                 style="background: linear-gradient(135deg, #10b981, #059669); color: white; border: none;">
                                 <i class="fas fa-file-upload"></i> Upload Delivery CSV
                             </button>
-                            <button class="btn" onclick="exportOrderedCSV()" id="exportOrderedBtn"
-                                style="background: #4f46e5; color: white; border: none;">
-                                <i class="fas fa-file-export"></i> Export Ordered CSV
-                            </button>
+                            <select id="exportFormatSelect" onchange="handleExportSelect(this.value)"
+                                style="padding: 10px; background: #4f46e5; color: white; border: none; border-radius: 8px; font-size: 0.85rem; cursor: pointer;"
+                                title="Export the order data. Respects current filters / 'Vendor for Export'.">
+                                <option value="">⬇ Export…</option>
+                                <optgroup label="Vendor Order Sheet (14-col)">
+                                    <option value="vendor:xlsx">Excel — one tab per vendor</option>
+                                    <option value="vendor:csv">CSV (flat)</option>
+                                </optgroup>
+                                <optgroup label="Master Tracking Sheet (full)">
+                                    <option value="master:xlsx">Excel (.xlsx)</option>
+                                    <option value="master:csv">CSV (.csv)</option>
+                                    <option value="master:pdf">PDF</option>
+                                    <option value="master:gsheet">Google Sheet</option>
+                                </optgroup>
+                            </select>
                             <button class="btn btn-primary" onclick="bulkValidateOrders()" id="bulkValidateBtn"
                                 style="display: none;">
                                 <i class="fas fa-check-double"></i> Validate Selected
@@ -821,6 +834,16 @@
                             <button class="btn" onclick="bulkDeleteOrders()" id="bulkDeleteBtn"
                                 style="display: none; background: var(--accent); color: white;">
                                 <i class="fas fa-trash-alt"></i> Delete Selected
+                            </button>
+                            <button class="btn" onclick="notifyAllFailures()" id="notifyFailuresBtn"
+                                style="background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.3);"
+                                title="Send a Google Chat alert listing all backlinks that failed validation.">
+                                <i class="fas fa-bell"></i> Notify Failures
+                            </button>
+                            <button class="btn" onclick="openNotifySettings()" id="notifySettingsBtn"
+                                style="background: transparent; color: var(--text-dim); border: 1px solid var(--border);"
+                                title="Configure the Google Chat webhook for validation alerts.">
+                                <i class="fas fa-cog"></i>
                             </button>
                             <button id="btn-new-request" class="btn btn-primary" onclick="createOrder()">
                                 <i class="fas fa-plus"></i> New Request
@@ -841,6 +864,7 @@
                             <option value="Ordered">Ordered</option>
                             <option value="Delivered">Delivered</option>
                             <option value="Validated">Validated</option>
+                            <option value="Toxic">⚠ Toxic only</option>
                         </select>
                         <input type="text" id="bdFilter" placeholder="Filter by BD..." onkeyup="filterOrders()"
                             style="padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white; width: 140px;">
@@ -1156,6 +1180,19 @@
         const PERSISTENCE_URL = 'https://0ed5sd7nn5.execute-api.ap-southeast-1.amazonaws.com/backlinksDatabase';
         const MONDAY_URL = 'https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday';
         const SERANKING_URL = 'https://u2u2ptqaxd.execute-api.ap-southeast-1.amazonaws.com/seRanking';
+        // Phase 2 validation endpoints
+        const GETHTML_URL = 'https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml';
+        const MOZ_URL = 'https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new';
+        const AHREFS_PROXY_URL = 'https://b8cyd5ed90.execute-api.ap-southeast-1.amazonaws.com/new';
+        const PAGEMETRICS_URL = 'https://5zdbpwaia5.execute-api.ap-southeast-1.amazonaws.com/pageDomainMetrics';
+        // Validation thresholds (minWordCount TBC by Dan; tolerance allows small metric dips)
+        const VALIDATION_CONFIG = { minWordCount: 500, drTolerance: 0, daTolerance: 0 };
+        // Toxic-detection thresholds — defaults are placeholders; Dan to finalise. Overridable in Settings.
+        const TOXIC_DEFAULTS = { minWordCount: 500, minDr: 10, maxOutboundLinks: 100, minOrgTraffic: 50, maxSpamScore: 30 };
+        function getToxicConfig() {
+            try { return Object.assign({}, TOXIC_DEFAULTS, JSON.parse(localStorage.getItem('blToxicConfig') || '{}')); }
+            catch (e) { return Object.assign({}, TOXIC_DEFAULTS); }
+        }
         const GOOGLE_CLIENT_ID = '1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com';
         const DEFAULT_USERS = [
             { name: 'Dan', email: '', role: 'Admin', status: 'Active' },
@@ -1567,7 +1604,7 @@
             // OAuth2 Token Client for Sheets API
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: GOOGLE_CLIENT_ID,
-                scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+                scope: 'https://www.googleapis.com/auth/spreadsheets',
                 callback: '', // defined at call time
             });
         }
@@ -1727,13 +1764,35 @@
             const idx = {
                 orderNo: findIdx(['Order No.']),
                 campaign: findIdx(['Campaign Name', 'Campaign', 'Client']),
+                campaignCode: findIdx(['Campaign Code', 'Camp Code', 'Code']),
                 bd: findIdx(['BD']),
+                seo: findIdx(['SEO']),
                 keyword: findIdx(['Keyword']),
+                anchor: findIdx(['Actual Anchor Text', 'Anchor Text', 'Anchor']),
                 target: findIdx(['Target URL']),
+                linkType: findIdx(['Link Type', 'Type']),
+                country: findIdx(['Country']),
+                publishDate: findIdx(['Publish Date', 'Published Date', 'Delivered Date', 'Live Date']),
+                indexedDate: findIdx(['Indexed Date', 'Index Date']),
+                domainName: findIdx(['Domain Name', 'Referring Domain', 'Domain']),
                 quantity: findIdx(['No. of Links', 'Quantity']),
-                backlink: findIdx(['Backlinks', 'URL']),
+                backlink: findIdx(['Live Link', 'Backlinks', 'URL']),
+                dr: findIdx(['DR']),
                 da: findIdx(['DA']),
-                cost: findIdx(['Cost', 'Price', 'Value', 'Amount'])
+                cost: findIdx(['Cost', 'Price', 'Value', 'Amount']),
+                note: findIdx(['Note', 'Notes', 'Remark', 'Remarks'])
+            };
+
+            // Normalise a sheet date cell (string or Excel serial) to ISO yyyy-mm-dd, or '' if blank
+            const parseSheetDate = (val) => {
+                if (val === undefined || val === null || val === '') return '';
+                if (typeof val === 'number') {
+                    // Excel serial date → JS date (epoch 1899-12-30)
+                    const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+                    return isNaN(d) ? '' : d.toISOString().split('T')[0];
+                }
+                const d = new Date(String(val));
+                return isNaN(d) ? String(val).trim() : d.toISOString().split('T')[0];
             };
 
             // Collect all possible backlink and DA indices in case there are multiple
@@ -1766,13 +1825,23 @@
                         importId: importId,
                         orderNo: row[idx.orderNo] || 'N/A',
                         campaignName: row[idx.campaign] || 'N/A',
+                        campaignCode: row[idx.campaignCode] || '',
                         bd: row[idx.bd] || 'Unknown',
+                        seo: row[idx.seo] || '',
                         keyword: row[idx.keyword] || '-',
+                        anchorText: row[idx.anchor] || '',
                         targetUrl: row[idx.target] || '-',
+                        linkType: row[idx.linkType] || '',
+                        country: row[idx.country] || '',
+                        publishDate: parseSheetDate(row[idx.publishDate]),
+                        indexedDate: parseSheetDate(row[idx.indexedDate]),
+                        domainName: row[idx.domainName] || '',
                         quantity: row[idx.quantity] || 1,
                         cost: parseFloat(String(row[idx.cost] || '0').replace(/[^0-9.]/g, '')) || 0,
                         deliveredUrl: '',
+                        dr: parseInt(row[idx.dr]) || 0,
                         vendorDa: row[idx.da] || 0,
+                        note: row[idx.note] || '',
                         status: 'Ordered',
                         vendorName: vendorName,
                         createdAt: orderedDate,
@@ -1786,13 +1855,23 @@
                     importId: importId,
                     orderNo: row[idx.orderNo] || 'N/A',
                     campaignName: row[idx.campaign] || 'N/A',
+                    campaignCode: row[idx.campaignCode] || '',
                     bd: row[idx.bd] || 'Unknown',
+                    seo: row[idx.seo] || '',
                     keyword: row[idx.keyword] || '-',
+                    anchorText: row[idx.anchor] || '',
                     targetUrl: row[idx.target] || '-',
+                    linkType: row[idx.linkType] || '',
+                    country: row[idx.country] || '',
+                    publishDate: parseSheetDate(row[idx.publishDate]),
+                    indexedDate: parseSheetDate(row[idx.indexedDate]),
+                    domainName: row[idx.domainName] || getDomain(link.url),
                     quantity: 1, // Individual link constitutes 1 unit
                     cost: (parseFloat(String(row[idx.cost] || '0').replace(/[^0-9.]/g, '')) || 0) / (foundLinks.length || 1),
                     deliveredUrl: link.url,
+                    dr: parseInt(row[idx.dr]) || 0,
                     vendorDa: link.da || row[idx.da] || 0,
+                    note: row[idx.note] || '',
                     status: 'Delivered',
                     vendorName: vendorName,
                     createdAt: orderedDate,
@@ -3008,7 +3087,8 @@
                     (b.keyword || '').toLowerCase().includes(state.orderFilters.search) ||
                     (b.deliveredUrl || '').toLowerCase().includes(state.orderFilters.search) ||
                     getDomain(b.targetUrl).toLowerCase().includes(state.orderFilters.search);
-                const matchesStatus = state.orderFilters.status === 'all' || b.status === state.orderFilters.status;
+                const matchesStatus = state.orderFilters.status === 'all'
+                    || (state.orderFilters.status === 'Toxic' ? (b.validationResults && assessToxicity(b).toxicCount > 0) : b.status === state.orderFilters.status);
                 const matchesBD = !state.orderFilters.bd || (b.bd || '').toLowerCase().includes(state.orderFilters.bd);
                 const matchesDate = !state.orderFilters.date || (b.createdAt || '').includes(state.orderFilters.date);
                 return matchesSearch && matchesStatus && matchesBD && matchesDate;
@@ -3112,11 +3192,14 @@
             let filtered = state.backlinks.filter(b => {
                 const matchesSearch = !state.orderFilters.search ||
                     (b.campaignName || '').toLowerCase().includes(state.orderFilters.search) ||
+                    (b.campaignCode || '').toLowerCase().includes(state.orderFilters.search) ||
                     (b.keyword || '').toLowerCase().includes(state.orderFilters.search) ||
+                    (b.anchorText || '').toLowerCase().includes(state.orderFilters.search) ||
                     (b.deliveredUrl || '').toLowerCase().includes(state.orderFilters.search) ||
                     (b.vendorName || '').toLowerCase().includes(state.orderFilters.search) ||
                     getDomain(b.targetUrl).toLowerCase().includes(state.orderFilters.search);
-                const matchesStatus = state.orderFilters.status === 'all' || b.status === state.orderFilters.status;
+                const matchesStatus = state.orderFilters.status === 'all'
+                    || (state.orderFilters.status === 'Toxic' ? (b.validationResults && assessToxicity(b).toxicCount > 0) : b.status === state.orderFilters.status);
                 const matchesBD = !state.orderFilters.bd || (b.bd || '').toLowerCase().includes(state.orderFilters.bd);
                 const matchesDate = !state.orderFilters.date || (b.createdAt || '').includes(state.orderFilters.date);
 
@@ -3248,6 +3331,7 @@
                                 <th onclick="toggleOrdersSort('keyword')" style="cursor: pointer;">Keyword / Target ${getSortIcon('keyword')}</th>
                                 <th onclick="toggleOrdersSort('quantity')" style="cursor: pointer;">Qty ${getSortIcon('quantity')}</th>
                                 <th onclick="toggleOrdersSort('deliveredUrl')" style="cursor: pointer;">Delivery URL ${getSortIcon('deliveredUrl')}</th>
+                                <th onclick="toggleOrdersSort('dr')" style="cursor: pointer;">DR ${getSortIcon('dr')}</th>
                                 <th onclick="toggleOrdersSort('validatedDa')" style="cursor: pointer;">DA (Vn/Vr) ${getSortIcon('validatedDa')}</th>
                                 <th onclick="toggleOrdersSort('status')" style="cursor: pointer;">Status ${getSortIcon('status')}</th>
                                 <th>Actions</th>
@@ -3262,8 +3346,8 @@
                                 <tr>
                                     <td><input type="checkbox" class="order-checkbox" value="${b.id}" onchange="toggleOrderSelection('${b.id}')" ${isSelected ? 'checked' : ''}></td>
                                     <td>
-                                        <div style="font-weight: 600; font-size: 0.85rem;">${b.campaignName || 'Unnamed'}</div>
-                                        <div style="font-size: 0.75rem; color: var(--text-dim);">BY: ${b.bd || 'N/A'} | Vendor: ${b.vendorName || 'N/A'}</div>
+                                        <div style="font-weight: 600; font-size: 0.85rem;">${b.campaignName || 'Unnamed'}${b.campaignCode ? ` <span style="font-weight: 400; font-size: 0.7rem; color: var(--primary-light);">(${b.campaignCode})</span>` : ''}</div>
+                                        <div style="font-size: 0.75rem; color: var(--text-dim);">BD: ${b.bd || 'N/A'}${b.seo ? ` | SEO: ${b.seo}` : ''} | Vendor: ${b.vendorName || 'N/A'}</div>
                                     </td>
                                     <td><div style="font-size: 0.85rem;">${date}</div></td>
                                     <td>
@@ -3274,6 +3358,8 @@
                                         <a href="${b.targetUrl}" target="_blank" style="font-size: 0.7rem; color: var(--text-dim); text-decoration: none; display: block; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 200px;">
                                             <i class="fas fa-external-link-alt" style="font-size: 0.6rem;"></i> ${b.targetUrl || 'No Target'}
                                         </a>
+                                        ${b.anchorText ? `<div style="font-size: 0.7rem; color: var(--text-dim); margin-top: 4px;" title="Anchor Text"><i class="fas fa-anchor" style="font-size: 0.6rem; opacity: 0.5;"></i> ${b.anchorText}</div>` : ''}
+                                        ${b.linkType ? `<span class="badge" style="background: rgba(99,102,241,0.15); color: var(--primary-light); font-size: 0.6rem; margin-top: 4px; display: inline-block;">${b.linkType}</span>` : ''}
                                     </td>
                                     <td>${b.quantity || 1}</td>
                                     <td>
@@ -3283,6 +3369,7 @@
                                             </a>
                                         ` : '<span style="color: var(--text-dim); font-style: italic; font-size: 0.8rem;">Pending...</span>'}
                                     </td>
+                                    <td><span style="font-size: 0.8rem; font-weight: 600;">${b.dr || '-'}</span></td>
                                     <td>
                                         <div style="display: flex; gap: 4px; align-items: center; font-size: 0.8rem;">
                                             <span title="Vendor DA">${b.vendorDa || b.da || '-'}</span>
@@ -3292,10 +3379,16 @@
                                     </td>
                                     <td>
                                         <span class="badge" style="background: ${getStatusColor(b.status)}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.65rem;">${b.status || 'Ordered'}</span>
+                                        ${renderValidationSummary(b)}
+                                        ${renderToxicBadge(b)}
                                         <div style="font-size: 0.65rem; color: var(--text-dim); margin-top: 4px;">Val: ${lastValidated}</div>
                                     </td>
                                     <td>
                                         <div style="display: flex; gap: 4px;">
+                                            ${(state.role === 'Admin' || state.role === 'Staff') ? `
+                                                <button class="btn" style="padding: 2px 6px; font-size: 0.75rem;" title="Edit details" onclick="openEditOrder('${safeJS(b.id)}')">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>` : ''}
                                             ${(state.role === 'Vendor' || state.role === 'Staff') && !b.deliveredUrl ? `
                                                 <button class="btn" style="padding: 2px 6px; font-size: 0.75rem;" onclick="deliverOrder('${safeJS(b.id)}')">
                                                     <i class="fas fa-upload"></i>
@@ -3354,6 +3447,175 @@
         }
 
 
+        // ---- Phase 2: crawl-based validation helpers ----
+
+        // Normalise a URL for comparison: drop protocol, www, query/hash, trailing slash, lowercase
+        function normalizeUrl(u) {
+            if (!u) return '';
+            let s = String(u).trim().toLowerCase();
+            s = s.replace(/^https?:\/\//, '').replace(/^www\./, '');
+            s = s.split('#')[0].split('?')[0];
+            s = s.replace(/\/+$/, '');
+            return s;
+        }
+
+        // getHtml returns a (sometimes double-) JSON-wrapped envelope like
+        // "{\"statusCode\":200,\"body\":\"<html>...\"}" — unwrap down to the raw HTML
+        function unwrapHtmlResponse(raw) {
+            let s = raw;
+            for (let i = 0; i < 3; i++) {
+                if (typeof s !== 'string') break;
+                const t = s.trim();
+                if (t.startsWith('{') || t.startsWith('"')) {
+                    try {
+                        const parsed = JSON.parse(t);
+                        if (typeof parsed === 'string') { s = parsed; continue; }
+                        if (parsed && typeof parsed === 'object') { s = parsed.body || parsed.html || parsed.data || parsed.content || ''; continue; }
+                    } catch (e) { break; }
+                } else break;
+            }
+            return typeof s === 'string' ? s : '';
+        }
+
+        // Fetch page HTML via getHtml (endpoint throttles >3 concurrent — keep validation sequential)
+        async function fetchPageHtml(url) {
+            try {
+                const res = await fetch(GETHTML_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                if (!res.ok) return null;
+                return unwrapHtmlResponse(await res.text());
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // Live DR + organic traffic via Ahrefs proxy (org_traffic reused by Phase 4)
+        async function fetchAhrefsDr(domain) {
+            try {
+                const res = await fetch(AHREFS_PROXY_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ endpoint: 'overview', params: { target: domain } })
+                });
+                const data = await res.json();
+                const d = data.domain || data;
+                return {
+                    dr: (d.domain_rating ?? d.dr ?? null),
+                    orgTraffic: Number(d.org_traffic || 0),
+                    refDomains: Number(d.referring_domains || 0)
+                };
+            } catch (e) {
+                return { dr: null, orgTraffic: null, refDomains: null };
+            }
+        }
+
+        // Moz spam score (backlinks_spam_score) + da/domain_rank via pageDomainMetrics (often empty — handle nulls)
+        async function fetchPageDomainMetrics(url) {
+            try {
+                const res = await fetch(PAGEMETRICS_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                let data = await res.json();
+                if (data && typeof data.body === 'string') { try { data = JSON.parse(data.body); } catch (e) { } }
+                else if (data && data.body) data = data.body;
+                const num = (v) => (v === '' || v === null || v === undefined || isNaN(parseFloat(v))) ? null : parseFloat(v);
+                return { spamScore: num(data.backlinks_spam_score), domainRank: num(data.domain_rank), externalLinks: num(data.external_links_count) };
+            } catch (e) {
+                return { spamScore: null, domainRank: null, externalLinks: null };
+            }
+        }
+
+        // Parse the delivered page: word count, whether a link to targetUrl exists, its anchor text, outbound link count
+        function analyzeBacklinkPage(html, targetUrl) {
+            const result = { wordCount: 0, linkFound: false, anchorText: '', outboundLinks: 0, parsed: false };
+            if (!html) return result;
+            try {
+                const doc = new DOMParser().parseFromString(html, 'text/html');
+                if (!doc || !doc.body) return result;
+                result.parsed = true;
+
+                // Word count from visible text (strip script/style/nav noise)
+                doc.querySelectorAll('script, style, noscript, template').forEach(el => el.remove());
+                const text = doc.body.textContent || '';
+                result.wordCount = (text.match(/[A-Za-z0-9À-ɏ]+/g) || []).length;
+
+                const anchors = Array.from(doc.querySelectorAll('a[href]'));
+                const targetNorm = normalizeUrl(targetUrl);
+                let outbound = 0;
+                const pageDomain = getDomain(targetUrl);
+                anchors.forEach(a => {
+                    const raw = a.getAttribute('href') || '';
+                    const hrefNorm = normalizeUrl(raw);
+                    if (hrefNorm && hrefNorm.split('/')[0] !== pageDomain && /^https?:\/\//i.test(raw)) outbound++;
+                    if (!result.linkFound && targetNorm) {
+                        if (hrefNorm === targetNorm || (targetNorm.includes('/') && hrefNorm.startsWith(targetNorm))) {
+                            result.linkFound = true;
+                            result.anchorText = (a.textContent || '').replace(/\s+/g, ' ').trim();
+                        }
+                    }
+                });
+                result.outboundLinks = outbound;
+            } catch (e) { /* leave defaults */ }
+            return result;
+        }
+
+        // Build per-field validation results comparing live crawl/metrics vs the order spec
+        function buildValidationResults(b, page, liveDa, liveDr) {
+            const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+            const r = {};
+
+            // Anchor text — must match order's anchor (skip if none recorded)
+            if (!b.anchorText) {
+                r.anchor = { status: 'skip', expected: '—', actual: page.anchorText || '—' };
+            } else if (!page.linkFound) {
+                r.anchor = { status: 'fail', expected: b.anchorText, actual: 'link not found' };
+            } else {
+                r.anchor = { status: norm(page.anchorText) === norm(b.anchorText) ? 'pass' : 'fail', expected: b.anchorText, actual: page.anchorText || '(empty)' };
+            }
+
+            // Target URL — a link to it must exist on the page
+            r.targetUrl = { status: page.linkFound ? 'pass' : 'fail', expected: b.targetUrl || '—', actual: page.linkFound ? 'present' : 'missing' };
+
+            // Domain — referring domain of the live link vs ordered domain
+            const liveDomain = getDomain(b.deliveredUrl);
+            const expectedDomain = b.domainName ? getDomain(b.domainName) : '';
+            r.domain = expectedDomain
+                ? { status: liveDomain === expectedDomain ? 'pass' : 'fail', expected: expectedDomain, actual: liveDomain }
+                : { status: 'skip', expected: '—', actual: liveDomain };
+
+            // DR — live >= ordered (within tolerance)
+            const expDr = parseFloat(b.dr) || 0;
+            if (liveDr === null || liveDr === undefined) {
+                r.dr = { status: 'skip', expected: expDr || '—', actual: 'n/a' };
+            } else if (!expDr) {
+                r.dr = { status: 'skip', expected: '—', actual: liveDr };
+            } else {
+                r.dr = { status: liveDr >= (expDr - VALIDATION_CONFIG.drTolerance) ? 'pass' : 'fail', expected: expDr, actual: liveDr };
+            }
+
+            // DA — live >= ordered (within tolerance)
+            const expDa = parseFloat(b.vendorDa || b.da) || 0;
+            if (liveDa === null || liveDa === undefined) {
+                r.da = { status: 'skip', expected: expDa || '—', actual: 'n/a' };
+            } else if (!expDa) {
+                r.da = { status: 'skip', expected: '—', actual: liveDa };
+            } else {
+                r.da = { status: liveDa >= (expDa - VALIDATION_CONFIG.daTolerance) ? 'pass' : 'fail', expected: expDa, actual: liveDa };
+            }
+
+            // Word count — must be >= threshold
+            r.wordCount = page.parsed
+                ? { status: page.wordCount >= VALIDATION_CONFIG.minWordCount ? 'pass' : 'fail', expected: '≥' + VALIDATION_CONFIG.minWordCount, actual: page.wordCount }
+                : { status: 'skip', expected: '≥' + VALIDATION_CONFIG.minWordCount, actual: 'unreachable' };
+
+            return r;
+        }
+
         async function validateBacklink(id) {
             const b = state.backlinks.find(x => x.id === id);
             if (!b || !b.deliveredUrl) return;
@@ -3361,12 +3623,30 @@
             const btn = document.getElementById('validate-' + id);
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
             try {
-                const ssl = await fetchSsl(b.deliveredUrl);
-                const metrics = await fetchMozMetrics(b.deliveredUrl);
+                const [ssl, metrics, html, ahrefs, pageMetrics] = await Promise.all([
+                    fetchSsl(b.deliveredUrl).catch(() => false),
+                    fetchMozMetrics(b.deliveredUrl).catch(() => ({ DA: null })),
+                    fetchPageHtml(b.deliveredUrl),
+                    fetchAhrefsDr(getDomain(b.deliveredUrl)).catch(() => ({ dr: null, orgTraffic: null })),
+                    fetchPageDomainMetrics(b.deliveredUrl).catch(() => ({ spamScore: null }))
+                ]);
+
+                const liveDa = (metrics && metrics.DA != null) ? metrics.DA : null;
+                const liveDr = (ahrefs && ahrefs.dr != null) ? ahrefs.dr : null;
+                const page = analyzeBacklinkPage(html, b.targetUrl);
+                const validationResults = buildValidationResults(b, page, liveDa, liveDr);
+                const validationPassed = !Object.values(validationResults).some(v => v.status === 'fail');
 
                 const update = {
                     id: id,
-                    validatedDa: metrics.DA || 25,
+                    validatedDa: liveDa != null ? liveDa : (b.validatedDa || 0),
+                    validatedDr: liveDr != null ? liveDr : (b.validatedDr || 0),
+                    validationWordCount: page.parsed ? page.wordCount : null,
+                    validationOutboundLinks: page.parsed ? page.outboundLinks : null,
+                    validationOrgTraffic: (ahrefs && ahrefs.orgTraffic != null) ? ahrefs.orgTraffic : null,
+                    validationSpamScore: (pageMetrics && pageMetrics.spamScore != null) ? pageMetrics.spamScore : null,
+                    validationResults: validationResults,
+                    validationPassed: validationPassed,
                     lastValidatedAt: new Date().toISOString(),
                     status: 'Validated',
                     ssl: ssl
@@ -3374,16 +3654,301 @@
 
                 const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', update, true);
                 if (result && result.success) {
-                    // Update local state instead of re-fetching
                     Object.assign(b, update);
                     renderOrders();
                 }
+                return update;
             } catch (err) {
                 console.error("Validation Error:", err);
             } finally {
                 const btnAfter = document.getElementById('validate-' + id);
                 if (btnAfter) { btnAfter.disabled = false; btnAfter.innerHTML = '<i class="fas fa-search"></i>'; }
             }
+        }
+
+        // Compact pass/fail chip shown in the orders table status cell
+        function renderValidationSummary(b) {
+            if (!b.validationResults) return '';
+            const vals = Object.values(b.validationResults);
+            const failed = vals.filter(v => v.status === 'fail').length;
+            const passed = vals.filter(v => v.status === 'pass').length;
+            const total = passed + failed; // exclude skipped from the denominator
+            const ok = failed === 0;
+            const bg = ok ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)';
+            const fg = ok ? '#10b981' : '#ef4444';
+            const icon = ok ? 'fa-shield-alt' : 'fa-exclamation-triangle';
+            const txt = ok ? `Passed ${passed}/${total}` : `${failed} failed`;
+            return `<div onclick="event.stopPropagation(); showValidationDetails('${safeJS(b.id)}')"
+                title="View validation details"
+                style="margin-top:4px; display:inline-block; cursor:pointer; background:${bg}; color:${fg}; padding:2px 8px; border-radius:10px; font-size:0.62rem; font-weight:600;">
+                <i class="fas ${icon}"></i> ${txt}</div>`;
+        }
+
+        // Validation detail modal
+        function showValidationDetails(id) {
+            const b = state.backlinks.find(x => x.id === id);
+            if (!b || !b.validationResults) { alert('This link has not been validated yet.'); return; }
+            const labels = { anchor: 'Anchor Text', targetUrl: 'Target URL Present', domain: 'Domain Name', dr: 'DR (Ahrefs)', da: 'DA (Moz)', wordCount: 'Content Length' };
+            const icon = (s) => s === 'pass' ? '<i class="fas fa-check-circle" style="color:#10b981;"></i>'
+                : s === 'fail' ? '<i class="fas fa-times-circle" style="color:#ef4444;"></i>'
+                    : '<i class="fas fa-minus-circle" style="color:#64748b;"></i>';
+            const rows = Object.keys(labels).map(k => {
+                const v = b.validationResults[k] || { status: 'skip', expected: '—', actual: '—' };
+                return `<tr>
+                    <td style="padding:8px 10px;">${icon(v.status)} ${labels[k]}</td>
+                    <td style="padding:8px 10px; color:var(--text-dim); font-size:0.85rem;">${v.expected}</td>
+                    <td style="padding:8px 10px; font-size:0.85rem; color:${v.status === 'fail' ? '#ef4444' : 'inherit'};">${v.actual}</td>
+                </tr>`;
+            }).join('');
+            document.getElementById('validationDetailTitle').innerText = (b.campaignName || 'Backlink') + (b.campaignCode ? ` (${b.campaignCode})` : '');
+            document.getElementById('validationDetailBody').innerHTML = `
+                <div style="margin-bottom:14px; font-size:0.85rem;">
+                    <div style="color:var(--text-dim);">Live link:</div>
+                    <a href="${b.deliveredUrl}" target="_blank" style="color:var(--secondary); word-break:break-all;">${b.deliveredUrl || '—'}</a>
+                </div>
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead><tr style="border-bottom:1px solid var(--border); text-align:left; font-size:0.75rem; color:var(--text-dim);">
+                        <th style="padding:6px 10px;">Check</th><th style="padding:6px 10px;">Expected</th><th style="padding:6px 10px;">Actual</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                <div style="margin-top:14px; font-size:0.75rem; color:var(--text-dim);">
+                    Words: ${b.validationWordCount ?? '—'} · Outbound links: ${b.validationOutboundLinks ?? '—'} · Org traffic: ${b.validationOrgTraffic != null ? Number(b.validationOrgTraffic).toLocaleString() : '—'} · Last validated: ${b.lastValidatedAt ? new Date(b.lastValidatedAt).toLocaleString() : 'Never'}
+                </div>`;
+            document.getElementById('validationDetailModal').style.display = 'flex';
+        }
+        function closeValidationDetails() {
+            document.getElementById('validationDetailModal').style.display = 'none';
+        }
+
+        // ---- Phase 4: toxic backlink detection (reuses Phase 2 crawl/metric data) ----
+        const TOXIC_LABELS = {
+            anchor: 'Anchor text mismatch',
+            wordCount: 'Thin content',
+            dr: 'Low DR',
+            outbound: 'Excessive outbound links',
+            orgTraffic: 'Low organic traffic',
+            spam: 'Spam score',
+            aiContent: 'AI-generated content',
+            niche: 'Niche/topic relevance'
+        };
+
+        function assessToxicity(b) {
+            const cfg = getToxicConfig();
+            const c = {};
+            const validated = !!b.validationResults;
+
+            // 1. Anchor text mismatch (from validation)
+            const av = validated && b.validationResults.anchor;
+            if (!av) c.anchor = { status: 'unknown', detail: 'not validated' };
+            else if (av.status === 'skip') c.anchor = { status: 'na', detail: 'no ordered anchor' };
+            else c.anchor = av.status === 'fail' ? { status: 'toxic', detail: `got "${av.actual}"` } : { status: 'clean', detail: 'matches' };
+
+            // 2. Thin content (< minWordCount)
+            c.wordCount = (b.validationWordCount == null)
+                ? { status: 'unknown', detail: 'not crawled' }
+                : (b.validationWordCount < cfg.minWordCount ? { status: 'toxic', detail: `${b.validationWordCount} words (<${cfg.minWordCount})` } : { status: 'clean', detail: `${b.validationWordCount} words` });
+
+            // 3. Low DR
+            const dr = (b.validatedDr != null && b.validatedDr) ? b.validatedDr : (parseFloat(b.dr) || null);
+            c.dr = (dr == null)
+                ? { status: 'unknown', detail: 'no DR' }
+                : (dr < cfg.minDr ? { status: 'toxic', detail: `DR ${dr} (<${cfg.minDr})` } : { status: 'clean', detail: `DR ${dr}` });
+
+            // 5. Excessive outbound links
+            c.outbound = (b.validationOutboundLinks == null)
+                ? { status: 'unknown', detail: 'not crawled' }
+                : (b.validationOutboundLinks > cfg.maxOutboundLinks ? { status: 'toxic', detail: `${b.validationOutboundLinks} links (>${cfg.maxOutboundLinks})` } : { status: 'clean', detail: `${b.validationOutboundLinks} links` });
+
+            // 7. Low organic traffic
+            c.orgTraffic = (b.validationOrgTraffic == null)
+                ? { status: 'unknown', detail: 'no data' }
+                : (b.validationOrgTraffic < cfg.minOrgTraffic ? { status: 'toxic', detail: `${b.validationOrgTraffic}/mo (<${cfg.minOrgTraffic})` } : { status: 'clean', detail: `${Number(b.validationOrgTraffic).toLocaleString()}/mo` });
+
+            // 8. Spam score (Moz backlinks_spam_score; often unavailable)
+            c.spam = (b.validationSpamScore == null)
+                ? { status: 'unknown', detail: 'no score' }
+                : (b.validationSpamScore > cfg.maxSpamScore ? { status: 'toxic', detail: `spam ${b.validationSpamScore} (>${cfg.maxSpamScore})` } : { status: 'clean', detail: `spam ${b.validationSpamScore}` });
+
+            // 4 & 6 — pending Dan's decisions on data source / method
+            c.aiContent = { status: 'pending', detail: 'scoring API TBD' };
+            c.niche = { status: 'pending', detail: 'relevance method TBD' };
+
+            const toxicCount = Object.values(c).filter(v => v.status === 'toxic').length;
+            return { criteria: c, toxicCount, status: toxicCount > 0 ? 'toxic' : (validated ? 'clean' : 'unknown') };
+        }
+
+        // Compact toxic chip for the orders status cell
+        function renderToxicBadge(b) {
+            if (!b.validationResults) return '';
+            const a = assessToxicity(b);
+            if (a.status === 'unknown') return '';
+            const toxic = a.toxicCount > 0;
+            const bg = toxic ? 'rgba(239,68,68,0.18)' : 'rgba(16,185,129,0.12)';
+            const fg = toxic ? '#ef4444' : '#10b981';
+            const icon = toxic ? 'fa-skull-crossbones' : 'fa-leaf';
+            const txt = toxic ? `Toxic ${a.toxicCount}` : 'Clean';
+            return `<div onclick="event.stopPropagation(); showToxicDetails('${safeJS(b.id)}')"
+                title="Toxicity report"
+                style="margin-top:4px; display:inline-block; cursor:pointer; background:${bg}; color:${fg}; padding:2px 8px; border-radius:10px; font-size:0.62rem; font-weight:600;">
+                <i class="fas ${icon}"></i> ${txt}</div>`;
+        }
+
+        function showToxicDetails(id) {
+            const b = state.backlinks.find(x => x.id === id);
+            if (!b || !b.validationResults) { alert('Validate this link first to assess toxicity.'); return; }
+            const a = assessToxicity(b);
+            const order = ['anchor', 'wordCount', 'dr', 'outbound', 'orgTraffic', 'spam', 'aiContent', 'niche'];
+            const icon = (s) => s === 'toxic' ? '<i class="fas fa-times-circle" style="color:#ef4444;"></i>'
+                : s === 'clean' ? '<i class="fas fa-check-circle" style="color:#10b981;"></i>'
+                    : s === 'pending' ? '<i class="fas fa-hourglass-half" style="color:#f59e0b;"></i>'
+                        : '<i class="fas fa-minus-circle" style="color:#64748b;"></i>';
+            const rows = order.map(k => {
+                const v = a.criteria[k];
+                return `<tr>
+                    <td style="padding:8px 10px;">${icon(v.status)} ${TOXIC_LABELS[k]}</td>
+                    <td style="padding:8px 10px; font-size:0.85rem; color:${v.status === 'toxic' ? '#ef4444' : 'var(--text-dim)'};">${v.detail}</td>
+                </tr>`;
+            }).join('');
+            const verdict = a.toxicCount > 0
+                ? `<span style="color:#ef4444; font-weight:700;">⚠ ${a.toxicCount} toxic signal(s)</span>`
+                : `<span style="color:#10b981; font-weight:700;">✓ No toxic signals</span>`;
+            document.getElementById('toxicDetailTitle').innerText = (b.campaignName || 'Backlink') + (b.campaignCode ? ` (${b.campaignCode})` : '');
+            document.getElementById('toxicDetailBody').innerHTML = `
+                <div style="margin-bottom:14px;">${verdict}</div>
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead><tr style="border-bottom:1px solid var(--border); text-align:left; font-size:0.75rem; color:var(--text-dim);">
+                        <th style="padding:6px 10px;">Criterion</th><th style="padding:6px 10px;">Detail</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                <div style="margin-top:14px; font-size:0.72rem; color:var(--text-dim);">
+                    ⏳ AI-content scoring and niche relevance are pending Dan's chosen data source/method. Thresholds are editable under the ⚙ Settings.
+                </div>`;
+            document.getElementById('toxicDetailModal').style.display = 'flex';
+        }
+        function closeToxicDetails() {
+            document.getElementById('toxicDetailModal').style.display = 'none';
+        }
+
+        // ---- Phase 3: Google Chat notifications on validation failure ----
+        const CHAT_WEBHOOK_KEY = 'blChatWebhook';
+        const CHAT_AUTONOTIFY_KEY = 'blAutoNotify';
+        const NOTIFY_RECIPIENTS = 'Dan Tran & Desiree Bin';
+        // Team default Chat webhook (Backlink QA space). A per-browser Settings value overrides this.
+        const DEFAULT_CHAT_WEBHOOK = 'https://chat.googleapis.com/v1/spaces/AAQAd-nPSp8/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=dN1DbOByNgLPxULJ-ue2e1XJ6zUUCHL8vqDLfpVsSik';
+
+        function getChatWebhook() {
+            const saved = (localStorage.getItem(CHAT_WEBHOOK_KEY) || '').trim();
+            return saved || DEFAULT_CHAT_WEBHOOK;
+        }
+        function isAutoNotify() { return localStorage.getItem(CHAT_AUTONOTIFY_KEY) === '1'; }
+
+        const VALIDATION_LABELS = { anchor: 'Anchor', targetUrl: 'Target URL', domain: 'Domain', dr: 'DR', da: 'DA', wordCount: 'Words' };
+
+        // Build a Google Chat text message summarising failed backlinks (markdown-ish)
+        function buildBacklinkChatMessage(items) {
+            const MAX = 20;
+            const shown = items.slice(0, MAX);
+            const lines = [`*⚠️ Backlink Validation Alert* — ${items.length} link(s) failed QA`, ''];
+            shown.forEach(b => {
+                const fails = Object.keys(b.validationResults || {})
+                    .filter(k => b.validationResults[k].status === 'fail')
+                    .map(k => {
+                        const v = b.validationResults[k];
+                        return `${VALIDATION_LABELS[k] || k}: expected ${v.expected}, got ${v.actual}`;
+                    });
+                const head = `${b.campaignCode ? '[' + b.campaignCode + '] ' : ''}${b.campaignName || 'Unnamed'} — _${b.keyword || ''}_`;
+                lines.push(`• ${head}`);
+                fails.forEach(f => lines.push(`    ✗ ${f}`));
+                if (b.deliveredUrl) lines.push(`    🔗 ${b.deliveredUrl}`);
+                lines.push('');
+            });
+            if (items.length > MAX) lines.push(`…and ${items.length - MAX} more.`);
+            lines.push(`cc ${NOTIFY_RECIPIENTS}`);
+            return lines.join('\n');
+        }
+
+        // POST to the Google Chat webhook (direct browser POST works — CORS supported)
+        async function sendChatMessage(text) {
+            const webhook = getChatWebhook();
+            if (!webhook) return { ok: false, error: 'No webhook configured' };
+            try {
+                const res = await fetch(webhook, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+                    body: JSON.stringify({ text })
+                });
+                if (res.ok) return { ok: true };
+                const err = await res.json().catch(() => ({}));
+                return { ok: false, error: err.error?.message || res.statusText };
+            } catch (e) {
+                return { ok: false, error: e.message };
+            }
+        }
+
+        // Notify about a set of failed backlinks. silent = no alert popups (used by auto-notify).
+        async function notifyValidationFailures(items, silent) {
+            const failed = (items || []).filter(b => b.validationResults && b.validationPassed === false);
+            if (failed.length === 0) {
+                if (!silent) alert('No failed validations to report.');
+                return { ok: false, error: 'nothing to send' };
+            }
+            if (!getChatWebhook()) {
+                if (!silent) alert('No Google Chat webhook configured. Open "Notify Settings" to add one.');
+                return { ok: false, error: 'no webhook' };
+            }
+            const result = await sendChatMessage(buildBacklinkChatMessage(failed));
+            if (!silent) {
+                alert(result.ok ? `Sent alert for ${failed.length} failed link(s) to Google Chat.` : `Failed to send: ${result.error}`);
+            }
+            return result;
+        }
+
+        // Manual trigger — report every currently-failed backlink
+        function notifyAllFailures() {
+            notifyValidationFailures(state.backlinks, false);
+        }
+
+        // Notify Settings modal
+        function openNotifySettings() {
+            document.getElementById('notifyWebhookInput').value = getChatWebhook();
+            document.getElementById('notifyAutoToggle').checked = isAutoNotify();
+            const t = getToxicConfig();
+            document.getElementById('toxMinWords').value = t.minWordCount;
+            document.getElementById('toxMinDr').value = t.minDr;
+            document.getElementById('toxMaxOutbound').value = t.maxOutboundLinks;
+            document.getElementById('toxMinOrgTraffic').value = t.minOrgTraffic;
+            document.getElementById('toxMaxSpam').value = t.maxSpamScore;
+            document.getElementById('notifyTestStatus').innerText = '';
+            document.getElementById('notifySettingsModal').style.display = 'flex';
+        }
+        function closeNotifySettings() {
+            document.getElementById('notifySettingsModal').style.display = 'none';
+        }
+        function saveNotifySettings() {
+            localStorage.setItem(CHAT_WEBHOOK_KEY, document.getElementById('notifyWebhookInput').value.trim());
+            localStorage.setItem(CHAT_AUTONOTIFY_KEY, document.getElementById('notifyAutoToggle').checked ? '1' : '0');
+            const numOr = (id, def) => { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? def : v; };
+            const toxic = {
+                minWordCount: numOr('toxMinWords', TOXIC_DEFAULTS.minWordCount),
+                minDr: numOr('toxMinDr', TOXIC_DEFAULTS.minDr),
+                maxOutboundLinks: numOr('toxMaxOutbound', TOXIC_DEFAULTS.maxOutboundLinks),
+                minOrgTraffic: numOr('toxMinOrgTraffic', TOXIC_DEFAULTS.minOrgTraffic),
+                maxSpamScore: numOr('toxMaxSpam', TOXIC_DEFAULTS.maxSpamScore)
+            };
+            localStorage.setItem('blToxicConfig', JSON.stringify(toxic));
+            if (typeof renderOrders === 'function') renderOrders();
+            closeNotifySettings();
+        }
+        async function sendTestNotification() {
+            const url = document.getElementById('notifyWebhookInput').value.trim();
+            if (!url) { document.getElementById('notifyTestStatus').innerText = 'Enter a webhook URL first.'; return; }
+            localStorage.setItem(CHAT_WEBHOOK_KEY, url); // persist so sendChatMessage picks it up
+            const status = document.getElementById('notifyTestStatus');
+            status.innerText = 'Sending…';
+            const r = await sendChatMessage(`✅ Test message from the Backlink Tracking tool — notifications are wired up. (cc ${NOTIFY_RECIPIENTS})`);
+            status.innerText = r.ok ? '✓ Sent — check the Chat space.' : `✗ Failed: ${r.error}`;
         }
 
         async function bulkValidateOrders() {
@@ -3409,6 +3974,18 @@
             }
             state.selectedOrders = [];
             renderOrders();
+
+            // Phase 3: alert Dan & Desiree about any failures from this batch
+            const failedBatch = ids
+                .map(id => state.backlinks.find(b => b.id === id))
+                .filter(b => b && b.validationPassed === false);
+            if (failedBatch.length > 0 && getChatWebhook()) {
+                if (isAutoNotify()) {
+                    notifyValidationFailures(failedBatch, true);
+                } else if (confirm(`${failedBatch.length} link(s) failed validation. Send an alert to ${NOTIFY_RECIPIENTS} on Google Chat?`)) {
+                    notifyValidationFailures(failedBatch, false);
+                }
+            }
         }
 
         function getStatusColor(status) {
@@ -3475,6 +4052,18 @@
         }
 
         function orderBacklink(keyword) {
+            // Reset modal to create-mode
+            document.getElementById('orderModalTitle').innerText = 'New Backlink Order';
+            document.getElementById('orderSubmitBtn').innerText = 'Place Order';
+            document.getElementById('orderEditId').value = '';
+            ['orderCampaignCode', 'orderSeo', 'orderAnchorText', 'orderTargetUrl', 'orderLinkType',
+                'orderCountry', 'orderDomainName', 'orderLiveLink', 'orderPublishDate', 'orderIndexedDate',
+                'orderDr', 'orderDa', 'orderCost', 'orderNote'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+            document.getElementById('orderQuantity').value = 1;
+
             document.getElementById('orderKeyword').value = keyword;
             document.getElementById('orderKeywordDisplay').value = keyword;
 
@@ -3488,68 +4077,332 @@
             document.getElementById('orderModal').style.display = 'flex';
         }
 
-        async function exportOrderedCSV() {
-            const vendorFilter = document.getElementById('vendorExportFilter').value.toLowerCase();
+        // ---- Phase 1: Vendor-facing order sheet (Tab 2 of SOP, 14 columns) ----
+        const VENDOR_SHEET_HEADERS = ['Campaign Code', 'Target Keyword', 'Anchor Text', 'Target URL',
+            'Order Date', 'Delivered Date', 'Indexed Date', 'Domain Name', 'DR', 'DA', 'Live Link',
+            'Cost', 'Vendor Name', 'Note'];
 
-            const orderedLinks = state.backlinks.filter(b => {
-                const isOrdered = b.status === 'Ordered';
-                const matchesVendor = !vendorFilter || (b.vendorName || '').toLowerCase().includes(vendorFilter);
-                return isOrdered && matchesVendor;
-            });
+        function vendorSheetRow(b) {
+            const fmtDate = (d) => d ? new Date(d).toLocaleDateString() : '';
+            return [
+                b.campaignCode || '',
+                b.keyword && b.keyword !== '-' ? b.keyword : '',
+                b.anchorText || '',
+                b.targetUrl && b.targetUrl !== '-' ? b.targetUrl : '',
+                fmtDate(b.createdAt),                                          // Order Date
+                fmtDate(b.publishDate),                                        // Delivered Date (vendor fills)
+                fmtDate(b.indexedDate),                                        // Indexed Date (vendor fills)
+                b.domainName || (b.deliveredUrl ? getDomain(b.deliveredUrl) : ''),
+                b.dr || '',
+                b.vendorDa || b.da || '',
+                b.deliveredUrl || '',                                         // Live Link (vendor fills)
+                (b.cost !== undefined && b.cost !== null && b.cost !== '') ? b.cost : '',
+                b.vendorName || '',
+                b.note || ''
+            ];
+        }
 
-            if (orderedLinks.length === 0) {
-                alert('No "Ordered" backlinks found' + (vendorFilter ? ' for this vendor.' : '.'));
+        // All non-deleted orders for a given vendor (blank = all vendors)
+        function getVendorOrders(vendorFilter) {
+            const vf = (vendorFilter || '').toLowerCase();
+            return state.backlinks.filter(b =>
+                !b.deleted && (!vf || (b.vendorName || '').toLowerCase().includes(vf))
+            );
+        }
+
+        // Excel sheet names: max 31 chars, no  : \ / ? * [ ]
+        function sanitizeSheetName(name) {
+            return (name || 'Vendor').replace(/[:\\\/?*\[\]]/g, ' ').trim().substring(0, 31) || 'Vendor';
+        }
+
+        function exportOrderSheet(format) {
+            const vendorFilter = document.getElementById('vendorExportFilter').value.trim();
+            const orders = getVendorOrders(vendorFilter);
+
+            if (orders.length === 0) {
+                alert('No backlinks found' + (vendorFilter ? ` for vendor "${vendorFilter}".` : '.'));
                 return;
             }
 
-            const headers = ['Campaign', 'Keyword', 'Quantity', 'Vendor', 'Requested Date'];
-            const rows = orderedLinks.map(b => [
-                b.campaignName || 'N/A',
-                b.keyword || 'N/A',
-                b.quantity || 1,
-                b.vendorName || 'N/A',
-                b.createdAt ? new Date(b.createdAt).toLocaleDateString() : 'N/A'
-            ]);
+            const dateStr = new Date().toISOString().split('T')[0];
+            const tag = vendorFilter ? vendorFilter.replace(/[^a-z0-9]/gi, '_') : 'all_vendors';
 
-            const csvContent = [headers, ...rows]
-                .map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
-                .join("\n");
+            if (format === 'csv') {
+                const aoa = [VENDOR_SHEET_HEADERS, ...orders.map(vendorSheetRow)];
+                const csvContent = aoa
+                    .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+                    .join('\n');
+                const blob = new Blob(['﻿' + csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `order_sheet_${tag}_${dateStr}.csv`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                return;
+            }
 
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            // XLSX — one sheet per vendor when no vendor filter, else a single sheet
+            const wb = XLSX.utils.book_new();
+            if (vendorFilter) {
+                const ws = XLSX.utils.aoa_to_sheet([VENDOR_SHEET_HEADERS, ...orders.map(vendorSheetRow)]);
+                XLSX.utils.book_append_sheet(wb, ws, sanitizeSheetName(vendorFilter));
+            } else {
+                // Group by vendor → one filtered tab each
+                const byVendor = {};
+                orders.forEach(b => {
+                    const v = b.vendorName || 'Unassigned';
+                    (byVendor[v] = byVendor[v] || []).push(b);
+                });
+                const usedNames = {};
+                Object.keys(byVendor).sort().forEach(v => {
+                    let name = sanitizeSheetName(v);
+                    // Ensure uniqueness within the workbook
+                    if (usedNames[name]) { name = sanitizeSheetName(name.substring(0, 28) + '_' + (++usedNames[name])); }
+                    else { usedNames[name] = 1; }
+                    const ws = XLSX.utils.aoa_to_sheet([VENDOR_SHEET_HEADERS, ...byVendor[v].map(vendorSheetRow)]);
+                    XLSX.utils.book_append_sheet(wb, ws, name);
+                });
+            }
+            XLSX.writeFile(wb, `order_sheet_${tag}_${dateStr}.xlsx`);
+        }
+
+        // ---- Phase 5: master tracking sheet export (Tab 1, 18 cols + QA columns) in 4 formats ----
+        const MASTER_SHEET_HEADERS = ['Client Name', 'Campaign Code', 'BD', 'SEO', 'Keyword', 'Actual Anchor Text',
+            'Target URL', 'Link Type', 'Country', 'Order Date', 'Publish Date', 'Indexed Date', 'Domain Name',
+            'DR', 'DA', 'Live Link', 'Cost', 'Vendor Name', 'Validation', 'Toxic'];
+
+        function masterSheetRow(b) {
+            const fmtDate = (d) => d ? new Date(d).toLocaleDateString() : '';
+            const vState = b.validationResults
+                ? (b.validationPassed === false ? 'FAILED' : 'Passed')
+                : 'Not validated';
+            let toxState = '';
+            if (b.validationResults) {
+                const a = assessToxicity(b);
+                toxState = a.toxicCount > 0 ? `Toxic (${a.toxicCount})` : 'Clean';
+            }
+            return [
+                b.campaignName || '', b.campaignCode || '', b.bd || '', b.seo || '',
+                b.keyword && b.keyword !== '-' ? b.keyword : '', b.anchorText || '',
+                b.targetUrl && b.targetUrl !== '-' ? b.targetUrl : '', b.linkType || '', b.country || '',
+                fmtDate(b.createdAt), fmtDate(b.publishDate), fmtDate(b.indexedDate),
+                b.domainName || (b.deliveredUrl ? getDomain(b.deliveredUrl) : ''),
+                (b.validatedDr || b.dr || ''), (b.validatedDa || b.vendorDa || b.da || ''),
+                b.deliveredUrl || '',
+                (b.cost !== undefined && b.cost !== null && b.cost !== '') ? b.cost : '',
+                b.vendorName || '', vState, toxState
+            ];
+        }
+
+        // Orders matching the current on-screen filters (search/status/bd/date) — "export what you see"
+        function getFilteredOrders() {
+            return state.backlinks.filter(b => {
+                if (b.deleted) return false;
+                const s = state.orderFilters.search;
+                const matchesSearch = !s ||
+                    (b.campaignName || '').toLowerCase().includes(s) ||
+                    (b.campaignCode || '').toLowerCase().includes(s) ||
+                    (b.keyword || '').toLowerCase().includes(s) ||
+                    (b.anchorText || '').toLowerCase().includes(s) ||
+                    (b.deliveredUrl || '').toLowerCase().includes(s) ||
+                    (b.vendorName || '').toLowerCase().includes(s) ||
+                    getDomain(b.targetUrl).toLowerCase().includes(s);
+                const matchesStatus = state.orderFilters.status === 'all'
+                    || (state.orderFilters.status === 'Toxic' ? (b.validationResults && assessToxicity(b).toxicCount > 0) : b.status === state.orderFilters.status);
+                const matchesBD = !state.orderFilters.bd || (b.bd || '').toLowerCase().includes(state.orderFilters.bd);
+                const matchesDate = !state.orderFilters.date || (b.createdAt || '').includes(state.orderFilters.date);
+                return matchesSearch && matchesStatus && matchesBD && matchesDate;
+            });
+        }
+
+        function handleExportSelect(value) {
+            document.getElementById('exportFormatSelect').value = ''; // reset to placeholder
+            if (!value) return;
+            const [scope, fmt] = value.split(':');
+            if (scope === 'vendor') return exportOrderSheet(fmt);
+            if (scope === 'master') return exportMaster(fmt);
+        }
+
+        async function exportMaster(format) {
+            const orders = getFilteredOrders();
+            if (orders.length === 0) { alert('No orders match the current filters.'); return; }
+            const dateStr = new Date().toISOString().split('T')[0];
+            const aoa = [MASTER_SHEET_HEADERS, ...orders.map(masterSheetRow)];
+
+            if (format === 'csv') {
+                const csv = aoa.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+                downloadBlob('﻿' + csv, `backlink_tracking_${dateStr}.csv`, 'text/csv;charset=utf-8;');
+            } else if (format === 'xlsx') {
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Tracking');
+                XLSX.writeFile(wb, `backlink_tracking_${dateStr}.xlsx`);
+            } else if (format === 'pdf') {
+                exportMasterPdf(orders, dateStr);
+            } else if (format === 'gsheet') {
+                await exportMasterToGoogleSheet(aoa, dateStr);
+            }
+        }
+
+        function downloadBlob(content, filename, type) {
+            const blob = new Blob([content], { type });
             const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            const filename = `ordered_backlinks_${new Date().toISOString().split('T')[0]}.csv`;
-            link.setAttribute("download", filename);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            const a = document.createElement('a');
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function exportMasterPdf(orders, dateStr) {
+            const jsPDFCtor = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
+            if (!jsPDFCtor) { alert('PDF library failed to load.'); return; }
+            const doc = new jsPDFCtor({ orientation: 'landscape', unit: 'pt', format: 'a3' });
+            // Compact subset of columns for a readable PDF
+            const cols = ['Client', 'Code', 'Keyword', 'Anchor', 'Target URL', 'Type', 'DR', 'DA', 'Live Link', 'Vendor', 'Validation', 'Toxic'];
+            const body = orders.map(b => {
+                const a = b.validationResults ? assessToxicity(b) : null;
+                return [
+                    b.campaignName || '', b.campaignCode || '', b.keyword !== '-' ? (b.keyword || '') : '',
+                    b.anchorText || '', b.targetUrl !== '-' ? (b.targetUrl || '') : '', b.linkType || '',
+                    (b.validatedDr || b.dr || ''), (b.validatedDa || b.vendorDa || b.da || ''),
+                    b.deliveredUrl || '', b.vendorName || '',
+                    b.validationResults ? (b.validationPassed === false ? 'FAILED' : 'Passed') : '—',
+                    a ? (a.toxicCount > 0 ? `Toxic ${a.toxicCount}` : 'Clean') : '—'
+                ];
+            });
+            doc.setFontSize(14);
+            doc.text(`Backlink Tracking — ${orders.length} link(s) — ${dateStr}`, 40, 30);
+            doc.autoTable({
+                head: [cols], body, startY: 45, styles: { fontSize: 7, cellPadding: 3, overflow: 'linebreak' },
+                headStyles: { fillColor: [79, 70, 229] },
+                columnStyles: { 4: { cellWidth: 130 }, 8: { cellWidth: 150 } },
+                didParseCell: (data) => {
+                    if (data.section === 'body') {
+                        const txt = String(data.cell.raw || '');
+                        if (txt === 'FAILED' || txt.startsWith('Toxic')) data.cell.styles.textColor = [220, 38, 38];
+                    }
+                }
+            });
+            doc.save(`backlink_tracking_${dateStr}.pdf`);
+        }
+
+        async function exportMasterToGoogleSheet(aoa, dateStr) {
+            if (typeof getToken !== 'function') { alert('Google sign-in not available.'); return; }
+            getToken(async (accessToken) => {
+                try {
+                    // 1. Create the spreadsheet
+                    const createRes = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ properties: { title: `Backlink Tracking ${dateStr}` } })
+                    });
+                    const created = await createRes.json();
+                    if (!createRes.ok || !created.spreadsheetId) {
+                        throw new Error(created.error?.message || 'create failed');
+                    }
+                    // 2. Write the rows
+                    const writeRes = await fetch(
+                        `https://sheets.googleapis.com/v4/spreadsheets/${created.spreadsheetId}/values/Sheet1!A1?valueInputOption=RAW`,
+                        {
+                            method: 'PUT',
+                            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ values: aoa })
+                        }
+                    );
+                    if (!writeRes.ok) { const e = await writeRes.json().catch(() => ({})); throw new Error(e.error?.message || 'write failed'); }
+                    window.open(created.spreadsheetUrl, '_blank');
+                } catch (err) {
+                    alert('Google Sheet export failed: ' + err.message + '\n\n(The signed-in Google account needs Sheets write access — approve the consent prompt.)');
+                }
+            });
         }
 
         async function saveOrder() {
+            const editId = document.getElementById('orderEditId').value;
             const vendorName = document.getElementById('orderVendorInput').value;
             const vendor = state.vendors.find(v => v.name === vendorName);
-            const campaign = state.campaigns.find(c => c.id === activeCampaignId);
+            const val = (id) => document.getElementById(id).value.trim();
+            const num = (id) => parseFloat(document.getElementById(id).value) || 0;
 
             const orderData = {
-                campaignId: activeCampaignId,
-                campaignName: campaign ? campaign.name : 'N/A',
                 keyword: document.getElementById('orderKeyword').value,
                 vendorId: vendor ? vendor.id : 'custom',
                 vendorName: vendorName || 'N/A',
                 quantity: document.getElementById('orderQuantity').value,
-                status: 'Ordered',
+                campaignCode: val('orderCampaignCode'),
+                seo: val('orderSeo'),
+                anchorText: val('orderAnchorText'),
+                targetUrl: val('orderTargetUrl'),
+                linkType: val('orderLinkType'),
+                country: val('orderCountry'),
+                domainName: val('orderDomainName'),
+                publishDate: val('orderPublishDate'),
+                indexedDate: val('orderIndexedDate'),
+                dr: num('orderDr'),
+                vendorDa: num('orderDa'),
+                cost: num('orderCost'),
+                note: val('orderNote'),
                 type: 'Backlink'
             };
 
+            const liveLink = val('orderLiveLink');
+            if (liveLink) orderData.deliveredUrl = liveLink;
+
+            if (editId) {
+                // Editing an existing record — preserve id & status
+                orderData.id = editId;
+                const existing = state.backlinks.find(b => b.id === editId);
+                if (existing && existing.status) orderData.status = existing.status;
+            } else {
+                const campaign = state.campaigns.find(c => c.id === activeCampaignId);
+                orderData.campaignId = activeCampaignId;
+                orderData.campaignName = campaign ? campaign.name : 'N/A';
+                orderData.status = 'Ordered';
+            }
+
             const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', orderData);
             if (result && result.success) {
+                if (editId) {
+                    const b = state.backlinks.find(x => x.id === editId);
+                    if (b) Object.assign(b, orderData);
+                    renderOrders();
+                } else {
+                    fetchOrders();
+                }
                 closeOrderModal();
                 closeKeywordModal();
-                fetchOrders();
             } else {
-                alert('Failed to place order');
+                alert('Failed to save order');
             }
+        }
+
+        function openEditOrder(id) {
+            const b = state.backlinks.find(x => x.id === id);
+            if (!b) return;
+            document.getElementById('orderModalTitle').innerText = 'Edit Backlink Order';
+            document.getElementById('orderSubmitBtn').innerText = 'Save Changes';
+            document.getElementById('orderEditId').value = id;
+            document.getElementById('orderKeyword').value = b.keyword || '';
+            document.getElementById('orderKeywordDisplay').value = b.keyword || '';
+            document.getElementById('orderVendorInput').value = b.vendorName || '';
+            document.getElementById('orderQuantity').value = b.quantity || 1;
+            document.getElementById('orderCampaignCode').value = b.campaignCode || '';
+            document.getElementById('orderSeo').value = b.seo || '';
+            document.getElementById('orderAnchorText').value = b.anchorText || '';
+            document.getElementById('orderTargetUrl').value = b.targetUrl && b.targetUrl !== '-' ? b.targetUrl : '';
+            document.getElementById('orderLinkType').value = b.linkType || '';
+            document.getElementById('orderCountry').value = b.country || '';
+            document.getElementById('orderDomainName').value = b.domainName || '';
+            document.getElementById('orderLiveLink').value = b.deliveredUrl || '';
+            document.getElementById('orderPublishDate').value = b.publishDate || '';
+            document.getElementById('orderIndexedDate').value = b.indexedDate || '';
+            document.getElementById('orderDr').value = b.dr || '';
+            document.getElementById('orderDa').value = b.vendorDa || b.da || '';
+            document.getElementById('orderCost').value = b.cost || '';
+            document.getElementById('orderNote').value = b.note || '';
+            document.getElementById('orderModal').style.display = 'flex';
         }
 
         function closeOrderModal() {
@@ -6433,31 +7286,169 @@
     </div>
     <!-- Order Modal -->
     <div id="orderModal" class="modal">
-        <div class="modal-content">
-            <h3 style="margin-bottom: 24px;">New Backlink Order</h3>
+        <div class="modal-content" style="max-width: 720px; width: 90%; max-height: 88vh; overflow-y: auto;">
+            <h3 id="orderModalTitle" style="margin-bottom: 24px;">New Backlink Order</h3>
             <form id="orderForm" onsubmit="event.preventDefault(); saveOrder();">
+                <input type="hidden" id="orderEditId">
                 <input type="hidden" id="orderKeyword">
-                <div class="form-group">
-                    <label>Keyword</label>
-                    <input type="text" id="orderKeywordDisplay" disabled>
-                </div>
-                <div class="form-group">
-                    <label>Vendor</label>
-                    <input type="text" id="orderVendorInput" list="vendorList" placeholder="Select or type vendor..."
-                        required>
-                    <datalist id="vendorList"></datalist>
-                </div>
-                <div class="form-group">
-                    <label>Quantity</label>
-                    <input type="number" id="orderQuantity" value="1" min="1" required>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px;">
+                    <div class="form-group">
+                        <label>Keyword</label>
+                        <input type="text" id="orderKeywordDisplay" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label>Vendor</label>
+                        <input type="text" id="orderVendorInput" list="vendorList" placeholder="Select or type vendor..."
+                            required>
+                        <datalist id="vendorList"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Campaign Code</label>
+                        <input type="text" id="orderCampaignCode" placeholder="e.g. 25-12/AUE-01">
+                    </div>
+                    <div class="form-group">
+                        <label>SEO Consultant</label>
+                        <input type="text" id="orderSeo" placeholder="e.g. Desiree">
+                    </div>
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label>Actual Anchor Text</label>
+                        <input type="text" id="orderAnchorText" placeholder="Approved / live anchor text">
+                    </div>
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label>Target URL</label>
+                        <input type="text" id="orderTargetUrl" placeholder="https://client.com/page">
+                    </div>
+                    <div class="form-group">
+                        <label>Link Type</label>
+                        <input type="text" id="orderLinkType" placeholder="e.g. International">
+                    </div>
+                    <div class="form-group">
+                        <label>Country</label>
+                        <input type="text" id="orderCountry" placeholder="e.g. Singapore">
+                    </div>
+                    <div class="form-group">
+                        <label>Domain Name</label>
+                        <input type="text" id="orderDomainName" placeholder="referring domain">
+                    </div>
+                    <div class="form-group">
+                        <label>Live Link</label>
+                        <input type="text" id="orderLiveLink" placeholder="https://referring-domain.com/article">
+                    </div>
+                    <div class="form-group">
+                        <label>Publish Date</label>
+                        <input type="date" id="orderPublishDate">
+                    </div>
+                    <div class="form-group">
+                        <label>Indexed Date</label>
+                        <input type="date" id="orderIndexedDate">
+                    </div>
+                    <div class="form-group">
+                        <label>DR (Ahrefs)</label>
+                        <input type="number" id="orderDr" min="0" max="100" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label>DA (Moz)</label>
+                        <input type="number" id="orderDa" min="0" max="100" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Cost ($)</label>
+                        <input type="number" id="orderCost" step="0.01" min="0" placeholder="0.00">
+                    </div>
+                    <div class="form-group">
+                        <label>Quantity</label>
+                        <input type="number" id="orderQuantity" value="1" min="1" required>
+                    </div>
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <label>Note</label>
+                        <input type="text" id="orderNote" placeholder="Special instructions (optional)">
+                    </div>
                 </div>
                 <div style="display: flex; gap: 12px; margin-top: 32px;">
                     <button type="button" class="btn" style="flex: 1; justify-content: center;"
                         onclick="closeOrderModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary" style="flex: 1; justify-content: center;">Place
-                        Order</button>
+                    <button type="submit" class="btn btn-primary" style="flex: 1; justify-content: center;"
+                        id="orderSubmitBtn">Place Order</button>
                 </div>
             </form>
+        </div>
+    </div>
+    <!-- Notify Settings Modal -->
+    <div id="notifySettingsModal" class="modal">
+        <div class="modal-content" style="max-width: 560px; width: 90%;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px;">
+                <div>
+                    <h3 style="margin: 0;">Notification Settings</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-dim); margin: 4px 0 0 0;">Alerts go to your Google Chat space (cc Dan Tran &amp; Desiree Bin).</p>
+                </div>
+                <button class="btn" onclick="closeNotifySettings()" style="padding: 4px 8px; background: transparent;">
+                    <i class="fas fa-times" style="font-size: 1.2rem;"></i>
+                </button>
+            </div>
+            <div class="form-group">
+                <label>Google Chat Webhook URL</label>
+                <input type="password" id="notifyWebhookInput" placeholder="https://chat.googleapis.com/v1/spaces/...">
+                <p style="font-size: 0.72rem; color: var(--text-dim); margin-top: 6px;">In the target Chat space: Apps &amp; integrations → Webhooks → Add → copy the URL.</p>
+            </div>
+            <label style="display: flex; align-items: center; gap: 10px; margin: 14px 0; cursor: pointer;">
+                <input type="checkbox" id="notifyAutoToggle" style="accent-color: var(--primary); width: 16px; height: 16px;">
+                <span style="font-size: 0.9rem;">Auto-send alerts after bulk validation (no prompt)</span>
+            </label>
+
+            <div style="border-top: 1px solid var(--border); margin: 18px 0 14px; padding-top: 16px;">
+                <h4 style="margin: 0 0 4px;">Toxic-link thresholds</h4>
+                <p style="font-size: 0.72rem; color: var(--text-dim); margin: 0 0 12px;">Defaults are placeholders — Dan to finalise.</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px;">
+                    <div class="form-group" style="margin:0;"><label>Min word count</label><input type="number" id="toxMinWords" min="0"></div>
+                    <div class="form-group" style="margin:0;"><label>Min DR</label><input type="number" id="toxMinDr" min="0" max="100"></div>
+                    <div class="form-group" style="margin:0;"><label>Max outbound links</label><input type="number" id="toxMaxOutbound" min="0"></div>
+                    <div class="form-group" style="margin:0;"><label>Min organic traffic / mo</label><input type="number" id="toxMinOrgTraffic" min="0"></div>
+                    <div class="form-group" style="margin:0;"><label>Max spam score</label><input type="number" id="toxMaxSpam" min="0" max="100"></div>
+                </div>
+            </div>
+
+            <div id="notifyTestStatus" style="font-size: 0.8rem; color: var(--text-dim); min-height: 18px; margin-bottom: 8px;"></div>
+            <div style="display: flex; gap: 12px;">
+                <button type="button" class="btn" onclick="sendTestNotification()" style="flex: 1; justify-content: center;">
+                    <i class="fas fa-paper-plane"></i> Send Test
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveNotifySettings()" style="flex: 1; justify-content: center;">Save</button>
+            </div>
+        </div>
+    </div>
+    <!-- Toxic Detail Modal -->
+    <div id="toxicDetailModal" class="modal">
+        <div class="modal-content" style="max-width: 600px; width: 90%;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px;">
+                <div>
+                    <h3 style="margin: 0;">Toxicity Report</h3>
+                    <p id="toxicDetailTitle" style="font-size: 0.85rem; color: var(--text-dim); margin: 4px 0 0 0;"></p>
+                </div>
+                <button class="btn" onclick="closeToxicDetails()" style="padding: 4px 8px; background: transparent;">
+                    <i class="fas fa-times" style="font-size: 1.2rem;"></i>
+                </button>
+            </div>
+            <div id="toxicDetailBody"></div>
+            <div style="margin-top: 20px; text-align: right;">
+                <button class="btn btn-primary" onclick="closeToxicDetails()">Close</button>
+            </div>
+        </div>
+    </div>
+    <!-- Validation Detail Modal -->
+    <div id="validationDetailModal" class="modal">
+        <div class="modal-content" style="max-width: 640px; width: 90%;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px;">
+                <div>
+                    <h3 style="margin: 0;">Validation Report</h3>
+                    <p id="validationDetailTitle" style="font-size: 0.85rem; color: var(--text-dim); margin: 4px 0 0 0;"></p>
+                </div>
+                <button class="btn" onclick="closeValidationDetails()" style="padding: 4px 8px; background: transparent;">
+                    <i class="fas fa-times" style="font-size: 1.2rem;"></i>
+                </button>
+            </div>
+            <div id="validationDetailBody"></div>
+            <div style="margin-top: 20px; text-align: right;">
+                <button class="btn btn-primary" onclick="closeValidationDetails()">Close</button>
+            </div>
         </div>
     </div>
     <!-- Trend Modal -->
