@@ -3597,7 +3597,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2311</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2313</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -11230,10 +11230,15 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                    </details>`
                 : '';
 
-            const thinkingHtml = thinkingText
+            // Render reasoning as markdown (escape first so any literal HTML in the
+            // trace is shown safely, then normalize escaped newlines incl. double-
+            // escaped \\n). Suppress it entirely when the model dumps its full answer
+            // into the reasoning channel — a long, noisy raw-md block. ~2000 chars is
+            // well past genuine concise reasoning.
+            const thinkingHtml = (thinkingText && thinkingText.length <= 2000)
                 ? `<details class="tool-log thinking-log">
                     <summary class="tool-log-label"><i class="fas fa-brain"></i> Thinking process</summary>
-                    <div class="tool-log-content" style="white-space:pre-wrap; font-family:inherit;">${escapeHtml(thinkingText)}</div>
+                    <div class="tool-log-content">${marked.parse(escapeHtml(thinkingText).replace(/\\+n/g, '\n'))}</div>
                    </details>`
                 : '';
 
