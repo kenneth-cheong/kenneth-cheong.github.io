@@ -205,17 +205,23 @@ export const handler = async (event) => {
 
         const safeOrg = (form.organisation || form.name || 'trial-user').replace(/[^a-z0-9]+/gi, '-').slice(0, 40);
         const filename = `Digimetrics-NDA-Acceptance-${safeOrg}.pdf`;
+        // The default SES sender (kenneth@mediaone.co) is rejected by mediaone.co's
+        // DMARC policy. Send this notification from a verified address whose domain
+        // doesn't reject (gmail is p=none) so it actually lands. The Admin →
+        // Agreements view is the authoritative record regardless of email outcome.
+        const notifyFrom = process.env.NDA_NOTIFY_FROM || 'Digimetrics Free Trial <clarinet.kenneth@gmail.com>';
         try {
           if (pdf) {
             await sendRawEmail({
               to: ['tom@mediaone.co', 'kenneth@mediaone.co'],
+              from: notifyFrom,
               replyTo: form.email,
               subject, text, html,
               attachments: [{ filename, contentType: 'application/pdf', content: pdf }],
             });
           } else {
             // PDF generation failed — still send the notification without it.
-            await sendEmail({ to: ['tom@mediaone.co', 'kenneth@mediaone.co'], subject, text, html });
+            await sendEmail({ to: ['tom@mediaone.co', 'kenneth@mediaone.co'], from: notifyFrom, subject, text, html });
           }
         } catch (e) { console.warn('nda_notify_failed', e.message); }
       }

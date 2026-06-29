@@ -31,6 +31,7 @@ import {
 import { PLANS } from '../../../shared/catalog.mjs';
 import { isAdmin, isStaff, ACCOUNT_STATUSES } from '../lib/admin.mjs';
 import { sendEmail } from '../lib/email.mjs';
+import { buildAcceptancePdf } from '../lib/pdf.mjs';
 import { signUnsubToken } from '../lib/jwt.mjs';
 import { ok, badRequest, unauthorized, serverError, json, parseBody, claims, isEmail, clampStr } from '../lib/http.mjs';
 
@@ -58,6 +59,45 @@ export const handler = async (event) => {
   if (method === 'GET' && path.endsWith('/users')) {
     const users = (await listAllUsers()).map(shape);
     return ok({ users });
+  }
+
+  // ── Free Trial + NDA agreements ────────────────────────────────────────────
+  // Company-collected legal records (who accepted the NDA + their submitted
+  // company details + proof-of-consent metadata). Not the user's private tool
+  // content, so — like credit totals / usage counts — it's available to staff
+  // without a per-user consent grant.
+  if (method === 'GET' && path.endsWith('/admin/agreements/pdf')) {
+    if (!q.userId) return badRequest('userId required');
+    const u = await getUser(q.userId);
+    const nda = u?.onboarding?.nda;
+    if (!u || !u.onboarding?.acceptedNda || !nda) return badRequest('No agreement on file for this user.');
+    const pdf = await buildAcceptancePdf({
+      formName: nda.name, organisation: nda.organisation, uen: nda.uen,
+      telephone: nda.telephone, formEmail: nda.email, accountEmail: u.email,
+      acceptedAt: u.onboarding.acceptedNdaAt, ip: u.onboarding.acceptedNdaIp,
+      userAgent: u.onboarding.acceptedNdaUserAgent, version: u.onboarding.acceptedNdaVersion,
+    });
+    const safeOrg = (nda.organisation || nda.name || 'trial-user').replace(/[^a-z0-9]+/gi, '-').slice(0, 40);
+    return ok({ filename: `Digimetrics-NDA-Acceptance-${safeOrg}.pdf`, base64: Buffer.from(pdf).toString('base64') });
+  }
+  if (method === 'GET' && path.endsWith('/admin/agreements')) {
+    const agreements = (await listAllUsers())
+      .filter((u) => u.onboarding?.acceptedNda && u.onboarding?.nda)
+      .map((u) => ({
+        userId: u.userId,
+        accountEmail: u.email || '',
+        name: u.onboarding.nda.name || '',
+        organisation: u.onboarding.nda.organisation || '',
+        uen: u.onboarding.nda.uen || '',
+        telephone: u.onboarding.nda.telephone || '',
+        email: u.onboarding.nda.email || '',
+        acceptedAt: u.onboarding.acceptedNdaAt || '',
+        version: u.onboarding.acceptedNdaVersion || '',
+        ip: u.onboarding.acceptedNdaIp || '',
+        userAgent: u.onboarding.acceptedNdaUserAgent || '',
+      }))
+      .sort((a, b) => (b.acceptedAt || '').localeCompare(a.acceptedAt || ''));
+    return ok({ agreements });
   }
 
   // Platform-wide settings (e.g. whether email/password sign-in is allowed).

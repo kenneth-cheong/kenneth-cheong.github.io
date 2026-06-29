@@ -6,9 +6,10 @@ import { SESClient, SendEmailCommand, SendRawEmailCommand } from '@aws-sdk/clien
 const ses = new SESClient({});
 const FROM = process.env.SES_FROM;
 
-export async function sendEmail({ to, subject, text, html }) {
+export async function sendEmail({ to, subject, text, html, from }) {
   const recipients = (Array.isArray(to) ? to : [to]).filter(Boolean);
-  if (!FROM || !recipients.length) return false;
+  const source = from || FROM;
+  if (!source || !recipients.length) return false;
   // SES requires at least one body part. Most callers send plain text; broadcast
   // emails pass `html` (with `text` as the multipart fallback for plain readers).
   const Body = {};
@@ -17,7 +18,7 @@ export async function sendEmail({ to, subject, text, html }) {
   if (!Body.Text && !Body.Html) return false;
   try {
     await ses.send(new SendEmailCommand({
-      Source: FROM,
+      Source: source,
       Destination: { ToAddresses: recipients },
       Message: { Subject: { Data: subject }, Body },
     }));
@@ -32,16 +33,17 @@ export async function sendEmail({ to, subject, text, html }) {
 // message and sends via SES SendRawEmail. `attachments`: [{ filename,
 // contentType, content: Uint8Array|Buffer }]. Optional `replyTo`. Best-effort
 // (returns false on misconfig/failure) so it never breaks a request.
-export async function sendRawEmail({ to, subject, text, html, attachments = [], replyTo }) {
+export async function sendRawEmail({ to, subject, text, html, attachments = [], replyTo, from }) {
   const recipients = (Array.isArray(to) ? to : [to]).filter(Boolean);
-  if (!FROM || !recipients.length) return false;
+  const source = from || FROM;
+  if (!source || !recipients.length) return false;
 
   const boundary = `mix_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
   const altBoundary = `alt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
   const CRLF = '\r\n';
 
   const headers = [
-    `From: ${FROM}`,
+    `From: ${source}`,
     `To: ${recipients.join(', ')}`,
     replyTo ? `Reply-To: ${replyTo}` : null,
     `Subject: ${encodeHeader(subject)}`,

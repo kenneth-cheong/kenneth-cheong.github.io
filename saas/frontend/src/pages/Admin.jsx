@@ -17,7 +17,7 @@ export default function Admin() {
     <div>
       <h1 className="text-2xl font-bold">Admin</h1>
       <div className="mt-3 flex gap-1 border-b border-slate-200">
-        {[['users', 'Users'], ['notifications', 'Notifications'], ['tickets', 'Support tickets'], ['settings', 'Settings']].map(([k, label]) => (
+        {[['users', 'Users'], ['agreements', 'Agreements'], ['notifications', 'Notifications'], ['tickets', 'Support tickets'], ['settings', 'Settings']].map(([k, label]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
@@ -27,7 +27,101 @@ export default function Admin() {
           </button>
         ))}
       </div>
-      {tab === 'users' ? <AdminUsers /> : tab === 'notifications' ? <AdminNotifications /> : tab === 'tickets' ? <AdminTickets /> : <AdminSettings />}
+      {tab === 'users' ? <AdminUsers /> : tab === 'agreements' ? <AdminAgreements /> : tab === 'notifications' ? <AdminNotifications /> : tab === 'tickets' ? <AdminTickets /> : <AdminSettings />}
+    </div>
+  );
+}
+
+// ── Agreements (Free Trial + NDA acceptances) ────────────────────────────────
+function AdminAgreements() {
+  const [rows, setRows] = useState(null); // null = loading
+  const [error, setError] = useState('');
+  const [downloading, setDownloading] = useState('');
+
+  useEffect(() => {
+    api.adminAgreements()
+      .then(({ agreements }) => setRows(agreements || []))
+      .catch((e) => { setError(e?.message || 'Failed to load agreements.'); setRows([]); });
+  }, []);
+
+  const fmt = (iso) => {
+    if (!iso) return '—';
+    try { return new Date(iso).toLocaleString('en-SG', { timeZone: 'Asia/Singapore', dateStyle: 'medium', timeStyle: 'short' }); }
+    catch { return iso; }
+  };
+
+  const download = async (r) => {
+    setDownloading(r.userId);
+    try {
+      const { filename, base64 } = await api.adminAgreementPdf(r.userId);
+      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = filename || 'agreement.pdf';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      setError(e?.message || 'Could not generate the PDF.');
+    } finally {
+      setDownloading('');
+    }
+  };
+
+  if (rows === null) return <p className="mt-6 text-sm text-slate-400">Loading…</p>;
+
+  return (
+    <div className="mt-6">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <p className="text-sm text-slate-500">
+          {rows.length} {rows.length === 1 ? 'trial user has' : 'trial users have'} accepted the Free Trial &amp; NDA.
+        </p>
+      </div>
+      {error && <p className="mb-3 text-sm text-rose-600">{error}</p>}
+      {rows.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-400">
+          No agreements yet. They&rsquo;ll appear here as trial users accept.
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                {['Name', 'Organisation', 'UEN', 'Telephone', 'Email', 'Accepted', 'Ver.', 'IP', ''].map((h) => (
+                  <th key={h} className="whitespace-nowrap px-3 py-2 font-semibold">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {rows.map((r) => (
+                <tr key={r.userId} className="align-top hover:bg-slate-50">
+                  <td className="whitespace-nowrap px-3 py-2 font-medium text-slate-900">{r.name || '—'}</td>
+                  <td className="px-3 py-2 text-slate-700">{r.organisation || '—'}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-700">{r.uen || '—'}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-700">{r.telephone || '—'}</td>
+                  <td className="px-3 py-2 text-slate-700">
+                    {r.email || '—'}
+                    {r.accountEmail && r.accountEmail !== r.email && (
+                      <span className="block text-xs text-slate-400">acct: {r.accountEmail}</span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-600">{fmt(r.acceptedAt)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-500">{r.version || '—'}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-500">{r.ip || '—'}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right">
+                    <button
+                      onClick={() => download(r)}
+                      disabled={downloading === r.userId}
+                      className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-50"
+                    >
+                      {downloading === r.userId ? 'Preparing…' : 'PDF'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

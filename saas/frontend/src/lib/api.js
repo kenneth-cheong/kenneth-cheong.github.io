@@ -223,6 +223,9 @@ export const api = {
     call('/integrations/connect', { method: 'POST', body: { provider, account, connected } }),
   // Admin
   adminUsers: () => call('/admin/users'),
+  // Free Trial + NDA agreements collected in-app (replaces the email notification).
+  adminAgreements: () => call('/admin/agreements'),
+  adminAgreementPdf: (userId) => call(`/admin/agreements/pdf?userId=${encodeURIComponent(userId)}`),
   adminCreateUser: ({ email, name, role, tier, credits, sendInvite }) =>
     call('/admin/users', { method: 'POST', body: { email, name, role, tier, credits, sendInvite } }),
   adminCredits: (userId, monthlyDelta, topupDelta, reason) =>
