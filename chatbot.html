@@ -3608,7 +3608,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2321</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2322</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -3898,7 +3898,13 @@
                                 <i class="fas fa-circle-question"></i> How to get it?
                             </button>
                         </label>
-                        <input type="password" id="mondayApiKey" placeholder="Paste your API key here...">
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <input type="password" id="mondayApiKey" placeholder="Paste your API key here..." style="flex:1;" onblur="autoVerifyMondayKey()">
+                            <button id="mondayVerifyBtn" onclick="verifyMondayApiKey()" style="padding:8px 14px; border-radius:8px; border:1px solid #e2e8f0; background:#f8fafc; color:#374151; font-size:0.78rem; font-weight:600; cursor:pointer; white-space:nowrap; transition:all 0.2s; flex-shrink:0;" onmouseover="this.style.background='#e0e7ff';this.style.borderColor='#6366f1';this.style.color='#6366f1'" onmouseout="this.style.background='#f8fafc';this.style.borderColor='#e2e8f0';this.style.color='#374151'">
+                                <i class="fas fa-plug"></i> Verify
+                            </button>
+                        </div>
+                        <div id="mondayKeyStatus" style="display:none; margin-top:6px; font-size:0.75rem; font-weight:600; align-items:center; gap:6px; padding:6px 10px; border-radius:8px;"></div>
                     </div>
                 </div>
             </div>
@@ -6008,6 +6014,57 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             } catch (e) { /* offline — leave email blank */ }
         }
 
+        // Paint the inline Monday key status badge in the settings menu.
+        function setMondayKeyStatus(kind, html) {
+            const el = document.getElementById('mondayKeyStatus');
+            if (!el) return;
+            if (kind === 'hidden') { el.style.display = 'none'; return; }
+            const styles = {
+                checking: { bg: '#f1f5f9', fg: '#64748b', bd: '#e2e8f0' },
+                ok:       { bg: '#f0fdf4', fg: '#16a34a', bd: '#bbf7d0' },
+                error:    { bg: '#fef2f2', fg: '#dc2626', bd: '#fecaca' }
+            }[kind] || { bg: '#f1f5f9', fg: '#64748b', bd: '#e2e8f0' };
+            el.style.display = 'flex';
+            el.style.background = styles.bg;
+            el.style.color = styles.fg;
+            el.style.border = '1px solid ' + styles.bd;
+            el.innerHTML = html;
+        }
+
+        // Verify on blur only when a key is present (avoids firing on an empty field).
+        function autoVerifyMondayKey() {
+            const key = document.getElementById('mondayApiKey').value.trim();
+            if (key) verifyMondayApiKey();
+        }
+
+        async function verifyMondayApiKey() {
+            const key = document.getElementById('mondayApiKey').value.trim();
+            const btn = document.getElementById('mondayVerifyBtn');
+            if (!key) { setMondayKeyStatus('hidden'); return; }
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+            setMondayKeyStatus('checking', '<i class="fas fa-spinner fa-spin"></i> Checking key…');
+            try {
+                const url = (typeof CB_MONDAY_LAMBDA_URL !== 'undefined' ? CB_MONDAY_LAMBDA_URL : MONDAY_LAMBDA_URL);
+                const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get_monday_data', query: '{ me { name email } }', api_key: key }) });
+                const r = await res.json();
+                const data = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
+                const me = data?.me ?? data?.data?.me;
+                if (me) {
+                    if (me.email) localStorage.setItem('monday_account_email', me.email);
+                    if (me.name) localStorage.setItem('monday_account_name', me.name);
+                    if (typeof cbRenderConnectionsOverview === 'function') cbRenderConnectionsOverview();
+                    setMondayKeyStatus('ok', `<i class="fas fa-circle-check"></i> Connected as <strong>${me.name || me.email}</strong>${me.email ? ` (${me.email})` : ''}`);
+                } else {
+                    localStorage.removeItem('monday_account_email');
+                    localStorage.removeItem('monday_account_name');
+                    setMondayKeyStatus('error', '<i class="fas fa-circle-xmark"></i> Invalid API key — check and try again');
+                }
+            } catch (e) {
+                setMondayKeyStatus('error', '<i class="fas fa-circle-xmark"></i> Verification failed — network error');
+            }
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plug"></i> Verify'; }
+        }
+
         // Capture the Google login email for a freshly connected service, then refresh the overview
         async function cbCaptureGoogleEmail(service, token) {
             try {
@@ -6047,6 +6104,16 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             updateSummaryFilterVisibility();
 
             document.getElementById('mondayApiKey').value = localStorage.getItem('mondayApiKey') || '';
+            // Show the Monday connection status badge immediately from the last known good
+            // account, then re-verify in the background so it stays accurate.
+            if (localStorage.getItem('mondayApiKey')) {
+                const savedName = localStorage.getItem('monday_account_name');
+                const savedEmail = localStorage.getItem('monday_account_email');
+                if (savedName || savedEmail) {
+                    setMondayKeyStatus('ok', `<i class="fas fa-circle-check"></i> Connected as <strong>${savedName || savedEmail}</strong>${savedEmail && savedName ? ` (${savedEmail})` : ''}`);
+                }
+                verifyMondayApiKey();
+            }
             // Sanitize legacy corrupted clientEmail (was stored as DOM element in older code)
             const _storedEmail = localStorage.getItem('clientEmail') || '';
             if (_storedEmail.toLowerCase().startsWith('[object')) localStorage.removeItem('clientEmail');

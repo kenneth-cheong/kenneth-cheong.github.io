@@ -418,13 +418,14 @@ Resources:
         AuthType: NONE
         InvokeMode: BUFFERED
       Events:
-        # Account has a raised API Gateway integration-timeout quota (180s), so
-        # the normal /run path can also serve slow tools (the Function URL above
-        # is the redundant/long-tail path).
-        # NOTE: no TimeoutInMillis — the server-side SAM transform fails to link a
-        # route's integration when it's set (route ends up with Target: None → 404).
-        # Slow tools use the Function URL (RunUrl) anyway; this API path serves
-        # fast tools that finish within the 30s default.
+        # This /run path is HARD-CAPPED at 30s: HTTP APIs (ApiGatewayV2) have a
+        # maximum integration timeout of 30000ms that AWS does NOT allow raising
+        # (a quota increase request / update-integration to >30000 is rejected).
+        # So this route only serves FAST tools. Anything that can exceed 30s must
+        # set `slow: true` in shared/catalog.mjs — the frontend then routes it to
+        # the Function URL above (no gateway cap; MeteringFn Timeout is 180s).
+        # NOTE: TimeoutInMillis can't be set on this event anyway — the SAM
+        # transform fails to link the integration when it is (Target: None → 404).
         Run: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/run/{toolId}', Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
 
   # ── Billing: checkout/portal (authed) + webhook (public, signed) ────────

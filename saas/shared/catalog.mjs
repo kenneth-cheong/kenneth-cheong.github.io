@@ -117,7 +117,9 @@ export const CREDIT_COSTS = {
 export const TOOLS = [
   // ── SEO Toolkit ───────────────────────────────────────────────────────────
   { id: 'keyword-analysis', name: 'Keyword Analysis', category: 'SEO', minTier: 'free',
-    cost: 'keyword_lookup', upstream: 'mangoolsKeywords',
+    cost: 'keyword_lookup', upstream: 'mangoolsKeywords', slow: true,
+    // slow: a domain-scoped run adds a time-to-rank estimate per keyword and can
+    // take 30–60s — must route via the Function URL or it 503s on the 30s gateway.
     desc: 'Search volume, difficulty and intent for any keyword list.',
     freeCap: 5 /* free tier: 5 real rows, rest blurred */ },
   { id: 'rank-checker', name: 'Rank Checker', category: 'SEO', minTier: 'free',
