@@ -21,6 +21,11 @@
             window.marked = function (t) { return t == null ? '' : String(t); };
             window.marked.parse = window.marked;
             window.marked.setOptions = function () {};
+            // Minimal Renderer so `new marked.Renderer()` (used at top-level) can't throw.
+            window.marked.Renderer = function () {};
+            window.marked.Renderer.prototype.link = function (href, title, text) {
+                return '<a href="' + href + '">' + (text == null ? href : text) + '</a>';
+            };
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
@@ -3608,7 +3613,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2333</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2334</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -5413,14 +5418,22 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
         window.gchatAccessToken = sessionStorage.getItem('gchat_access_token') || null;
         window.gchatSpaces = [];
 
-        // Configure Markdown Renderer for New Windows
-        const renderer = new marked.Renderer();
-        const linkRenderer = renderer.link;
-        renderer.link = (href, title, text) => {
-            const html = linkRenderer.call(renderer, href, title, text);
-            return html.replace(/^<a /, '<a target="_blank" rel="noopener noreferrer" ');
-        };
-        marked.setOptions({ renderer });
+        // Configure Markdown Renderer to open links in new windows.
+        // Guarded so a missing/incompatible marked (or the offline fallback shim) can't
+        // throw at top level and abort this whole script block.
+        try {
+            if (window.marked && typeof window.marked.Renderer === 'function') {
+                const renderer = new marked.Renderer();
+                const linkRenderer = renderer.link;
+                renderer.link = (href, title, text) => {
+                    const html = linkRenderer.call(renderer, href, title, text);
+                    return html.replace(/^<a /, '<a target="_blank" rel="noopener noreferrer" ');
+                };
+                marked.setOptions({ renderer });
+            }
+        } catch (e) {
+            console.error('marked renderer setup skipped:', e && e.message);
+        }
 
         // Initialize from localStorage
         window.addEventListener('load', async () => {
