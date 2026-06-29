@@ -3597,7 +3597,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2292</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2311</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -5677,22 +5677,45 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 reader.onload = () => resolve(reader.result.split(',')[1]);
                 reader.readAsDataURL(file);
             });
-            const res = await fetch(PERSISTENCE_API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'upload_attachment',
-                    content: b64,
-                    filename: file.name,
-                    mimeType: file.type,
-                    userId: userId,
-                    conversationId: convId || currentConversationId || 'unsaved'
-                })
+            const payload = JSON.stringify({
+                action: 'upload_attachment',
+                content: b64,
+                filename: file.name,
+                mimeType: file.type,
+                userId: userId,
+                conversationId: convId || currentConversationId || 'unsaved'
             });
-            const raw = await res.json();
-            const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
-            if (data.error) throw new Error(data.error);
-            return data; // { s3Key, url, filename, mimeType }
+            // Retry with exponential backoff (1s, 3s, 9s). A transient CORS hiccup,
+            // pre-signed-URL expiry, or dropped connection throws "Failed to fetch"
+            // from fetch() itself — worth a couple of retries before giving up.
+            const BACKOFFS = [1000, 3000, 9000];
+            let lastErr;
+            for (let attempt = 0; attempt <= BACKOFFS.length; attempt++) {
+                try {
+                    const res = await fetch(PERSISTENCE_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: payload
+                    });
+                    const raw = await res.json();
+                    const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+                    if (data.error) throw new Error(data.error);
+                    return data; // { s3Key, url, filename, mimeType }
+                } catch (e) {
+                    lastErr = e;
+                    if (attempt < BACKOFFS.length) {
+                        await new Promise(r => setTimeout(r, BACKOFFS[attempt]));
+                    }
+                }
+            }
+            // NEVER log the base64 content — only metadata useful for recovery.
+            const kb = Math.round((file.size || 0) / 1024);
+            console.error('[S3 UPLOAD] Failed after retries:', {
+                filename: file.name, sizeKB: kb, mimeType: file.type,
+                errorType: (lastErr && lastErr.name) || 'Error',
+                errorMessage: (lastErr && lastErr.message) || String(lastErr)
+            });
+            throw new Error(`Upload failed for "${file.name}" (${kb}KB) after ${BACKOFFS.length + 1} attempts: ${(lastErr && lastErr.message) || 'unknown error'}`);
         }
 
         async function getFileBase64(file) {
@@ -10062,7 +10085,8 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                         const s3Data = await uploadAttachmentToS3(file);
                         enrichedAttachments.push(Object.assign(file, { s3Key: s3Data.s3Key, url: s3Data.url }, extra));
                     } catch(e) {
-                        console.warn(`[S3 UPLOAD] Failed for ${file.name}, proceeding without persistent URL:`, e);
+                        console.warn(`[S3 UPLOAD] Failed for ${file.name}, proceeding without persistent URL:`, (e && e.message) || e);
+                        showToast(`Couldn't save "${file.name}" — sending it for this message only (no saved link). Re-attach to try again.`, 'error', 6000);
                         enrichedAttachments.push(Object.assign(file, extra));
                     }
                 }
@@ -10168,7 +10192,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             4. list_messages: Read recent messages from a specific Google Chat space.
             5. list_messages_standard: Read messages using the standard API (use this if list_messages fails).
             6. search_messages: Search for keywords across ALL your Google Chat messages.
-            7. search_messages_standard: PRIMARY TOOL. Use this immediately if the user mentions a space name (e.g., "show me messages in 1-company-announcements"). It searches across all spaces without needing an ID.
+            7. search_messages_standard: PRIMARY Google Chat tool. It first runs a KEYWORD search across all messages, then falls back to matching a SPACE by name — so use it whether the user gives a space name (e.g., "1-company-announcements") OR a brand/domain/topic ("Livera Group", "revergoods"). If it returns a "closest_spaces" list, the query didn't match a space: show those ≤5 names and ask the user which one they mean.
             8. send_message: Post a new message to a Google Chat space.
             9. list_mcp_tools: List all available Google Chat tools (debug utility).
             10. get_gsc_performance: For Google Search Console (clicks, impressions).
@@ -10421,7 +10445,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
 
             GRACEFUL ERROR HANDLING:
             - Ahrefs: if get_ahrefs_report returns {"error":"Not found"} (or similar), do NOT crash or fabricate — reply with a graceful message like "That domain isn't indexed in Ahrefs yet." and offer an alternative.
-            - Google Chat: if search_messages_standard (or list_messages) returns "Space not found", call list_my_spaces to discover available spaces and present them to the user rather than erroring out.
+            - Google Chat: use search_messages_standard for everything (it keyword-searches first, then matches a space by name). When it returns a "closest_spaces" array, your query didn't match a space — present those ≤5 names and ask the user which one they mean, then call list_messages_standard with that exact space name. NEVER paste a long space list into the chat, and don't report outright failure before offering those suggestions.
 
             DATA FORMAT RULE:
             - Visibility / SOV / mention-rate scores from Digimetrics & WorkDuo APIs are 0–1 decimals. ALWAYS multiply × 100 before rendering them in any chart, table, or sentence as a percentage.
