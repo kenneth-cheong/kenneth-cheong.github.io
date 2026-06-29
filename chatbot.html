@@ -3608,7 +3608,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2332</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2333</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -15129,6 +15129,65 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 closeMondayApiHelp();
             }
         });
+    </script>
+
+    <!-- Auto-update check: detect a newer deploy (when this HTML was served from cache)
+         and offer a one-click reload, so users never have to hard-refresh. -->
+    <script>
+    (function () {
+        var RANGE_BYTES = 700000; // covers the appVersion span in both chatbot.html and the 7.5MB index.html
+        function currentVersion() {
+            var el = document.getElementById('appVersion');
+            return el ? (el.textContent || '').trim() : '';
+        }
+        function parseVersion(html) {
+            var m = html.match(/id="appVersion"[^>]*>\s*(v[0-9.]+)\s*</);
+            return m ? m[1] : '';
+        }
+        function showUpdateBanner(latest) {
+            if (document.getElementById('appUpdateBanner')) return;
+            var bar = document.createElement('div');
+            bar.id = 'appUpdateBanner';
+            bar.style.cssText = 'position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:2147483000; background:#1e293b; color:#fff; padding:11px 14px; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.28); display:flex; align-items:center; gap:12px; font-size:0.82rem; font-weight:600; font-family:inherit; max-width:92vw;';
+            bar.innerHTML = '<i class="fas fa-rotate" style="color:#60a5fa;"></i><span>A new version (' + latest + ') is available.</span>';
+            var reload = document.createElement('button');
+            reload.textContent = 'Reload';
+            reload.style.cssText = 'background:#f97316; color:#fff; border:none; padding:6px 16px; border-radius:8px; font-weight:700; cursor:pointer; font-size:0.8rem; flex-shrink:0;';
+            reload.onclick = function () { location.reload(); };
+            var close = document.createElement('button');
+            close.innerHTML = '&times;';
+            close.title = 'Dismiss';
+            close.setAttribute('aria-label', 'Dismiss');
+            close.style.cssText = 'background:none; border:none; color:rgba(255,255,255,0.55); font-size:1.15rem; cursor:pointer; line-height:1; padding:0 2px; flex-shrink:0;';
+            close.onclick = function () { bar.remove(); };
+            bar.appendChild(reload);
+            bar.appendChild(close);
+            document.body.appendChild(bar);
+        }
+        function check() {
+            var current = currentVersion();
+            if (!current) return;
+            // Re-fetch the head of our own document, bypassing the HTTP cache, to read the
+            // version that's actually deployed. A Range request keeps it light on large pages.
+            fetch(location.pathname + '?_v=' + Date.now(), { cache: 'no-store', headers: { 'Range': 'bytes=0-' + RANGE_BYTES } })
+                .then(function (r) { return (r.ok || r.status === 206) ? r.text() : ''; })
+                .then(function (html) {
+                    if (!html) return;
+                    var latest = parseVersion(html);
+                    if (!latest) {
+                        // Span fell outside the byte window (file grew) — fall back to a full fetch once.
+                        return fetch(location.pathname + '?_v=' + Date.now(), { cache: 'no-store' })
+                            .then(function (r) { return r.ok ? r.text() : ''; })
+                            .then(function (full) { var v = parseVersion(full); if (v && v !== current) showUpdateBanner(v); });
+                    }
+                    if (latest !== current) showUpdateBanner(latest);
+                })
+                .catch(function () { /* offline or blocked — ignore */ });
+        }
+        function schedule() { setTimeout(check, 4000); setInterval(check, 10 * 60 * 1000); }
+        if (document.readyState === 'complete') schedule();
+        else window.addEventListener('load', schedule);
+    })();
     </script>
 </body>
 
