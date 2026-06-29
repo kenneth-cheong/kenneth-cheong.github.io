@@ -136,6 +136,63 @@ export const handler = async (event) => {
       return ok({ onboarding: await updateOnboarding(user.userId, patch) });
     }
 
+    // ── Soft-launch Free Trial + NDA acceptance ──────────────────────────────
+    // The trial user fills the company form and accepts the NDA. We persist a
+    // durable, server-stamped proof-of-acceptance in `onboarding` (so the gate
+    // never re-prompts) and notify tom@mediaone.co. Stricter than /me/onboarding:
+    // all fields are required, validated and clamped here.
+    if (method === 'POST' && path.endsWith('/me/nda')) {
+      if (body.accepted !== true) return badRequest('You must accept the terms.');
+      const form = {
+        name: clampStr(body.name, 200).trim(),
+        organisation: clampStr(body.organisation, 200).trim(),
+        uen: clampStr(body.uen, 60).trim(),
+        telephone: clampStr(body.telephone, 60).trim(),
+        email: clampStr(body.email, 200).trim(),
+      };
+      const missing = Object.entries(form).filter(([, v]) => !v).map(([k]) => k);
+      if (missing.length) return badRequest(`Missing required field(s): ${missing.join(', ')}`);
+      if (!isEmail(form.email)) return badRequest('A valid email is required.');
+
+      const version = clampStr(body.version, 20) || 'unversioned';
+      const firstTime = user.onboarding?.acceptedNda !== true;
+      const onboarding = await updateOnboarding(user.userId, {
+        acceptedNda: true,
+        acceptedNdaAt: new Date().toISOString(),
+        acceptedNdaVersion: version,
+        nda: form,
+      });
+
+      // Notify Tom (best-effort — acceptance is already saved). Only on the first
+      // acceptance so re-runs after a version bump don't spam the inbox.
+      if (firstTime) {
+        const stamp = new Date().toISOString();
+        const rows = [
+          ['Name', form.name], ['Organisation', form.organisation], ['UEN', form.uen],
+          ['Telephone', form.telephone], ['Email', form.email],
+          ['Account', user.email || '—'], ['Accepted at', stamp], ['NDA version', version],
+        ];
+        const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const text = ['A new Digimetrics Free Trial + NDA acceptance was submitted.', '',
+          ...rows.map(([k, v]) => `${k}: ${v}`)].join('\n');
+        const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;">`
+          + `<h2 style="color:#1d4ed8;margin:0 0 4px;">New Free Trial + NDA acceptance</h2>`
+          + `<p style="color:#475569;margin:0 0 18px;">The trial user confirmed they are authorised to accept the Digimetrics Free Trial and NDA Terms.</p>`
+          + `<table style="border-collapse:collapse;font-size:14px;">`
+          + rows.map(([k, v]) => `<tr><td style="padding:6px 14px 6px 0;color:#64748b;white-space:nowrap;vertical-align:top;">${esc(k)}</td><td style="padding:6px 0;color:#0f172a;font-weight:600;">${esc(v)}</td></tr>`).join('')
+          + `</table></div>`;
+        try {
+          await sendEmail({
+            to: 'tom@mediaone.co',
+            subject: `Digimetrics Free Trial + NDA accepted — ${form.organisation || form.name}`,
+            text, html,
+          });
+        } catch (e) { console.warn('nda_notify_failed', e.message); }
+      }
+
+      return ok({ onboarding });
+    }
+
     // ── Progressive profiling: save profile answers, reward on completion ──────
     // Accepts ONLY known PROFILE_FIELDS keys (same safety posture as onboarding —
     // can't write arbitrary user fields) and validates select/multiselect values

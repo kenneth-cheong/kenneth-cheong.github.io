@@ -136,6 +136,9 @@ export const api = {
   auditSynthesize: (url, inputs) => call('/audit/synthesize', { method: 'POST', body: { url, inputs } }),
   // First-run onboarding state (welcome flow, chosen goal, dismissed checklist).
   setOnboarding: (patch) => call('/me/onboarding', { method: 'POST', body: patch }),
+  // Soft-launch Free Trial + NDA acceptance (company form + NDA). Persists a
+  // durable proof-of-acceptance and notifies tom@mediaone.co server-side.
+  acceptNda: (payload) => call('/me/nda', { method: 'POST', body: payload }),
   // Progressive-profiling answers; completing the whole profile pays a one-time bonus.
   saveProfile: (patch) => call('/me/profile', { method: 'POST', body: { patch } }),
   // GDPR: export everything we hold, or permanently delete the account.

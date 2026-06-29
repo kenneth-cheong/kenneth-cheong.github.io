@@ -15,6 +15,13 @@ export const CURRENCY = { code: 'SGD', symbol: 'S$' };
  */
 export const TERMS_VERSION = '2026-06-19';
 
+/**
+ * Soft-launch Free Trial + NDA acceptance version. Independent of TERMS_VERSION:
+ * bumping this re-prompts every trial user with the NDA gate. Keep in sync with
+ * the NDA copy in TrialNdaGate.jsx.
+ */
+export const NDA_VERSION = '2026-06-29';
+
 /** Tier ordering — index = rank. Used for `userTier >= requiredTier` checks. */
 export const TIER_ORDER = ['free', 'starter', 'pro', 'expert'];
 

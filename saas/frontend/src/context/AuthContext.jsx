@@ -82,6 +82,16 @@ export function AuthProvider({ children }) {
     } catch { /* best-effort; local patch already applied */ }
   }, []);
 
+  // Free Trial + NDA acceptance. Unlike onboarding (best-effort, fire-and-forget),
+  // this AWAITS the server so the gate can surface validation errors and only
+  // closes on a confirmed save. The server persists the merged onboarding (with
+  // acceptedNda) and emails Tom; we adopt the authoritative onboarding it returns.
+  const acceptNda = useCallback(async (payload) => {
+    const { onboarding } = await api.acceptNda(payload);
+    setUser((u) => (u ? { ...u, onboarding: onboarding ?? u.onboarding } : u));
+    return onboarding;
+  }, []);
+
   // Save progressive-profiling answers. Optimistically merges locally, then
   // reconciles profile / completion-bonus flag / credit balance from the server
   // (authoritative). Returns the server response so callers can toast the bonus;
@@ -100,7 +110,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthCtx.Provider value={{ user, loading, loginWithGoogle, loginWithPassword, signup, resendVerification, forgotPassword, verifyEmail, resetPassword, logout, refresh, setCredits, setOnboarding, saveProfile }}>
+    <AuthCtx.Provider value={{ user, loading, loginWithGoogle, loginWithPassword, signup, resendVerification, forgotPassword, verifyEmail, resetPassword, logout, refresh, setCredits, setOnboarding, acceptNda, saveProfile }}>
       {children}
     </AuthCtx.Provider>
   );

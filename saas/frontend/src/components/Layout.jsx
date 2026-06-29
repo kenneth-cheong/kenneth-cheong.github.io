@@ -9,9 +9,10 @@ import ExplainMenu from './ExplainMenu.jsx';
 import ProjectSelector from './ProjectSelector.jsx';
 import Welcome from './Welcome.jsx';
 import ConsentGate from './ConsentGate.jsx';
+import TrialNdaGate from './TrialNdaGate.jsx';
 import FaultReporter from './FaultReporter.jsx';
 import { setUser as setDiagnosticsUser } from '../lib/diagnostics.js';
-import { useMediaQuery, needsWelcome, hasAcceptedTerms } from '../lib/ui.js';
+import { useMediaQuery, needsWelcome, hasAcceptedTerms, hasAcceptedNda } from '../lib/ui.js';
 import { PLANS } from '@shared/catalog.mjs';
 import { startPlatformTour, hasSeen, markSeen } from '../lib/tours.js';
 import { Menu, MessageCircle, HelpCircle, ChevronDown, ChevronLeft } from 'lucide-react';
@@ -65,20 +66,23 @@ export default function Layout({ children }) {
   // the consent gate is shown and the welcome flow / tour are held back so the
   // two overlays never stack.
   const needsConsent = !!user && !hasAcceptedTerms(user);
-  const showWelcome = !needsConsent && (forceWelcome || needsWelcome(user));
+  // Soft-launch Free Trial + NDA gate — shown after base Terms consent, before
+  // the welcome flow, so the overlays never stack.
+  const needsNda = !!user && !needsConsent && !hasAcceptedNda(user);
+  const showWelcome = !needsConsent && !needsNda && (forceWelcome || needsWelcome(user));
 
   // After the welcome flow is done → auto-run the platform tour once the
   // dashboard has painted. Chained behind the welcome so the two never stack;
   // `seenPlatformTour` is also tracked server-side so it survives a new device.
   useEffect(() => {
-    if (needsConsent || showWelcome) return;                  // wait until consent + welcome are done
+    if (needsConsent || needsNda || showWelcome) return;      // wait until consent + NDA + welcome are done
     if (hasSeen('platform') || user?.onboarding?.seenPlatformTour) return;
     if (window.location.pathname !== '/') return;
     const t = setTimeout(() => {
       if (!hasSeen('platform')) { markSeen('platform'); setOnboarding({ seenPlatformTour: true }); startPlatformTour(); }
     }, 900);
     return () => clearTimeout(t);
-  }, [showWelcome, needsConsent]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [showWelcome, needsConsent, needsNda]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Let any page open the assistant (Support CTA) or ask it about something
   // (the right-click "Explain this" menu).
@@ -228,6 +232,7 @@ export default function Layout({ children }) {
       <FaultReporter />
       <Toaster />
       {needsConsent && <ConsentGate />}
+      {needsNda && <TrialNdaGate />}
       {showWelcome && <Welcome onDone={() => setForceWelcome(false)} />}
     </>
   );
