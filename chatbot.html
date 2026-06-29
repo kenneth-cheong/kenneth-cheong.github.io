@@ -3608,7 +3608,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2326</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2327</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -5885,10 +5885,10 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             return [
                 { name: 'Monday.com',     section: 'authSection',       on: !!cbConnLs('mondayApiKey'),          acct: cbConnLs('monday_account_email') || '' },
                 { name: 'Google',         section: 'googleChatSection', on: !!cbConnLs('googleToken_Workspace'), acct: cbSvcEmail('Workspace') },
-                { name: 'Search Console', section: 'googleChatSection', on: !!cbConnLs('googleToken_Gsc') && cbConnArr('selectedGscSite').length > 0,        acct: cbSvcEmail('Gsc') },
-                { name: 'GA4',            section: 'googleChatSection', on: !!cbConnLs('googleToken_Ga4') && cbConnArr('selectedGa4Property').length > 0,     acct: cbSvcEmail('Ga4') },
-                { name: 'Google Ads',     section: 'googleChatSection', on: !!cbConnLs('googleToken_Ads') && cbConnArr('selectedAdsAccount').length > 0,      acct: cbSvcEmail('Ads') },
-                { name: 'SE Ranking',     section: 'serankingSection',  on: cbConnArr('selectedSERankingSiteIds').length > 0,  acct: cbConnArr('selectedSERankingSiteIds').length + ' campaign(s)' },
+                { name: 'Search Console', section: 'googleChatSection', on: !!cbConnLs('googleToken_Gsc'),        acct: cbSvcEmail('Gsc') },
+                { name: 'GA4',            section: 'googleChatSection', on: !!cbConnLs('googleToken_Ga4'),     acct: cbSvcEmail('Ga4') },
+                { name: 'Google Ads',     section: 'googleChatSection', on: !!cbConnLs('googleToken_Ads'),      acct: cbSvcEmail('Ads') },
+                { name: 'SE Ranking',     section: 'serankingSection',  on: true,  acct: cbConnArr('selectedSERankingSiteIds').length > 0 ? cbConnArr('selectedSERankingSiteIds').length + ' campaign(s)' : 'Server-side key' },
                 { name: 'WorkDuo AI',     section: 'workduoSection',    on: cbConnArr('selectedWorkDuoProjectIds').length > 0, acct: cbConnArr('selectedWorkDuoProjectIds').length + ' project(s)' },
                 { name: 'Ahrefs',         section: 'ahrefsSection',     on: true, acct: 'Server-side key' },
                 { name: 'Meta Ads',       section: 'metaSection',       on: !!cbConnLs('meta_access_token'),     acct: cbConnLs('meta_connected_name') || '' },
@@ -5941,6 +5941,40 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 </div>`;
         }
 
+        // ── Connector focus selections (account/site/property picks per connector) ──
+        // Surfaces the same per-connector selections that scope the data a chat pulls,
+        // so "Items in focus" reflects every integration — not just Monday/Google-Chat.
+        function cbGetConnectorFocusGroups() {
+            // Searchable-select connectors store [{value,label}] in localStorage / window.ssSelections.
+            const ssLabels = (key) => {
+                let arr = [];
+                try { arr = (window.ssSelections && window.ssSelections[key]) || JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) { arr = []; }
+                if (!Array.isArray(arr)) arr = arr ? [arr] : [];
+                return arr.map(s => (s && typeof s === 'object') ? (s.label || s.value) : s).filter(Boolean);
+            };
+            // ID-only connectors: map saved ids → names via the loaded full list (falls back to id).
+            const idLabels = (idsKey, listVar, nameField) => {
+                let ids = [];
+                try { ids = JSON.parse(localStorage.getItem(idsKey) || '[]'); } catch (e) { ids = []; }
+                if (!Array.isArray(ids)) ids = [];
+                const list = Array.isArray(window[listVar]) ? window[listVar] : [];
+                return ids.map(id => {
+                    const m = list.find(o => String(o.id) === String(id));
+                    return m ? (m[nameField] || m.url || String(id)) : String(id);
+                });
+            };
+            return [
+                { label: 'Search Console', items: ssLabels('selectedGscSite') },
+                { label: 'GA4 properties', items: ssLabels('selectedGa4Property') },
+                { label: 'Google Ads',     items: ssLabels('selectedAdsAccount') },
+                { label: 'Meta Ads',       items: ssLabels('selectedMetaAccount') },
+                { label: 'LinkedIn Ads',   items: ssLabels('selectedLinkedInAccount') },
+                { label: 'TikTok Ads',     items: ssLabels('selectedTikTokAccount') },
+                { label: 'SE Ranking',     items: idLabels('selectedSERankingSiteIds', 'allSERankingSites', 'title') },
+                { label: 'WorkDuo',        items: idLabels('selectedWorkDuoProjectIds', 'allWorkDuoProjects', 'name') },
+            ].filter(g => g.items.length);
+        }
+
         // ── Internal-mode welcome: live integration status + focus selections ──
         function cbBuildInternalWelcomeContent() {
             const get = (id) => { try { return (msState[id] && msState[id].selected) || []; } catch (e) { return []; } };
@@ -5951,7 +5985,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 { label: 'Staff',         items: get('msStaffDropdown').map(nm).filter(Boolean) },
                 { label: 'Chat spaces',   items: get('msChatSpaceDropdown').map(nm).filter(Boolean) },
                 { label: 'Drive folders', items: get('msGDriveFolderDropdown').map(nm).filter(Boolean) },
-            ].filter(g => g.items.length);
+            ].concat(cbGetConnectorFocusGroups()).filter(g => g.items.length);
 
             const focusChip = (t) => `<span style="display:inline-block; background:#eff6ff; border:1px solid #bfdbfe; color:#1e40af; border-radius:6px; padding:2px 8px; font-size:0.72rem; font-weight:600; margin:3px 5px 0 0;">${escapeHtml(t)}</span>`;
 
