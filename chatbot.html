@@ -3608,7 +3608,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2328</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2329</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -5439,6 +5439,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
 
             // Start background fetches for filters
             fetchSERankingSites();
+            fetchWorkDuoProjects(); // preload so the default "all selected" applies without opening the panel
             loadBoardRegistry();
             
             await loadSettings();
@@ -6835,6 +6836,21 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
         window.selectedWorkDuoProjectIds = JSON.parse(localStorage.getItem('selectedWorkDuoProjectIds') || '[]');
         let _workduoFetched = false;
 
+        // First load with no explicit choice yet: pre-select every project so the
+        // connector pre-loads full context by default. The one-time flag means an
+        // explicit user choice later (including deselecting all) is always respected.
+        function workduoApplyDefaultSelection() {
+            try {
+                if (localStorage.getItem('workduo_default_applied') === '1') return;
+                if (!Array.isArray(window.allWorkDuoProjects) || !window.allWorkDuoProjects.length) return;
+                if (!window.selectedWorkDuoProjectIds.length) {
+                    window.selectedWorkDuoProjectIds = window.allWorkDuoProjects.map(p => String(p.id));
+                    localStorage.setItem('selectedWorkDuoProjectIds', JSON.stringify(window.selectedWorkDuoProjectIds));
+                }
+                localStorage.setItem('workduo_default_applied', '1');
+            } catch (e) {}
+        }
+
         function toggleWorkDuoDropdown() {
             document.getElementById('workduoDropdown').classList.toggle('active');
             msEnsureSelectedToggle(document.getElementById('workduoMultiSelect'));
@@ -6856,6 +6872,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 if (cached && cached.projects && Date.now() - cached.ts < 3600000) {
                     window.allWorkDuoProjects = cached.projects;
                     _workduoFetched = true;
+                    workduoApplyDefaultSelection();
                     renderWorkDuoProjects();
                     updateWorkDuoCount();
                     return;
@@ -6875,6 +6892,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     window.allWorkDuoProjects = data.projects;
                     _workduoFetched = true;
                     try { localStorage.setItem('workduo_projects_cache', JSON.stringify({ projects: data.projects, ts: Date.now() })); } catch(e) {}
+                    workduoApplyDefaultSelection();
                     renderWorkDuoProjects();
                     updateWorkDuoCount();
                 } else {
