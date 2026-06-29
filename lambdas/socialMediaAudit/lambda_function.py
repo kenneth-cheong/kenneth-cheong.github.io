@@ -3078,9 +3078,15 @@ def _meta_card(platform, posts, insights):
 
 def _cron_meta_platforms(proj, month):
     """Pull this project's private IG/FB insights for the month, gated to the
-    platforms the project actually tracks. Returns [] when no Meta token is set,
-    no FB/IG handle exists, or the page can't be resolved."""
-    if not META_ACCESS_TOKEN:
+    platforms the project actually tracks. Returns [] when no Meta token is
+    available, no FB/IG handle exists, or the page can't be resolved.
+
+    Token preference: the per-client connected Meta token (covers pages the
+    client connected via their OWN login) first, falling back to the global
+    agency system-user token. This makes the server path strictly more capable
+    than the old browser-only 'Add private insights' flow."""
+    token = ((proj.get('connections') or {}).get('meta') or {}).get('token') or META_ACCESS_TOKEN
+    if not token:
         return []
     handles = proj.get('handles') or {}
     plats   = set(proj.get('platforms') or [])
@@ -3088,7 +3094,7 @@ def _cron_meta_platforms(proj, month):
     want_ig = ('instagram' in plats) or bool(handles.get('instagram'))
     if not (want_fb or want_ig):
         return []
-    meta = _meta_resolve(proj, META_ACCESS_TOKEN)
+    meta = _meta_resolve(proj, token)
     if not meta:
         return []
     since, until = _meta_month_range(month)
