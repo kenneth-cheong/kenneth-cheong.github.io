@@ -183,7 +183,7 @@ export const handler = async (event) => {
           + `</table></div>`;
         try {
           await sendEmail({
-            to: 'tom@mediaone.co',
+            to: ['tom@mediaone.co', 'kenneth@mediaone.co'],
             subject: `Digimetrics Free Trial + NDA accepted — ${form.organisation || form.name}`,
             text, html,
           });
