@@ -385,13 +385,14 @@ def _daily(rows):
     return {d: round(x["m"] / x["r"] * 100, 1) if x["r"] else 0 for d, x in by.items()}
 
 
-def build_workduo_model(campaign):
+def build_workduo_model(campaign, proj=None):
     """Transform real Workduo metrics into the dashboard's WD.model shape.
     Sentiment + detailed citations are not exposed by Workduo's metrics API,
     so those are flagged unavailable rather than fabricated."""
     pid = str(campaign["id"])
-    projects = {str(p.get("id")): p for p in fetch_workduo_projects()}
-    proj = projects.get(pid) or {}
+    if proj is None:
+        projects = {str(p.get("id")): p for p in fetch_workduo_projects()}
+        proj = projects.get(pid) or {}
     self_eid = (proj.get("entity") or {}).get("id")
     brand = campaign.get("brand") or (proj.get("entity") or {}).get("name") or campaign.get("name")
     target = campaign.get("target") or (proj.get("entity") or {}).get("url") or ""
@@ -522,6 +523,55 @@ def h_import_metrics(req):
                        "self": model["self"]})
 
 
+def h_migrate_all(req):
+    """Resumable batch migration of Workduo projects matching `filter` (default '(Live)').
+    Imports definition + real historical metrics for each, skipping any that already have
+    metrics (unless force=true) and continuing past per-campaign errors. Idempotent — safe
+    to re-trigger; it resumes where it left off."""
+    flt = (req.get("filter") or "(Live)").lower()
+    with_metrics = req.get("withMetrics", True)
+    force = bool(req.get("force"))
+    projs = fetch_workduo_projects()
+    matched = [p for p in projs
+               if flt in (p.get("name") or "").lower() and (p.get("entity") or {}).get("id")]
+    results = []
+    for p in matched:
+        pid = str(p.get("id"))
+        name = p.get("name") or pid
+        existing = _table.get_item(Key={"id": pid}).get("Item")
+        if existing and existing.get("metrics") and not force:
+            results.append({"id": pid, "name": name, "status": "skipped"})
+            continue
+        try:
+            definition, _ = extract_definition(p)
+            item = dict(definition)
+            item["createdAt"] = (existing or {}).get("createdAt") or _now()
+            item["updatedAt"] = _now()
+            item["hasMetrics"] = False
+            _table.put_item(Item=item)
+            vis = None
+            if with_metrics:
+                model = build_workduo_model(item, proj=p)
+                vis = (model.get("self") or {}).get("visibility")
+                _table.update_item(
+                    Key={"id": pid},
+                    UpdateExpression="SET #m = :m, hasMetrics = :h, metricsUpdatedAt = :t, updatedAt = :t, metricsSource = :s",
+                    ExpressionAttributeNames={"#m": "metrics"},
+                    ExpressionAttributeValues={":m": json.dumps(model), ":h": True, ":t": _now(), ":s": "workduo"},
+                )
+            results.append({"id": pid, "name": name, "status": "done", "visibility": vis})
+        except Exception as e:
+            results.append({"id": pid, "name": name, "status": "error", "error": str(e)})
+    return _resp(200, {
+        "filter": req.get("filter") or "(Live)",
+        "matched": len(matched),
+        "done": len([r for r in results if r["status"] == "done"]),
+        "skipped": len([r for r in results if r["status"] == "skipped"]),
+        "errors": [r for r in results if r["status"] == "error"],
+        "results": results,
+    })
+
+
 def h_inspect(req):
     """One-off discovery: dump a raw project + probe candidate prompt/region endpoints."""
     pid = str(req.get("id") or "")
@@ -620,6 +670,8 @@ def lambda_handler(event, context):
             return h_inspect_metrics(req)
         if action == "import_metrics":
             return h_import_metrics(req)
+        if action == "migrate_all":
+            return h_migrate_all(req)
         return _resp(400, {"error": f"unknown action: {action}"})
     except Exception as e:
         return _resp(500, {"error": str(e)})
