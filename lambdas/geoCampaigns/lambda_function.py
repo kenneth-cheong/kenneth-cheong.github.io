@@ -26,8 +26,10 @@ import re
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timedelta, timezone
 
 import boto3
+from boto3.dynamodb.conditions import Key
 
 WD_PUB = os.environ.get("WORKDUO_PUBLIC_KEY", "")
 WD_SEC = os.environ.get("WORKDUO_SECRET_KEY", "")
@@ -42,8 +44,10 @@ CORS = {
     "Access-Control-Allow-Methods": "POST,OPTIONS",
 }
 
+DAILY_TABLE = os.environ.get("DAILY_TABLE", "geoCampaignDaily")
 _ddb = boto3.resource("dynamodb")
 _table = _ddb.Table(TABLE_NAME)
+_daily_tbl = _ddb.Table(DAILY_TABLE)
 
 
 def _resp(status, body):
@@ -332,12 +336,27 @@ PALETTE = ['#6b5ce7', '#14b8a6', '#f59e0b', '#ec4899', '#fda4af', '#38bdf8', '#a
 METRICS_DATE_RANGE = os.environ.get("WORKDUO_METRICS_RANGE", "last30days")
 
 
-def _wd_get_metrics(eid, pid, dimension, interval="daily"):
-    """Paginated metrics rows for one entity/dimension over the configured window.
+def _range_spec(req):
+    """Resolve a date-range request into (query_string, preset, display_label).
+    Workduo supports only last7days, last30days, or custom startDate/endDate."""
+    dr = (req.get("dateRange") or "last30days").strip()
+    if dr == "custom":
+        sd, ed = req.get("startDate"), req.get("endDate")
+        if not (sd and ed):
+            raise RuntimeError("custom range requires startDate and endDate (YYYY-MM-DD)")
+        return f"dateRange=custom&startDate={sd}&endDate={ed}", dr, f"{sd} → {ed}"
+    if dr not in ("last7days", "last30days"):
+        raise RuntimeError("unsupported dateRange — use last7days, last30days, or custom")
+    return f"dateRange={dr}", dr, dr
+
+
+def _wd_get_metrics(eid, pid, dimension, interval="daily", range_qs=None):
+    """Paginated metrics rows for one entity/dimension over a window.
     interval='daily' for time-series, 'selectedDateRange' for one aggregate row each."""
     rows, token, pages, page_size = [], None, 0, 100
+    rng = range_qs or f"dateRange={METRICS_DATE_RANGE}"
     base = (f"{WD_DATA}/metrics/entities/{eid}?projectId={pid}"
-            f"&dateRange={METRICS_DATE_RANGE}&dimension={dimension}&interval={interval}")
+            f"&{rng}&dimension={dimension}&interval={interval}")
     while pages < 80:
         u = base + (f"&pageSize={page_size}" if page_size else "")
         if token:
@@ -385,7 +404,7 @@ def _daily(rows):
     return {d: round(x["m"] / x["r"] * 100, 1) if x["r"] else 0 for d, x in by.items()}
 
 
-def build_workduo_model(campaign, proj=None):
+def build_workduo_model(campaign, proj=None, range_qs=None, range_label=None):
     """Transform real Workduo metrics into the dashboard's WD.model shape.
     Sentiment + detailed citations are not exposed by Workduo's metrics API,
     so those are flagged unavailable rather than fabricated."""
@@ -422,7 +441,7 @@ def build_workduo_model(campaign, proj=None):
     ent_models, series_by_date = [], {}
     self_qrows, primary_qrows, primary_name = None, None, None
     for em in metas:
-        trows = _wd_get_metrics(em["id"], pid, "topic")
+        trows = _wd_get_metrics(em["id"], pid, "topic", range_qs=range_qs)
         agg = _agg_overall(trows)
         nm = em["name"] or em["id"]
         ent_models.append({
@@ -433,9 +452,9 @@ def build_workduo_model(campaign, proj=None):
             series_by_date.setdefault(d, {})[nm] = v
         if em["isSelf"]:
             # one aggregate row per query (interval=selectedDateRange) — fast, no per-day pages
-            self_qrows = _wd_get_metrics(em["id"], pid, "query", "selectedDateRange")
+            self_qrows = _wd_get_metrics(em["id"], pid, "query", "selectedDateRange", range_qs=range_qs)
         elif primary_qrows is None:
-            primary_qrows = _wd_get_metrics(em["id"], pid, "query", "selectedDateRange")
+            primary_qrows = _wd_get_metrics(em["id"], pid, "query", "selectedDateRange", range_qs=range_qs)
             primary_name = nm
 
     ent_models.sort(key=lambda e: -e["visibility"])
@@ -502,8 +521,231 @@ def build_workduo_model(campaign, proj=None):
         "positive": 0, "negative": 0, "sentimentThemes": [],
         "sentimentAvailable": False, "citationsDetailAvailable": False,
         "plats": [{"label": "ChatGPT"}, {"label": "Google AI Overview"}],
-        "dateRange": METRICS_DATE_RANGE,
+        "dateRange": range_label or METRICS_DATE_RANGE,
     }
+
+
+# ---------------------------------------------------------------------------
+# Daily export to geoCampaignDaily + Workduo-INDEPENDENT model builder.
+# After export, the platform serves any date range straight from DynamoDB with
+# zero Workduo calls — so Workduo access can be cut off entirely.
+# ---------------------------------------------------------------------------
+def _today():
+    return datetime.now(timezone.utc).date()
+
+
+def _blank():
+    return {"m": 0, "r": 0, "em": 0, "ps": 0.0, "pc": 0, "oc": 0, "os": 0.0, "on": 0}
+
+
+def _acc_overall(dst, r):
+    dst["m"] += r.get("mentions", 0) or 0
+    dst["r"] += r.get("totalResponses", 0) or 0
+    dst["em"] += r.get("totalEntitiesMentions", 0) or 0
+    if r.get("mentions") and r.get("position"):
+        dst["ps"] += r["position"]; dst["pc"] += 1
+    dst["oc"] += r.get("ownedCitationCount", 0) or 0
+    if r.get("ownedCitationShare") is not None:
+        dst["os"] += r["ownedCitationShare"]; dst["on"] += 1
+
+
+def export_daily(campaign, proj=None, max_windows=3):
+    """Pull available daily history from Workduo and store it per (campaign, date)
+    in geoCampaignDaily. Walks backward in 30-day windows until the data runs out
+    (capped at 3 windows ≈ 90 days — campaigns are recent)."""
+    pid = str(campaign["id"])
+    if proj is None:
+        proj = {str(p.get("id")): p for p in fetch_workduo_projects()}.get(pid) or {}
+    self_eid = (proj.get("entity") or {}).get("id")
+    brand = campaign.get("brand") or (proj.get("entity") or {}).get("name") or campaign.get("name")
+    target = campaign.get("target") or (proj.get("entity") or {}).get("url") or ""
+    domain = campaign.get("domain") or domain_of(target)
+    region = campaign.get("region") or "Singapore"
+
+    ents_raw = _rows(_wd_get(f"{WD_CORE}/entities", {"projectId": pid, "pageSize": 100})[1])
+    metas = []
+    for e in ents_raw:
+        if isinstance(e, dict) and e.get("id"):
+            metas.append({"id": str(e["id"]), "name": e.get("name") or "",
+                          "url": e.get("url") or "", "isSelf": e.get("id") == self_eid})
+    metas.sort(key=lambda m: 0 if m["isSelf"] else 1)
+    metas = metas[:6]
+    primary_id = next((m["id"] for m in metas if not m["isSelf"]), None)
+
+    qmeta = {}
+    for q in _rows(_wd_get(f"{WD_CORE}/queries", {"projectId": pid, "pageSize": 200})[1]):
+        if isinstance(q, dict) and q.get("id"):
+            qmeta[str(q["id"])] = {"text": q.get("query") or str(q["id"]), "topic": q.get("topic") or "General"}
+
+    days = {}
+
+    def day(d):
+        return days.setdefault(d, {"ents": {}})
+
+    # Per-entity overall daily metrics only (topic-daily is cheap: few topics/day).
+    # This is range-accurate for the time-series, KPIs, SOV and competitor leaderboard.
+    # The per-query breakdown table is sourced from the persisted snapshot in build_model_from_db.
+    today, empty, windows_used = _today(), 0, 0
+    for w in range(max_windows):
+        end = today - timedelta(days=w * 30)
+        start = end - timedelta(days=29)
+        qs = f"dateRange=custom&startDate={start.isoformat()}&endDate={end.isoformat()}"
+        win_rows = 0
+        for em in metas:
+            for r in _wd_get_metrics(em["id"], pid, "topic", "daily", range_qs=qs):
+                d = (r.get("date") or "")[:10]
+                if not d:
+                    continue
+                win_rows += 1
+                _acc_overall(day(d)["ents"].setdefault(em["id"], _blank()), r)
+        windows_used = w + 1
+        empty = empty + 1 if win_rows == 0 else 0
+        if empty >= 2:
+            break
+
+    primary_name = next((m["name"] for m in metas if m["id"] == primary_id), None)
+    meta = {"brand": brand, "target": target, "domain": domain, "region": region,
+            "primaryId": primary_id, "primaryName": primary_name,
+            "entities": {m["id"]: {"name": m["name"], "url": m["url"], "isSelf": m["isSelf"]} for m in metas}}
+    _daily_tbl.put_item(Item={"campaignId": pid, "date": "__meta__", "blob": json.dumps(meta)})
+    with _daily_tbl.batch_writer() as bw:
+        for d, data in days.items():
+            bw.put_item(Item={"campaignId": pid, "date": d, "blob": json.dumps(data)})
+    # mark the definition row so the frontend knows daily data is queryable
+    try:
+        _table.update_item(Key={"id": pid},
+                           UpdateExpression="SET hasDaily = :h, dailyDays = :d, dailyUpdatedAt = :t",
+                           ExpressionAttributeValues={":h": True, ":d": len(days), ":t": _now()})
+    except Exception:
+        pass
+    return {"days": len(days), "windows": windows_used, "entities": len(metas)}
+
+
+def _range_dates(req):
+    dr = (req.get("dateRange") or "last30days").strip()
+    today = _today()
+    if dr == "custom":
+        sd, ed = req.get("startDate"), req.get("endDate")
+        if not (sd and ed):
+            raise RuntimeError("custom range requires startDate and endDate (YYYY-MM-DD)")
+        return sd, ed, dr, f"{sd} → {ed}"
+    if dr == "last7days":
+        return (today - timedelta(days=6)).isoformat(), today.isoformat(), dr, dr
+    if dr == "last30days":
+        return (today - timedelta(days=29)).isoformat(), today.isoformat(), dr, dr
+    raise RuntimeError("unsupported dateRange — use last7days, last30days, or custom")
+
+
+def build_model_from_db(cid, start, end, label):
+    """Build the dashboard model for a date range entirely from geoCampaignDaily — no Workduo."""
+    meta_item = _daily_tbl.get_item(Key={"campaignId": cid, "date": "__meta__"}).get("Item")
+    if not meta_item:
+        raise RuntimeError("no daily data exported for this campaign yet")
+    meta = json.loads(meta_item["blob"])
+    ents_meta, primary_id = meta["entities"], meta.get("primaryId")
+
+    cond = Key("campaignId").eq(cid) & Key("date").between(start, end)
+    resp = _daily_tbl.query(KeyConditionExpression=cond)
+    items = resp.get("Items", [])
+    while "LastEvaluatedKey" in resp:
+        resp = _daily_tbl.query(KeyConditionExpression=cond, ExclusiveStartKey=resp["LastEvaluatedKey"])
+        items.extend(resp.get("Items", []))
+
+    ent_tot, series = {}, {}
+    for it in items:
+        d = it["date"]
+        data = json.loads(it["blob"])
+        for eid, ov in data.get("ents", {}).items():
+            t = ent_tot.setdefault(eid, _blank())
+            for k in t:
+                t[k] += ov.get(k, 0)
+            nm = (ents_meta.get(eid) or {}).get("name") or eid
+            series.setdefault(d, {})[nm] = round(ov["m"] / ov["r"] * 100, 1) if ov.get("r") else 0
+
+    def overall(t):
+        return {"visibility": round(t["m"] / t["r"] * 100, 1) if t["r"] else 0,
+                "sov": round(t["m"] / t["em"] * 100, 1) if t["em"] else 0,
+                "avgPosition": round(t["ps"] / t["pc"], 1) if t["pc"] else 0,
+                "mentions": t["m"], "total": t["r"], "ownedCount": t["oc"],
+                "ownedShare": round(t["os"] / t["on"] * 100, 1) if t["on"] else 0}
+
+    ent_models = []
+    for eid, t in ent_tot.items():
+        em = ents_meta.get(eid) or {}
+        ent_models.append({"name": em.get("name") or eid,
+                           "domain": domain_of(em.get("url")) or (meta["domain"] if em.get("isSelf") else ""),
+                           "isSelf": bool(em.get("isSelf")), **overall(t)})
+    ent_models.sort(key=lambda e: -e["visibility"])
+    self_m = next((e for e in ent_models if e["isSelf"]), ent_models[0] if ent_models else None)
+    if not self_m:
+        raise RuntimeError("no entity data in selected range")
+
+    by_sov = sorted(ent_models, key=lambda e: -e["sov"])
+    sov_break, used = [], 0
+    for i, e in enumerate(by_sov[:5]):
+        sov_break.append({"name": e["name"], "value": e["sov"], "color": PALETTE[i % len(PALETTE)], "isSelf": e["isSelf"]})
+        used += e["sov"]
+    rest = round(max(0, 100 - used), 1)
+    if rest > 0.5:
+        sov_break.append({"name": "Others", "value": rest, "color": "#cbd5e1", "isSelf": False})
+
+    vis_series = []
+    for d in sorted(series.keys()):
+        bb = series[d]
+        vis_series.append({"date": d, "self": bb.get(self_m["name"], 0), "sov": self_m["sov"],
+                           "positive": 0, "negative": 0, "byBrand": bb})
+
+    # Per-query breakdown: reuse the persisted last-30d snapshot. (Workduo doesn't expose
+    # per-query daily cheaply; the time-series / KPIs / SOV / competitors above ARE range-accurate.)
+    prompts = []
+    snap = _table.get_item(Key={"id": cid}).get("Item")
+    if snap and snap.get("metrics"):
+        try:
+            prompts = (json.loads(snap["metrics"]) or {}).get("prompts", []) or []
+        except Exception:
+            prompts = []
+    primary_name = meta.get("primaryName") or ((ents_meta.get(primary_id) or {}).get("name") if primary_id else None)
+
+    return {"brand": meta["brand"], "target": meta["target"], "domain": meta["domain"], "location": meta["region"],
+            "live": True, "metricsSource": "workduo", "engineLabel": "Workduo (historical)", "generatedAt": _now(),
+            "self": self_m, "entities": ent_models, "sovBreakdown": sov_break, "visibilitySeries": vis_series,
+            "sentimentSeries": [{"date": s["date"], "positive": 0, "negative": 0} for s in vis_series],
+            "prompts": prompts, "primaryComp": primary_name, "citations": [], "citationTypes": [],
+            "ownedShare": self_m["ownedShare"], "ownedCount": self_m["ownedCount"],
+            "positive": 0, "negative": 0, "sentimentThemes": [], "sentimentAvailable": False,
+            "citationsDetailAvailable": False, "plats": [{"label": "ChatGPT"}, {"label": "Google AI Overview"}],
+            "dateRange": label, "dataSource": "db"}
+
+
+def h_export_daily(req):
+    cid = str(req.get("id") or "")
+    item = _table.get_item(Key={"id": cid}).get("Item")
+    proj = {str(p.get("id")): p for p in fetch_workduo_projects()}.get(cid)
+    r = export_daily(item or {"id": cid}, proj=proj)
+    return _resp(200, {"id": cid, **r})
+
+
+def h_export_daily_all(req):
+    flt = (req.get("filter") or "(Live)").lower()
+    force = bool(req.get("force"))
+    projs = fetch_workduo_projects()
+    matched = [p for p in projs if flt in (p.get("name") or "").lower() and (p.get("entity") or {}).get("id")]
+    results = []
+    for p in matched:
+        pid, name = str(p.get("id")), (p.get("name") or "")
+        if not force and _daily_tbl.get_item(Key={"campaignId": pid, "date": "__meta__"}).get("Item"):
+            results.append({"id": pid, "name": name, "status": "skipped"})
+            continue
+        item = _table.get_item(Key={"id": pid}).get("Item") or {"id": pid, "brand": name}
+        try:
+            r = export_daily(item, proj=p)
+            results.append({"id": pid, "name": name, "status": "done", **r})
+        except Exception as e:
+            results.append({"id": pid, "name": name, "status": "error", "error": str(e)})
+    return _resp(200, {"matched": len(matched),
+                       "done": len([r for r in results if r["status"] == "done"]),
+                       "skipped": len([r for r in results if r["status"] == "skipped"]),
+                       "errors": [r for r in results if r["status"] == "error"], "results": results})
 
 
 def h_import_metrics(req):
@@ -521,6 +763,16 @@ def h_import_metrics(req):
     return _resp(200, {"ok": True, "id": cid, "entities": len(model["entities"]),
                        "prompts": len(model["prompts"]), "days": len(model["visibilitySeries"]),
                        "self": model["self"]})
+
+
+def h_metrics_for_range(req):
+    """On-demand: build a campaign's model for a chosen date range straight from our
+    DynamoDB daily store — NO Workduo calls. Fast (single DynamoDB date-range query)."""
+    cid = str(req.get("id") or "")
+    start, end, preset, label = _range_dates(req)
+    model = build_model_from_db(cid, start, end, label)
+    model["dateRangePreset"] = preset
+    return _resp(200, {"id": cid, "model": model})
 
 
 def h_migrate_all(req):
@@ -596,6 +848,35 @@ def h_inspect(req):
                        "probes": probes})
 
 
+def h_inspect_ranges(req):
+    """Discover which dateRange presets + custom from/to params Workduo accepts."""
+    pid = str(req.get("id") or "")
+    projs = {str(p.get("id")): p for p in fetch_workduo_projects()}
+    p = projs.get(pid)
+    eid = (p.get("entity") or {}).get("id") if p else None
+    base = f"{WD_DATA}/metrics/entities/{eid}?projectId={pid}&dimension=topic&interval=daily&pageSize=100"
+    presets = ["last7days", "last14days", "last30days", "last90days", "last180days",
+               "lastMonth", "thisMonth", "last3months", "last6months", "lastYear", "allTime"]
+    custom = [
+        "&dateRange=custom&dateFrom=2026-05-01&dateTo=2026-05-31",
+        "&dateRange=custom&startDate=2026-05-01&endDate=2026-05-31",
+        "&dateRange=custom&from=2026-05-01&to=2026-05-31",
+        "&dateFrom=2026-05-01&dateTo=2026-05-31",
+        "&startDate=2026-05-01&endDate=2026-05-31",
+        "&dateRange=selectedDateRange&dateFrom=2026-05-01&dateTo=2026-05-31",
+    ]
+    probes = {}
+    for r in presets:
+        st, b = _wd_get(base + f"&dateRange={r}")
+        rows = _rows(b) if st == 200 else []
+        probes["preset:" + r] = {"status": st, "rows": len(rows), "msg": (b.get("message") or b.get("error") if isinstance(b, dict) else "")}
+    for c in custom:
+        st, b = _wd_get(base + c)
+        rows = _rows(b) if st == 200 else []
+        probes["custom:" + c] = {"status": st, "rows": len(rows), "msg": (b.get("message") or b.get("error") if isinstance(b, dict) else "")}
+    return _resp(200, {"probes": probes})
+
+
 def h_inspect_metrics(req):
     """Map the Workduo METRICS surface: probe dimensions/intervals + data endpoints."""
     pid = str(req.get("id") or "")
@@ -668,10 +949,18 @@ def lambda_handler(event, context):
             return h_inspect(req)
         if action == "inspect_metrics":
             return h_inspect_metrics(req)
+        if action == "inspect_ranges":
+            return h_inspect_ranges(req)
         if action == "import_metrics":
             return h_import_metrics(req)
         if action == "migrate_all":
             return h_migrate_all(req)
+        if action == "metrics_for_range":
+            return h_metrics_for_range(req)
+        if action == "export_daily":
+            return h_export_daily(req)
+        if action == "export_daily_all":
+            return h_export_daily_all(req)
         return _resp(400, {"error": f"unknown action: {action}"})
     except Exception as e:
         return _resp(500, {"error": str(e)})
