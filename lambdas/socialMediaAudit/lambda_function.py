@@ -1038,15 +1038,24 @@ def _collect_posts(platform, items, head):
             pv   = p.get('postVideo') or {}
             imgs = p.get('postImages') or []
             is_video = bool(isinstance(pv, dict) and pv.get('thumbnailUrl'))
-            image = (pv.get('thumbnailUrl') if is_video
-                     else (imgs[0].get('url') if (imgs and isinstance(imgs[0], dict)) else ''))
+            # Image priority: video thumb → inline post image → document/carousel
+            # cover page. Text-only & link posts carry none → '' (grid placeholder).
+            image = ''
+            if is_video:
+                image = pv.get('thumbnailUrl') or ''
+            if not image and imgs and isinstance(imgs[0], dict):
+                image = imgs[0].get('url') or ''
+            if not image:
+                cover = (((p.get('document') or {}).get('coverPages') or [{}])[0]).get('imageUrls') or []
+                image = (cover[0] if cover else '') or ''
+            typ = 'video' if is_video else ('carousel' if (p.get('document') or imgs and len(imgs) > 1) else 'image')
             out.append({
                 'ts':       pa.get('timestamp') or pa.get('date'),
                 'likes':    _num(eng.get('likes')),
                 'comments': _num(eng.get('comments')),
                 'shares':   _num(eng.get('shares')),
                 'views':    None,
-                'type':     'video' if is_video else 'image',
+                'type':     typ,
                 'hashtags': re.findall(r'#(\w+)', text),
                 'text':     ' '.join(text.split())[:160],
                 'caption':  ' '.join(text.split())[:400],
