@@ -12,6 +12,17 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        // Guard: if the marked CDN was blocked/failed, log a clear error and install a
+        // plain-text fallback so `marked.parse(...)` / `marked.setOptions(...)` can't throw
+        // "marked is not defined".
+        if (typeof marked === 'undefined') {
+            console.error('marked.min.js failed to load (CDN blocked?) — markdown will render as plain text. Check the <script src="...marked..."> tag in chatbot.html.');
+            window.marked = function (t) { return t == null ? '' : String(t); };
+            window.marked.parse = window.marked;
+            window.marked.setOptions = function () {};
+        }
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
@@ -3597,7 +3608,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2320</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2321</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -5981,7 +5992,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             section.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
-        let _cbMondayAcctTried = false;
+        var _cbMondayAcctTried = false;
         async function cbCaptureMondayAccount() {
             if (_cbMondayAcctTried) return;
             const key = localStorage.getItem('mondayApiKey');
@@ -6283,7 +6294,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
 
         var MONDAY_LAMBDA_URL = "https://1rxrp7gth2.execute-api.ap-southeast-1.amazonaws.com/monday";
         var SERANKING_LAMBDA_URL = "https://u2u2ptqaxd.execute-api.ap-southeast-1.amazonaws.com/seRanking";
-        let autoSyncTimer = null;
+        var autoSyncTimer = null;
 
         function startAutoSync() {
             if (autoSyncTimer) clearInterval(autoSyncTimer);
