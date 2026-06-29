@@ -213,6 +213,8 @@ def lambda_handler(event, context):
             return _resp(200, report_daily_series(body))
         if action == 'report_backfill_meta':
             return _resp(200, report_backfill_meta(body))
+        if action == 'report_backfill_linkedin':
+            return _resp(200, report_backfill_linkedin(body))
         if action == 'meta_pages':
             return _resp(200, meta_pages(body))
         if action == 'report_delete_month':
@@ -2278,6 +2280,48 @@ def report_backfill_meta(body):
                        'currentUser': {'email': 'meta-backfill@auto'}})
     return {'ok': True, 'month': month, 'has_data': True,
             'platforms': [c.get('platform') for c in meta_platforms]}
+
+
+def report_backfill_linkedin(body):
+    """Backfill ONE past month of LinkedIn org analytics using the per-client
+    connected token (free). LinkedIn keeps a rolling ~12-month window of share &
+    follower stats, so a caller can walk backwards until it runs dry. Merges into
+    the month, leaving other platforms untouched. Returns has_data."""
+    pid   = (body.get('projectId') or (body.get('data') or {}).get('projectId') or '').strip()
+    month = (body.get('month') or (body.get('data') or {}).get('month') or '').strip()
+    if not pid or not re.match(r'^\d{4}-\d{2}$', month):
+        raise RuntimeError('Need projectId + month (YYYY-MM).')
+    proj = _rprojects().get_item(Key={'projectId': pid}).get('Item')
+    if not proj:
+        raise RuntimeError('Unknown project.')
+    proj = _dec(proj)
+    try:
+        li_platforms = _cron_linkedin_platforms(proj, month)
+    except Exception as e:
+        return {'ok': False, 'month': month, 'has_data': False, 'li_error': str(e)[:200]}
+    # Period-specific evidence (followers alone is the CURRENT value, not history).
+    def _has(c):
+        return bool(c.get('posts')) or any(c.get(k) is not None for k in
+                   ('impressions', 'reach', 'engagements', 'clicks', 'followers_increase'))
+    if not any(_has(c) for c in li_platforms):
+        return {'ok': True, 'month': month, 'has_data': False,
+                'platforms': [c.get('platform') for c in li_platforms]}
+    existing = _rmonths().get_item(Key={'projectId': pid, 'month': month}).get('Item')
+    prev_sc, prev_recs = {}, None
+    if existing:
+        prev_recs = _dec(existing.get('recommendations'))
+        if isinstance(existing.get('scorecard'), str):
+            try: prev_sc = json.loads(existing['scorecard'])
+            except ValueError: prev_sc = {}
+    sc = _merge_meta_platforms(prev_sc or {}, li_platforms)
+    kpis = _kpis_from_scorecard(sc)
+    recs = prev_recs or {'executive_summary': sc.get('executive_summary', ''),
+                         'overall_health': sc.get('overall_health')}
+    report_save_month({'data': {'projectId': pid, 'month': month, 'scorecard': sc,
+                                'kpis': kpis, 'recommendations': recs},
+                       'currentUser': {'email': 'linkedin-backfill@auto'}})
+    return {'ok': True, 'month': month, 'has_data': True,
+            'platforms': [c.get('platform') for c in li_platforms]}
 
 
 def report_get_month(body):
