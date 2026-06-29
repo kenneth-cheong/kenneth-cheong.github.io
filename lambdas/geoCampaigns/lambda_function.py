@@ -271,13 +271,22 @@ def h_list():
         kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
     out = []
     for it in items:
+        self_vis, days = None, 0
+        if it.get("metrics"):
+            try:
+                mm = json.loads(it["metrics"])
+                self_vis = (mm.get("self") or {}).get("visibility")
+                days = len(mm.get("visibilitySeries") or [])
+            except Exception:
+                pass
         out.append({
             "id": it.get("id"), "name": it.get("name"), "brand": it.get("brand"),
             "target": it.get("target"), "domain": it.get("domain"), "region": it.get("region"),
             "competitors": it.get("competitors", []), "prompts": it.get("prompts", []),
             "alternativeNames": it.get("alternativeNames", []),
-            "hasMetrics": bool(it.get("metrics")), "updatedAt": it.get("updatedAt"),
-            "metricsUpdatedAt": it.get("metricsUpdatedAt"),
+            "hasMetrics": bool(it.get("metrics")), "selfVisibility": self_vis, "dataDays": days,
+            "metricsSource": it.get("metricsSource"),
+            "updatedAt": it.get("updatedAt"), "metricsUpdatedAt": it.get("metricsUpdatedAt"),
         })
     out.sort(key=lambda c: (c.get("name") or "").lower())
     return _resp(200, {"count": len(out), "campaigns": out})
@@ -319,6 +328,200 @@ def h_delete(req):
     return _resp(200, {"ok": True, "deleted": cid})
 
 
+PALETTE = ['#6b5ce7', '#14b8a6', '#f59e0b', '#ec4899', '#fda4af', '#38bdf8', '#a78bfa']
+METRICS_DATE_RANGE = os.environ.get("WORKDUO_METRICS_RANGE", "last30days")
+
+
+def _wd_get_metrics(eid, pid, dimension, interval="daily"):
+    """Paginated metrics rows for one entity/dimension over the configured window.
+    interval='daily' for time-series, 'selectedDateRange' for one aggregate row each."""
+    rows, token, pages, page_size = [], None, 0, 100
+    base = (f"{WD_DATA}/metrics/entities/{eid}?projectId={pid}"
+            f"&dateRange={METRICS_DATE_RANGE}&dimension={dimension}&interval={interval}")
+    while pages < 80:
+        u = base + (f"&pageSize={page_size}" if page_size else "")
+        if token:
+            u += "&nextPageToken=" + token
+        st, b = _wd_get(u)
+        if st != 200:
+            if page_size:          # some windows reject pageSize — retry without it
+                page_size = 0
+                continue
+            break
+        rows.extend(_rows(b))
+        token = b.get("nextPageToken") if isinstance(b, dict) else None
+        pages += 1
+        if not token:
+            break
+    return rows
+
+
+def _agg_overall(rows):
+    m = sum(r.get("mentions", 0) or 0 for r in rows)
+    resp = sum(r.get("totalResponses", 0) or 0 for r in rows)
+    ent = sum(r.get("totalEntitiesMentions", 0) or 0 for r in rows)
+    pos = [r["position"] for r in rows if r.get("position") and r.get("mentions")]
+    occ = sum(r.get("ownedCitationCount", 0) or 0 for r in rows)
+    ocs = [r.get("ownedCitationShare") for r in rows if r.get("ownedCitationShare") is not None]
+    return {
+        "visibility": round(m / resp * 100, 1) if resp else 0,
+        "sov": round(m / ent * 100, 1) if ent else 0,
+        "avgPosition": round(sum(pos) / len(pos), 1) if pos else 0,
+        "mentions": m, "total": resp,
+        "ownedCount": occ,
+        "ownedShare": round(sum(ocs) / len(ocs) * 100, 1) if ocs else 0,
+    }
+
+
+def _daily(rows):
+    by = {}
+    for r in rows:
+        d = (r.get("date") or "")[:10]
+        if not d:
+            continue
+        x = by.setdefault(d, {"m": 0, "r": 0})
+        x["m"] += r.get("mentions", 0) or 0
+        x["r"] += r.get("totalResponses", 0) or 0
+    return {d: round(x["m"] / x["r"] * 100, 1) if x["r"] else 0 for d, x in by.items()}
+
+
+def build_workduo_model(campaign):
+    """Transform real Workduo metrics into the dashboard's WD.model shape.
+    Sentiment + detailed citations are not exposed by Workduo's metrics API,
+    so those are flagged unavailable rather than fabricated."""
+    pid = str(campaign["id"])
+    projects = {str(p.get("id")): p for p in fetch_workduo_projects()}
+    proj = projects.get(pid) or {}
+    self_eid = (proj.get("entity") or {}).get("id")
+    brand = campaign.get("brand") or (proj.get("entity") or {}).get("name") or campaign.get("name")
+    target = campaign.get("target") or (proj.get("entity") or {}).get("url") or ""
+    domain = campaign.get("domain") or domain_of(target)
+    region = campaign.get("region") or "Singapore"
+
+    # entities (self + competitors)
+    ents_raw = _rows(_wd_get(f"{WD_CORE}/entities", {"projectId": pid, "pageSize": 100})[1])
+    metas = []
+    for e in ents_raw:
+        if not isinstance(e, dict) or not e.get("id"):
+            continue
+        metas.append({"id": e["id"], "name": e.get("name") or "",
+                      "url": e.get("url") or "", "isSelf": e.get("id") == self_eid})
+    # self first, then competitors; cap to keep within timeout
+    metas.sort(key=lambda m: 0 if m["isSelf"] else 1)
+    metas = metas[:6]
+
+    # queryId -> text/topic
+    qmap = {}
+    for q in _rows(_wd_get(f"{WD_CORE}/queries", {"projectId": pid, "pageSize": 200})[1]):
+        if isinstance(q, dict) and q.get("id"):
+            qmap[q["id"]] = {"text": q.get("query") or q["id"],
+                             "topic": q.get("topic") or "General",
+                             "region": q.get("region") or region}
+
+    ent_models, series_by_date = [], {}
+    self_qrows, primary_qrows, primary_name = None, None, None
+    for em in metas:
+        trows = _wd_get_metrics(em["id"], pid, "topic")
+        agg = _agg_overall(trows)
+        nm = em["name"] or em["id"]
+        ent_models.append({
+            "name": nm, "domain": domain_of(em["url"]) or (domain if em["isSelf"] else ""),
+            "isSelf": em["isSelf"], **agg,
+        })
+        for d, v in _daily(trows).items():
+            series_by_date.setdefault(d, {})[nm] = v
+        if em["isSelf"]:
+            # one aggregate row per query (interval=selectedDateRange) — fast, no per-day pages
+            self_qrows = _wd_get_metrics(em["id"], pid, "query", "selectedDateRange")
+        elif primary_qrows is None:
+            primary_qrows = _wd_get_metrics(em["id"], pid, "query", "selectedDateRange")
+            primary_name = nm
+
+    ent_models.sort(key=lambda e: -e["visibility"])
+    self_m = next((e for e in ent_models if e["isSelf"]), ent_models[0] if ent_models else None)
+    if not self_m:
+        raise RuntimeError("no entity metrics returned from Workduo")
+
+    # SOV breakdown (top 5 by sov + Others)
+    by_sov = sorted(ent_models, key=lambda e: -e["sov"])
+    sov_break, used = [], 0
+    for i, e in enumerate(by_sov[:5]):
+        sov_break.append({"name": e["name"], "value": e["sov"],
+                          "color": PALETTE[i % len(PALETTE)], "isSelf": e["isSelf"]})
+        used += e["sov"]
+    rest = round(max(0, 100 - used), 1)
+    if rest > 0.5:
+        sov_break.append({"name": "Others", "value": rest, "color": "#cbd5e1", "isSelf": False})
+
+    # visibility-over-time by brand
+    vis_series = []
+    for d in sorted(series_by_date.keys()):
+        bb = series_by_date[d]
+        vis_series.append({"date": d, "self": bb.get(self_m["name"], 0), "sov": self_m["sov"],
+                           "positive": 0, "negative": 0, "byBrand": bb})
+
+    # per-query breakdown (self vs primary competitor)
+    comp_by_q = {}
+    for r in (primary_qrows or []):
+        qid = r.get("queryId")
+        c = comp_by_q.setdefault(qid, {"m": 0, "r": 0})
+        c["m"] += r.get("mentions", 0) or 0
+        c["r"] += r.get("totalResponses", 0) or 0
+    prompts = []
+    byq = {}
+    for r in (self_qrows or []):
+        qid = r.get("queryId")
+        x = byq.setdefault(qid, {"m": 0, "r": 0, "pos": []})
+        x["m"] += r.get("mentions", 0) or 0
+        x["r"] += r.get("totalResponses", 0) or 0
+        if r.get("position") and r.get("mentions"):
+            x["pos"].append(r["position"])
+    for qid, x in byq.items():
+        info = qmap.get(qid, {})
+        selfpct = round(x["m"] / x["r"] * 100, 1) if x["r"] else 0
+        c = comp_by_q.get(qid)
+        comppct = round(c["m"] / c["r"] * 100, 1) if (c and c["r"]) else 0
+        prompts.append({"text": info.get("text", qid), "topic": info.get("topic", "General"),
+                        "region": info.get("region", region), "responses": x["r"],
+                        "visibility": selfpct, "sov": self_m["sov"],
+                        "avgPosition": round(sum(x["pos"]) / len(x["pos"]), 1) if x["pos"] else 0,
+                        "selfPct": selfpct, "competitorPct": comppct})
+    prompts.sort(key=lambda p: -p["visibility"])
+
+    return {
+        "brand": brand, "target": target, "domain": domain, "location": region,
+        "live": True, "metricsSource": "workduo", "engineLabel": "Workduo (historical)",
+        "generatedAt": _now(),
+        "self": self_m, "entities": ent_models, "sovBreakdown": sov_break,
+        "visibilitySeries": vis_series,
+        "sentimentSeries": [{"date": s["date"], "positive": 0, "negative": 0} for s in vis_series],
+        "prompts": prompts, "primaryComp": primary_name,
+        "citations": [], "citationTypes": [],
+        "ownedShare": self_m["ownedShare"], "ownedCount": self_m["ownedCount"],
+        "positive": 0, "negative": 0, "sentimentThemes": [],
+        "sentimentAvailable": False, "citationsDetailAvailable": False,
+        "plats": [{"label": "ChatGPT"}, {"label": "Google AI Overview"}],
+        "dateRange": METRICS_DATE_RANGE,
+    }
+
+
+def h_import_metrics(req):
+    cid = str(req.get("id") or "")
+    it = _table.get_item(Key={"id": cid}).get("Item")
+    if not it:
+        return _resp(404, {"error": "campaign not found — import its definition first"})
+    model = build_workduo_model(it)
+    _table.update_item(
+        Key={"id": cid},
+        UpdateExpression="SET #m = :m, hasMetrics = :h, metricsUpdatedAt = :t, updatedAt = :t, metricsSource = :s",
+        ExpressionAttributeNames={"#m": "metrics"},
+        ExpressionAttributeValues={":m": json.dumps(model), ":h": True, ":t": _now(), ":s": "workduo"},
+    )
+    return _resp(200, {"ok": True, "id": cid, "entities": len(model["entities"]),
+                       "prompts": len(model["prompts"]), "days": len(model["visibilitySeries"]),
+                       "self": model["self"]})
+
+
 def h_inspect(req):
     """One-off discovery: dump a raw project + probe candidate prompt/region endpoints."""
     pid = str(req.get("id") or "")
@@ -341,6 +544,43 @@ def h_inspect(req):
     return _resp(200, {"projectKeys": list(p.keys()) if p else None,
                        "project": p, "entityKeys": list((p.get("entity") or {}).keys()) if p else None,
                        "probes": probes})
+
+
+def h_inspect_metrics(req):
+    """Map the Workduo METRICS surface: probe dimensions/intervals + data endpoints."""
+    pid = str(req.get("id") or "")
+    projs = {str(p.get("id")): p for p in fetch_workduo_projects()}
+    p = projs.get(pid)
+    eid = (p.get("entity") or {}).get("id") if p else None
+    base = f"{WD_DATA}/metrics/entities/{eid}?projectId={pid}&dateRange=last30days"
+    cand = [
+        base + "&dimension=date&interval=daily",
+        base + "&dimension=query&interval=daily",
+        base + "&dimension=topic",
+        base + "&dimension=sentiment",
+        base + "&dimension=citation",
+        base + "&dimension=citationType",
+        base + "&dimension=platform",
+        base + "&dimension=competitor",
+        base + "&dimension=entity",
+        f"{WD_DATA}/metrics/projects/{pid}?dateRange=last30days",
+        f"{WD_DATA}/metrics/projects/{pid}?dateRange=last30days&dimension=entity",
+        f"{WD_DATA}/citations?projectId={pid}&dateRange=last30days&pageSize=50",
+        f"{WD_DATA}/sentiment?projectId={pid}&dateRange=last30days",
+        f"{WD_DATA}/sentiments?projectId={pid}&dateRange=last30days",
+        f"{WD_DATA}/competitors?projectId={pid}&dateRange=last30days",
+        f"{WD_CORE}/projects/{pid}/entities",
+    ]
+    probes = {}
+    for u in cand:
+        st, b = _wd_get(u)
+        rows = _rows(b) if st == 200 else []
+        probes[u.replace(str(pid), "{id}").replace(str(eid), "{eid}")] = {
+            "status": st, "rowCount": len(rows),
+            "rowKeys": (list(rows[0].keys()) if rows and isinstance(rows[0], dict) else None),
+            "sample": json.dumps(b)[:500],
+        }
+    return _resp(200, {"entityId": eid, "probes": probes})
 
 
 def lambda_handler(event, context):
@@ -376,6 +616,10 @@ def lambda_handler(event, context):
             return h_delete(req)
         if action == "inspect":
             return h_inspect(req)
+        if action == "inspect_metrics":
+            return h_inspect_metrics(req)
+        if action == "import_metrics":
+            return h_import_metrics(req)
         return _resp(400, {"error": f"unknown action: {action}"})
     except Exception as e:
         return _resp(500, {"error": str(e)})
