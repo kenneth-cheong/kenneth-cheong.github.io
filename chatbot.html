@@ -3608,7 +3608,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2337</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2338</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -4811,17 +4811,44 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             }
         }
 
+        let _gsiAttempts = 0;
         function initGoogleSignIn() {
             const clientId = _googleClientId || '1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com';
+            // GSI loads async — retry briefly while it boots, but give up after a
+            // bounded number of tries and fall back to email entry instead of
+            // looping forever / throwing the generic "something went wrong" toast.
             if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
-                setTimeout(initGoogleSignIn, 300);
+                if (_gsiAttempts++ < 20) { setTimeout(initGoogleSignIn, 300); return; }
+                showGoogleSignInFallback();
                 return;
             }
-            google.accounts.id.initialize({ client_id: clientId, callback: handleGoogleCredential });
-            google.accounts.id.renderButton(
-                document.getElementById('googleSignInBtn'),
-                { theme: 'outline', size: 'large', width: 300, text: 'signin_with' }
-            );
+            try {
+                google.accounts.id.initialize({ client_id: clientId, callback: handleGoogleCredential });
+                google.accounts.id.renderButton(
+                    document.getElementById('googleSignInBtn'),
+                    { theme: 'outline', size: 'large', width: 300, text: 'signin_with' }
+                );
+                // renderButton fails silently when the origin isn't an Authorized
+                // JavaScript origin on the OAuth client (GSI logs, never throws).
+                // Detect the empty container and offer the email fallback.
+                setTimeout(function () {
+                    const c = document.getElementById('googleSignInBtn');
+                    if (c && c.childElementCount === 0) {
+                        console.warn('[GOOGLE AUTH] Sign-in button did not render — origin may not be authorized for this OAuth client.');
+                        showGoogleSignInFallback();
+                    }
+                }, 2500);
+            } catch (e) {
+                console.error('[GOOGLE AUTH] Sign-in init failed:', e);
+                showGoogleSignInFallback();
+            }
+        }
+
+        // Reveal the email-entry fallback when Google sign-in is unavailable so
+        // users are never stranded on a dead login screen.
+        function showGoogleSignInFallback() {
+            const fb = document.getElementById('googleSignInFallback');
+            if (fb) fb.style.display = 'block';
         }
 
         (function initUserId() {
@@ -13077,6 +13104,14 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             <h2>Welcome to Digimetrics Chatbot</h2>
             <p>Sign in with your Google account to load your conversation history and settings across all your devices.</p>
             <div id="googleSignInBtn" style="margin-top:8px;"></div>
+            <div id="googleSignInFallback" style="display:none; margin-top:16px; text-align:left;">
+                <p style="color:#dc2626; font-size:0.85rem; margin:0 0 10px;"><i class="fas fa-triangle-exclamation"></i> Google sign-in is temporarily unavailable. Enter your email to continue.</p>
+                <input id="emailPromptInput" type="email" placeholder="you@company.com" onkeydown="if(event.key==='Enter')submitEmailPrompt()" autocomplete="email"
+                    style="width:100%; padding:9px 12px; border:1px solid #e2e8f0; border-radius:10px; font-size:0.9rem; box-sizing:border-box;">
+                <p id="emailPromptError" style="display:none; color:#dc2626; font-size:0.8rem; margin:6px 0 0;">Please enter a valid email address.</p>
+                <button onclick="submitEmailPrompt()"
+                    style="margin-top:10px; width:100%; padding:9px; border:none; border-radius:10px; background:#6366f1; color:#fff; font-weight:600; cursor:pointer;">Continue</button>
+            </div>
         </div>
     </div>
 
