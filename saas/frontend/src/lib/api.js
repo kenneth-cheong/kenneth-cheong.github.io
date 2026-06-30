@@ -88,6 +88,23 @@ async function call(path, { method = 'GET', body, auth = true, base, _retried = 
   return payload;
 }
 
+// Authed GET that returns a binary Blob (e.g. a server-rendered PNG). Same
+// token-refresh-and-retry behaviour as call(), but reads res.blob() on success.
+async function callBlob(path, { _retried = false } = {}) {
+  const res = await fetch(BASE + path, {
+    headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+  });
+  if ((res.status === 401 || res.status === 403) && !_retried && (await tryRefresh())) {
+    return callBlob(path, { _retried: true });
+  }
+  if (!res.ok) {
+    const payload = await res.json().catch(() => ({}));
+    reportApiError('GET', path, res.status, payload?.error || `HTTP ${res.status}`);
+    throw new ApiError(res.status, payload);
+  }
+  return res.blob();
+}
+
 // Streaming chat: POSTs to the streaming Function URL and calls onDelta(text)
 // as tokens arrive. Returns { conversationId, reply }. Refreshes the access
 // token once on 401/403; throws ApiError on non-2xx so the caller can fall back.
@@ -180,6 +197,13 @@ export const api = {
   deleteConversation: (id) => call('/chat/conversations/delete', { method: 'POST', body: { conversationId: id } }),
   runs: () => call('/me/runs'),
   run: (runId) => call(`/me/runs/${encodeURIComponent(runId)}`),
+  // Server-rendered share card (PNG Blob). Authed like any /me route, so we
+  // fetch it with the bearer token rather than putting it in an <img src>.
+  runCard: (runId, format = 'square') =>
+    callBlob(`/me/runs/${encodeURIComponent(runId)}/card?format=${encodeURIComponent(format)}`),
+  // Public share link (opt-in, auto-redacted). Mint is idempotent per run.
+  shareRun: (runId) => call(`/me/runs/${encodeURIComponent(runId)}/share`, { method: 'POST' }),
+  revokeShare: (runId) => call(`/me/runs/${encodeURIComponent(runId)}/share/revoke`, { method: 'POST' }),
   // Notifications
   notifications: () => call('/me/notifications'),
   markNotificationsRead: () => call('/me/notifications/read', { method: 'POST' }),

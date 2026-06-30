@@ -88,6 +88,7 @@ Globals:
         TRACKED_TABLE: !Ref TrackedTable
         METRICS_TABLE: !Ref MetricsTable
         CONVERSATIONS_TABLE: !Ref ConversationsTable
+        SHARES_TABLE: !Ref SharesTable
         APP_ORIGIN: !Ref AppOrigin
         JWT_SECRET: '{{resolve:secretsmanager:digimetrics-saas/jwt-secret:SecretString}}'
 
@@ -149,6 +150,24 @@ Resources:
       KeySchema:
         - { AttributeName: userId, KeyType: HASH }
         - { AttributeName: runId, KeyType: RANGE }
+
+  # Public share links: shareId → {userId, runId}. Auto-expire via TTL so old
+  # links don't linger. Public /s/:id resolves a run without the viewer logging in.
+  SharesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - { AttributeName: shareId, AttributeType: S }
+      KeySchema:
+        - { AttributeName: shareId, KeyType: HASH }
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
 
   # Support tickets (threaded — messages stored inline on the item).
   TicketsTable:
@@ -404,6 +423,28 @@ Resources:
       Events:
         Me: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Usage: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/usage, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+
+  # ── Share cards (authed): server-rendered branded PNG of a saved run ────
+  # Rasterises the shared SVG generator with resvg-wasm + an embedded brand
+  # font, so the card is pixel-identical to the in-app preview. 1024MB gives
+  # the WASM render ample CPU (Lambda CPU scales with memory).
+  ShareFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .build/share/
+      Handler: index.handler
+      MemorySize: 1024
+      Policies:
+        # CRUD on Runs: read the saved run + stamp the run's public shareId.
+        - DynamoDBCrudPolicy: { TableName: !Ref RunsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref SharesTable }
+      Events:
+        Card: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/me/runs/{runId}/card', Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        ShareCreate: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/me/runs/{runId}/share', Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        ShareRevoke: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/me/runs/{runId}/share/revoke', Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        # Public (no authorizer): the OG landing page + the redacted card image.
+        PublicPage: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/s/{shareId}', Method: GET } }
+        PublicCard: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/s/{shareId}/card.png', Method: GET } }
 
   # ── Metering gateway (authed): the choke point for every tool ───────────
   MeteringFn:

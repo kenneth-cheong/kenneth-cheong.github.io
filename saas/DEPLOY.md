@@ -45,11 +45,25 @@ You'll create the **webhook secret** in step 4 (after the API URL exists).
 
 ## 3. Deploy the backend (esbuild → CloudFormation)
 
-The backend has **12 Lambdas** (`authorizer, auth, me, metering, billing, admin, app,
-close, track, metricscron, refill, chatstream`) — the canonical list is the `FUNCTIONS`
-array in `scripts/build.mjs`. It bundles each into `.build/<fn>/index.mjs` with
-`esbuild` (inlining `shared/catalog.mjs` + npm deps; the AWS SDK is provided by the
+The backend has **13 Lambdas** (`authorizer, auth, me, metering, billing, admin, app,
+close, track, metricscron, refill, chatstream, share`) — the canonical list is the
+`FUNCTIONS` array in `scripts/build.mjs`. It bundles each into `.build/<fn>/index.mjs`
+with `esbuild` (inlining `shared/*.mjs` + npm deps; the AWS SDK is provided by the
 nodejs20 runtime). `template.yaml` points each function's `CodeUri` at `.build/<fn>/`.
+
+**`share` (ShareFn)** renders branded social share-card PNGs with `@resvg/resvg-wasm`.
+esbuild can't inline a `.wasm`, so `build.mjs`'s `ASSETS` map copies the WASM binary
+(`node_modules/@resvg/resvg-wasm/index_bg.wasm`) and the two `assets/*.ttf` brand fonts
+next to the bundle. The fonts are committed under `backend/assets/`; `npm install` brings
+the WASM. ShareFn is `MemorySize: 1024` (the WASM render is CPU-bound).
+
+ShareFn also serves **public share links** (opt-in, auto-redacted): authed mint/revoke
+(`POST /me/runs/{runId}/share[/revoke]`) plus two **un-authenticated** routes —
+`GET /s/{shareId}` (OG landing page) and `GET /s/{shareId}/card.png` (redacted card).
+The change-set therefore **creates a new `SharesTable`** (shareId PK, DynamoDB TTL on
+`ttl` for auto-expiry) and adds the public routes. Public links are served from the API
+Gateway domain; to serve them under `platform.digimetrics.ai/s/*` instead, add an Amplify
+rewrite proxying `/s/*` → the API (not configured yet).
 
 ```bash
 cd saas/backend

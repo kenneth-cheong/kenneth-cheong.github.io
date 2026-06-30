@@ -8,9 +8,10 @@ import UpgradeModal from '../components/UpgradeModal.jsx';
 import ResultSections from '../components/ResultSections.jsx';
 import SchemaResult from '../components/SchemaResult.jsx';
 import SortableTable from '../components/SortableTable.jsx';
+import ShareModal from '../components/ShareModal.jsx';
 import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
 import { startToolTour, sampleResultFor, hasSeen, markSeen } from '../lib/tours.js';
-import { Lock, Compass, Sparkles, AlertTriangle } from 'lucide-react';
+import { Lock, Compass, Sparkles, AlertTriangle, Share2 } from 'lucide-react';
 
 const CONFIRM_AT = 25; // credits — confirm before running pricey tools
 
@@ -291,6 +292,7 @@ function PrintHeader({ tool, project, user }) {
 }
 
 function Result({ out, tool, project, user }) {
+  const [shareOpen, setShareOpen] = useState(false);
   if (out.error) return <p className="mt-6 flex items-center gap-1.5 text-red-600"><AlertTriangle size={16} aria-hidden /> {out.error}</p>;
   const r = out.result || {};
 
@@ -335,9 +337,14 @@ function Result({ out, tool, project, user }) {
               : sectionTable && <ResultBtn onClick={() => downloadCsv(sectionTable.rows, `${tool.id}.csv`)}>CSV</ResultBtn>}
             <ResultBtn onClick={() => copyText(copyableOf(r))}>Copy</ResultBtn>
             <ResultBtn onClick={() => window.print()}>Print</ResultBtn>
+            <button onClick={() => setShareOpen(true)} title="Create a branded image to share on social media"
+              className="inline-flex items-center gap-1 rounded-md border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700 hover:border-brand-400 hover:bg-brand-100">
+              <Share2 size={13} aria-hidden /> Share
+            </button>
           </div>
         )}
       </div>
+      <ShareModal open={shareOpen} onClose={() => setShareOpen(false)} tool={tool} out={out} project={project} user={user} />
 
       <div className="card p-5">
         <PrintHeader tool={tool} project={project} user={user} />

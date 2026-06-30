@@ -27,6 +27,7 @@ export const TABLES = {
   tracked: process.env.TRACKED_TABLE,
   metrics: process.env.METRICS_TABLE,
   conversations: process.env.CONVERSATIONS_TABLE,
+  shares: process.env.SHARES_TABLE,
   broadcasts: process.env.BROADCASTS_TABLE,
 };
 
@@ -623,6 +624,48 @@ export async function listRuns(userId, limit = 100) {
 export async function getRun(userId, runId) {
   const { Item } = await ddb.send(new GetCommand({ TableName: TABLES.runs, Key: { userId, runId } }));
   return Item || null;
+}
+
+// ── Public share links (opt-in, auto-redacted) ───────────────────────────────
+// Maps a public, unguessable shareId → the owning {userId, runId} so the public
+// /s/:id page can resolve a saved run without the viewer being signed in. The
+// public card render strips the client domain/identifiers (see shareCard.mjs).
+// `ttl` (epoch seconds) lets DynamoDB auto-expire stale links.
+const SHARE_TTL_DAYS = 365;
+
+/** Create-or-return a stable share for a run (idempotent per {userId, runId}). */
+export async function createShare({ userId, runId, shareId }) {
+  const ttl = Math.floor(Date.now() / 1000) + SHARE_TTL_DAYS * 86400;
+  const Item = { shareId, userId, runId, revoked: false, createdAt: new Date().toISOString(), ttl };
+  await ddb.send(new PutCommand({ TableName: TABLES.shares, Item }));
+  return Item;
+}
+
+export async function getShare(shareId) {
+  const { Item } = await ddb.send(new GetCommand({ TableName: TABLES.shares, Key: { shareId } }));
+  return Item || null;
+}
+
+/** Remember the run's current public shareId on the run row (idempotent mint). */
+export async function setRunShareId(userId, runId, shareId) {
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.runs,
+    Key: { userId, runId },
+    UpdateExpression: 'SET shareId = :s',
+    ExpressionAttributeValues: { ':s': shareId || null },
+  }));
+}
+
+/** Revoke every share the user minted for a given run (a run has at most one). */
+export async function revokeShare(shareId, userId) {
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.shares,
+    Key: { shareId },
+    // Only the owner can revoke (guards against a guessed shareId revoke).
+    ConditionExpression: 'userId = :u',
+    UpdateExpression: 'SET revoked = :t',
+    ExpressionAttributeValues: { ':u': userId, ':t': true },
+  }));
 }
 
 // Aggregate per-tool usage COUNTS for a user (operational/billing metadata —
