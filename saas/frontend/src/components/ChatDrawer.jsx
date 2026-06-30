@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { CREDIT_COSTS, toolById } from '@shared/catalog.mjs';
 import { toast } from '../lib/ui.js';
-import { X, Plus, History, Trash2, ArrowLeft, ArrowRight } from 'lucide-react';
+import { X, Plus, History, Trash2, ArrowLeft, ArrowRight, Settings } from 'lucide-react';
 
 const COST = CREDIT_COSTS.ai_chat ?? 2;
 const GREETING = { role: 'assistant', content: "Hi! I'm your Digimetrics assistant. Ask me about any tool, how to get started, or your connected Search Console / GA4 / Ads numbers." };
@@ -94,7 +94,11 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
   const [conversationId, setConversationId] = useState(null);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
-  const [view, setView] = useState('chat'); // 'chat' | 'history'
+  const [view, setView] = useState('chat'); // 'chat' | 'history' | 'settings'
+  // Whether the panel auto-opens on every app load (Layout reads this key on
+  // entry). Default on; users toggle it off here so reloads stay quiet.
+  const [autoOpen, setAutoOpen] = useState(() => localStorage.getItem('dm:chatAutoOpen') !== '0');
+  const toggleAutoOpen = () => setAutoOpen((on) => { const next = !on; localStorage.setItem('dm:chatAutoOpen', next ? '1' : '0'); return next; });
   const [convos, setConvos] = useState([]);
   const [loadingConvos, setLoadingConvos] = useState(false);
   const threadRef = useRef(null);
@@ -278,11 +282,37 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
         <div className="ml-auto flex items-center gap-1">
           <button onClick={newChat} className="rounded p-1 text-slate-300 hover:bg-white/10 hover:text-white" title="New chat" aria-label="New chat"><Plus size={18} aria-hidden /></button>
           <button onClick={() => (view === 'history' ? setView('chat') : openHistory())} className={`rounded p-1 hover:bg-white/10 hover:text-white ${view === 'history' ? 'text-white' : 'text-slate-300'}`} title="History" aria-label="History"><History size={18} aria-hidden /></button>
+          <button onClick={() => setView((v) => (v === 'settings' ? 'chat' : 'settings'))} className={`rounded p-1 hover:bg-white/10 hover:text-white ${view === 'settings' ? 'text-white' : 'text-slate-300'}`} title="Settings" aria-label="Settings"><Settings size={18} aria-hidden /></button>
           <button onClick={onClose} className="rounded p-1 text-slate-300 hover:bg-white/10 hover:text-white" title="Close" aria-label="Close"><X size={18} aria-hidden /></button>
         </div>
       </div>
 
-      {view === 'history' ? (
+      {view === 'settings' ? (
+        <div className="flex-1 overflow-y-auto p-2">
+          <div className="flex items-center gap-2 px-1 py-2">
+            <button onClick={() => setView('chat')} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800"><ArrowLeft size={15} aria-hidden /> Back</button>
+            <span className="ml-auto text-xs font-medium text-slate-400">Settings</span>
+          </div>
+          <div className="px-1 py-2">
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 p-3">
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-slate-800">Open automatically</div>
+                <p className="mt-0.5 text-xs text-slate-500">Launch the assistant every time you load the app. Turn off to keep it closed until you open it.</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={autoOpen}
+                onClick={toggleAutoOpen}
+                title="Open the assistant automatically on load"
+                className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${autoOpen ? 'bg-brand-600' : 'bg-slate-300'}`}
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${autoOpen ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : view === 'history' ? (
         <div className="flex-1 overflow-y-auto p-2">
           <div className="flex items-center gap-2 px-1 py-2">
             <button onClick={() => setView('chat')} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800"><ArrowLeft size={15} aria-hidden /> Back</button>

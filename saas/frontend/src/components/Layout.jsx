@@ -88,11 +88,13 @@ export default function Layout({ children }) {
   // per app load, after the consent/NDA/welcome overlays clear so it never
   // stacks on them. Desktop only — the panel sits beside content there, whereas
   // on mobile it's a full-screen sheet that would take over the whole app.
+  // Users can opt out via the assistant's settings (dm:chatAutoOpen = '0').
   const autoLaunchedRef = useRef(false);
   useEffect(() => {
     if (autoLaunchedRef.current) return;
     if (!wide) return;
     if (needsConsent || needsNda || showWelcome) return;
+    if (localStorage.getItem('dm:chatAutoOpen') === '0') return;
     autoLaunchedRef.current = true;
     setChatOpen(true);
   }, [wide, needsConsent, needsNda, showWelcome]);
