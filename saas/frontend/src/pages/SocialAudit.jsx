@@ -333,7 +333,7 @@ export default function SocialAudit() {
     /* eslint-disable-next-line */
   }, [unlocked]);
 
-  const onCredits = (res) => { if (typeof res?.creditsRemaining === 'number') setCredits(res.creditsRemaining); };
+  const onCredits = (res) => { if (typeof res?.creditsRemaining === 'number') setCredits(res.creditsRemaining, res.topupRemaining); };
   const gateError = (e) => {
     if (e instanceof ApiError && e.status === 402) return 'Out of credits — top up to run the audit.';
     if (e instanceof ApiError && e.status === 403) return `This tool needs the ${TOOL.minTier} plan.`;

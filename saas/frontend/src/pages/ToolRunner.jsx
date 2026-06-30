@@ -118,7 +118,7 @@ export default function ToolRunner() {
     try {
       const res = await api.runTool(tool.id, { ...vals, gscOp: activeTab?.op, url: vals.url || vals.input, projectId: activeId || undefined }, tool.slow);
       setOut(res);
-      if (typeof res.creditsRemaining === 'number') setCredits(res.creditsRemaining);
+      if (typeof res.creditsRemaining === 'number') setCredits(res.creditsRemaining, res.topupRemaining);
       if (res.creditsUsed > 0) toast(`−${res.creditsUsed} credit${res.creditsUsed > 1 ? 's' : ''} · ${res.creditsRemaining} left`, 'info');
       saveLastInput(tool.id, vals);
       pushRecent(tool.id);

@@ -169,6 +169,7 @@ export const handler = async (event) => {
   // ── Reconcile credits from actual usage ───────────────────────────────────
   let creditsUsed = 0;
   let creditsRemaining = totalCredits(user);
+  let topupRemaining = user.topupCredits || 0;
   if (charge) {
     creditsUsed = reconcileCost(tool, result, fullCost);
     const spent = await spendCredits({
@@ -178,6 +179,7 @@ export const handler = async (event) => {
       meta: usageMeta(result),
     });
     creditsRemaining = spent.total;
+    topupRemaining = spent.topupCredits;
   }
 
   // Persist the run so the user can re-open it from their history (best-effort).
@@ -220,6 +222,7 @@ export const handler = async (event) => {
     result: payload,
     creditsUsed,
     creditsRemaining,
+    topupRemaining, // lets the client keep the monthly/top-up split exact without a /me refetch
     runId,
   });
 };

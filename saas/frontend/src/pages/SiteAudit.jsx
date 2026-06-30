@@ -73,7 +73,7 @@ export default function SiteAudit() {
         // longer than the 30s API-Gateway cap, which would 504 the browser while
         // the Lambda finishes (and still charges). RUN_URL routes around that.
         const resp = await api.runTool(a.id, a.input(site), !!RUN_URL);
-        if (typeof resp.creditsRemaining === 'number') setCredits(resp.creditsRemaining);
+        if (typeof resp.creditsRemaining === 'number') setCredits(resp.creditsRemaining, resp.topupRemaining);
         const r = resp.result || {};
         if (r.error || r.needsConnect) { setStatus(a.id, 'fail'); return null; }
         setStatus(a.id, 'done');
@@ -85,8 +85,8 @@ export default function SiteAudit() {
     if (!good.length) { toast('All checks failed — please try again.', 'error'); setRunning(false); return; }
 
     try {
-      const { report, creditsRemaining } = await api.auditSynthesize(site, good);
-      if (typeof creditsRemaining === 'number') setCredits(creditsRemaining);
+      const { report, creditsRemaining, topupRemaining } = await api.auditSynthesize(site, good);
+      if (typeof creditsRemaining === 'number') setCredits(creditsRemaining, topupRemaining);
       setReport(report);
       markStepDone('audit'); // ticks the "Run a site health check" setup step
     } catch (e) {

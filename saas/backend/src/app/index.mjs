@@ -114,7 +114,7 @@ export const handler = async (event) => {
           .slice(-60).map((m) => ({ role: m.role, content: clampStr(m?.content, 4000) }));
         ({ conversationId } = await saveConversation({ userId: user.userId, conversationId, messages: thread }));
       } catch (e) { console.error('conversation_save', e.message); }
-      return ok({ reply, conversationId, creditsUsed: cost, creditsRemaining: spent.total });
+      return ok({ reply, conversationId, creditsUsed: cost, creditsRemaining: spent.total, topupRemaining: spent.topupCredits });
     }
 
     // ── Onboarding: persist first-run state (welcome, chosen goal, checklist) ──
@@ -347,7 +347,7 @@ export const handler = async (event) => {
       const report = parseJsonLoose(aiText);
       if (!report || typeof report.score === 'undefined') return serverError('Could not parse the audit summary — please try again.');
       const spent = await spendCredits({ userId: user.userId, cost, action: 'audit_synthesis', tool: 'site-audit' });
-      return ok({ report, creditsUsed: cost, creditsRemaining: spent.total });
+      return ok({ report, creditsUsed: cost, creditsRemaining: spent.total, topupRemaining: spent.topupCredits });
     }
 
     // ── Run history ─────────────────────────────────────────────────────────

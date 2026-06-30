@@ -66,9 +66,41 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
-  // Let any component patch the credit balance after a tool run.
-  const setCredits = useCallback((credits) => {
-    setUser((u) => (u ? { ...u, credits } : u));
+  // Let any component patch the credit balance after a tool run. Takes the total
+  // spendable (`credits`) and optionally the top-up remainder so the monthly vs
+  // top-up split stays exact without waiting for the next /me. Mirrors the new
+  // balance to localStorage so other open tabs adopt it via the storage listener.
+  const setCredits = useCallback((credits, topupCredits) => {
+    setUser((u) => {
+      if (!u) return u;
+      const next = { ...u, credits };
+      if (typeof topupCredits === 'number') next.topupCredits = topupCredits;
+      return next;
+    });
+    try {
+      localStorage.setItem('dm_credits', JSON.stringify({ credits, topupCredits, at: Date.now() }));
+    } catch { /* storage unavailable — in-tab state is already updated */ }
+  }, []);
+
+  // Cross-tab credit sync: a `storage` event fires only in OTHER tabs of this
+  // origin (never the writer), so adopting the broadcast here keeps every open
+  // tab's meter in lockstep with no echo loop.
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key !== 'dm_credits' || !e.newValue) return;
+      try {
+        const { credits, topupCredits } = JSON.parse(e.newValue);
+        if (typeof credits !== 'number') return;
+        setUser((u) => {
+          if (!u) return u;
+          const next = { ...u, credits };
+          if (typeof topupCredits === 'number') next.topupCredits = topupCredits;
+          return next;
+        });
+      } catch { /* ignore malformed broadcast */ }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   // Persist first-run onboarding state server-side (durable + cross-device) and

@@ -153,10 +153,10 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
 
     // ── Buffered fallback (also the path when streaming isn't configured) ──
     try {
-      const { reply, creditsRemaining, conversationId: cid } = await api.chat(next, conversationId);
+      const { reply, creditsRemaining, topupRemaining, conversationId: cid } = await api.chat(next, conversationId);
       setMsgs((m) => [...m, { role: 'assistant', content: reply }]);
       if (cid) setConversationId(cid);
-      if (typeof creditsRemaining === 'number') setCredits(creditsRemaining);
+      if (typeof creditsRemaining === 'number') setCredits(creditsRemaining, topupRemaining);
     } catch (err) {
       const msg = err instanceof ApiError && err.status === 402 ? OUT_OF_CREDITS : `Error: ${err.message}`;
       setMsgs((m) => [...m, { role: 'assistant', content: msg, error: true }]);
