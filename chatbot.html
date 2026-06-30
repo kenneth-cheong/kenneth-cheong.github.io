@@ -33,7 +33,14 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        // Guard: pdf.js may be absent on bot crawls or when the CDN is blocked/slow.
+        // An unguarded reference here throws ReferenceError and breaks page init.
+        (function () {
+            var lib = window['pdfjs-dist/build/pdf'] || window.pdfjsLib;
+            if (lib && lib.GlobalWorkerOptions && !lib.GlobalWorkerOptions.workerSrc) {
+                lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            }
+        })();
     </script>
     <!-- Fonts & Icons -->
     <link
@@ -4669,6 +4676,29 @@
         // Persistence State
         var PERSISTENCE_API_URL = 'https://t9pw69cg8d.execute-api.ap-southeast-1.amazonaws.com/chatbotPersistence';
 
+        // Persistence calls can transiently fail — Atlas cold starts, a flaky mobile
+        // network on a share link ("Load failed" on iOS), or a brief 5xx. Retry with
+        // backoff and return parsed JSON so reads don't hard-fail the whole experience.
+        async function persistenceFetch(payload, retries = 2) {
+            let lastError = null;
+            for (let i = 0; i <= retries; i++) {
+                try {
+                    const res = await fetch(PERSISTENCE_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    return await res.json();
+                } catch (e) {
+                    lastError = e;
+                    console.warn('[PERSIST] attempt ' + (i + 1) + ' failed:', e.message);
+                    if (i < retries) await new Promise(r => setTimeout(r, 800 * (i + 1)));
+                }
+            }
+            throw lastError;
+        }
+
         // ── Client report format (editable, account-wide setting) ──────────────────
         // The MediaOne house format for client-facing reports. Stored server-side via
         // the persistence Lambda (app setting 'reportFormat') so the whole team edits it
@@ -5249,21 +5279,11 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
 
             console.log(`[PERSISTENCE] Fetching history...`);
             try {
-                const response = await fetch(PERSISTENCE_API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'fetch_conversations',
-                        // requesterId lets the server hide other private users' chats
-                        data: { userId: 'ALL_USERS', fetchAll: true, requesterId: userId }
-                    })
+                const result = await persistenceFetch({
+                    action: 'fetch_conversations',
+                    // requesterId lets the server hide other private users' chats
+                    data: { userId: 'ALL_USERS', fetchAll: true, requesterId: userId }
                 });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
-                }
-
-                const result = await response.json();
                 const data = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body || result);
 
                 // Surface server-side errors that would otherwise silently produce 0 results
@@ -6661,13 +6681,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     ? { conversationId: shareId, userId: shareUserId, viaShareLink: true }
                     : { conversationId: shareId, fetchAll: true, viaShareLink: true };
                 console.log('[SHARE] Fetch payload:', fetchPayload);
-                const res = await fetch(PERSISTENCE_API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'get_conversation', data: fetchPayload })
-                });
-                console.log('[SHARE] HTTP status:', res.status);
-                const result = await res.json();
+                const result = await persistenceFetch({ action: 'get_conversation', data: fetchPayload });
                 const data = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body || result);
                 const conv = data.conversation;
                 if (!conv) {
@@ -10347,7 +10361,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             13. save_memory_note: Persist DURABLE knowledge ONLY — things that CANNOT be re-pulled from a connector: a user preference/instruction, a strategic decision and its rationale, client relationship/request/context, a reusable workflow, or a stable ID mapping (which account/site ID belongs to which client). Always include a "tag" field (one of: "Preference", "Strategy", "Fact", "Process", "Constraint") and a "teams" array (one or more of: "SEO", "SEM", "SMM", "BD", "Everyone" — use multiple if the memory applies to multiple teams, use ["Everyone"] if broad). DO NOT save point-in-time connector data you can re-fetch on demand — keyword positions/volumes/CPC, GA4 / Google Ads / Meta / LinkedIn / TikTok metrics, live SERP results, backlink or Domain-Rating counts, or Monday board item counts/statuses. If a note is essentially a metric snapshot, skip it and re-pull when needed.
             14. get_seranking_report: Fetch keyword rankings and positions for a specific SE Ranking campaign. You MUST use this tool when the user asks about SEO keywords, rankings, or SE Ranking data.
             14b. get_seranking_backlinks: Fetch the backlinks tracked in a SE Ranking campaign's Backlink Monitoring (total backlinks, referring domains, dofollow/nofollow split, sample links). Use the site_id from 'loaded_seranking_campaigns'. If a campaign returns no backlinks, fall back to dataforseo_backlinks_summary or get_ahrefs_report using the campaign's domain.
-            15. get_meta_ads_report: Fetch Meta (Facebook/Instagram) Ads performance data — spend, impressions, clicks, CTR, CPM, CPC, ROAS, results, and cost per result. Use this whenever the user asks about Meta Ads, Facebook Ads, Instagram Ads, or paid social performance. The ad_account_id values are in the synced context under 'meta_ad_account_ids'.
+            15. get_meta_ads_report: Fetch Meta (Facebook/Instagram) Ads performance data — spend, impressions, clicks, CTR, CPM, CPC, ROAS, results, and cost per result. Use this whenever the user asks about Meta Ads, Facebook Ads, Instagram Ads, or paid social performance. The ad_account_id values are in the synced context under 'meta_ad_account_ids'. GUARDRAIL: only call this when the user is clearly asking about paid social, AND a real ad_account_id exists in 'meta_ad_account_ids' — never invoke it with an empty or guessed account id. Questions about DR / Domain Rating / Ahrefs / backlinks / referring domains are NOT Meta Ads — route those to get_ahrefs_report or dataforseo_backlinks_summary instead.
             16. get_linkedin_ads_report: Fetch LinkedIn Ads performance data — spend, impressions, clicks, CTR, CPM, CPC, conversions, and cost per conversion. Use this whenever the user asks about LinkedIn Ads or B2B paid social performance. The account_id values are in the synced context under 'linkedin_ad_account_ids'. Use the linkedin_access_token from synced context for API calls.
             17. dataforseo_serp: ALWAYS use this tool to fetch LIVE Google SERP results for any keyword. Never answer from training data — call this tool whenever the user asks about SERP results, search rankings, or who ranks for a keyword.
             18. dataforseo_search_volume: Fetch real search volume, competition, and CPC for a list of keywords. Use whenever the user asks about keyword search volume or keyword difficulty.
@@ -13738,15 +13752,11 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
 
             console.log("[MEMORY] Syncing to cloud for:", email);
             try {
-                await fetch(PERSISTENCE_API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'save_insights',
-                        email: email.toLowerCase(),
-                        insights: learnedInsights,
-                        deleted_ids: getDeletedInsightIds()
-                    })
+                await persistenceFetch({
+                    action: 'save_insights',
+                    email: email.toLowerCase(),
+                    insights: learnedInsights,
+                    deleted_ids: getDeletedInsightIds()
                 });
             } catch (e) {
                 console.error("[MEMORY] Cloud sync failed", e);
@@ -13779,16 +13789,10 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             }
 
             try {
-                const res = await fetch(PERSISTENCE_API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'get_insights',
-                        email: email.toLowerCase()
-                    })
+                const data = await persistenceFetch({
+                    action: 'get_insights',
+                    email: email.toLowerCase()
                 });
-
-                const data = await res.json();
                 const body = typeof data.body === 'string' ? JSON.parse(data.body) : (data.body || data);
 
                 if (body.insights && Array.isArray(body.insights)) {

@@ -621,10 +621,16 @@ def run_meta_ads_report(access_token, ad_account_id, start_date, end_date,
     filter auto-upgrades the level to 'campaign' so the filter can actually apply — this is
     what makes requests like "only campaigns containing MO" return the right subset instead
     of an account-level total."""
+    # Check the account id first: an empty id is the clearest sign the request was
+    # mis-routed here (e.g. a Domain Rating / Ahrefs question) rather than a real Meta
+    # Ads ask — surface that instead of the generic "connect Meta Ads" message.
+    if not ad_account_id:
+        return {"error": "No ad_account_id supplied. This does not look like a Meta Ads request — "
+                         "if the user asked about Domain Rating / DR / Ahrefs / backlinks, use "
+                         "get_ahrefs_report or dataforseo_backlinks_summary instead. Otherwise pick a "
+                         "real account id from 'meta_ad_account_ids'."}
     if not access_token:
         return {"error": "Missing Meta access token. Connect Meta Ads first."}
-    if not ad_account_id:
-        return {"error": "Missing ad_account_id"}
     if not start_date or not end_date:
         return {"error": "start_date and end_date (YYYY-MM-DD) are required"}
     acct = str(ad_account_id)
@@ -914,6 +920,11 @@ def run_monday_graphql(query, variables=None, api_key=None):
             elif "column_values" in low and ("argument" in low or "'id'" in low):
                 result["hint"] = ("`column_values` takes a plural list `ids` argument: "
                                   "column_values(ids: [\"col1\", \"col2\"]). There is no `id:` or `filter:` argument.")
+            elif '"ids"' in low or ("cannot query field" in low and "ids" in low and "did you mean" in low):
+                result["hint"] = ("`ids` is an ARGUMENT, not a selectable field. To get an object's "
+                                  "identifier select singular `id` — e.g. `boards { id name }`, "
+                                  "`workspace { id name }`, `items { id name }`. `ids:` only appears as a "
+                                  "filter argument like `boards(ids: [123]) { id name }`.")
             elif "doesn't exist on type" in low or "cannot query field" in low or "didn't exist on type" in low:
                 result["hint"] = ("That field doesn't exist on the Monday type. Items have NO direct "
                                   "`status` field (and no direct field for any column) — read column "
@@ -2067,6 +2078,9 @@ def claude_chat_with_tools(body):
                 "Use this to discover boards, fetch items, column values, updates, "
                 "people assignments, statuses, and any other workspace data.\n"
                 "SCHEMA RULES — verify EVERY query against these before sending (a violation = a hard API error):\n"
+                "0. `ids` is ONLY an argument, never a selectable field. An object's identifier is "
+                "singular `id` — write `boards { id name }`, `workspace { id name }`, `items { id name }`. "
+                "Selecting `ids` (e.g. `boards { ids name }`) is a hard API error.\n"
                 "1. Top-level `items` on a board is DEPRECATED. ALWAYS use "
                 "`items_page(limit:, cursor:) { cursor items { ... } }` nested inside `boards { ... }`. "
                 "Never query `items` at the board level, and never put `items_page` at the root.\n"
