@@ -4784,6 +4784,10 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
         // against the server or successfully save — this gates the first save from
         // blindly overwriting a thread another session/device may have advanced.
         let conversationVerified = !currentConversationId;
+        // Server revision this client last saw for currentConversationId. Sent as baseRev
+        // on save so the backend can reject a stale overwrite (optimistic concurrency);
+        // a conflict triggers a merge + retry. See saveConversation().
+        let currentConvRev = 0;
         if (_startFreshChat) {
             localStorage.removeItem('chatbot_conversationId');
             localStorage.removeItem('chatbot_history');
@@ -4993,6 +4997,30 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             return typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
         }
 
+        // Stable-ish identity for a message, for conflict dedup. Timestamp disambiguates
+        // genuinely distinct turns that happen to share role+content.
+        function _msgKey(m) {
+            const c = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+            return JSON.stringify([m.role || '', c, m.timestamp || '']);
+        }
+
+        // Merge on a save conflict: keep the server's current thread in full, then append
+        // any local messages it doesn't already contain (our just-typed turn) in order.
+        // Never drops a message from either side.
+        function mergeConversations(serverMsgs, localMsgs) {
+            const seen = new Set((serverMsgs || []).map(_msgKey));
+            const extra = (localMsgs || []).filter(m => !seen.has(_msgKey(m)));
+            return (serverMsgs || []).concat(extra);
+        }
+
+        // Repaint the message list from chatHistory (used after a conflict merge).
+        function rerenderChatHistory() {
+            const list = document.getElementById('messageList');
+            if (!list) return;
+            list.innerHTML = '';
+            chatHistory.forEach(m => addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, m.attachments || m.attachment || null, true, m.userLabel, null, m.modelProvider));
+        }
+
         // Before the first save of a localStorage-resumed conversation, compare our local
         // history against the stored copy. If the server thread is LONGER and starts with
         // a DIFFERENT first user message, ours is a stale/blank-loaded divergent copy — so
@@ -5018,7 +5046,12 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     serverFirst && serverFirst !== _firstUserContent(chatHistory).trim()) {
                     currentConversationId = null;   // fork: a fresh id will be minted on save
                     try { localStorage.removeItem('chatbot_conversationId'); } catch (e) {}
+                    currentConvRev = 0;
                     console.warn('[PERSISTENCE] Resumed history diverged from the server thread — forking to a new conversation to avoid an overwrite.');
+                } else {
+                    // Same thread — adopt the server's revision so our first save sends the
+                    // right baseRev (and the CAS guard catches any concurrent device).
+                    currentConvRev = (body.conversation && typeof body.conversation.rev === 'number') ? body.conversation.rev : 0;
                 }
                 conversationVerified = true;
                 return true;
@@ -5028,7 +5061,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             }
         }
 
-        async function saveConversation() {
+        async function saveConversation(_isRetry) {
             if (chatHistory.length === 0) return;
 
             // Guard a localStorage-resumed thread from blindly overwriting the server's
@@ -5065,6 +5098,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                             userId: userId,
                             conversationId: currentConversationId,
                             messages: chatHistory,
+                            baseRev: currentConvRev,   // optimistic-concurrency base
                             threadId: localStorage.getItem('threadId'),
                             mode: 'claude',
                             title: bestTitle,
@@ -5078,10 +5112,23 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 const result = await response.json();
                 const data = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body || result);
 
+                if (data.conflict) {
+                    // Another device/tab advanced this thread between our load and save.
+                    // Merge our pending turn onto the server's copy (losing nothing) and
+                    // retry once with the fresh rev.
+                    if (_isRetry) { updateCloudStatus('error', 'Sync conflict'); return false; }
+                    chatHistory = mergeConversations(data.messages || [], chatHistory);
+                    currentConvRev = (typeof data.rev === 'number') ? data.rev : currentConvRev;
+                    try { localStorage.setItem('chatbot_history', JSON.stringify(chatHistory)); } catch (e) {}
+                    rerenderChatHistory();
+                    return await saveConversation(true);
+                }
+
                 if (data.conversationId) {
                     currentConversationId = data.conversationId;
                     localStorage.setItem('chatbot_conversationId', currentConversationId);
                 }
+                if (typeof data.rev === 'number') currentConvRev = data.rev;
                 conversationVerified = true;   // our history is now the server's latest
                 updateCloudStatus('synced', 'Cloud Synced');
                 return true;
@@ -5406,6 +5453,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     currentConversationId = convData.conversationId;
                     chatHistory = loadedMsgs;
                     conversationVerified = true;   // freshly loaded from the server
+                    currentConvRev = (typeof convData.rev === 'number') ? convData.rev : 0;
                     window._cbSessionDocs = [];   // don't carry the prior conversation's uploaded docs into this one
                     currentConvShared = !!convData.shared;
                     refreshVisibilityIndicator();
@@ -5441,6 +5489,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             currentConversationId = null;
             chatHistory = [];
             conversationVerified = true;   // fresh thread — nothing to clobber
+            currentConvRev = 0;
             window._cbSessionDocs = [];   // drop documents uploaded in the previous conversation
             currentConvShared = false;
             refreshVisibilityIndicator();
@@ -6773,6 +6822,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 window._cbSessionDocs = [];   // forked copy starts without inherited uploaded docs
                 currentConversationId = null;
                 conversationVerified = true;   // forked: a new id will be minted on save
+                currentConvRev = 0;
                 currentConvShared = false; // forked copy starts private to this user
                 refreshVisibilityIndicator();
                 localStorage.removeItem('chatbot_conversationId');

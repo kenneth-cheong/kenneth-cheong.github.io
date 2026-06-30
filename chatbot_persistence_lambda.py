@@ -129,9 +129,11 @@ def handle_save_conversation(db, data, headers):
     # EVERY userId spelling for this id (a past userId-format change left some
     # conversations duplicated) and refuse a save that would shrink it.
     richest = None
-    for c in db.conversations.find({"conversationId": conv_id}, {"messages": 1}):
+    stored_rev = 0
+    for c in db.conversations.find({"conversationId": conv_id}, {"messages": 1, "rev": 1}):
         if richest is None or len(c.get('messages') or []) > len(richest.get('messages') or []):
             richest = c
+        stored_rev = max(stored_rev, int(c.get('rev') or 0))
     stored_msgs = (richest or {}).get('messages') or []
 
     # Guard 1: an empty save must never clobber a thread that already has content.
@@ -158,6 +160,19 @@ def handle_save_conversation(db, data, headers):
                 "skipped": "shrink_guard"
             }, headers)
 
+    # Guard 3 (optimistic concurrency): if the client says which revision it based its
+    # edit on and the server has since moved past it (another device/tab saved in
+    # between), refuse to overwrite. Hand back the current server thread + rev so the
+    # client can merge its pending messages and retry. This closes the same-thread
+    # cross-device shrink the first-message heuristic can't catch. Clients that omit
+    # baseRev (older cached builds) skip this and still get the shrink/empty guards.
+    base_rev = data.get('baseRev')
+    if base_rev is not None and richest is not None and int(base_rev) != stored_rev:
+        return response(200, {
+            "success": False, "conflict": True, "conversationId": conv_id,
+            "rev": stored_rev, "messages": stored_msgs
+        }, headers)
+
     if not title and messages:
         # Generate a title from the first user message
         first_user_msg = next((m for m in messages if m.get('role') == 'user'), None)
@@ -166,6 +181,7 @@ def handle_save_conversation(db, data, headers):
         else:
             title = "New Conversation"
 
+    new_rev = stored_rev + 1
     update_doc = {
         "conversationId": conv_id,
         "userId": user_id,
@@ -173,16 +189,17 @@ def handle_save_conversation(db, data, headers):
         "messages": messages,
         "threadId": data.get('threadId'),
         "mode": data.get('mode'),
+        "rev": new_rev,
         "lastUpdated": datetime.utcnow()
     }
-    
+
     db.conversations.update_one(
         {"conversationId": conv_id, "userId": user_id},
         {"$set": update_doc},
         upsert=True
     )
-    
-    return response(200, {"success": True, "conversationId": conv_id}, headers)
+
+    return response(200, {"success": True, "conversationId": conv_id, "rev": new_rev}, headers)
 
 def handle_fetch_conversations(db, data, headers):
     user_id = data.get('userId', 'global_user')
