@@ -19,6 +19,17 @@ export default {
         // index.html metric/cockpit card lift on hover
         lift: '0 12px 24px rgba(0, 0, 0, 0.05)',
       },
+      // Assistant panel "launch" entrance — slides in from the right edge while
+      // fading in. Applied (motion-safe) on the ChatDrawer aside each open.
+      keyframes: {
+        'slide-in-right': {
+          '0%': { transform: 'translateX(100%)', opacity: '0' },
+          '100%': { transform: 'translateX(0)', opacity: '1' },
+        },
+      },
+      animation: {
+        'slide-in-right': 'slide-in-right 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+      },
     },
   },
   plugins: [],

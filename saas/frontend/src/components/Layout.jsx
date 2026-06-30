@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import CreditMeter from './CreditMeter.jsx';
@@ -83,6 +83,19 @@ export default function Layout({ children }) {
     }, 900);
     return () => clearTimeout(t);
   }, [showWelcome, needsConsent, needsNda]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Launch the assistant on entry: open it (with its slide-in animation) once
+  // per app load, after the consent/NDA/welcome overlays clear so it never
+  // stacks on them. Desktop only — the panel sits beside content there, whereas
+  // on mobile it's a full-screen sheet that would take over the whole app.
+  const autoLaunchedRef = useRef(false);
+  useEffect(() => {
+    if (autoLaunchedRef.current) return;
+    if (!wide) return;
+    if (needsConsent || needsNda || showWelcome) return;
+    autoLaunchedRef.current = true;
+    setChatOpen(true);
+  }, [wide, needsConsent, needsNda, showWelcome]);
 
   // Let any page open the assistant (Support CTA) or ask it about something
   // (the right-click "Explain this" menu).

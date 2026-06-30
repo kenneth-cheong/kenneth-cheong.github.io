@@ -256,7 +256,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
 
   return (
     <aside
-      className="fixed right-0 top-0 z-30 flex h-screen flex-col border-l border-slate-200 bg-white shadow-xl"
+      className="fixed right-0 top-0 z-30 flex h-screen flex-col border-l border-slate-200 bg-white shadow-xl motion-safe:animate-slide-in-right"
       style={{ width }}
     >
       {onResize && (
