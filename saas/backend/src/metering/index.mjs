@@ -2384,12 +2384,18 @@ async function aiDiscoveryRun(body) {
       .then((r) => (typeof r === 'string' ? r : (r && typeof r.body === 'string' ? r.body : '')))
       .catch(() => '');
 
-  const [homeHtml, robotsBody, llmsBody, llmsFullBody] = await Promise.all([
+  let [homeHtml, robotsBody, llmsBody, llmsFullBody] = await Promise.all([
     getHtmlBody(root, 25000),
     getHtmlBody(root + '/robots.txt', 15000),
     getHtmlBody(root + '/llms.txt', 12000),
     getHtmlBody(root + '/llms-full.txt', 12000),
   ]);
+  // The getHtml upstream's headless renderer can time out or return a challenge
+  // page for slow/bot-protected sites; fall back to a direct fetch so reachable
+  // sites aren't falsely reported unreachable (mirrors llmsTxtRun).
+  if (!homeHtml || homeHtml.length < 200) {
+    homeHtml = await directFetchHtml(root, 12000);
+  }
   if (!homeHtml || homeHtml.length < 200) {
     // §6.3: graceful failure must not be billed.
     return { _failed: true, sections: [{ type: 'callout', text: 'Could not fetch the homepage to assess AI discoverability. Check the URL — no credits were charged.' }] };
