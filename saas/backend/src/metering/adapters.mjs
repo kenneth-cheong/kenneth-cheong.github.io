@@ -288,8 +288,19 @@ const SEM_FORMATS = {
 };
 
 // ── helpers ──────────────────────────────────────────────────────────────
+/** Normalise typographic punctuation to ASCII before sending to keyword/SERP
+ *  upstreams, whose databases store straight quotes. A curly apostrophe in
+ *  "women's" or "bird's" — common from mobile keyboards / Word autocorrect —
+ *  otherwise matches nothing and the run soft-fails with "no keyword data".
+ *  Single + double smart quotes and primes only; leaves everything else intact. */
+export function asciiPunct(s) {
+  return String(s == null ? '' : s)
+    .replace(/[‘’‚‛′ʼ]/g, "'")
+    .replace(/[“”„‟″]/g, '"');
+}
+
 function parseList(s) {
-  return String(s || '').split(/[\n,]+/).map((x) => x.trim()).filter(Boolean);
+  return asciiPunct(s).split(/[\n,]+/).map((x) => x.trim()).filter(Boolean);
 }
 
 /** Verbatim replica of the agency's buildLuxuryCopyPrompt() (luxury_copy). */

@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 import { getUser, putUser, spendCredits, totalCredits, saveRun, getCache, putCache, appendMetricSnapshots, addNotification } from '../lib/dynamo.mjs';
 import { extractMetrics } from '../../../shared/metrics.mjs';
 import { UPSTREAMS } from './upstreams.mjs';
-import { ADAPTERS, parseStrategyJson } from './adapters.mjs';
+import { ADAPTERS, parseStrategyJson, asciiPunct } from './adapters.mjs';
 import { gscInspect, gscSitemaps, gscIndexing } from '../lib/google.mjs';
 import { fetchIntegrationFor } from '../lib/integrations.mjs';
 import {
@@ -282,7 +282,7 @@ function publicInputs(body) {
 /** Split a comma/newline-separated field into a deduped list of items. */
 function splitItems(v) {
   const seen = new Set();
-  return String(v || '')
+  return asciiPunct(v)
     .split(/[\n,]+/)
     .map((s) => s.trim())
     .filter((s) => s && !seen.has(s) && seen.add(s));
