@@ -28,7 +28,7 @@ import {
   listBroadcasts,
   backfillActivity,
 } from '../lib/dynamo.mjs';
-import { PLANS } from '../../../shared/catalog.mjs';
+import { PLANS, NDA_VERSION } from '../../../shared/catalog.mjs';
 import { isAdmin, isStaff, ACCOUNT_STATUSES } from '../lib/admin.mjs';
 import { sendEmail } from '../lib/email.mjs';
 import { buildAcceptancePdf } from '../lib/pdf.mjs';
@@ -66,6 +66,24 @@ export const handler = async (event) => {
   // company details + proof-of-consent metadata). Not the user's private tool
   // content, so — like credit totals / usage counts — it's available to staff
   // without a per-user consent grant.
+  // Sample of the generated Acceptance Record PDF (placeholder data), so staff
+  // can preview the exact document a trial user's acceptance produces and emails
+  // out — without needing a real acceptance on file.
+  if (method === 'GET' && path.endsWith('/admin/agreements/sample-pdf')) {
+    const pdf = await buildAcceptancePdf({
+      formName: 'Sample Trial User',
+      organisation: 'Sample Organisation Pte Ltd',
+      uen: '202012345A',
+      telephone: '+65 6789 0000',
+      formEmail: 'sample@example.com',
+      accountEmail: 'sample@example.com',
+      acceptedAt: new Date().toISOString(),
+      ip: '203.0.113.10',
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      version: NDA_VERSION,
+    });
+    return ok({ filename: `Digimetrics-NDA-Acceptance-SAMPLE.pdf`, base64: Buffer.from(pdf).toString('base64') });
+  }
   if (method === 'GET' && path.endsWith('/admin/agreements/pdf')) {
     if (!q.userId) return badRequest('userId required');
     const u = await getUser(q.userId);

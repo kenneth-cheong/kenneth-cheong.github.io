@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Eye } from 'lucide-react';
+import { Eye, FileText } from 'lucide-react';
 import { PLANS, TIER_ORDER, NDA_VERSION } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
@@ -40,6 +40,7 @@ function AdminAgreements() {
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState('');
   const [previewNda, setPreviewNda] = useState(false);
+  const [sampling, setSampling] = useState(false);
 
   useEffect(() => {
     api.adminAgreements()
@@ -70,6 +71,24 @@ function AdminAgreements() {
     }
   };
 
+  // Open a sample of the generated Acceptance Record PDF in a new tab so staff
+  // can see the document an acceptance produces (placeholder data, current version).
+  const openSample = async () => {
+    setSampling(true);
+    setError('');
+    try {
+      const { base64 } = await api.adminAgreementSamplePdf();
+      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+      window.open(url, '_blank', 'noopener');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) {
+      setError(e?.message || 'Could not generate the sample PDF.');
+    } finally {
+      setSampling(false);
+    }
+  };
+
   if (rows === null) return <p className="mt-6 text-sm text-slate-400">Loading…</p>;
 
   return (
@@ -78,12 +97,21 @@ function AdminAgreements() {
         <p className="text-sm text-slate-500">
           {rows.length} {rows.length === 1 ? 'trial user has' : 'trial users have'} accepted the Free Trial &amp; NDA.
         </p>
-        <button
-          onClick={() => setPreviewNda(true)}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-        >
-          <Eye size={14} aria-hidden /> Preview NDA <span className="text-slate-400">v{NDA_VERSION}</span>
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            onClick={openSample}
+            disabled={sampling}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            <FileText size={14} aria-hidden /> {sampling ? 'Preparing…' : 'Sample PDF'}
+          </button>
+          <button
+            onClick={() => setPreviewNda(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <Eye size={14} aria-hidden /> Preview NDA <span className="text-slate-400">v{NDA_VERSION}</span>
+          </button>
+        </div>
       </div>
       {error && <p className="mb-3 text-sm text-rose-600">{error}</p>}
       {rows.length === 0 ? (

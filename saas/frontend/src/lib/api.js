@@ -226,6 +226,7 @@ export const api = {
   // Free Trial + NDA agreements collected in-app (replaces the email notification).
   adminAgreements: () => call('/admin/agreements'),
   adminAgreementPdf: (userId) => call(`/admin/agreements/pdf?userId=${encodeURIComponent(userId)}`),
+  adminAgreementSamplePdf: () => call('/admin/agreements/sample-pdf'),
   adminCreateUser: ({ email, name, role, tier, credits, sendInvite }) =>
     call('/admin/users', { method: 'POST', body: { email, name, role, tier, credits, sendInvite } }),
   adminCredits: (userId, monthlyDelta, topupDelta, reason) =>
