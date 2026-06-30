@@ -453,11 +453,15 @@ Resources:
       CodeUri: .build/metering/
       Handler: index.handler
       # Long timeout for the Function-URL (slow-tool) path; the API-Gateway path
-      # is still capped at the platform's 30s regardless.
-      Timeout: 180
+      # is still capped at the platform's 30s regardless. The background Social
+      # Audit finalizer (a self-invoked async run) also lives within this budget.
+      Timeout: 300
       Environment:
         Variables:
           GATEWAY_SECRET: '{{resolve:secretsmanager:digimetrics-saas/gateway-secret:SecretString}}'
+          # "Run complete" in-platform notifications + the async Social Audit
+          # finalizer write to the notifications table.
+          NOTIFICATIONS_TABLE: !Ref NotificationsTable
           GOOGLE_CLIENT_ID: !Ref GoogleClientId
           GOOGLE_CLIENT_SECRET: !Ref GoogleClientSecret
           GOOGLE_ADS_DEVELOPER_TOKEN: '{{resolve:secretsmanager:digimetrics-saas/google-ads-developer-token:SecretString}}'
@@ -472,6 +476,14 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref RunsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref CacheTable }
         - DynamoDBCrudPolicy: { TableName: !Ref MetricsTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref NotificationsTable }
+        # Async Social Audit finalize: the gateway invokes ITSELF (Event mode)
+        # so the audit completes even if the browser tab closes. The name pattern
+        # (not !GetAtt MeteringFn.Arn) avoids a CloudFormation circular dependency.
+        - Statement:
+            - Effect: Allow
+              Action: lambda:InvokeFunction
+              Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-MeteringFn-*'
       # Function URL bypasses API Gateway's hard 30s integration limit for
       # long-running tools (strategy engine, persona, forensic audit). JWT is
       # verified inside the handler; CORS is handled by the handler too.

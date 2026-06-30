@@ -429,33 +429,9 @@ export default function SocialAudit() {
     await Promise.allSettled([discoverProfiles(), discoverCompetitors()]);
   }
 
-  // ── Phase 1: live scrape (async start → poll, driven here) ────────────────
-  async function runLiveScrape(startPayload) {
-    const startRes = await api.socialAudit({ action: 'start', ...startPayload });
-    onCredits(startRes);
-    const sd = startRes.result || {};
-    if (sd.error) throw new Error(sd.error);
-    if (!sd.jobId) throw new Error('No jobId returned.');
-    setLoadingText(`Phase 1 of 2 — auditing ${(sd.platforms || startPayload.platforms || []).length} platform(s)…`);
-    for (let tries = 0; tries <= 50; tries++) {
-      const pollRes = await api.socialAudit({ action: 'poll', jobId: sd.jobId });
-      const d = pollRes.result || {};
-      if (d.error) throw new Error(d.error);
-      if (d.status === 'done') return d.scorecard || {};
-      if (d.status === 'running' || d.status === 'finalizing') {
-        const pr = d.progress || {};
-        setLoadingText(d.status === 'finalizing'
-          ? 'Phase 1 of 2 — crunching live data…'
-          : (pr.total ? `Phase 1 of 2 — ${pr.done}/${pr.total} sources ready…` : 'Phase 1 of 2 — collecting live data…'));
-        await sleep(6000);
-        continue;
-      }
-      throw new Error('Unexpected poll response.');
-    }
-    throw new Error('Timed out waiting for live data.');
-  }
-
-  // ── Combined run: live scrape (Phase 1) → strategy analysis (Phase 2) ──────
+  // ── Run: the audit now runs entirely server-side ──────────────────────────
+  // `start` kicks off a background job (live scrape → strategy → save → notify)
+  // that completes even if this tab is closed; we only poll for live progress.
   async function runAudit() {
     if (!brand.trim()) { setError('Please enter a brand name.'); return; }
     setError(''); setScaError('');
@@ -488,32 +464,17 @@ export default function SocialAudit() {
         .filter((c) => c.platform && c.handle.trim())
         .map((c) => ({ platform: c.platform, handle: c.handle.trim().replace(/^@/, ''), name: (c.name.trim() || c.handle.trim()) }));
 
-      // Read additional-context files (browser-side).
+      // Read additional-context files (browser-side) — and pro analytics files.
       let extra_context = '';
       if (smaFiles.length) {
         setLoadingText(`Reading ${smaFiles.length} file(s)…`);
         try { extra_context = await extractFiles(smaFiles); } catch { /* non-fatal */ }
       }
 
-      // Phase 1 — live scrape (skipped if no handles).
-      let liveScorecard = null;
-      if (platforms.length) {
-        setLoadingText('Phase 1 of 2 — collecting live social data…');
-        try {
-          liveScorecard = await runLiveScrape({ brand_name: brand.trim(), domain: ctx.website, handles, platforms, competitors: comps, extra_context });
-          installSmaGlobals();
-          setScorecardHtml(renderSMAScorecard(liveScorecard));
-        } catch (e) {
-          setError('Live data unavailable (' + gateError(e) + ') — running strategy analysis only.');
-        }
-      } else {
-        setLoadingText('No social handles — skipping live scrape, running strategy analysis…');
-      }
-
-      // Phase 2 — strategy analysis (the charged step).
-      setLoadingText('Phase 2 of 2 — generating strategy analysis…');
-      const payload = {
-        action: 'strategy', mode, provider: getLlmProvider(),
+      // The strategy payload the background finalizer will run (same fields as
+      // before, minus the live_social_data it splices in once the scrape lands).
+      const strategy = {
+        mode, provider: getLlmProvider(),
         client_website: ctx.website, brand_name: brand.trim(),
         industry: ctx.industry, target_audience: ctx.audience, campaign_goals: ctx.goals,
         social_profiles: platforms.map((p) => `${p} ${handles[p]}`).join('\n'),
@@ -521,23 +482,53 @@ export default function SocialAudit() {
         content_calendars: calendars.trim(), rfq_notes: rfq.trim(),
         extra_context,
       };
-      if (liveScorecard) payload.live_social_data = JSON.stringify(liveScorecard);
       if (mode === 'pro') {
         setLoadingText('Reading uploaded pro analytics files…');
         for (const f of PRO_FIELDS) {
           const typed = (proText[f.id] || '').trim();
           const fromFiles = await extractFiles(proFiles[f.id] || [], 12000, 30000);
-          payload[f.id] = [typed, fromFiles].filter(Boolean).join('\n\n');
+          strategy[f.id] = [typed, fromFiles].filter(Boolean).join('\n\n');
         }
       }
+      const scrape = platforms.length
+        ? { brand_name: brand.trim(), domain: ctx.website, handles, platforms, competitors: comps, extra_context }
+        : { platforms: [] };
 
-      const res = await api.socialAudit(payload);
-      onCredits(res);
-      if (res.failed || res.result?._failed) throw new Error(res.result?.text || 'Strategy analysis failed.');
-      const data = res.result?.sca;
-      if (!data) throw new Error('No strategy data returned.');
-      setScaHtml(renderSocialAudit(data));
-      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+      // Hand the whole job to the server and poll it for progress.
+      setLoadingText('Starting the audit on our servers…');
+      const startRes = await api.socialAudit({ action: 'start', scrape, strategy });
+      const jobId = startRes.result?.jobId;
+      if (!jobId) throw new Error(startRes.result?.text || 'Could not start the audit.');
+
+      let scorecardShown = false, done = null;
+      for (let tries = 0; tries < 80 && !done; tries++) {
+        await sleep(tries === 0 ? 1500 : 6000);
+        const st = await api.socialAudit({ action: 'status', jobId });
+        const job = st.result || {};
+        if (job.status === 'scraping' || job.status === 'finalizing') {
+          const pr = job.progress || {};
+          setLoadingText(pr.total ? `Phase 1 of 2 — ${pr.done}/${pr.total} sources ready…` : 'Phase 1 of 2 — collecting live social data…');
+        } else if (job.status === 'analyzing') {
+          if (job.scorecard && !scorecardShown) { installSmaGlobals(); setScorecardHtml(renderSMAScorecard(job.scorecard)); scorecardShown = true; }
+          setLoadingText('Phase 2 of 2 — generating strategy analysis…');
+        } else if (job.status === 'done') {
+          if (job.scorecard) { installSmaGlobals(); setScorecardHtml(renderSMAScorecard(job.scorecard)); }
+          onCredits(job);
+          if (!job.sca) throw new Error('No strategy data returned.');
+          setScaHtml(renderSocialAudit(job.sca));
+          setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+          done = job;
+        } else if (job.status === 'error') {
+          throw new Error(job.error || 'The audit failed.');
+        } else if (job.status === 'unknown') {
+          throw new Error('We lost track of the audit job. Please try running it again.');
+        }
+      }
+      // Tab-side timeout only — the job keeps running server-side and will land
+      // in History with a notification when it finishes.
+      if (!done) {
+        setScaError('Still working — this audit is taking longer than usual. You can safely leave this page; we’ll send a notification and add it to your History as soon as it’s ready.');
+      }
     } catch (e) {
       setScaError('Strategy analysis failed: ' + gateError(e));
       if (e instanceof ApiError && e.status === 402) toast('Out of credits — top up to finish.', 'error');

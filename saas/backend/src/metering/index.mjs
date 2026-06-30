@@ -13,7 +13,7 @@
 //   7. return result + { creditsUsed, creditsRemaining }
 // ─────────────────────────────────────────────────────────────────────────
 import { createHash } from 'node:crypto';
-import { getUser, putUser, spendCredits, totalCredits, saveRun, getCache, putCache, appendMetricSnapshots } from '../lib/dynamo.mjs';
+import { getUser, putUser, spendCredits, totalCredits, saveRun, getCache, putCache, appendMetricSnapshots, addNotification } from '../lib/dynamo.mjs';
 import { extractMetrics } from '../../../shared/metrics.mjs';
 import { UPSTREAMS } from './upstreams.mjs';
 import { ADAPTERS, parseStrategyJson } from './adapters.mjs';
@@ -45,7 +45,16 @@ import { rateLimit, RUN_LIMITS } from '../lib/ratelimit.mjs';
 // How many free "teaser" runs a locked tool allows per user per month.
 const TEASER_RUNS_PER_MONTH = 1;
 
-export const handler = async (event) => {
+export const handler = async (event, context) => {
+  // Background self-invocation (InvocationType: Event) — finalize an async
+  // Social Audit independently of any browser tab. Not an HTTP event, so it must
+  // branch BEFORE any CORS/auth/rate-limit handling.
+  if (event && event.__bgFinalize) {
+    try { await socialAuditFinalize(event, context); }
+    catch (e) { console.error('social_finalize_failed', event.jobId, e?.message); }
+    return { ok: true };
+  }
+
   const t0 = Date.now();
   // CORS preflight (Function URL path has no API-Gateway CORS layer).
   const method = event.requestContext?.http?.method || event.httpMethod;
@@ -83,6 +92,10 @@ export const handler = async (event) => {
   // Expose the authenticated email to adapters that attribute upstream jobs
   // (e.g. serpCompetitors keys results by user). Gateway-trusted, not user input.
   body._email = c.email || c.userId;
+  // Identity for tools that kick off background work (e.g. the async Social
+  // Audit finalizer needs to re-authenticate the user it runs on behalf of).
+  body._userId = c.userId;
+  body._tier = user.tier;
   // Connected-integration state for the Integrations tools (gsc/ga4/google-ads).
   body._integrations = user.integrations || {};
   const unitCost = CREDIT_COSTS[tool.cost] ?? 0;
@@ -193,6 +206,19 @@ export const handler = async (event) => {
         projectId: body.projectId || null,
       });
       runId = saved.runId;
+      // In-platform "run complete" ping — the notification bell polls these so a
+      // user who navigated away still learns the result is ready. Best-effort;
+      // skip soft failures (the message there is the result, not a completion).
+      if (!softFailed) {
+        try {
+          await addNotification({
+            userId: user.userId,
+            title: `✅ ${tool.name} finished`,
+            body: runNotificationPreview(tool, payload),
+            link: '/history',
+          });
+        } catch (e) { console.error('notify_run_failed', tool.id, e.message); }
+      }
     } catch (e) { console.error('save_run_failed', tool.id, e.message); }
   }
 
@@ -231,6 +257,17 @@ export const handler = async (event) => {
  *  Performance series — falls back to the connected integration account. */
 function deriveMetricTarget(body) {
   return String(body.input || body.url || body.domain || body.target || '').trim();
+}
+
+/** Short body line for the "run complete" notification — a snippet of the
+ *  result if there's prose, else a generic "ready to view" nudge. */
+function runNotificationPreview(tool, payload) {
+  const text = payload && typeof payload === 'object' ? payload.text : null;
+  if (typeof text === 'string' && text.trim()) {
+    const clean = text.replace(/\s+/g, ' ').trim();
+    return clean.length > 120 ? `${clean.slice(0, 117)}…` : clean;
+  }
+  return `Your ${tool.name} result is ready to view.`;
 }
 
 /** Strip gateway-injected (underscore-prefixed) keys before saving inputs. */
@@ -387,8 +424,9 @@ async function callUpstreamRaw(tool, body) {
   if (tool.id === 'anchor-cleaner') return anchorCleanerRun(body);
   // Performance Marketing Audit: paid-media opportunity analysis.
   if (tool.id === 'perf-marketing') return perfMarketingRun(body);
-  // Social Media Audit: async live scrape (start→poll) + strategy analysis.
-  // The React page calls us once per `action`; only `strategy` is charged.
+  // Social Media Audit: async, fully server-side. `start` kicks off a background
+  // finalizer (scrape→strategy→save→notify); the React page polls `status`. Only
+  // the strategy step is charged. See socialAuditRun / socialAuditFinalize.
   if (tool.id === 'social-audit') return socialAuditRun(body);
   // llms.txt Generator: crawl the site → validate (llms.txt/robots/AI-bots/key
   // pages) → generate a spec-compliant llms.txt + llms-full.txt + recommendations.
@@ -3081,13 +3119,63 @@ function sectionsPerfMarketing(d) {
 // gateway — drives the loop, calling us once per `action`. Only the Phase-2
 // `strategy` step is billable; every scrape/discover/poll step opts out of
 // billing with `{ _noCharge: true }` so the user is charged exactly once.
+// A Social Audit is a long, two-phase job (live scrape → strategy analysis).
+// Rather than have the browser drive it (and lose the run if the tab closes),
+// `start` persists the job and fires a background self-invocation that runs the
+// whole thing server-side. The browser only polls `status` for live progress;
+// the run completes, saves to history, and notifies even if the user leaves.
+const socialJobKey = (jobId) => `social_job:${jobId}`;
+const SOCIAL_JOB_TTL = 6 * 60 * 60; // 6h — re-openable from History / the notification
+
 async function socialAuditRun(body) {
   const action = String(body.action || '').trim();
   // Strip gateway-injected + routing keys before forwarding upstream.
   const fwd = { ...body };
-  delete fwd._email; delete fwd._integrations; delete fwd.projectId;
+  delete fwd._email; delete fwd._integrations; delete fwd._userId; delete fwd._tier; delete fwd.projectId;
 
-  // ── Phase 2: strategy analysis — the single CHARGED step ──────────────────
+  // ── Kick off the whole audit server-side, return a job id immediately ─────
+  if (action === 'start') {
+    const userId = body._userId || body._email;
+    const scrape = (body.scrape && typeof body.scrape === 'object') ? body.scrape : {};
+    const strategy = (body.strategy && typeof body.strategy === 'object') ? body.strategy : {};
+    const platforms = Array.isArray(scrape.platforms) ? scrape.platforms : [];
+
+    // Start the upstream live scrape (only when handles were provided).
+    let scrapeJobId = null, total = 0;
+    if (platforms.length) {
+      const raw = await postUpstream(UPSTREAMS.socialMediaAudit, { ...scrape, action: 'start' });
+      const sd = deepBody(raw) || {};
+      if (sd.error) return { _failed: true, text: sd.error };
+      if (!sd.jobId) return { _failed: true, text: 'The live scrape did not start. Please try again.' };
+      scrapeJobId = sd.jobId;
+      total = (sd.platforms || platforms).length;
+    }
+
+    const jobId = `sa_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    await putCache(socialJobKey(jobId), {
+      status: scrapeJobId ? 'scraping' : 'analyzing',
+      jobId, scrapeJobId,
+      progress: { done: 0, total },
+      strategy,                 // consumed once by the finalizer
+      userId, email: body._email, tier: body._tier,
+      createdAt: new Date().toISOString(),
+    }, SOCIAL_JOB_TTL);
+
+    // Fire-and-forget: a separate Lambda invocation runs scrape→strategy→save.
+    await selfInvokeFinalize(jobId);
+    return { _noCharge: true, jobId, status: scrapeJobId ? 'scraping' : 'analyzing' };
+  }
+
+  // ── Poll job status (browser live-progress; never charged) ────────────────
+  if (action === 'status') {
+    const job = await getCache(socialJobKey(body.jobId)).catch(() => null);
+    if (!job) return { _noCharge: true, status: 'unknown' };
+    // Don't ship the (potentially large) strategy inputs back to the browser.
+    const { strategy, ...pub } = job;
+    return { _noCharge: true, ...pub };
+  }
+
+  // ── Strategy analysis — the single CHARGED step, run by the finalizer ─────
   if (action === 'strategy') {
     delete fwd.action;
     const raw = await postUpstream(UPSTREAMS.socialMediaStrategy, { ...fwd, task: 'social_audit' });
@@ -3097,12 +3185,112 @@ async function socialAuditRun(body) {
   }
 
   // ── Free helper / live-scrape actions — proxied raw, never charged ────────
-  const ALLOWED = new Set(['suggest_context', 'discover', 'discover_competitors', 'start', 'poll']);
+  const ALLOWED = new Set(['suggest_context', 'discover', 'discover_competitors', 'poll']);
   if (!ALLOWED.has(action)) return { _failed: true, text: `Unknown social-audit action: ${action || '(none)'}` };
   const raw = await postUpstream(UPSTREAMS.socialMediaAudit, fwd);
   const d = deepBody(raw);
   const obj = d && typeof d === 'object' && !Array.isArray(d) ? d : { data: d };
   return { _noCharge: true, ...obj };
+}
+
+// Fire the background finalizer as its own Lambda invocation (Event mode), so it
+// runs independently of the request that started it. AWS_LAMBDA_FUNCTION_NAME is
+// always set by the runtime; the IAM self-invoke grant is in template.yaml. The
+// SDK client is imported lazily (it's provided by the nodejs runtime, not the
+// local node_modules) and memoised across warm invocations.
+let _lambdaClient = null;
+async function selfInvokeFinalize(jobId) {
+  const { LambdaClient, InvokeCommand } = await import('@aws-sdk/client-lambda');
+  _lambdaClient ||= new LambdaClient({});
+  await _lambdaClient.send(new InvokeCommand({
+    FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
+    InvocationType: 'Event',
+    Payload: Buffer.from(JSON.stringify({ __bgFinalize: true, jobId })),
+  }));
+}
+
+// Background worker: poll the live scrape to completion, run the (charged)
+// strategy step by re-entering the gateway handler — so billing, history and the
+// "run complete" notification all flow through the one canonical path — then
+// store the finished result for the browser (and a returning user) to pick up.
+async function socialAuditFinalize(event, context) {
+  const jobId = event.jobId;
+  const job = await getCache(socialJobKey(jobId)).catch(() => null);
+  if (!job) { console.error('social_finalize_missing_job', jobId); return; }
+
+  try {
+    // Phase 1 — drive the upstream scrape, surfacing progress to the browser.
+    let scorecard = null;
+    if (job.scrapeJobId) {
+      scorecard = await pollSocialScrape(job, jobId);
+      await putCache(socialJobKey(jobId), { ...job, status: 'analyzing', scorecard }, SOCIAL_JOB_TTL).catch(() => {});
+    }
+
+    // Phase 2 — strategy analysis via a synthetic, authenticated gateway call.
+    const strategyBody = { action: 'strategy', ...job.strategy };
+    if (scorecard) strategyBody.live_social_data = JSON.stringify(scorecard);
+    const synthetic = {
+      rawPath: '/run/social-audit',
+      requestContext: { http: { method: 'POST' }, authorizer: { lambda: { userId: job.userId, email: job.email, tier: job.tier } } },
+      headers: {},
+      body: JSON.stringify(strategyBody),
+    };
+    const resp = await handler(synthetic, context);
+    const parsed = JSON.parse(resp?.body || '{}');
+    const status = resp?.statusCode || 200;
+    if (status === 402) throw new Error('You ran out of credits before the strategy step. Top up and run it again.');
+    if (status >= 300 || parsed.failed || parsed.result?._failed) {
+      throw new Error(parsed.result?.text || parsed.error || 'Strategy analysis failed.');
+    }
+    if (!parsed.result?.sca) throw new Error('No strategy data was returned.');
+
+    await putCache(socialJobKey(jobId), {
+      jobId, status: 'done', scorecard,
+      sca: parsed.result.sca,
+      runId: parsed.runId || null,
+      creditsRemaining: parsed.creditsRemaining,
+      topupRemaining: parsed.topupRemaining,
+      creditsUsed: parsed.creditsUsed,
+      finishedAt: new Date().toISOString(),
+    }, SOCIAL_JOB_TTL);
+    // The "✅ Social Audit finished" notification already fired inside handler's
+    // saveRun path, so there's nothing more to do here on success.
+  } catch (e) {
+    await putCache(socialJobKey(jobId), {
+      jobId, status: 'error', error: e?.message || 'The audit failed.',
+      finishedAt: new Date().toISOString(),
+    }, SOCIAL_JOB_TTL).catch(() => {});
+    try {
+      await addNotification({
+        userId: job.userId,
+        title: '⚠️ Social Audit could not finish',
+        body: (e?.message || 'Please try running it again.').slice(0, 140),
+        link: '/social-audit',
+      });
+    } catch { /* best-effort */ }
+  }
+}
+
+// Poll the upstream live scrape until done, writing progress into the job record
+// so the browser's `status` poll can show "N/M sources ready". Bounded well
+// inside the Lambda timeout; a slow scrape surfaces as a clean job error.
+async function pollSocialScrape(job, jobId) {
+  const deadline = Date.now() + 220000; // leave headroom under the 300s timeout for strategy
+  while (Date.now() < deadline) {
+    const raw = await postUpstream(UPSTREAMS.socialMediaAudit, { action: 'poll', jobId: job.scrapeJobId }).catch(() => null);
+    const d = raw ? deepBody(raw) : null;
+    if (d) {
+      if (d.error) throw new Error(d.error);
+      if (d.status === 'done') return d.scorecard || {};
+      await putCache(socialJobKey(jobId), {
+        ...job,
+        status: d.status === 'finalizing' ? 'finalizing' : 'scraping',
+        progress: d.progress || job.progress,
+      }, SOCIAL_JOB_TTL).catch(() => {});
+    }
+    await sleep(6000);
+  }
+  throw new Error('Timed out collecting live social data.');
 }
 
 // Unwrap the socialMediaStrategy response (proxy envelope → answer → JSON) into
