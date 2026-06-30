@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ShieldCheck, X } from 'lucide-react';
 import { NDA_VERSION } from '@shared/catalog.mjs';
+import { AGREEMENT_TITLE, AGREEMENT_INTRO, AGREEMENT_SECTIONS } from '@shared/agreement.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 
 // Soft-launch Free Trial + NDA gate. Shown by Layout to any signed-in trial user
@@ -141,95 +142,33 @@ export default function TrialNdaGate() {
   );
 }
 
-// Full NDA text, shown when the user clicks the inline "Terms" link.
+// Full NDA text, shown when the user clicks the inline "Terms" link. The terms
+// are rendered from the shared @shared/agreement.mjs source so the on-screen
+// copy and the Acceptance Record PDF can never drift apart.
 function TermsModal({ onClose }) {
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-6 py-4">
-          <h2 className="text-base font-bold text-slate-900">Digimetrics Free Trial &amp; Non-Disclosure Agreement</h2>
+          <h2 className="text-base font-bold text-slate-900">{AGREEMENT_TITLE}</h2>
           <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200"><X size={18} /></button>
         </div>
         <div className="space-y-3 overflow-y-auto px-6 py-5 text-sm leading-relaxed text-slate-700">
-          <p className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            This Free Trial and Non-Disclosure Agreement is made between <b>MediaOne Business Group Pte Ltd</b>,
-            the owner/operator of Digimetrics (the &ldquo;Company&rdquo;), and the individual or organisation
-            invited to access and use Digimetrics (the &ldquo;Trial User&rdquo;). Together, the &ldquo;Parties&rdquo;.
-          </p>
-          <p>
-            This Agreement does not require the Trial User to enter signatory details or affix a physical signature.
-            Acceptance is recorded electronically through the Company&rsquo;s &ldquo;Agree and Submit&rdquo; process
-            and/or the Trial User&rsquo;s access to the free trial.
-          </p>
+          {AGREEMENT_INTRO.map((intro, i) => (
+            <p key={i} className={intro.boxed ? 'rounded-lg border border-slate-200 bg-slate-50 p-3' : undefined}>
+              {intro.text}
+            </p>
+          ))}
 
-          <Section n="1" title="Purpose">
-            <p>The Company is offering the Trial User early access to Digimetrics as part of a soft launch / free trial programme.</p>
-            <p>The purpose of this trial is to allow selected partners and customers to test, evaluate and provide feedback on the form, function, usability, features, performance and commercial usefulness of Digimetrics.</p>
-          </Section>
-          <Section n="2" title="Free Trial Period">
-            <p>The Trial User will be given access to Digimetrics for a free trial period of 180 days from the date of account activation, unless extended or terminated earlier by the Company.</p>
-          </Section>
-          <Section n="3" title="Trial Credits">
-            <p>As part of the free trial, the Trial User will receive 2,500 Digimetrics credits, with an estimated value of $99, or any other terms as provided by the Company separately. These credits are provided free of charge for trial and evaluation purposes only. The credits:</p>
-            <List items={['have no cash value;', 'cannot be exchanged for money;', 'cannot be transferred, resold or assigned to another party;', 'may only be used within Digimetrics; and', 'may expire at the end of the free trial period unless otherwise agreed in writing.']} />
-          </Section>
-          <Section n="4" title="Confidential Information">
-            <p>During the free trial, the Trial User may receive or access confidential and proprietary information relating to Digimetrics, including but not limited to:</p>
-            <List items={['product features, workflows and functions;', 'software design, user interface and user experience;', 'algorithms, processes, analytics, reports and outputs;', 'business models, pricing, commercial plans and product roadmap;', 'technical information, system architecture and operational processes;', 'marketing, sales or customer materials; and', 'any other information that is not publicly available.']} />
-            <p>All such information shall be treated as confidential, whether provided verbally, visually, electronically, through the platform, or in any other form.</p>
-          </Section>
-          <Section n="5" title="Confidentiality Obligations">
-            <p>The Trial User agrees to:</p>
-            <List items={['keep all Confidential Information strictly confidential;', 'use the Confidential Information only for evaluating and testing Digimetrics;', "not disclose the Confidential Information to any third party without the Company's prior written consent;", 'take reasonable steps to prevent unauthorised access, copying, misuse or disclosure;', 'not publish, post, share or circulate screenshots, reports, outputs, demonstrations or platform information without written approval from the Company; and', 'immediately notify the Company if the Trial User becomes aware of any unauthorised use or disclosure.']} />
-          </Section>
-          <Section n="6" title="Restrictions on Use">
-            <p>The Trial User shall not:</p>
-            <List items={['copy, reproduce, modify, reverse engineer, decompile or attempt to derive the source code or underlying logic of Digimetrics;', 'use Digimetrics to develop, improve or assist a competing product or service;', 'allow unauthorised persons to access the trial account;', 'resell, sublicense or commercially exploit the trial access;', 'misuse the platform or attempt to bypass usage limits, credits, security or access controls; or', 'use Digimetrics for any unlawful, harmful, misleading or unauthorised purpose.']} />
-          </Section>
-          <Section n="7" title="Feedback and Testimonials">
-            <p>As part of the free trial, the Company would appreciate feedback from the Trial User on the form, function, usability, accuracy, performance and usefulness of Digimetrics. The Trial User may provide feedback by:</p>
-            <List items={['using the “Report a problem” feature within Digimetrics; or', 'emailing feedback to tom@mediaone.co.']} />
-            <p>The Trial User agrees that any feedback, suggestions, comments, ideas, issue reports or recommendations provided to the Company may be used by the Company to improve, modify, develop, market or commercialise Digimetrics without any payment, royalty or obligation to the Trial User.</p>
-            <p>The Trial User may also choose to provide a testimonial, review, endorsement, quote, case comment or other positive statement about Digimetrics.</p>
-            <p>By providing a testimonial, the Trial User agrees that the Company may use, reproduce, publish, display and distribute the testimonial for marketing, sales, investor, partnership, website, social media, presentation and promotional purposes.</p>
-            <p>The Trial User further agrees that the Company may identify the testimonial provider by name, designation, company name, brand name, industry and/or company logo, where such information has been provided or is already reasonably known to the Company.</p>
-            <p>The Company may make minor edits to the testimonial for grammar, clarity, length or formatting, provided that such edits do not materially change the meaning of the testimonial.</p>
-            <p>The Trial User confirms that any testimonial provided is truthful, voluntary and based on its actual experience using Digimetrics.</p>
-            <p>The Trial User shall not disclose any confidential, sensitive or third-party information in its feedback or testimonial unless it has the right to do so.</p>
-          </Section>
-          <Section n="8" title="Ownership and Intellectual Property">
-            <p>All rights, title and interest in Digimetrics, including all software, designs, content, reports, workflows, processes, features, improvements, know-how, trade secrets, trademarks and intellectual property, shall remain the exclusive property of the Company or its licensors.</p>
-            <p>Nothing in this Agreement transfers any ownership rights to the Trial User. The Trial User is granted only a limited, temporary, non-exclusive, non-transferable and revocable right to use Digimetrics during the free trial period for evaluation purposes.</p>
-          </Section>
-          <Section n="9" title="Trial User Data">
-            <p>The Trial User is responsible for ensuring that any data, content or materials uploaded or entered into Digimetrics may lawfully be used for testing and evaluation.</p>
-            <p>The Trial User shall not upload personal data, confidential client information, sensitive commercial information or third-party proprietary information unless it has obtained all necessary rights, permissions and consents.</p>
-          </Section>
-          <Section n="10" title="No Warranty">
-            <p>Digimetrics is provided during the free trial on an &ldquo;as is&rdquo; and &ldquo;as available&rdquo; basis. As this is a soft launch / free trial, the Trial User acknowledges that Digimetrics may contain bugs, errors, incomplete features, limitations or service interruptions.</p>
-            <p>The Company does not guarantee that Digimetrics will be error-free, uninterrupted, fully accurate or suitable for any specific commercial purpose during the trial period.</p>
-          </Section>
-          <Section n="11" title="Limitation of Liability">
-            <p>To the maximum extent permitted by law, the Company shall not be liable for any indirect, incidental, consequential, special or loss-of-profit damages arising from the Trial User's use of Digimetrics during the free trial. The Trial User agrees that it uses Digimetrics at its own discretion and risk during the free trial period.</p>
-          </Section>
-          <Section n="12" title="Termination">
-            <p>The Company may suspend or terminate the free trial at any time if:</p>
-            <List items={['the Trial User breaches this Agreement;', 'the Trial User misuses Digimetrics;', 'continued access may pose a security, legal, operational or commercial risk; or', 'the Company decides to end or modify the free trial programme.']} />
-            <p>Upon termination or expiry of the free trial, the Trial User must stop using Digimetrics and must not retain, copy, share or misuse any Confidential Information.</p>
-          </Section>
-          <Section n="13" title="Survival">
-            <p>The confidentiality, intellectual property, feedback, testimonials, restriction of use and limitation of liability provisions shall continue to apply even after the free trial ends.</p>
-          </Section>
-          <Section n="14" title="Governing Law">
-            <p>This Agreement shall be governed by and interpreted in accordance with the laws of Singapore. The Parties agree to submit to the exclusive jurisdiction of the courts of Singapore.</p>
-          </Section>
-          <Section n="15" title="Electronic Acceptance and Proof of Consent">
-            <p>By clicking &ldquo;Agree and Submit&rdquo;, creating a trial account, accessing Digimetrics, or using the free trial credits, the Trial User confirms that it has read, understood and agreed to be bound by this Agreement.</p>
-            <p>If the person accepting this Agreement does so on behalf of an organisation, that person represents that he or she has authority to accept this Agreement on behalf of that organisation.</p>
-            <p>No physical signature, handwritten signature or manual entry of signatory details is required for this Agreement to take effect.</p>
-            <p>The Company may rely on the electronic acceptance record as proof of consent. Such record may include the Trial User&rsquo;s account details, email address, organisation details, date and time of acceptance, IP address, browser or device information, acceptance version, and a copy or record of the terms accepted.</p>
-            <p>The Trial User also acknowledges and agrees that any feedback or testimonial provided may be used by the Company in accordance with the Feedback and Testimonials section of this Agreement, including identifying the testimonial provider by name, designation, company name, brand name, industry and/or company logo where applicable.</p>
-          </Section>
+          {AGREEMENT_SECTIONS.map((sec) => (
+            <Section key={sec.n} n={sec.n} title={sec.title}>
+              {sec.blocks.map((block, i) => (
+                block.list
+                  ? <List key={i} items={block.list} />
+                  : <p key={i}>{block.p}</p>
+              ))}
+            </Section>
+          ))}
         </div>
         <div className="border-t border-slate-200 px-6 py-3 text-right">
           <button onClick={onClose} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">Close</button>
