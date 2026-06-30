@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Eye, FileText, MonitorPlay } from 'lucide-react';
-import { PLANS, TIER_ORDER, NDA_VERSION } from '@shared/catalog.mjs';
+import { FileText, MonitorPlay } from 'lucide-react';
+import { PLANS, TIER_ORDER } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
 import SortableTable from '../components/SortableTable.jsx';
-import NdaTermsModal from '../components/NdaTermsModal.jsx';
 import TrialNdaGate from '../components/TrialNdaGate.jsx';
 
 // Admin-only console: manage users (tier + credits) and the support inbox
@@ -40,7 +39,6 @@ function AdminAgreements() {
   const [rows, setRows] = useState(null); // null = loading
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState('');
-  const [previewNda, setPreviewNda] = useState(false);
   const [previewGate, setPreviewGate] = useState(false);
   const [sampling, setSampling] = useState(false);
 
@@ -107,12 +105,6 @@ function AdminAgreements() {
             <MonitorPlay size={14} aria-hidden /> Preview gate
           </button>
           <button
-            onClick={() => setPreviewNda(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            <Eye size={14} aria-hidden /> Preview NDA <span className="text-slate-400">v{NDA_VERSION}</span>
-          </button>
-          <button
             onClick={openSample}
             disabled={sampling}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
@@ -167,7 +159,6 @@ function AdminAgreements() {
           </table>
         </div>
       )}
-      {previewNda && <NdaTermsModal showVersion onClose={() => setPreviewNda(false)} />}
       {previewGate && <TrialNdaGate preview onClose={() => setPreviewGate(false)} />}
     </div>
   );
