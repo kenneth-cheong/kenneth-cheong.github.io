@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { PLANS, TIER_ORDER } from '@shared/catalog.mjs';
+import { Eye } from 'lucide-react';
+import { PLANS, TIER_ORDER, NDA_VERSION } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
 import SortableTable from '../components/SortableTable.jsx';
+import NdaTermsModal from '../components/NdaTermsModal.jsx';
 
 // Admin-only console: manage users (tier + credits) and the support inbox
 // (view / reply / close every user's ticket). Gated client-side here AND
@@ -37,6 +39,7 @@ function AdminAgreements() {
   const [rows, setRows] = useState(null); // null = loading
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState('');
+  const [previewNda, setPreviewNda] = useState(false);
 
   useEffect(() => {
     api.adminAgreements()
@@ -75,6 +78,12 @@ function AdminAgreements() {
         <p className="text-sm text-slate-500">
           {rows.length} {rows.length === 1 ? 'trial user has' : 'trial users have'} accepted the Free Trial &amp; NDA.
         </p>
+        <button
+          onClick={() => setPreviewNda(true)}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          <Eye size={14} aria-hidden /> Preview NDA <span className="text-slate-400">v{NDA_VERSION}</span>
+        </button>
       </div>
       {error && <p className="mb-3 text-sm text-rose-600">{error}</p>}
       {rows.length === 0 ? (
@@ -122,6 +131,7 @@ function AdminAgreements() {
           </table>
         </div>
       )}
+      {previewNda && <NdaTermsModal showVersion onClose={() => setPreviewNda(false)} />}
     </div>
   );
 }
@@ -961,13 +971,60 @@ function statusPill(status) {
   return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${map[status] || 'bg-slate-100 text-slate-500'}`}>{status || '—'}</span>;
 }
 
+const DAY_MS = 86_400_000;
+// Days remaining until the next reminder nudge and until auto-close, computed the
+// same way the daily CloseFn job decides (saas/backend/src/close/index.mjs):
+//   • auto-close fires when a ticket has been inactive >= ticketAutoCloseDays.
+//   • a reminder fires every ticketReminderDays, but ONLY while we're awaiting the
+//     customer (status 'answered'), measured from the last nudge (or last activity).
+// Returns { label, sort, tip } per metric; `sort` is the numeric days remaining so
+// the column sorts sensibly (non-applicable rows sink to the bottom via Infinity).
+function ticketLifecycle(t, settings) {
+  const off = (label, tip) => ({ label, sort: Infinity, tip });
+  if (!settings) return { remind: off('…'), close: off('…') };
+  if (t.status === 'closed') return { remind: off('—'), close: off('—') };
+
+  const now = Date.now();
+  const closeDays = Number(settings.ticketAutoCloseDays);
+  const remindDays = Number(settings.ticketReminderDays);
+  const countdown = (days) => (days <= 0 ? { label: 'Due', sort: 0 } : { label: `${Math.ceil(days)}d`, sort: days });
+
+  const inactiveDays = (now - new Date(t.lastActivityAt || t.ts).getTime()) / DAY_MS;
+  const close = closeDays > 0 ? countdown(closeDays - inactiveDays) : off('Off', 'Auto-close is turned off in Settings');
+
+  let remind;
+  if (!(remindDays > 0)) remind = off('Off', 'Reminders are turned off in Settings');
+  else if (t.status !== 'answered') remind = off('—', 'Reminders fire only while awaiting the customer’s reply');
+  else {
+    const sinceNudge = (now - new Date(t.lastReminderAt || t.lastActivityAt || t.ts).getTime()) / DAY_MS;
+    remind = countdown(remindDays - sinceNudge);
+  }
+  return { remind, close };
+}
+
+// Render a lifecycle countdown: amber+bold when it's due on the next daily run,
+// muted for off/not-applicable, plain otherwise.
+function countdownCell(c) {
+  const muted = c.label === 'Off' || c.label === '—' || c.label === '…';
+  const due = c.label === 'Due';
+  return (
+    <span title={c.tip || undefined}
+      className={`whitespace-nowrap ${due ? 'font-semibold text-amber-700' : muted ? 'text-slate-400' : 'text-slate-600'}`}>
+      {c.label}
+    </span>
+  );
+}
+
 function AdminTickets() {
   const [tickets, setTickets] = useState(null);
+  const [settings, setSettings] = useState(null);
   const [sel, setSel] = useState(null);
   const [error, setError] = useState('');
 
   const load = () => { setError(''); api.adminTickets().then((d) => setTickets(d.tickets || [])).catch((e) => { setTickets([]); setError(e?.status === 403 ? 'Your account is not an admin.' : 'Could not load tickets.'); }); };
   useEffect(() => { load(); }, []);
+  // The lifecycle windows drive the reminder/auto-close countdowns below.
+  useEffect(() => { api.adminSettings().then(({ settings }) => setSettings(settings)).catch(() => {}); }, []);
 
   if (sel) return <AdminTicketDetail summary={sel} onBack={() => { setSel(null); load(); }} />;
 
@@ -975,7 +1032,16 @@ function AdminTickets() {
   return (
     <div>
       {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
-      {tickets && <p className="mt-4 text-sm text-slate-500">{tickets.length} ticket{tickets.length === 1 ? '' : 's'} · <span className="font-semibold text-amber-700">{open} open</span></p>}
+      {tickets && (
+        <p className="mt-4 text-sm text-slate-500">
+          {tickets.length} ticket{tickets.length === 1 ? '' : 's'} · <span className="font-semibold text-amber-700">{open} open</span>
+          {settings && (
+            <span className="text-slate-400">
+              {' · '}reminders {Number(settings.ticketReminderDays) > 0 ? `every ${settings.ticketReminderDays}d` : 'off'}, auto-close {Number(settings.ticketAutoCloseDays) > 0 ? `after ${settings.ticketAutoCloseDays}d` : 'off'}
+            </span>
+          )}
+        </p>
+      )}
       <div className="card mt-3">
         <SortableTable
           rows={tickets || []}
@@ -989,6 +1055,10 @@ function AdminTickets() {
               render: (t) => <button className="max-w-xs truncate text-left font-medium text-slate-800 hover:underline" onClick={() => setSel(t)}>{t.subject || '(no subject)'}</button> },
             { key: 'category', label: 'Category', render: (t) => <span className="text-slate-500">{t.category || '—'}</span> },
             { key: 'status', label: 'Status', accessor: (t) => t.status, render: (t) => statusPill(t.status) },
+            { key: 'remind', label: 'Next reminder', numeric: true, tip: 'Days until the next “please reply” nudge is emailed to the customer (only while awaiting their reply).',
+              accessor: (t) => ticketLifecycle(t, settings).remind.sort, render: (t) => countdownCell(ticketLifecycle(t, settings).remind) },
+            { key: 'close', label: 'Auto-close', numeric: true, tip: 'Days until the ticket auto-closes from inactivity.',
+              accessor: (t) => ticketLifecycle(t, settings).close.sort, render: (t) => countdownCell(ticketLifecycle(t, settings).close) },
             { key: 'lastActivityAt', label: 'Last activity', accessor: (t) => t.lastActivityAt || t.ts || '',
               render: (t) => <span className="whitespace-nowrap text-slate-500">{fmtWhen(t.lastActivityAt || t.ts)}</span> },
           ]}

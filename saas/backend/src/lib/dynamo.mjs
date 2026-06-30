@@ -786,7 +786,7 @@ export async function listTickets(userId, limit = 100) {
 export async function listAllTickets(limit = 500) {
   const { Items } = await ddb.send(new ScanCommand({
     TableName: TABLES.tickets,
-    ProjectionExpression: 'userId, ticketId, id, subject, category, #s, userEmail, ts, lastActivityAt',
+    ProjectionExpression: 'userId, ticketId, id, subject, category, #s, userEmail, ts, lastActivityAt, lastReminderAt',
     ExpressionAttributeNames: { '#s': 'status' },
   }));
   return (Items || [])
