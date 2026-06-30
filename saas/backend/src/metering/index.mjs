@@ -304,15 +304,48 @@ const FLAKY_BY_URL = Object.fromEntries(
 );
 const RETRYABLE_STATUS = new Set([429, 502, 503, 504]);
 
+// Upstreams whose generation legitimately exceeds the upstream API Gateway's
+// HARD 29s integration cap (e.g. the Media Plan generator builds a full plan
+// for every ad format from Claude with persona context — 30–120s). Calling
+// those through the gateway 504s every time, so invoke the Lambda DIRECTLY: the
+// call then rides MeteringFn's 300s budget + the upstream's own Lambda timeout.
+// Value = the upstream Lambda's function name. The IAM grant is in template.yaml.
+const DIRECT_INVOKE = {
+  [UPSTREAMS.mediaPlanGenerator]: 'mediaPlanGenerator',
+  [UPSTREAMS.personaGenerator]: 'personaGenerator',
+  [UPSTREAMS.generateFunnel]: 'generateFunnel',
+};
+
+let _lambdaInvokeClient;
+/** Invoke an upstream Lambda directly (RequestResponse), passing the same proxy
+ *  event shape its API Gateway would ({ body: <json> }) and returning the raw
+ *  response text ({ statusCode, body } envelope) for postUpstream to unwrap.
+ *  Bypasses the gateway's 29s cap. Throws on a Lambda FunctionError. */
+async function invokeUpstreamLambda(fnName, payload) {
+  const { LambdaClient, InvokeCommand } = await import('@aws-sdk/client-lambda');
+  // 175s socket timeout — under MeteringFn's 300s, over the upstreams' Lambda caps.
+  _lambdaInvokeClient ||= new LambdaClient({ requestHandler: { requestTimeout: 175000 } });
+  const res = await _lambdaInvokeClient.send(new InvokeCommand({
+    FunctionName: fnName,
+    InvocationType: 'RequestResponse',
+    Payload: Buffer.from(JSON.stringify({ body: JSON.stringify(payload) })),
+  }));
+  const text = Buffer.from(res.Payload || []).toString('utf8');
+  if (res.FunctionError) throw new Error(`upstream lambda ${res.FunctionError}: ${text.slice(0, 300)}`);
+  return text;
+}
+
 /**
  * POST to an upstream, unwrapping the { statusCode, body } proxy envelope.
  * Adds an AbortController timeout and exponential-backoff retry on transient
- * failures (auto-applied to FLAKY backends; override via opts).
+ * failures (auto-applied to FLAKY backends; override via opts). Upstreams in
+ * DIRECT_INVOKE are called via the Lambda API instead of their 29s gateway.
  */
 async function postUpstream(url, payload, opts = {}) {
   const cfg = FLAKY_BY_URL[url] || {};
   const timeoutMs = opts.timeoutMs ?? cfg.timeoutMs ?? 170000; // < 180s Lambda cap
   const retries = opts.retries ?? cfg.retries ?? 0;
+  const directFn = DIRECT_INVOKE[url];
 
   let lastErr;
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -320,6 +353,10 @@ async function postUpstream(url, payload, opts = {}) {
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), timeoutMs);
     try {
+      let text;
+      if (directFn) {
+        text = await invokeUpstreamLambda(directFn, payload);
+      } else {
       const res = await fetch(url, {
         method: 'POST',
         headers: {
@@ -330,13 +367,14 @@ async function postUpstream(url, payload, opts = {}) {
         body: JSON.stringify(payload),
         signal: ac.signal,
       });
-      const text = await res.text();
+      text = await res.text();
       if (!res.ok) {
         if (attempt < retries && RETRYABLE_STATUS.has(res.status)) {
           lastErr = new Error(`upstream ${res.status}`);
           continue;
         }
         throw new Error(`upstream ${res.status}: ${text.slice(0, 300)}`);
+      }
       }
       let raw;
       try {

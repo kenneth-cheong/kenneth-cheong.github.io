@@ -483,7 +483,15 @@ Resources:
         - Statement:
             - Effect: Allow
               Action: lambda:InvokeFunction
-              Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-MeteringFn-*'
+              Resource:
+                - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-MeteringFn-*'
+                # Slow-generation upstreams invoked DIRECTLY (DIRECT_INVOKE in
+                # src/metering/index.mjs) to bypass their API Gateway's hard 29s
+                # cap — the Media Plan composite (plan + personas + funnel) can
+                # legitimately take 30–120s and 504s through the gateway.
+                - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:mediaPlanGenerator'
+                - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:personaGenerator'
+                - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:generateFunnel'
       # Function URL bypasses API Gateway's hard 30s integration limit for
       # long-running tools (strategy engine, persona, forensic audit). JWT is
       # verified inside the handler; CORS is handled by the handler too.
