@@ -361,6 +361,35 @@ async function postUpstream(url, payload, opts = {}) {
   throw lastErr;
 }
 
+/**
+ * Direct page fetch from the gateway itself — a fallback for when the getHtml
+ * upstream (a headless renderer) is slow (>timeout) or returns a bot-challenge
+ * page for some WP/CDN sites. Without this, a perfectly reachable homepage can
+ * produce a false "could not fetch — check the URL is public" message. Uses a
+ * realistic browser UA and follows redirects; returns '' on any failure.
+ */
+async function directFetchHtml(url, ms = 12000) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), ms);
+  try {
+    const res = await fetch(url, {
+      redirect: 'follow',
+      signal: ac.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+    });
+    if (!res.ok) return '';
+    return await res.text();
+  } catch {
+    return '';
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Deterministic-ish data tools whose results we cache (TTL seconds). Live/AI
 // and user-data tools are never cached.
 const CACHE_TTL = { 'keyword-analysis': 86400, backlinks: 86400, competitors: 86400, 'time-to-rank': 86400, onpage: 86400 };
@@ -1764,12 +1793,18 @@ async function llmsTxtRun(body) {
     .then((r) => (typeof r === 'string' ? r : (r && typeof r.body === 'string' ? r.body : '')))
     .catch(() => '');
 
-  const [homeHtml, robotsBody, llmsBody, llmsFullBody] = await Promise.all([
+  let [homeHtml, robotsBody, llmsBody, llmsFullBody] = await Promise.all([
     getBody(rootDomain, 25000),
     getBody(rootDomain + '/robots.txt', 12000),
     getBody(rootDomain + '/llms.txt', 10000),
     getBody(rootDomain + '/llms-full.txt', 10000),
   ]);
+  // The homepage gates the whole tool. The getHtml upstream's headless renderer
+  // can time out or return a challenge page for slow WP/CDN sites, so fall back
+  // to a direct fetch before giving up — many "unreachable" sites respond fine.
+  if (!homeHtml || homeHtml.length < 200) {
+    homeHtml = await directFetchHtml(rootDomain, 12000);
+  }
   if (!homeHtml || homeHtml.length < 200) {
     // Soft-fail (not a 500): the site bot-blocks the fetcher or is unreachable.
     // Surface the actionable reason and charge nothing — mirrors aiDiscoveryRun.
