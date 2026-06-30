@@ -317,10 +317,12 @@ const DIRECT_INVOKE = {
 };
 
 let _lambdaInvokeClient;
-/** Invoke an upstream Lambda directly (RequestResponse), passing the same proxy
- *  event shape its API Gateway would ({ body: <json> }) and returning the raw
+/** Invoke an upstream Lambda directly (RequestResponse) and return the raw
  *  response text ({ statusCode, body } envelope) for postUpstream to unwrap.
- *  Bypasses the gateway's 29s cap. Throws on a Lambda FunctionError. */
+ *  These agency Lambdas sit behind a NON-proxy gateway that passes the request
+ *  body straight through as the event, so the payload is sent UNWRAPPED (event =
+ *  payload), NOT { body: … } — wrapping it gives the function empty inputs.
+ *  Bypasses the gateway timeout. Throws on a Lambda FunctionError. */
 async function invokeUpstreamLambda(fnName, payload) {
   const { LambdaClient, InvokeCommand } = await import('@aws-sdk/client-lambda');
   // 175s socket timeout — under MeteringFn's 300s, over the upstreams' Lambda caps.
@@ -328,7 +330,7 @@ async function invokeUpstreamLambda(fnName, payload) {
   const res = await _lambdaInvokeClient.send(new InvokeCommand({
     FunctionName: fnName,
     InvocationType: 'RequestResponse',
-    Payload: Buffer.from(JSON.stringify({ body: JSON.stringify(payload) })),
+    Payload: Buffer.from(JSON.stringify(payload)),
   }));
   const text = Buffer.from(res.Payload || []).toString('utf8');
   if (res.FunctionError) throw new Error(`upstream lambda ${res.FunctionError}: ${text.slice(0, 300)}`);
