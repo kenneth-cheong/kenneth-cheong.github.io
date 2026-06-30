@@ -87,27 +87,75 @@ def lambda_handler(event, context):
         print(f"Error: {str(e)}")
         return response(500, {"error": f"Internal Server Error: {str(e)}"}, headers)
 
+def _first_user_content(msgs):
+    """First user message's content, normalised to a comparable string.
+    Vision turns carry a list/dict content, so serialise those deterministically."""
+    for m in (msgs or []):
+        if isinstance(m, dict) and m.get('role') == 'user':
+            c = m.get('content')
+            return c if isinstance(c, str) else json.dumps(c, sort_keys=True, default=str)
+    return ''
+
 def handle_save_conversation(db, data, headers):
     user_id = data.get('userId', 'global_user')
     conv_id = data.get('conversationId')
-    
+
     if not conv_id:
         conv_id = str(uuid.uuid4())
-    
+
     messages = data.get('messages', [])
     title = data.get('title')
 
-    # Data-loss guard: never let an empty-message save clobber a conversation that
-    # already has content. A failed load followed by an autosave used to overwrite
-    # whole threads with []. Checked across every userId spelling for this id.
-    if not messages:
-        existing = db.conversations.find_one(
-            {"conversationId": conv_id, "messages": {"$exists": True, "$not": {"$size": 0}}}
+    # Inline rename: a title-only update legitimately carries no messages, so it must NOT
+    # hit the empty-message guard below (which would skip it and silently drop the rename).
+    # Patch just the title across every copy of this id (drifted dupes) without touching
+    # messages or lastUpdated, so renaming doesn't reorder the history list.
+    if data.get('isTitleOnly'):
+        if not title:
+            return response(400, {"error": "Missing title for title-only update"}, headers)
+        result = db.conversations.update_many(
+            {"conversationId": conv_id},
+            {"$set": {"title": title}}
         )
-        if existing:
+        return response(200, {
+            "success": True, "conversationId": conv_id,
+            "titleOnly": True, "matched": result.matched_count
+        }, headers)
+
+    # ── Data-loss guards ─────────────────────────────────────────────────────
+    # Two failure modes have wiped real threads, both from a client that loaded
+    # blank/partial history (usually the Atlas shard read hiccup) and then autosaved
+    # over a good doc sharing this conversationId. Find the richest stored copy across
+    # EVERY userId spelling for this id (a past userId-format change left some
+    # conversations duplicated) and refuse a save that would shrink it.
+    richest = None
+    for c in db.conversations.find({"conversationId": conv_id}, {"messages": 1}):
+        if richest is None or len(c.get('messages') or []) > len(richest.get('messages') or []):
+            richest = c
+    stored_msgs = (richest or {}).get('messages') or []
+
+    # Guard 1: an empty save must never clobber a thread that already has content.
+    if not messages:
+        if stored_msgs:
             return response(200, {
                 "success": True, "conversationId": conv_id,
                 "skipped": "empty_messages_guard"
+            }, headers)
+
+    # Guard 2: a *non-empty but shrinking* save can still wipe a richer thread — e.g.
+    # a 2-message "wheres my summary" thread written over a long NTUC strategy under
+    # the same id (30 Jun 2026). Guard 1 misses it because the save isn't empty. If a
+    # stored copy has MORE messages AND starts with a DIFFERENT first user message, the
+    # incoming thread is a different (blank-loaded) conversation reusing the id, so keep
+    # the richer copy. Same-thread growth (len >= stored) and same-thread edits
+    # (regenerate / edit-and-resend keep the first user message) pass straight through.
+    elif len(stored_msgs) > len(messages):
+        stored_first = _first_user_content(stored_msgs).strip()
+        incoming_first = _first_user_content(messages).strip()
+        if stored_first and stored_first != incoming_first:
+            return response(200, {
+                "success": True, "conversationId": conv_id,
+                "skipped": "shrink_guard"
             }, headers)
 
     if not title and messages:

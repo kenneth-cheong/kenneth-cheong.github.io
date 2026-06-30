@@ -4770,6 +4770,20 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
         const _startFreshChat = !new URLSearchParams(location.search).has('share');
         let currentConversationId = _startFreshChat ? null : (localStorage.getItem('chatbot_conversationId') || null);
         let chatHistory = _startFreshChat ? [] : JSON.parse(localStorage.getItem('chatbot_history') || '[]');
+        // An id with no restored history is a desync: a past failed/empty load once
+        // persisted [] next to a live conversationId, so the next message would overwrite
+        // the server thread. Disown the orphan id — a fresh save mints a new one instead
+        // of clobbering. (A real conversation always has >=1 message because
+        // saveConversation() no-ops on empty, so id + empty history is never legitimate.)
+        if (currentConversationId && chatHistory.length === 0) {
+            currentConversationId = null;
+            try { localStorage.removeItem('chatbot_conversationId'); } catch (e) {}
+        }
+        // Whether the in-memory chatHistory is a confirmed continuation of
+        // currentConversationId. A localStorage resume is UNVERIFIED until we reconcile
+        // against the server or successfully save — this gates the first save from
+        // blindly overwriting a thread another session/device may have advanced.
+        let conversationVerified = !currentConversationId;
         if (_startFreshChat) {
             localStorage.removeItem('chatbot_conversationId');
             localStorage.removeItem('chatbot_history');
@@ -4971,8 +4985,59 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             }
         }
 
+        // First user message of a thread, normalised to a comparable string (vision
+        // turns carry list/dict content). Mirrors the backend's _first_user_content.
+        function _firstUserContent(arr) {
+            const m = (arr || []).find(x => x && x.role === 'user');
+            if (!m) return '';
+            return typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+        }
+
+        // Before the first save of a localStorage-resumed conversation, compare our local
+        // history against the stored copy. If the server thread is LONGER and starts with
+        // a DIFFERENT first user message, ours is a stale/blank-loaded divergent copy — so
+        // fork onto a new conversation rather than clobber the server's. If the reconcile
+        // read fails (Atlas hiccup), defer the save: the message stays in memory and a
+        // later save retries — we never overwrite a thread we couldn't verify.
+        async function reconcileBeforeSave() {
+            try {
+                const res = await fetch(PERSISTENCE_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'get_conversation',
+                        data: { userId, conversationId: currentConversationId, fetchAll: true }
+                    })
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const out = await res.json();
+                const body = typeof out.body === 'string' ? JSON.parse(out.body) : (out.body || out);
+                const serverMsgs = (body.conversation && body.conversation.messages) || [];
+                const serverFirst = _firstUserContent(serverMsgs).trim();
+                if (serverMsgs.length > chatHistory.length &&
+                    serverFirst && serverFirst !== _firstUserContent(chatHistory).trim()) {
+                    currentConversationId = null;   // fork: a fresh id will be minted on save
+                    try { localStorage.removeItem('chatbot_conversationId'); } catch (e) {}
+                    console.warn('[PERSISTENCE] Resumed history diverged from the server thread — forking to a new conversation to avoid an overwrite.');
+                }
+                conversationVerified = true;
+                return true;
+            } catch (e) {
+                console.warn('[PERSISTENCE] Reconcile read failed; deferring save to avoid overwriting an unverified thread.', e);
+                return false;   // stays unverified; chatHistory preserved locally for retry
+            }
+        }
+
         async function saveConversation() {
             if (chatHistory.length === 0) return;
+
+            // Guard a localStorage-resumed thread from blindly overwriting the server's
+            // copy before we've confirmed ours is the latest. (New/loaded/saved threads
+            // are already verified, so this is a no-op for them.)
+            if (currentConversationId && !conversationVerified) {
+                const proceed = await reconcileBeforeSave();
+                if (!proceed) { updateCloudStatus('error', 'Sync deferred'); return false; }
+            }
 
             // Smart Title Logic: Don't use automated sync messages or short greetings as titles
             let bestTitle = localStorage.getItem(`title_${currentConversationId}`);
@@ -5017,6 +5082,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     currentConversationId = data.conversationId;
                     localStorage.setItem('chatbot_conversationId', currentConversationId);
                 }
+                conversationVerified = true;   // our history is now the server's latest
                 updateCloudStatus('synced', 'Cloud Synced');
                 return true;
             } catch (error) {
@@ -5327,8 +5393,19 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 const convData = conv.conversation;
 
                 if (convData) {
+                    const loadedMsgs = convData.messages || [];
+                    // An empty payload for a real conversation is almost always a flaky
+                    // Atlas read (a saved conversation always has >=1 message). Don't point
+                    // the id at blank history or persist [] over the good thread — bail and
+                    // leave the current conversation untouched so a retry can succeed.
+                    if (loadedMsgs.length === 0) {
+                        updateCloudStatus('error', 'Load Failed');
+                        showToast('Could not open this conversation (empty response). Please try again.', 'warning');
+                        return;
+                    }
                     currentConversationId = convData.conversationId;
-                    chatHistory = convData.messages || [];
+                    chatHistory = loadedMsgs;
+                    conversationVerified = true;   // freshly loaded from the server
                     window._cbSessionDocs = [];   // don't carry the prior conversation's uploaded docs into this one
                     currentConvShared = !!convData.shared;
                     refreshVisibilityIndicator();
@@ -5363,6 +5440,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
 
             currentConversationId = null;
             chatHistory = [];
+            conversationVerified = true;   // fresh thread — nothing to clobber
             window._cbSessionDocs = [];   // drop documents uploaded in the previous conversation
             currentConvShared = false;
             refreshVisibilityIndicator();
@@ -6694,6 +6772,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 chatHistory = conv.messages || [];
                 window._cbSessionDocs = [];   // forked copy starts without inherited uploaded docs
                 currentConversationId = null;
+                conversationVerified = true;   // forked: a new id will be minted on save
                 currentConvShared = false; // forked copy starts private to this user
                 refreshVisibilityIndicator();
                 localStorage.removeItem('chatbot_conversationId');
