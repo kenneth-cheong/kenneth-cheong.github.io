@@ -905,6 +905,14 @@ async function mediaPlanRun(body) {
   const mpRaw = await postUpstream(UPSTREAMS.mediaPlanGenerator, data);
   const mpHtml = typeof mpRaw === 'string' ? mpRaw : (mpRaw?.html || mpRaw?.body || '');
 
+  // The generator emits an inline red-error <p> ("An error occurred…", "Model
+  // returned no campaigns") when it can't read the site or build a plan — often
+  // a bot-protected homepage it couldn't fetch. Personas/funnel alone are not a
+  // media plan, so soft-fail (spec §6.2) and DON'T charge for an empty result.
+  if (!mpHtml || /error occurred while generating the media plan|returned no campaigns/i.test(mpHtml)) {
+    return { _failed: true, html: '<p>We couldn’t generate a media plan for this site — it may block automated access or need a fuller brief (add objectives, audience and product details). No credits were charged.</p>' };
+  }
+
   // Marketing funnel (best-effort): merge persona + plan payloads like index.html.
   let funnelHtml = '';
   try {
