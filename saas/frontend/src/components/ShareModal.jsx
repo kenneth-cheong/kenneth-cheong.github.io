@@ -55,8 +55,24 @@ export default function ShareModal({ open, onClose, tool, out, project, user }) 
       if (!shared) { await onDownload(); toast('Saved — attach it to your post', 'info'); }
     } catch { /* user cancelled */ }
   };
-  const intents = socialIntents(summary, shareUrl);
-  const openIntent = (url) => window.open(url, '_blank', 'noopener,width=600,height=640');
+  // Share to a platform with the IMAGE attached: web composers can't take a
+  // file, so we ensure a public link first (auto-minted, redacted) — the
+  // platform then unfurls the card image from the link's OG tags, with the
+  // caption prefilled. The window is opened synchronously (before the await) so
+  // the popup isn't blocked, then redirected once the link is ready.
+  const onSocial = async (key) => {
+    const w = window.open('about:blank', '_blank', 'width=600,height=640');
+    let url = shareUrl;
+    if (!url && out?.runId) {
+      setLinking(true);
+      try { const r = await api.shareRun(out.runId); url = r.url; setShareUrl(url); }
+      catch { /* no link — fall back to caption + generic CTA link */ }
+      finally { setLinking(false); }
+    }
+    const target = socialIntents(summary, url)[key];
+    if (w) { try { w.opener = null; } catch { /* ignore */ } w.location.replace(target); }
+    else window.open(target, '_blank', 'noopener'); // popup blocked → best effort
+  };
 
   const onCreateLink = async () => {
     setLinking(true);
@@ -114,9 +130,9 @@ export default function ShareModal({ open, onClose, tool, out, project, user }) 
           <div>
             <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Post to</div>
             <div className="grid grid-cols-4 gap-1.5">
-              {[['X', intents.x], ['in', intents.linkedin], ['f', intents.facebook], ['WA', intents.whatsapp]].map(([label, url]) => (
-                <button key={label} onClick={() => openIntent(url)}
-                  className="rounded-lg border border-slate-200 py-2 text-sm font-bold text-slate-600 hover:border-brand-300 hover:text-brand-600">{label}</button>
+              {[['X', 'x'], ['in', 'linkedin'], ['f', 'facebook'], ['WA', 'whatsapp']].map(([label, key]) => (
+                <button key={key} onClick={() => onSocial(key)} disabled={linking}
+                  className="rounded-lg border border-slate-200 py-2 text-sm font-bold text-slate-600 hover:border-brand-300 hover:text-brand-600 disabled:opacity-50">{label}</button>
               ))}
             </div>
             <button onClick={() => copyText(summary.caption)} className="mt-2 w-full rounded-lg border border-slate-200 py-1.5 text-xs font-medium text-slate-500 hover:border-brand-300 hover:text-brand-600">
@@ -150,9 +166,9 @@ export default function ShareModal({ open, onClose, tool, out, project, user }) 
           )}
 
           <p className="text-[11px] leading-relaxed text-slate-400">
-            {shareUrl
-              ? 'Social buttons now share your public link — it unfurls the card automatically.'
-              : 'Tip: social buttons open the composer with your caption — attach the downloaded image to finish the post.'}
+            {out?.runId
+              ? 'Posting to a platform creates a public link so the card image unfurls automatically, with your caption. On mobile, “Share…” attaches the image file directly.'
+              : 'Social buttons open the composer with your caption — attach the downloaded image to finish the post.'}
           </p>
         </div>
       </div>

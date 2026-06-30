@@ -37,6 +37,23 @@ function brandLockup(x, yMid, { onDark = false, scale = 1 } = {}) {
 // Approximate rendered width of the lockup, for centering.
 const lockupWidth = (scale = 1) => (56 + 16 + 'Digimetrics'.length * 40 * 0.56) * scale;
 
+// Should this result offer a Share button at all? Guards against sharing a
+// failed/teaser run or a soft-error result (e.g. "Could not fetch <url>") as a
+// celebratory card. Numeric/tabular results are always shareable; a text-only
+// result is rejected when it reads like an error or is empty.
+const ERROR_RE = /(could ?n'?t|could not|cannot|can'?t|unable to|failed to|fail(ed|ure)|no data|not found|try again|went wrong|invalid|timed out|too many requests)/i;
+export function isShareable(out) {
+  if (!out || out.error || out.failed) return false;
+  const r = out.result || {};
+  const sections = Array.isArray(r.sections) ? r.sections : [];
+  const hasStats = sections.some((s) => s.type === 'stats' && Array.isArray(s.items) && s.items.length);
+  const hasRows = Array.isArray(r.rows) && r.rows.length;
+  if (hasStats || hasRows) return true;
+  const txt = `${sections.map((s) => s.text || s.title || '').join(' ')} ${r.text || ''}`.trim();
+  if (!txt) return false;
+  return !ERROR_RE.test(txt);
+}
+
 // ── Summary extraction ───────────────────────────────────────────────────────
 // Distil a (possibly huge) result into the few fields a card can show: one hero
 // stat + up to three supporting numbers, plus a headline. Every tool yields

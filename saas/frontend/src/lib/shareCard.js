@@ -7,7 +7,7 @@
 
 export {
   FORMATS, CTA_HOST, CTA_URL,
-  buildShareSummary, renderCardSvg, svgToDataUrl, socialIntents,
+  buildShareSummary, renderCardSvg, svgToDataUrl, socialIntents, isShareable,
 } from '@shared/shareCard.mjs';
 
 export function svgToPngBlob(svg, w, h, scale = 1) {
