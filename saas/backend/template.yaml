@@ -38,6 +38,26 @@ Parameters:
     Type: String
     Default: ''
     Description: Inbox alerted when a user opens/replies to a ticket.
+  SmtpUser:
+    Type: String
+    Default: ''
+    Description: >-
+      SMTP login for agreement notifications (a Google Workspace mailbox, e.g.
+      noreply@mediaone.co). Gmail forces the From header to match this mailbox,
+      so it must be the @mediaone.co address you want mail to come from. Empty
+      disables SMTP and falls back to SES.
+  SmtpFrom:
+    Type: String
+    Default: ''
+    Description: From header for SMTP mail (display-name form ok). Defaults to SmtpUser when empty.
+  SmtpHost:
+    Type: String
+    Default: smtp.gmail.com
+    Description: SMTP server host.
+  SmtpPort:
+    Type: String
+    Default: '587'
+    Description: SMTP port (587 STARTTLS, 465 implicit TLS).
   AutoCloseDays:
     Type: String
     Default: '7'
@@ -483,6 +503,14 @@ Resources:
           STRIPE_SECRET_KEY: '{{resolve:secretsmanager:digimetrics-saas/stripe-secret-key:SecretString}}'
           SES_FROM: !Ref SesFrom
           SES_SUPPORT: !Ref SesSupport
+          # Agreement (Free Trial + NDA) notifications prefer authenticated SMTP
+          # so they send from a real @mediaone.co mailbox and pass DMARC. The App
+          # Password is in Secrets Manager; empty SMTP_USER falls back to SES.
+          SMTP_USER: !Ref SmtpUser
+          SMTP_FROM: !Ref SmtpFrom
+          SMTP_HOST: !Ref SmtpHost
+          SMTP_PORT: !Ref SmtpPort
+          SMTP_PASS: '{{resolve:secretsmanager:digimetrics-saas/smtp-pass:SecretString}}'
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }

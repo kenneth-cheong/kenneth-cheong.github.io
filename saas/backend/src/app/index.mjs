@@ -28,7 +28,7 @@ import Stripe from 'stripe';
 // Only used by account deletion (to cancel an active subscription so a deleted
 // account isn't billed). Null when no key is configured.
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
-import { sendEmail, sendRawEmail, SUPPORT_INBOX } from '../lib/email.mjs';
+import { sendEmail, sendRawEmail, sendSmtpEmail, smtpConfigured, SUPPORT_INBOX } from '../lib/email.mjs';
 import { buildAcceptancePdf } from '../lib/pdf.mjs';
 import { isStaff, accountBlocked } from '../lib/admin.mjs';
 import { ok, badRequest, unauthorized, forbidden, paymentRequired, tooManyRequests, serverError, parseBody, claims, preflight, isEmail, clampStr } from '../lib/http.mjs';
@@ -205,23 +205,27 @@ export const handler = async (event) => {
 
         const safeOrg = (form.organisation || form.name || 'trial-user').replace(/[^a-z0-9]+/gi, '-').slice(0, 40);
         const filename = `Digimetrics-NDA-Acceptance-${safeOrg}.pdf`;
-        // The default SES sender (kenneth@mediaone.co) is rejected by mediaone.co's
-        // DMARC policy. Send this notification from a verified address whose domain
-        // doesn't reject (gmail is p=none) so it actually lands. The Admin →
-        // Agreements view is the authoritative record regardless of email outcome.
-        const notifyFrom = process.env.NDA_NOTIFY_FROM || 'Digimetrics Free Trial <clarinet.kenneth@gmail.com>';
+        const recipients = ['tom@mediaone.co', 'kenneth@mediaone.co'];
+        const attachments = pdf ? [{ filename, contentType: 'application/pdf', content: pdf }] : [];
+        // Prefer authenticated SMTP (Gmail/Workspace): it sends from a real
+        // @mediaone.co mailbox, so the notification passes DMARC and lands cleanly.
+        // Falls back to SES when SMTP isn't configured — but SES must send from a
+        // non-mediaone.co address (NDA_NOTIFY_FROM, gmail p=none) because
+        // mediaone.co's DMARC rejects unverified SES mail. The Admin → Agreements
+        // view is the authoritative record regardless of email outcome.
         try {
-          if (pdf) {
-            await sendRawEmail({
-              to: ['tom@mediaone.co', 'kenneth@mediaone.co'],
-              from: notifyFrom,
-              replyTo: form.email,
-              subject, text, html,
-              attachments: [{ filename, contentType: 'application/pdf', content: pdf }],
-            });
-          } else {
-            // PDF generation failed — still send the notification without it.
-            await sendEmail({ to: ['tom@mediaone.co', 'kenneth@mediaone.co'], from: notifyFrom, subject, text, html });
+          let sent = false;
+          if (smtpConfigured()) {
+            sent = await sendSmtpEmail({ to: recipients, replyTo: form.email, subject, text, html, attachments });
+          }
+          if (!sent) {
+            const notifyFrom = process.env.NDA_NOTIFY_FROM || 'Digimetrics Free Trial <clarinet.kenneth@gmail.com>';
+            if (pdf) {
+              await sendRawEmail({ to: recipients, from: notifyFrom, replyTo: form.email, subject, text, html, attachments });
+            } else {
+              // PDF generation failed — still send the notification without it.
+              await sendEmail({ to: recipients, from: notifyFrom, subject, text, html });
+            }
           }
         } catch (e) { console.warn('nda_notify_failed', e.message); }
       }

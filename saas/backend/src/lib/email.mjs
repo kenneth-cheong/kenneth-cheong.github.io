@@ -2,9 +2,62 @@
 // configured, so a missing email setup never fails a request. @aws-sdk/client-ses
 // ships with the nodejs20 Lambda runtime.
 import { SESClient, SendEmailCommand, SendRawEmailCommand } from '@aws-sdk/client-ses';
+import nodemailer from 'nodemailer';
 
 const ses = new SESClient({});
 const FROM = process.env.SES_FROM;
+
+// Authenticated SMTP (e.g. Gmail / Google Workspace). Configured via env:
+//   SMTP_HOST (default smtp.gmail.com), SMTP_PORT (default 587),
+//   SMTP_USER, SMTP_PASS (a Google App Password), SMTP_FROM (header From).
+// Gmail forces the From header to match the authenticated mailbox, so to send
+// as an @mediaone.co address (and pass DMARC) SMTP_USER must BE that Workspace
+// mailbox. Lazily built + reused across warm invocations.
+const SMTP_FROM = process.env.SMTP_FROM;
+let _smtp = null;
+export function smtpConfigured() {
+  return Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+}
+function smtpTransport() {
+  if (_smtp) return _smtp;
+  const port = Number(process.env.SMTP_PORT) || 587;
+  _smtp = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port,
+    secure: port === 465, // implicit TLS on 465; STARTTLS on 587
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  });
+  return _smtp;
+}
+
+// Send via authenticated SMTP. Same shape as sendRawEmail (supports attachments,
+// replyTo). Best-effort: returns false when SMTP isn't configured or on error,
+// so a mail failure never breaks the request. `attachments`: [{ filename,
+// contentType, content: Uint8Array|Buffer }].
+export async function sendSmtpEmail({ to, subject, text, html, attachments = [], replyTo, from }) {
+  const recipients = (Array.isArray(to) ? to : [to]).filter(Boolean);
+  const source = from || SMTP_FROM || process.env.SMTP_USER;
+  if (!smtpConfigured() || !source || !recipients.length) return false;
+  try {
+    await smtpTransport().sendMail({
+      from: source,
+      to: recipients.join(', '),
+      replyTo: replyTo || undefined,
+      subject,
+      text: text || undefined,
+      html: html || undefined,
+      attachments: attachments.map((a) => ({
+        filename: a.filename,
+        content: Buffer.from(a.content),
+        contentType: a.contentType || 'application/octet-stream',
+      })),
+    });
+    return true;
+  } catch (e) {
+    console.warn('email_smtp_send_failed', e.message);
+    return false;
+  }
+}
 
 export async function sendEmail({ to, subject, text, html, from }) {
   const recipients = (Array.isArray(to) ? to : [to]).filter(Boolean);
