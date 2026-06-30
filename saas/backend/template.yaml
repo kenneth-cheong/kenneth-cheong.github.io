@@ -578,6 +578,15 @@ Resources:
         Variables:
           AUTO_CLOSE_DAYS: !Ref AutoCloseDays
           SES_FROM: !Ref SesFrom
+          SES_SUPPORT: !Ref SesSupport
+          # Lifecycle emails (auto-close + reminders) prefer authenticated SMTP so
+          # they send from a real @mediaone.co mailbox — same path as AppFn. Empty
+          # SMTP_USER falls back to SES.
+          SMTP_USER: !Ref SmtpUser
+          SMTP_FROM: !Ref SmtpFrom
+          SMTP_HOST: !Ref SmtpHost
+          SMTP_PORT: !Ref SmtpPort
+          SMTP_PASS: '{{resolve:secretsmanager:digimetrics-saas/smtp-pass:SecretString}}'
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref TicketsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref NotificationsTable }

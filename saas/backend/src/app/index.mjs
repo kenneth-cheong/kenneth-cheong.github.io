@@ -28,7 +28,7 @@ import Stripe from 'stripe';
 // Only used by account deletion (to cancel an active subscription so a deleted
 // account isn't billed). Null when no key is configured.
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
-import { sendEmail, sendRawEmail, sendSmtpEmail, smtpConfigured, SUPPORT_INBOX } from '../lib/email.mjs';
+import { sendEmail, sendRawEmail, sendSmtpEmail, sendNotice, smtpConfigured, SUPPORT_INBOX } from '../lib/email.mjs';
 import { buildAcceptancePdf } from '../lib/pdf.mjs';
 import { isStaff, accountBlocked } from '../lib/admin.mjs';
 import { ok, badRequest, unauthorized, forbidden, paymentRequired, tooManyRequests, serverError, parseBody, claims, preflight, isEmail, clampStr } from '../lib/http.mjs';
@@ -477,7 +477,7 @@ export const handler = async (event) => {
       await addNotification({ userId: user.userId, title: `Ticket ${ticket.id} received`, body: subject, ticketId: ticket.ticketId });
       if (SUPPORT_INBOX) {
         const diagLine = diagnostics ? `\n\n— Diagnostics —\nPage: ${diagnostics.env?.url || 'n/a'}\nLast error: ${diagnostics.errors?.slice(-1)[0]?.message || 'none'}\nFailed calls: ${(diagnostics.apiFailures || []).map((f) => `${f.method} ${f.path} (${f.status || 'net'})`).join(', ') || 'none'}` : '';
-        await sendEmail({ to: SUPPORT_INBOX, subject: `New ticket ${ticket.id}: ${subject}`, text: `${user.email} opened a ticket.\n\n${message}${diagLine}` });
+        await sendNotice({ to: SUPPORT_INBOX, replyTo: user.email, subject: `New ticket ${ticket.id}: ${subject}`, text: `${user.email} opened a ticket.\n\n${message}${diagLine}` });
       }
       return ok({ ticket });
     }
@@ -506,7 +506,7 @@ export const handler = async (event) => {
       // the admin UI can warn the staff member when delivery failed.
       let email = null;
       if (author === 'agent') email = await notifyReply(ownerId, ticket, text);
-      else if (SUPPORT_INBOX) await sendEmail({ to: SUPPORT_INBOX, subject: `Reply on ${ticket.id}`, text: `${user.email} replied:\n\n${text}` });
+      else if (SUPPORT_INBOX) await sendNotice({ to: SUPPORT_INBOX, replyTo: user.email, subject: `Reply on ${ticket.id}`, text: `${user.email} replied:\n\n${text}` });
       return ok({ ticket, email });
     }
     if (method === 'POST' && path.includes('/close')) {
@@ -604,8 +604,9 @@ async function notifyReply(ownerId, ticket, text) {
   await addNotification({ userId: ownerId, title: `Support replied to ${ticket.id}`, body: text.slice(0, 120), ticketId: ticket.ticketId });
   const recipients = [ticket.userEmail, ...(ticket.additionalEmails || [])].filter(Boolean);
   const delivered = recipients.length
-    ? await sendEmail({
+    ? await sendNotice({
         to: recipients,
+        replyTo: SUPPORT_INBOX || undefined,
         subject: `Re: ${ticket.subject} [${ticket.id}]`,
         text: `Support has replied to your ticket ${ticket.id}:\n\n${text}\n\nView it: ${APP_ORIGIN}/support/${encodeURIComponent(ticket.ticketId)}`,
       })

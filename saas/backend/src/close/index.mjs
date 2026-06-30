@@ -6,7 +6,7 @@
 // Both notify the owner in-app + by email. Either behaviour is off when its
 // setting is 0.
 import { getSettings, scanOpenTickets, setTicketStatus, addNotification, markTicketReminded } from '../lib/dynamo.mjs';
-import { sendEmail } from '../lib/email.mjs';
+import { sendNotice, SUPPORT_INBOX } from '../lib/email.mjs';
 
 const APP_ORIGIN = process.env.APP_ORIGIN || '';
 const DAY = 86400_000;
@@ -28,8 +28,9 @@ export const handler = async () => {
     if (closeDays > 0 && inactiveDays >= closeDays) {
       await setTicketStatus(t.userId, t.ticketId, 'closed');
       await addNotification({ userId: t.userId, title: `Ticket ${t.id} auto-closed`, body: `Closed after ${closeDays} days of inactivity — reply to reopen.`, ticketId: t.ticketId });
-      await sendEmail({
+      await sendNotice({
         to,
+        replyTo: SUPPORT_INBOX || undefined,
         subject: `Ticket ${t.id} closed`,
         text: `Your ticket "${t.subject}" was closed after ${closeDays} days of inactivity. Reply in-app to reopen it.`,
       });
@@ -43,8 +44,9 @@ export const handler = async () => {
       const sinceNudge = (now - new Date(t.lastReminderAt || t.lastActivityAt || t.ts).getTime()) / DAY;
       if (sinceNudge >= remindDays) {
         await addNotification({ userId: t.userId, title: `Reminder: ticket ${t.id} is awaiting your reply`, body: `Support is waiting on your response${closeDays > 0 ? ` — the ticket auto-closes after ${closeDays} days of no reply` : ''}.`, ticketId: t.ticketId });
-        await sendEmail({
+        await sendNotice({
           to,
+          replyTo: SUPPORT_INBOX || undefined,
           subject: `Reminder: your support ticket ${t.id} is awaiting your reply`,
           text: `Hi,\n\nWe're still waiting on your response to support ticket ${t.id} — "${t.subject}".\n\nReply here: ${APP_ORIGIN}/support/${encodeURIComponent(t.ticketId)}\n${closeDays > 0 ? `\nIf we don't hear back, the ticket will automatically close after ${closeDays} days of no reply.` : ''}`,
         });

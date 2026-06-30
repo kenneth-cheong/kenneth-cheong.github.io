@@ -59,6 +59,21 @@ export async function sendSmtpEmail({ to, subject, text, html, attachments = [],
   }
 }
 
+// Best-effort transactional notice that PREFERS authenticated SMTP. SMTP sends
+// from a real @mediaone.co mailbox (SMTP_FROM, e.g. no-reply@mediaone.co), so it
+// isn't subject to the SES sandbox and passes DMARC — the same path the Free
+// Trial + NDA notifications use. Falls back to SES only when SMTP isn't
+// configured (or the SMTP send fails). Same shape as sendEmail plus optional
+// attachments/replyTo. Returns true if any transport accepted the message.
+export async function sendNotice({ to, subject, text, html, attachments = [], replyTo, from }) {
+  if (smtpConfigured()) {
+    const sent = await sendSmtpEmail({ to, subject, text, html, attachments, replyTo, from });
+    if (sent) return true;
+  }
+  if (attachments.length) return sendRawEmail({ to, subject, text, html, attachments, replyTo, from });
+  return sendEmail({ to, subject, text, html, from });
+}
+
 export async function sendEmail({ to, subject, text, html, from }) {
   const recipients = (Array.isArray(to) ? to : [to]).filter(Boolean);
   const source = from || FROM;
