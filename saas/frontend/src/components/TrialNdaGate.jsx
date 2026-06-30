@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ShieldCheck } from 'lucide-react';
+import { ShieldCheck, X } from 'lucide-react';
 import { NDA_VERSION } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import NdaTermsModal from './NdaTermsModal.jsx';
@@ -9,6 +9,10 @@ import NdaTermsModal from './NdaTermsModal.jsx';
 // Terms). Not dismissible — completing it is required to use the trial. The
 // company form + acceptance are persisted server-side (tied to the account, so
 // it's never re-asked across devices) and tom@mediaone.co is notified.
+//
+// `preview` mode (used by Admin → Agreements → "Preview gate") renders the exact
+// same dialog but is dismissible and never submits — staff can see what trial
+// users face without activating anything.
 const FIELDS = [
   { key: 'name', label: 'Name', type: 'text', autoComplete: 'name' },
   { key: 'organisation', label: 'Organisation', type: 'text', autoComplete: 'organization' },
@@ -19,19 +23,20 @@ const FIELDS = [
 
 const validEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((v || '').trim());
 
-export default function TrialNdaGate() {
+export default function TrialNdaGate({ preview = false, onClose }) {
   const { user, acceptNda } = useAuth();
   const [form, setForm] = useState(() => ({
-    name: user?.name || '',
+    name: preview ? '' : (user?.name || ''),
     organisation: '',
     uen: '',
     telephone: '',
-    email: user?.email || '',
+    email: preview ? '' : (user?.email || ''),
   }));
   const [agreed, setAgreed] = useState(false);
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [serverErr, setServerErr] = useState('');
+  const [notice, setNotice] = useState('');
   const [showTerms, setShowTerms] = useState(false);
 
   const set = (k) => (e) => {
@@ -53,6 +58,10 @@ export default function TrialNdaGate() {
       return;
     }
     setServerErr('');
+    if (preview) {
+      setNotice('Preview only — in the live gate this activates the trial. Nothing was submitted.');
+      return;
+    }
     setBusy(true);
     try {
       await acceptNda({
@@ -72,11 +81,20 @@ export default function TrialNdaGate() {
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm sm:items-center">
-      <div className="my-8 w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl sm:p-8">
+    <div
+      className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm sm:items-center"
+      onClick={preview ? (e) => { if (e.target === e.currentTarget) onClose?.(); } : undefined}
+    >
+      <div className="relative my-8 w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl sm:p-8">
+        {preview && (
+          <button onClick={() => onClose?.()} aria-label="Close preview" className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200">
+            <X size={18} />
+          </button>
+        )}
         <div className="flex items-center gap-2 text-brand-600">
           <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand-600 text-white"><ShieldCheck size={20} aria-hidden /></span>
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Soft launch · Free trial</span>
+          {preview && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">Preview</span>}
         </div>
 
         <h1 className="mt-4 text-xl font-bold text-slate-900">Activate your free trial</h1>
@@ -124,6 +142,7 @@ export default function TrialNdaGate() {
         </label>
 
         {serverErr && <p className="mt-3 text-sm text-rose-600">{serverErr}</p>}
+        {notice && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</p>}
 
         <button
           onClick={submit}

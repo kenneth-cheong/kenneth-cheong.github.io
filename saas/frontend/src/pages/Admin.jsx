@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Eye, FileText } from 'lucide-react';
+import { Eye, FileText, MonitorPlay } from 'lucide-react';
 import { PLANS, TIER_ORDER, NDA_VERSION } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
 import SortableTable from '../components/SortableTable.jsx';
 import NdaTermsModal from '../components/NdaTermsModal.jsx';
+import TrialNdaGate from '../components/TrialNdaGate.jsx';
 
 // Admin-only console: manage users (tier + credits) and the support inbox
 // (view / reply / close every user's ticket). Gated client-side here AND
@@ -40,6 +41,7 @@ function AdminAgreements() {
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState('');
   const [previewNda, setPreviewNda] = useState(false);
+  const [previewGate, setPreviewGate] = useState(false);
   const [sampling, setSampling] = useState(false);
 
   useEffect(() => {
@@ -97,19 +99,25 @@ function AdminAgreements() {
         <p className="text-sm text-slate-500">
           {rows.length} {rows.length === 1 ? 'trial user has' : 'trial users have'} accepted the Free Trial &amp; NDA.
         </p>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           <button
-            onClick={openSample}
-            disabled={sampling}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            onClick={() => setPreviewGate(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
           >
-            <FileText size={14} aria-hidden /> {sampling ? 'Preparing…' : 'Sample PDF'}
+            <MonitorPlay size={14} aria-hidden /> Preview gate
           </button>
           <button
             onClick={() => setPreviewNda(true)}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
           >
             <Eye size={14} aria-hidden /> Preview NDA <span className="text-slate-400">v{NDA_VERSION}</span>
+          </button>
+          <button
+            onClick={openSample}
+            disabled={sampling}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            <FileText size={14} aria-hidden /> {sampling ? 'Preparing…' : 'Sample PDF'}
           </button>
         </div>
       </div>
@@ -160,6 +168,7 @@ function AdminAgreements() {
         </div>
       )}
       {previewNda && <NdaTermsModal showVersion onClose={() => setPreviewNda(false)} />}
+      {previewGate && <TrialNdaGate preview onClose={() => setPreviewGate(false)} />}
     </div>
   );
 }
