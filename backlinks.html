@@ -795,22 +795,28 @@
 
             <div id="ordersTab" class="content-tab" style="display: none;">
                 <div class="card">
-                    <div class="flex-resp" style="margin-bottom: 24px;">
+                    <div class="flex-resp" style="margin-bottom: 8px;">
                         <h3>Delivered Backlinks</h3>
                         <div style="display: flex; gap: 12px; flex-wrap: wrap;">
                             <input type="file" id="excelUpload" style="display: none;" accept=".csv, .xlsx, .xls"
                                 onchange="handleFileUpload(this)">
                             <input type="file" id="deliveryUpload" style="display: none;" accept=".csv, .xlsx, .xls"
                                 onchange="handleDeliveryFileUpload(this)">
-                            <button class="btn btn-primary" onclick="importFromSheet()" id="importBtn">
-                                <i class="fas fa-file-csv"></i> Import CSV / Sheet
-                            </button>
-                            <select id="importVendorSelect" style="padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white; width: 160px; font-size: 0.85rem;">
-                                <option value="">Select Vendor...</option>
-                            </select>
+                            <div style="display: flex; gap: 6px; align-items: center; padding: 4px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 10px;"
+                                title="Step 1 — Load a vendor ORDER sheet (the 'Backlink Building' tab) to create new backlink order records.">
+                                <span style="font-size: 0.7rem; color: var(--text-dim); font-weight: 700; padding-left: 6px;">1</span>
+                                <button class="btn btn-primary" onclick="importFromSheet()" id="importBtn">
+                                    <i class="fas fa-file-import"></i> Import Orders
+                                </button>
+                                <select id="importVendorSelect" style="padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white; width: 150px; font-size: 0.85rem;"
+                                    title="Vendor to tag the imported orders with.">
+                                    <option value="">Select Vendor...</option>
+                                </select>
+                            </div>
                             <button class="btn" onclick="openDeliveryUpload()" id="deliveryUploadBtn"
-                                style="background: linear-gradient(135deg, #10b981, #059669); color: white; border: none;">
-                                <i class="fas fa-file-upload"></i> Upload Delivery CSV
+                                style="background: linear-gradient(135deg, #10b981, #059669); color: white; border: none;"
+                                title="Step 2 — Upload a vendor's DELIVERY report to match live URLs against existing orders and mark them delivered.">
+                                <i class="fas fa-file-upload"></i> <span style="font-size: 0.7rem; opacity: 0.8; font-weight: 700; margin-right: 2px;">2</span> Record Delivery
                             </button>
                             <select id="exportFormatSelect" onchange="handleExportSelect(this.value)"
                                 style="padding: 10px; background: #4f46e5; color: white; border: none; border-radius: 8px; font-size: 0.85rem; cursor: pointer;"
@@ -850,6 +856,10 @@
                             </button>
                         </div>
                     </div>
+                    <p style="margin: 0 0 20px; font-size: 0.8rem; color: var(--text-dim);">
+                        <b style="color: var(--text);">Import Orders</b> loads a vendor order sheet to create backlink records.
+                        <b style="color: var(--text);">Record Delivery</b> uploads the vendor's delivery report to match live URLs against those orders and mark them delivered.
+                    </p>
 
                     <div class="filter-row" style="margin-bottom: 20px;">
                         <div style="flex: 1; min-width: 200px;">
@@ -864,7 +874,10 @@
                             <option value="Ordered">Ordered</option>
                             <option value="Delivered">Delivered</option>
                             <option value="Validated">Validated</option>
+                            <option value="Approved">✓ Approved</option>
+                            <option value="Rejected">✗ Rejected</option>
                             <option value="Toxic">⚠ Toxic only</option>
+                            <option value="OverCap">💲 Over $5 cap</option>
                         </select>
                         <input type="text" id="bdFilter" placeholder="Filter by BD..." onkeyup="filterOrders()"
                             style="padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white; width: 140px;">
@@ -1189,6 +1202,25 @@
         const VALIDATION_CONFIG = { minWordCount: 500, drTolerance: 0, daTolerance: 0 };
         // Toxic-detection thresholds — defaults are placeholders; Dan to finalise. Overridable in Settings.
         const TOXIC_DEFAULTS = { minWordCount: 500, minDr: 10, maxOutboundLinks: 100, minOrgTraffic: 50, maxSpamScore: 30 };
+        // Cost governance (SOP §8.5 / §12.4): routine backlinks are capped at SGD$5/link.
+        // Special orders (high DA, guest post, DA/DR booster, special link orders) are exempt
+        // but flagged as documented exceptions rather than violations.
+        const ROUTINE_COST_CAP = 5;
+        const SPECIAL_LINK_PATTERNS = ['high da', 'high-da', 'highda', 'guest', 'booster', 'boost', 'dr ', 'da/dr', 'special', 'niche edit'];
+        function isSpecialOrder(b) {
+            const t = String(b.linkType || '').toLowerCase();
+            return SPECIAL_LINK_PATTERNS.some(p => t.includes(p));
+        }
+        // Returns { cost, over, special } or null when no cost is recorded.
+        function assessCost(b) {
+            const cost = parseFloat(b.cost);
+            if (!isFinite(cost) || cost <= 0) return null;
+            const special = isSpecialOrder(b);
+            return { cost, over: cost > ROUTINE_COST_CAP && !special, special: special && cost > ROUTINE_COST_CAP };
+        }
+        // Terminal QA/approval states layered on top of Ordered → Delivered → Validated.
+        const APPROVAL_STATUSES = ['Approved', 'Rejected'];
+        function canApprove() { return state.role === 'Admin'; }
         function getToxicConfig() {
             try { return Object.assign({}, TOXIC_DEFAULTS, JSON.parse(localStorage.getItem('blToxicConfig') || '{}')); }
             catch (e) { return Object.assign({}, TOXIC_DEFAULTS); }
@@ -1470,6 +1502,7 @@
                 state.role = 'Vendor';
             }
 
+            document.getElementById('userName').innerText = state.user.name;
             document.getElementById('userRole').innerText = state.role;
 
             applyPermissions();
@@ -3046,24 +3079,22 @@
 
         async function bulkDeleteOrders() {
             const ids = [...state.selectedOrders];
-            if (ids.length === 0) return;
+            if (ids.length === 0) {
+                alert('No records selected. Tick the checkboxes on the rows you want to delete first.');
+                return;
+            }
             if (!confirm(`Are you sure you want to permanently delete ${ids.length} selected records?`)) return;
 
             const body = document.getElementById('ordersBody');
             let deleted = 0;
-            if (body) {
-                body.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px;">
-                    <i class="fas fa-spinner fa-spin"></i> Deleting 0/${ids.length}...
-                </td></tr>`;
-            }
+            const deleteProgress = (d) => renderBulkProgress(d, ids.length, { verb: 'Deleting', icon: 'fa-trash-alt' });
+            if (body) body.innerHTML = deleteProgress(0);
 
             for (const id of ids) {
                 await apiCall(PERSISTENCE_URL, 'upsert_backlink', { id, deleted: true }, true);
                 deleted++;
                 state.backlinks = state.backlinks.filter(x => x.id !== id);
-                if (body) body.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px;">
-                    <i class="fas fa-spinner fa-spin"></i> Deleting ${deleted}/${ids.length}...
-                </td></tr>`;
+                if (body) body.innerHTML = deleteProgress(deleted);
             }
             state.selectedOrders = [];
             renderOrders();
@@ -3088,7 +3119,9 @@
                     (b.deliveredUrl || '').toLowerCase().includes(state.orderFilters.search) ||
                     getDomain(b.targetUrl).toLowerCase().includes(state.orderFilters.search);
                 const matchesStatus = state.orderFilters.status === 'all'
-                    || (state.orderFilters.status === 'Toxic' ? (b.validationResults && assessToxicity(b).toxicCount > 0) : b.status === state.orderFilters.status);
+                    || (state.orderFilters.status === 'Toxic' ? (b.validationResults && assessToxicity(b).toxicCount > 0)
+                        : state.orderFilters.status === 'OverCap' ? (assessCost(b)?.over === true)
+                        : b.status === state.orderFilters.status);
                 const matchesBD = !state.orderFilters.bd || (b.bd || '').toLowerCase().includes(state.orderFilters.bd);
                 const matchesDate = !state.orderFilters.date || (b.createdAt || '').includes(state.orderFilters.date);
                 return matchesSearch && matchesStatus && matchesBD && matchesDate;
@@ -3130,11 +3163,24 @@
             const filtered = (state.lastFilteredCount !== undefined) ? state.lastFilteredCount : total;
             const selected = state.selectedOrders.length;
 
+            // Governance roll-up (SOP §11 KPIs): approval + cost-cap compliance at a glance.
+            const approved = state.backlinks.filter(b => b.status === 'Approved').length;
+            const rejected = state.backlinks.filter(b => b.status === 'Rejected').length;
+            const awaiting = state.backlinks.filter(b => b.deliveredUrl && b.status !== 'Approved' && b.status !== 'Rejected').length;
+            const overCap = state.backlinks.filter(b => assessCost(b)?.over === true).length;
+            const govChips = `
+                <span style="color:#10b981;" title="Approved for payment"><i class="fas fa-check-circle"></i> ${approved}</span>
+                <span style="color:#f43f5e;" title="Rejected / returned"><i class="fas fa-times-circle"></i> ${rejected}</span>
+                <span style="color:var(--primary-light);" title="Delivered, awaiting approval"><i class="fas fa-hourglass-half"></i> ${awaiting}</span>
+                ${overCap > 0 ? `<span style="color:#ef4444;" title="Routine links over the SGD$${ROUTINE_COST_CAP} cap"><i class="fas fa-dollar-sign"></i> ${overCap} over cap</span>` : ''}
+            `;
+
             let text = `
                 <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-                    <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                         ${filtered > 0 ? `<input type="checkbox" id="selectAllOrders" onclick="toggleAllOrders(this)" style="margin-right: 4px;"> <label for="selectAllOrders" style="cursor: pointer;">Select All (${filtered})</label>` : ''}
                         <span style="margin-left: 8px;">Showing ${filtered} of ${total} links</span>
+                        <span style="display: inline-flex; gap: 12px; align-items: center; font-size: 0.8rem; padding-left: 8px; border-left: 1px solid var(--border);">${govChips}</span>
                     </div>
             `;
 
@@ -3199,7 +3245,9 @@
                     (b.vendorName || '').toLowerCase().includes(state.orderFilters.search) ||
                     getDomain(b.targetUrl).toLowerCase().includes(state.orderFilters.search);
                 const matchesStatus = state.orderFilters.status === 'all'
-                    || (state.orderFilters.status === 'Toxic' ? (b.validationResults && assessToxicity(b).toxicCount > 0) : b.status === state.orderFilters.status);
+                    || (state.orderFilters.status === 'Toxic' ? (b.validationResults && assessToxicity(b).toxicCount > 0)
+                        : state.orderFilters.status === 'OverCap' ? (assessCost(b)?.over === true)
+                        : b.status === state.orderFilters.status);
                 const matchesBD = !state.orderFilters.bd || (b.bd || '').toLowerCase().includes(state.orderFilters.bd);
                 const matchesDate = !state.orderFilters.date || (b.createdAt || '').includes(state.orderFilters.date);
 
@@ -3343,7 +3391,7 @@
                 const lastValidated = b.lastValidatedAt ? new Date(b.lastValidatedAt).toLocaleDateString() : 'Never';
                 const isSelected = state.selectedOrders.includes(b.id);
                 return `
-                                <tr>
+                                <tr id="row-${safeJS(b.id)}">
                                     <td><input type="checkbox" class="order-checkbox" value="${b.id}" onchange="toggleOrderSelection('${b.id}')" ${isSelected ? 'checked' : ''}></td>
                                     <td>
                                         <div style="font-weight: 600; font-size: 0.85rem;">${b.campaignName || 'Unnamed'}${b.campaignCode ? ` <span style="font-weight: 400; font-size: 0.7rem; color: var(--primary-light);">(${b.campaignCode})</span>` : ''}</div>
@@ -3377,10 +3425,12 @@
                                             <span style="color: var(--secondary); font-weight: 600;">${b.validatedDa || '-'}</span>
                                         </div>
                                     </td>
-                                    <td>
+                                    <td class="val-status-cell">
                                         <span class="badge" style="background: ${getStatusColor(b.status)}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.65rem;">${b.status || 'Ordered'}</span>
                                         ${renderValidationSummary(b)}
                                         ${renderToxicBadge(b)}
+                                        ${renderCostBadge(b)}
+                                        ${renderApprovalMeta(b)}
                                         <div style="font-size: 0.65rem; color: var(--text-dim); margin-top: 4px;">Val: ${lastValidated}</div>
                                     </td>
                                     <td>
@@ -3390,15 +3440,25 @@
                                                     <i class="fas fa-edit"></i>
                                                 </button>` : ''}
                                             ${(state.role === 'Vendor' || state.role === 'Staff') && !b.deliveredUrl ? `
-                                                <button class="btn" style="padding: 2px 6px; font-size: 0.75rem;" onclick="deliverOrder('${safeJS(b.id)}')">
+                                                <button class="btn" id="deliver-${safeJS(b.id)}" title="Record delivered URL" style="padding: 2px 6px; font-size: 0.75rem;" onclick="deliverOrder('${safeJS(b.id)}')">
                                                     <i class="fas fa-upload"></i>
                                                 </button>` : ''}
                                             ${state.role === 'Staff' && b.deliveredUrl ? `
-                                                <button class="btn" style="padding: 2px 6px; font-size: 0.75rem; background: var(--secondary); color: white; border: none;" 
+                                                <button class="btn" id="validate-${safeJS(b.id)}" title="Validate this backlink" style="padding: 2px 6px; font-size: 0.75rem; background: var(--secondary); color: white; border: none;"
                                                         onclick="validateBacklink('${safeJS(b.id)}')">
                                                     <i class="fas fa-search"></i>
                                                 </button>` : ''}
-                                            <button class="btn" style="padding: 2px 6px; font-size: 0.75rem; background: transparent; border: 1px solid var(--border); color: var(--accent);" 
+                                            ${canApprove() && b.deliveredUrl && b.status !== 'Approved' ? `
+                                                <button class="btn" id="approve-${safeJS(b.id)}" title="Approve for vendor payment (SOP final sign-off)" style="padding: 2px 6px; font-size: 0.75rem; background: rgba(5,150,105,0.85); color: white; border: none;"
+                                                        onclick="approveOrder('${safeJS(b.id)}')">
+                                                    <i class="fas fa-check"></i>
+                                                </button>` : ''}
+                                            ${canApprove() && b.deliveredUrl && b.status !== 'Rejected' ? `
+                                                <button class="btn" id="reject-${safeJS(b.id)}" title="Reject / return for correction" style="padding: 2px 6px; font-size: 0.75rem; background: transparent; border: 1px solid rgba(239,68,68,0.5); color: #f43f5e;"
+                                                        onclick="rejectOrder('${safeJS(b.id)}')">
+                                                    <i class="fas fa-ban"></i>
+                                                </button>` : ''}
+                                            <button class="btn" style="padding: 2px 6px; font-size: 0.75rem; background: transparent; border: 1px solid var(--border); color: var(--accent);"
                                                     onclick="deleteOrder('${safeJS(b.id)}')">
                                                 <i class="fas fa-trash"></i>
                                             </button>
@@ -3622,6 +3682,15 @@
 
             const btn = document.getElementById('validate-' + id);
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+            // Inline loading state: dim the row and show a "Validating…" hint so it's
+            // clear something is happening even though each check takes a few seconds.
+            const row = document.getElementById('row-' + id);
+            if (row) {
+                row.style.opacity = '0.55';
+                row.style.transition = 'opacity 0.2s ease';
+                const statusCell = row.querySelector('.val-status-cell');
+                if (statusCell) statusCell.innerHTML = `<span style="font-size:0.7rem; color:var(--primary-light);"><i class="fas fa-spinner fa-spin"></i> Validating…</span>`;
+            }
             try {
                 const [ssl, metrics, html, ahrefs, pageMetrics] = await Promise.all([
                     fetchSsl(b.deliveredUrl).catch(() => false),
@@ -3663,6 +3732,75 @@
             } finally {
                 const btnAfter = document.getElementById('validate-' + id);
                 if (btnAfter) { btnAfter.disabled = false; btnAfter.innerHTML = '<i class="fas fa-search"></i>'; }
+                // Restore the row if it wasn't re-rendered (e.g. validation failed).
+                const rowAfter = document.getElementById('row-' + id);
+                if (rowAfter) rowAfter.style.opacity = '';
+            }
+        }
+
+        // Lists any outstanding quality/cost issues that the SOP says must be resolved
+        // before final approval (§7D approval gate, §12 escalation).
+        function outstandingIssues(b) {
+            const issues = [];
+            if (!b.validationResults) issues.push('not yet validated');
+            else if (b.validationPassed === false) issues.push('validation has failing checks');
+            if (b.validationResults) {
+                const tox = assessToxicity(b);
+                if (tox.toxicCount > 0) issues.push(`${tox.toxicCount} toxicity flag(s)`);
+            }
+            const c = assessCost(b);
+            if (c && c.over) issues.push(`over the SGD$${ROUTINE_COST_CAP} routine cap ($${c.cost.toFixed(2)})`);
+            return issues;
+        }
+
+        async function approveOrder(id) {
+            const b = state.backlinks.find(x => x.id === id);
+            if (!b) return;
+            if (!canApprove()) { alert('Only an admin can approve backlinks for payment.'); return; }
+
+            // SOP §7D / §12: withhold approval where unresolved quality or cost issues remain.
+            const issues = outstandingIssues(b);
+            if (issues.length && !confirm(
+                `This backlink has unresolved issue(s):\n\n• ${issues.join('\n• ')}\n\n` +
+                `The SOP says final approval should be withheld until these are resolved. Approve anyway?`
+            )) return;
+            if (!confirm(`Approve this backlink for vendor payment? You (${state.user.name}) will be recorded as the approver.`)) return;
+
+            const btn = document.getElementById('approve-' + id);
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+            const row = document.getElementById('row-' + id);
+            if (row) { row.style.opacity = '0.55'; row.style.transition = 'opacity 0.2s ease'; }
+            const update = { id, status: 'Approved', approvedBy: state.user.name, approvedAt: new Date().toISOString(), rejectReason: '' };
+            try {
+                const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', update, true);
+                if (result && result.success) { Object.assign(b, update); renderOrders(); }
+                else { alert('Failed to save approval.'); if (row) row.style.opacity = ''; }
+            } catch (err) {
+                console.error('Approve error:', err); alert('Failed to save approval.');
+                if (row) row.style.opacity = '';
+            }
+        }
+
+        async function rejectOrder(id) {
+            const b = state.backlinks.find(x => x.id === id);
+            if (!b) return;
+            if (!canApprove()) { alert('Only an admin can reject backlinks.'); return; }
+
+            const reason = prompt('Reason for rejection / correction needed:', b.rejectReason || '');
+            if (reason === null) return; // cancelled
+
+            const btn = document.getElementById('reject-' + id);
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+            const row = document.getElementById('row-' + id);
+            if (row) { row.style.opacity = '0.55'; row.style.transition = 'opacity 0.2s ease'; }
+            const update = { id, status: 'Rejected', approvedBy: state.user.name, approvedAt: new Date().toISOString(), rejectReason: reason.trim() };
+            try {
+                const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', update, true);
+                if (result && result.success) { Object.assign(b, update); renderOrders(); }
+                else { alert('Failed to save rejection.'); if (row) row.style.opacity = ''; }
+            } catch (err) {
+                console.error('Reject error:', err); alert('Failed to save rejection.');
+                if (row) row.style.opacity = '';
             }
         }
 
@@ -3794,6 +3932,40 @@
                 <i class="fas ${icon}"></i> ${txt}</div>`;
         }
 
+        // Cost-cap chip (SOP §8.5 / §12.4): red when a routine link breaches SGD$5,
+        // neutral when a special order legitimately exceeds it (documented exception).
+        function renderCostBadge(b) {
+            const c = assessCost(b);
+            if (!c) return '';
+            const money = `$${c.cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            if (c.over) {
+                return `<div title="Routine link exceeds the SGD$${ROUTINE_COST_CAP}/link cap — budget exception (SOP §12.4)"
+                    style="margin-top:4px; display:inline-block; background:rgba(239,68,68,0.18); color:#ef4444; padding:2px 8px; border-radius:10px; font-size:0.62rem; font-weight:600;">
+                    <i class="fas fa-dollar-sign"></i> Over cap ${money}</div>`;
+            }
+            if (c.special) {
+                return `<div title="Special order above the routine cap — allowed as a documented exception"
+                    style="margin-top:4px; display:inline-block; background:rgba(148,163,184,0.15); color:var(--text-dim); padding:2px 8px; border-radius:10px; font-size:0.62rem; font-weight:600;">
+                    <i class="fas fa-dollar-sign"></i> Special ${money}</div>`;
+            }
+            return '';
+        }
+
+        // Approval sign-off line (SOP §7D / §13): who approved/rejected and when.
+        function renderApprovalMeta(b) {
+            if (b.status === 'Approved') {
+                const who = b.approvedBy ? ` by ${b.approvedBy}` : '';
+                const when = b.approvedAt ? ` · ${new Date(b.approvedAt).toLocaleDateString()}` : '';
+                return `<div style="font-size:0.62rem; color:#10b981; margin-top:4px;"><i class="fas fa-check-circle"></i> Approved${who}${when}</div>`;
+            }
+            if (b.status === 'Rejected') {
+                const who = b.approvedBy ? ` by ${b.approvedBy}` : '';
+                const reason = b.rejectReason ? `: ${b.rejectReason}` : '';
+                return `<div style="font-size:0.62rem; color:#f43f5e; margin-top:4px;" title="${(b.rejectReason || '').replace(/"/g, '&quot;')}"><i class="fas fa-times-circle"></i> Rejected${who}${reason.length > 40 ? reason.slice(0, 40) + '…' : reason}</div>`;
+            }
+            return '';
+        }
+
         function showToxicDetails(id) {
             const b = state.backlinks.find(x => x.id === id);
             if (!b || !b.validationResults) { alert('Validate this link first to assess toxicity.'); return; }
@@ -3906,8 +4078,15 @@
         }
 
         // Manual trigger — report every currently-failed backlink
-        function notifyAllFailures() {
-            notifyValidationFailures(state.backlinks, false);
+        async function notifyAllFailures() {
+            const btn = document.getElementById('notifyFailuresBtn');
+            const original = btn ? btn.innerHTML : '';
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…'; }
+            try {
+                await notifyValidationFailures(state.backlinks, false);
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerHTML = original; }
+            }
         }
 
         // Notify Settings modal
@@ -3951,26 +4130,67 @@
             status.innerText = r.ok ? '✓ Sent — check the Chat space.' : `✗ Failed: ${r.error}`;
         }
 
-        async function bulkValidateOrders() {
-            const ids = [...state.selectedOrders];
+        // Reusable loading placeholder shown in the orders table during a batch action.
+        function renderBulkProgress(done, total, { verb, icon, subtitle } = {}) {
+            const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+            const noun = `item${total === 1 ? '' : 's'}`;
+            const label = done < total
+                ? `${verb || 'Processing'} ${done} of ${total} ${noun}…`
+                : `Finishing up ${total} of ${total}…`;
+            return `<tr><td colspan="8" style="padding: 48px 40px;">
+                <div style="max-width: 420px; margin: 0 auto; text-align: center;">
+                    <div style="font-size: 0.95rem; font-weight: 600; margin-bottom: 6px;">
+                        <i class="fas ${icon || 'fa-spinner fa-spin'}" style="color: var(--primary-light); margin-right: 6px;"></i>${label}
+                    </div>
+                    ${subtitle ? `<div style="font-size: 0.78rem; color: var(--text-dim); margin-bottom: 16px;">${subtitle}</div>` : '<div style="margin-bottom: 16px;"></div>'}
+                    <div style="height: 8px; background: rgba(255,255,255,0.08); border-radius: 999px; overflow: hidden;">
+                        <div style="height: 100%; width: ${pct}%; border-radius: 999px; transition: width 0.3s ease;
+                            background: linear-gradient(90deg, var(--primary), var(--primary-light));"></div>
+                    </div>
+                    <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 8px;">${pct}%</div>
+                </div>
+            </td></tr>`;
+        }
 
-            if (ids.length === 0) return;
-            if (!confirm(`Validate ${ids.length} selected backlinks?`)) return;
+        const renderValidationProgress = (done, total) => renderBulkProgress(done, total, {
+            verb: 'Validating', icon: 'fa-shield-alt',
+            subtitle: 'Checking live URL, SSL, DA/DR, anchor text &amp; content — this can take a few seconds each.'
+        });
+
+        async function bulkValidateOrders() {
+            const allIds = [...state.selectedOrders];
+
+            if (allIds.length === 0) {
+                alert('No backlinks selected. Tick the checkboxes on the rows you want to validate first.');
+                return;
+            }
+
+            // Validation checks the live delivered link, so only rows that already
+            // have a delivered URL can be validated. Skip (and count) the rest.
+            const ids = allIds.filter(id => {
+                const b = state.backlinks.find(x => x.id === id);
+                return b && b.deliveredUrl;
+            });
+            const skipped = allIds.length - ids.length;
+
+            if (ids.length === 0) {
+                alert(`None of the ${allIds.length} selected backlink(s) have a delivered URL yet, so there is nothing to validate.\n\nValidation checks the live link — record a delivery for these orders first (Record Delivery), then validate.`);
+                return;
+            }
+
+            const confirmMsg = skipped > 0
+                ? `Validate ${ids.length} backlink(s)? (${skipped} selected row(s) have no delivered URL yet and will be skipped.)`
+                : `Validate ${ids.length} selected backlinks?`;
+            if (!confirm(confirmMsg)) return;
 
             const body = document.getElementById('ordersBody');
             let validated = 0;
-            if (body) {
-                body.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px;">
-                    <i class="fas fa-spinner fa-spin"></i> Validating 0/${ids.length}...
-                </td></tr>`;
-            }
+            if (body) body.innerHTML = renderValidationProgress(0, ids.length);
 
             for (const id of ids) {
                 await validateBacklink(id);
                 validated++;
-                if (body) body.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 40px;">
-                    <i class="fas fa-spinner fa-spin"></i> Validating ${validated}/${ids.length}...
-                </td></tr>`;
+                if (body) body.innerHTML = renderValidationProgress(validated, ids.length);
             }
             state.selectedOrders = [];
             renderOrders();
@@ -3993,6 +4213,8 @@
                 case 'Ordered': return 'rgba(245, 158, 11, 0.4)';
                 case 'Delivered': return 'rgba(99, 102, 241, 0.4)';
                 case 'Validated': return 'rgba(16, 185, 129, 0.4)';
+                case 'Approved': return 'rgba(5, 150, 105, 0.85)';
+                case 'Rejected': return 'rgba(239, 68, 68, 0.75)';
                 default: return 'rgba(148, 163, 184, 0.4)';
             }
         }
@@ -4003,6 +4225,13 @@
 
             const btn = document.getElementById('deliver-' + id);
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+            const row = document.getElementById('row-' + id);
+            if (row) {
+                row.style.opacity = '0.55';
+                row.style.transition = 'opacity 0.2s ease';
+                const statusCell = row.querySelector('.val-status-cell');
+                if (statusCell) statusCell.innerHTML = `<span style="font-size:0.7rem; color:var(--primary-light);"><i class="fas fa-spinner fa-spin"></i> Recording delivery…</span>`;
+            }
             try {
                 const [ssl, metrics, html] = await Promise.all([
                     fetchSsl(url),
@@ -4032,6 +4261,8 @@
             } finally {
                 const btnAfter = document.getElementById('deliver-' + id);
                 if (btnAfter) { btnAfter.disabled = false; btnAfter.innerHTML = '<i class="fas fa-upload"></i>'; }
+                const rowAfter = document.getElementById('row-' + id);
+                if (rowAfter) rowAfter.style.opacity = '';
             }
         }
 
@@ -4172,7 +4403,8 @@
         // ---- Phase 5: master tracking sheet export (Tab 1, 18 cols + QA columns) in 4 formats ----
         const MASTER_SHEET_HEADERS = ['Client Name', 'Campaign Code', 'BD', 'SEO', 'Keyword', 'Actual Anchor Text',
             'Target URL', 'Link Type', 'Country', 'Order Date', 'Publish Date', 'Indexed Date', 'Domain Name',
-            'DR', 'DA', 'Live Link', 'Cost', 'Vendor Name', 'Validation', 'Toxic'];
+            'DR', 'DA', 'Live Link', 'Cost', 'Cost Flag', 'Vendor Name', 'Validation', 'Toxic',
+            'Status', 'Approved/Rejected By', 'Approval Date', 'Reject Reason'];
 
         function masterSheetRow(b) {
             const fmtDate = (d) => d ? new Date(d).toLocaleDateString() : '';
@@ -4184,6 +4416,8 @@
                 const a = assessToxicity(b);
                 toxState = a.toxicCount > 0 ? `Toxic (${a.toxicCount})` : 'Clean';
             }
+            const c = assessCost(b);
+            const costFlag = c ? (c.over ? 'OVER CAP' : (c.special ? 'Special (exception)' : 'OK')) : '';
             return [
                 b.campaignName || '', b.campaignCode || '', b.bd || '', b.seo || '',
                 b.keyword && b.keyword !== '-' ? b.keyword : '', b.anchorText || '',
@@ -4192,8 +4426,9 @@
                 b.domainName || (b.deliveredUrl ? getDomain(b.deliveredUrl) : ''),
                 (b.validatedDr || b.dr || ''), (b.validatedDa || b.vendorDa || b.da || ''),
                 b.deliveredUrl || '',
-                (b.cost !== undefined && b.cost !== null && b.cost !== '') ? b.cost : '',
-                b.vendorName || '', vState, toxState
+                (b.cost !== undefined && b.cost !== null && b.cost !== '') ? b.cost : '', costFlag,
+                b.vendorName || '', vState, toxState,
+                b.status || 'Ordered', b.approvedBy || '', fmtDate(b.approvedAt), b.rejectReason || ''
             ];
         }
 
@@ -4211,7 +4446,9 @@
                     (b.vendorName || '').toLowerCase().includes(s) ||
                     getDomain(b.targetUrl).toLowerCase().includes(s);
                 const matchesStatus = state.orderFilters.status === 'all'
-                    || (state.orderFilters.status === 'Toxic' ? (b.validationResults && assessToxicity(b).toxicCount > 0) : b.status === state.orderFilters.status);
+                    || (state.orderFilters.status === 'Toxic' ? (b.validationResults && assessToxicity(b).toxicCount > 0)
+                        : state.orderFilters.status === 'OverCap' ? (assessCost(b)?.over === true)
+                        : b.status === state.orderFilters.status);
                 const matchesBD = !state.orderFilters.bd || (b.bd || '').toLowerCase().includes(state.orderFilters.bd);
                 const matchesDate = !state.orderFilters.date || (b.createdAt || '').includes(state.orderFilters.date);
                 return matchesSearch && matchesStatus && matchesBD && matchesDate;
@@ -4260,7 +4497,7 @@
             if (!jsPDFCtor) { alert('PDF library failed to load.'); return; }
             const doc = new jsPDFCtor({ orientation: 'landscape', unit: 'pt', format: 'a3' });
             // Compact subset of columns for a readable PDF
-            const cols = ['Client', 'Code', 'Keyword', 'Anchor', 'Target URL', 'Type', 'DR', 'DA', 'Live Link', 'Vendor', 'Validation', 'Toxic'];
+            const cols = ['Client', 'Code', 'Keyword', 'Anchor', 'Target URL', 'Type', 'DR', 'DA', 'Live Link', 'Vendor', 'Validation', 'Toxic', 'Status'];
             const body = orders.map(b => {
                 const a = b.validationResults ? assessToxicity(b) : null;
                 return [
@@ -4269,7 +4506,8 @@
                     (b.validatedDr || b.dr || ''), (b.validatedDa || b.vendorDa || b.da || ''),
                     b.deliveredUrl || '', b.vendorName || '',
                     b.validationResults ? (b.validationPassed === false ? 'FAILED' : 'Passed') : '—',
-                    a ? (a.toxicCount > 0 ? `Toxic ${a.toxicCount}` : 'Clean') : '—'
+                    a ? (a.toxicCount > 0 ? `Toxic ${a.toxicCount}` : 'Clean') : '—',
+                    b.status || 'Ordered'
                 ];
             });
             doc.setFontSize(14);
