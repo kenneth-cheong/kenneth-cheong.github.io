@@ -99,11 +99,17 @@ async function accessTokenFor(conn) {
   return t.access_token;
 }
 
-function dayRange(range) {
+// A YYYY-MM-DD window from either a preset ("Last 28 days") or an explicit
+// custom start/end (range === 'Custom'). Custom dates are clamped in order.
+function dayRange(range, customStart, customEnd) {
+  const fmt = (d) => d.toISOString().slice(0, 10);
+  if (range === 'Custom' && customStart && customEnd) {
+    const s = String(customStart).slice(0, 10), e = String(customEnd).slice(0, 10);
+    return s <= e ? { startDate: s, endDate: e } : { startDate: e, endDate: s };
+  }
   const days = range === 'Last 7 days' ? 7 : range === 'Last 3 months' ? 90 : 28;
   const end = new Date();
   const start = new Date(end.getTime() - days * 86400_000);
-  const fmt = (d) => d.toISOString().slice(0, 10);
   return { startDate: fmt(start), endDate: fmt(end) };
 }
 const pct = (n) => `${(n * 100).toFixed(1)}%`;
@@ -118,16 +124,17 @@ function compareCode(c) {
 }
 // The comparison window for a given preset: the equal-length period immediately
 // before it (prev_period), or the same window shifted back a year (prev_year).
-function comparisonRange(range, code) {
-  const days = range === 'Last 7 days' ? 7 : range === 'Last 3 months' ? 90 : 28;
-  const end = new Date();
-  const start = new Date(end.getTime() - days * 86400_000);
+function comparisonRange(range, code, customStart, customEnd) {
   const fmt = (d) => d.toISOString().slice(0, 10);
+  const cur = dayRange(range, customStart, customEnd);
+  const start = new Date(cur.startDate), end = new Date(cur.endDate);
   if (code === 'prev_year') {
     return { startDate: fmt(new Date(start.getTime() - 365 * 86400_000)), endDate: fmt(new Date(end.getTime() - 365 * 86400_000)) };
   }
+  // Previous period = the equal-length window ending the day before this one starts.
+  const durationMs = end.getTime() - start.getTime();
   const prevEnd = new Date(start.getTime() - 86400_000);
-  const prevStart = new Date(prevEnd.getTime() - days * 86400_000);
+  const prevStart = new Date(prevEnd.getTime() - durationMs);
   return { startDate: fmt(prevStart), endDate: fmt(prevEnd) };
 }
 const pctChange = (cur, prev) => {
@@ -141,7 +148,7 @@ async function liveGsc(conn, body) {
   const site = (body.input || conn.account || '').trim();
   if (!site) throw new Error('no site');
   const dim = ['page', 'country', 'device'].includes(body.dimension) ? body.dimension : 'query';
-  const { startDate, endDate } = dayRange(body.range);
+  const { startDate, endDate } = dayRange(body.range, body.startDate, body.endDate);
   const main = await gscBreakdown(token, site, dim, startDate, endDate);
   // Second pull: a day-by-day series for the trend chart (as index.html draws).
   // Both the trend and the compare are best-effort — neither must sink the breakdown.
@@ -273,7 +280,7 @@ async function gscBreakdown(token, site, dim, startDate, endDate) {
 async function gscDeltas(token, site, dim, body, cur) {
   const code = compareCode(body.compare);
   if (code === 'none') return null;
-  const { startDate, endDate } = comparisonRange(body.range, code);
+  const { startDate, endDate } = comparisonRange(body.range, code, body.startDate, body.endDate);
   const prev = (await gscBreakdown(token, site, dim, startDate, endDate)).raw;
   return { clicks: pctChange(cur.clicks, prev.clicks), impressions: pctChange(cur.impressions, prev.impressions), ctr: pctChange(cur.ctr, prev.ctr), position: pctChange(cur.position, prev.position) };
 }
@@ -298,7 +305,7 @@ async function liveGa4(conn, body) {
   const propertyId = (body.input || conn.account || '').replace(/^properties\//, '').trim();
   if (!propertyId) throw new Error('no property');
   const dimName = body.dimension === 'page' ? 'pagePath' : body.dimension === 'country' ? 'country' : body.dimension === 'device' ? 'deviceCategory' : 'sessionDefaultChannelGroup';
-  const { startDate, endDate } = dayRange(body.range);
+  const { startDate, endDate } = dayRange(body.range, body.startDate, body.endDate);
   const main = await ga4Breakdown(token, propertyId, dimName, body.dimension, startDate, endDate);
   const series = await ga4Series(token, propertyId, startDate, endDate).catch((e) => { console.warn('ga4_series_failed', e.message); return []; });
   const deltas = await ga4Deltas(token, propertyId, dimName, body, main.raw).catch((e) => { console.warn('ga4_compare_failed', e.message); return null; });
@@ -329,7 +336,7 @@ async function ga4Breakdown(token, propertyId, dimName, dimKey, startDate, endDa
 async function ga4Deltas(token, propertyId, dimName, body, cur) {
   const code = compareCode(body.compare);
   if (code === 'none') return null;
-  const { startDate, endDate } = comparisonRange(body.range, code);
+  const { startDate, endDate } = comparisonRange(body.range, code, body.startDate, body.endDate);
   const prev = (await ga4Breakdown(token, propertyId, dimName, body.dimension, startDate, endDate)).raw;
   return { sessions: pctChange(cur.sessions, prev.sessions), users: pctChange(cur.users, prev.users), engagedSessions: pctChange(cur.engagedSessions, prev.engagedSessions), conversions: pctChange(cur.conversions, prev.conversions) };
 }
@@ -362,7 +369,7 @@ async function liveAds(conn, body) {
   const token = await accessTokenFor(conn);
   const customerId = String(body.input || conn.account || '').replace(/[^0-9]/g, '');
   if (!customerId) throw new Error('no customer id');
-  const { startDate, endDate } = dayRange(body.range);
+  const { startDate, endDate } = dayRange(body.range, body.startDate, body.endDate);
   const main = await adsBreakdown(customerId, startDate, endDate, token);
   const series = await adsSeries(customerId, startDate, endDate, token).catch((e) => { console.warn('ads_series_failed', e.message); return []; });
   const deltas = await adsDeltas(customerId, body, main.raw, token).catch((e) => { console.warn('ads_compare_failed', e.message); return null; });
@@ -405,7 +412,7 @@ async function adsBreakdown(customerId, startDate, endDate, token) {
 async function adsDeltas(customerId, body, cur, token) {
   const code = compareCode(body.compare);
   if (code === 'none') return null;
-  const { startDate, endDate } = comparisonRange(body.range, code);
+  const { startDate, endDate } = comparisonRange(body.range, code, body.startDate, body.endDate);
   const prev = (await adsBreakdown(customerId, startDate, endDate, token)).raw;
   const curCpa = cur.conversions ? cur.cost / cur.conversions : 0;
   const prevCpa = prev.conversions ? prev.cost / prev.conversions : 0;

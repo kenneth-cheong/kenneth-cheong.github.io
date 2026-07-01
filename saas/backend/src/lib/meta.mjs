@@ -71,21 +71,25 @@ async function getJson(url, params) {
   return j;
 }
 
-function dayRange(range) {
+function dayRange(range, customStart, customEnd) {
+  const fmt = (d) => d.toISOString().slice(0, 10);
+  if (range === 'Custom' && customStart && customEnd) {
+    const s = String(customStart).slice(0, 10), e = String(customEnd).slice(0, 10);
+    return s <= e ? { since: s, until: e } : { since: e, until: s };
+  }
   const days = range === 'Last 7 days' ? 7 : range === 'Last 3 months' ? 90 : 28;
   const end = new Date();
   const start = new Date(end.getTime() - days * 86400_000);
-  const fmt = (d) => d.toISOString().slice(0, 10);
   return { since: fmt(start), until: fmt(end) };
 }
-function comparisonRange(range, code) {
-  const days = range === 'Last 7 days' ? 7 : range === 'Last 3 months' ? 90 : 28;
-  const end = new Date();
-  const start = new Date(end.getTime() - days * 86400_000);
+function comparisonRange(range, code, customStart, customEnd) {
   const fmt = (d) => d.toISOString().slice(0, 10);
+  const cur = dayRange(range, customStart, customEnd);
+  const start = new Date(cur.since), end = new Date(cur.until);
   if (code === 'prev_year') return { since: fmt(new Date(start.getTime() - 365 * 86400_000)), until: fmt(new Date(end.getTime() - 365 * 86400_000)) };
+  const durationMs = end.getTime() - start.getTime();
   const prevEnd = new Date(start.getTime() - 86400_000);
-  const prevStart = new Date(prevEnd.getTime() - days * 86400_000);
+  const prevStart = new Date(prevEnd.getTime() - durationMs);
   return { since: fmt(prevStart), until: fmt(prevEnd) };
 }
 function compareCode(c) {
@@ -151,7 +155,7 @@ async function insightsSeries(account, token, since, until) {
 async function insightsDeltas(account, token, body, cur) {
   const code = compareCode(body.compare);
   if (code === 'none') return null;
-  const { since, until } = comparisonRange(body.range, code);
+  const { since, until } = comparisonRange(body.range, code, body.startDate, body.endDate);
   const prev = (await insightsBreakdown(account, token, since, until)).raw;
   const curCpa = cur.conversions ? cur.spend / cur.conversions : 0;
   const prevCpa = prev.conversions ? prev.spend / prev.conversions : 0;
@@ -164,7 +168,7 @@ export async function fetchIntegration(_provider, conn, body) {
     const token = accessTokenFor(conn);
     const account = actId(body.input || conn.account);
     if (!account) throw new Error('no ad account');
-    const { since, until } = dayRange(body.range);
+    const { since, until } = dayRange(body.range, body.startDate, body.endDate);
     const main = await insightsBreakdown(account, token, since, until);
     const series = await insightsSeries(account, token, since, until).catch((e) => { console.warn('meta_series_failed', e.message); return []; });
     const deltas = await insightsDeltas(account, token, body, main.raw).catch((e) => { console.warn('meta_compare_failed', e.message); return null; });

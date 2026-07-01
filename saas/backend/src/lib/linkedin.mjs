@@ -89,19 +89,23 @@ async function postMonday(action, payload) {
   return j || {};
 }
 
-function dayRange(range) {
+function dayRange(range, customStart, customEnd) {
+  if (range === 'Custom' && customStart && customEnd) {
+    let start = new Date(String(customStart).slice(0, 10)), end = new Date(String(customEnd).slice(0, 10));
+    if (start > end) { const t = start; start = end; end = t; }
+    return { start, end };
+  }
   const days = range === 'Last 7 days' ? 7 : range === 'Last 3 months' ? 90 : 28;
   const end = new Date();
   const start = new Date(end.getTime() - days * 86400_000);
   return { start, end };
 }
-function comparisonRange(range, code) {
-  const days = range === 'Last 7 days' ? 7 : range === 'Last 3 months' ? 90 : 28;
-  const end = new Date();
-  const start = new Date(end.getTime() - days * 86400_000);
+function comparisonRange(range, code, customStart, customEnd) {
+  const { start, end } = dayRange(range, customStart, customEnd);
   if (code === 'prev_year') return { start: new Date(start.getTime() - 365 * 86400_000), end: new Date(end.getTime() - 365 * 86400_000) };
+  const durationMs = end.getTime() - start.getTime();
   const prevEnd = new Date(start.getTime() - 86400_000);
-  const prevStart = new Date(prevEnd.getTime() - days * 86400_000);
+  const prevStart = new Date(prevEnd.getTime() - durationMs);
   return { start: prevStart, end: prevEnd };
 }
 function compareCode(c) {
@@ -152,7 +156,7 @@ async function breakdown(accountId, token, start, end) {
 async function deltas(accountId, token, body, cur) {
   const code = compareCode(body.compare);
   if (code === 'none') return null;
-  const { start, end } = comparisonRange(body.range, code);
+  const { start, end } = comparisonRange(body.range, code, body.startDate, body.endDate);
   const prev = (await breakdown(accountId, token, start, end)).raw;
   const curCpa = cur.conversions ? cur.spend / cur.conversions : 0;
   const prevCpa = prev.conversions ? prev.spend / prev.conversions : 0;
@@ -165,7 +169,7 @@ export async function fetchIntegration(_provider, conn, body) {
     const token = await accessTokenFor(conn);
     const accountId = acctId(body.input || conn.account);
     if (!accountId) throw new Error('no ad account');
-    const { start, end } = dayRange(body.range);
+    const { start, end } = dayRange(body.range, body.startDate, body.endDate);
     const main = await breakdown(accountId, token, start, end);
     // The monday Lambda's analytics action returns campaign-aggregated rows (no
     // per-day breakdown), so the trend chart is omitted for LinkedIn for now.

@@ -738,6 +738,8 @@ function Field({ field, value, onChange, autoFocus, provider }) {
           <TagInput value={value} onChange={onChange} placeholder={field.placeholder} />
           <span className="mt-1 block text-xs text-slate-400">Add several — press Enter or comma between keywords.</span>
         </>
+      ) : field.type === 'date' ? (
+        <input autoFocus={autoFocus} type="date" value={value || ''} max={field.max || '9999-12-31'} onChange={(e) => onChange(e.target.value)} className={base} />
       ) : field.type === 'textarea' ? (
         <textarea autoFocus={autoFocus} rows={3} value={value} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} className={base} />
       ) : field.type === 'select' ? (
