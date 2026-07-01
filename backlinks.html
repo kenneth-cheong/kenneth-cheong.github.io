@@ -760,6 +760,16 @@
                 </div>
 
                 <div class="card" style="margin-top: 24px;">
+                    <div class="flex-resp" style="margin-bottom: 4px;">
+                        <h3 style="margin: 0;">Program KPIs <span style="font-size: 0.75rem; color: var(--text-dim); font-weight: 400;">— SOP §11</span></h3>
+                    </div>
+                    <p style="margin: 0 0 16px; font-size: 0.8rem; color: var(--text-dim);">
+                        Drawn from tracked data for CEO and Finance oversight — no estimated figures.
+                    </p>
+                    <div id="programKpis"></div>
+                </div>
+
+                <div class="card" style="margin-top: 24px;">
                     <div class="flex-resp" style="margin-bottom: 8px;">
                         <h3 style="margin: 0;">Vendor Performance <span style="font-size: 0.75rem; color: var(--text-dim); font-weight: 400;">— Quarterly Audit</span></h3>
                         <select id="vendorAuditWindow" onchange="renderVendorScorecard()"
@@ -4259,6 +4269,7 @@
                     id: id,
                     deliveredUrl: url,
                     status: 'Delivered',
+                    deliveredAt: new Date().toISOString(),
                     da: metrics.DA || 0,
                     ssl: ssl,
                     exists: html
@@ -4669,7 +4680,84 @@
             const avgDa = validLinks.length ? (validLinks.reduce((acc, b) => acc + (b.da || 0), 0) / validLinks.length).toFixed(1) : 0;
             document.getElementById('val-avg-da').innerText = avgDa;
             document.getElementById('val-pending').innerText = state.backlinks.filter(b => b.status === 'Ordered').length;
+            renderProgramKpis();
             renderVendorScorecard();
+        }
+
+        // SOP §11 KPI roll-up for CEO / Finance — tracked data only, no estimates.
+        function renderProgramKpis() {
+            const host = document.getElementById('programKpis');
+            if (!host) return;
+            const links = state.backlinks.filter(b => !b.deleted);
+            const ordered = links.length;
+            const delivered = links.filter(b => b.deliveredUrl).length;
+            const approved = links.filter(b => b.status === 'Approved').length;
+            const rejected = links.filter(b => b.status === 'Rejected').length;
+
+            // Average cost per link (priced links only)
+            const priced = links.filter(b => { const c = parseFloat(b.cost); return isFinite(c) && c > 0; });
+            const avgCost = priced.length ? (priced.reduce((s, b) => s + parseFloat(b.cost), 0) / priced.length) : null;
+
+            // Routine $5-cap compliance: routine priced links at or under the cap
+            const routinePriced = priced.filter(b => !isSpecialOrder(b));
+            const compliant = routinePriced.filter(b => parseFloat(b.cost) <= ROUTINE_COST_CAP).length;
+            const compliancePct = routinePriced.length ? Math.round((compliant / routinePriced.length) * 100) : null;
+
+            // Turnaround times (days), averaged over links where both timestamps exist
+            const avgDays = (pairs) => {
+                const ds = pairs.map(([a, b]) => (new Date(b) - new Date(a)) / 86400000)
+                    .filter(d => isFinite(d) && d >= 0 && d < 365);
+                return ds.length ? Math.round(ds.reduce((s, d) => s + d, 0) / ds.length) : null;
+            };
+            const tatOrderToDelivery = avgDays(links
+                .filter(b => b.createdAt && (b.deliveredAt || b.publishDate || b.indexedDate))
+                .map(b => [b.createdAt, b.deliveredAt || b.publishDate || b.indexedDate]));
+            const tatDeliveryToApproval = avgDays(links
+                .filter(b => b.approvedAt && (b.deliveredAt || b.publishDate) && b.status === 'Approved')
+                .map(b => [b.deliveredAt || b.publishDate, b.approvedAt]));
+
+            // Vendor quality issues by type (across validated links)
+            const issueTypes = { anchor: 0, targetUrl: 0, domain: 0, dr: 0, da: 0, wordCount: 0, toxic: 0 };
+            const issueLabels = { anchor: 'Anchor', targetUrl: 'Target URL', domain: 'Domain', dr: 'DR', da: 'DA', wordCount: 'Thin content', toxic: 'Toxic' };
+            links.forEach(b => {
+                if (!b.validationResults) return;
+                ['anchor', 'targetUrl', 'domain', 'dr', 'da', 'wordCount'].forEach(k => {
+                    if (b.validationResults[k] && b.validationResults[k].status === 'fail') issueTypes[k]++;
+                });
+                if (assessToxicity(b).toxicCount > 0) issueTypes.toxic++;
+            });
+            const issuesTotal = Object.values(issueTypes).reduce((s, n) => s + n, 0);
+
+            const tile = (label, value, sub, warn) => `
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px;">
+                    <div style="font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em;">${label}</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; margin-top: 4px; ${warn ? 'color:#ef4444;' : ''}">${value}</div>
+                    ${sub ? `<div style="font-size: 0.7rem; color: var(--text-dim); margin-top: 2px;">${sub}</div>` : ''}
+                </div>`;
+
+            const complianceWarn = compliancePct !== null && compliancePct < 100;
+            const issueBreakdown = issuesTotal === 0
+                ? '<span style="color:var(--text-dim);">No quality issues recorded.</span>'
+                : Object.keys(issueTypes).filter(k => issueTypes[k] > 0)
+                    .sort((a, b) => issueTypes[b] - issueTypes[a])
+                    .map(k => `<span style="display:inline-block; background:rgba(239,68,68,0.12); color:#f87171; padding:3px 10px; border-radius:10px; font-size:0.75rem; margin:0 6px 6px 0;">${issueLabels[k]}: <b>${issueTypes[k]}</b></span>`)
+                    .join('');
+
+            host.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+                    ${tile('Ordered', ordered)}
+                    ${tile('Delivered', delivered, ordered ? Math.round(delivered / ordered * 100) + '% of ordered' : '')}
+                    ${tile('Approved', approved)}
+                    ${tile('Rejected / returned', rejected, '', rejected > 0)}
+                    ${tile('Avg cost / link', avgCost === null ? '—' : '$' + avgCost.toFixed(2))}
+                    ${tile('$5 cap compliance', compliancePct === null ? '—' : compliancePct + '%', 'routine links', complianceWarn)}
+                    ${tile('TAT order→delivery', tatOrderToDelivery === null ? '—' : tatOrderToDelivery + 'd')}
+                    ${tile('TAT delivery→approval', tatDeliveryToApproval === null ? '—' : tatDeliveryToApproval + 'd')}
+                </div>
+                <div style="margin-top: 16px;">
+                    <div style="font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 8px;">Quality issues by type</div>
+                    ${issueBreakdown}
+                </div>`;
         }
 
         // Vendor scorecard for the SOP §7F quarterly audit: aggregates delivery,
@@ -7417,6 +7505,7 @@
                         id: row.matchedOrder.id,
                         deliveredUrl: row.deliveredUrl,
                         status: 'Delivered',
+                        deliveredAt: new Date().toISOString(),
                         vendorName: document.getElementById('deliveryVendorSelect').value,
                         vendorDa: row.da || 0,
                         validatedDa: metrics.DA || 0,
