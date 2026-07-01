@@ -1841,11 +1841,21 @@ async function llmsTxtRun(body) {
     .then((r) => (typeof r === 'string' ? r : (r && typeof r.body === 'string' ? r.body : '')))
     .catch(() => '');
 
+  // robots.txt / llms.txt / llms-full.txt are static plain-text files. Fetch them
+  // with a direct fetch first — it's the correct tool for plain text AND avoids the
+  // getHtml headless renderer's >3-concurrent throttle, which was silently dropping
+  // robots.txt (4 parallel getHtml calls) and mis-reporting an existing file "Missing".
+  // Fall back to the getHtml upstream only for sites that bot-block a direct fetch.
+  const getText = async (path, ms) => {
+    const direct = await directFetchHtml(rootDomain + path, ms);
+    if (direct && direct.trim().length > 10) return direct;
+    return getBody(rootDomain + path, ms);
+  };
   let [homeHtml, robotsBody, llmsBody, llmsFullBody] = await Promise.all([
     getBody(rootDomain, 25000),
-    getBody(rootDomain + '/robots.txt', 12000),
-    getBody(rootDomain + '/llms.txt', 10000),
-    getBody(rootDomain + '/llms-full.txt', 10000),
+    getText('/robots.txt', 12000),
+    getText('/llms.txt', 10000),
+    getText('/llms-full.txt', 10000),
   ]);
   // The homepage gates the whole tool. The getHtml upstream's headless renderer
   // can time out or return a challenge page for slow WP/CDN sites, so fall back
@@ -1911,8 +1921,17 @@ async function llmsTxtRun(body) {
       ] },
       { type: 'list', title: 'Key pages on the homepage', items: Object.entries(keyPages).map(([k, v]) => `${v ? '✓' : '✗'} ${k}${v ? '' : ' — not linked'}`) },
       { type: 'list', title: 'Recommendations', items: recs },
+      { type: 'callout', text: 'Two files, same content, different depth. llms.txt is a concise index — one line per page — that AI crawlers read first to understand your site; publish it at /llms.txt. llms-full.txt is the verbose version, expanding every page into its own section with a description and source link; publish it at /llms-full.txt for AI models that want deeper context. Best practice is to publish both: start with llms.txt (it is the one most tools look for), then add llms-full.txt if you want richer answers.' },
       { type: 'code', title: 'llms.txt', filename: 'llms.txt', content: llmsTxt },
       { type: 'code', title: 'llms-full.txt (verbose)', filename: 'llms-full.txt', content: llmsFull },
+      { type: 'list', title: 'What to do with these files', items: [
+        `1. Download (or copy) both files above using the buttons on each box.`,
+        `2. Upload them to the root of your website so they are served at ${rootDomain}/llms.txt and ${rootDomain}/llms-full.txt (same folder as your homepage — e.g. the public/, www/, or web root; in WordPress drop them in the site root next to wp-config.php, or use a plugin like "Website LLMs.txt").`,
+        `3. Serve them as plain text (Content-Type: text/plain) and make sure they return HTTP 200 — open ${rootDomain}/llms.txt in a browser to confirm it loads and is not behind a login or redirect.`,
+        `4. Make sure your robots.txt allows AI crawlers (GPTBot, ClaudeBot, PerplexityBot, Google-Extended) — otherwise AI tools cannot read the files you just published.`,
+        `5. Re-run this tool after publishing: the checks above should flip to "Present", confirming AI models can now find and read your site's llms.txt.`,
+        `6. Keep them updated — re-generate and re-upload whenever you add key pages or services so AI answers about you stay accurate.`,
+      ] },
     ],
     summary: { llmsTxtPresent: hasLlms, aiBlocked: d.llmblock === 'Yes', pagesFound: links.length },
   };
@@ -2213,21 +2232,30 @@ async function integrationsRun(tool, body) {
     sections: integrationSections(tool.integration, live.summary || {}, live.series || [], live.deltas, body.compare, live.striking),
     rows: live.rows, summary: live.summary, source: live.source,
   };
-  // GA4 / Google Ads return raw metrics — add an AI "what to do next" pass over
-  // the real numbers. (GSC already surfaces striking-distance easy-wins.)
-  if (tool.integration === 'ga4' || tool.integration === 'google-ads') {
-    const label = tool.integration === 'ga4' ? 'Google Analytics (GA4)' : 'Google Ads';
-    const ctx = tool.integration === 'ga4'
-      ? 'Advise on traffic quality, channel mix, engagement and conversion improvements from this GA4 data.'
-      : 'Advise on budget reallocation, low-converting / high-CPA campaigns, and optimisation opportunities from this Google Ads data.';
+  // Every integration gets an AI "what to do next" pass over the real numbers.
+  const ai = AI_INTEGRATION_CTX[tool.integration];
+  if (ai) {
+    let findings = `${summaryToFindings(live.summary)}\nBreakdown rows:\n${rowsToFindings(live.rows)}`;
+    // GSC: feed the striking-distance (page-2) queries in too, they're prime actions.
+    if (Array.isArray(live.striking) && live.striking.length) {
+      findings += `\nStriking-distance (position 11-20) queries:\n${rowsToFindings(live.striking, 15)}`;
+    }
     const rec = await aiRecommendations({
-      label, context: `${ctx} Date range: ${body.range || 'Last 28 days'}.`,
-      findings: `${summaryToFindings(live.summary)}\nBreakdown rows:\n${rowsToFindings(live.rows)}`,
+      label: ai.label, context: `${ai.ctx} Date range: ${body.range || 'Last 28 days'}.`, findings,
     });
     return withRecs(out, rec);
   }
   return out;
 }
+
+// Per-integration label + advice framing for the AI recommendations pass.
+const AI_INTEGRATION_CTX = {
+  gsc: { label: 'Google Search Console', ctx: 'Advise on winning striking-distance (page-2) keywords, lifting low-CTR high-impression queries, resolving keyword cannibalisation, and content/opportunity gaps from this Search Console data.' },
+  ga4: { label: 'Google Analytics (GA4)', ctx: 'Advise on traffic quality, channel mix, engagement and conversion improvements from this GA4 data.' },
+  'google-ads': { label: 'Google Ads', ctx: 'Advise on budget reallocation, low-converting / high-CPA campaigns, and optimisation opportunities from this Google Ads data.' },
+  'meta-ads': { label: 'Meta Ads', ctx: 'Advise on creative fatigue, audience/placement efficiency, budget reallocation and lowering cost-per-result from this Meta Ads data.' },
+  'linkedin-ads': { label: 'LinkedIn Ads', ctx: 'Advise on campaign efficiency, audience targeting, bid/budget reallocation and lowering cost-per-conversion from this LinkedIn Ads data.' },
+};
 
 // Dispatch + format the GSC sub-tools. integration_pull cost is 0, so these are
 // free like the main pull. Destructive ops (indexing removal, sitemap delete)
