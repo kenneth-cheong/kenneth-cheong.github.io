@@ -758,7 +758,23 @@
                         <div class="stat-value" id="val-pending">0</div>
                     </div>
                 </div>
-                <!-- Recent Orders and Activity will go here -->
+
+                <div class="card" style="margin-top: 24px;">
+                    <div class="flex-resp" style="margin-bottom: 8px;">
+                        <h3 style="margin: 0;">Vendor Performance <span style="font-size: 0.75rem; color: var(--text-dim); font-weight: 400;">— Quarterly Audit</span></h3>
+                        <select id="vendorAuditWindow" onchange="renderVendorScorecard()"
+                            style="padding: 8px 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 8px; color: white; font-size: 0.85rem;">
+                            <option value="90">Last 90 days</option>
+                            <option value="180">Last 6 months</option>
+                            <option value="365">Last 12 months</option>
+                            <option value="all" selected>All time</option>
+                        </select>
+                    </div>
+                    <p style="margin: 0 0 16px; font-size: 0.8rem; color: var(--text-dim);">
+                        Delivery accuracy, issue frequency, and cost alignment per vendor (SOP §7F / §8.7). Vendors with repeated quality failures should be reviewed for corrective action.
+                    </p>
+                    <div id="vendorScorecard" style="overflow-x: auto;"></div>
+                </div>
             </div>
 
             <div id="campaignsTab" class="content-tab" style="display: none;">
@@ -4653,6 +4669,108 @@
             const avgDa = validLinks.length ? (validLinks.reduce((acc, b) => acc + (b.da || 0), 0) / validLinks.length).toFixed(1) : 0;
             document.getElementById('val-avg-da').innerText = avgDa;
             document.getElementById('val-pending').innerText = state.backlinks.filter(b => b.status === 'Ordered').length;
+            renderVendorScorecard();
+        }
+
+        // Vendor scorecard for the SOP §7F quarterly audit: aggregates delivery,
+        // QA pass rate, issue frequency, and cost alignment per vendor.
+        function renderVendorScorecard() {
+            const host = document.getElementById('vendorScorecard');
+            if (!host) return;
+            const windowSel = document.getElementById('vendorAuditWindow');
+            const windowDays = windowSel ? windowSel.value : 'all';
+            const cutoff = windowDays === 'all' ? 0 : Date.now() - (parseInt(windowDays) * 86400000);
+
+            const rows = state.backlinks.filter(b => {
+                if (b.deleted) return false;
+                if (cutoff && b.createdAt && new Date(b.createdAt).getTime() < cutoff) return false;
+                return true;
+            });
+
+            const byVendor = {};
+            rows.forEach(b => {
+                const name = b.vendorName || 'Unassigned';
+                const v = byVendor[name] || (byVendor[name] = {
+                    name, total: 0, delivered: 0, validated: 0, passed: 0, failed: 0,
+                    toxic: 0, approved: 0, rejected: 0, overCap: 0, costSum: 0, costN: 0, tatSum: 0, tatN: 0
+                });
+                v.total++;
+                if (b.deliveredUrl) v.delivered++;
+                if (b.validationResults) {
+                    v.validated++;
+                    if (b.validationPassed === false) v.failed++; else v.passed++;
+                    if (assessToxicity(b).toxicCount > 0) v.toxic++;
+                }
+                if (b.status === 'Approved') v.approved++;
+                if (b.status === 'Rejected') v.rejected++;
+                const c = assessCost(b);
+                if (c) { v.costSum += c.cost; v.costN++; if (c.over) v.overCap++; }
+                // Turnaround: order date -> publish/indexed date (days)
+                if (b.createdAt && (b.publishDate || b.indexedDate)) {
+                    const days = (new Date(b.publishDate || b.indexedDate) - new Date(b.createdAt)) / 86400000;
+                    if (isFinite(days) && days >= 0 && days < 365) { v.tatSum += days; v.tatN++; }
+                }
+            });
+
+            const vendors = Object.values(byVendor).sort((a, b) => b.total - a.total);
+            if (vendors.length === 0) {
+                host.innerHTML = `<div style="text-align:center; padding:32px; color:var(--text-dim);">No backlink data in this window yet.</div>`;
+                return;
+            }
+
+            // Rating: pass rate weighted, penalised by issue frequency. Green ≥90, amber ≥70, red below.
+            const rate = (n, d) => d > 0 ? Math.round((n / d) * 100) : null;
+            const scoreOf = (v) => {
+                if (v.validated === 0) return null;
+                const passPct = (v.passed / v.validated) * 100;
+                const issuePct = ((v.failed + v.toxic + v.rejected) / v.total) * 100;
+                return Math.max(0, Math.round(passPct - issuePct));
+            };
+            const chip = (score) => {
+                if (score === null) return `<span style="color:var(--text-dim); font-size:0.75rem;">No QA yet</span>`;
+                const c = score >= 90 ? '#10b981' : score >= 70 ? '#f59e0b' : '#ef4444';
+                const label = score >= 90 ? 'Good' : score >= 70 ? 'Watch' : 'Review';
+                return `<span style="background:${c}22; color:${c}; padding:2px 10px; border-radius:10px; font-size:0.72rem; font-weight:700;">${score} · ${label}</span>`;
+            };
+            const cell = (v, txt, warn) => `<td style="padding:10px 8px; text-align:center; ${warn ? 'color:#ef4444; font-weight:600;' : ''}">${txt}</td>`;
+
+            host.innerHTML = `
+                <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                    <thead>
+                        <tr style="border-bottom:1px solid var(--border); color:var(--text-dim); font-size:0.72rem; text-transform:uppercase;">
+                            <th style="padding:10px 8px; text-align:left;">Vendor</th>
+                            <th style="padding:10px 8px; text-align:center;">Links</th>
+                            <th style="padding:10px 8px; text-align:center;">Delivered</th>
+                            <th style="padding:10px 8px; text-align:center;" title="Validation pass rate">QA Pass</th>
+                            <th style="padding:10px 8px; text-align:center;" title="Failed QA / toxic / rejected">Issues</th>
+                            <th style="padding:10px 8px; text-align:center;">Approved</th>
+                            <th style="padding:10px 8px; text-align:center;" title="Average cost per link">Avg $</th>
+                            <th style="padding:10px 8px; text-align:center;" title="Routine links over the SGD$5 cap">Over cap</th>
+                            <th style="padding:10px 8px; text-align:center;" title="Avg days order → publish">TAT</th>
+                            <th style="padding:10px 8px; text-align:center;">Rating</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${vendors.map(v => {
+                            const passPct = rate(v.passed, v.validated);
+                            const issues = v.failed + v.toxic + v.rejected;
+                            const avgCost = v.costN ? (v.costSum / v.costN) : null;
+                            const tat = v.tatN ? Math.round(v.tatSum / v.tatN) : null;
+                            return `<tr style="border-bottom:0.5px solid var(--border);">
+                                <td style="padding:10px 8px; font-weight:600;">${v.name}</td>
+                                ${cell(v, v.total)}
+                                ${cell(v, `${v.delivered}/${v.total}`)}
+                                ${cell(v, passPct === null ? '—' : passPct + '%')}
+                                ${cell(v, issues, issues > 0)}
+                                ${cell(v, v.approved)}
+                                ${cell(v, avgCost === null ? '—' : '$' + avgCost.toFixed(2))}
+                                ${cell(v, v.overCap, v.overCap > 0)}
+                                ${cell(v, tat === null ? '—' : tat + 'd')}
+                                <td style="padding:10px 8px; text-align:center;">${chip(scoreOf(v))}</td>
+                            </tr>`;
+                        }).join('')}
+                    </tbody>
+                </table>`;
         }
 
         // SE Ranking Integration
