@@ -489,3 +489,16 @@ export async function detectAccount(provider, accessToken) {
     return list[0]?.id || '';
   } catch { return ''; }
 }
+
+// The signed-in Google account's email (openid/email scope), so the UI can show
+// which account each source is connected as. Best-effort — '' if unavailable.
+export async function detectEmail(accessToken) {
+  try {
+    const res = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return '';
+    const j = await res.json();
+    return j.email || '';
+  } catch { return ''; }
+}

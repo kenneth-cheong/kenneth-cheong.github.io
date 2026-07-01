@@ -20,7 +20,7 @@ import { UPSTREAMS } from '../metering/upstreams.mjs';
 import { CREDIT_COSTS, INTEGRATIONS, PLANS, PROFILE_FIELDS, PROFILE_BONUS, isProfileComplete } from '../../../shared/catalog.mjs';
 import { buildChatSystem } from '../lib/assistant.mjs';
 import { integrationSummary } from '../../../shared/connectors.mjs';
-import { connectorConfigured, providersInFamilyOf, familyOf, authorizeUrl, exchangeCodeFor, listAccountsFor, detectAccountFor } from '../lib/integrations.mjs';
+import { connectorConfigured, providersInFamilyOf, familyOf, authorizeUrl, exchangeCodeFor, listAccountsFor, detectAccountFor, detectEmailFor } from '../lib/integrations.mjs';
 import { signOAuthState, verifyOAuthState } from '../lib/jwt.mjs';
 import { putAttachment, signTicketAttachments, deleteUserAttachments } from '../lib/s3.mjs';
 import Stripe from 'stripe';
@@ -585,6 +585,8 @@ async function oauthCallback(event) {
     // (Google's sign-in grants GSC + GA4 + Ads). A `single` state scopes it to
     // just the one source, so a user can auth a different Google account per tool.
     const targets = st.single ? [provider] : providersInFamilyOf(provider);
+    // Which account this consent signed in as — shown per-source in the UI.
+    const email = tok.access_token ? await detectEmailFor(provider, tok.access_token) : '';
     // Preserve any account the user already picked; only auto-pick a default for
     // a source that doesn't have one yet. For a single-source re-auth we clear it
     // first — the old account id may belong to the previously-signed-in account.
@@ -592,7 +594,7 @@ async function oauthCallback(event) {
     for (const pid of targets) {
       let account = st.single ? '' : (existing[pid]?.account || '');
       if (!account && tok.access_token) account = await detectAccountFor(pid, tok.access_token);
-      await setIntegration({ userId: st.sub, provider: pid, account, connected: true, tokens });
+      await setIntegration({ userId: st.sub, provider: pid, account, connected: true, tokens, email });
     }
     return redirect(`${APP_ORIGIN}/integrations?connected=${familyOf(provider) || 'google'}`);
   } catch (e) {

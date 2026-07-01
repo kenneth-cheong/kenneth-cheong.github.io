@@ -894,7 +894,7 @@ export async function markNotificationsRead(userId) {
 // ── Integrations connection state (stored on the user record) ────────────────
 // In production `connect` completes the Google OAuth handshake and stores the
 // refresh token; here we record the connected account id the user supplies.
-export async function setIntegration({ userId, provider, account, connected, tokens, clearAccount }) {
+export async function setIntegration({ userId, provider, account, connected, tokens, clearAccount, email }) {
   const user = await getUser(userId);
   if (!user) throw new Error('User not found');
   const integrations = { ...(user.integrations || {}) };
@@ -916,6 +916,7 @@ export async function setIntegration({ userId, provider, account, connected, tok
       ...prev,
       connected: true,
       account: account != null && account !== '' ? account : (prev.account || ''),
+      email: email != null && email !== '' ? email : (prev.email || ''),
       connectedAt: new Date().toISOString(),
       ...enc,
     };
@@ -929,7 +930,7 @@ export async function setIntegration({ userId, provider, account, connected, tok
 export function redactIntegrations(integrations = {}) {
   const out = {};
   for (const [k, v] of Object.entries(integrations)) {
-    out[k] = { connected: !!v.connected, account: v.account || '', connectedAt: v.connectedAt };
+    out[k] = { connected: !!v.connected, account: v.account || '', email: v.email || '', connectedAt: v.connectedAt };
   }
   return out;
 }

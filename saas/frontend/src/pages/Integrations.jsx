@@ -138,6 +138,9 @@ export default function Integrations() {
                         <div className="min-w-0 flex-1">
                           <div className="font-semibold">{p.name}</div>
                           <div className="text-sm text-slate-500">{p.blurb}</div>
+                          {connected[p.id]?.email && (
+                            <div className="mt-0.5 truncate text-xs text-slate-400">Signed in as {connected[p.id].email}</div>
+                          )}
                         </div>
                         {connected[p.id]?.account
                           ? <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700"><Check size={12} aria-hidden /> Active</span>

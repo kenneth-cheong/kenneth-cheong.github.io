@@ -57,6 +57,11 @@ export function listAccountsFor(provider, conn) {
 export function detectAccountFor(provider, accessToken) {
   return connectorFor(provider).detectAccount(provider, accessToken);
 }
+// Optional — the signed-in account's email/label; not every connector exposes it.
+export function detectEmailFor(provider, accessToken) {
+  const m = connectorFor(provider);
+  return m?.detectEmail ? m.detectEmail(accessToken) : Promise.resolve('');
+}
 export function fetchIntegrationFor(provider, conn, body) {
   return connectorFor(provider).fetchIntegration(provider, conn, body);
 }
