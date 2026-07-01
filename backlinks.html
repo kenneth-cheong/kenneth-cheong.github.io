@@ -1161,6 +1161,8 @@
                         </div>
                     </div>
 
+                    <div id="backlinkPlanning" style="margin-bottom: 20px;"></div>
+
                     <div id="rankingsTableControls" style="margin-bottom: 24px;"></div>
 
                     <div style="display: flex; justify-content: flex-end; gap: 12px; margin-bottom: 16px;">
@@ -6600,10 +6602,62 @@
             renderRankingsControls();
         }
 
+        // SOP §7C routine-backlink planning: 1 backlink per 10 keywords, targeting
+        // struggling keywords (ranked but off page 1) and low-hanging fruit (page 2).
+        const ROUTINE_KW_PER_LINK = 10;
+        function renderBacklinkPlanning() {
+            const host = document.getElementById('backlinkPlanning');
+            if (!host) return;
+            if (!state.rankings || state.rankings.length === 0) { host.innerHTML = ''; return; }
+
+            // Latest rank per unique keyword+site
+            const latest = {};
+            state.rankings.forEach(r => {
+                const key = `${r.keyword}||${r.siteName}`;
+                if (!latest[key] || (r.date || '') > (latest[key].date || '')) latest[key] = r;
+            });
+            const rows = Object.values(latest);
+            const keywords = rows.length;
+            const asNum = (v) => { const n = parseInt(v); return isFinite(n) ? n : null; };
+            const struggling = rows.filter(r => { const p = asNum(r.rank); return p !== null && p > 10 && p <= 100; }).length;
+            const lowHanging = rows.filter(r => { const p = asNum(r.rank); return p !== null && p >= 11 && p <= 20; }).length;
+
+            const recommended = Math.ceil(keywords / ROUTINE_KW_PER_LINK);
+            const routineOrdered = state.backlinks.filter(b => !b.deleted && !isSpecialOrder(b)).length;
+            const gap = Math.max(0, recommended - routineOrdered);
+
+            const tile = (label, value, sub, accent) => `
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; min-width: 130px;">
+                    <div style="font-size: 0.68rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em;">${label}</div>
+                    <div style="font-size: 1.35rem; font-weight: 700; margin-top: 2px; ${accent ? 'color:' + accent + ';' : ''}">${value}</div>
+                    ${sub ? `<div style="font-size: 0.66rem; color: var(--text-dim); margin-top: 2px;">${sub}</div>` : ''}
+                </div>`;
+
+            host.innerHTML = `
+                <div class="card" style="background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.25);">
+                    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+                        <h3 style="margin:0; font-size:1rem;"><i class="fas fa-lightbulb" style="color:var(--primary-light); margin-right:6px;"></i>Routine Backlink Planner <span style="font-size:0.72rem; color:var(--text-dim); font-weight:400;">— SOP §7C · 1 link per ${ROUTINE_KW_PER_LINK} keywords</span></h3>
+                        ${gap > 0
+                            ? `<span style="background:rgba(245,158,11,0.15); color:#f59e0b; padding:4px 12px; border-radius:20px; font-size:0.8rem; font-weight:600;">Suggest ordering ${gap} more routine link${gap === 1 ? '' : 's'}</span>`
+                            : `<span style="background:rgba(16,185,129,0.15); color:#10b981; padding:4px 12px; border-radius:20px; font-size:0.8rem; font-weight:600;"><i class="fas fa-check"></i> On target</span>`}
+                    </div>
+                    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                        ${tile('Keywords tracked', keywords.toLocaleString())}
+                        ${tile('Recommended', recommended.toLocaleString(), '1 per ' + ROUTINE_KW_PER_LINK + ' keywords')}
+                        ${tile('Routine ordered', routineOrdered.toLocaleString())}
+                        ${tile('Suggested to order', gap.toLocaleString(), 'to hit the ratio', gap > 0 ? '#f59e0b' : '#10b981')}
+                        ${tile('Struggling', struggling.toLocaleString(), 'off page 1 (11–100)')}
+                        ${tile('Low-hanging fruit', lowHanging.toLocaleString(), 'page 2 (11–20)')}
+                    </div>
+                    <p style="margin:12px 0 0; font-size:0.75rem; color:var(--text-dim);">Target struggling keywords and low-hanging fruit first. Special orders (guest post / high-DA / booster) are excluded from this routine count.</p>
+                </div>`;
+        }
+
         function renderRankingsTable() {
             console.log("[Dashboard] Rendering Rankings Table (v2.1 - Robust Mapping)");
             const container = document.getElementById('rankingsContainer');
             if (!container) return;
+            renderBacklinkPlanning();
 
             if (state.rankings.length === 0) {
                 container.innerHTML = '<div class="card" style="text-align: center; padding: 60px; color: var(--text-dim);"><i class="fas fa-search" style="font-size: 3rem; margin-bottom: 20px; opacity: 0.2;"></i><p>No rankings data available. Click "Refresh Data" to fetch from SE Ranking.</p></div>';
