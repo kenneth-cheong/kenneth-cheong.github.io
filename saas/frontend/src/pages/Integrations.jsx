@@ -68,6 +68,14 @@ export default function Integrations() {
     try { await Promise.all(fam.sources.map((p) => api.connectIntegration(p.id, '', false))); await load(); }
     finally { setBusy(''); }
   }
+  // Per-source disconnect: clears just this tool's selected account, keeping the
+  // shared family sign-in so the user can re-pick without re-consenting.
+  async function disconnectSource(fam, p) {
+    if (!window.confirm(`Disconnect ${p.name}? This clears its selected account but keeps your ${fam.meta.label || 'account'} sign-in.`)) return;
+    setBusy(p.id);
+    try { await api.clearIntegrationAccount(p.id); await load(); }
+    finally { setBusy(''); }
+  }
 
   const connectedLabel = justConnected && (FAMILY_META[justConnected]?.label || 'Account');
   const shortName = (fam) => (fam.meta.label || fam.id).replace(/ account$/, '');
@@ -123,6 +131,9 @@ export default function Integrations() {
                           ? <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700"><Check size={12} aria-hidden /> Active</span>
                           : <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Pick an account</span>}
                         <Link to={`/tool/${TOOL_FOR[p.id]}`} className="btn-ghost px-3 py-1.5 text-sm">Open tool</Link>
+                        {connected[p.id]?.account && (
+                          <button onClick={() => disconnectSource(fam, p)} disabled={busy === p.id} className="text-sm text-slate-500 hover:text-red-600">{busy === p.id ? '…' : 'Disconnect'}</button>
+                        )}
                       </div>
                       <PullHealth pull={lastPull[p.id]} />
                       <AccountPicker provider={p.id} current={connected[p.id]?.account} onSaved={load} />

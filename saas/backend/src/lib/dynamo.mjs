@@ -894,12 +894,18 @@ export async function markNotificationsRead(userId) {
 // ── Integrations connection state (stored on the user record) ────────────────
 // In production `connect` completes the Google OAuth handshake and stores the
 // refresh token; here we record the connected account id the user supplies.
-export async function setIntegration({ userId, provider, account, connected, tokens }) {
+export async function setIntegration({ userId, provider, account, connected, tokens, clearAccount }) {
   const user = await getUser(userId);
   if (!user) throw new Error('User not found');
   const integrations = { ...(user.integrations || {}) };
   if (connected === false) {
     delete integrations[provider];
+  } else if (clearAccount) {
+    // Per-source "disconnect": forget which account this source pulls, but keep
+    // the shared family OAuth token so the user can re-pick without re-consenting.
+    if (integrations[provider]?.connected) {
+      integrations[provider] = { ...integrations[provider], account: '', connectedAt: new Date().toISOString() };
+    }
   } else {
     const prev = integrations[provider] || {};
     const enc = { ...(tokens || {}) };

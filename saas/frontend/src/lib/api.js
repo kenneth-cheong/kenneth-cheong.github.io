@@ -246,6 +246,9 @@ export const api = {
   authorizeIntegration: (provider) => call(`/integrations/authorize?provider=${encodeURIComponent(provider)}`),
   connectIntegration: (provider, account, connected = true) =>
     call('/integrations/connect', { method: 'POST', body: { provider, account, connected } }),
+  // Per-source disconnect: clears this source's chosen account but keeps the shared family sign-in.
+  clearIntegrationAccount: (provider) =>
+    call('/integrations/connect', { method: 'POST', body: { provider, account: '', connected: true, clearAccount: true } }),
   // Admin
   adminUsers: () => call('/admin/users'),
   // Free Trial + NDA agreements collected in-app (replaces the email notification).

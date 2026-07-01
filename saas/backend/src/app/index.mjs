@@ -548,9 +548,9 @@ export const handler = async (event) => {
       return ok({ url: authorizeUrl(provider, signOAuthState(user.userId, provider), oauthRedirectUri(event)) });
     }
     if (method === 'POST' && path.endsWith('/integrations/connect')) {
-      // Used for disconnect, or to set/override the account id for a provider.
+      // Used for disconnect, per-source account-clear, or to set/override the account id for a provider.
       if (!INTEGRATIONS.some((p) => p.id === body.provider)) return badRequest('Unknown provider.');
-      const connected = await setIntegration({ userId: user.userId, provider: body.provider, account: body.account, connected: body.connected !== false });
+      const connected = await setIntegration({ userId: user.userId, provider: body.provider, account: body.account, connected: body.connected !== false, clearAccount: body.clearAccount === true });
       return ok({ connected });
     }
 
