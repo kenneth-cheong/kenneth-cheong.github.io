@@ -668,6 +668,7 @@ export const INPUTS = {
   ],
   'google-ads': [
     { name: 'input', label: 'Ads account', type: 'account', placeholder: 'e.g. 123-456-7890', required: true },
+    { name: 'level', label: 'Level', type: 'select', options: ['Campaign', 'Ad group', 'Ad'], default: 'Campaign' },
     { name: 'range', label: 'Date range', type: 'select', options: ['Last 7 days', 'Last 28 days', 'Last 3 months', 'Custom'], default: 'Last 28 days' },
     { name: 'startDate', label: 'Start date', type: 'date', required: true, showWhen: { field: 'range', in: ['Custom'] } },
     { name: 'endDate', label: 'End date', type: 'date', required: true, showWhen: { field: 'range', in: ['Custom'] } },
@@ -675,6 +676,8 @@ export const INPUTS = {
   ],
   'meta-ads': [
     { name: 'input', label: 'Ad account', type: 'account', placeholder: 'e.g. act_1234567890', required: true },
+    { name: 'level', label: 'Level', type: 'select', options: ['Campaign', 'Ad set', 'Ad'], default: 'Campaign' },
+    { name: 'breakdown', label: 'Breakdown', type: 'select', options: ['None', 'Platform', 'Placement', 'Device', 'Country', 'Region', 'Age & gender', 'Hour'], default: 'None' },
     { name: 'range', label: 'Date range', type: 'select', options: ['Last 7 days', 'Last 28 days', 'Last 3 months', 'Custom'], default: 'Last 28 days' },
     { name: 'startDate', label: 'Start date', type: 'date', required: true, showWhen: { field: 'range', in: ['Custom'] } },
     { name: 'endDate', label: 'End date', type: 'date', required: true, showWhen: { field: 'range', in: ['Custom'] } },
@@ -682,6 +685,7 @@ export const INPUTS = {
   ],
   'linkedin-ads': [
     { name: 'input', label: 'Ad account', type: 'account', placeholder: 'e.g. 512345678', required: true },
+    { name: 'level', label: 'Level', type: 'select', options: ['Campaign', 'Campaign group', 'Creative'], default: 'Campaign' },
     { name: 'range', label: 'Date range', type: 'select', options: ['Last 7 days', 'Last 28 days', 'Last 3 months', 'Custom'], default: 'Last 28 days' },
     { name: 'startDate', label: 'Start date', type: 'date', required: true, showWhen: { field: 'range', in: ['Custom'] } },
     { name: 'endDate', label: 'End date', type: 'date', required: true, showWhen: { field: 'range', in: ['Custom'] } },

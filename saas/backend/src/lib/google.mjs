@@ -424,7 +424,7 @@ async function liveAds(conn, body) {
   const customerId = String(body.input || conn.account || '').replace(/[^0-9]/g, '');
   if (!customerId) throw new Error('no customer id');
   const { startDate, endDate } = dayRange(body.range, body.startDate, body.endDate);
-  const main = await adsBreakdown(customerId, startDate, endDate, token);
+  const main = await adsBreakdown(customerId, startDate, endDate, token, body);
   const series = await adsSeries(customerId, startDate, endDate, token).catch((e) => { console.warn('ads_series_failed', e.message); return []; });
   const deltas = await adsDeltas(customerId, body, main.raw, token).catch((e) => { console.warn('ads_compare_failed', e.message); return null; });
   const { cost, clicks, conversions } = main.raw;
@@ -443,14 +443,27 @@ async function adsGaql(query, customerId, token) {
   return Array.isArray(data?.results) ? data.results : (Array.isArray(data) ? data.flatMap((c) => c.results || []) : []);
 }
 
-async function adsBreakdown(customerId, startDate, endDate, token) {
-  const query = `SELECT campaign.name, metrics.impressions, metrics.clicks, metrics.ctr, metrics.cost_micros, metrics.conversions FROM campaign WHERE segments.date BETWEEN '${startDate}' AND '${endDate}' ORDER BY metrics.cost_micros DESC LIMIT 25`;
+// Google Ads drill-down level → the GAQL resource + name field for each row.
+const ADS_LEVELS = {
+  campaign: { key: 'campaign', resource: 'campaign', nameField: 'campaign.name', pick: (r) => r.campaign?.name },
+  ad_group: { key: 'adGroup', resource: 'ad_group', nameField: 'ad_group.name', pick: (r) => r.adGroup?.name || r.ad_group?.name },
+  ad: { key: 'ad', resource: 'ad_group_ad', nameField: 'ad_group_ad.ad.name', pick: (r) => r.adGroupAd?.ad?.name || r.adGroupAd?.ad?.id || r.ad_group_ad?.ad?.name },
+};
+function adsLevel(body) {
+  const s = String(body.level || '').toLowerCase();
+  if (s.includes('group')) return ADS_LEVELS.ad_group;
+  if (s === 'ad') return ADS_LEVELS.ad;
+  return ADS_LEVELS.campaign;
+}
+async function adsBreakdown(customerId, startDate, endDate, token, body = {}) {
+  const lv = adsLevel(body);
+  const query = `SELECT ${lv.nameField}, metrics.impressions, metrics.clicks, metrics.ctr, metrics.cost_micros, metrics.conversions FROM ${lv.resource} WHERE segments.date BETWEEN '${startDate}' AND '${endDate}' ORDER BY metrics.cost_micros DESC LIMIT 25`;
   const results = await adsGaql(query, customerId, token);
   const rows = results.map((r) => {
     const cost = Number(r.metrics?.costMicros || r.metrics?.cost_micros || 0) / 1e6;
     const conv = Number(r.metrics?.conversions || 0);
     return {
-      campaign: r.campaign?.name || '—',
+      [lv.key]: lv.pick(r) || '—',
       impressions: Number(r.metrics?.impressions || 0),
       clicks: Number(r.metrics?.clicks || 0),
       ctr: pct(Number(r.metrics?.ctr || 0)),
@@ -467,7 +480,7 @@ async function adsDeltas(customerId, body, cur, token) {
   const code = compareCode(body.compare);
   if (code === 'none') return null;
   const { startDate, endDate } = comparisonRange(body.range, code, body.startDate, body.endDate);
-  const prev = (await adsBreakdown(customerId, startDate, endDate, token)).raw;
+  const prev = (await adsBreakdown(customerId, startDate, endDate, token, body)).raw;
   const curCpa = cur.conversions ? cur.cost / cur.conversions : 0;
   const prevCpa = prev.conversions ? prev.cost / prev.conversions : 0;
   return { cost: pctChange(cur.cost, prev.cost), clicks: pctChange(cur.clicks, prev.clicks), conversions: pctChange(cur.conversions, prev.conversions), cpa: pctChange(curCpa, prevCpa) };

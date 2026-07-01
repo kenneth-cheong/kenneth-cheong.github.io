@@ -126,10 +126,23 @@ const acctId = (raw) => String(raw || '').replace(/\D/g, '');
 // One campaign-pivoted analytics pull via the monday Lambda → breakdown rows +
 // raw totals. Field parsing mirrors the index.html app (stats live on
 // `e.statistics` or the element itself; the Lambda already resolves names).
-async function breakdown(accountId, token, start, end) {
+// Drill-down level → LinkedIn analytics pivot + the row's label key.
+const LI_LEVELS = {
+  campaign: { key: 'campaign', pivot: 'CAMPAIGN' },
+  'campaign group': { key: 'campaignGroup', pivot: 'CAMPAIGN_GROUP' },
+  creative: { key: 'creative', pivot: 'CREATIVE' },
+};
+function liLevel(body) {
+  const s = String(body.level || '').toLowerCase();
+  if (s.includes('group')) return LI_LEVELS['campaign group'];
+  if (s.includes('creative')) return LI_LEVELS.creative;
+  return LI_LEVELS.campaign;
+}
+async function breakdown(accountId, token, start, end, body = {}) {
+  const lv = liLevel(body);
   const data = await postMonday('linkedin_get_analytics', {
     access_token: token, account_id: accountId,
-    start_date: ymd(start), end_date: ymd(end), pivot: 'CAMPAIGN',
+    start_date: ymd(start), end_date: ymd(end), pivot: lv.pivot,
   });
   const els = data.elements || data.data || [];
   const rows = els.map((e, i) => {
@@ -139,7 +152,7 @@ async function breakdown(accountId, token, start, end) {
     const impressions = Number(stats.impressions || 0);
     const conv = Number(stats.externalWebsiteConversions || stats.conversions || 0);
     return {
-      campaign: e.campaignName || e.name || e.id || `Campaign ${i + 1}`,
+      [lv.key]: e.campaignName || e.campaignGroupName || e.creativeName || e.name || e.id || `${lv.key} ${i + 1}`,
       impressions, clicks,
       ctr: pct(impressions ? clicks / impressions : 0),
       spend: money(cost), conversions: conv, cpa: conv ? money(cost / conv) : '—',
@@ -157,7 +170,7 @@ async function deltas(accountId, token, body, cur) {
   const code = compareCode(body.compare);
   if (code === 'none') return null;
   const { start, end } = comparisonRange(body.range, code, body.startDate, body.endDate);
-  const prev = (await breakdown(accountId, token, start, end)).raw;
+  const prev = (await breakdown(accountId, token, start, end, body)).raw;
   const curCpa = cur.conversions ? cur.spend / cur.conversions : 0;
   const prevCpa = prev.conversions ? prev.spend / prev.conversions : 0;
   return { spend: pctChange(cur.spend, prev.spend), clicks: pctChange(cur.clicks, prev.clicks), conversions: pctChange(cur.conversions, prev.conversions), cpa: pctChange(curCpa, prevCpa) };
@@ -170,7 +183,7 @@ export async function fetchIntegration(_provider, conn, body) {
     const accountId = acctId(body.input || conn.account);
     if (!accountId) throw new Error('no ad account');
     const { start, end } = dayRange(body.range, body.startDate, body.endDate);
-    const main = await breakdown(accountId, token, start, end);
+    const main = await breakdown(accountId, token, start, end, body);
     // The monday Lambda's analytics action returns campaign-aggregated rows (no
     // per-day breakdown), so the trend chart is omitted for LinkedIn for now.
     const del = await deltas(accountId, token, body, main.raw).catch((e) => { console.warn('linkedin_compare_failed', e.message); return null; });

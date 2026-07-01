@@ -118,23 +118,53 @@ function actId(raw) {
   return id ? `act_${id}` : '';
 }
 
-// Campaign-level insights → breakdown rows + raw totals.
-async function insightsBreakdown(account, token, since, until) {
-  const data = await getJson(`${GRAPH}/${account}/insights`, {
-    access_token: token, level: 'campaign',
-    fields: 'campaign_name,spend,clicks,impressions,ctr,actions',
-    time_range: JSON.stringify({ since, until }), limit: '25',
-  });
+// Drill-down level → the insights `level` + the row's name field.
+const META_LEVELS = {
+  campaign: { key: 'campaign', level: 'campaign', nameField: 'campaign_name' },
+  adset: { key: 'adSet', level: 'adset', nameField: 'adset_name' },
+  ad: { key: 'ad', level: 'ad', nameField: 'ad_name' },
+};
+function metaLevel(body) {
+  const s = String(body.level || '').toLowerCase().replace(/\s+/g, '');
+  return META_LEVELS[s] || META_LEVELS.campaign;
+}
+// Optional breakdown dimension → Meta's `breakdowns` param (null = none).
+const META_BREAKDOWNS = {
+  platform: 'publisher_platform', placement: 'platform_position', device: 'impression_device',
+  country: 'country', region: 'region', 'age & gender': 'age,gender', 'age&gender': 'age,gender',
+  hour: 'hourly_stats_aggregated_by_advertiser_time_zone',
+};
+function metaBreakdown(body) {
+  return META_BREAKDOWNS[String(body.breakdown || '').toLowerCase()] || null;
+}
+function metaSegment(r, bd) {
+  if (bd === 'age,gender') return `${r.age || '?'} · ${r.gender || '?'}`;
+  return r[bd] ?? '—';
+}
+
+// Insights at the chosen level (+ optional breakdown) → breakdown rows + totals.
+async function insightsBreakdown(account, token, since, until, body = {}) {
+  const lv = metaLevel(body);
+  const bd = metaBreakdown(body);
+  const params = {
+    access_token: token, level: lv.level,
+    fields: `${lv.nameField},spend,clicks,impressions,ctr,actions`,
+    time_range: JSON.stringify({ since, until }), limit: bd ? '100' : '25',
+  };
+  if (bd) params.breakdowns = bd;
+  const data = await getJson(`${GRAPH}/${account}/insights`, params);
   const rows = (data.data || []).map((r) => {
     const spend = Number(r.spend || 0);
     const conv = conversionsFrom(r.actions);
-    return {
-      campaign: r.campaign_name || '—',
+    const row = {
+      [lv.key]: r[lv.nameField] || '—',
       impressions: Number(r.impressions || 0),
       clicks: Number(r.clicks || 0),
       ctr: pct(Number(r.ctr || 0) / 100), // Meta ctr is already a percentage
       spend: money(spend), conversions: conv, cpa: conv ? money(spend / conv) : '—',
     };
+    if (bd) row.segment = metaSegment(r, bd);
+    return row;
   });
   const sum = (k) => rows.reduce((a, r) => a + (Number(String(r[k]).replace(/[^0-9.]/g, '')) || 0), 0);
   return { rows, raw: { spend: sum('spend'), clicks: rows.reduce((a, r) => a + r.clicks, 0), conversions: rows.reduce((a, r) => a + r.conversions, 0) } };
@@ -156,7 +186,8 @@ async function insightsDeltas(account, token, body, cur) {
   const code = compareCode(body.compare);
   if (code === 'none') return null;
   const { since, until } = comparisonRange(body.range, code, body.startDate, body.endDate);
-  const prev = (await insightsBreakdown(account, token, since, until)).raw;
+  // Compare like-for-like at the same level, but without the breakdown split.
+  const prev = (await insightsBreakdown(account, token, since, until, { level: body.level })).raw;
   const curCpa = cur.conversions ? cur.spend / cur.conversions : 0;
   const prevCpa = prev.conversions ? prev.spend / prev.conversions : 0;
   return { spend: pctChange(cur.spend, prev.spend), clicks: pctChange(cur.clicks, prev.clicks), conversions: pctChange(cur.conversions, prev.conversions), cpa: pctChange(curCpa, prevCpa) };
@@ -169,7 +200,7 @@ export async function fetchIntegration(_provider, conn, body) {
     const account = actId(body.input || conn.account);
     if (!account) throw new Error('no ad account');
     const { since, until } = dayRange(body.range, body.startDate, body.endDate);
-    const main = await insightsBreakdown(account, token, since, until);
+    const main = await insightsBreakdown(account, token, since, until, body);
     const series = await insightsSeries(account, token, since, until).catch((e) => { console.warn('meta_series_failed', e.message); return []; });
     const deltas = await insightsDeltas(account, token, body, main.raw).catch((e) => { console.warn('meta_compare_failed', e.message); return null; });
     const { spend, clicks, conversions } = main.raw;
