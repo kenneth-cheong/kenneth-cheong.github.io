@@ -873,8 +873,8 @@
                             </button>
                             <button class="btn" onclick="notifyAllFailures()" id="notifyFailuresBtn"
                                 style="background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.3);"
-                                title="Send a Google Chat alert listing all backlinks that failed validation.">
-                                <i class="fas fa-bell"></i> Notify Failures
+                                title="Send a Google Chat escalation listing all backlinks that failed validation plus any routine links over the $5 cap.">
+                                <i class="fas fa-bell"></i> Notify Issues
                             </button>
                             <button class="btn" onclick="openNotifySettings()" id="notifySettingsBtn"
                                 style="background: transparent; color: var(--text-dim); border: 1px solid var(--border);"
@@ -4041,24 +4041,39 @@
         const VALIDATION_LABELS = { anchor: 'Anchor', targetUrl: 'Target URL', domain: 'Domain', dr: 'DR', da: 'DA', wordCount: 'Words' };
 
         // Build a Google Chat text message summarising failed backlinks (markdown-ish)
-        function buildBacklinkChatMessage(items) {
+        // Routine links breaching the SGD$5 cap — budget exceptions for Finance (SOP §12.4).
+        function budgetExceptions(items) {
+            return (items || []).filter(b => !b.deleted && assessCost(b)?.over === true);
+        }
+
+        function buildBacklinkChatMessage(items, overCap) {
             const MAX = 20;
-            const shown = items.slice(0, MAX);
-            const lines = [`*⚠️ Backlink Validation Alert* — ${items.length} link(s) failed QA`, ''];
-            shown.forEach(b => {
-                const fails = Object.keys(b.validationResults || {})
-                    .filter(k => b.validationResults[k].status === 'fail')
-                    .map(k => {
-                        const v = b.validationResults[k];
-                        return `${VALIDATION_LABELS[k] || k}: expected ${v.expected}, got ${v.actual}`;
-                    });
-                const head = `${b.campaignCode ? '[' + b.campaignCode + '] ' : ''}${b.campaignName || 'Unnamed'} — _${b.keyword || ''}_`;
-                lines.push(`• ${head}`);
-                fails.forEach(f => lines.push(`    ✗ ${f}`));
-                if (b.deliveredUrl) lines.push(`    🔗 ${b.deliveredUrl}`);
+            const label = (b) => `${b.campaignCode ? '[' + b.campaignCode + '] ' : ''}${b.campaignName || 'Unnamed'} — _${b.keyword || ''}_`;
+            const lines = [];
+            if (items && items.length) {
+                lines.push(`*⚠️ Backlink Validation Alert* — ${items.length} link(s) failed QA`, '');
+                items.slice(0, MAX).forEach(b => {
+                    const fails = Object.keys(b.validationResults || {})
+                        .filter(k => b.validationResults[k].status === 'fail')
+                        .map(k => {
+                            const v = b.validationResults[k];
+                            return `${VALIDATION_LABELS[k] || k}: expected ${v.expected}, got ${v.actual}`;
+                        });
+                    lines.push(`• ${label(b)}`);
+                    fails.forEach(f => lines.push(`    ✗ ${f}`));
+                    if (b.deliveredUrl) lines.push(`    🔗 ${b.deliveredUrl}`);
+                    lines.push('');
+                });
+                if (items.length > MAX) lines.push(`…and ${items.length - MAX} more.`, '');
+            }
+            if (overCap && overCap.length) {
+                lines.push(`*💲 Budget Exceptions* — ${overCap.length} routine link(s) over the SGD$${ROUTINE_COST_CAP} cap`, '');
+                overCap.slice(0, MAX).forEach(b => {
+                    lines.push(`• ${label(b)} — $${parseFloat(b.cost).toFixed(2)}${b.vendorName ? ' · ' + b.vendorName : ''}`);
+                });
+                if (overCap.length > MAX) lines.push(`…and ${overCap.length - MAX} more.`);
                 lines.push('');
-            });
-            if (items.length > MAX) lines.push(`…and ${items.length - MAX} more.`);
+            }
             lines.push(`cc ${NOTIFY_RECIPIENTS}`);
             return lines.join('\n');
         }
@@ -4099,13 +4114,26 @@
             return result;
         }
 
-        // Manual trigger — report every currently-failed backlink
+        // Manual trigger — report every currently-failed backlink plus budget exceptions.
         async function notifyAllFailures() {
             const btn = document.getElementById('notifyFailuresBtn');
             const original = btn ? btn.innerHTML : '';
+            const failed = state.backlinks.filter(b => b.validationResults && b.validationPassed === false);
+            const overCap = budgetExceptions(state.backlinks);
+            if (failed.length === 0 && overCap.length === 0) {
+                alert('Nothing to report — no failed validations and no budget exceptions.');
+                return;
+            }
+            if (!getChatWebhook()) {
+                alert('No Google Chat webhook configured. Open "Notify Settings" to add one.');
+                return;
+            }
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending…'; }
             try {
-                await notifyValidationFailures(state.backlinks, false);
+                const result = await sendChatMessage(buildBacklinkChatMessage(failed, overCap));
+                alert(result.ok
+                    ? `Sent escalation to Google Chat — ${failed.length} QA failure(s), ${overCap.length} budget exception(s).`
+                    : `Failed to send: ${result.error}`);
             } finally {
                 if (btn) { btn.disabled = false; btn.innerHTML = original; }
             }
