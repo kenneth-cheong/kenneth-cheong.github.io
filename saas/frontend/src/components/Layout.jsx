@@ -128,15 +128,6 @@ export default function Layout({ children }) {
               <span className="grid h-7 w-7 place-items-center rounded-md bg-brand-600 text-white">D</span>
               <span className="hidden sm:inline">Digimetrics</span>
             </Link>
-            {fromProjectId && (
-              <Link
-                to={`/projects/${encodeURIComponent(fromProjectId)}`}
-                className="hidden shrink-0 items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium text-brand-600 hover:bg-brand-50 md:flex"
-              >
-                <ChevronLeft size={14} aria-hidden />
-                {fromProjectName || 'Project'}
-              </Link>
-            )}
             <nav className="hidden min-w-0 gap-1 md:flex">
               {primaryNav.map((n) => <NavLink key={n.to} to={n.to} end={n.end} data-tour={`nav-${n.to}`} className={linkCls}>{n.label}</NavLink>)}
             </nav>
@@ -214,6 +205,22 @@ export default function Layout({ children }) {
               </div>
             </div>
           </div>
+
+          {/* Back-to-project strip — lives on its own row below the nav so it
+              never gets clipped by the crowded top bar. */}
+          {fromProjectId && (
+            <div className="border-t border-slate-100">
+              <div className="mx-auto max-w-6xl px-4 py-2">
+                <Link
+                  to={`/projects/${encodeURIComponent(fromProjectId)}`}
+                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-brand-600 hover:bg-brand-50"
+                >
+                  <ChevronLeft size={14} aria-hidden />
+                  Back to {fromProjectName || 'Project'}
+                </Link>
+              </div>
+            </div>
+          )}
 
           {/* Mobile menu — all links + sign out */}
           {menuOpen && (
