@@ -354,44 +354,77 @@ async function gscSeries(token, site, startDate, endDate, body = {}) {
 }
 
 // ── GA4: agency gscIntegration Lambda (ga4RunReport) ──────────────────────────
+// The "Break down by" dimension → the GA4 API dimension name.
+const GA4_DIMS = {
+  channel: 'sessionDefaultChannelGroup', page: 'pagePath', 'page title': 'pageTitle',
+  'landing page': 'landingPage', 'source / medium': 'sessionSourceMedium', campaign: 'sessionCampaignName',
+  country: 'country', city: 'city', device: 'deviceCategory', browser: 'browser',
+  'operating system': 'operatingSystem', 'event name': 'eventName', date: 'date',
+};
+function ga4Dim(body) { return GA4_DIMS[String(body.dimension || '').toLowerCase()] || 'sessionDefaultChannelGroup'; }
+// Optional extra metrics the user can add on top of the always-present core 4.
+const GA4_METRICS = {
+  'new users': 'newUsers', 'active users': 'activeUsers', 'engagement rate': 'engagementRate',
+  'avg session duration': 'averageSessionDuration', 'bounce rate': 'bounceRate', views: 'screenPageViews',
+  'event count': 'eventCount', 'total revenue': 'totalRevenue', 'add to carts': 'addToCarts', purchases: 'ecommercePurchases',
+};
+// Core 4 (drive the stat cards + deltas) always lead; user-selected extras follow.
+function ga4MetricList(body) {
+  const core = [['Sessions', 'sessions'], ['Users', 'totalUsers'], ['Engaged sessions', 'engagedSessions'], ['Conversions', 'conversions']];
+  const chosen = (Array.isArray(body.metrics) ? body.metrics : String(body.metrics || '').split(',')).map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const seen = new Set(core.map(([, n]) => n));
+  const extra = [];
+  for (const label of chosen) {
+    const name = GA4_METRICS[label];
+    if (name && !seen.has(name)) { seen.add(name); extra.push([label.replace(/\b\w/g, (c) => c.toUpperCase()), name]); }
+  }
+  return [...core, ...extra];
+}
+
 async function liveGa4(conn, body) {
   const token = await accessTokenFor(conn);
   const propertyId = (body.input || conn.account || '').replace(/^properties\//, '').trim();
   if (!propertyId) throw new Error('no property');
-  const dimName = body.dimension === 'page' ? 'pagePath' : body.dimension === 'country' ? 'country' : body.dimension === 'device' ? 'deviceCategory' : 'sessionDefaultChannelGroup';
+  const dimName = ga4Dim(body);
   const { startDate, endDate } = dayRange(body.range, body.startDate, body.endDate);
-  const main = await ga4Breakdown(token, propertyId, dimName, body.dimension, startDate, endDate);
+  const main = await ga4Breakdown(token, propertyId, dimName, body.dimension, startDate, endDate, body);
   const series = await ga4Series(token, propertyId, startDate, endDate).catch((e) => { console.warn('ga4_series_failed', e.message); return []; });
   const deltas = await ga4Deltas(token, propertyId, dimName, body, main.raw).catch((e) => { console.warn('ga4_compare_failed', e.message); return null; });
   return { rows: main.rows, series, deltas, summary: main.raw };
 }
 
-async function ga4Breakdown(token, propertyId, dimName, dimKey, startDate, endDate) {
+async function ga4Breakdown(token, propertyId, dimName, dimKey, startDate, endDate, body = {}) {
+  const metricList = ga4MetricList(body);
   const data = await postJson(UPSTREAMS.gscIntegration, {
     action: 'ga4RunReport', propertyId, access_token: token,
     payload: {
       dateRanges: [{ startDate, endDate }],
       dimensions: [{ name: dimName }],
-      metrics: [{ name: 'sessions' }, { name: 'totalUsers' }, { name: 'engagedSessions' }, { name: 'conversions' }],
+      metrics: metricList.map(([, name]) => ({ name })),
       limit: 25,
     },
   });
-  const rows = (data.rows || []).map((r) => ({
-    [dimKey || 'channel']: r.dimensionValues?.[0]?.value ?? '—',
-    sessions: Number(r.metricValues?.[0]?.value || 0),
-    users: Number(r.metricValues?.[1]?.value || 0),
-    engagedSessions: Number(r.metricValues?.[2]?.value || 0),
-    conversions: Number(r.metricValues?.[3]?.value || 0),
-  }));
-  const sum = (k) => rows.reduce((a, r) => a + (r[k] || 0), 0);
-  return { rows, raw: { sessions: sum('sessions'), users: sum('users'), engagedSessions: sum('engagedSessions'), conversions: sum('conversions') } };
+  const rows = (data.rows || []).map((r) => {
+    const row = { [dimKey || 'channel']: r.dimensionValues?.[0]?.value ?? '—' };
+    metricList.forEach(([label], i) => { row[label] = Number(r.metricValues?.[i]?.value || 0); });
+    return row;
+  });
+  // Core metrics are always the first 4 columns → drive the stat cards + deltas.
+  const raw = { sessions: 0, users: 0, engagedSessions: 0, conversions: 0 };
+  for (const r of (data.rows || [])) {
+    raw.sessions += Number(r.metricValues?.[0]?.value || 0);
+    raw.users += Number(r.metricValues?.[1]?.value || 0);
+    raw.engagedSessions += Number(r.metricValues?.[2]?.value || 0);
+    raw.conversions += Number(r.metricValues?.[3]?.value || 0);
+  }
+  return { rows, raw };
 }
 
 async function ga4Deltas(token, propertyId, dimName, body, cur) {
   const code = compareCode(body.compare);
   if (code === 'none') return null;
   const { startDate, endDate } = comparisonRange(body.range, code, body.startDate, body.endDate);
-  const prev = (await ga4Breakdown(token, propertyId, dimName, body.dimension, startDate, endDate)).raw;
+  const prev = (await ga4Breakdown(token, propertyId, dimName, body.dimension, startDate, endDate, body)).raw;
   return { sessions: pctChange(cur.sessions, prev.sessions), users: pctChange(cur.users, prev.users), engagedSessions: pctChange(cur.engagedSessions, prev.engagedSessions), conversions: pctChange(cur.conversions, prev.conversions) };
 }
 
@@ -423,6 +456,12 @@ async function liveAds(conn, body) {
   const token = await accessTokenFor(conn);
   const customerId = String(body.input || conn.account || '').replace(/[^0-9]/g, '');
   if (!customerId) throw new Error('no customer id');
+  // Advanced: run a raw GAQL query verbatim (read-only) and return flat rows.
+  if (String(body.gaql || '').trim()) {
+    const results = await adsGaql(body.gaql.trim(), customerId, token);
+    const rows = results.map((r) => flattenGaql(r));
+    return { rows, series: [], deltas: null, summary: {}, gaql: true };
+  }
   const { startDate, endDate } = dayRange(body.range, body.startDate, body.endDate);
   const main = await adsBreakdown(customerId, startDate, endDate, token, body);
   const series = await adsSeries(customerId, startDate, endDate, token).catch((e) => { console.warn('ads_series_failed', e.message); return []; });
@@ -441,6 +480,17 @@ async function adsGaql(query, customerId, token) {
   });
   if (data && !Array.isArray(data) && data.error) throw new Error(typeof data.error === 'object' ? JSON.stringify(data.error) : String(data.error));
   return Array.isArray(data?.results) ? data.results : (Array.isArray(data) ? data.flatMap((c) => c.results || []) : []);
+}
+
+// Flatten a nested GAQL result row ({campaign:{name}, metrics:{clicks}}) into
+// dotted-key columns ({'campaign.name':…, 'metrics.clicks':…}) for a flat table.
+function flattenGaql(obj, prefix = '', out = {}) {
+  for (const [k, v] of Object.entries(obj || {})) {
+    const key = prefix ? `${prefix}.${k}` : k;
+    if (v && typeof v === 'object' && !Array.isArray(v)) flattenGaql(v, key, out);
+    else out[key] = Array.isArray(v) ? v.join(', ') : v;
+  }
+  return out;
 }
 
 // Google Ads drill-down level → the GAQL resource + name field for each row.

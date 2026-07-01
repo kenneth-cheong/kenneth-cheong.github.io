@@ -663,7 +663,8 @@ export const INPUTS = {
     { name: 'range', label: 'Date range', type: 'select', options: ['Last 7 days', 'Last 28 days', 'Last 3 months', 'Custom'], default: 'Last 28 days' },
     { name: 'startDate', label: 'Start date', type: 'date', required: true, showWhen: { field: 'range', in: ['Custom'] } },
     { name: 'endDate', label: 'End date', type: 'date', required: true, showWhen: { field: 'range', in: ['Custom'] } },
-    { name: 'dimension', label: 'Break down by', type: 'select', options: ['channel', 'page', 'country', 'device'], default: 'channel' },
+    { name: 'dimension', label: 'Break down by', type: 'select', options: ['channel', 'page', 'page title', 'landing page', 'source / medium', 'campaign', 'country', 'city', 'device', 'browser', 'operating system', 'event name', 'date'], default: 'channel' },
+    { name: 'metrics', label: 'Extra metrics (Sessions, Users, Engaged, Conversions always shown)', type: 'multiselect', options: ['New users', 'Active users', 'Engagement rate', 'Avg session duration', 'Bounce rate', 'Views', 'Event count', 'Total revenue', 'Add to carts', 'Purchases'] },
     { name: 'compare', label: 'Compare to', type: 'select', options: ['None', 'Previous period', 'Previous year'], default: 'None' },
   ],
   'google-ads': [
@@ -673,6 +674,7 @@ export const INPUTS = {
     { name: 'startDate', label: 'Start date', type: 'date', required: true, showWhen: { field: 'range', in: ['Custom'] } },
     { name: 'endDate', label: 'End date', type: 'date', required: true, showWhen: { field: 'range', in: ['Custom'] } },
     { name: 'compare', label: 'Compare to', type: 'select', options: ['None', 'Previous period', 'Previous year'], default: 'None' },
+    { name: 'gaql', label: 'Advanced: custom GAQL query (optional — overrides the above)', type: 'textarea', placeholder: "SELECT campaign.name, metrics.clicks FROM campaign WHERE segments.date DURING LAST_30_DAYS" },
   ],
   'meta-ads': [
     { name: 'input', label: 'Ad account', type: 'account', placeholder: 'e.g. act_1234567890', required: true },

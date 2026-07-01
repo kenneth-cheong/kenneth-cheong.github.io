@@ -2226,6 +2226,10 @@ async function integrationsRun(tool, body) {
   if (!live?.rows) {
     return { needsConnect: tool.integration, text: `We couldn’t pull live ${tool.name} data — reconnect your account under Integrations to continue.` };
   }
+  // Advanced GAQL: raw query results, shown as a plain flat table (no dashboard).
+  if (live.gaql) {
+    return { rows: live.rows, sections: [{ type: 'callout', text: `Custom GAQL query — ${live.rows.length} row${live.rows.length === 1 ? '' : 's'} returned.` }] };
+  }
   // Summary cards + trend chart render above the (sortable) breakdown table -
   // the dashboard layout index.html uses, not a bare table.
   const out = {
@@ -2331,6 +2335,13 @@ function integrationSections(provider, summary, series, deltas, compareRaw, live
     const accent = provider === 'meta-ads' ? '#1877f2' : '#0a66c2';
     sections.push({ type: 'stats', items: [stat('Spend', summary.cost, d.spend, 'neutral'), stat('Clicks', num(summary.clicks), d.clicks), stat('Conversions', num(summary.conversions), d.conversions), stat('CPA', summary.cpa, d.cpa, 'down')] });
     pushTrend(sections, 'Spend & clicks over time', series, [{ key: 'spend', label: 'Spend', color: accent }, { key: 'clicks', label: 'Clicks', color: '#f59e0b' }]);
+    // Awareness → action funnel (renders as descending proportional bars).
+    if (live.funnel) {
+      const f = live.funnel;
+      sections.push({ type: 'list', title: 'Funnel — impressions → reach → clicks → results', items: [
+        `Impressions: ${num(f.impressions)}`, `Reach: ${num(f.reach)}`, `Clicks: ${num(f.clicks)}`, `Results: ${num(f.results)}`,
+      ] });
+    }
   }
   if (deltas) {
     const lbl = /year/i.test(String(compareRaw || '')) ? 'the same period last year' : 'the previous period';

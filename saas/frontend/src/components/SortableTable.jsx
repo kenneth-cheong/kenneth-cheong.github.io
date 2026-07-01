@@ -74,6 +74,8 @@ export default function SortableTable({
   className = '',
   onRowClick, // optional: makes each row clickable
   stickyFirstCol = false, // opt-in: horizontal scroll with a pinned first column
+  filterable = false, // opt-in: a search box that filters rows across all columns
+  exportName, // opt-in: when set, a CSV download button (filename base) appears
 }) {
   const cols = useMemo(() => {
     const base = columns || Object.keys(rows[0] || {}).map((k) => ({ key: k }));
@@ -84,6 +86,7 @@ export default function SortableTable({
   }, [columns, rows]);
 
   const [sort, setSort] = useState({ key: null, dir: 1 });
+  const [q, setQ] = useState('');
   const accessorOf = (c) => c.accessor || ((row) => row[c.key]);
 
   const isNumeric = (c) => {
@@ -96,28 +99,59 @@ export default function SortableTable({
     });
   };
 
+  // Filter (across every column's displayed value) then sort.
+  const filtered = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (!t) return rows;
+    return rows.filter((r) => cols.some((c) => String(accessorOf(c)(r) ?? '').toLowerCase().includes(t)));
+  }, [rows, q, cols]);
+
   const sorted = useMemo(() => {
-    if (!sort.key) return rows;
+    if (!sort.key) return filtered;
     const col = cols.find((c) => c.key === sort.key);
-    if (!col) return rows;
+    if (!col) return filtered;
     const get = accessorOf(col);
     const num = isNumeric(col);
-    return [...rows].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       const av = get(a), bv = get(b);
       const cmp = num
         ? (toNum(av) || 0) - (toNum(bv) || 0)
         : String(av ?? '').localeCompare(String(bv ?? ''));
       return cmp * sort.dir;
     });
-  }, [rows, sort, cols]);
+  }, [filtered, sort, cols]);
 
   const onSort = (c) => {
     if (c.sortable === false) return;
     setSort((s) => ({ key: c.key, dir: s.key === c.key ? -s.dir : 1 }));
   };
 
+  // Export the CURRENTLY VISIBLE rows (filtered + sorted) to CSV.
+  const exportCsv = () => {
+    const esc = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const csv = [cols.map((c) => esc(c.label)).join(','), ...sorted.map((r) => cols.map((c) => esc(accessorOf(c)(r))).join(','))].join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = `${String(exportName || 'table').replace(/[^\w.-]+/g, '_').slice(0, 60)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div className="overflow-auto rounded-xl border border-slate-200" style={{ maxHeight }}>
+    <>
+      {(filterable || exportName) && (
+        <div className="mb-2 flex items-center gap-2">
+          {filterable && (
+            <input
+              value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter rows…"
+              className="w-full max-w-xs rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
+            />
+          )}
+          {filterable && q && <span className="text-xs text-slate-400 tabular-nums">{sorted.length.toLocaleString()} match{sorted.length === 1 ? '' : 'es'}</span>}
+          {exportName && <button onClick={exportCsv} className="ml-auto rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-brand-300 hover:text-brand-600">CSV</button>}
+        </div>
+      )}
+      <div className="overflow-auto rounded-xl border border-slate-200" style={{ maxHeight }}>
       <table className={`${stickyFirstCol ? 'min-w-full' : 'w-full'} text-left text-sm ${className}`}>
         <thead>
           <tr>
@@ -158,6 +192,7 @@ export default function SortableTable({
           ))}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   );
 }

@@ -279,12 +279,12 @@ function TableSection({ s }) {
           {n.toLocaleString()} {n === 1 ? 'row' : 'rows'}
         </span>
       </div>
-      <Table columns={s.columns} rows={rows} />
+      <Table columns={s.columns} rows={rows} exportName={s.title || 'table'} />
     </div>
   );
 }
 
-function Table({ columns, rows }) {
+function Table({ columns, rows, exportName }) {
   const cols = columns.map((c) => ({ key: c, label: c, render: (r) => String(r[c] ?? '—') }));
-  return <SortableTable columns={cols} rows={rows} />;
+  return <SortableTable columns={cols} rows={rows} filterable={rows.length > 8} exportName={exportName} />;
 }

@@ -182,6 +182,18 @@ async function insightsSeries(account, token, since, until) {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+// Account-level totals for the awareness→action funnel (impressions → reach →
+// clicks → results). Reach isn't additive across campaigns, so pull it at the
+// account level rather than summing rows.
+async function insightsFunnel(account, token, since, until) {
+  const data = await getJson(`${GRAPH}/${account}/insights`, {
+    access_token: token, level: 'account', fields: 'impressions,reach,clicks,actions',
+    time_range: JSON.stringify({ since, until }), limit: '1',
+  });
+  const r = (data.data || [])[0] || {};
+  return { impressions: Number(r.impressions || 0), reach: Number(r.reach || 0), clicks: Number(r.clicks || 0), results: conversionsFrom(r.actions) };
+}
+
 async function insightsDeltas(account, token, body, cur) {
   const code = compareCode(body.compare);
   if (code === 'none') return null;
@@ -203,8 +215,9 @@ export async function fetchIntegration(_provider, conn, body) {
     const main = await insightsBreakdown(account, token, since, until, body);
     const series = await insightsSeries(account, token, since, until).catch((e) => { console.warn('meta_series_failed', e.message); return []; });
     const deltas = await insightsDeltas(account, token, body, main.raw).catch((e) => { console.warn('meta_compare_failed', e.message); return null; });
+    const funnel = await insightsFunnel(account, token, since, until).catch((e) => { console.warn('meta_funnel_failed', e.message); return null; });
     const { spend, clicks, conversions } = main.raw;
-    return { rows: main.rows, series, deltas, summary: { cost: money(spend), clicks, conversions, cpa: conversions ? money(spend / conversions) : '—' }, source: 'live' };
+    return { rows: main.rows, series, deltas, funnel, summary: { cost: money(spend), clicks, conversions, cpa: conversions ? money(spend / conversions) : '—' }, source: 'live' };
   } catch (e) {
     console.warn('meta_live_fetch_failed', e.message);
     return null;

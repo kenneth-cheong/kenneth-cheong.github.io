@@ -422,13 +422,32 @@ function ResultTable({ rows }) {
           {n.toLocaleString()} {n === 1 ? 'row' : 'rows'}
         </span>
       </div>
-      <SortableTable columns={columns} rows={rows} />
+      <SortableTable columns={columns} rows={rows} filterable={rows.length > 8} />
     </div>
   );
 }
 
 const TONE = { red: 'bg-red-100 text-red-700', amber: 'bg-amber-100 text-amber-700', green: 'bg-green-100 text-green-700', blue: 'bg-blue-100 text-blue-700', slate: 'bg-slate-100 text-slate-600' };
 function Badge({ t, tone }) { return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TONE[tone] || TONE.slate}`}>{t}</span>; }
+
+// Toggle-chip multi-select; value is a comma-joined string (backend splits it).
+function MultiSelect({ options, value, onChange }) {
+  const sel = String(value || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const toggle = (o) => onChange((sel.includes(o) ? sel.filter((x) => x !== o) : [...sel, o]).join(','));
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1.5">
+      {options.map((o) => {
+        const on = sel.includes(o);
+        return (
+          <button type="button" key={o} onClick={() => toggle(o)}
+            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${on ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-300 text-slate-600 hover:border-brand-300'}`}>
+            {o}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 // Caption Generator returns "━━━ Variation N ━━━\n<caption>" blocks as plain
 // text. Render each as its own copyable card instead of one monospace blob.
@@ -740,6 +759,8 @@ function Field({ field, value, onChange, autoFocus, provider }) {
         </>
       ) : field.type === 'date' ? (
         <input autoFocus={autoFocus} type="date" value={value || ''} max={field.max || '9999-12-31'} onChange={(e) => onChange(e.target.value)} className={base} />
+      ) : field.type === 'multiselect' ? (
+        <MultiSelect options={field.options} value={value} onChange={onChange} />
       ) : field.type === 'textarea' ? (
         <textarea autoFocus={autoFocus} rows={3} value={value} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} className={base} />
       ) : field.type === 'select' ? (
