@@ -29,8 +29,10 @@ export function verify(token) {
 
 // Short-lived signed state for the Google OAuth round-trip (ties the public
 // callback back to the user who started it).
-export function signOAuthState(userId, provider) {
-  return jwt.sign({ sub: userId, provider, typ: 'oauth' }, SECRET, { expiresIn: '15m', issuer: 'digimetrics-saas' });
+// `single: true` scopes the consent to just this one source (a per-source
+// "different account" re-auth); otherwise the callback connects the whole family.
+export function signOAuthState(userId, provider, single = false) {
+  return jwt.sign({ sub: userId, provider, single: !!single, typ: 'oauth' }, SECRET, { expiresIn: '15m', issuer: 'digimetrics-saas' });
 }
 export function verifyOAuthState(token) {
   const t = jwt.verify(token, SECRET, { issuer: 'digimetrics-saas' });

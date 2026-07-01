@@ -243,7 +243,9 @@ export const api = {
   // Integrations (Google OAuth)
   integrations: () => call('/integrations'),
   integrationAccounts: (provider) => call(`/integrations/accounts?provider=${encodeURIComponent(provider)}`),
-  authorizeIntegration: (provider) => call(`/integrations/authorize?provider=${encodeURIComponent(provider)}`),
+  // single:true → auth a different account for just this source (not the whole family).
+  authorizeIntegration: (provider, { single = false } = {}) =>
+    call(`/integrations/authorize?provider=${encodeURIComponent(provider)}${single ? '&single=1' : ''}`),
   connectIntegration: (provider, account, connected = true) =>
     call('/integrations/connect', { method: 'POST', body: { provider, account, connected } }),
   // Per-source disconnect: clears this source's chosen account but keeps the shared family sign-in.

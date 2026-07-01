@@ -68,6 +68,18 @@ export default function Integrations() {
     try { await Promise.all(fam.sources.map((p) => api.connectIntegration(p.id, '', false))); await load(); }
     finally { setBusy(''); }
   }
+  // Per-source connect: auth a *different* account for just this source (e.g.
+  // the client's Google account for Search Console, the agency's for Ads).
+  async function connectSource(p) {
+    setBusy(p.id);
+    try {
+      const { url } = await api.authorizeIntegration(p.id, { single: true });
+      window.location.href = url;
+    } catch (e) {
+      setBusy('');
+      alert(e.message || 'Could not start sign-in.');
+    }
+  }
   // Per-source disconnect: clears just this tool's selected account, keeping the
   // shared family sign-in so the user can re-pick without re-consenting.
   async function disconnectSource(fam, p) {
@@ -131,8 +143,13 @@ export default function Integrations() {
                           ? <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700"><Check size={12} aria-hidden /> Active</span>
                           : <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Pick an account</span>}
                         <Link to={`/tool/${TOOL_FOR[p.id]}`} className="btn-ghost px-3 py-1.5 text-sm">Open tool</Link>
+                        {/* Only families with >1 source (Google) benefit from a per-source login;
+                            for single-source families the family Reconnect already covers it. */}
+                        {fam.sources.length > 1 && (
+                          <button onClick={() => connectSource(p)} disabled={busy === p.id} className="text-sm text-slate-500 hover:text-brand-600">{busy === p.id ? '…' : 'Different account'}</button>
+                        )}
                         {connected[p.id]?.account && (
-                          <button onClick={() => disconnectSource(fam, p)} disabled={busy === p.id} className="text-sm text-slate-500 hover:text-red-600">{busy === p.id ? '…' : 'Disconnect'}</button>
+                          <button onClick={() => disconnectSource(fam, p)} disabled={busy === p.id} className="text-sm text-slate-500 hover:text-red-600">Disconnect</button>
                         )}
                       </div>
                       <PullHealth pull={lastPull[p.id]} />

@@ -3615,7 +3615,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2370</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2371</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -10480,7 +10480,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             4. list_messages: Read recent messages from a specific Google Chat space.
             5. list_messages_standard: Read messages using the standard API (use this if list_messages fails).
             6. search_messages: Search for keywords across ALL your Google Chat messages.
-            7. search_messages_standard: PRIMARY Google Chat tool. It first runs a KEYWORD search across all messages, then falls back to matching a SPACE by name — so use it whether the user gives a space name (e.g., "1-company-announcements") OR a brand/domain/topic ("Livera Group", "revergoods"). If it returns a "closest_spaces" list, the query didn't match a space: show those ≤5 names and ask the user which one they mean.
+            7. search_messages_standard: Google Chat tool for spaces that are NOT already preloaded. FIRST check the "GOOGLE CHAT SPACES (PRELOADED)" block / chat_messages in SYNCED CONTEXT — if the user's space or topic belongs to a preloaded space, answer directly from those messages and DO NOT call this tool. Only use it for spaces that weren't loaded: it first runs a KEYWORD search across all messages, then falls back to matching a SPACE by name — so use it whether the user gives a space name (e.g., "1-company-announcements") OR a brand/domain/topic ("Livera Group", "revergoods"). If it returns a "closest_spaces" list, the query didn't match a space: show those ≤5 names and ask the user which one they mean.
             8. send_message: Post a new message to a Google Chat space.
             9. list_mcp_tools: List all available Google Chat tools (debug utility).
             10. get_gsc_performance: For Google Search Console (clicks, impressions).
@@ -10733,7 +10733,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
 
             GRACEFUL ERROR HANDLING:
             - Ahrefs: if get_ahrefs_report returns {"error":"Not found"} (or similar), do NOT crash or fabricate — reply with a graceful message like "That domain isn't indexed in Ahrefs yet." and offer an alternative.
-            - Google Chat: use search_messages_standard for everything (it keyword-searches first, then matches a space by name). When it returns a "closest_spaces" array, your query didn't match a space — present those ≤5 names and ask the user which one they mean, then call list_messages_standard with that exact space name. NEVER paste a long space list into the chat, and don't report outright failure before offering those suggestions.
+            - Google Chat: if the space is already in SYNCED CONTEXT under "chat_messages" (see the "GOOGLE CHAT SPACES (PRELOADED)" block), answer directly from those messages — do NOT call any search tool. Only for spaces that were NOT preloaded, use search_messages_standard (it keyword-searches first, then matches a space by name). When it returns a "closest_spaces" array, your query didn't match a space — present those ≤5 names and ask the user which one they mean, then call list_messages_standard with that exact space name. NEVER paste a long space list into the chat, and don't report outright failure before offering those suggestions.
 
             DATA FORMAT RULE:
             - Visibility / SOV / mention-rate scores from Digimetrics & WorkDuo APIs are 0–1 decimals. ALWAYS multiply × 100 before rendering them in any chart, table, or sentence as a percentage.
@@ -10864,6 +10864,22 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 }
 
                 if (contextObj) {
+                    // Compact Google Chat: collapse each {sender,text,timestamp,thread} object into a
+                    // single "YYYY-MM-DD HH:MM · Sender: text" line. This drops repeated JSON keys and
+                    // the long thread resource name (~3x smaller), so a busy space (hundreds of
+                    // messages) survives the 60k context cap instead of being hard-truncated. Timestamp
+                    // is kept (minute precision) so timeline questions still work.
+                    if (Array.isArray(contextObj.chat_messages)) {
+                        contextObj.chat_messages.forEach(sp => {
+                            if (Array.isArray(sp.messages)) {
+                                sp.messages = sp.messages.map(m => {
+                                    const ts = (m.timestamp || '').replace('T', ' ').slice(0, 16);
+                                    return `${ts} · ${m.sender || 'Unknown'}: ${m.text || ''}`.trim();
+                                });
+                            }
+                        });
+                    }
+
                     const hasBoardSelection = contextObj.selected_campaign_boards && contextObj.selected_campaign_boards.length > 0;
                     const totalItems = (contextObj.campaigns ? contextObj.campaigns.length : 0) +
                         (contextObj.selected_campaign_boards ? contextObj.selected_campaign_boards.reduce((acc, b) => acc + (b.items ? b.items.length : 0), 0) : 0);
@@ -10928,6 +10944,15 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 if (contextObj && Array.isArray(contextObj.drive_documents) && contextObj.drive_documents.length > 0) {
                     const driveFolders = [...new Set(contextObj.drive_documents.map(d => d.folder))];
                     dynamicContext += `\n\n=== GOOGLE DRIVE DOCUMENTS ===\nThe user selected ${driveFolders.length} Drive folder(s) (${driveFolders.join(', ')}) containing ${contextObj.drive_documents.length} document(s). Their extracted text is in SYNCED CONTEXT under "drive_documents" (fields: folder, file, type, content). Use this content directly to answer questions about the user's Drive files.\n=== END GOOGLE DRIVE DOCUMENTS ===`;
+                }
+
+                // Surface preloaded Google Chat spaces explicitly so the model answers from them
+                // directly instead of firing search_messages_standard (which fuzzy-matches by space
+                // name and returns a "closest_spaces" list when the query is a topic, not a name).
+                if (contextObj && Array.isArray(contextObj.chat_messages) && contextObj.chat_messages.length > 0) {
+                    const chatSpaceNames = contextObj.chat_messages.map(c => c.space_name || c.space_id).filter(Boolean);
+                    const chatMsgTotal = contextObj.chat_messages.reduce((acc, c) => acc + (Array.isArray(c.messages) ? c.messages.length : 0), 0);
+                    dynamicContext += `\n\n=== GOOGLE CHAT SPACES (PRELOADED) ===\nThe user has already loaded ${chatSpaceNames.length} Google Chat space(s): ${chatSpaceNames.join(', ')} (${chatMsgTotal} message(s) total). Their full message history is in SYNCED CONTEXT under "chat_messages" (fields: space_name, space_id, messages). When the user refers to "the space I selected", or names/topics that belong to a preloaded space, ANSWER DIRECTLY from these messages. Do NOT call search_messages_standard for a space that is already listed here.\n=== END GOOGLE CHAT SPACES ===`;
                 }
 
                 dynamicContext += `\n\nSYNCED CONTEXT:\n${contextStr}`;
@@ -11328,7 +11353,8 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     if (msgs.length) msgs[msgs.length - 1].remove();
                     chatHistory.pop();
                 } else {
-                    console.error("Claude Error:", error);
+                    const _provLabel = getLlmProvider() === 'deepseek' ? 'DeepSeek' : 'Claude';
+                    console.error(`${_provLabel} Error:`, error);
                     const isTooLong = /too long|token.*limit|context.*limit|maximum.*token/i.test(error.message);
                     if (isTooLong) {
                         const _eSys = system.length + dynamicContext.length;
@@ -11349,7 +11375,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                         </div>`;
                         document.getElementById('messageList').appendChild(errEl);
                     } else {
-                        addMessage("bot", `Claude Error: ${error.message}`);
+                        addMessage("bot", `${_provLabel} Error: ${error.message}`);
                     }
                 }
             } finally {

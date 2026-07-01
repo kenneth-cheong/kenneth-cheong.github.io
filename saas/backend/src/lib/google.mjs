@@ -48,7 +48,9 @@ export function authUrl(provider, state, redirect = REDIRECT) {
     scope: GOOGLE_SCOPES,
     access_type: 'offline',
     include_granted_scopes: 'true',
-    prompt: 'consent',
+    // select_account shows Google's account chooser so a user can connect a
+    // different Google account per source (e.g. client's GSC, agency's Ads).
+    prompt: 'select_account consent',
     state,
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;

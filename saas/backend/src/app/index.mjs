@@ -543,9 +543,11 @@ export const handler = async (event) => {
     }
     if (method === 'GET' && path.endsWith('/integrations/authorize')) {
       const provider = (event.queryStringParameters || {}).provider;
+      // single=1 → connect a different account for just this source, not the whole family.
+      const single = (event.queryStringParameters || {}).single === '1';
       if (!INTEGRATIONS.some((p) => p.id === provider)) return badRequest('Unknown provider.');
       if (!connectorConfigured(provider)) return badRequest('This integration is not configured on this deployment.');
-      return ok({ url: authorizeUrl(provider, signOAuthState(user.userId, provider), oauthRedirectUri(event)) });
+      return ok({ url: authorizeUrl(provider, signOAuthState(user.userId, provider, single), oauthRedirectUri(event)) });
     }
     if (method === 'POST' && path.endsWith('/integrations/connect')) {
       // Used for disconnect, per-source account-clear, or to set/override the account id for a provider.
@@ -579,13 +581,16 @@ async function oauthCallback(event) {
     if (tok.expires_in) tokens.expiresAt = Date.now() + Number(tok.expires_in) * 1000;
     if (tok.scope) tokens.scope = tok.scope;
 
-    // One consent connects every source in the provider's family (Google's
-    // sign-in grants GSC + GA4 + Ads; Meta / LinkedIn have a single source).
+    // By default one consent connects every source in the provider's family
+    // (Google's sign-in grants GSC + GA4 + Ads). A `single` state scopes it to
+    // just the one source, so a user can auth a different Google account per tool.
+    const targets = st.single ? [provider] : providersInFamilyOf(provider);
     // Preserve any account the user already picked; only auto-pick a default for
-    // a source that doesn't have one yet, so sources can point at different accounts.
+    // a source that doesn't have one yet. For a single-source re-auth we clear it
+    // first — the old account id may belong to the previously-signed-in account.
     const existing = (await getUser(st.sub))?.integrations || {};
-    for (const pid of providersInFamilyOf(provider)) {
-      let account = existing[pid]?.account || '';
+    for (const pid of targets) {
+      let account = st.single ? '' : (existing[pid]?.account || '');
       if (!account && tok.access_token) account = await detectAccountFor(pid, tok.access_token);
       await setIntegration({ userId: st.sub, provider: pid, account, connected: true, tokens });
     }
