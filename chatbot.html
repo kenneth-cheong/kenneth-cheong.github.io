@@ -3615,7 +3615,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2373</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2374</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -5501,6 +5501,17 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             // Clear all synced context — fresh conversations start with no board data.
             // User can click Load Data again to re-sync (uses 30-min cache so it's fast).
             localStorage.removeItem('syncedContext');
+
+            // Clear the focus selection so a new chat starts with nothing in focus
+            // (campaign boards, items, Chat spaces, Drive folders, and SE Ranking campaigns).
+            ['msBoardDropdown', 'msItemDropdown', 'msChatSpaceDropdown', 'msGDriveFolderDropdown'].forEach(id => {
+                if (msState[id] && document.getElementById(id)) {
+                    try { msUnselectAll(id); } catch (e) { msState[id].selected = []; }
+                }
+            });
+            if (window.selectedSERankingSites) window.selectedSERankingSites = [];
+            localStorage.removeItem('selectedSERankingSiteIds');
+            if (typeof renderSERankingSites === 'function') renderSERankingSites();
 
             // Rebuild the welcome message so a fresh conversation opens with a live
             // snapshot of the connected integrations (instead of a blank screen).
