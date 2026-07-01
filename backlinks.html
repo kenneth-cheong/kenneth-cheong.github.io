@@ -3125,7 +3125,7 @@
             }
             if (!confirm(`Are you sure you want to permanently delete ${ids.length} selected records?`)) return;
 
-            const body = document.getElementById('ordersBody');
+            const body = document.getElementById('ordersContainer');
             let deleted = 0;
             const deleteProgress = (d) => renderBulkProgress(d, ids.length, { verb: 'Deleting', icon: 'fa-trash-alt' });
             if (body) body.innerHTML = deleteProgress(0);
@@ -3718,7 +3718,7 @@
             return r;
         }
 
-        async function validateBacklink(id) {
+        async function validateBacklink(id, opts = {}) {
             const b = state.backlinks.find(x => x.id === id);
             if (!b || !b.deliveredUrl) return;
 
@@ -3733,6 +3733,7 @@
                 const statusCell = row.querySelector('.val-status-cell');
                 if (statusCell) statusCell.innerHTML = `<span style="font-size:0.7rem; color:var(--primary-light);"><i class="fas fa-spinner fa-spin"></i> Validating…</span>`;
             }
+            let succeeded = false;
             try {
                 const [ssl, metrics, html, ahrefs, pageMetrics] = await Promise.all([
                     fetchSsl(b.deliveredUrl).catch(() => false),
@@ -3759,14 +3760,16 @@
                     validationResults: validationResults,
                     validationPassed: validationPassed,
                     lastValidatedAt: new Date().toISOString(),
-                    status: 'Validated',
+                    // Don't let re-validation demote a terminal approval decision (§13).
+                    status: (b.status === 'Approved' || b.status === 'Rejected') ? b.status : 'Validated',
                     ssl: ssl
                 };
 
                 const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', update, true);
                 if (result && result.success) {
                     Object.assign(b, update);
-                    renderOrders();
+                    succeeded = true;
+                    if (!opts.silentRender) renderOrders();
                 }
                 return update;
             } catch (err) {
@@ -3774,7 +3777,9 @@
             } finally {
                 const btnAfter = document.getElementById('validate-' + id);
                 if (btnAfter) { btnAfter.disabled = false; btnAfter.innerHTML = '<i class="fas fa-search"></i>'; }
-                // Restore the row if it wasn't re-rendered (e.g. validation failed).
+                // Restore the row if it wasn't re-rendered (e.g. validation failed) — clears
+                // the stale "Validating…" cell. Skipped during bulk (caller re-renders once).
+                if (!succeeded && !opts.silentRender) renderOrders();
                 const rowAfter = document.getElementById('row-' + id);
                 if (rowAfter) rowAfter.style.opacity = '';
             }
@@ -4242,7 +4247,7 @@
             const label = done < total
                 ? `${verb || 'Processing'} ${done} of ${total} ${noun}…`
                 : `Finishing up ${total} of ${total}…`;
-            return `<tr><td colspan="8" style="padding: 48px 40px;">
+            return `<div class="card" style="padding: 48px 40px;">
                 <div style="max-width: 420px; margin: 0 auto; text-align: center;">
                     <div style="font-size: 0.95rem; font-weight: 600; margin-bottom: 6px;">
                         <i class="fas ${icon || 'fa-spinner fa-spin'}" style="color: var(--primary-light); margin-right: 6px;"></i>${label}
@@ -4254,7 +4259,7 @@
                     </div>
                     <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 8px;">${pct}%</div>
                 </div>
-            </td></tr>`;
+            </div>`;
         }
 
         const renderValidationProgress = (done, total) => renderBulkProgress(done, total, {
@@ -4288,12 +4293,12 @@
                 : `Validate ${ids.length} selected backlinks?`;
             if (!confirm(confirmMsg)) return;
 
-            const body = document.getElementById('ordersBody');
+            const body = document.getElementById('ordersContainer');
             let validated = 0;
             if (body) body.innerHTML = renderValidationProgress(0, ids.length);
 
             for (const id of ids) {
-                await validateBacklink(id);
+                await validateBacklink(id, { silentRender: true });
                 validated++;
                 if (body) body.innerHTML = renderValidationProgress(validated, ids.length);
             }
@@ -4339,7 +4344,7 @@
             if (flagged.length > 0) msg += `\n\n⚠ ${flagged.length} of these have unresolved validation, toxicity, or cost issues that the SOP says should be resolved first.`;
             if (!confirm(msg)) return;
 
-            const body = document.getElementById('ordersBody');
+            const body = document.getElementById('ordersContainer');
             const approveProgress = (d) => renderBulkProgress(d, candidates.length, { verb: 'Approving', icon: 'fa-check' });
             if (body) body.innerHTML = approveProgress(0);
 
@@ -4383,6 +4388,7 @@
                 const statusCell = row.querySelector('.val-status-cell');
                 if (statusCell) statusCell.innerHTML = `<span style="font-size:0.7rem; color:var(--primary-light);"><i class="fas fa-spinner fa-spin"></i> Recording delivery…</span>`;
             }
+            let succeeded = false;
             try {
                 const [ssl, metrics, html] = await Promise.all([
                     fetchSsl(url),
@@ -4406,13 +4412,19 @@
                     // Update local state instead of re-fetching
                     const b = state.backlinks.find(x => x.id === id);
                     if (b) Object.assign(b, updateData);
+                    succeeded = true;
                     renderOrders();
                 } else {
                     alert('Failed to update backlink');
                 }
+            } catch (err) {
+                console.error('Deliver error:', err);
+                alert('Failed to record delivery.');
             } finally {
                 const btnAfter = document.getElementById('deliver-' + id);
                 if (btnAfter) { btnAfter.disabled = false; btnAfter.innerHTML = '<i class="fas fa-upload"></i>'; }
+                // Restore the row/cell if it wasn't re-rendered (clears the stale spinner cell).
+                if (!succeeded) renderOrders();
                 const rowAfter = document.getElementById('row-' + id);
                 if (rowAfter) rowAfter.style.opacity = '';
             }
