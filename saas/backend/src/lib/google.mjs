@@ -149,30 +149,94 @@ async function liveGsc(conn, body) {
   if (!site) throw new Error('no site');
   const dim = ['page', 'country', 'device'].includes(body.dimension) ? body.dimension : 'query';
   const { startDate, endDate } = dayRange(body.range, body.startDate, body.endDate);
-  const main = await gscBreakdown(token, site, dim, startDate, endDate);
+  const main = await gscBreakdown(token, site, dim, startDate, endDate, body);
   // Second pull: a day-by-day series for the trend chart (as index.html draws).
-  // Both the trend and the compare are best-effort — neither must sink the breakdown.
-  const series = await gscSeries(token, site, startDate, endDate).catch((e) => { console.warn('gsc_series_failed', e.message); return []; });
+  // All of these are best-effort — none must sink the breakdown.
+  const series = await gscSeries(token, site, startDate, endDate, body).catch((e) => { console.warn('gsc_series_failed', e.message); return []; });
   const deltas = await gscDeltas(token, site, dim, body, main.raw).catch((e) => { console.warn('gsc_compare_failed', e.message); return null; });
-  const striking = await gscStriking(token, site, startDate, endDate).catch((e) => { console.warn('gsc_striking_failed', e.message); return []; });
+  const insights = await gscQueryInsights(token, site, startDate, endDate, body).catch((e) => { console.warn('gsc_insights_failed', e.message); return { striking: [], lowCtr: [], brand: null }; });
+  const cannibalization = await gscCannibalization(token, site, startDate, endDate, body).catch((e) => { console.warn('gsc_cannibal_failed', e.message); return []; });
   const { clicks, impressions, ctr, position } = main.raw;
-  return { rows: main.rows, series, deltas, striking, summary: { clicks, impressions, ctr: pct(ctr), avgPosition: position ? position.toFixed(1) : '0' } };
+  return {
+    rows: main.rows, series, deltas,
+    striking: insights.striking, lowCtr: insights.lowCtr, brand: insights.brand, cannibalization,
+    summary: { clicks, impressions, ctr: pct(ctr), avgPosition: position ? position.toFixed(1) : '0' },
+  };
 }
 
-// Striking distance: queries ranking on page 2 (position ~11–20) where a small
-// push lands page 1. index.html's "Easy Wins" card.
-async function gscStriking(token, site, startDate, endDate) {
+// Search-type + device/country filters applied to every query in a GSC pull.
+function gscType(body) {
+  const t = String(body.searchType || 'web').toLowerCase();
+  return ['web', 'image', 'video', 'news', 'discover'].includes(t) ? t : 'web';
+}
+function gscFilterGroups(body) {
+  const filters = [];
+  const dev = String(body.device || '').toUpperCase();
+  if (['MOBILE', 'DESKTOP', 'TABLET'].includes(dev)) filters.push({ dimension: 'device', operator: 'equals', expression: dev });
+  const country = String(body.country || '').trim().toLowerCase();
+  if (/^[a-z]{3}$/.test(country)) filters.push({ dimension: 'country', operator: 'equals', expression: country });
+  return filters.length ? [{ filters }] : undefined;
+}
+// POST a searchAnalytics query with the pull's search-type + filters baked in.
+async function gscQuery(token, site, body, extra) {
+  const req = { type: gscType(body), ...extra };
+  const groups = gscFilterGroups(body);
+  if (groups) req.dimensionFilterGroups = groups;
   const res = await fetch(`https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`, {
     method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ startDate, endDate, dimensions: ['query'], rowLimit: 200 }),
+    body: JSON.stringify(req),
   });
-  if (!res.ok) throw new Error(`gsc-striking ${res.status}`);
-  const data = await res.json();
-  return (data.rows || [])
-    .filter((r) => (r.position ?? 0) > 10.5 && (r.position ?? 0) <= 20.5)
-    .sort((a, b) => (b.impressions || 0) - (a.impressions || 0))
-    .slice(0, 15)
-    .map((r) => ({ query: r.keys?.[0] ?? '—', clicks: r.clicks ?? 0, impressions: r.impressions ?? 0, ctr: pct(r.ctr ?? 0), position: (r.position ?? 0).toFixed(1) }));
+  if (!res.ok) throw new Error(`gsc ${res.status}`);
+  return res.json();
+}
+
+// One query-dimension pull → three of index.html's insight cards:
+//  • Striking distance: page-2 queries (pos 11–20) — a small push wins page 1.
+//  • Low CTR: page-1 queries pulling far below the page-1 average CTR (rewrite title/meta).
+//  • Brand split: branded vs non-branded clicks/impressions (needs a brand term).
+async function gscQueryInsights(token, site, startDate, endDate, body) {
+  const data = await gscQuery(token, site, body, { startDate, endDate, dimensions: ['query'], rowLimit: 250 });
+  const all = (data.rows || []).map((r) => ({
+    query: r.keys?.[0] ?? '—', clicks: r.clicks ?? 0, impressions: r.impressions ?? 0,
+    ctrRaw: r.ctr ?? 0, positionRaw: r.position ?? 0,
+  }));
+  const fmt = (r) => ({ query: r.query, clicks: r.clicks, impressions: r.impressions, ctr: pct(r.ctrRaw), position: r.positionRaw.toFixed(1) });
+  const striking = all.filter((r) => r.positionRaw > 10.5 && r.positionRaw <= 20.5)
+    .sort((a, b) => b.impressions - a.impressions).slice(0, 15).map(fmt);
+  const page1 = all.filter((r) => r.positionRaw <= 10.5 && r.impressions >= 50);
+  const avgCtr = page1.length ? page1.reduce((a, r) => a + r.ctrRaw, 0) / page1.length : 0;
+  const lowCtr = (avgCtr > 0 ? page1.filter((r) => r.ctrRaw < avgCtr * 0.6) : [])
+    .sort((a, b) => b.impressions - a.impressions).slice(0, 15).map(fmt);
+  let brand = null;
+  const terms = String(body.brand || '').split(/[,\n]/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (terms.length && all.length) {
+    let bC = 0, bI = 0, nC = 0, nI = 0;
+    for (const r of all) {
+      if (terms.some((t) => r.query.toLowerCase().includes(t))) { bC += r.clicks; bI += r.impressions; }
+      else { nC += r.clicks; nI += r.impressions; }
+    }
+    const totC = bC + nC;
+    brand = { brandedClicks: bC, nonBrandedClicks: nC, brandedImpressions: bI, nonBrandedImpressions: nI, brandedPct: totC ? Math.round((bC / totC) * 100) : 0 };
+  }
+  return { striking, lowCtr, brand };
+}
+
+// Query+page pull → keyword cannibalisation: queries where 2+ of your own pages
+// rank, splitting authority. index.html's cannibalisation card.
+async function gscCannibalization(token, site, startDate, endDate, body) {
+  const data = await gscQuery(token, site, body, { startDate, endDate, dimensions: ['query', 'page'], rowLimit: 5000 });
+  const byQuery = {};
+  for (const r of (data.rows || [])) {
+    const q = r.keys?.[0], p = r.keys?.[1];
+    if (!q || !p) continue;
+    (byQuery[q] = byQuery[q] || []).push({ impressions: r.impressions ?? 0, clicks: r.clicks ?? 0 });
+  }
+  const rows = [];
+  for (const [q, pages] of Object.entries(byQuery)) {
+    if (pages.length < 2) continue;
+    rows.push({ query: q, pages: pages.length, impressions: pages.reduce((a, p) => a + p.impressions, 0), clicks: pages.reduce((a, p) => a + p.clicks, 0) });
+  }
+  return rows.sort((a, b) => b.impressions - a.impressions).slice(0, 15);
 }
 
 // ── GSC operations: URL Inspection / Sitemaps / Indexing (index.html parity) ──
@@ -260,13 +324,8 @@ function splitUrls(raw) {
 
 // One breakdown query → rows + raw numeric totals (shared by the main pull and
 // the comparison-period pull so deltas are apples-to-apples).
-async function gscBreakdown(token, site, dim, startDate, endDate) {
-  const res = await fetch(`https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`, {
-    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ startDate, endDate, dimensions: [dim], rowLimit: 25 }),
-  });
-  if (!res.ok) throw new Error(`gsc ${res.status}`);
-  const data = await res.json();
+async function gscBreakdown(token, site, dim, startDate, endDate, body = {}) {
+  const data = await gscQuery(token, site, body, { startDate, endDate, dimensions: [dim], rowLimit: 25 });
   const rows = (data.rows || []).map((r) => ({
     [dim]: r.keys?.[0] ?? '—', clicks: r.clicks ?? 0, impressions: r.impressions ?? 0,
     ctr: pct(r.ctr ?? 0), position: (r.position ?? 0).toFixed(1),
@@ -281,18 +340,13 @@ async function gscDeltas(token, site, dim, body, cur) {
   const code = compareCode(body.compare);
   if (code === 'none') return null;
   const { startDate, endDate } = comparisonRange(body.range, code, body.startDate, body.endDate);
-  const prev = (await gscBreakdown(token, site, dim, startDate, endDate)).raw;
+  const prev = (await gscBreakdown(token, site, dim, startDate, endDate, body)).raw;
   return { clicks: pctChange(cur.clicks, prev.clicks), impressions: pctChange(cur.impressions, prev.impressions), ctr: pctChange(cur.ctr, prev.ctr), position: pctChange(cur.position, prev.position) };
 }
 
 // Clicks/impressions per day for the GSC trend chart.
-async function gscSeries(token, site, startDate, endDate) {
-  const res = await fetch(`https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(site)}/searchAnalytics/query`, {
-    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ startDate, endDate, dimensions: ['date'], rowLimit: 90 }),
-  });
-  if (!res.ok) throw new Error(`gsc-series ${res.status}`);
-  const data = await res.json();
+async function gscSeries(token, site, startDate, endDate, body = {}) {
+  const data = await gscQuery(token, site, body, { startDate, endDate, dimensions: ['date'], rowLimit: 90 });
   return (data.rows || [])
     .map((r) => ({ date: r.keys?.[0], clicks: r.clicks ?? 0, impressions: r.impressions ?? 0 }))
     .filter((r) => r.date)

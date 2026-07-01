@@ -2229,7 +2229,7 @@ async function integrationsRun(tool, body) {
   // Summary cards + trend chart render above the (sortable) breakdown table -
   // the dashboard layout index.html uses, not a bare table.
   const out = {
-    sections: integrationSections(tool.integration, live.summary || {}, live.series || [], live.deltas, body.compare, live.striking),
+    sections: integrationSections(tool.integration, live.summary || {}, live.series || [], live.deltas, body.compare, live),
     rows: live.rows, summary: live.summary, source: live.source,
   };
   // Every integration gets an AI "what to do next" pass over the real numbers.
@@ -2288,8 +2288,9 @@ async function gscOpsRun(body, conn) {
 // Build the stat-card + trend-chart sections for an integration pull. The
 // breakdown stays a top-level `rows` table (sortable, formatted) so it isn't
 // rendered twice. Chart is omitted when no day-series came back.
-function integrationSections(provider, summary, series, deltas, compareRaw, striking) {
+function integrationSections(provider, summary, series, deltas, compareRaw, live = {}) {
   const num = (v) => (v == null ? '\u2014' : Number(v).toLocaleString());
+  const striking = live.striking;
   const d = deltas || {};
   // value + optional period-over-period delta chip. dir: 'up' = good-when-up,
   // 'down' = good-when-down (position/CPA), 'neutral' = no good/bad colour.
@@ -2306,7 +2307,19 @@ function integrationSections(provider, summary, series, deltas, compareRaw, stri
   if (provider === 'gsc') {
     sections.push({ type: 'stats', items: [stat('Clicks', num(summary.clicks), d.clicks), stat('Impressions', num(summary.impressions), d.impressions), stat('CTR', summary.ctr, d.ctr), stat('Avg position', summary.avgPosition, d.position, 'down')] });
     pushTrend(sections, 'Clicks & impressions over time', series, [{ key: 'clicks', label: 'Clicks', color: '#2563eb' }, { key: 'impressions', label: 'Impressions', color: '#a855f7' }]);
+    // Branded vs non-branded split (only when the user supplied brand terms).
+    if (live.brand) {
+      const b = live.brand;
+      sections.push({ type: 'stats', title: 'Branded vs non-branded', items: [
+        { label: 'Branded clicks', value: num(b.brandedClicks) },
+        { label: 'Non-branded clicks', value: num(b.nonBrandedClicks) },
+        { label: 'Branded share', value: `${b.brandedPct}%` },
+        { label: 'Branded impressions', value: num(b.brandedImpressions) },
+      ] });
+    }
     if (Array.isArray(striking) && striking.length) sections.push({ type: 'table', title: 'Striking distance \u2014 page-2 easy wins', columns: ['query', 'clicks', 'impressions', 'ctr', 'position'], rows: striking });
+    if (Array.isArray(live.lowCtr) && live.lowCtr.length) sections.push({ type: 'table', title: 'Low-CTR opportunities \u2014 page-1 queries under-clicked (rewrite title/meta)', columns: ['query', 'clicks', 'impressions', 'ctr', 'position'], rows: live.lowCtr });
+    if (Array.isArray(live.cannibalization) && live.cannibalization.length) sections.push({ type: 'table', title: 'Keyword cannibalisation \u2014 multiple pages ranking for one query', columns: ['query', 'pages', 'impressions', 'clicks'], rows: live.cannibalization });
   } else if (provider === 'ga4') {
     sections.push({ type: 'stats', items: [stat('Sessions', num(summary.sessions), d.sessions), stat('Users', num(summary.users), d.users), stat('Engaged', num(summary.engagedSessions), d.engagedSessions), stat('Conversions', num(summary.conversions), d.conversions)] });
     pushTrend(sections, 'Sessions & users over time', series, [{ key: 'sessions', label: 'Sessions', color: '#2563eb' }, { key: 'users', label: 'Users', color: '#10b981' }]);

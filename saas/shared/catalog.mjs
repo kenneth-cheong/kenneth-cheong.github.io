@@ -653,6 +653,10 @@ export const INPUTS = {
     { name: 'endDate', label: 'End date', type: 'date', required: true, showWhen: { field: 'range', in: ['Custom'] } },
     { name: 'dimension', label: 'Break down by', type: 'select', options: ['query', 'page', 'country', 'device'], default: 'query' },
     { name: 'compare', label: 'Compare to', type: 'select', options: ['None', 'Previous period', 'Previous year'], default: 'None' },
+    { name: 'searchType', label: 'Search type', type: 'select', options: ['Web', 'Image', 'Video', 'News', 'Discover'], default: 'Web' },
+    { name: 'device', label: 'Device', type: 'select', options: ['All', 'Mobile', 'Desktop', 'Tablet'], default: 'All' },
+    { name: 'country', label: 'Country (3-letter code, optional)', type: 'text', placeholder: 'e.g. sgp' },
+    { name: 'brand', label: 'Brand terms for branded/non-branded split (optional)', type: 'text', placeholder: 'e.g. mediaone, media one' },
   ],
   ga4: [
     { name: 'input', label: 'Property', type: 'account', placeholder: 'e.g. 123456789', required: true },
