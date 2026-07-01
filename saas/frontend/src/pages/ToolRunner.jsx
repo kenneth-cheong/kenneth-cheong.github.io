@@ -310,6 +310,14 @@ function Result({ out, tool, project, user }) {
   const hasContent = r.text || r.preview || r.html || (r.rows && r.rows.length) || (r.sections && r.sections.length);
   const sectionTable = r.sections && firstTable(r.sections);
 
+  // Recommendation cards are appended after the findings (see withRecs in the
+  // gateway). When a result also has a top-level data table, that table should
+  // sit ABOVE the recommendations — the recs reference it. Only 'cards' sections
+  // move below; intro sections (stats/heading/callout) stay above as authored.
+  const hasRows = r.rows && r.rows.length > 0;
+  const preRowSections = hasRows ? (r.sections || []).filter((s) => s.type !== 'cards') : (r.sections || []);
+  const postRowSections = hasRows ? (r.sections || []).filter((s) => s.type === 'cards') : [];
+
   // Plain-English explainer: hand the result to the assistant ("what does this
   // mean + what do I do"). Reuses the dm:ask event the right-click menu fires.
   const explain = () => {
@@ -370,12 +378,13 @@ function Result({ out, tool, project, user }) {
               ? <CaptionCards text={r.text} />
               : <pre className="whitespace-pre-wrap text-sm text-slate-700">{r.text}</pre>)}
             {r.preview && <pre className="whitespace-pre-wrap text-sm text-slate-500">{r.preview}</pre>}
-            {r.sections && r.sections.length > 0 && <ResultSections sections={r.sections} />}
+            {preRowSections.length > 0 && <ResultSections sections={preRowSections} />}
             {r.html && <div className="dm-report max-w-none text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: r.html }} />}
           </>
         )}
 
-        {r.rows && r.rows.length > 0 && <ResultTable rows={r.rows} />}
+        {hasRows && <ResultTable rows={r.rows} />}
+        {postRowSections.length > 0 && <ResultSections sections={postRowSections} />}
 
         {r.blurredCount > 0 && (
           <div className="relative mt-1">

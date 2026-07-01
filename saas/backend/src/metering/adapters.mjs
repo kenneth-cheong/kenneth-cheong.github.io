@@ -166,13 +166,19 @@ export const ADAPTERS = {
   'rank-checker': {
     request: (body) => ({
       keyword: (body.input || '').trim(),
-      target: (body.target || '').trim(),
+      // Normalise the domain so "example.com", "https://example.com" and
+      // "https://www.example.com/path" all resolve to the same bare host —
+      // otherwise the match against SERP URLs depends on how it was typed.
+      target: (body.target || '').trim()
+        .replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/.*$/, ''),
       language: body.language || 'English',
       location: body.location || 'Singapore',
     }),
     response(raw) {
       const pos = typeof raw === 'number' ? raw : (raw?.position ?? raw?.rank ?? unwrap(raw)?.position);
-      return { text: pos && pos > 0 ? `📍 Current position: #${pos}` : 'Not ranking in the top 100 for this keyword/target.' };
+      // Upstream returns 999 as a sentinel for "not found in the top 100".
+      const ranked = pos && pos > 0 && pos < 999;
+      return { text: ranked ? `📍 Current position: #${pos}` : 'Not ranked (outside top 100)' };
     },
   },
 
