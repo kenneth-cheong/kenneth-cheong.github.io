@@ -863,6 +863,10 @@
                                 style="display: none;">
                                 <i class="fas fa-check-double"></i> Validate Selected
                             </button>
+                            <button class="btn" onclick="bulkApproveOrders()" id="bulkApproveBtn"
+                                style="display: none; background: rgba(5,150,105,0.85); color: white; border: none;">
+                                <i class="fas fa-check"></i> Approve Selected
+                            </button>
                             <button class="btn" onclick="bulkDeleteOrders()" id="bulkDeleteBtn"
                                 style="display: none; background: var(--accent); color: white;">
                                 <i class="fas fa-trash-alt"></i> Delete Selected
@@ -3227,9 +3231,11 @@
             const selected = state.selectedOrders.length;
             const valBtn = document.getElementById('bulkValidateBtn');
             const delBtn = document.getElementById('bulkDeleteBtn');
+            const apprBtn = document.getElementById('bulkApproveBtn');
 
             if (valBtn) valBtn.style.display = (selected > 0 && state.role === 'Staff') ? 'inline-block' : 'none';
             if (delBtn) delBtn.style.display = (selected > 0 && state.role === 'Staff') ? 'inline-block' : 'none';
+            if (apprBtn) apprBtn.style.display = (selected > 0 && canApprove()) ? 'inline-block' : 'none';
         }
 
         function getDomain(url) {
@@ -3518,18 +3524,8 @@
                 checkboxes.forEach(cb => cb.checked = isChecked);
             }
 
-            // We need to call toggleOrderSelection logic or similar to update global buttons
-            if (state.selectedOrders.length > 0) {
-                const valBtn = document.getElementById('bulkValidateBtn');
-                const delBtn = document.getElementById('bulkDeleteBtn');
-                if (valBtn) valBtn.style.display = (state.role === 'Staff') ? 'inline-block' : 'none';
-                if (delBtn) delBtn.style.display = (state.role === 'Staff') ? 'inline-block' : 'none';
-            } else {
-                const valBtn = document.getElementById('bulkValidateBtn');
-                const delBtn = document.getElementById('bulkDeleteBtn');
-                if (valBtn) valBtn.style.display = 'none';
-                if (delBtn) delBtn.style.display = 'none';
-            }
+            // Refresh the global bulk-action buttons for the new selection
+            updateBulkActionVisibility();
         }
 
 
@@ -4232,6 +4228,52 @@
                     notifyValidationFailures(failedBatch, false);
                 }
             }
+        }
+
+        async function bulkApproveOrders() {
+            if (!canApprove()) { alert('Only an admin can approve backlinks for payment.'); return; }
+            const allIds = [...state.selectedOrders];
+            if (allIds.length === 0) {
+                alert('No records selected. Tick the checkboxes on the rows you want to approve first.');
+                return;
+            }
+
+            // Only delivered links can be approved; already-approved ones are skipped.
+            const candidates = allIds
+                .map(id => state.backlinks.find(b => b.id === id))
+                .filter(b => b && b.deliveredUrl && b.status !== 'Approved');
+            const notDelivered = allIds.length - candidates.length;
+
+            if (candidates.length === 0) {
+                alert(`None of the ${allIds.length} selected link(s) can be approved — they are either undelivered or already approved.`);
+                return;
+            }
+
+            // SOP §7D/§12: surface links with unresolved quality/cost issues before sign-off.
+            const flagged = candidates.filter(b => outstandingIssues(b).length > 0);
+            let msg = `Approve ${candidates.length} backlink(s) for vendor payment? You (${state.user.name}) will be recorded as the approver.`;
+            if (notDelivered > 0) msg += `\n(${notDelivered} selected row(s) are undelivered/already approved and will be skipped.)`;
+            if (flagged.length > 0) msg += `\n\n⚠ ${flagged.length} of these have unresolved validation, toxicity, or cost issues that the SOP says should be resolved first.`;
+            if (!confirm(msg)) return;
+
+            const body = document.getElementById('ordersBody');
+            const approveProgress = (d) => renderBulkProgress(d, candidates.length, { verb: 'Approving', icon: 'fa-check' });
+            if (body) body.innerHTML = approveProgress(0);
+
+            let done = 0;
+            const stamp = new Date().toISOString();
+            for (const b of candidates) {
+                const update = { id: b.id, status: 'Approved', approvedBy: state.user.name, approvedAt: stamp, rejectReason: '' };
+                try {
+                    const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', update, true);
+                    if (result && result.success) Object.assign(b, update);
+                } catch (err) { console.error('Bulk approve error:', err); }
+                done++;
+                if (body) body.innerHTML = approveProgress(done);
+            }
+            state.selectedOrders = [];
+            renderOrders();
+            updateBulkActionVisibility();
         }
 
         function getStatusColor(status) {
