@@ -20,7 +20,7 @@ import { UPSTREAMS } from '../metering/upstreams.mjs';
 import { CREDIT_COSTS, INTEGRATIONS, PLANS, PROFILE_FIELDS, PROFILE_BONUS, isProfileComplete } from '../../../shared/catalog.mjs';
 import { buildChatSystem } from '../lib/assistant.mjs';
 import { integrationSummary } from '../../../shared/connectors.mjs';
-import { connectorConfigured, providersInFamilyOf, familyOf, authorizeUrl, exchangeCodeFor, listAccountsFor, detectAccountFor, detectEmailFor } from '../lib/integrations.mjs';
+import { connectorConfigured, providersInFamilyOf, familyOf, authorizeUrl, exchangeCodeFor, listAccountsFor, detectAccountFor, detectEmailFor, ga4CompatibleMetrics } from '../lib/integrations.mjs';
 import { signOAuthState, verifyOAuthState } from '../lib/jwt.mjs';
 import { putAttachment, signTicketAttachments, deleteUserAttachments } from '../lib/s3.mjs';
 import Stripe from 'stripe';
@@ -540,6 +540,15 @@ export const handler = async (event) => {
       if (!conn?.connected) return ok({ accounts: [] });
       try { return ok({ accounts: await listAccountsFor(provider, conn) }); }
       catch (e) { return ok({ accounts: [], error: e.message }); }
+    }
+    // GA4: which extra metrics are valid for a chosen breakdown dimension, so the
+    // UI can disable the rest. metrics:null → "unknown, allow all" (never blocks).
+    if (method === 'GET' && path.endsWith('/integrations/ga4/compatibility')) {
+      const conn = (user.integrations || {}).ga4;
+      if (!conn?.connected) return ok({ metrics: null });
+      const dimension = (event.queryStringParameters || {}).dimension || 'channel';
+      try { return ok({ metrics: await ga4CompatibleMetrics(conn, dimension) }); }
+      catch (e) { return ok({ metrics: null, error: e.message }); }
     }
     if (method === 'GET' && path.endsWith('/integrations/authorize')) {
       const provider = (event.queryStringParameters || {}).provider;

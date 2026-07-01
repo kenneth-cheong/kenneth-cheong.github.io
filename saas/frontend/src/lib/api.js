@@ -243,6 +243,8 @@ export const api = {
   // Integrations (Google OAuth)
   integrations: () => call('/integrations'),
   integrationAccounts: (provider) => call(`/integrations/accounts?provider=${encodeURIComponent(provider)}`),
+  // GA4: metrics compatible with the chosen breakdown dimension (null = allow all).
+  ga4Compatibility: (dimension) => call(`/integrations/ga4/compatibility?dimension=${encodeURIComponent(dimension || '')}`),
   // single:true → auth a different account for just this source (not the whole family).
   authorizeIntegration: (provider, { single = false } = {}) =>
     call(`/integrations/authorize?provider=${encodeURIComponent(provider)}${single ? '&single=1' : ''}`),

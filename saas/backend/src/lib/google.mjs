@@ -387,7 +387,10 @@ async function liveGa4(conn, body) {
   if (!propertyId) throw new Error('no property');
   const dimName = ga4Dim(body);
   const { startDate, endDate } = dayRange(body.range, body.startDate, body.endDate);
-  const main = await ga4Breakdown(token, propertyId, dimName, body.dimension, startDate, endDate, body);
+  // If an extra metric is incompatible with the dimension, don't fail the whole
+  // pull — retry with core metrics only (the UI already disables bad picks).
+  const main = await ga4Breakdown(token, propertyId, dimName, body.dimension, startDate, endDate, body)
+    .catch((e) => { console.warn('ga4_breakdown_retry_core', e.message); return ga4Breakdown(token, propertyId, dimName, body.dimension, startDate, endDate, { ...body, metrics: '' }); });
   const series = await ga4Series(token, propertyId, startDate, endDate).catch((e) => { console.warn('ga4_series_failed', e.message); return []; });
   const deltas = await ga4Deltas(token, propertyId, dimName, body, main.raw).catch((e) => { console.warn('ga4_compare_failed', e.message); return null; });
   return { rows: main.rows, series, deltas, summary: main.raw };
@@ -418,6 +421,26 @@ async function ga4Breakdown(token, propertyId, dimName, dimKey, startDate, endDa
     raw.conversions += Number(r.metricValues?.[3]?.value || 0);
   }
   return { rows, raw };
+}
+
+// Which of the exposed extra metrics GA4 will actually accept alongside the
+// chosen breakdown dimension — via the Data API's checkCompatibility, so the UI
+// can disable the rest instead of letting a pull fail. Returns the matching
+// GA4_METRICS keys (lowercase); the frontend compares case-insensitively.
+export async function ga4CompatibleMetrics(conn, dimensionLabel) {
+  const token = await accessTokenFor(conn);
+  const propertyId = (conn.account || '').replace(/^properties\//, '').trim();
+  if (!propertyId) throw new Error('no property');
+  const dimName = ga4Dim({ dimension: dimensionLabel });
+  const candidates = Object.entries(GA4_METRICS); // [label, apiName]
+  const res = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:checkCompatibility`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dimensions: [{ name: dimName }], metrics: candidates.map(([, name]) => ({ name })), compatibilityFilter: 'COMPATIBLE' }),
+  });
+  if (!res.ok) throw new Error(`ga4-compat ${res.status}`);
+  const data = await res.json();
+  const okNames = new Set((data.metricCompatibilities || []).filter((m) => m.compatibility === 'COMPATIBLE').map((m) => m.metricMetadata?.apiName));
+  return candidates.filter(([, name]) => okNames.has(name)).map(([label]) => label);
 }
 
 async function ga4Deltas(token, propertyId, dimName, body, cur) {

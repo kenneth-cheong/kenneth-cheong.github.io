@@ -664,7 +664,7 @@ export const INPUTS = {
     { name: 'startDate', label: 'Start date', type: 'date', required: true, showWhen: { field: 'range', in: ['Custom'] } },
     { name: 'endDate', label: 'End date', type: 'date', required: true, showWhen: { field: 'range', in: ['Custom'] } },
     { name: 'dimension', label: 'Break down by', type: 'select', options: ['channel', 'page', 'page title', 'landing page', 'source / medium', 'campaign', 'country', 'city', 'device', 'browser', 'operating system', 'event name', 'date'], default: 'channel' },
-    { name: 'metrics', label: 'Extra metrics (Sessions, Users, Engaged, Conversions always shown)', type: 'multiselect', options: ['New users', 'Active users', 'Engagement rate', 'Avg session duration', 'Bounce rate', 'Views', 'Event count', 'Total revenue', 'Add to carts', 'Purchases'] },
+    { name: 'metrics', label: 'Extra metrics (Sessions, Users, Engaged, Conversions always shown)', type: 'multiselect', compatibility: 'ga4-metrics', options: ['New users', 'Active users', 'Engagement rate', 'Avg session duration', 'Bounce rate', 'Views', 'Event count', 'Total revenue', 'Add to carts', 'Purchases'] },
     { name: 'compare', label: 'Compare to', type: 'select', options: ['None', 'Previous period', 'Previous year'], default: 'None' },
   ],
   'google-ads': [

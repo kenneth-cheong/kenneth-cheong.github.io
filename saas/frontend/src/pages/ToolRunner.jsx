@@ -180,7 +180,7 @@ export default function ToolRunner() {
       <div className={`card ${tabs ? 'mt-4' : 'mt-6'} p-5`}>
         <div className="space-y-4">
           {shown.map((f, i) => (
-            <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} autoFocus={i === 0} provider={tool.integration} />
+            <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} autoFocus={i === 0} provider={tool.integration} values={values} />
           ))}
         </div>
         <div className="mt-4 flex items-center justify-between gap-3">
@@ -431,20 +431,49 @@ const TONE = { red: 'bg-red-100 text-red-700', amber: 'bg-amber-100 text-amber-7
 function Badge({ t, tone }) { return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TONE[tone] || TONE.slate}`}>{t}</span>; }
 
 // Toggle-chip multi-select; value is a comma-joined string (backend splits it).
-function MultiSelect({ options, value, onChange }) {
+// When field.compatibility === 'ga4-metrics', options unsupported for the chosen
+// breakdown dimension are fetched from GA4 and disabled (can't be selected).
+function MultiSelect({ field, options, value, onChange, values }) {
   const sel = String(value || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const [allowed, setAllowed] = useState(null); // null = allow all (unknown)
+  const dim = values?.dimension;
+  const compat = field?.compatibility === 'ga4-metrics';
+
+  // Refetch the compatible set whenever the breakdown dimension changes.
+  useEffect(() => {
+    if (!compat) return;
+    let cancelled = false;
+    setAllowed(null);
+    api.ga4Compatibility(dim)
+      .then((d) => { if (!cancelled) setAllowed(Array.isArray(d.metrics) ? d.metrics.map((m) => m.toLowerCase()) : null); })
+      .catch(() => { if (!cancelled) setAllowed(null); });
+    return () => { cancelled = true; };
+  }, [compat, dim]);
+
+  const isAllowed = (o) => !allowed || allowed.includes(o.toLowerCase());
+  // Drop any selected option that's no longer compatible after a dimension change.
+  useEffect(() => {
+    if (!allowed) return;
+    const pruned = sel.filter(isAllowed);
+    if (pruned.length !== sel.length) onChange(pruned.join(','));
+    // eslint-disable-next-line
+  }, [allowed]);
+
   const toggle = (o) => onChange((sel.includes(o) ? sel.filter((x) => x !== o) : [...sel, o]).join(','));
   return (
     <div className="mt-1.5 flex flex-wrap gap-1.5">
       {options.map((o) => {
         const on = sel.includes(o);
+        const disabled = !isAllowed(o);
         return (
-          <button type="button" key={o} onClick={() => toggle(o)}
-            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${on ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-300 text-slate-600 hover:border-brand-300'}`}>
+          <button type="button" key={o} disabled={disabled} onClick={() => toggle(o)}
+            title={disabled ? 'Not available for the selected breakdown dimension' : undefined}
+            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${disabled ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-300 line-through' : on ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-300 text-slate-600 hover:border-brand-300'}`}>
             {o}
           </button>
         );
       })}
+      {compat && allowed && <span className="w-full text-xs text-slate-400">Greyed-out metrics aren’t supported with the “{dim}” breakdown.</span>}
     </div>
   );
 }
@@ -743,7 +772,7 @@ function SearchableSelect({ options, value, onChange, autoFocus }) {
   );
 }
 
-function Field({ field, value, onChange, autoFocus, provider }) {
+function Field({ field, value, onChange, autoFocus, provider, values }) {
   const base = 'field mt-1.5';
   return (
     <label className="block" data-tour-field={field.name}>
@@ -760,7 +789,7 @@ function Field({ field, value, onChange, autoFocus, provider }) {
       ) : field.type === 'date' ? (
         <input autoFocus={autoFocus} type="date" value={value || ''} max={field.max || '9999-12-31'} onChange={(e) => onChange(e.target.value)} className={base} />
       ) : field.type === 'multiselect' ? (
-        <MultiSelect options={field.options} value={value} onChange={onChange} />
+        <MultiSelect field={field} options={field.options} value={value} onChange={onChange} values={values} />
       ) : field.type === 'textarea' ? (
         <textarea autoFocus={autoFocus} rows={3} value={value} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} className={base} />
       ) : field.type === 'select' ? (

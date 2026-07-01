@@ -62,6 +62,10 @@ export function detectEmailFor(provider, accessToken) {
   const m = connectorFor(provider);
   return m?.detectEmail ? m.detectEmail(accessToken) : Promise.resolve('');
 }
+// GA4-only: which extra metrics are compatible with a chosen breakdown dimension.
+export function ga4CompatibleMetrics(conn, dimension) {
+  return google.ga4CompatibleMetrics(conn, dimension);
+}
 export function fetchIntegrationFor(provider, conn, body) {
   return connectorFor(provider).fetchIntegration(provider, conn, body);
 }
