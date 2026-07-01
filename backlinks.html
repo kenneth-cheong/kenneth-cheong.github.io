@@ -906,6 +906,7 @@
                             <option value="Validated">Validated</option>
                             <option value="Approved">✓ Approved</option>
                             <option value="Rejected">✗ Rejected</option>
+                            <option value="ReviewPending">👤 Review pending</option>
                             <option value="Toxic">⚠ Toxic only</option>
                             <option value="OverCap">💲 Over $5 cap</option>
                         </select>
@@ -1251,6 +1252,13 @@
         // Terminal QA/approval states layered on top of Ordered → Delivered → Validated.
         const APPROVAL_STATUSES = ['Approved', 'Rejected'];
         function canApprove() { return state.role === 'Admin'; }
+
+        // SOP §7B: special orders must get a consultant review (content / anchor / target URL)
+        // BEFORE they are sent to a vendor — i.e. while still undelivered.
+        function needsConsultantReview(b) {
+            return isSpecialOrder(b) && !b.reviewed && !b.deliveredUrl;
+        }
+        function canReview() { return state.role === 'Admin' || state.role === 'Staff'; }
         function getToxicConfig() {
             try { return Object.assign({}, TOXIC_DEFAULTS, JSON.parse(localStorage.getItem('blToxicConfig') || '{}')); }
             catch (e) { return Object.assign({}, TOXIC_DEFAULTS); }
@@ -3151,6 +3159,7 @@
                 const matchesStatus = state.orderFilters.status === 'all'
                     || (state.orderFilters.status === 'Toxic' ? (b.validationResults && assessToxicity(b).toxicCount > 0)
                         : state.orderFilters.status === 'OverCap' ? (assessCost(b)?.over === true)
+                        : state.orderFilters.status === 'ReviewPending' ? needsConsultantReview(b)
                         : b.status === state.orderFilters.status);
                 const matchesBD = !state.orderFilters.bd || (b.bd || '').toLowerCase().includes(state.orderFilters.bd);
                 const matchesDate = !state.orderFilters.date || (b.createdAt || '').includes(state.orderFilters.date);
@@ -3198,10 +3207,12 @@
             const rejected = state.backlinks.filter(b => b.status === 'Rejected').length;
             const awaiting = state.backlinks.filter(b => b.deliveredUrl && b.status !== 'Approved' && b.status !== 'Rejected').length;
             const overCap = state.backlinks.filter(b => assessCost(b)?.over === true).length;
+            const reviewPending = state.backlinks.filter(b => needsConsultantReview(b)).length;
             const govChips = `
                 <span style="color:#10b981;" title="Approved for payment"><i class="fas fa-check-circle"></i> ${approved}</span>
                 <span style="color:#f43f5e;" title="Rejected / returned"><i class="fas fa-times-circle"></i> ${rejected}</span>
                 <span style="color:var(--primary-light);" title="Delivered, awaiting approval"><i class="fas fa-hourglass-half"></i> ${awaiting}</span>
+                ${reviewPending > 0 ? `<span style="color:#f59e0b;" title="Special orders awaiting consultant review before vendor"><i class="fas fa-user-check"></i> ${reviewPending} to review</span>` : ''}
                 ${overCap > 0 ? `<span style="color:#ef4444;" title="Routine links over the SGD$${ROUTINE_COST_CAP} cap"><i class="fas fa-dollar-sign"></i> ${overCap} over cap</span>` : ''}
             `;
 
@@ -3279,6 +3290,7 @@
                 const matchesStatus = state.orderFilters.status === 'all'
                     || (state.orderFilters.status === 'Toxic' ? (b.validationResults && assessToxicity(b).toxicCount > 0)
                         : state.orderFilters.status === 'OverCap' ? (assessCost(b)?.over === true)
+                        : state.orderFilters.status === 'ReviewPending' ? needsConsultantReview(b)
                         : b.status === state.orderFilters.status);
                 const matchesBD = !state.orderFilters.bd || (b.bd || '').toLowerCase().includes(state.orderFilters.bd);
                 const matchesDate = !state.orderFilters.date || (b.createdAt || '').includes(state.orderFilters.date);
@@ -3462,6 +3474,7 @@
                                         ${renderValidationSummary(b)}
                                         ${renderToxicBadge(b)}
                                         ${renderCostBadge(b)}
+                                        ${renderReviewBadge(b)}
                                         ${renderApprovalMeta(b)}
                                         <div style="font-size: 0.65rem; color: var(--text-dim); margin-top: 4px;">Val: ${lastValidated}</div>
                                     </td>
@@ -3474,6 +3487,11 @@
                                             ${(state.role === 'Vendor' || state.role === 'Staff') && !b.deliveredUrl ? `
                                                 <button class="btn" id="deliver-${safeJS(b.id)}" title="Record delivered URL" style="padding: 2px 6px; font-size: 0.75rem;" onclick="deliverOrder('${safeJS(b.id)}')">
                                                     <i class="fas fa-upload"></i>
+                                                </button>` : ''}
+                                            ${canReview() && needsConsultantReview(b) ? `
+                                                <button class="btn" id="review-${safeJS(b.id)}" title="Mark consultant review complete — clears it for vendor (SOP §7B)" style="padding: 2px 6px; font-size: 0.75rem; background: rgba(245,158,11,0.85); color: white; border: none;"
+                                                        onclick="markReviewed('${safeJS(b.id)}')">
+                                                    <i class="fas fa-user-check"></i>
                                                 </button>` : ''}
                                             ${state.role === 'Staff' && b.deliveredUrl ? `
                                                 <button class="btn" id="validate-${safeJS(b.id)}" title="Validate this backlink" style="padding: 2px 6px; font-size: 0.75rem; background: var(--secondary); color: white; border: none;"
@@ -3775,6 +3793,27 @@
             return issues;
         }
 
+        async function markReviewed(id) {
+            const b = state.backlinks.find(x => x.id === id);
+            if (!b) return;
+            if (!canReview()) { alert('You do not have permission to sign off consultant review.'); return; }
+            if (!confirm(`Confirm consultant review (content, anchor text, target URL) is complete for this ${b.linkType || 'special'} order? It can then be sent to the vendor.`)) return;
+
+            const btn = document.getElementById('review-' + id);
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+            const row = document.getElementById('row-' + id);
+            if (row) { row.style.opacity = '0.55'; row.style.transition = 'opacity 0.2s ease'; }
+            const update = { id, reviewed: true, reviewedBy: state.user.name, reviewedAt: new Date().toISOString() };
+            try {
+                const result = await apiCall(PERSISTENCE_URL, 'upsert_backlink', update, true);
+                if (result && result.success) { Object.assign(b, update); renderOrders(); }
+                else { alert('Failed to save review.'); if (row) row.style.opacity = ''; }
+            } catch (err) {
+                console.error('Review error:', err); alert('Failed to save review.');
+                if (row) row.style.opacity = '';
+            }
+        }
+
         async function approveOrder(id) {
             const b = state.backlinks.find(x => x.id === id);
             if (!b) return;
@@ -3984,6 +4023,20 @@
                 const who = b.approvedBy ? ` by ${b.approvedBy}` : '';
                 const reason = b.rejectReason ? `: ${b.rejectReason}` : '';
                 return `<div style="font-size:0.62rem; color:#f43f5e; margin-top:4px;" title="${(b.rejectReason || '').replace(/"/g, '&quot;')}"><i class="fas fa-times-circle"></i> Rejected${who}${reason.length > 40 ? reason.slice(0, 40) + '…' : reason}</div>`;
+            }
+            return '';
+        }
+
+        // Pre-vendor consultant-review chip (SOP §7B).
+        function renderReviewBadge(b) {
+            if (needsConsultantReview(b)) {
+                return `<div title="Special order — consultant must review content/anchor/target before it goes to a vendor (SOP §7B)"
+                    style="margin-top:4px; display:inline-block; background:rgba(245,158,11,0.18); color:#f59e0b; padding:2px 8px; border-radius:10px; font-size:0.62rem; font-weight:600;">
+                    <i class="fas fa-user-check"></i> Review pending</div>`;
+            }
+            if (isSpecialOrder(b) && b.reviewed) {
+                const who = b.reviewedBy ? ` by ${b.reviewedBy}` : '';
+                return `<div style="margin-top:4px; font-size:0.62rem; color:#10b981;"><i class="fas fa-user-check"></i> Reviewed${who}</div>`;
             }
             return '';
         }
@@ -4545,6 +4598,7 @@
                 const matchesStatus = state.orderFilters.status === 'all'
                     || (state.orderFilters.status === 'Toxic' ? (b.validationResults && assessToxicity(b).toxicCount > 0)
                         : state.orderFilters.status === 'OverCap' ? (assessCost(b)?.over === true)
+                        : state.orderFilters.status === 'ReviewPending' ? needsConsultantReview(b)
                         : b.status === state.orderFilters.status);
                 const matchesBD = !state.orderFilters.bd || (b.bd || '').toLowerCase().includes(state.orderFilters.bd);
                 const matchesDate = !state.orderFilters.date || (b.createdAt || '').includes(state.orderFilters.date);
