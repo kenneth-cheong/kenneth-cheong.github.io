@@ -7733,8 +7733,63 @@
             if (typeof initBacklinksTour === 'function') initBacklinksTour();
         }
 
+        // Tour-only fixtures for the consultant review gate (SOP §7B) and the
+        // routine backlink planner (SOP §7C) — both compute off live, shared
+        // state.backlinks/state.rankings, so the tour needs *something* to point
+        // at even when there's nothing pending review or no rankings loaded yet.
+        // Injected once (idempotent — guarded by id/siteName), reverted on close.
+        const BL_TOUR_DOMAIN = 'acmedental.com.sg';
+        const BL_TOUR_SITE = 'Acme Dental Clinic — Tour Demo';
+        let blTourOriginalRole;
+        function ensureBlTourDemoData() {
+            // Clear any filters left over from prior browsing so the demo row/keywords
+            // aren't silently hidden by a stale search or status filter.
+            state.orderFilters = { search: '', status: 'all', bd: '', date: '' };
+            if (!state.backlinks.some(b => b.id === 'tourdemo-review-1')) {
+                state.backlinks.push({
+                    id: 'tourdemo-review-1',
+                    campaignName: BL_TOUR_SITE, campaignCode: 'ADC-01',
+                    bd: 'Kenneth', seo: 'Dan', vendorName: 'Maark',
+                    createdAt: new Date().toISOString(),
+                    keyword: 'best dental implants singapore',
+                    targetUrl: 'https://' + BL_TOUR_DOMAIN + '/services/implants',
+                    anchorText: 'dental implants Singapore',
+                    linkType: 'Guest Post', quantity: 1,
+                    deliveredUrl: '', dr: 42, vendorDa: 38, da: 38, validatedDa: null,
+                    status: 'Ordered', cost: 180,
+                    reviewed: false, reviewedBy: '', reviewedAt: '', deleted: false
+                });
+            }
+            if (!state.expandedDomains.includes(BL_TOUR_DOMAIN)) state.expandedDomains.push(BL_TOUR_DOMAIN);
+            if (blTourOriginalRole === undefined) blTourOriginalRole = state.role;
+            state.role = 'Admin'; // so canReview()/canApprove() render the demo "Mark reviewed" button
+            if (!state.rankings.some(r => r.siteName === BL_TOUR_SITE)) {
+                const today = new Date().toISOString().slice(0, 10);
+                const demoRankings = [
+                    ['best dental implants singapore', 4], ['invisalign clinic singapore', 7], ['dental clinic orchard road', 9],
+                    ['teeth whitening singapore price', 12], ['wisdom tooth removal singapore cost', 14], ['root canal treatment singapore', 16],
+                    ['dental veneers singapore', 18], ['children dentist singapore', 20], ['emergency dentist singapore 24 hour', 27],
+                    ['dental crown cost singapore', 33], ['gum disease treatment singapore', 41], ['dental bridge singapore price', 52],
+                    ['sedation dentistry singapore', 68], ['same day dental implants singapore', 88]
+                ].map(([keyword, rank]) => ({ keyword, siteName: BL_TOUR_SITE, searchEngine: 'Google Singapore', date: today, rank }));
+                state.rankings.push(...demoRankings);
+            }
+        }
+        function clearBlTourDemoData() {
+            state.backlinks = state.backlinks.filter(b => b.id !== 'tourdemo-review-1');
+            state.rankings = state.rankings.filter(r => r.siteName !== BL_TOUR_SITE);
+            state.expandedDomains = state.expandedDomains.filter(d => d !== BL_TOUR_DOMAIN);
+            if (blTourOriginalRole !== undefined) { state.role = blTourOriginalRole; blTourOriginalRole = undefined; }
+            if (typeof renderOrders === 'function') renderOrders();
+            if (typeof renderRankingsTable === 'function') renderRankingsTable();
+        }
+
         function initBacklinksTour() {
             if (typeof window.driver === 'undefined') return;
+            // Step 1 targets .stats-grid, which only exists (with a real size) on the
+            // Dashboard tab — the app can land on any tab (e.g. Orders), leaving
+            // .stats-grid at display:none and the very first step unable to render.
+            if (typeof showTab === 'function') showTab('dashboard');
 
             const driver = window.driver.js.driver;
             const driverObj = driver({
@@ -7791,23 +7846,54 @@
                             title: 'Step 6: Fulfilled Orders',
                             description: 'Review and manage all delivered backlinks, including technical validation results.',
                             side: "right", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            if (typeof showTab === 'function') showTab('orders');
+                            ensureBlTourDemoData();
+                            if (typeof renderOrders === 'function') renderOrders();
+                        }
+                    },
+                    {
+                        element: '#orderStats',
+                        popover: {
+                            title: 'Step 7: Consultant Pre-Vendor Review Gate',
+                            description: 'Special orders (guest post / high-DA / DA-DR booster) carry a consultant checkpoint before they go to a vendor (SOP §7B). Whenever one is outstanding, an amber &quot;X to review&quot; chip shows up right here on the stats line.',
+                            side: "bottom", align: 'start'
+                        }
+                    },
+                    {
+                        element: '[title*="consultant must review"]',
+                        popover: {
+                            title: 'Review Pending Badge',
+                            description: '<strong>Example:</strong> a Guest Post order sits with a &quot;Review pending&quot; badge until Staff/Admin confirms the content, anchor text and target URL &mdash; then the row&apos;s <i class="fas fa-user-check"></i> button (next to Edit/Deliver) marks it reviewed and clears it for the vendor.',
+                            side: "top", align: 'start'
                         }
                     },
                     {
                         element: '#nav-rankings',
                         popover: {
-                            title: 'Step 7: Keyword Rankings',
+                            title: 'Step 8: Keyword Rankings',
                             description: 'Analyze real-time keyword movements powered by our SE Ranking integration.',
                             side: "right", align: 'start'
                         },
                         onHighlightStarted: () => {
                             if (typeof showTab === 'function') showTab('rankings');
+                            ensureBlTourDemoData();
+                            if (typeof renderRankingsTable === 'function') renderRankingsTable();
+                        }
+                    },
+                    {
+                        element: '#backlinkPlanning',
+                        popover: {
+                            title: 'Step 9: Routine Backlink Planner',
+                            description: 'Applies the SOP §7C routine ratio &mdash; 1 routine backlink per 10 tracked keywords &mdash; and compares that to routine (non-special) links already ordered, so you know exactly how many more to order and can target the struggling (off page 1) and low-hanging-fruit (page 2) keywords first.',
+                            side: "top", align: 'start'
                         }
                     },
                     {
                         element: '#linkSiteBtn',
                         popover: {
-                            title: 'Step 8: Global Ranking Sync',
+                            title: 'Step 10: Global Ranking Sync',
                             description: 'Link your SE Ranking properties to pull live keyword position data into your dashboard.',
                             side: "top", align: 'start'
                         }
@@ -7815,7 +7901,7 @@
                     {
                         element: '#nav-validator',
                         popover: {
-                            title: 'Step 9: Bulk Link Validator',
+                            title: 'Step 11: Bulk Link Validator',
                             description: 'Perform automated quality and uptime audits on massive lists of backlinks at scale.',
                             side: "right", align: 'start'
                         }
@@ -7823,7 +7909,7 @@
                     {
                         element: '#cartBadgeBtn',
                         popover: {
-                            title: 'Step 10: Order Processing',
+                            title: 'Step 12: Order Processing',
                             description: 'Manage your wishlist and process bulk orders to your preferred vendors.',
                             side: "left", align: 'start'
                         }
@@ -7831,7 +7917,7 @@
                     {
                         element: '#nav-vendors',
                         popover: {
-                            title: 'Step 11: Access Control',
+                            title: 'Step 13: Access Control',
                             description: 'Manage user permissions and vendor profiles with granular capability settings.',
                             side: "right", align: 'start'
                         }
@@ -7839,13 +7925,15 @@
                     {
                         element: '.nav-item[onclick="logout()"]',
                         popover: {
-                            title: 'Step 12: Secure Logout',
+                            title: 'Step 14: Secure Logout',
                             description: 'Ensure your session is securely terminated and local cache is cleared.',
                             side: "right", align: 'start'
                         }
                     }
                 ]
             });
+
+            driverObj.onDestroyed = () => { clearBlTourDemoData(); };
 
             driverObj.drive();
         }
