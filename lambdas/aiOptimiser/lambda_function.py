@@ -1519,7 +1519,8 @@ def build_structured_prompt(action, body):
             "- Double-check the up/down direction of every metric before stating it\n"
             "- Do not overstate performance if data does not support it\n"
             "- Write in " + language + " throughout\n"
-            "- Keep it polished, concise and presentation-ready\n\n"
+            "- Keep it polished, concise and presentation-ready\n"
+            "- Avoid em dashes (—); use commas, full stops, or short sentences instead\n\n"
             "HTML FORMAT — output this exact structure:\n"
             '<div class="smm-cover"><h1>' + brand_prefix + 'Social Media Report</h1>' + cover_period + '</div>\n\n'
             "Then for each platform:\n"
