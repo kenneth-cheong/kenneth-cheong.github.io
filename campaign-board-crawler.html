@@ -1074,6 +1074,68 @@
             box-shadow: 0 1px 6px rgba(99, 102, 241, 0.4);
         }
 
+        .mode-info-btn {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.2);
+            color: var(--muted);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            flex-shrink: 0;
+            transition: all 0.15s;
+        }
+
+        .mode-info-btn:hover {
+            color: var(--primary);
+            border-color: var(--primary);
+            background: rgba(56, 189, 248, 0.08);
+        }
+
+        .mode-help-body table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .mode-help-body th {
+            text-align: left;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--primary);
+            padding: 6px 10px;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        .mode-help-body td {
+            padding: 10px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+            color: var(--text);
+        }
+
+        .mode-help-body tr:last-child td { border-bottom: none; }
+
+        .mode-help-body .mode-help-name {
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .mode-help-body .mode-help-name i { margin-right: 6px; color: var(--primary); }
+
+        .mode-help-body .mode-help-sub {
+            color: var(--muted);
+            font-size: 11px;
+            margin-top: 10px;
+            line-height: 1.6;
+        }
+
         .staff-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -1937,6 +1999,9 @@
         <div style="display: flex; align-items: center; gap: 14px;">
             <!-- Persona mode switcher (Consultant / Team Lead / Client Success), populated by renderNav -->
             <div class="mode-switcher" id="mode-switcher"></div>
+            <button class="mode-info-btn" onclick="openModeHelp()" title="What's the difference between modes?">
+                <i class="fas fa-question"></i>
+            </button>
             <button id="tour-launch-btn" onclick="openTourMenu()" title="Take a guided tour"
                 style="background: rgba(56, 189, 248, 0.1); color: var(--primary); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; padding: 8px 14px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
                 <i class="fas fa-graduation-cap"></i> Tour Guide
@@ -6042,6 +6107,16 @@
             document.getElementById('summary-modal-backdrop').classList.remove('show');
         }
 
+        function openModeHelp() {
+            document.getElementById('mode-help-modal').classList.add('show');
+            document.getElementById('mode-help-backdrop').classList.add('show');
+        }
+
+        function closeModeHelp() {
+            document.getElementById('mode-help-modal').classList.remove('show');
+            document.getElementById('mode-help-backdrop').classList.remove('show');
+        }
+
         // ── API Key Help Modal ────────────────────────
         let _apiStep = 0;
         const API_STEP_COUNT = 3;
@@ -6473,6 +6548,46 @@ ${JSON.stringify(contextData)}`;
                     Next <i class="fas fa-arrow-right"></i>
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- Mode Comparison Modal -->
+    <div id="mode-help-backdrop" class="summary-modal-backdrop" onclick="closeModeHelp()"></div>
+    <div id="mode-help-modal" class="summary-modal" style="width: min(680px, 92vw);">
+        <div class="summary-modal-header">
+            <div>
+                <div class="summary-modal-subtitle"><i class="fas fa-user-cog" style="margin-right:4px;"></i>Persona Modes</div>
+                <div class="summary-modal-title">What's the difference between modes?</div>
+            </div>
+            <button onclick="closeModeHelp()" style="background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; flex-shrink:0; padding:0;"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="summary-modal-body mode-help-body">
+            <table>
+                <thead>
+                    <tr><th>Mode</th><th>Whose tasks</th><th>Views</th><th>Best for</th></tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="mode-help-name"><i class="fas fa-user"></i>Consultant</td>
+                        <td>One consultant — whoever is picked in the "You ▾" selector.</td>
+                        <td>Portfolio, Worklist</td>
+                        <td>Working your own campaigns and daily task list.</td>
+                    </tr>
+                    <tr>
+                        <td class="mode-help-name"><i class="fas fa-users"></i>Team Lead</td>
+                        <td>A chosen set of team members you pick from the staff grid.</td>
+                        <td>By Staff (sort by member or urgency)</td>
+                        <td>Checking in on a team's workload and catching overdue items.</td>
+                    </tr>
+                    <tr>
+                        <td class="mode-help-name"><i class="fas fa-handshake"></i>Client Success</td>
+                        <td>Everyone — all tasks across every consultant.</td>
+                        <td>All Campaigns, Timeliness, Hygiene</td>
+                        <td>Org-wide health checks: campaign status, on-time delivery, stale boards.</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="mode-help-sub">The "You ▾" selector always scopes the Worklist to your tasks and highlights your rows — in Consultant mode it also picks whose Portfolio you see.</div>
         </div>
     </div>
 
