@@ -395,20 +395,28 @@ def _wd_get_metrics(eid, pid, dimension, interval="daily", range_qs=None):
     return rows
 
 
-def _wd_get_citations(eid, pid, dimension, range_qs=None, on_page=None):
+def _wd_get_citations(eid, pid, dimension, range_qs=None, on_page=None, deadline=None, max_pages=1000):
     """Paginated rows from Workduo's /core/v1/citations — a separate endpoint from
     /data/v1/metrics, with dimension='url'|'domain'|'query'. One row per
     dimensionValue per day; caller aggregates across the requested range.
     Cursor-only pagination (no offset/page param — verified it's silently
-    ignored), so pages are inherently sequential; ~7-9s/call regardless of
-    pageSize, so 500 (the largest accepted) minimizes round trips.
+    ignored), so pages are inherently sequential; ~4-9s/call regardless of
+    pageSize (observed variance), so 500 (the largest accepted) minimizes round
+    trips. Bounded by wall-clock `deadline` (a time.time() cutoff), NOT a fixed
+    page count — a fixed cap silently truncated real campaigns (a pageSize=200
+    run and a pageSize=500 run each independently maxed out at exactly 80 pages
+    — 16000 and 40000 rows respectively — proof the true total was larger and
+    got cut off both times). `max_pages` is just a runaway backstop, set high
+    enough to never bind before the deadline does for any dataset seen so far.
     on_page(pages, rows_so_far), if given, fires after every page — the async
     worker uses this to persist live progress for the frontend to poll."""
     rows, token, pages, page_size = [], None, 0, 500
     rng = range_qs or f"dateRange={METRICS_DATE_RANGE}"
     base = (f"{WD_CORE}/citations?projectId={pid}&entityId={eid}"
             f"&{rng}&dimension={dimension}")
-    while pages < 80:
+    while pages < max_pages:
+        if deadline and time.time() >= deadline:
+            break
         u = base + (f"&pageSize={page_size}" if page_size else "")
         if token:
             u += "&nextPageToken=" + token
@@ -427,26 +435,28 @@ def _wd_get_citations(eid, pid, dimension, range_qs=None, on_page=None):
             except Exception:
                 pass
         if not token:
-            break
-    return rows
+            return rows, False   # exhausted — complete
+    return rows, True            # hit the deadline/max_pages backstop — truncated
 
 
 _CIT_TYPE_LABEL = {"OWNED": "Owned", "COMPETITOR": "Competitor", "OTHERS": "Other"}
 _CIT_TYPE_COLOR = {"Owned": "#1e3a8a", "Competitor": "#f59e0b", "Social": "#14b8a6", "Other": "#8b5cf6"}
 
 
-def _citations_model(eid, pid, range_qs=None, on_page=None):
+def _citations_model(eid, pid, range_qs=None, on_page=None, deadline=None):
     """Per-URL citation detail for one entity, built from /core/v1/citations
-    (dimension=url). Returns (citations, citationTypes, available). Workduo gives
-    real type (OWNED/COMPETITOR/OTHERS) and used-count per URL per day — this
-    aggregates those across the range into the shape the dashboard table expects.
+    (dimension=url). Returns (citations, citationTypes, available, truncated).
+    Workduo gives real type (OWNED/COMPETITOR/OTHERS) and used-count per URL per
+    day — this aggregates those across the range into the shape the dashboard
+    table expects. `truncated=True` means pagination didn't run to exhaustion
+    (hit the deadline or an API error) — the totals below are real but partial.
     Note: Workduo doesn't expose a per-URL x per-query cross-tab, so `queryCount`
     is the citation's real times-used count (citationUsedCount), not a distinct-
     query count — the closest genuine signal Workduo offers for that column."""
     try:
-        rows = _wd_get_citations(eid, pid, "url", range_qs=range_qs, on_page=on_page)
+        rows, truncated = _wd_get_citations(eid, pid, "url", range_qs=range_qs, on_page=on_page, deadline=deadline)
     except Exception:
-        return [], [], False
+        return [], [], False, True
     agg = {}
     for r in rows:
         url = r.get("dimensionValue")
@@ -475,7 +485,7 @@ def _citations_model(eid, pid, range_qs=None, on_page=None):
         type_totals[c["type"]] = type_totals.get(c["type"], 0) + c["count"]
     citation_types = [{"type": t, "count": n, "color": _CIT_TYPE_COLOR[t]}
                        for t, n in type_totals.items() if n > 0]
-    return cits, citation_types, True
+    return cits, citation_types, True, truncated
 
 
 def _agg_overall(rows):
@@ -637,8 +647,8 @@ def build_workduo_model(campaign, proj=None, range_qs=None, range_label=None, fe
                         "selfPct": selfpct, "competitorPct": comppct})
     prompts.sort(key=lambda p: -p["visibility"])
 
-    cits, citation_types, cits_ok = (_citations_model(self_eid, pid, range_qs=range_qs)
-                                      if fetch_citations else ([], [], False))
+    cits, citation_types, cits_ok, _cits_truncated = (_citations_model(self_eid, pid, range_qs=range_qs)
+                                                        if fetch_citations else ([], [], False, False))
 
     return {
         "brand": brand, "target": target, "domain": domain, "location": region,
@@ -941,11 +951,15 @@ def h_import_citations(req):
     return _resp(200, {"ok": True, "id": cid, "status": "started"})
 
 
+CITATIONS_WORKER_BUDGET_SEC = 800   # leaves ~100s buffer under this Lambda's 900s function timeout
+
+
 def h_citations_worker(req):
     """Runs ONLY via self-invoke from h_import_citations — not meant to be called
     synchronously by an HTTP client. Fetches full per-URL citation detail for one
     campaign and merges it into the saved metrics snapshot, updating live progress
-    in DynamoDB after every page so the frontend can poll a status/ETA."""
+    in DynamoDB after every page so the frontend can poll a status/ETA. Bounded by
+    a wall-clock deadline rather than a page count — see _wd_get_citations."""
     cid = str(req.get("id") or "")
     it = _table.get_item(Key={"id": cid}).get("Item")
     if not it or not it.get("entityId"):
@@ -962,19 +976,22 @@ def h_citations_worker(req):
             pass
 
     try:
-        cits, citation_types, ok = _citations_model(eid, cid, range_qs="dateRange=last30days", on_page=on_page)
+        deadline = time.time() + CITATIONS_WORKER_BUDGET_SEC
+        cits, citation_types, ok, truncated = _citations_model(
+            eid, cid, range_qs="dateRange=last30days", on_page=on_page, deadline=deadline)
         if not ok:
             raise RuntimeError("Workduo citations fetch failed")
         snap = _table.get_item(Key={"id": cid}).get("Item") or {}
         metrics = json.loads(snap["metrics"]) if snap.get("metrics") else {}
-        metrics.update({"citations": cits, "citationTypes": citation_types, "citationsDetailAvailable": True})
+        metrics.update({"citations": cits, "citationTypes": citation_types,
+                        "citationsDetailAvailable": True, "citationsTruncated": truncated})
         _table.update_item(
             Key={"id": cid},
             UpdateExpression=("SET #m = :m, citationsStatus = :s, citationsUpdatedAt = :t, "
-                              "citationsLastRunPages = :lp REMOVE citationsError"),
+                              "citationsLastRunPages = :lp, citationsTruncated = :tr REMOVE citationsError"),
             ExpressionAttributeNames={"#m": "metrics"},
             ExpressionAttributeValues={":m": json.dumps(metrics), ":s": "done", ":t": _now(),
-                                       ":lp": progress["pages"]},
+                                       ":lp": progress["pages"], ":tr": truncated},
         )
     except Exception as e:
         _table.update_item(Key={"id": cid}, UpdateExpression="SET citationsStatus = :s, citationsError = :e",
