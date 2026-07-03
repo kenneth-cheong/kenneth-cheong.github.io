@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Bug, X, Paperclip, ChevronDown, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { toast } from '../lib/ui.js';
@@ -27,7 +26,6 @@ function Section({ title, count, open, onToggle, children }) {
 }
 
 export default function FaultReporter() {
-  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [subject, setSubject] = useState('');
   const [desc, setDesc] = useState('');
@@ -107,14 +105,16 @@ export default function FaultReporter() {
     if (!subject.trim() && !desc.trim()) { toast('Add a short description of the problem.', 'info'); return; }
     setBusy(true);
     try {
-      const { ticket } = await api.createTicket(
+      await api.createTicket(
         (subject.trim() || 'Problem report').slice(0, 200),
         desc.trim() || '(No description provided)',
         { category: CATEGORY, attachments, diagnostics: buildDiagnostics() },
       );
+      // Stay put — the user was in the middle of using a tool when the fault
+      // happened; don't yank them away to the ticket. They can find it under
+      // Support or the notification bell later.
       toast('Thanks — your problem report was sent.', 'success');
       reset(); setOpen(false);
-      navigate(`/support/${encodeURIComponent(ticket.ticketId)}`);
     } catch (err) {
       toast(err.message || 'Could not send the report.', 'error');
     } finally { setBusy(false); }
