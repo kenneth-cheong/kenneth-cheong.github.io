@@ -2965,7 +2965,12 @@ def _meta_fb_insights(page_id, token, since, until):
     s('impressions',   _meta_sum_metric(page_id, 'page_impressions', token, since, until))
     reach = _meta_sum_metric(page_id, 'page_impressions_unique', token, since, until)
     s('reach', reach); s('page_reach', reach); s('daily_reach', reach)
-    s('engagements',   _meta_sum_metric(page_id, 'page_post_engagements', token, since, until))
+    # page_post_engagements = reactions + comments + shares + clicks on Page posts,
+    # matching the Brandwatch FB interaction-rate formula's numerator directly.
+    engagements = _meta_sum_metric(page_id, 'page_post_engagements', token, since, until)
+    s('engagements', engagements)
+    if reach and engagements is not None:
+        s('engagement_rate', round(engagements / reach * 100, 2))
     s('profile_views', _meta_sum_metric(page_id, 'page_views_total', token, since, until))
     s('reactions',     _meta_sum_metric(page_id, 'page_actions_post_reactions_total', token, since, until))
     adds = _meta_sum_metric(page_id, 'page_fan_adds', token, since, until)
@@ -2987,11 +2992,17 @@ def _meta_ig_insights(ig_id, token, since, until):
     def s(k, v):
         if v is not None: out[k] = v
     tv = {'metric_type': 'total_value'}
-    s('reach',                _meta_sum_metric(ig_id, 'reach', token, since, until))
+    reach = _meta_sum_metric(ig_id, 'reach', token, since, until)
+    s('reach', reach)
     s('profile_views',        _meta_sum_metric(ig_id, 'profile_views', token, since, until))
     s('impressions',          _meta_sum_metric(ig_id, 'views', token, since, until, tv))
     s('engaged_users_daily',  _meta_sum_metric(ig_id, 'accounts_engaged', token, since, until, tv))
-    s('engagements',          _meta_sum_metric(ig_id, 'total_interactions', token, since, until, tv))
+    # total_interactions = likes + comments + saves + shares, matching IG's own
+    # ERR = Total Engagements / Reach definition.
+    engagements = _meta_sum_metric(ig_id, 'total_interactions', token, since, until, tv)
+    s('engagements', engagements)
+    if reach and engagements is not None:
+        s('engagement_rate', round(engagements / reach * 100, 2))
     s('likes',                _meta_sum_metric(ig_id, 'likes', token, since, until, tv))
     s('comments',             _meta_sum_metric(ig_id, 'comments', token, since, until, tv))
     s('shares',               _meta_sum_metric(ig_id, 'shares', token, since, until, tv))
@@ -3228,8 +3239,12 @@ def _li_share_stats(oid, token, since_ms, until_ms):
     s('comments', agg['commentCount']); s('shares', agg['shareCount'])
     interactions = agg['likeCount'] + agg['commentCount'] + agg['shareCount'] + agg['clickCount']
     s('engagements', interactions)
-    if agg['impressionCount']:
-        out['engagement_rate'] = round(interactions / agg['impressionCount'] * 100, 2)
+    # LinkedIn's own engagement-rate formula is (Reactions + Comments + Shares) / Reach —
+    # clicks are tracked separately above but excluded here, and the denominator is
+    # unique reach, not impressions.
+    engagement_num = agg['likeCount'] + agg['commentCount'] + agg['shareCount']
+    if reach:
+        out['engagement_rate'] = round(engagement_num / reach * 100, 2)
     return out
 
 

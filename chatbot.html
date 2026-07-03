@@ -3639,7 +3639,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2421</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2422</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -15343,6 +15343,62 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 closeMondayApiHelp();
             }
         });
+    </script>
+
+    <script>
+        // ---- Version Checker: nudges the user to refresh when a newer build is deployed ----
+        (function () {
+            const versionEl = document.getElementById('appVersion');
+            if (!versionEl) return;
+            const currentVersion = versionEl.textContent.trim();
+            let updateAvailable = false;
+            let lastCheck = 0;
+
+            async function checkForNewVersion() {
+                if (updateAvailable) return;
+                try {
+                    const url = location.href.split('#')[0].split('?')[0];
+                    const res = await fetch(url, { cache: 'no-cache' });
+                    if (!res.ok) return;
+                    const html = await res.text();
+                    const match = html.match(/<span id="appVersion"[^>]*>([^<]+)<\/span>/);
+                    const latestVersion = match && match[1].trim();
+                    if (latestVersion && latestVersion !== currentVersion) {
+                        updateAvailable = true;
+                        showUpdateToast(latestVersion);
+                    }
+                } catch (e) { /* offline or network hiccup — silently retry next tick */ }
+            }
+
+            function showUpdateToast(latestVersion) {
+                let c = document.querySelector('.toast-container');
+                if (!c) { c = document.createElement('div'); c.className = 'toast-container'; document.body.appendChild(c); }
+                const t = document.createElement('div');
+                t.className = 'toast warning';
+                t.style.pointerEvents = 'auto';
+                t.innerHTML = `<i class="fas fa-arrow-rotate-right"></i><span>A newer version (${escHtml(latestVersion)}) is available.</span>`;
+                const refreshBtn = document.createElement('button');
+                refreshBtn.textContent = 'Refresh';
+                refreshBtn.className = 'toast-undo-btn';
+                refreshBtn.onclick = () => location.reload();
+                const dismissBtn = document.createElement('button');
+                dismissBtn.textContent = 'Later';
+                dismissBtn.className = 'toast-undo-btn';
+                dismissBtn.style.cssText = 'margin-left:6px;background:transparent;color:#94a3b8;border-color:transparent;';
+                dismissBtn.onclick = () => { t.classList.add('hiding'); setTimeout(() => t.remove(), 400); };
+                t.appendChild(refreshBtn);
+                t.appendChild(dismissBtn);
+                c.appendChild(t);
+            }
+
+            setInterval(checkForNewVersion, 10 * 60 * 1000);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible' && Date.now() - lastCheck > 60 * 1000) {
+                    lastCheck = Date.now();
+                    checkForNewVersion();
+                }
+            });
+        })();
     </script>
 </body>
 
