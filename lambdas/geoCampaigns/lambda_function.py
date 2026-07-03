@@ -404,6 +404,22 @@ def _daily(rows):
     return {d: round(x["m"] / x["r"] * 100, 1) if x["r"] else 0 for d, x in by.items()}
 
 
+def _daily_by_topic(rows):
+    """Per-topic daily visibility {date: {topic: vis%}} from topic-dimension daily rows.
+    (Workduo returns one row per topic per day; _daily collapses that, this keeps it.)"""
+    by = {}
+    for r in rows:
+        d = (r.get("date") or "")[:10]
+        if not d:
+            continue
+        t = r.get("topic") or "General"
+        x = by.setdefault(d, {}).setdefault(t, {"m": 0, "r": 0})
+        x["m"] += r.get("mentions", 0) or 0
+        x["r"] += r.get("totalResponses", 0) or 0
+    return {d: {t: round(v["m"] / v["r"] * 100, 1) if v["r"] else 0 for t, v in tv.items()}
+            for d, tv in by.items()}
+
+
 def build_workduo_model(campaign, proj=None, range_qs=None, range_label=None):
     """Transform real Workduo metrics into the dashboard's WD.model shape.
     Sentiment + detailed citations are not exposed by Workduo's metrics API,
@@ -440,6 +456,7 @@ def build_workduo_model(campaign, proj=None, range_qs=None, range_label=None):
 
     ent_models, series_by_date = [], {}
     self_qrows, primary_qrows, primary_name = None, None, None
+    self_topic_daily = {}
     for em in metas:
         trows = _wd_get_metrics(em["id"], pid, "topic", range_qs=range_qs)
         agg = _agg_overall(trows)
@@ -451,6 +468,8 @@ def build_workduo_model(campaign, proj=None, range_qs=None, range_label=None):
         for d, v in _daily(trows).items():
             series_by_date.setdefault(d, {})[nm] = v
         if em["isSelf"]:
+            # keep the per-topic daily split for the tracked brand (powers the chart's topic filter)
+            self_topic_daily = _daily_by_topic(trows)
             # one aggregate row per query (interval=selectedDateRange) — fast, no per-day pages
             self_qrows = _wd_get_metrics(em["id"], pid, "query", "selectedDateRange", range_qs=range_qs)
         elif primary_qrows is None:
@@ -473,12 +492,13 @@ def build_workduo_model(campaign, proj=None, range_qs=None, range_label=None):
     if rest > 0.5:
         sov_break.append({"name": "Others", "value": rest, "color": "#cbd5e1", "isSelf": False})
 
-    # visibility-over-time by brand
+    # visibility-over-time by brand (+ per-topic split for the tracked brand)
     vis_series = []
     for d in sorted(series_by_date.keys()):
         bb = series_by_date[d]
         vis_series.append({"date": d, "self": bb.get(self_m["name"], 0), "sov": self_m["sov"],
-                           "positive": 0, "negative": 0, "byBrand": bb})
+                           "positive": 0, "negative": 0, "byBrand": bb,
+                           "byTopic": self_topic_daily.get(d, {})})
 
     # per-query breakdown (self vs primary competitor)
     comp_by_q = {}
@@ -598,6 +618,12 @@ def export_daily(campaign, proj=None, max_windows=3):
                     continue
                 win_rows += 1
                 _acc_overall(day(d)["ents"].setdefault(em["id"], _blank()), r)
+                if em["isSelf"]:
+                    # keep the tracked brand's per-topic split so the range view can plot topic trends
+                    t = r.get("topic") or "General"
+                    st = day(d).setdefault("selfTopics", {}).setdefault(t, {"m": 0, "r": 0})
+                    st["m"] += r.get("mentions", 0) or 0
+                    st["r"] += r.get("totalResponses", 0) or 0
         windows_used = w + 1
         empty = empty + 1 if win_rows == 0 else 0
         if empty >= 2:
@@ -651,7 +677,7 @@ def build_model_from_db(cid, start, end, label):
         resp = _daily_tbl.query(KeyConditionExpression=cond, ExclusiveStartKey=resp["LastEvaluatedKey"])
         items.extend(resp.get("Items", []))
 
-    ent_tot, series = {}, {}
+    ent_tot, series, topic_by_date = {}, {}, {}
     for it in items:
         d = it["date"]
         data = json.loads(it["blob"])
@@ -661,6 +687,10 @@ def build_model_from_db(cid, start, end, label):
                 t[k] += ov.get(k, 0)
             nm = (ents_meta.get(eid) or {}).get("name") or eid
             series.setdefault(d, {})[nm] = round(ov["m"] / ov["r"] * 100, 1) if ov.get("r") else 0
+        st = data.get("selfTopics") or {}
+        if st:
+            topic_by_date[d] = {tp: round(v["m"] / v["r"] * 100, 1) if v.get("r") else 0
+                                for tp, v in st.items()}
 
     def overall(t):
         return {"visibility": round(t["m"] / t["r"] * 100, 1) if t["r"] else 0,
@@ -693,7 +723,8 @@ def build_model_from_db(cid, start, end, label):
     for d in sorted(series.keys()):
         bb = series[d]
         vis_series.append({"date": d, "self": bb.get(self_m["name"], 0), "sov": self_m["sov"],
-                           "positive": 0, "negative": 0, "byBrand": bb})
+                           "positive": 0, "negative": 0, "byBrand": bb,
+                           "byTopic": topic_by_date.get(d, {})})
 
     # Per-query breakdown: reuse the persisted last-30d snapshot. (Workduo doesn't expose
     # per-query daily cheaply; the time-series / KPIs / SOV / competitors above ARE range-accurate.)
