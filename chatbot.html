@@ -3639,7 +3639,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2434</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2435</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -6291,12 +6291,15 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             if (key) verifyMondayApiKey();
         }
 
-        async function verifyMondayApiKey() {
+        async function verifyMondayApiKey(silent) {
             const key = document.getElementById('mondayApiKey').value.trim();
             const btn = document.getElementById('mondayVerifyBtn');
             if (!key) { setMondayKeyStatus('hidden'); return; }
+            const savedName = localStorage.getItem('monday_account_name');
+            const savedEmail = localStorage.getItem('monday_account_email');
+            const hadCachedAccount = !!(savedName || savedEmail);
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
-            setMondayKeyStatus('checking', '<i class="fas fa-spinner fa-spin"></i> Checking key…');
+            if (!silent || !hadCachedAccount) setMondayKeyStatus('checking', '<i class="fas fa-spinner fa-spin"></i> Checking key…');
             try {
                 const url = (typeof CB_MONDAY_LAMBDA_URL !== 'undefined' ? CB_MONDAY_LAMBDA_URL : MONDAY_LAMBDA_URL);
                 const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get_monday_data', query: '{ me { name email } }', api_key: key }) });
@@ -6306,15 +6309,35 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 if (me) {
                     if (me.email) localStorage.setItem('monday_account_email', me.email);
                     if (me.name) localStorage.setItem('monday_account_name', me.name);
+                    localStorage.setItem('monday_account_verified_at', String(Date.now()));
                     if (typeof cbRenderConnectionsOverview === 'function') cbRenderConnectionsOverview();
                     setMondayKeyStatus('ok', `<i class="fas fa-circle-check"></i> Connected as <strong>${me.name || me.email}</strong>${me.email ? ` (${me.email})` : ''}`);
                 } else {
-                    localStorage.removeItem('monday_account_email');
-                    localStorage.removeItem('monday_account_name');
-                    setMondayKeyStatus('error', '<i class="fas fa-circle-xmark"></i> Invalid API key — check and try again');
+                    // Distinguish an actual bad/revoked key from transient failures (rate limits,
+                    // 5xx, timeouts). Monday.com's API budget is shared account-wide, so a page full
+                    // of colleagues auto-verifying at once can trip a 429 — that must NOT be reported
+                    // as "Invalid API key" nor wipe out a previously-good cached account.
+                    const errMsg = (data?.error || '').toString();
+                    const isAuthFailure = /HTTP (401|403)/i.test(errMsg) || /unauthoriz|invalid.*(key|token)|not authenticated/i.test(errMsg);
+                    if (isAuthFailure) {
+                        localStorage.removeItem('monday_account_email');
+                        localStorage.removeItem('monday_account_name');
+                        setMondayKeyStatus('error', '<i class="fas fa-circle-xmark"></i> Invalid API key — check and try again');
+                    } else if (hadCachedAccount) {
+                        // Keep showing the last known-good connection; don't punish the user for a
+                        // transient/rate-limited check.
+                        setMondayKeyStatus('ok', `<i class="fas fa-circle-check"></i> Connected as <strong>${savedName || savedEmail}</strong>${savedEmail && savedName ? ` (${savedEmail})` : ''}`);
+                    } else {
+                        setMondayKeyStatus('error', '<i class="fas fa-circle-exclamation"></i> Verification temporarily unavailable — try again shortly');
+                    }
                 }
             } catch (e) {
-                setMondayKeyStatus('error', '<i class="fas fa-circle-xmark"></i> Verification failed — network error');
+                // Network/parse failure: don't wipe a previously-good cached account.
+                if (hadCachedAccount) {
+                    setMondayKeyStatus('ok', `<i class="fas fa-circle-check"></i> Connected as <strong>${savedName || savedEmail}</strong>${savedEmail && savedName ? ` (${savedEmail})` : ''}`);
+                } else {
+                    setMondayKeyStatus('error', '<i class="fas fa-circle-xmark"></i> Verification failed — network error');
+                }
             }
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-plug"></i> Verify'; }
         }
@@ -6359,14 +6382,23 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
 
             document.getElementById('mondayApiKey').value = localStorage.getItem('mondayApiKey') || '';
             // Show the Monday connection status badge immediately from the last known good
-            // account, then re-verify in the background so it stays accurate.
+            // account. Only hit monday.com's live API again if we've never verified this key
+            // or the last successful verification is stale (>6h) — re-checking on every single
+            // page load/refresh was hammering monday.com's shared per-account rate limit across
+            // the whole team and causing spurious "Invalid API key" errors.
             if (localStorage.getItem('mondayApiKey')) {
                 const savedName = localStorage.getItem('monday_account_name');
                 const savedEmail = localStorage.getItem('monday_account_email');
-                if (savedName || savedEmail) {
+                const hadCachedAccount = !!(savedName || savedEmail);
+                if (hadCachedAccount) {
                     setMondayKeyStatus('ok', `<i class="fas fa-circle-check"></i> Connected as <strong>${savedName || savedEmail}</strong>${savedEmail && savedName ? ` (${savedEmail})` : ''}`);
                 }
-                verifyMondayApiKey();
+                const verifiedAt = parseInt(localStorage.getItem('monday_account_verified_at') || '0', 10);
+                const staleAfterMs = 6 * 60 * 60 * 1000; // 6 hours
+                const isStale = !verifiedAt || (Date.now() - verifiedAt) > staleAfterMs;
+                if (!hadCachedAccount || isStale) {
+                    verifyMondayApiKey(true /* silent: don't clobber a fresh cached badge with a spinner */);
+                }
             }
             // Sanitize legacy corrupted clientEmail (was stored as DOM element in older code)
             const _storedEmail = localStorage.getItem('clientEmail') || '';
