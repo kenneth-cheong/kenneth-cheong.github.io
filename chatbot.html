@@ -3615,7 +3615,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2408</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2409</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -4645,15 +4645,17 @@
         let currentMode = 'internal';
 
         // ── LLM provider switcher ───────────────────────────────────────────
-        // DeepSeek is the default for every session unless the user explicitly
-        // switches to Claude (persisted in localStorage). Both run the SAME
-        // server-side tools and data connectors (the model is selected inside
-        // the monday Lambda). Only the provider name is sent to the backend —
-        // never any API key.
+        // DeepSeek is the default for every new session unless the user
+        // explicitly switches to Claude. That choice is remembered only for
+        // the current browser tab/session (sessionStorage) — a fresh tab or
+        // browser restart goes back to DeepSeek. Both run the SAME server-side
+        // tools and data connectors (the model is selected inside the monday
+        // Lambda). Only the provider name is sent to the backend — never any
+        // API key.
         const LLM_MODELS = { anthropic: 'claude-haiku-4-5', deepseek: 'deepseek-chat' };
         function getLlmProvider() {
-            // Default to DeepSeek unless the user has explicitly chosen Claude.
-            return localStorage.getItem('chatLlmProvider') === 'anthropic' ? 'anthropic' : 'deepseek';
+            // Default to DeepSeek unless the user has explicitly chosen Claude this session.
+            return sessionStorage.getItem('chatLlmProvider') === 'anthropic' ? 'anthropic' : 'deepseek';
         }
         function renderModelSwitch() {
             const provider = getLlmProvider();
@@ -4664,7 +4666,7 @@
         }
         function toggleLlmProvider() {
             const next = getLlmProvider() === 'deepseek' ? 'anthropic' : 'deepseek';
-            localStorage.setItem('chatLlmProvider', next);
+            sessionStorage.setItem('chatLlmProvider', next);
             renderModelSwitch();
             if (typeof showToast === 'function') {
                 showToast(next === 'deepseek'
@@ -10862,7 +10864,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             - You have access to tools that can search Gmail and Workspace.
             - ALWAYS ask for explicit user permission before searching Gmail (e.g., "Would you like me to check your Gmail for more context?") unless the user has already asked you to check emails/Gmail in the current turn.
             - If the user says "yes" or "proceed", then use the relevant tools.
-            When a user asks about "chats", "conversations", or "what was said in [space]", ALWAYS use the search_messages_standard tool with 'orderBy': 'CREATE_TIME_DESC' to get the NEWEST messages first. Avoid using 'list_messages' as it returns old archive messages from years ago.`;
+            When a user asks about "chats", "conversations", or "what was said in [space]" for a space that is NOT already listed in the "GOOGLE CHAT SPACES (PRELOADED)" block below, ALWAYS use the search_messages_standard tool with 'orderBy': 'CREATE_TIME_DESC' to get the NEWEST messages first. Avoid using 'list_messages' as it returns old archive messages from years ago. If the space IS already preloaded, this rule does NOT apply — answer directly from SYNCED CONTEXT instead, per the Google Chat rule above.`;
 
             // Volatile, frequently-changing context is accumulated separately so it can be
             // appended AFTER the cached instruction block, keeping the cache prefix stable.
