@@ -311,6 +311,7 @@ def h_list():
             "hasMetrics": bool(it.get("metrics")), "selfVisibility": self_vis, "dataDays": days,
             "metricsSource": it.get("metricsSource"),
             "updatedAt": it.get("updatedAt"), "metricsUpdatedAt": it.get("metricsUpdatedAt"),
+            "activeRunId": it.get("activeRunId"),  # non-null while a live run is in progress for this campaign
         })
     out.sort(key=lambda c: (c.get("name") or "").lower())
     return _resp(200, {"count": len(out), "campaigns": out})
