@@ -5,6 +5,9 @@
 //                                            -> provision a client/staff account
 //   POST /admin/credits { userId, monthlyDelta?, topupDelta?, reason }
 //   POST /admin/tier    { userId, tier }     -> override tier + reset allowance
+//   POST /admin/role    { userId, role }     -> promote/demote client <-> staff
+//                                            (promoting to staff requires a true
+//                                            admin — ADMIN_EMAILS — not just any staff)
 import {
   getUser,
   listAllUsers,
@@ -12,6 +15,7 @@ import {
   adminAdjustCredits,
   adminSetTier,
   adminSetStatus,
+  adminSetRole,
   totalCredits,
   requestAccess,
   listAccessGrants,
@@ -289,6 +293,21 @@ export const handler = async (event) => {
     // Guard against an admin locking a staff member (or themselves) out.
     if (isStaff(target) && body.status !== 'active') return badRequest('Staff accounts cannot be paused or deactivated.');
     const user = await adminSetStatus({ userId: body.userId, status: body.status, adminEmail: c.email });
+    return ok({ user: shape(user) });
+  }
+  // Promote/demote a user between 'client' and 'staff'. Any staff member can
+  // demote another staff account to client, but granting staff access requires
+  // a true admin (ADMIN_EMAILS) — prevents staff from escalating each other (or
+  // themselves) to admin. Self-edits are always blocked so nobody can lock
+  // themselves out or quietly self-promote.
+  if (path.endsWith('/role')) {
+    if (!body.userId || !['client', 'staff'].includes(body.role)) return badRequest('userId + valid role required');
+    if (body.userId === me.userId) return badRequest('You cannot change your own role.');
+    const target = await getUser(body.userId);
+    if (!target) return badRequest('User not found');
+    if (isAdmin(target.email)) return badRequest("This account is a permanent admin (ADMIN_EMAILS) and its role can't be changed here.");
+    if (body.role === 'staff' && !isAdmin(me.email)) return json(403, { error: 'admin_only', message: 'Only an admin can grant staff access.' });
+    const user = await adminSetRole({ userId: body.userId, role: body.role, adminEmail: c.email });
     return ok({ user: shape(user) });
   }
 

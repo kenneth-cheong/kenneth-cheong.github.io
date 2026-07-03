@@ -603,6 +603,7 @@ const DATE_FIELDS = [
 ];
 
 function AdminUsers() {
+  const { user: me } = useAuth();
   const [users, setUsers] = useState(null);
   const [q, setQ] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');     // all | client | staff
@@ -622,6 +623,14 @@ function AdminUsers() {
     catch (e) { setUsers([]); setError(e?.status === 403 ? 'Your account is not an admin.' : 'Could not load users — reload and try again.'); }
   }
   async function setTier(u, tier) { await api.adminTier(u.userId, tier); flash(`${u.email} → ${PLANS[tier].name}`); load(); }
+  async function setRole(u, role) {
+    if (role === (u.role || 'client')) return;
+    if (role === 'staff' && !confirm(`Grant ${u.email} staff (admin panel) access?`)) { load(); return; }
+    if (role === 'client' && !confirm(`Remove staff access from ${u.email}?`)) { load(); return; }
+    try { await api.adminRole(u.userId, role); flash(`${u.email} → ${role === 'staff' ? 'Staff' : 'Client'}`); }
+    catch (e) { setError(e?.payload?.message || e?.payload?.error || 'Could not update role.'); }
+    load();
+  }
   async function setStatus(u, status) {
     if (status === (u.status || 'active')) return;
     if (status !== 'active' && !confirm(`Set ${u.email} to "${status}"? They'll be signed out and blocked from signing in or using the app until you reactivate them.`)) { load(); return; }
@@ -729,9 +738,11 @@ function AdminUsers() {
             { key: 'user', label: 'User', accessor: (u) => u.name || u.email || '',
               render: (u) => (<><div className="font-medium">{u.name || '—'}</div><div className="text-xs text-slate-400">{u.email}</div></>) },
             { key: 'role', label: 'Role', accessor: (u) => u.role || 'client',
-              render: (u) => (u.role === 'staff'
-                ? <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700">Staff</span>
-                : <span className="text-xs text-slate-500">Client</span>) },
+              render: (u) => (u.userId === me.userId
+                ? (u.role === 'staff'
+                    ? <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700">Staff (you)</span>
+                    : <span className="text-xs text-slate-500">Client (you)</span>)
+                : <RoleSelect u={u} canGrantStaff={!!me.isSuperAdmin} onChange={(r) => setRole(u, r)} />) },
             { key: 'status', label: 'Status', accessor: (u) => u.status || 'active',
               render: (u) => (
                 u.status === 'invited'
@@ -766,7 +777,7 @@ function AdminUsers() {
         />
       </div>
       <p className="mt-3 text-xs text-slate-400">
-        Tier changes reset the monthly allowance to that plan's amount; top-up credits are untouched. Setting a user to <strong>Paused</strong> or <strong>Inactive</strong> blocks sign-in and all app/tool access until you set them back to Active. Staff accounts can't be blocked. All changes are written to the credit ledger.
+        Tier changes reset the monthly allowance to that plan's amount; top-up credits are untouched. Setting a user to <strong>Paused</strong> or <strong>Inactive</strong> blocks sign-in and all app/tool access until you set them back to Active. Staff accounts can't be blocked. Any staff can revoke another staff member's access, but only an admin can grant it; you can't change your own role. All changes are written to the credit ledger.
       </p>
       {activityUser && <AdminUserActivity user={activityUser} onClose={() => setActivityUser(null)} />}
     </div>
@@ -788,6 +799,23 @@ function StatusSelect({ u, onChange }) {
       <option value="active">Active</option>
       <option value="paused">Paused</option>
       <option value="inactive">Inactive</option>
+    </select>
+  );
+}
+
+// Client / Staff picker for the Users table. Granting staff access is disabled
+// (greyed "Staff" option) for staff who aren't a true admin — server-side
+// enforces the same rule, this just avoids a round-trip 403.
+function RoleSelect({ u, canGrantStaff, onChange }) {
+  const role = u.role || 'client';
+  return (
+    <select
+      value={role}
+      onChange={(e) => onChange(e.target.value)}
+      className={`dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm font-semibold ${role === 'staff' ? 'text-brand-700' : 'text-slate-600'}`}
+    >
+      <option value="client">Client</option>
+      <option value="staff" disabled={role !== 'staff' && !canGrantStaff}>Staff{role !== 'staff' && !canGrantStaff ? ' (admin only)' : ''}</option>
     </select>
   );
 }

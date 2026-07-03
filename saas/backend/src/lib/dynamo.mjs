@@ -521,6 +521,21 @@ export async function adminSetStatus({ userId, status, adminEmail }) {
   return getUser(userId);
 }
 
+/** Admin: change a user's role (client | staff). */
+export async function adminSetRole({ userId, role, adminEmail }) {
+  const user = await getUser(userId);
+  if (!user) throw new Error('User not found');
+  await putUser({ ...user, role, updatedAt: new Date().toISOString() });
+  await writeLedger({
+    userId,
+    delta: 0,
+    balanceAfter: totalCredits(user),
+    action: 'admin_set_role',
+    meta: { adminEmail, role },
+  });
+  return getUser(userId);
+}
+
 // ── Admin-provisioned accounts (invite-by-email) ─────────────────────────────
 // Stored in the Users table under a `pending:<email>` key. On the person's first
 // Google sign-in with that email, auth links it onto their real google:<sub>

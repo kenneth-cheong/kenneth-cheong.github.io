@@ -4,7 +4,7 @@
 import { getUser, listLedger, totalCredits } from '../lib/dynamo.mjs';
 import { PLANS } from '../../../shared/catalog.mjs';
 import { ok, unauthorized, forbidden, serverError, claims } from '../lib/http.mjs';
-import { isStaff, accountBlocked } from '../lib/admin.mjs';
+import { isStaff, isAdmin, accountBlocked } from '../lib/admin.mjs';
 
 export const handler = async (event) => {
   try {
@@ -37,6 +37,9 @@ export const handler = async (event) => {
         hasSubscription: !!user.stripeCustomerId,
         pastDue: !!user.pastDue, // surfaced as an "update card" banner in the UI
         isAdmin: isStaff(user),
+        // True permanent admin (ADMIN_EMAILS allowlist), distinct from `isAdmin`
+        // above (which is really "is staff"). Gates who can grant staff access.
+        isSuperAdmin: isAdmin(user.email),
         createdAt: user.createdAt,            // drives "is this a brand-new account" in the UI
         onboarding: user.onboarding || null,  // welcome flow / chosen goal / dismissed checklist
         profile: user.profile || {},          // progressive-profiling answers (Profile page + Dashboard card)
