@@ -569,10 +569,11 @@ def _acc_overall(dst, r):
         dst["os"] += r["ownedCitationShare"]; dst["on"] += 1
 
 
-def export_daily(campaign, proj=None, max_windows=3):
+def export_daily(campaign, proj=None, max_windows=24):
     """Pull available daily history from Workduo and store it per (campaign, date)
     in geoCampaignDaily. Walks backward in 30-day windows until the data runs out
-    (capped at 3 windows ≈ 90 days — campaigns are recent)."""
+    (stops after 2 consecutive empty windows), so it captures the full history
+    Workduo holds. The cap (24 windows ≈ 2 years) is just a runaway backstop."""
     pid = str(campaign["id"])
     if proj is None:
         proj = {str(p.get("id")): p for p in fetch_workduo_projects()}.get(pid) or {}
@@ -752,7 +753,8 @@ def h_export_daily(req):
     cid = str(req.get("id") or "")
     item = _table.get_item(Key={"id": cid}).get("Item")
     proj = {str(p.get("id")): p for p in fetch_workduo_projects()}.get(cid)
-    r = export_daily(item or {"id": cid}, proj=proj)
+    kw = {"max_windows": int(req["maxWindows"])} if req.get("maxWindows") else {}
+    r = export_daily(item or {"id": cid}, proj=proj, **kw)
     return _resp(200, {"id": cid, **r})
 
 
