@@ -3670,8 +3670,43 @@ def claude_chat_with_tools(body):
 
 # ── Prompt-building helpers (server-side prompts) ────────────────────────────
 
-def _call_claude_simple(system_text, user_text, model='claude-haiku-4-5', max_tokens=4096):
-    """Call Anthropic Messages API with a single user turn; return a Lambda result dict."""
+def _call_claude_simple(system_text, user_text, model=None, max_tokens=4096, provider='deepseek'):
+    """Call DeepSeek (default) or Anthropic with a single user turn; return a Lambda result dict."""
+    provider = (provider or 'deepseek').lower()
+
+    if provider == 'deepseek':
+        deepseek_key = os.environ.get('DEEPSEEK_API_KEY')
+        if not deepseek_key:
+            return {'statusCode': 500, 'body': json.dumps({'error': 'DEEPSEEK_API_KEY not configured'})}
+        try:
+            r = requests.post(
+                'https://api.deepseek.com/chat/completions',
+                headers={
+                    'Authorization': f'Bearer {deepseek_key}',
+                    'content-type':  'application/json',
+                },
+                json={
+                    'model':      model or 'deepseek-chat',
+                    'max_tokens': max_tokens,
+                    'messages':   [
+                        {'role': 'system', 'content': system_text},
+                        {'role': 'user',   'content': user_text},
+                    ],
+                },
+                timeout=60,
+            )
+            if r.status_code != 200:
+                return {'statusCode': r.status_code,
+                        'body': json.dumps({'error': f'DeepSeek API error {r.status_code}',
+                                            'detail': r.text[:500]})}
+            choice = (r.json().get('choices') or [{}])[0]
+            text = choice.get('message', {}).get('content', '')
+            return {'statusCode': 200, 'body': json.dumps({'result': text, 'reply': text})}
+        except requests.exceptions.Timeout:
+            return {'statusCode': 504, 'body': json.dumps({'error': 'DeepSeek API request timed out'})}
+        except Exception as e:
+            return {'statusCode': 500, 'body': json.dumps({'error': str(e)})}
+
     anthropic_key = os.environ.get('ANTHROPIC_API_KEY')
     if not anthropic_key:
         return {'statusCode': 500, 'body': json.dumps({'error': 'ANTHROPIC_API_KEY not configured'})}
@@ -3684,7 +3719,7 @@ def _call_claude_simple(system_text, user_text, model='claude-haiku-4-5', max_to
                 'content-type':       'application/json',
             },
             json={
-                'model':      model,
+                'model':      model or 'claude-haiku-4-5',
                 'max_tokens': max_tokens,
                 'system':     system_text,
                 'messages':   [{'role': 'user', 'content': user_text}]
@@ -3910,7 +3945,7 @@ def _audit_recommendations(body):
         'as their own items whenever the issues imply them — do not fold everything into "technical". '
         'JSON array only, no other text.'
     )
-    return _call_claude_simple(system, user, max_tokens=3500)
+    return _call_claude_simple(system, user, max_tokens=3500, provider=body.get('provider'))
 
 
 def _competitor_insights(body):
@@ -3934,7 +3969,7 @@ def _competitor_insights(body):
         '- icon: one of "crosshairs", "chess", "chart-line", "lightbulb", "exclamation-triangle", "trophy", "key"\n\n'
         'JSON array only, no other text.'
     )
-    return _call_claude_simple(system, user, max_tokens=2800)
+    return _call_claude_simple(system, user, max_tokens=2800, provider=body.get('provider'))
 
 
 def _strategy_auto_populate(body):
@@ -3952,7 +3987,7 @@ def _strategy_auto_populate(body):
         '- seed_keywords: 3-5 primary keywords found in the text.\n\n'
         f'TEXT:\n{text}'
     )
-    return _call_claude_simple(system, user, max_tokens=2000)
+    return _call_claude_simple(system, user, max_tokens=2000, provider=body.get('provider'))
 
 
 def _strategy_generate(body):
@@ -3990,7 +4025,7 @@ def _strategy_generate(body):
         '"longtail_opportunities": "2-3 sentences explaining the long-tail opportunity" }\n\n'
         'Return compact valid JSON only. No prose.'
     )
-    return _call_claude_simple(system, user, max_tokens=4000)
+    return _call_claude_simple(system, user, max_tokens=4000, provider=body.get('provider'))
 
 
 def _strategy_recommendations(body):
@@ -4025,7 +4060,7 @@ def _strategy_recommendations(body):
         f'   {"Base Technical SEO, Performance, and Domain & Trust items on FAILING or WARN checks in the audit. Do NOT flag items that are already passing." if has_audit else "Include at least 1 item per category."}\n\n'
         'Compact valid JSON only. No prose.'
     )
-    return _call_claude_simple(system, user, max_tokens=3500)
+    return _call_claude_simple(system, user, max_tokens=3500, provider=body.get('provider'))
 
 
 # ── Claude Haiku chat handler (simple, no tools) ────────────────────────────

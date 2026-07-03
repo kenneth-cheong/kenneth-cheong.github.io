@@ -32,6 +32,44 @@ CORS = {'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json'}
 BENCHMARKS = "Avg CPC S$0.68 · Avg CTR 2.61% · Avg CPA S$2.56 · Avg ROAS 2.51x (Google Ads, Singapore, Q1 2026)"
 
 
+def _call_deepseek(api_key, system_prompt, input_text, max_tokens=4096):
+    """Single DeepSeek chat-completions call with one retry on transient errors.
+    Returns (status_code, answer_or_error_text)."""
+    _TRANSIENT = {503, 529}
+    for attempt in range(2):
+        response = requests.post(
+            'https://api.deepseek.com/chat/completions',
+            headers={
+                'Authorization': f'Bearer {api_key}',
+                'content-type':  'application/json'
+            },
+            json={
+                'model':      'deepseek-chat',
+                'max_tokens': max_tokens,
+                'messages':   [
+                    {'role': 'system', 'content': system_prompt},
+                    {'role': 'user',   'content': input_text},
+                ],
+            },
+            timeout=120
+        )
+        if response.status_code == 200:
+            response_json = response.json()
+            choices = response_json.get('choices') or [{}]
+            answer = choices[0].get('message', {}).get('content', '')
+            answer = answer.strip()
+            if answer.startswith('```'):
+                answer = answer.split('\n', 1)[-1]
+            if answer.endswith('```'):
+                answer = answer.rsplit('```', 1)[0]
+            return 200, answer.strip()
+        if response.status_code in _TRANSIENT and attempt == 0:
+            time.sleep(3)
+            continue
+        break
+    return response.status_code, f"API Error {response.status_code}: {response.text}"
+
+
 def _call_anthropic(api_key, system_prompt, input_text, max_tokens=4096):
     """Single Anthropic Messages call with one retry on transient errors.
     Returns (status_code, answer_or_error_text)."""
@@ -93,18 +131,23 @@ def lambda_handler(event, context):
     if isinstance(current_platforms, list):
         current_platforms = ', '.join([p for p in current_platforms if p]) or 'None / unknown'
 
-    api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
-    if not api_key:
-        return {'statusCode': 500, 'headers': CORS,
-                'body': json.dumps({'error': 'Missing ANTHROPIC_API_KEY / CLAUDE_API_KEY env var.'})}
+    anthropic_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
+    deepseek_key  = os.environ.get('DEEPSEEK_API_KEY')
 
-    # ── PRO MODE: account-level diagnosis ────────────────────────────────────
+    # ── PRO MODE: account-level diagnosis (still on Anthropic) ───────────────
     if mode == 'pro':
+        if not anthropic_key:
+            return {'statusCode': 500, 'headers': CORS,
+                    'body': json.dumps({'error': 'Missing ANTHROPIC_API_KEY / CLAUDE_API_KEY env var.'})}
         return _run_pro(
-            api_key, body,
+            anthropic_key, body,
             website_url, business_category, target_country, target_audience,
             monthly_budget, objectives, current_platforms, rfq_notes,
         )
+
+    if not deepseek_key and not anthropic_key:
+        return {'statusCode': 500, 'headers': CORS,
+                'body': json.dumps({'error': 'Missing DEEPSEEK_API_KEY and ANTHROPIC_API_KEY / CLAUDE_API_KEY env var.'})}
 
     # 2. Strategist persona (system prompt) — Starter Mode, sales-friendly
     system_prompt = """
@@ -124,7 +167,10 @@ Choose ONLY from these platforms, using the exact names:
 "TikTok Ads", "LinkedIn Ads", "YouTube Ads".
 
 Pick the channels that genuinely fit this business, audience, and budget — do not spread a small
-budget across everything. For a small budget, recommend fewer channels with conviction.
+budget across everything. For budgets under S$5,000/month, recommend AT MOST 2 platforms — spreading
+such a budget across 3+ channels dilutes spend below the threshold needed for any of them to work and
+is not acceptable. Only go to 3 platforms for budgets of S$5,000/month or more, and only if each
+platform can still receive a meaningful share.
 
 Return ONLY raw JSON (no markdown, no code fences, no commentary) with EXACTLY this shape:
 
@@ -162,7 +208,8 @@ RULES:
   make estimated_budget_range bracket around it. If no budget is given, propose a sensible range for
   the category in the target country and base monthly_budget figures on the "recommended" amount.
 - Use the target country's typical currency (Singapore → SGD with 'S$'). Keep numbers realistic.
-- Provide 2-4 platform_recommendations and 3-4 opportunities.
+- Provide 2 platform_recommendations for budgets under S$5,000/month (up to 3 only for larger budgets)
+  and 3-4 opportunities.
 - Every string must be properly escaped with no literal newlines. No trailing commas.
 - Output the JSON object ONLY.
 """.strip()
@@ -181,9 +228,12 @@ RFQ / DISCUSSION NOTES: {rfq_notes if rfq_notes else 'None provided'}
 Produce the Starter performance-marketing opportunity analysis now.
 """.strip()
 
-    # 4. Call Anthropic
+    # 4. Call DeepSeek (default) or Anthropic (fallback if DEEPSEEK_API_KEY not configured)
     try:
-        status, answer = _call_anthropic(api_key, system_prompt, input_text)
+        if deepseek_key:
+            status, answer = _call_deepseek(deepseek_key, system_prompt, input_text)
+        else:
+            status, answer = _call_anthropic(anthropic_key, system_prompt, input_text)
         if status == 200:
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'answer': answer})}
         msg = 'The AI service is temporarily unavailable. Please try again in a moment.' \

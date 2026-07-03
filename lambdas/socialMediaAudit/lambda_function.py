@@ -1699,11 +1699,9 @@ def _compute_benchmark(brand, client_metrics, competitor_metrics):
 
 
 def _content_sentiment(brand, client_metrics):
-    """Classify the tone of the brand's own recent post captions via Haiku.
+    """Classify the tone of the brand's own recent post captions, via DeepSeek if
+    configured (DEEPSEEK_API_KEY), else falling back to Claude Haiku.
     Returns {positive, neutral, negative, total, summary} or None."""
-    api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
-    if not api_key:
-        return None
     caps = [cap for m in client_metrics.values() if m.get('found')
             for cap in (m.get('captions') or []) if cap and len(cap.strip()) > 4][:40]
     if len(caps) < 3:
@@ -1717,15 +1715,30 @@ def _content_sentiment(brand, client_metrics):
         '{"positive":<int>,"neutral":<int>,"negative":<int>,'
         '"summary":"<=20 words on the overall tone of the content"}\n'
         "The three counts must sum to the number of captions below.\n\nCAPTIONS:\n" + numbered)
+
+    deepseek_key = os.environ.get('DEEPSEEK_API_KEY')
     try:
-        r = requests.post('https://api.anthropic.com/v1/messages',
-                          headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01',
-                                   'content-type': 'application/json'},
-                          json={'model': HAIKU_MODEL, 'max_tokens': 300,
-                                'messages': [{'role': 'user', 'content': prompt}]},
-                          timeout=40)
-        txt = ''.join(b.get('text', '') for b in (r.json().get('content') or [])
-                      if b.get('type') == 'text')
+        if deepseek_key:
+            r = requests.post('https://api.deepseek.com/chat/completions',
+                              headers={'Authorization': f'Bearer {deepseek_key}',
+                                       'content-type': 'application/json'},
+                              json={'model': 'deepseek-chat', 'max_tokens': 300,
+                                    'messages': [{'role': 'user', 'content': prompt}]},
+                              timeout=40)
+            choice = (r.json().get('choices') or [{}])[0]
+            txt = choice.get('message', {}).get('content', '')
+        else:
+            api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
+            if not api_key:
+                return None
+            r = requests.post('https://api.anthropic.com/v1/messages',
+                              headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01',
+                                       'content-type': 'application/json'},
+                              json={'model': HAIKU_MODEL, 'max_tokens': 300,
+                                    'messages': [{'role': 'user', 'content': prompt}]},
+                              timeout=40)
+            txt = ''.join(b.get('text', '') for b in (r.json().get('content') or [])
+                          if b.get('type') == 'text')
         txt = re.sub(r'^```[a-z]*\n?|```$', '', txt.strip()).strip()
         out = json.loads(txt)
         out['total'] = len(caps)
