@@ -2882,7 +2882,7 @@ def claude_chat_with_tools(body):
                         print(f"[TOOLS] Executing monday_graphql: {gql_query[:120]}...")
                         tool_call_log.append(f"▸ {gql_query[:100].strip()}{'…' if len(gql_query) > 100 else ''}")
 
-                        result_data = run_monday_graphql(gql_query)
+                        result_data = run_monday_graphql(gql_query, api_key=body.get('monday_api_key'))
                         result_str  = json.dumps(result_data)
 
                         # Truncate very large payloads to prevent blowing token budget
