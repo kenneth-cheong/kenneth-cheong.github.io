@@ -20,12 +20,16 @@ CAMPAIGNS_TABLE (default 'geoCampaigns').
 """
 
 import base64
+import calendar
+import concurrent.futures
 import json
 import os
 import re
+import threading
 import time
 import urllib.error
 import urllib.request
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import boto3
@@ -38,6 +42,13 @@ WD_CORE = "https://api.workduo.ai/core/v1"
 WD_DATA = "https://api.workduo.ai/data/v1"
 TIMEOUT = int(os.environ.get("HTTP_TIMEOUT", "30"))
 
+# Live-run engines — same verify_mentions contract the frontend calls directly.
+# DataForSEO is synchronous (default); Bright Data returns async snapshots we poll.
+DFS_ENDPOINT = os.environ.get("DFS_ENDPOINT", "https://fpd7jnvlya.execute-api.ap-southeast-1.amazonaws.com")
+AI_ENDPOINT = os.environ.get("AI_ENDPOINT", "https://y0ypcivaz1.execute-api.ap-southeast-1.amazonaws.com/aiMentions")
+RUN_PREFIX = "run#"          # live-run job items share the campaigns table under this id prefix
+RUN_TTL_SECONDS = 24 * 3600  # finished run items auto-expire (table TTL attribute: `ttl`)
+
 CORS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "content-type",
@@ -48,6 +59,13 @@ DAILY_TABLE = os.environ.get("DAILY_TABLE", "geoCampaignDaily")
 _ddb = boto3.resource("dynamodb")
 _table = _ddb.Table(TABLE_NAME)
 _daily_tbl = _ddb.Table(DAILY_TABLE)
+
+# Own function name (Lambda sets this env var automatically) — used to self-invoke
+# the async citations worker. Self-invocation is bound only by this function's own
+# 900s timeout, not API Gateway's 30s (HTTP API) / configured integration timeout
+# (REST API) cap, since it never goes back through API Gateway.
+FUNCTION_NAME = os.environ.get("AWS_LAMBDA_FUNCTION_NAME", "geoCampaigns")
+_lambda_client = boto3.client("lambda")
 
 
 def _resp(status, body):
@@ -275,6 +293,8 @@ def h_list():
         kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
     out = []
     for it in items:
+        if str(it.get("id") or "").startswith(RUN_PREFIX):
+            continue  # live-run job items live in this table too — never list them as campaigns
         self_vis, days = None, 0
         if it.get("metrics"):
             try:
@@ -375,6 +395,89 @@ def _wd_get_metrics(eid, pid, dimension, interval="daily", range_qs=None):
     return rows
 
 
+def _wd_get_citations(eid, pid, dimension, range_qs=None, on_page=None):
+    """Paginated rows from Workduo's /core/v1/citations — a separate endpoint from
+    /data/v1/metrics, with dimension='url'|'domain'|'query'. One row per
+    dimensionValue per day; caller aggregates across the requested range.
+    Cursor-only pagination (no offset/page param — verified it's silently
+    ignored), so pages are inherently sequential; ~7-9s/call regardless of
+    pageSize, so 500 (the largest accepted) minimizes round trips.
+    on_page(pages, rows_so_far), if given, fires after every page — the async
+    worker uses this to persist live progress for the frontend to poll."""
+    rows, token, pages, page_size = [], None, 0, 500
+    rng = range_qs or f"dateRange={METRICS_DATE_RANGE}"
+    base = (f"{WD_CORE}/citations?projectId={pid}&entityId={eid}"
+            f"&{rng}&dimension={dimension}")
+    while pages < 80:
+        u = base + (f"&pageSize={page_size}" if page_size else "")
+        if token:
+            u += "&nextPageToken=" + token
+        st, b = _wd_get(u)
+        if st != 200:
+            if page_size:          # some windows reject pageSize — retry without it
+                page_size = 0
+                continue
+            break
+        rows.extend(_rows(b))
+        token = b.get("nextPageToken") if isinstance(b, dict) else None
+        pages += 1
+        if on_page:
+            try:
+                on_page(pages, len(rows))
+            except Exception:
+                pass
+        if not token:
+            break
+    return rows
+
+
+_CIT_TYPE_LABEL = {"OWNED": "Owned", "COMPETITOR": "Competitor", "OTHERS": "Other"}
+_CIT_TYPE_COLOR = {"Owned": "#1e3a8a", "Competitor": "#f59e0b", "Social": "#14b8a6", "Other": "#8b5cf6"}
+
+
+def _citations_model(eid, pid, range_qs=None, on_page=None):
+    """Per-URL citation detail for one entity, built from /core/v1/citations
+    (dimension=url). Returns (citations, citationTypes, available). Workduo gives
+    real type (OWNED/COMPETITOR/OTHERS) and used-count per URL per day — this
+    aggregates those across the range into the shape the dashboard table expects.
+    Note: Workduo doesn't expose a per-URL x per-query cross-tab, so `queryCount`
+    is the citation's real times-used count (citationUsedCount), not a distinct-
+    query count — the closest genuine signal Workduo offers for that column."""
+    try:
+        rows = _wd_get_citations(eid, pid, "url", range_qs=range_qs, on_page=on_page)
+    except Exception:
+        return [], [], False
+    agg = {}
+    for r in rows:
+        url = r.get("dimensionValue")
+        if not url:
+            continue
+        a = agg.setdefault(url, {"count": 0, "usedCount": 0, "responses": 0, "type": r.get("type") or "OTHERS"})
+        a["count"] += r.get("citationCount", 0) or 0
+        a["usedCount"] += r.get("citationUsedCount", 0) or 0
+        a["responses"] += r.get("responseCount", 0) or 0
+        if r.get("type"):
+            a["type"] = r["type"]
+    total = sum(a["count"] for a in agg.values()) or 1
+    cits = []
+    for url, a in agg.items():
+        label = _CIT_TYPE_LABEL.get(a["type"], "Other")
+        cits.append({
+            "url": url, "domain": domain_of(url), "count": a["count"],
+            "queryCount": a["usedCount"],
+            "used": round(a["usedCount"] / a["responses"] * 100, 1) if a["responses"] else 0,
+            "share": round(a["count"] / total * 100, 1),
+            "owned": label == "Owned", "type": label,
+        })
+    cits.sort(key=lambda c: -c["count"])
+    type_totals = {"Owned": 0, "Competitor": 0, "Social": 0, "Other": 0}
+    for c in cits:
+        type_totals[c["type"]] = type_totals.get(c["type"], 0) + c["count"]
+    citation_types = [{"type": t, "count": n, "color": _CIT_TYPE_COLOR[t]}
+                       for t, n in type_totals.items() if n > 0]
+    return cits, citation_types, True
+
+
 def _agg_overall(rows):
     m = sum(r.get("mentions", 0) or 0 for r in rows)
     resp = sum(r.get("totalResponses", 0) or 0 for r in rows)
@@ -420,10 +523,16 @@ def _daily_by_topic(rows):
             for d, tv in by.items()}
 
 
-def build_workduo_model(campaign, proj=None, range_qs=None, range_label=None):
+def build_workduo_model(campaign, proj=None, range_qs=None, range_label=None, fetch_citations=False):
     """Transform real Workduo metrics into the dashboard's WD.model shape.
-    Sentiment + detailed citations are not exposed by Workduo's metrics API,
-    so those are flagged unavailable rather than fabricated."""
+    Per-URL citation detail comes from the separate /core/v1/citations endpoint
+    (see _citations_model) — OFF by default. Its pagination is cursor-only
+    (~7-9s per call, un-parallelizable) and a full 30-day pull can take 3-4
+    minutes for a campaign with heavy citation volume, blowing API Gateway's
+    hard 30s Lambda-proxy timeout. Callers reached via API Gateway (h_import_metrics,
+    h_migrate_all) must NOT set this; only an async/self-invoked path should.
+    Sentiment has no Workduo equivalent at all, so that stays flagged unavailable
+    rather than fabricated."""
     pid = str(campaign["id"])
     if proj is None:
         projects = {str(p.get("id")): p for p in fetch_workduo_projects()}
@@ -528,6 +637,9 @@ def build_workduo_model(campaign, proj=None, range_qs=None, range_label=None):
                         "selfPct": selfpct, "competitorPct": comppct})
     prompts.sort(key=lambda p: -p["visibility"])
 
+    cits, citation_types, cits_ok = (_citations_model(self_eid, pid, range_qs=range_qs)
+                                      if fetch_citations else ([], [], False))
+
     return {
         "brand": brand, "target": target, "domain": domain, "location": region,
         "live": True, "metricsSource": "workduo", "engineLabel": "Workduo (historical)",
@@ -536,10 +648,10 @@ def build_workduo_model(campaign, proj=None, range_qs=None, range_label=None):
         "visibilitySeries": vis_series,
         "sentimentSeries": [{"date": s["date"], "positive": 0, "negative": 0} for s in vis_series],
         "prompts": prompts, "primaryComp": primary_name,
-        "citations": [], "citationTypes": [],
+        "citations": cits, "citationTypes": citation_types,
         "ownedShare": self_m["ownedShare"], "ownedCount": self_m["ownedCount"],
         "positive": 0, "negative": 0, "sentimentThemes": [],
-        "sentimentAvailable": False, "citationsDetailAvailable": False,
+        "sentimentAvailable": False, "citationsDetailAvailable": cits_ok,
         "plats": [{"label": "ChatGPT"}, {"label": "Google AI Overview"}],
         "dateRange": range_label or METRICS_DATE_RANGE,
     }
@@ -798,6 +910,78 @@ def h_import_metrics(req):
                        "self": model["self"]})
 
 
+def h_import_citations(req):
+    """Kick off an async per-URL citations refresh for one campaign and return
+    immediately. Workduo's citations pagination can take minutes (cursor-only,
+    ~7-9s/page) — far past any API Gateway integration timeout — so the actual
+    work runs in a separate self-invoked ('Event') Lambda execution with its own
+    full 900s budget, decoupled from this request entirely. The frontend polls
+    `get` and watches citationsStatus / citationsProgress on the campaign record."""
+    cid = str(req.get("id") or "")
+    it = _table.get_item(Key={"id": cid}).get("Item")
+    if not it:
+        return _resp(404, {"error": "campaign not found"})
+    if not it.get("entityId"):
+        return _resp(400, {"error": "campaign has no entityId — re-import its definition first"})
+    if it.get("citationsStatus") == "running" and it.get("citationsStartedAt"):
+        try:
+            started = calendar.timegm(time.strptime(it["citationsStartedAt"], "%Y-%m-%dT%H:%M:%SZ"))
+            age = time.time() - started
+        except Exception:
+            age = 0
+        if age < 900:   # can't outlive the worker's own Lambda timeout
+            return _resp(200, {"ok": True, "id": cid, "status": "already_running"})
+    _table.update_item(
+        Key={"id": cid},
+        UpdateExpression="SET citationsStatus = :s, citationsStartedAt = :t, citationsProgress = :p REMOVE citationsError",
+        ExpressionAttributeValues={":s": "running", ":t": _now(), ":p": {"pages": 0, "rows": 0}},
+    )
+    _lambda_client.invoke(FunctionName=FUNCTION_NAME, InvocationType="Event",
+                          Payload=json.dumps({"action": "_citations_worker", "id": cid}).encode())
+    return _resp(200, {"ok": True, "id": cid, "status": "started"})
+
+
+def h_citations_worker(req):
+    """Runs ONLY via self-invoke from h_import_citations — not meant to be called
+    synchronously by an HTTP client. Fetches full per-URL citation detail for one
+    campaign and merges it into the saved metrics snapshot, updating live progress
+    in DynamoDB after every page so the frontend can poll a status/ETA."""
+    cid = str(req.get("id") or "")
+    it = _table.get_item(Key={"id": cid}).get("Item")
+    if not it or not it.get("entityId"):
+        return _resp(200, {"ok": False, "error": "campaign missing or has no entityId"})
+    eid = it["entityId"]
+    progress = {"pages": 0, "rows": 0}
+
+    def on_page(pages, rows):
+        progress["pages"], progress["rows"] = pages, rows
+        try:
+            _table.update_item(Key={"id": cid}, UpdateExpression="SET citationsProgress = :p",
+                               ExpressionAttributeValues={":p": progress})
+        except Exception:
+            pass
+
+    try:
+        cits, citation_types, ok = _citations_model(eid, cid, range_qs="dateRange=last30days", on_page=on_page)
+        if not ok:
+            raise RuntimeError("Workduo citations fetch failed")
+        snap = _table.get_item(Key={"id": cid}).get("Item") or {}
+        metrics = json.loads(snap["metrics"]) if snap.get("metrics") else {}
+        metrics.update({"citations": cits, "citationTypes": citation_types, "citationsDetailAvailable": True})
+        _table.update_item(
+            Key={"id": cid},
+            UpdateExpression=("SET #m = :m, citationsStatus = :s, citationsUpdatedAt = :t, "
+                              "citationsLastRunPages = :lp REMOVE citationsError"),
+            ExpressionAttributeNames={"#m": "metrics"},
+            ExpressionAttributeValues={":m": json.dumps(metrics), ":s": "done", ":t": _now(),
+                                       ":lp": progress["pages"]},
+        )
+    except Exception as e:
+        _table.update_item(Key={"id": cid}, UpdateExpression="SET citationsStatus = :s, citationsError = :e",
+                           ExpressionAttributeValues={":s": "error", ":e": str(e)[:500]})
+    return _resp(200, {"ok": True, "id": cid})
+
+
 def h_metrics_for_range(req):
     """On-demand: build a campaign's model for a chosen date range straight from our
     DynamoDB daily store — NO Workduo calls. Fast (single DynamoDB date-range query)."""
@@ -947,6 +1131,225 @@ def h_inspect_metrics(req):
     return _resp(200, {"entityId": eid, "probes": probes})
 
 
+# ---------------------------------------------------------------------------
+# Live analysis run — durable, server-side version of the browser's WD.runLive.
+# Instead of the tab fanning out verify_mentions calls (lost on refresh), the
+# frontend POSTs `start_run`; we persist a run job and self-invoke a worker
+# ('Event') that runs the fan-out inside its own 900s budget, writing progress
+# to DynamoDB. The frontend polls `run_status` and rebuilds the model from the
+# raw results with its existing JS buildModel(). Mirrors the citations worker.
+# ---------------------------------------------------------------------------
+def _num(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _post_json(url, payload, timeout=None):
+    data = json.dumps(payload).encode()
+    req = urllib.request.Request(url, data=data, method="POST",
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout or TIMEOUT) as r:
+        return r.status, json.loads(r.read().decode())
+
+
+def _unwrap(raw):
+    # Both engines sometimes wrap the payload in a stringified {statusCode, body}.
+    if isinstance(raw, dict) and "body" in raw:
+        b = raw["body"]
+        return json.loads(b) if isinstance(b, str) else b
+    return raw
+
+
+def _verify_one(prompt, brand, url, model, source, location, deadline=None):
+    """Python port of the JS WD.verifyOne — one prompt × brand × platform check.
+    Returns the same dict shape the JS buildModel consumes. Never raises."""
+    endpoint = DFS_ENDPOINT if source == "dataforseo" else AI_ENDPOINT
+    try:
+        _st, raw = _post_json(endpoint, {"action": "verify_mentions", "prompt": prompt,
+                                         "brand": brand, "url": url, "location": location,
+                                         "models": [model]}, timeout=90)
+        data = _unwrap(raw)
+        ver = data.get("verification") if isinstance(data, dict) else None
+        result = ver[0] if ver else None
+        if result and result.get("status") == "snapshot_pending":
+            sid, tries = result.get("snapshot_id"), 0
+            while tries < 30:
+                if deadline and time.time() > deadline:
+                    raise RuntimeError("deadline exceeded while polling snapshot")
+                time.sleep(10)
+                tries += 1
+                _ps, praw = _post_json(AI_ENDPOINT, {"action": "poll_snapshot", "snapshot_id": sid,
+                                                     "brand": brand, "url": url, "model": model}, timeout=60)
+                pd = _unwrap(praw)
+                status = pd.get("status") if isinstance(pd, dict) else None
+                if status == "running":
+                    continue
+                if status == "success":
+                    result = pd
+                    break
+                if isinstance(pd, dict) and pd.get("error"):
+                    raise RuntimeError(pd["error"])
+        if not result or result.get("status") == "error":
+            raise RuntimeError((result or {}).get("error") or "no data")
+        a = result.get("analysis")
+        if isinstance(a, str):
+            a = json.loads(a)
+        a = a or {}
+        cits = a.get("citation_urls") or []
+        return {"ok": True, "mentioned": bool(a.get("is_mentioned")),
+                "score": _num(a.get("visibility_score")), "sentiment": a.get("sentiment") or "neutral",
+                "cited": bool(a.get("is_cited")), "rank": int(_num(a.get("rank"))),
+                "snippet": a.get("mention_snippet") or "", "citations": cits[:12]}
+    except Exception as e:
+        return {"ok": False, "error": str(e)[:200]}
+
+
+def _build_jobs(cfg):
+    """entities (self + competitors) × prompts × platforms — same grid as WD.runLive."""
+    brand, target = cfg.get("brand"), cfg.get("target")
+    entities = [{"brand": brand, "target": target}]
+    for c in (cfg.get("competitors") or []):
+        entities.append({"brand": c, "target": ""})
+    jobs = []
+    for ei, ent in enumerate(entities):
+        for pi, pr in enumerate(cfg.get("prompts") or []):
+            for pl in (cfg.get("platforms") or []):
+                jobs.append({"ei": ei, "pi": pi, "pl": pl, "prompt": pr,
+                             "brand": ent["brand"], "url": ent["target"] or target})
+    return jobs
+
+
+def h_start_live_run(req):
+    """Kick off a durable live analysis and return a runId immediately. The heavy
+    fan-out runs in a self-invoked worker; the frontend polls run_status."""
+    brand = (req.get("brand") or "").strip()
+    target = (req.get("target") or "").strip()
+    prompts = [str(p).strip() for p in (req.get("prompts") or []) if str(p).strip()]
+    platforms = [str(p).strip() for p in (req.get("platforms") or []) if str(p).strip()]
+    if not brand or not target:
+        return _resp(400, {"error": "brand and target are required"})
+    if not prompts:
+        return _resp(400, {"error": "at least one prompt is required"})
+    if not platforms:
+        return _resp(400, {"error": "at least one platform is required"})
+
+    cfg = {"brand": brand, "target": target, "location": req.get("location") or "",
+           "source": req.get("source") or "dataforseo",
+           "competitors": [str(c).strip() for c in (req.get("competitors") or []) if str(c).strip()],
+           "prompts": prompts, "platforms": platforms, "campaignId": str(req.get("id") or "")}
+    total = len(_build_jobs(cfg))
+    run_id = uuid.uuid4().hex
+    _table.put_item(Item={
+        "id": RUN_PREFIX + run_id, "type": "live_run", "status": "running",
+        "startedAt": _now(), "progress": {"done": 0, "total": total},
+        "config": cfg, "ttl": int(time.time()) + RUN_TTL_SECONDS,
+    })
+    if cfg["campaignId"]:
+        try:
+            _table.update_item(Key={"id": cfg["campaignId"]},
+                               UpdateExpression="SET activeRunId = :r",
+                               ExpressionAttributeValues={":r": run_id})
+        except Exception:
+            pass
+    _lambda_client.invoke(FunctionName=FUNCTION_NAME, InvocationType="Event",
+                          Payload=json.dumps({"action": "_live_run_worker", "runId": run_id}).encode())
+    return _resp(200, {"ok": True, "runId": run_id, "total": total})
+
+
+def h_live_run_worker(req):
+    """Runs ONLY via self-invoke from h_start_live_run. Fans out the verify checks
+    with a 6-way thread pool, persisting progress after each so the frontend can
+    poll, then stores the raw results for the client to build its model from."""
+    run_id = str(req.get("runId") or "")
+    key = {"id": RUN_PREFIX + run_id}
+    it = _table.get_item(Key=key).get("Item")
+    if not it or it.get("type") != "live_run":
+        return _resp(200, {"ok": False, "error": "run not found"})
+    cfg = it.get("config") or {}
+    source, location = cfg.get("source") or "dataforseo", cfg.get("location") or ""
+    campaign_id = cfg.get("campaignId") or ""
+    jobs = _build_jobs(cfg)
+    total = len(jobs)
+    deadline = time.time() + 840  # leave headroom under the 900s Lambda limit for the final write
+    outs = [None] * total
+    lock = threading.Lock()
+    state = {"done": 0, "last_write": 0.0}
+
+    def run_job(idx):
+        j = jobs[idx]
+        try:
+            res = _verify_one(j["prompt"], j["brand"], j["url"], j["pl"], source, location, deadline)
+        except Exception as e:
+            res = {"ok": False, "error": str(e)[:200]}
+        outs[idx] = {"ei": j["ei"], "pi": j["pi"], "pl": j["pl"], "prompt": j["prompt"], "res": res}
+        with lock:
+            state["done"] += 1
+            n, now = state["done"], time.time()
+            do_write = (now - state["last_write"] >= 1.0) or (n == total)
+            if do_write:
+                state["last_write"] = now
+        if do_write:
+            try:
+                _table.update_item(Key=key, UpdateExpression="SET progress = :p",
+                                   ExpressionAttributeValues={":p": {"done": n, "total": total}})
+            except Exception:
+                pass
+
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as ex:
+            list(ex.map(run_job, range(total)))
+        results = [o for o in outs if o is not None]
+        payload = json.dumps(results)
+        if len(payload) > 300000:  # keep the item comfortably under DynamoDB's 400KB cap
+            for o in results:
+                r = o.get("res") or {}
+                if isinstance(r.get("citations"), list):
+                    r["citations"] = r["citations"][:3]
+            payload = json.dumps(results)
+        _table.update_item(
+            Key=key,
+            UpdateExpression="SET #s = :s, results = :r, finishedAt = :t, progress = :p",
+            ExpressionAttributeNames={"#s": "status"},
+            ExpressionAttributeValues={":s": "done", ":r": payload, ":t": _now(),
+                                       ":p": {"done": total, "total": total}},
+        )
+    except Exception as e:
+        _table.update_item(Key=key, UpdateExpression="SET #s = :s, runError = :e",
+                           ExpressionAttributeNames={"#s": "status"},
+                           ExpressionAttributeValues={":s": "error", ":e": str(e)[:500]})
+    finally:
+        if campaign_id:
+            try:
+                _table.update_item(Key={"id": campaign_id}, UpdateExpression="REMOVE activeRunId")
+            except Exception:
+                pass
+    return _resp(200, {"ok": True, "runId": run_id})
+
+
+def h_run_status(req):
+    """Poll a live run. Returns progress always; the full raw results + config
+    only once done (keeps the polling payload small)."""
+    run_id = str(req.get("runId") or "")
+    it = _table.get_item(Key={"id": RUN_PREFIX + run_id}).get("Item")
+    if not it:
+        return _resp(200, {"status": "missing"})
+    status = it.get("status") or "running"
+    prog = it.get("progress") or {}
+    out = {"status": status,
+           "progress": {"done": int(_num(prog.get("done"))), "total": int(_num(prog.get("total")))}}
+    if status == "error":
+        out["error"] = it.get("runError")
+    if status == "done" and it.get("results"):
+        try:
+            out["results"] = json.loads(it["results"])
+        except Exception:
+            out["results"] = []
+        out["config"] = it.get("config") or {}
+    return _resp(200, out)
+
+
 def lambda_handler(event, context):
     method = (event.get("requestContext", {}).get("http", {}).get("method")
               or event.get("httpMethod") or "POST")
@@ -986,6 +1389,16 @@ def lambda_handler(event, context):
             return h_inspect_ranges(req)
         if action == "import_metrics":
             return h_import_metrics(req)
+        if action == "import_citations":
+            return h_import_citations(req)
+        if action == "_citations_worker":
+            return h_citations_worker(req)
+        if action == "start_run":
+            return h_start_live_run(req)
+        if action == "run_status":
+            return h_run_status(req)
+        if action == "_live_run_worker":
+            return h_live_run_worker(req)
         if action == "migrate_all":
             return h_migrate_all(req)
         if action == "metrics_for_range":
