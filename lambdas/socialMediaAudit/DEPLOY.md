@@ -21,6 +21,44 @@ Monthly Social Reports refresh themselves daily, no user trigger.
 
 Re-deploy code: `update-function-code --function-name socialMediaAudit --zip-file fileb://socialMediaAudit.zip --region ap-southeast-1`
 
+## Social Listening Report (standalone module) — added 2026-07-03
+Separate offering/billing from Monthly Social Reports (own top-level nav item,
+not a tab), but shares this Lambda + the `fetch_social_listening()` engine.
+- **DynamoDB:** `sl_clients` (PK clientId), `sl_topics` (PK clientId, SK topicId),
+  `sl_snapshots` (PK topicId, SK date "YYYY-MM-DD", TTL on `ttl` — ~13 months).
+  All `PAY_PER_REQUEST`. IAM: same `sma-dynamodb` inline policy on
+  `socialMediaAudit-role`, extended with a third statement for these 3 tables.
+- **Data model:** a client has one or more named "topics" (own keyword query,
+  e.g. "Payment/Payout"). Every ACTIVE topic gets one live pull/day, stored as
+  a snapshot row. A date-range report aggregates snapshot rows on demand
+  (`sl_get_topic_report`): mentions deduped by URL, sentiment summed, one trend
+  point per captured day, top-sites computed from the deduped mentions. No
+  historical backfill is possible — DataForSEO Content Analysis has no
+  date-range query (live search only), so trend data only exists from whenever
+  a topic starts being tracked.
+- **Actions:** `sl_list_clients`, `sl_save_client`, `sl_delete_client`,
+  `sl_list_topics`, `sl_save_topic`, `sl_delete_topic`, `sl_pull_topic`
+  (manual on-demand snapshot), `sl_get_topic_report`, `sl_cron_snapshot_all` /
+  `sl_cron_snapshot_one` (daily cron, same self-invoke fan-out shape as
+  `cron_capture_all`/`cron_capture_one` above).
+- **EventBridge rule** `socialMediaAudit-daily-listening-snapshot` →
+  `cron(10 22 * * ? *)` (22:10 UTC = 06:10 SGT — 10 min after the Monthly
+  Reports cron so both don't cold-start at once), target = this Lambda, Input
+  `{"action":"sl_cron_snapshot_all"}`. Resource policy sid
+  `eventbridge-daily-listening-snapshot` lets `events.amazonaws.com` invoke.
+- **Cost note:** the cron fires once per TOPIC, not once per client — e.g. 20
+  clients × 4 topics = 80 self-invokes/day, each doing up to 5 DataForSEO
+  term-calls × 2 endpoints + up to 3 platform SERP calls. That's a real cost
+  multiplier vs. the per-project Monthly Reports cron. No hard cap enforced;
+  watch DataForSEO spend as topic count grows.
+- **Reach/impressions/heatmap/country/language breakdowns:** intentionally
+  omitted from the whole feature — DataForSEO can't produce real numbers for
+  any of these (confirmed against the API), and this tool never fabricates
+  metrics. The KPI is labelled "Mentions captured" (not "Total mentions") since
+  `content_analysis/search/live` caps at 20 items/term — it's a floor on real
+  volume, not a true corpus count.
+- **Manual test:** `aws lambda invoke --function-name socialMediaAudit --payload '{"action":"sl_save_client","data":{"name":"Test Client"}}' out.json` (chain through `sl_save_topic` → `sl_pull_topic` → `sl_get_topic_report` with the returned `clientId`/`topicId`), or `{"action":"sl_cron_snapshot_all"}` to fire the full daily sweep on demand.
+
 ## OAuth "Connect with …" for per-client connections — added 2026-06-23
 Lets a non-technical user authorise a client's Meta / LinkedIn / TikTok / YouTube
 account with **one click** (Settings tab → Platform connections → *Connect with X*)

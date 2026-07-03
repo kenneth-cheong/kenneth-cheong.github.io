@@ -57,6 +57,14 @@ CACHE_TABLE  = os.environ.get('SMA_CACHE_TABLE', 'sma_apify_cache')
 REPORT_PROJECTS_TABLE = os.environ.get('REPORT_PROJECTS_TABLE', 'social_report_projects')
 REPORT_MONTHS_TABLE   = os.environ.get('REPORT_MONTHS_TABLE', 'social_report_months')
 REPORT_DAYS_TABLE     = os.environ.get('REPORT_DAYS_TABLE', 'social_report_days')
+# Social Listening Report — standalone module, separate billing/offering from
+# Monthly Social Reports though it shares this Lambda + fetch_social_listening().
+#   sl_clients    PK: clientId (S)                      — one listening client.
+#   sl_topics     PK: clientId (S), SK: topicId (S)      — a tracked keyword query.
+#   sl_snapshots  PK: topicId (S),  SK: date (S "YYYY-MM-DD") — one daily pull.
+SL_CLIENTS_TABLE   = os.environ.get('SL_CLIENTS_TABLE', 'sl_clients')
+SL_TOPICS_TABLE    = os.environ.get('SL_TOPICS_TABLE', 'sl_topics')
+SL_SNAPSHOTS_TABLE = os.environ.get('SL_SNAPSHOTS_TABLE', 'sl_snapshots')
 HAIKU_MODEL  = 'claude-haiku-4-5-20251001'
 # Vision-capable model for the content/creative audit (visual style + theme).
 # Sonnet reasons over imagery noticeably better than Haiku; it runs once per
@@ -225,6 +233,27 @@ def lambda_handler(event, context):
             return _resp(200, report_recommend(body))
         if action == 'report_extract_pdf':
             return _resp(200, report_extract_pdf(body))
+        # ── Social Listening Report: standalone clients/topics/snapshots ─────
+        if action == 'sl_list_clients':
+            return _resp(200, sl_list_clients(body))
+        if action == 'sl_save_client':
+            return _resp(200, sl_save_client(body))
+        if action == 'sl_delete_client':
+            return _resp(200, sl_delete_client(body))
+        if action == 'sl_list_topics':
+            return _resp(200, sl_list_topics(body))
+        if action == 'sl_save_topic':
+            return _resp(200, sl_save_topic(body))
+        if action == 'sl_delete_topic':
+            return _resp(200, sl_delete_topic(body))
+        if action == 'sl_pull_topic':
+            return _resp(200, sl_pull_topic(body))
+        if action == 'sl_get_topic_report':
+            return _resp(200, sl_get_topic_report(body))
+        if action == 'sl_cron_snapshot_all':
+            return _resp(200, sl_cron_snapshot_all(body))
+        if action == 'sl_cron_snapshot_one':
+            return _resp(200, sl_cron_snapshot_one(body))
         # ── OAuth "Connect with …" for per-client platform connections ───────
         if action == 'oauth_config':
             return _resp(200, oauth_config(body))
@@ -2519,6 +2548,287 @@ def report_extract_pdf(body):
         return {'extracted': out, 'ai': True}
     except Exception as e:
         return {'extracted': None, 'ai': False, 'error': str(e)[:200]}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Social Listening Report — standalone module (separate offering/billing from
+# Monthly Social Reports, though it shares this Lambda). A "client" holds one or
+# more named "topics" (e.g. "Payment/Payout"), each with its own tracked keyword
+# query. Every active topic gets snapshotted once a day (cron, below) via the
+# same fetch_social_listening() the Monthly Reports Listening tab uses — one row
+# per (topic, date) in sl_snapshots. A date-range report aggregates those daily
+# rows: mentions are deduped by URL, sentiment counts are summed, and one trend
+# point is emitted per day that actually has a snapshot — DataForSEO has no
+# date-range query (live search only), so there is no historical backfill; trend
+# data only exists from whenever a topic starts being tracked.
+# ──────────────────────────────────────────────────────────────────────────────
+SL_SNAPSHOT_TTL_SECS = 400 * 86400   # ~13 months — old snapshots self-clean via DynamoDB TTL
+
+def _slclients():   return boto3.resource('dynamodb', region_name=REGION).Table(SL_CLIENTS_TABLE)
+def _sltopics():    return boto3.resource('dynamodb', region_name=REGION).Table(SL_TOPICS_TABLE)
+def _slsnapshots(): return boto3.resource('dynamodb', region_name=REGION).Table(SL_SNAPSHOTS_TABLE)
+
+
+def sl_list_clients(body):
+    items = []
+    resp = _slclients().scan()
+    items.extend(resp.get('Items', []))
+    while resp.get('LastEvaluatedKey'):
+        resp = _slclients().scan(ExclusiveStartKey=resp['LastEvaluatedKey'])
+        items.extend(resp.get('Items', []))
+    items.sort(key=lambda c: str(c.get('updated') or c.get('created') or ''), reverse=True)
+    return {'clients': _dec(items)}
+
+
+def sl_save_client(body):
+    data = body.get('data') or body
+    cid = (data.get('clientId') or '').strip() or uuid.uuid4().hex
+    existing = _slclients().get_item(Key={'clientId': cid}).get('Item') or {}
+    now = _now_iso(); who = _who(body)
+    item = {
+        'clientId':   cid,
+        'name':       (data.get('name') or existing.get('name') or 'Untitled client').strip(),
+        'domain':     (data.get('domain') or existing.get('domain') or '').strip(),
+        'industry':   (data.get('industry') or existing.get('industry') or '').strip(),
+        'location':   (data.get('location') or existing.get('location') or 'Singapore').strip(),
+        'topics':     existing.get('topics', []),   # lightweight index only — full rows live in sl_topics
+        'created':    existing.get('created') or now,
+        'created_by': existing.get('created_by') or who,
+        'updated':    now,
+        'updated_by': who,
+    }
+    stored = _enc(item)
+    _slclients().put_item(Item=stored)
+    return {'ok': True, 'client': _dec(stored)}
+
+
+def sl_delete_client(body):
+    cid = (body.get('clientId') or (body.get('data') or {}).get('clientId') or '').strip()
+    if not cid:
+        raise RuntimeError('Missing clientId.')
+    resp = _sltopics().query(KeyConditionExpression=Key('clientId').eq(cid),
+                             ProjectionExpression='topicId')
+    with _sltopics().batch_writer() as bw:
+        for t in resp.get('Items', []):
+            bw.delete_item(Key={'clientId': cid, 'topicId': t['topicId']})
+    _slclients().delete_item(Key={'clientId': cid})
+    # Snapshot rows for deleted topics are left to expire via DynamoDB TTL rather
+    # than a cascade query per topic — cheap to leave, simpler than chasing them.
+    return {'ok': True}
+
+
+def sl_list_topics(body):
+    cid = (body.get('clientId') or '').strip()
+    if not cid:
+        raise RuntimeError('Missing clientId.')
+    resp = _sltopics().query(KeyConditionExpression=Key('clientId').eq(cid))
+    items = resp.get('Items', [])
+    items.sort(key=lambda t: str(t.get('name') or ''))
+    return {'topics': _dec(items)}
+
+
+def sl_save_topic(body):
+    data = body.get('data') or body
+    cid = (data.get('clientId') or '').strip()
+    if not cid:
+        raise RuntimeError('Missing clientId.')
+    client = _slclients().get_item(Key={'clientId': cid}).get('Item')
+    if not client:
+        raise RuntimeError('Unknown client.')
+    tid = (data.get('topicId') or '').strip() or uuid.uuid4().hex
+    existing = _sltopics().get_item(Key={'clientId': cid, 'topicId': tid}).get('Item') or {}
+    now = _now_iso(); who = _who(body)
+    item = {
+        'clientId': cid, 'topicId': tid,
+        'name':     (data.get('name') or existing.get('name') or 'Untitled topic').strip(),
+        'keywords': data.get('keywords') if data.get('keywords') is not None else existing.get('keywords', []),
+        'location': (data.get('location') or existing.get('location') or client.get('location') or 'Singapore').strip(),
+        'language': (data.get('language') or existing.get('language') or 'English').strip(),
+        'sources':  data.get('sources') if data.get('sources') is not None else existing.get('sources', ['web', 'reddit', 'twitter', 'forums']),
+        'active':   bool(data.get('active')) if data.get('active') is not None else bool(existing.get('active', True)),
+        'created':    existing.get('created') or now,
+        'created_by': existing.get('created_by') or who,
+        'updated':    now,
+        'updated_by': who,
+    }
+    stored = _enc(item)
+    _sltopics().put_item(Item=stored)
+
+    # Keep the client's lightweight topic index in sync (same pattern as Monthly
+    # Social Reports mirroring its month index onto the project item).
+    idx = [t for t in (_dec(client.get('topics')) or []) if t.get('topicId') != tid]
+    idx.append({'topicId': tid, 'name': item['name'], 'active': item['active'], 'updated': now})
+    idx.sort(key=lambda t: str(t.get('name') or ''))
+    _slclients().update_item(
+        Key={'clientId': cid},
+        UpdateExpression='SET topics = :t, updated = :u, updated_by = :w',
+        ExpressionAttributeValues={':t': _enc(idx), ':u': now, ':w': who})
+    return {'ok': True, 'topic': _dec(stored)}
+
+
+def sl_delete_topic(body):
+    cid = (body.get('clientId') or (body.get('data') or {}).get('clientId') or '').strip()
+    tid = (body.get('topicId') or (body.get('data') or {}).get('topicId') or '').strip()
+    if not cid or not tid:
+        raise RuntimeError('Missing clientId or topicId.')
+    _sltopics().delete_item(Key={'clientId': cid, 'topicId': tid})
+    client = _slclients().get_item(Key={'clientId': cid}).get('Item')
+    if client:
+        idx = [t for t in (_dec(client.get('topics')) or []) if t.get('topicId') != tid]
+        _slclients().update_item(
+            Key={'clientId': cid},
+            UpdateExpression='SET topics = :t, updated = :u',
+            ExpressionAttributeValues={':t': _enc(idx), ':u': _now_iso()})
+    return {'ok': True}
+
+
+def _sl_snapshot_topic(cid, tid, who):
+    """One live pull for one topic via the shared listening engine (the exact
+    fetch_social_listening() the Monthly Reports Listening tab uses), stored as
+    today's snapshot row. Overwrites today's row if already pulled today, so a
+    manual "Pull now" and the nightly cron never conflict — last write wins."""
+    client = _slclients().get_item(Key={'clientId': cid}).get('Item')
+    topic  = _sltopics().get_item(Key={'clientId': cid, 'topicId': tid}).get('Item')
+    if not client or not topic:
+        raise RuntimeError('Unknown client or topic.')
+    client, topic = _dec(client), _dec(topic)
+    cfg = {'sources': topic.get('sources') or ['web', 'reddit', 'twitter', 'forums'],
+           'keywords': topic.get('keywords') or []}
+    brand = topic.get('name') or client.get('name') or ''
+    result = fetch_social_listening(brand, client.get('domain', ''),
+                                    location=topic.get('location') or 'Singapore',
+                                    language=topic.get('language') or 'English', cfg=cfg)
+    now = _now_iso()
+    item = {
+        'topicId': tid, 'date': _sgt_date(), 'clientId': cid,
+        'total_mentions': (result.get('summary') or {}).get('total_mentions'),
+        'sentiment': (result.get('summary') or {}).get('sentiment') or {},
+        'mentions': result.get('mentions') or [],
+        'platforms': result.get('platforms') or {},
+        'note': result.get('note'),
+        'savedAt': now, 'savedBy': who,
+        'ttl': int(time.time()) + SL_SNAPSHOT_TTL_SECS,
+    }
+    _slsnapshots().put_item(Item=_enc(item))
+    return item
+
+
+def sl_pull_topic(body):
+    """Manual "Pull now" — same effect as the nightly cron hitting this one topic,
+    used both to see data immediately after adding a topic and to refresh on demand."""
+    data = body.get('data') or body
+    cid = (data.get('clientId') or '').strip()
+    tid = (data.get('topicId') or '').strip()
+    if not cid or not tid:
+        raise RuntimeError('Missing clientId or topicId.')
+    item = _sl_snapshot_topic(cid, tid, _who(body))
+    return {'ok': True, 'snapshot': _dec(item)}
+
+
+def sl_get_topic_report(body):
+    """Aggregate one topic's daily snapshots over [start, end] (both "YYYY-MM-DD",
+    inclusive) into a report: deduped mentions feed, summed sentiment, a
+    per-day trend series, and a top-sites table."""
+    data = body.get('data') or body
+    tid   = (data.get('topicId') or '').strip()
+    start = (data.get('start') or '').strip()
+    end   = (data.get('end') or '').strip()
+    if not tid or not start or not end:
+        raise RuntimeError('Missing topicId, start or end.')
+    resp = _slsnapshots().query(
+        KeyConditionExpression=Key('topicId').eq(tid) & Key('date').between(start, end))
+    rows = sorted(_dec(resp.get('Items', [])), key=lambda r: str(r.get('date') or ''))
+
+    # Mentions: flatten across days, dedupe by URL — first-seen date wins (a
+    # mention published on day N can still surface in day N+2's live pull if
+    # DataForSEO's crawl lagged, so "first captured" is the more honest date).
+    seen_urls, mentions = set(), []
+    for row in rows:
+        for m in row.get('mentions') or []:
+            url = m.get('url')
+            if url and url not in seen_urls:
+                seen_urls.add(url)
+                mentions.append(m)
+    mentions.sort(key=lambda m: str(m.get('date') or ''), reverse=True)
+
+    # Same dedupe applied independently per platform (Reddit/X/forums).
+    platforms = {}
+    for row in rows:
+        for key, obj in (row.get('platforms') or {}).items():
+            slot = platforms.setdefault(key, {'label': (obj or {}).get('label') or key, '_seen': set(), 'results': []})
+            for r in (obj or {}).get('results') or []:
+                u = r.get('url')
+                if u and u not in slot['_seen']:
+                    slot['_seen'].add(u)
+                    slot['results'].append(r)
+    for slot in platforms.values():
+        slot.pop('_seen', None)
+
+    # Sentiment counts are additive across days (they're per-day counts, not
+    # percentages — see _merge_summaries), so summing across the range is valid.
+    sentiment = {'positive': 0, 'negative': 0, 'neutral': 0}
+    trend = []
+    for row in rows:
+        s = row.get('sentiment') or {}
+        day_sent = {k: (s.get(k) or 0) for k in ('positive', 'negative', 'neutral')}
+        for k in sentiment:
+            sentiment[k] += day_sent[k]
+        trend.append({'date': row.get('date'), 'total_mentions': row.get('total_mentions'),
+                      'sentiment': day_sent})
+
+    # Top sites computed from the deduped mentions list (a distinct-article
+    # count), not from each day's raw top-8 snapshot — avoids double-counting a
+    # domain that happened to rank in the daily top-8 on multiple days.
+    site_counts = {}
+    for m in mentions:
+        d = m.get('domain')
+        if d:
+            site_counts[d] = site_counts.get(d, 0) + 1
+    top_sites = [{'domain': d, 'count': c} for d, c in
+                 sorted(site_counts.items(), key=lambda kv: kv[1], reverse=True)[:8]]
+
+    return {
+        'topicId': tid, 'start': start, 'end': end,
+        # "Mentions captured", not "Total mentions" — content_analysis/search/live
+        # caps at 20 items/term, so this is a floor on real volume, not the true
+        # corpus count Brandwatch's own number would represent.
+        'kpis': {'mentions_captured': len(mentions), 'sentiment': sentiment},
+        'trend': trend,
+        'top_sites': top_sites,
+        'mentions': mentions,
+        'platforms': platforms,
+        'days_captured': len(rows),
+    }
+
+
+def sl_cron_snapshot_all(body):
+    """Fired by an EventBridge schedule. Scans every active topic and async
+    self-invokes sl_cron_snapshot_one per topic (own Lambda budget each) — same
+    fan-out shape as cron_capture_all for Monthly Social Reports, below."""
+    items = []
+    resp = _sltopics().scan(FilterExpression='active = :a', ExpressionAttributeValues={':a': True})
+    items.extend(resp.get('Items', []))
+    while resp.get('LastEvaluatedKey'):
+        resp = _sltopics().scan(FilterExpression='active = :a', ExpressionAttributeValues={':a': True},
+                                ExclusiveStartKey=resp['LastEvaluatedKey'])
+        items.extend(resp.get('Items', []))
+    fired = 0
+    for it in items:
+        cid, tid = it.get('clientId'), it.get('topicId')
+        if not cid or not tid:
+            continue
+        _self_invoke({'action': 'sl_cron_snapshot_one', 'clientId': cid, 'topicId': tid})
+        fired += 1
+    return {'ok': True, 'topics': fired}
+
+
+def sl_cron_snapshot_one(body):
+    cid = (body.get('clientId') or '').strip()
+    tid = (body.get('topicId') or '').strip()
+    if not cid or not tid:
+        raise RuntimeError('Missing clientId or topicId.')
+    item = _sl_snapshot_topic(cid, tid, 'daily-cron@auto')
+    return {'ok': True, 'snapshot': item}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
