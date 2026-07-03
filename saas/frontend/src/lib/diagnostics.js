@@ -12,20 +12,24 @@
 
 const MAX = 15; // ring-buffer size per channel
 
+const SUCCESS_MAX = 10; // smaller ring — just enough to tell "isolated endpoint" from "everything's down"
+
 const state = {
   errors: [], // { message, stack, source, ts }
   apiFailures: [], // { method, path, status, message, ts }
+  apiSuccesses: [], // { method, path, ts } — recent OK calls, for contrast against apiFailures
   errorToasts: [], // { message, ts }
   user: null, // { userId, email, tier } — stamped by setUser
+  project: null, // { projectId, name, domain } — stamped by setProject
   started: false,
 };
 
 // Keys whose values must never be captured, even from a visible field.
 const SENSITIVE_RE = /pass|pwd|token|secret|api[-_]?key|authorization|auth\b|card|cvv|cvc|ssn|otp/i;
 
-function push(buf, item) {
+function push(buf, item, max = MAX) {
   buf.push(item);
-  if (buf.length > MAX) buf.shift();
+  if (buf.length > max) buf.shift();
 }
 
 const nowIso = () => new Date().toISOString();
@@ -40,6 +44,11 @@ function redact(v) {
 
 export function setUser(user) {
   state.user = user ? { userId: user.userId, email: user.email, tier: user.tier } : null;
+}
+
+// Ties a report to the site/project the user was actively working on.
+export function setProject(project) {
+  state.project = project ? { projectId: project.projectId, name: project.name, domain: project.domain } : null;
 }
 
 export function recordError({ message, stack, source }) {
@@ -71,9 +80,20 @@ function labelFor(el) {
     const lab = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
     if (lab?.textContent) return lab.textContent.trim();
   }
+  // An implicit label (`<label>Caption <input/></label>`) wraps the field itself,
+  // so `wrap.textContent` would fold the field's own live value into the caption
+  // (e.g. a textarea's current text). Only count text from sibling nodes outside
+  // the field's own subtree.
   const wrap = el.closest('label');
-  if (wrap?.textContent) return wrap.textContent.trim();
-  return el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('name') || el.id || 'field';
+  if (wrap) {
+    const caption = [...wrap.childNodes]
+      .filter((n) => n !== el && !(n.nodeType === Node.ELEMENT_NODE && n.contains(el)))
+      .map((n) => n.textContent || '')
+      .join(' ')
+      .trim();
+    if (caption) return caption;
+  }
+  return el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('title') || el.getAttribute('name') || el.id || 'field';
 }
 
 // Walk the live DOM for filled inputs the user can review before sharing.
@@ -110,10 +130,15 @@ function env() {
 
 // Build the report object, honoring the per-section toggles the user picked.
 export function snapshot({ includeFields = true, includeErrors = true, includeFailedActions = true, includeEnv = true } = {}) {
-  const snap = { user: state.user || undefined };
+  const snap = { user: state.user || undefined, project: state.project || undefined };
   if (includeEnv) snap.env = env();
   if (includeErrors) snap.errors = state.errors.slice(-MAX);
-  if (includeFailedActions) snap.apiFailures = state.apiFailures.slice(-MAX);
+  if (includeFailedActions) {
+    snap.apiFailures = state.apiFailures.slice(-MAX);
+    // Recent OK calls, so a reviewer can tell "this one endpoint is blocked"
+    // (other calls succeeded around the same time) from "everything's down".
+    snap.apiSuccesses = state.apiSuccesses.slice(-SUCCESS_MAX);
+  }
   snap.errorToasts = state.errorToasts.slice(-MAX);
   if (includeFields) snap.fields = collectFields();
   return snap;
@@ -158,6 +183,13 @@ export function init() {
     if (isHardStatus(d.status)) emitFault('api');
   });
 
+  // Successful calls too — a small ring so a ticket reviewer can see whether
+  // other requests were going through fine around the same time as a failure.
+  window.addEventListener('dm:api-success', (e) => {
+    const d = e.detail || {};
+    push(state.apiSuccesses, { method: d.method, path: d.path, ts: nowIso() }, SUCCESS_MAX);
+  });
+
   // The red error prompts the user actually saw.
   window.addEventListener('dm:toast', (e) => {
     if (e.detail?.type === 'error') push(state.errorToasts, { message: clamp(String(e.detail.msg), 500), ts: nowIso() });
@@ -171,4 +203,4 @@ export function init() {
   };
 }
 
-export default { init, setUser, snapshot, summary, collectFields, recordError, recordBoundaryError, recordToolFailure };
+export default { init, setUser, setProject, snapshot, summary, collectFields, recordError, recordBoundaryError, recordToolFailure };

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { api } from '../lib/api.js';
 import { useAuth } from './AuthContext.jsx';
+import { setProject as setDiagnosticsProject } from '../lib/diagnostics.js';
 
 const Ctx = createContext(null);
 export const useProjects = () => useContext(Ctx);
@@ -40,5 +41,7 @@ export function ProjectProvider({ children }) {
   }, []);
 
   const active = projects.find((p) => p.projectId === activeId) || null;
+  useEffect(() => { setDiagnosticsProject(active); }, [active]);
+
   return <Ctx.Provider value={{ projects, active, activeId: active?.projectId || null, setActive, create, remove, reload }}>{children}</Ctx.Provider>;
 }

@@ -55,6 +55,12 @@ function reportApiError(method, path, status, message) {
   try { window.dispatchEvent(new CustomEvent('dm:api-error', { detail: { method, path, status, message } })); } catch { /* non-browser */ }
 }
 
+// Same idea for successes — lets a ticket reviewer tell "this one endpoint is
+// blocked" from "everything's down" by seeing what else went through fine.
+function reportApiSuccess(method, path) {
+  try { window.dispatchEvent(new CustomEvent('dm:api-success', { detail: { method, path } })); } catch { /* non-browser */ }
+}
+
 async function call(path, { method = 'GET', body, auth = true, base, _retried = false } = {}) {
   let res;
   try {
@@ -85,6 +91,7 @@ async function call(path, { method = 'GET', body, auth = true, base, _retried = 
     reportApiError(method, path, res.status, payload?.error || `HTTP ${res.status}`);
     throw new ApiError(res.status, payload);
   }
+  reportApiSuccess(method, path);
   return payload;
 }
 
@@ -102,6 +109,7 @@ async function callBlob(path, { _retried = false } = {}) {
     reportApiError('GET', path, res.status, payload?.error || `HTTP ${res.status}`);
     throw new ApiError(res.status, payload);
   }
+  reportApiSuccess('GET', path);
   return res.blob();
 }
 

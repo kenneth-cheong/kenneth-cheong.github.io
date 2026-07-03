@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
 import SortableTable from '../components/SortableTable.jsx';
 import TrialNdaGate from '../components/TrialNdaGate.jsx';
+import DiagnosticsPanel from '../components/DiagnosticsPanel.jsx';
 
 // Admin-only console: manage users (tier + credits) and the support inbox
 // (view / reply / close every user's ticket). Gated client-side here AND
@@ -615,6 +616,8 @@ function AdminUsers() {
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
   const [activityUser, setActivityUser] = useState(null);
+  const [selected, setSelected] = useState(new Set()); // bulk-action selection, keyed by userId
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => { load(); }, []);
   async function load() {
@@ -649,6 +652,58 @@ function AdminUsers() {
     load();
   }
   function flash(t) { setMsg(t); setTimeout(() => setMsg(''), 2500); }
+
+  function toggleOne(id) { setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; }); }
+  function toggleAll() { setSelected((s) => (rows.length > 0 && rows.every((u) => s.has(u.userId))) ? new Set() : new Set(rows.map((u) => u.userId))); }
+
+  // Runs `fn` for every id sequentially (existing single-user endpoints, no bulk API) and
+  // reports how many succeeded/failed rather than aborting the whole batch on one error.
+  async function bulkRun(ids, fn) {
+    setBulkBusy(true);
+    let ok = 0, fail = 0;
+    for (const id of ids) {
+      try { await fn(id); ok++; } catch { fail++; }
+    }
+    setBulkBusy(false);
+    return { ok, fail };
+  }
+  async function bulkStatus(status) {
+    const targets = users.filter((u) => selected.has(u.userId) && u.role !== 'staff' && u.status !== 'invited');
+    if (!targets.length) return;
+    if (status !== 'active' && !confirm(`Set ${targets.length} user${targets.length === 1 ? '' : 's'} to "${status}"? They'll be signed out and blocked from signing in or using the app until you reactivate them.`)) return;
+    const { ok, fail } = await bulkRun(targets.map((u) => u.userId), (id) => api.adminStatus(id, status));
+    flash(`Status → ${status}: ${ok} updated${fail ? `, ${fail} failed` : ''}`);
+    setSelected(new Set()); load();
+  }
+  async function bulkTier(tier) {
+    const targets = users.filter((u) => selected.has(u.userId));
+    if (!targets.length) return;
+    if (!confirm(`Change plan to ${PLANS[tier].name} for ${targets.length} user${targets.length === 1 ? '' : 's'}? This resets each user's monthly allowance.`)) return;
+    const { ok, fail } = await bulkRun(targets.map((u) => u.userId), (id) => api.adminTier(id, tier));
+    flash(`Tier → ${PLANS[tier].name}: ${ok} updated${fail ? `, ${fail} failed` : ''}`);
+    setSelected(new Set()); load();
+  }
+  async function bulkRole(role) {
+    if (role === 'staff' && !me.isSuperAdmin) { setError('Only an admin can grant staff access.'); return; }
+    const targets = users.filter((u) => selected.has(u.userId) && u.userId !== me.userId && (u.role || 'client') !== role);
+    if (!targets.length) return;
+    if (!confirm(`${role === 'staff' ? 'Grant staff access to' : 'Remove staff access from'} ${targets.length} user${targets.length === 1 ? '' : 's'}?`)) return;
+    const { ok, fail } = await bulkRun(targets.map((u) => u.userId), (id) => api.adminRole(id, role));
+    flash(`Role → ${role}: ${ok} updated${fail ? `, ${fail} failed` : ''}`);
+    setSelected(new Set()); load();
+  }
+  async function bulkAdjust(bucket) {
+    const targets = users.filter((u) => selected.has(u.userId));
+    if (!targets.length) return;
+    const raw = prompt(`Adjust ${bucket} credits for ${targets.length} selected user${targets.length === 1 ? '' : 's'} (use a negative number to deduct):`, '100');
+    if (raw === null) return;
+    const amt = parseInt(raw, 10);
+    if (Number.isNaN(amt)) return;
+    const reason = prompt('Reason (optional, logged to the ledger):', '') || '';
+    const { ok, fail } = await bulkRun(targets.map((u) => u.userId), (id) => api.adminCredits(id, bucket === 'monthly' ? amt : 0, bucket === 'topup' ? amt : 0, reason));
+    flash(`${amt >= 0 ? '+' : ''}${amt} ${bucket} credits → ${ok} user${ok === 1 ? '' : 's'}${fail ? `, ${fail} failed` : ''}`);
+    setSelected(new Set()); load();
+  }
 
   // Range is inclusive on both ends; `toDate` covers the whole selected day.
   const fromMs = fromDate ? Date.parse(fromDate) : null;
@@ -728,6 +783,35 @@ function AdminUsers() {
       {msg && <div className="mt-3 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">{msg}</div>}
       {error && <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
+      {selected.size > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-3 py-2.5">
+          <span className="text-sm font-medium text-brand-800">{selected.size} selected</span>
+          <button onClick={() => setSelected(new Set())} className="btn-ghost px-2 py-1 text-xs">Clear</button>
+          <div className="mx-1 h-5 w-px bg-brand-200" />
+          <select disabled={bulkBusy} defaultValue="" onChange={(e) => { const v = e.target.value; e.target.value = ''; if (v) bulkStatus(v); }}
+            className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm">
+            <option value="" disabled>Set status…</option>
+            <option value="active">Active</option>
+            <option value="paused">Paused</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <select disabled={bulkBusy} defaultValue="" onChange={(e) => { const v = e.target.value; e.target.value = ''; if (v) bulkTier(v); }}
+            className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm">
+            <option value="" disabled>Set tier…</option>
+            {TIER_ORDER.map((t) => <option key={t} value={t}>{PLANS[t].name}</option>)}
+          </select>
+          <select disabled={bulkBusy} defaultValue="" onChange={(e) => { const v = e.target.value; e.target.value = ''; if (v) bulkRole(v); }}
+            className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm">
+            <option value="" disabled>Set role…</option>
+            <option value="client">Client</option>
+            <option value="staff" disabled={!me.isSuperAdmin}>Staff{!me.isSuperAdmin ? ' (admin only)' : ''}</option>
+          </select>
+          <button disabled={bulkBusy} onClick={() => bulkAdjust('monthly')} className="btn-ghost px-2 py-1 text-xs">± Monthly credits</button>
+          <button disabled={bulkBusy} onClick={() => bulkAdjust('topup')} className="btn-ghost px-2 py-1 text-xs">± Top-up credits</button>
+          {bulkBusy && <span className="text-xs text-brand-600">Applying…</span>}
+        </div>
+      )}
+
       <div className="card mt-3">
         <SortableTable
           rows={rows}
@@ -735,6 +819,14 @@ function AdminUsers() {
           stickyFirstCol
           emptyText={users === null ? 'Loading…' : 'No matching users.'}
           columns={[
+            { key: '_select', label: (
+                <input type="checkbox" className="h-4 w-4" aria-label="Select all"
+                  checked={rows.length > 0 && rows.every((u) => selected.has(u.userId))}
+                  onChange={toggleAll} />
+              ), sortable: false, render: (u) => (
+                <input type="checkbox" className="h-4 w-4" aria-label={`Select ${u.email}`}
+                  checked={selected.has(u.userId)} onChange={() => toggleOne(u.userId)} />
+              ) },
             { key: 'user', label: 'User', accessor: (u) => u.name || u.email || '',
               render: (u) => (<><div className="font-medium">{u.name || '—'}</div><div className="text-xs text-slate-400">{u.email}</div></>) },
             { key: 'role', label: 'Role', accessor: (u) => u.role || 'client',
@@ -777,7 +869,7 @@ function AdminUsers() {
         />
       </div>
       <p className="mt-3 text-xs text-slate-400">
-        Tier changes reset the monthly allowance to that plan's amount; top-up credits are untouched. Setting a user to <strong>Paused</strong> or <strong>Inactive</strong> blocks sign-in and all app/tool access until you set them back to Active. Staff accounts can't be blocked. Any staff can revoke another staff member's access, but only an admin can grant it; you can't change your own role. All changes are written to the credit ledger.
+        Tier changes reset the monthly allowance to that plan's amount; top-up credits are untouched. Setting a user to <strong>Paused</strong> or <strong>Inactive</strong> blocks sign-in and all app/tool access until you set them back to Active. Staff accounts can't be blocked. Any staff can revoke another staff member's access, but only an admin can grant it; you can't change your own role. All changes are written to the credit ledger. Check the boxes on the left to select multiple users and apply a status, tier, role, or credit change to all of them at once.
       </p>
       {activityUser && <AdminUserActivity user={activityUser} onClose={() => setActivityUser(null)} />}
     </div>
@@ -1176,6 +1268,8 @@ function AdminTicketDetail({ summary, onBack }) {
         From <strong className="text-slate-500">{ticket.userEmail || summary.userId}</strong>
         {ticket.additionalEmails?.length ? ` · CC ${ticket.additionalEmails.join(', ')}` : ''}
       </p>
+
+      <DiagnosticsPanel diagnostics={ticket.diagnostics} />
 
       {/* Conversation — staff (agent) bubbles on the right, customer on the left. */}
       <div ref={threadRef} className="mt-3 max-h-[55vh] space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-4">
