@@ -2694,7 +2694,11 @@ def _sl_snapshot_topic(cid, tid, who):
     client, topic = _dec(client), _dec(topic)
     cfg = {'sources': topic.get('sources') or ['web', 'reddit', 'twitter', 'forums'],
            'keywords': topic.get('keywords') or []}
-    brand = topic.get('name') or client.get('name') or ''
+    # brand must be the CLIENT's name (e.g. "Singapore Pools"), not the topic
+    # name (e.g. "Payment/Payout") — fetch_social_listening searches
+    # [brand] + keywords, so an unqualified topic name as the anchor term
+    # pulls generic unrelated web noise instead of client-scoped mentions.
+    brand = client.get('name') or topic.get('name') or ''
     result = fetch_social_listening(brand, client.get('domain', ''),
                                     location=topic.get('location') or 'Singapore',
                                     language=topic.get('language') or 'English', cfg=cfg)
