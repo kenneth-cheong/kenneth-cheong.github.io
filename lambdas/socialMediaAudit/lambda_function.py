@@ -4427,12 +4427,16 @@ def _cron_tiktok_platforms(proj, month):
     since, until = _meta_month_range(month)
     try:
         info = (_tt_call('GET', '/user/info/', token,
-                {'fields': 'display_name,follower_count,likes_count,video_count'}).get('user')) or {}
+                {'fields': 'display_name,follower_count,following_count,likes_count,video_count'}).get('user')) or {}
     except Exception:
         info = {}
     insights = {}
     if info.get('follower_count') is not None:
         insights['followers'] = _num(info.get('follower_count'))
+    if info.get('following_count') is not None:
+        insights['following'] = _num(info.get('following_count'))
+    if info.get('likes_count') is not None:
+        insights['total_likes'] = _num(info.get('likes_count'))
     posts = _tt_posts(token, since, until)
     if not (insights or posts):
         return []

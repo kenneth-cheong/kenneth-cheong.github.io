@@ -154,6 +154,38 @@ back None. Probed the Graph API live: Meta has **deprecated** `page_impressions`
   still uses reach, its official ER definition — that's why IG ER differs from the
   old scraped value, which is expected, not a bug).
 
+## Expanded metrics + "Audience & Insights" tab — added 2026-07-04 (DEPLOYED)
+New scalar metrics + demographic/discovery **breakdowns**, shown in a new
+"Audience & insights" tab in the report UI (index.html `SR`).
+- **New scalars (auto-render in the report tables/trends):** YouTube real
+  thumbnail `impressions` + `ctr` + `avg_view_pct` (+ `views`/`minutes_watched`/
+  `avg_view_duration`); LinkedIn `page_views` + `unique_visitors`; Instagram
+  `website_clicks`; TikTok `following` + `total_likes`.
+- **Breakdowns action `report_refresh_audience`** (on-demand, NOT on the capture
+  hot path): pulls per-platform breakdowns and merges them onto the current
+  month's scorecard cards under `card['breakdowns'] = {key:[{name,value}]}` +
+  `card['breakdowns_asof']`. Builders dispatched from `_audience_breakdowns_for`.
+  The frontend "Refresh audience insights" button calls it; charts render via a
+  `BREAKDOWNS` registry + `drawBreakdown()` Chart.js helper (donut/hbar).
+- **What each platform yields (probed live, not from docs):**
+  - **YouTube** (`_yt_breakdowns`, date-range per report month): traffic sources,
+    viewer age, viewer gender, top countries.
+  - **LinkedIn** (`_li_breakdowns`, current snapshot): followers by seniority /
+    job function / company size (local enum label maps `_LI_SENIORITY/_FUNCTION/
+    _STAFF` — no reference-API lookups) + page views by section. Needs an admin
+    company org to resolve.
+  - **Instagram** (`_ig_breakdowns`, current snapshot): followers by age / gender
+    / country / city via `follower_demographics` (period=lifetime, metric_type=
+    total_value, breakdown=…). CONFIRMED working in v23.0.
+  - **Facebook:** NO audience demographics — `page_fans_gender_age/country/city`
+    are all deprecated (`(#100) not a valid insights metric`), same wave as the
+    reach/impressions deprecation. Do not re-add without re-probing.
+  - **TikTok:** none (Display API has no demographics — Business API territory).
+- Demographics are **current-state snapshots** (labelled "as of <date>"); only
+  YouTube breakdowns are true per-report-period. Source badge relabelled
+  "Meta" → "Native" since owner-only metrics now span 4 platforms.
+- Deploy = same single-file zip; frontend = push index.html to main.
+
 ---
 The generic steps below are kept for reference / rebuilding from scratch.
 
