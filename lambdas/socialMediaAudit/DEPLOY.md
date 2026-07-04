@@ -110,6 +110,43 @@ redirect URI `https://app.digimetrics.ai/oauth-callback.html`:
 > `*_OAUTH_CLIENT_ID` empty — the UI auto-falls back to Advanced paste-a-token,
 > which still works via the existing System User / personal tokens.
 
+## Native first-party pulls for ALL owned platforms — added 2026-07-04 (DEPLOYED)
+Native/first-party API pulls now cover **YouTube + TikTok** (were Meta+LinkedIn
+only), for both the "Pull private insights" backfill and the daily cron.
+- **Actions:** `report_backfill_youtube`, `report_backfill_tiktok`, and
+  `report_native_preview` (READ-ONLY discrepancy audit — pulls native cards for a
+  month without saving, returns native vs stored + field-level diff + the Apify
+  skip-plan; safe to run against live projects).
+- **YouTube** = server-side **offline** code flow (refresh token) → unattended
+  cron + walk-back backfill, full channel history. Needs `GOOGLE_OAUTH_CLIENT_SECRET`
+  (set) + `yt-analytics.readonly` scope + the `oauth-callback.html` redirect URI on
+  the "Digimetrics 2" web client (done). App is In production w/ unverified sensitive
+  scopes → connectors see the "unverified app" click-through (100-user cap).
+- **TikTok** = Display API, CURRENT month only (no historical/reach/impressions).
+- **Cron cost optimization:** `cron_capture_one` is native-first — it skips the
+  paid Apify scrape for any platform a native token already covers, and now still
+  scrapes competitors even when ALL owned platforms are native-covered (previously
+  an all-native project dropped its competitors). Verified: a fully-native project
+  (e.g. Hyundai) runs the daily cron with **zero** Apify calls.
+
+### ⚠️ TEAM ACTION — native pull needs a connected token per campaign
+A campaign only gets native YouTube/TikTok data once it has connected that
+platform (Settings → Platform connections → Connect). As of 2026-07-04:
+- **YouTube:** only *Kenneth Cheong* tracks YouTube, and its token is a stale
+  pre-2026-07 GIS token — it must **Reconnect** (the connect button now uses the
+  new offline flow). No other campaign tracks YouTube.
+- **TikTok:** *Mandai – Toy Doctor* and *CONNOR* track TikTok but have **no TikTok
+  token connected** — connect one to enable native pulls.
+- Until then those platforms fall back to Apify public scraping (unchanged).
+
+### Known discrepancy to investigate (from a 2026-07-04 native_preview audit)
+Facebook page **reach & impressions come back None** from the native pull
+(`_meta_fb_insights` uses `page_impressions`/`page_impressions_unique`), while
+Instagram insights work fine. Likely Meta has deprecated those page-level
+metrics — worth switching FB reach/impressions to the current metric set or a
+post-level aggregation. (IG engagement-rate also differs from the old scraped
+value because native uses IG's official ER = interactions / reach.)
+
 ---
 The generic steps below are kept for reference / rebuilding from scratch.
 

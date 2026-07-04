@@ -239,6 +239,8 @@ def lambda_handler(event, context):
             return _resp(200, report_backfill_youtube(body))
         if action == 'report_backfill_tiktok':
             return _resp(200, report_backfill_tiktok(body))
+        if action == 'report_native_preview':
+            return _resp(200, report_native_preview(body))
         if action == 'meta_pages':
             return _resp(200, meta_pages(body))
         if action == 'report_delete_month':
@@ -2442,6 +2444,74 @@ def report_backfill_tiktok(body):
         ('views', 'engagements', 'likes', 'comments', 'shares'), 'tt_error')
 
 
+def _native_cards_for_month(proj, month):
+    """Pull the native (first-party API) cards for every owned platform this
+    project tracks, for one month. Each builder self-gates (returns [] when the
+    platform isn't tracked or no token is connected). Returns (cards, errors)."""
+    cards, errors = [], {}
+    for label, builder in (('meta',     _cron_meta_platforms),
+                           ('linkedin', _cron_linkedin_platforms),
+                           ('youtube',  _cron_youtube_platforms),
+                           ('tiktok',   _cron_tiktok_platforms)):
+        try:
+            cards += builder(proj, month)
+        except Exception as e:
+            errors[label] = str(e)[:200]
+    return cards, errors
+
+
+def report_native_preview(body):
+    """READ-ONLY discrepancy audit. Pulls the native cards for a month WITHOUT
+    saving, alongside what's already stored for that month, and returns a
+    field-level diff plus the Apify skip-plan the daily cron would use. Never
+    writes — safe to run against live client projects to spot native-vs-stored
+    discrepancies before committing to a backfill."""
+    pid   = (body.get('projectId') or (body.get('data') or {}).get('projectId') or '').strip()
+    month = (body.get('month') or (body.get('data') or {}).get('month') or '').strip() or _current_month()
+    if not pid or not re.match(r'^\d{4}-\d{2}$', month):
+        raise RuntimeError('Need projectId + month (YYYY-MM).')
+    proj = _rprojects().get_item(Key={'projectId': pid}).get('Item')
+    if not proj:
+        raise RuntimeError('Unknown project.')
+    proj = _dec(proj)
+    native, errors = _native_cards_for_month(proj, month)
+    native_by = {c.get('platform'): c for c in native}
+    # Stored month scorecard (may not exist yet).
+    stored_cards = []
+    it = _rmonths().get_item(Key={'projectId': pid, 'month': month}).get('Item')
+    if it:
+        sc = it.get('scorecard')
+        if isinstance(sc, str):
+            try: sc = json.loads(sc)
+            except ValueError: sc = {}
+        stored_cards = (sc or {}).get('platforms') or []
+    stored_by = {c.get('platform'): c for c in stored_cards}
+    CMP = ['followers', 'reach', 'impressions', 'engagements', 'engagement_rate',
+           'likes', 'comments', 'shares', 'saves', 'net_new_followers']
+    diffs = []
+    for plat, nc in native_by.items():
+        sc = stored_by.get(plat) or {}
+        row = {'platform': plat, 'in_stored': plat in stored_by,
+               'native_posts': len(nc.get('posts') or []),
+               'stored_posts': len(sc.get('posts') or []), 'fields': {}}
+        for f in CMP:
+            nv, sv = nc.get(f), sc.get(f)
+            if nv is None and sv is None:
+                continue
+            row['fields'][f] = {'native': nv, 'stored': sv, 'match': nv == sv}
+        diffs.append(row)
+    # Apify skip-plan for THIS month: what the daily cron would still scrape.
+    handles = proj.get('handles') or {}
+    owned_live = [p for p in (proj.get('platforms') or [])
+                  if p in ACTORS and (handles.get(p) or '').strip()]
+    covered = set(native_by.keys())
+    apify_plan = {'covered_natively': sorted(covered & set(owned_live)),
+                  'would_scrape_owned': [p for p in owned_live if p not in covered],
+                  'competitors': len(proj.get('competitors') or [])}
+    return {'month': month, 'native': native, 'stored': stored_cards,
+            'diffs': diffs, 'native_errors': errors, 'apify_plan': apify_plan}
+
+
 def report_get_month(body):
     """One month's full payload (scorecard rehydrated, recommendations, kpis)."""
     pid   = (body.get('projectId') or '').strip()
@@ -3235,7 +3305,11 @@ def _cron_apify_scorecard(proj, month, skip=None):
     handles = proj.get('handles') or {}
     live = [p for p in (proj.get('platforms') or [])
             if p in ACTORS and (handles.get(p) or '').strip() and p not in skip]
-    if not live or not APIFY_TOKEN:
+    comps = proj.get('competitors') or []
+    # Run Apify when there's ANY paid work to do — owned platforms not covered
+    # natively, OR competitors (which have no first-party source and would
+    # otherwise be dropped once all owned platforms are covered by native pulls).
+    if (not live and not comps) or not APIFY_TOKEN:
         return {}
     try:
         started = handle_start({
@@ -3244,7 +3318,7 @@ def _cron_apify_scorecard(proj, month, skip=None):
             'location':    proj.get('location') or 'Singapore',
             'platforms':   live,
             'handles':     handles,
-            'competitors': proj.get('competitors') or [],
+            'competitors': comps,
             '_no_cache':   True,
         })
     except Exception:
