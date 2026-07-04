@@ -2506,6 +2506,16 @@
             color: #64748b;
         }
 
+        /* Keyboard-navigation highlight for the custom dropdowns (Up/Down arrows). */
+        .ms-option.kbd-active, .ss-option.kbd-active {
+            background: #eef2ff;
+            box-shadow: inset 2px 0 0 #6366f1;
+        }
+        .ms-trigger:focus-visible, .ss-trigger:focus-visible {
+            outline: 2px solid #6366f1;
+            outline-offset: 1px;
+        }
+
         .btn-service-connect,
         .btn-service-disconnect {
             flex: 1;
@@ -3639,7 +3649,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2467</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2468</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -6228,6 +6238,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 const subColor = s.status === 'expired' ? '#b45309' : '#94a3b8';
                 return `<button onclick="cbOpenConnectorSection('${s.section}')"
                     title="${sty.word}${acct ? ' — ' + acct.replace(/"/g, '&quot;') : ''} — open ${s.name} settings"
+                    aria-label="${s.name}: ${sty.word}${acct ? ' — ' + acct.replace(/"/g, '&quot;') : ''}. Open settings."
                     style="display:flex; align-items:flex-start; gap:7px; background:none; border:none; padding:3px 2px; cursor:pointer; text-align:left; min-width:0;">
                     <span style="width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:3px; background:${sty.dot}; ${sty.glow ? 'box-shadow:0 0 0 3px ' + glowColor + ';' : ''}"></span>
                     <span style="min-width:0; display:flex; flex-direction:column; line-height:1.25;">
@@ -6240,6 +6251,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             const badge = document.getElementById('integrationsCount');
             if (badge) badge.textContent = count + '/' + states.length;
             refreshConnectorBadges();
+            if (typeof cbEnhanceDropdownA11y === 'function') cbEnhanceDropdownA11y();
             cbRefreshInternalWelcome();
         }
 
@@ -7478,6 +7490,78 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             if (dropdownId === 'msGDriveFolderDropdown') onGDriveSelectionChanged();
         }
 
+        // ── Dropdown keyboard accessibility (additive; does not alter click behaviour) ──
+        // The custom .ms-trigger / .ss-trigger dropdowns were mouse-only. This layer makes
+        // them keyboard-operable: triggers are focusable and open on Enter/Space; while a
+        // panel is open, Up/Down move a highlight, Enter selects the highlighted option, and
+        // Escape closes. It reads the DOM the existing builders produce — no builder changes.
+        function cbSyncTriggerExpanded(t) {
+            let open = false;
+            if (t.classList.contains('ms-trigger')) {
+                const p = t.closest('.ms-dropdown') && t.closest('.ms-dropdown').querySelector('.ms-panel');
+                open = !!(p && p.classList.contains('open'));
+            } else if (t.classList.contains('ss-trigger')) {
+                const id = (t.id || '').replace('ss-trigger-', '');
+                const p = document.getElementById('ss-panel-' + id);
+                open = !!(p && p.classList.contains('active'));
+            }
+            t.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+        function cbEnhanceDropdownA11y() {
+            document.querySelectorAll('.ms-trigger, .ss-trigger').forEach(function (t) {
+                if (t.dataset.a11y === '1') return;
+                t.dataset.a11y = '1';
+                if (!t.hasAttribute('tabindex')) t.setAttribute('tabindex', '0');
+                t.setAttribute('role', 'combobox');
+                t.setAttribute('aria-haspopup', 'listbox');
+                t.setAttribute('aria-expanded', 'false');
+                t.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                        e.preventDefault(); t.click(); setTimeout(function () { cbSyncTriggerExpanded(t); }, 0);
+                    }
+                });
+                t.addEventListener('click', function () { setTimeout(function () { cbSyncTriggerExpanded(t); }, 0); });
+            });
+        }
+        function cbDropdownHighlight(opts, idx) {
+            opts.forEach(function (o, i) {
+                o.setAttribute('role', 'option');
+                o.classList.toggle('kbd-active', i === idx);
+                o.setAttribute('aria-selected', i === idx ? 'true' : 'false');
+            });
+            const el = opts[idx];
+            if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+        }
+        function cbCloseOpenDropdown(panel) {
+            if (panel.classList.contains('ms-panel')) {
+                const dd = panel.closest('.ms-dropdown');
+                if (dd && dd.id && typeof toggleMsPanel === 'function') toggleMsPanel(dd.id);
+            } else if (panel.classList.contains('ss-panel')) {
+                const id = (panel.id || '').replace('ss-panel-', '');
+                if (typeof toggleSearchableSelect === 'function') toggleSearchableSelect(id);
+            }
+        }
+        (function cbInitDropdownKeyboard() {
+            document.addEventListener('keydown', function (e) {
+                if (['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].indexOf(e.key) === -1) return;
+                const panel = document.querySelector('.ms-panel.open, .ss-panel.active');
+                if (!panel) return;
+                if (e.key === 'Escape') { e.preventDefault(); cbCloseOpenDropdown(panel); return; }
+                const opts = Array.prototype.slice.call(panel.querySelectorAll('.ms-option, .ss-option'))
+                    .filter(function (o) { return o.style.display !== 'none'; });
+                if (!opts.length) return;
+                const listbox = panel.querySelector('.ms-options, .ss-options');
+                if (listbox) listbox.setAttribute('role', 'listbox');
+                let cur = -1;
+                for (let i = 0; i < opts.length; i++) { if (opts[i].classList.contains('kbd-active')) { cur = i; break; } }
+                if (e.key === 'ArrowDown') { e.preventDefault(); cbDropdownHighlight(opts, cur < 0 ? 0 : Math.min(cur + 1, opts.length - 1)); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); cbDropdownHighlight(opts, cur <= 0 ? 0 : cur - 1); }
+                else if (e.key === 'Enter') { if (cur >= 0) { e.preventDefault(); opts[cur].click(); } }
+            }, true);
+            if (document.readyState !== 'loading') cbEnhanceDropdownA11y();
+            else document.addEventListener('DOMContentLoaded', cbEnhanceDropdownA11y);
+        })();
+
         function toggleMsPanel(dropdownId) {
             const dd = document.getElementById(dropdownId);
             const panel = dd.querySelector('.ms-panel');
@@ -8294,6 +8378,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             badge.style.background = sty.badgeBg;
             badge.style.color = sty.badgeFg;
             badge.title = sty.word + (st.expiresAt ? ' — ' + cbFmtExpiry(st.expiresAt) : '');
+            badge.setAttribute('aria-label', service + ': ' + badge.title);
         }
 
         function refreshConnectorBadges() {
@@ -8444,6 +8529,14 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             } catch (e) { console.error("GA4 fetch failed", e); }
         }
 
+        // Google Ads API identifiers. NOTE: this is a public static site, so these are
+        // already publicly visible in the page source — consolidating them here is a single
+        // rotation point, not a secrecy measure. The developer token is only usable with a
+        // valid user OAuth token (low sensitivity); the real hardening, if wanted, is to move
+        // the Ads calls fully behind the gscIntegration Lambda so neither value ships to the client.
+        window.GOOGLE_ADS_DEVELOPER_TOKEN = window.GOOGLE_ADS_DEVELOPER_TOKEN || 'mmWDgUpTcZSkkrj-7nnebg';
+        window.GOOGLE_ADS_LOGIN_CUSTOMER_ID = window.GOOGLE_ADS_LOGIN_CUSTOMER_ID || '4695999392';
+
         async function fetchAdsAccounts(token) {
             try {
                 const res = await fetch('https://v5gyq2sqdd.execute-api.ap-southeast-1.amazonaws.com/gscIntegration', {
@@ -8452,8 +8545,8 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     body: JSON.stringify({
                         action: 'adsListCustomers',
                         access_token: token,
-                        developerToken: 'mmWDgUpTcZSkkrj-7nnebg',
-                        loginCustomerId: '4695999392'
+                        developerToken: window.GOOGLE_ADS_DEVELOPER_TOKEN,
+                        loginCustomerId: window.GOOGLE_ADS_LOGIN_CUSTOMER_ID
                     })
                 }).then(r => r.json()).then(r => typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r));
 
