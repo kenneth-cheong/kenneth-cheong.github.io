@@ -241,6 +241,8 @@ def lambda_handler(event, context):
             return _resp(200, report_backfill_tiktok(body))
         if action == 'report_native_preview':
             return _resp(200, report_native_preview(body))
+        if action == 'report_refresh_audience':
+            return _resp(200, report_refresh_audience(body))
         if action == 'meta_pages':
             return _resp(200, meta_pages(body))
         if action == 'report_delete_month':
@@ -2512,6 +2514,80 @@ def report_native_preview(body):
             'diffs': diffs, 'native_errors': errors, 'apify_plan': apify_plan}
 
 
+def _audience_breakdowns_for(proj, month):
+    """Fetch on-demand audience/breakdown data (demographics, traffic sources,
+    follower makeup) for every connected platform. Returns
+    {platform: {breakdowns:{key:[{name,value}]}, asof:str}} plus an optional
+    '_errors' dict. Extended per phase — YouTube (date-range), then LinkedIn +
+    Meta (current-state snapshots)."""
+    out, errors = {}, {}
+    plats   = set(proj.get('platforms') or [])
+    handles = proj.get('handles') or {}
+    conns   = proj.get('connections') or {}
+    # YouTube — true per-report-period breakdowns via the Analytics API.
+    try:
+        if ('youtube' in plats) or handles.get('youtube'):
+            token = _yt_access_token(conns.get('youtube') or {})
+            if token:
+                ch = _yt_resolve_channel(token)
+                if ch and ch.get('id'):
+                    bd = _yt_breakdowns(ch['id'], token, month)
+                    if bd:
+                        out['youtube'] = {'breakdowns': bd, 'asof': 'for ' + month}
+    except Exception as e:
+        errors['youtube'] = str(e)[:160]
+    if errors:
+        out['_errors'] = errors
+    return out
+
+
+def report_refresh_audience(body):
+    """On-demand: pull audience/breakdown data for every connected platform and
+    merge it onto the CURRENT month's scorecard cards under card['breakdowns']
+    (+ 'breakdowns_asof'). Kept off the hot capture path because these are
+    current-state snapshots / extra API calls the user triggers explicitly."""
+    pid = (body.get('projectId') or (body.get('data') or {}).get('projectId') or '').strip()
+    if not pid:
+        raise RuntimeError('Missing projectId.')
+    month = (body.get('month') or '').strip() or _current_month()
+    proj = _rprojects().get_item(Key={'projectId': pid}).get('Item')
+    if not proj:
+        raise RuntimeError('Unknown project.')
+    proj = _dec(proj)
+    aud = _audience_breakdowns_for(proj, month)
+    errors = aud.pop('_errors', {})
+    if not aud:
+        return {'ok': True, 'month': month, 'platforms': [], 'errors': errors,
+                'note': 'No connected platform returned audience data.'}
+    it = _rmonths().get_item(Key={'projectId': pid, 'month': month}).get('Item')
+    prev_recs, sc = None, {}
+    if it:
+        prev_recs = _dec(it.get('recommendations'))
+        if isinstance(it.get('scorecard'), str):
+            try: sc = json.loads(it['scorecard'])
+            except ValueError: sc = {}
+        elif isinstance(it.get('scorecard'), dict):
+            sc = it['scorecard']
+    cards = sc.setdefault('platforms', [])
+    by = {c.get('platform'): c for c in cards}
+    for plat, payload in aud.items():
+        card = by.get(plat)
+        if not card:
+            card = {'platform': plat, 'found': True}
+            cards.append(card); by[plat] = card
+        card['breakdowns'] = payload['breakdowns']
+        card['breakdowns_asof'] = payload.get('asof')
+    kpis = _kpis_from_scorecard(sc)
+    recs = prev_recs or {'executive_summary': sc.get('executive_summary', ''),
+                         'overall_health': sc.get('overall_health')}
+    report_save_month({'data': {'projectId': pid, 'month': month, 'scorecard': sc,
+                                'kpis': kpis, 'recommendations': recs},
+                       'currentUser': {'email': 'audience-refresh@auto'}})
+    return {'ok': True, 'month': month, 'platforms': list(aud.keys()),
+            'breakdown_keys': {p: list(v['breakdowns'].keys()) for p, v in aud.items()},
+            'errors': errors}
+
+
 def report_get_month(body):
     """One month's full payload (scorecard rehydrated, recommendations, kpis)."""
     pid   = (body.get('projectId') or '').strip()
@@ -3936,7 +4012,7 @@ def _yt_analytics(channel_id, token, month):
         if v is not None:
             out[k] = v
     views = _num(vals.get('views'))
-    s('impressions', views); s('views', views)
+    s('views', views)
     likes    = _num(vals.get('likes'))
     comments = _num(vals.get('comments'))
     shares   = _num(vals.get('shares'))
@@ -3954,6 +4030,24 @@ def _yt_analytics(channel_id, token, month):
         s('net_new_followers', net); s('followers_growth_30d', net)
     s('avg_view_duration', _num(vals.get('averageViewDuration')))
     s('minutes_watched',   _num(vals.get('estimatedMinutesWatched')))
+    # Discovery funnel (thumbnail impressions + CTR + avg % watched) in a SEPARATE
+    # query — these metrics 400 if the channel/date has none, so isolate them so a
+    # failure never drops the core metrics above.
+    try:
+        r2 = _yt_get(YOUTUBE_ANALYTICS_API, '', token, {
+            'ids': 'channel==' + channel_id, 'startDate': start, 'endDate': end,
+            'metrics': 'impressions,impressionsClickThroughRate,averageViewPercentage'})
+        h2 = [h.get('name') for h in (r2.get('columnHeaders') or [])]
+        d2 = r2.get('rows') or []
+        if h2 and d2 and d2[0]:
+            v2 = dict(zip(h2, d2[0]))
+            s('impressions', _num(v2.get('impressions')))
+            ctr = v2.get('impressionsClickThroughRate')
+            s('ctr', round(_num(ctr), 2) if ctr is not None else None)
+            avp = v2.get('averageViewPercentage')
+            s('avg_view_pct', round(_num(avp), 1) if avp is not None else None)
+    except Exception:
+        pass
     return out
 
 
@@ -4020,6 +4114,72 @@ def _cron_youtube_platforms(proj, month):
     if ch.get('title'):
         card['account_name'] = ch['title']
     return [card]
+
+
+def _yt_report(channel_id, token, start, end, dims, metrics, sort=None, max_results=None):
+    """One YouTube Analytics dimensioned report → list of {dim1,…: metric} rows."""
+    params = {'ids': 'channel==' + channel_id, 'startDate': start, 'endDate': end,
+              'metrics': metrics, 'dimensions': dims}
+    if sort: params['sort'] = sort
+    if max_results: params['maxResults'] = max_results
+    r = _yt_get(YOUTUBE_ANALYTICS_API, '', token, params)
+    hdrs = [h.get('name') for h in (r.get('columnHeaders') or [])]
+    return [dict(zip(hdrs, row)) for row in (r.get('rows') or [])]
+
+
+# Human labels for YouTube's traffic-source enum + age buckets.
+_YT_TRAFFIC_LABELS = {
+    'ADVERTISING': 'Advertising', 'ANNOTATION': 'Annotations', 'CAMPAIGN_CARD': 'Cards',
+    'END_SCREEN': 'End screens', 'EXT_URL': 'External', 'NO_LINK_EMBEDDED': 'Embedded',
+    'NO_LINK_OTHER': 'Direct/unknown', 'NOTIFICATION': 'Notifications',
+    'PLAYLIST': 'Playlists', 'PROMOTED': 'Promoted', 'RELATED_VIDEO': 'Suggested videos',
+    'SHORTS': 'Shorts feed', 'SUBSCRIBER': 'Channel/subs', 'YT_CHANNEL': 'Channel pages',
+    'YT_OTHER_PAGE': 'Other YouTube', 'YT_SEARCH': 'YouTube search',
+    'HASHTAGS': 'Hashtags', 'SOUND_PAGE': 'Sound page'}
+
+
+def _yt_breakdowns(channel_id, token, month):
+    """Audience/discovery breakdowns for the month: traffic sources, viewer age &
+    gender, top countries. Each is best-effort — a failing report is skipped so
+    the others still return. Shape: {key: [{name, value}]}."""
+    start, end = _yt_month_dates(month)
+    out = {}
+    # Traffic sources (share of views by how viewers arrived).
+    try:
+        rows = _yt_report(channel_id, token, start, end, 'insightTrafficSourceType',
+                          'views', sort='-views')
+        data = [{'name': _YT_TRAFFIC_LABELS.get(r.get('insightTrafficSourceType'),
+                                                r.get('insightTrafficSourceType')),
+                 'value': _num(r.get('views')) or 0} for r in rows if _num(r.get('views'))]
+        if data: out['yt_traffic_source'] = data[:8]
+    except Exception:
+        pass
+    # Viewer demographics — viewerPercentage by age bucket and by gender.
+    try:
+        rows = _yt_report(channel_id, token, start, end, 'ageGroup', 'viewerPercentage',
+                          sort='ageGroup')
+        data = [{'name': (r.get('ageGroup') or '').replace('age', ''),
+                 'value': round(_num(r.get('viewerPercentage')) or 0, 1)} for r in rows]
+        if any(d['value'] for d in data): out['yt_age'] = data
+    except Exception:
+        pass
+    try:
+        rows = _yt_report(channel_id, token, start, end, 'gender', 'viewerPercentage')
+        data = [{'name': (r.get('gender') or '').title(),
+                 'value': round(_num(r.get('viewerPercentage')) or 0, 1)} for r in rows]
+        if any(d['value'] for d in data): out['yt_gender'] = data
+    except Exception:
+        pass
+    # Top countries by views.
+    try:
+        rows = _yt_report(channel_id, token, start, end, 'country', 'views',
+                          sort='-views', max_results=10)
+        data = [{'name': r.get('country'), 'value': _num(r.get('views')) or 0}
+                for r in rows if _num(r.get('views'))]
+        if data: out['yt_country'] = data
+    except Exception:
+        pass
+    return out
 
 
 # ──────────────────────────────────────────────────────────────────────────────
