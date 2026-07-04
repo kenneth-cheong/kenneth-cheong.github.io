@@ -3492,22 +3492,31 @@ def _meta_sum_metric(node_id, metric, token, since, until, opts=None):
 
 
 def _meta_fb_insights(page_id, token, since, until):
+    """Facebook Page insights for the month.
+
+    Meta deprecated a swathe of Page metrics in current Graph API versions — they
+    now return "(#100) not a valid insights metric". Confirmed dead (2026-07):
+    page_impressions, page_impressions_unique (page reach), page_fan_adds/removes,
+    page_posts_impressions, all post_impressions* (post reach). Surviving
+    equivalents we use instead: page_posts_impressions_organic (impressions) and
+    page_daily_follows_unique / page_daily_unfollows_unique (follower growth).
+    UNIQUE reach is no longer exposed at page OR post level, so we intentionally
+    do NOT report FB reach rather than surface a wrong number; FB engagement rate
+    therefore uses impressions as the denominator (IG still uses reach)."""
     out = {}
     def s(k, v):
         if v is not None: out[k] = v
-    s('impressions',   _meta_sum_metric(page_id, 'page_impressions', token, since, until))
-    reach = _meta_sum_metric(page_id, 'page_impressions_unique', token, since, until)
-    s('reach', reach); s('page_reach', reach); s('daily_reach', reach)
+    impressions = _meta_sum_metric(page_id, 'page_posts_impressions_organic', token, since, until)
+    s('impressions', impressions)
     # page_post_engagements = reactions + comments + shares + clicks on Page posts,
     # matching the Brandwatch FB interaction-rate formula's numerator directly.
     engagements = _meta_sum_metric(page_id, 'page_post_engagements', token, since, until)
     s('engagements', engagements)
-    if reach and engagements is not None:
-        s('engagement_rate', round(engagements / reach * 100, 2))
+    if impressions and engagements is not None:
+        s('engagement_rate', round(engagements / impressions * 100, 2))
     s('profile_views', _meta_sum_metric(page_id, 'page_views_total', token, since, until))
-    s('reactions',     _meta_sum_metric(page_id, 'page_actions_post_reactions_total', token, since, until))
-    adds = _meta_sum_metric(page_id, 'page_fan_adds', token, since, until)
-    rem  = _meta_sum_metric(page_id, 'page_fan_removes', token, since, until)
+    adds = _meta_sum_metric(page_id, 'page_daily_follows_unique', token, since, until)
+    rem  = _meta_sum_metric(page_id, 'page_daily_unfollows_unique', token, since, until)
     s('followers_increase', adds); s('followers_decrease', rem)
     if adds is not None or rem is not None:
         s('net_new_followers', (adds or 0) - (rem or 0))

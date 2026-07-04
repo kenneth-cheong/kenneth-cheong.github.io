@@ -139,13 +139,20 @@ platform (Settings → Platform connections → Connect). As of 2026-07-04:
   token connected** — connect one to enable native pulls.
 - Until then those platforms fall back to Apify public scraping (unchanged).
 
-### Known discrepancy to investigate (from a 2026-07-04 native_preview audit)
-Facebook page **reach & impressions come back None** from the native pull
-(`_meta_fb_insights` uses `page_impressions`/`page_impressions_unique`), while
-Instagram insights work fine. Likely Meta has deprecated those page-level
-metrics — worth switching FB reach/impressions to the current metric set or a
-post-level aggregation. (IG engagement-rate also differs from the old scraped
-value because native uses IG's official ER = interactions / reach.)
+### Facebook metric deprecation — FIXED 2026-07-04
+A `report_native_preview` audit found FB reach/impressions/follower-growth coming
+back None. Probed the Graph API live: Meta has **deprecated** `page_impressions`,
+`page_impressions_unique` (page reach), `page_fan_adds`/`page_fan_removes`,
+`page_posts_impressions`, and ALL `post_impressions*` (post reach) — they return
+"(#100) not a valid insights metric". `_meta_fb_insights` now uses the survivors:
+- **impressions** ← `page_posts_impressions_organic`
+- **follower growth** ← `page_daily_follows_unique` / `page_daily_unfollows_unique`
+  (verified: Anderco net +18 matches the previously-stored value)
+- **engagements/profile_views** ← `page_post_engagements` / `page_views_total` (unchanged)
+- **reach** — intentionally NOT reported: unique reach is no longer exposed at page
+  OR post level. FB engagement-rate now uses impressions as the denominator (IG
+  still uses reach, its official ER definition — that's why IG ER differs from the
+  old scraped value, which is expected, not a bug).
 
 ---
 The generic steps below are kept for reference / rebuilding from scratch.
