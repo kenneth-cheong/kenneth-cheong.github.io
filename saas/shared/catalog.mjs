@@ -315,30 +315,131 @@ export const SIMPLE_NAMES = {
   'landing-audit': { name: 'Check a landing page', desc: 'Will this page convert visitors? Find out.' },
 };
 
-/** Jargon → plain definition, for hover tooltips (Simple mode + result labels). */
+/** Jargon → plain definition, for the "i" info-icon tooltips shown next to
+ *  every metric (stat cards, table headers, KPI tiles, trend charts). Matched
+ *  case-insensitively against the metric label, so "Domain authority" and
+ *  "Domain Authority" both resolve. Keep each definition to one plain-English
+ *  sentence a non-marketer would understand — no jargon inside the definition. */
 export const GLOSSARY = {
+  // ── Search & Google Search Console ─────────────────────────────────────────
   CTR: 'Click-through rate — the % of people who clicked after seeing you in search.',
+  'Click-through rate': 'The % of people who clicked after seeing you in search.',
   Impressions: 'How many times your site showed up in search results.',
   Clicks: 'How many people clicked through to your site.',
   Position: 'Your average ranking spot in Google (1 = top).',
   'Avg Position': 'Your average ranking spot in Google (1 = top).',
+  'Avg position': 'Your average ranking spot in Google (1 = top).',
+  'Branded clicks': 'Clicks from people searching for your brand name specifically.',
+  'Branded impressions': 'Times you appeared for searches that include your brand name.',
+  'Branded share': 'The share of your search traffic that comes from brand-name searches.',
+  SERP: 'Search engine results page — what Google shows for a search.',
+
+  // ── Keywords ───────────────────────────────────────────────────────────────
+  Keyword: 'A search term people type into Google.',
+  Keywords: 'The search terms people type into Google.',
   Difficulty: 'How hard it is to rank for this keyword (higher = harder).',
+  'Keyword difficulty': 'How hard it is to rank on page one for this term (higher = harder).',
   Volume: 'How many people search this term each month.',
-  CPC: 'Cost per click if you advertised on this keyword.',
-  CPA: 'Cost per acquisition — what you pay for each conversion.',
+  'Search volume': 'How many people search this term each month.',
+  CPC: 'Cost per click — what you would pay for one click if you advertised on this keyword.',
+  Rank: 'Your position in Google for this keyword (1 = top).',
+  Ranking: 'Your position in Google for this keyword (1 = top).',
+  Traffic: 'Estimated monthly visits this keyword brings to the page.',
+  'Est. traffic': 'Estimated monthly visits this keyword brings to the page.',
+  Intent: 'Why someone searches this — to buy, to research, or to find a specific site.',
+
+  // ── Analytics (GA4) ────────────────────────────────────────────────────────
   Sessions: 'Visits to your site (one person can visit several times).',
   Users: 'The number of distinct people who visited.',
+  'New users': 'People visiting your site for the first time.',
   Conversions: 'Desired actions completed (sign-ups, sales, enquiries…).',
-  Backlinks: 'Links from other websites pointing to yours.',
-  SERP: 'Search engine results page — what Google shows for a search.',
-  GEO: 'Generative Engine Optimisation — getting cited by AI chatbots.',
-  Keyword: 'A search term people type into Google.',
-  Rank: 'Your position in Google for this keyword (1 = top).',
-  Traffic: 'Estimated monthly visits this keyword brings to the page.',
-  URL: 'The page on your site that ranks for this keyword.',
-  Cost: 'Total ad spend over the selected period.',
+  'Conversion rate': 'The % of visits that ended in a desired action.',
   Engaged: 'Sessions where the visitor stayed actively engaged (GA4).',
-  Campaign: 'A Google Ads campaign — a group of ads sharing a budget and goal.',
+  'Engaged sessions': 'Visits where the person stayed active — scrolled, clicked or lasted 10s+.',
+  'Engagement rate': 'The % of visits that were engaged rather than instant bounces.',
+  'Bounce rate': 'The % of visitors who left without doing anything.',
+  Pageviews: 'How many pages were viewed in total.',
+
+  // ── Paid ads ───────────────────────────────────────────────────────────────
+  CPA: 'Cost per acquisition — what you pay, on average, for each conversion.',
+  Cost: 'Total ad spend over the selected period.',
+  Spend: 'Total money spent on ads over the selected period.',
+  CPM: 'Cost per 1,000 times your ad is shown.',
+  ROAS: 'Return on ad spend — revenue earned for every $1 spent on ads.',
+  Campaign: 'A group of ads that share a budget and a goal.',
+  Budget: 'The amount set aside to spend on this campaign.',
+
+  // ── Backlinks & authority ──────────────────────────────────────────────────
+  Backlinks: 'Links from other websites pointing to yours.',
+  'Broken backlinks': 'Incoming links that now point to a missing or dead page.',
+  'Referring domains': 'The number of different websites that link to you (quality signal).',
+  'Referring IPs': 'The number of distinct servers your backlinks come from.',
+  'Domain Authority': 'A 0–100 score estimating how strongly a whole site can rank.',
+  'Domain rank': 'A score estimating how strong and trusted your domain is overall.',
+  'Domain Rating': 'A 0–100 score of how strong your backlink profile is.',
+  'Page Authority': 'A 0–100 score estimating how well a single page can rank.',
+  'Spam score': 'How risky or low-quality a site’s link profile looks (higher = worse).',
+  'Anchor text': 'The clickable words used in a link pointing to your site.',
+  Nofollow: 'A link that tells search engines not to pass ranking credit.',
+  Dofollow: 'A normal link that passes ranking credit to your site.',
+
+  // ── Technical SEO & site audit ─────────────────────────────────────────────
+  'Health score': 'An overall 0–100 grade for your site’s technical health.',
+  Health: 'An overall grade for your site’s technical health.',
+  'Checks passed': 'How many technical checks your site passed out of those run.',
+  Issues: 'Problems found that may hurt your rankings or user experience.',
+  'Total issues': 'The total number of problems found across the pages checked.',
+  'Pages with issues': 'How many pages have at least one problem to fix.',
+  Critical: 'Serious issues to fix first — they can directly block rankings.',
+  Warning: 'Minor issues worth fixing but not urgent.',
+  'Pages found': 'How many pages the crawler discovered on your site.',
+  'Pages sampled': 'How many pages were actually checked in this scan.',
+  'Crawled pages': 'Pages the tool visited and analysed.',
+  Indexed: 'Whether Google has this page stored and eligible to show in search.',
+  Indexing: 'Whether Google has stored your pages so they can appear in search.',
+  'Word count': 'How many words of text are on the page.',
+  Words: 'How many words of text are on the page.',
+  'PageSpeed': 'A 0–100 score for how fast the page loads and responds.',
+  'PageSpeed (mobile)': 'A 0–100 speed score for how the page loads on phones.',
+  'PageSpeed (desktop)': 'A 0–100 speed score for how the page loads on computers.',
+  'GTmetrix Grade': 'A letter grade (A–F) for the page’s overall loading performance.',
+  LCP: 'Largest Contentful Paint — how long until the main content appears (lower is better).',
+  CLS: 'Cumulative Layout Shift — how much the page jumps around as it loads (lower is better).',
+  INP: 'Interaction to Next Paint — how quickly the page reacts to a tap or click.',
+  SSL: 'The padlock security certificate that makes a site load over HTTPS.',
+  'robots.txt': 'A file telling search engines which pages they may crawl.',
+  Sitemap: 'A file listing your pages to help search engines find them all.',
+  'Structured data': 'Hidden code that helps Google understand your content (rich results).',
+  'Schema Markup': 'Hidden code that helps Google understand your content (rich results).',
+  'Semantic HTML': 'Using the right page tags so machines grasp your content’s structure.',
+  'Internal links': 'Links from one page of your site to another page on your site.',
+  'External links': 'Links from your page out to other websites.',
+  'Avg on-page score': 'The average optimisation grade across the pages checked.',
+  Readability: 'How easy the text is to read (higher = easier for more people).',
+  'Reading level': 'The school grade someone needs to comfortably read the text.',
+
+  // ── GEO / AI search ────────────────────────────────────────────────────────
+  GEO: 'Generative Engine Optimisation — getting cited by AI chatbots like ChatGPT.',
+  'AI mention rate': 'How often AI chatbots mention your brand when asked relevant questions.',
+  'AI readiness': 'How well your content is set up to be understood and cited by AI.',
+  'GEO readiness': 'How well your site is prepared to be cited in AI answers.',
+  'AI crawlers': 'The bots (like GPTBot) that read your site to train and answer with AI.',
+  'AI bots allowed': 'Whether you let AI bots read your site so they can cite you.',
+  'Share of voice': 'Your slice of all brand mentions in a space, versus competitors.',
+  'llms.txt': 'A file that tells AI models how to use and cite your site’s content.',
+  'Citation-worthiness': 'How likely your content is to be quoted as a source by AI.',
+
+  // ── Social ─────────────────────────────────────────────────────────────────
+  Followers: 'The number of accounts that follow this profile.',
+  Reach: 'How many unique people saw your content.',
+  'Eng. rate': 'Engagement rate — likes, comments and shares as a % of who saw the post.',
+  'Posts/wk': 'How many times this profile posts in a typical week.',
+  'Avg likes': 'The average number of likes per post.',
+
+  // ── General ────────────────────────────────────────────────────────────────
+  URL: 'The web address of a specific page.',
+  Domain: 'A website’s core address, like example.com.',
+  Competitors: 'Other sites competing with you for the same searches.',
 };
 
 /** One-click sample inputs per tool ("Try an example").

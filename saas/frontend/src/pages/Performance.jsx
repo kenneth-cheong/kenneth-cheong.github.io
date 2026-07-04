@@ -4,6 +4,7 @@ import { METRIC_GROUPS } from '@shared/metrics.mjs';
 import { CATEGORY_META } from '@shared/catalog.mjs';
 import { useProjects } from '../context/ProjectContext.jsx';
 import MetricChart from '../components/MetricChart.jsx';
+import InfoTip, { glossaryFor } from '../components/InfoTip.jsx';
 import { api } from '../lib/api.js';
 import { toast, downloadCsv } from '../lib/ui.js';
 
@@ -155,7 +156,10 @@ export default function Performance() {
                           return (
                             <div key={m.metricId} className="rounded-lg border border-slate-100 p-3">
                               <div className="flex items-baseline justify-between">
-                                <span className="text-xs font-medium text-slate-500">{m.label}</span>
+                                <span className="flex items-center gap-1 text-xs font-medium text-slate-500">
+                                  {m.label}
+                                  {glossaryFor(m.label) && <InfoTip text={glossaryFor(m.label)} size={12} />}
+                                </span>
                                 {tr && <span className={`text-xs font-semibold ${tr.cls}`}>{tr.arrow} {tr.label}</span>}
                               </div>
                               <div className="mt-0.5 text-xl font-bold">{fmtVal(latest, m.unit)}</div>

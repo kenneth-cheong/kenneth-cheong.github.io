@@ -3,6 +3,7 @@ import { toolById, PLANS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
 import SortableTable from '../components/SortableTable.jsx';
+import InfoTip from '../components/InfoTip.jsx';
 
 export default function Usage() {
   const { user } = useAuth();
@@ -19,9 +20,9 @@ export default function Usage() {
     <div className="mx-auto max-w-3xl">
       <h1 className="text-2xl font-bold">Usage</h1>
       <div className="mt-4 grid grid-cols-3 gap-4">
-        <Stat label="Credits left" value={user.credits.toLocaleString()} />
-        <Stat label="Spent this cycle" value={spent.toLocaleString()} />
-        <Stat label="Monthly allowance" value={plan.monthlyCredits.toLocaleString()} />
+        <Stat label="Credits left" value={user.credits.toLocaleString()} tip="Credits available to spend right now. Each tool run costs a few credits." />
+        <Stat label="Spent this cycle" value={spent.toLocaleString()} tip="Credits you've used since your allowance last reset this billing cycle." />
+        <Stat label="Monthly allowance" value={plan.monthlyCredits.toLocaleString()} tip="Fresh credits your plan grants at the start of each billing cycle." />
       </div>
 
       <div className="card mt-6 overflow-hidden">
@@ -52,10 +53,13 @@ function fmtWhen(r) {
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
 }
 
-function Stat({ label, value }) {
+function Stat({ label, value, tip }) {
   return (
     <div className="card p-4">
-      <p className="text-sm text-slate-500">{label}</p>
+      <p className="flex items-center gap-1 text-sm text-slate-500">
+        {label}
+        {tip && <InfoTip text={tip} size={12} />}
+      </p>
       <p className="mt-1 text-2xl font-bold">{value}</p>
     </div>
   );

@@ -2,16 +2,8 @@ import LineChart from './LineChart.jsx';
 import TrendChart from './TrendChart.jsx';
 import SortableTable from './SortableTable.jsx';
 import { copyText, toast } from '../lib/ui.js';
-import { GLOSSARY } from '@shared/catalog.mjs';
+import InfoTip, { glossaryFor } from './InfoTip.jsx';
 import { Check, X, Info, TrendingUp, TrendingDown } from 'lucide-react';
-
-// Plain-English definition for a metric label (case-insensitive), for tooltips.
-const glossaryFor = (label) => {
-  const k = String(label || '').trim();
-  if (GLOSSARY[k]) return GLOSSARY[k];
-  const hit = Object.keys(GLOSSARY).find((g) => g.toLowerCase() === k.toLowerCase());
-  return hit ? GLOSSARY[hit] : null;
-};
 
 // Themed renderer for the structured `sections` result format. Turns the raw
 // section data (stats / lists / tables / cards / code …) into a polished,
@@ -108,8 +100,9 @@ function StatCard({ it }) {
   const def = glossaryFor(it.label);
   return (
     <div className={`rounded-xl border ${t.border} ${t.bg} p-3.5`}>
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-        {def ? <span title={def} className="cursor-help decoration-slate-300 decoration-dotted underline-offset-2 [text-decoration-line:underline]">{it.label}</span> : it.label}
+      <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        <span>{it.label}</span>
+        {def && <InfoTip text={def} size={12} />}
       </div>
       {pct != null
         ? <div className="mt-1.5"><Gauge pct={pct} stroke={t.stroke} /></div>

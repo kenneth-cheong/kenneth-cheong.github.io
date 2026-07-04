@@ -1,7 +1,5 @@
-import { useState, useMemo, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { Info } from 'lucide-react';
-import { GLOSSARY } from '@shared/catalog.mjs';
+import { useState, useMemo } from 'react';
+import InfoTip, { glossaryFor } from './InfoTip.jsx';
 
 // Shared data table with a STICKY header (stays put while the body scrolls) and
 // CLICK-TO-SORT columns. Used everywhere a <table> renders tabular data so the
@@ -20,49 +18,6 @@ import { GLOSSARY } from '@shared/catalog.mjs';
 // If `columns` is omitted, they're inferred from the keys of the first row.
 const humanise = (k) => String(k).replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 const toNum = (v) => parseFloat(String(v ?? '').replace(/[^0-9.-]/g, ''));
-
-// Plain-English definition for a column header (case-insensitive), for header
-// info tooltips. Matches the metric glossary used by the stat cards.
-const glossaryFor = (label) => {
-  const k = String(label || '').trim();
-  if (!k) return null;
-  if (GLOSSARY[k]) return GLOSSARY[k];
-  const hit = Object.keys(GLOSSARY).find((g) => g.toLowerCase() === k.toLowerCase());
-  return hit ? GLOSSARY[hit] : null;
-};
-
-// Header info icon with an INSTANT tooltip (no native `title` delay). The
-// tooltip is portalled to <body> with position:fixed so the table's
-// overflow-auto container can't clip it.
-function InfoTip({ text }) {
-  const ref = useRef(null);
-  const [pos, setPos] = useState(null);
-  const show = () => {
-    const r = ref.current?.getBoundingClientRect();
-    if (r) setPos({ x: r.left + r.width / 2, y: r.bottom + 6 });
-  };
-  return (
-    <span
-      ref={ref}
-      onMouseEnter={show}
-      onMouseLeave={() => setPos(null)}
-      onClick={(e) => e.stopPropagation()}
-      className="cursor-help text-slate-300 hover:text-slate-500"
-      aria-label={text}
-    >
-      <Info size={12} aria-hidden />
-      {pos && createPortal(
-        <span
-          style={{ position: 'fixed', left: pos.x, top: pos.y, transform: 'translateX(-50%)', zIndex: 70 }}
-          className="pointer-events-none max-w-[220px] rounded-lg bg-slate-800 px-2.5 py-1.5 text-[11px] font-normal normal-case leading-snug tracking-normal text-white shadow-lg"
-        >
-          {text}
-        </span>,
-        document.body,
-      )}
-    </span>
-  );
-}
 
 export default function SortableTable({
   columns,
@@ -163,7 +118,7 @@ export default function SortableTable({
               >
                 <span className={`inline-flex items-center gap-1 ${c.align === 'right' ? 'flex-row-reverse' : ''}`}>
                   {c.label}
-                  {c.tip && <InfoTip text={c.tip} />}
+                  {c.tip && <InfoTip text={c.tip} size={12} />}
                   {sort.key === c.key && <span className="text-brand-500" aria-hidden>{sort.dir > 0 ? '▲' : '▼'}</span>}
                 </span>
               </th>
