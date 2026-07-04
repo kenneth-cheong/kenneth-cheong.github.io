@@ -3639,7 +3639,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2443</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2462</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -5725,12 +5725,49 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 startAutoSync();
             }
 
-            // Prompt Google Workspace connect on load if internal mode and not connected
-            if (currentMode === 'internal' && !window.gchatAccessToken) {
-                const dismissed = sessionStorage.getItem('gworkspace_modal_dismissed');
-                if (!dismissed) {
-                    setTimeout(function () { if (typeof showGworkspaceModal === 'function') showGworkspaceModal(); }, 800);
-                }
+            // Prompt Google Workspace connect on load — but ONLY when a reconnect is
+            // genuinely necessary. This used to fire every session because it checked
+            // window.gchatAccessToken (rehydrated from sessionStorage, empty on every
+            // fresh session) rather than the persistent token. Now we look at the real
+            // stored token, attempt a silent refresh, and surface the modal only when
+            // there is no usable Workspace connection.
+            if (currentMode === 'internal') {
+                setTimeout(async function () {
+                    if (typeof showGworkspaceModal !== 'function') return;
+                    let needsReconnect = false;
+                    try {
+                        const wsToken = localStorage.getItem('googleToken_Workspace');
+                        if (!wsToken) {
+                            needsReconnect = true;                       // never connected
+                        } else {
+                            const expiresAt = parseInt(localStorage.getItem('googleToken_Workspace_expires') || '0', 10);
+                            if (expiresAt && Date.now() > expiresAt - 60000) {
+                                // Expired / about to expire — try a silent refresh before bothering anyone.
+                                const ok = (typeof tryRefreshToken === 'function') ? await tryRefreshToken('Workspace') : false;
+                                if (ok) {
+                                    window.gchatAccessToken = localStorage.getItem('googleToken_Workspace');
+                                } else {
+                                    needsReconnect = true;               // token dead and refresh failed
+                                }
+                            } else {
+                                window.gchatAccessToken = wsToken;       // valid stored token
+                            }
+                        }
+                    } catch (e) {
+                        needsReconnect = !window.gchatAccessToken;
+                    }
+                    if (!needsReconnect) return;                         // connection is fine → never prompt
+
+                    // A reconnect really is needed. If the user was connected before (token just
+                    // expired), remind them once per session. If they've never connected, offer it
+                    // once and then stay out of the way permanently.
+                    const wasConnected = !!localStorage.getItem('googleEmail_Workspace');
+                    if (wasConnected) {
+                        if (!sessionStorage.getItem('gworkspace_modal_dismissed')) showGworkspaceModal();
+                    } else {
+                        if (!localStorage.getItem('gworkspace_modal_skipped')) showGworkspaceModal();
+                    }
+                }, 1000);
             }
         });
 
@@ -13328,7 +13365,11 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
         function dismissGworkspaceModal() {
             var modal = document.getElementById('gworkspaceModal');
             if (modal) modal.style.display = 'none';
+            // Session flag gates the "expired — please reconnect" reminder (returns next
+            // session). Permanent flag ensures a user who has never connected is never
+            // nagged again after skipping once.
             sessionStorage.setItem('gworkspace_modal_dismissed', '1');
+            localStorage.setItem('gworkspace_modal_skipped', '1');
         }
         function connectFromModal() {
             dismissGworkspaceModal();
