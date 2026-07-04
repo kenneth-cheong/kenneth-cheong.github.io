@@ -27,6 +27,38 @@ export function installSmaGlobals(){
   };
 }
 
+// Plain-English definitions for the social scorecard's metrics, mirroring the
+// app-wide GLOSSARY. Keyed by the exact metric label used below (case-sensitive
+// first, lower-case fallback). smaTip() turns a match into a small "i" icon
+// whose native title reveals the explanation on hover.
+const SMA_GLOSSARY = {
+  'Overall score': 'An overall 0–100 grade for this brand’s social presence, blending reach, consistency, engagement and profile quality.',
+  'Followers': 'The number of accounts that follow this profile.',
+  'Growth (30d)': 'Followers gained (or lost) in the last 30 days — momentum, not just size.',
+  'Engagement rate': 'Likes, comments and shares as a % of audience — how much people interact, not just how many follow.',
+  'Eng. rate': 'Likes, comments and shares as a % of audience — how much people interact, not just how many follow.',
+  'Posts / week': 'How many times this profile posts in a typical week.',
+  'Posts/wk': 'How many times this profile posts in a typical week.',
+  'Days since last post': 'How long since the last post — a freshness and consistency signal.',
+  'Last post': 'How long since the last post — a freshness and consistency signal.',
+  'Avg likes': 'The average number of likes per post.',
+  'Avg video views': 'The average number of views per video post.',
+  'Mix (v / i / c)': 'The split of recent posts across video / image / carousel formats.',
+  'complete': 'How fully the profile is filled in — bio, links, photo and contact details.',
+  'Brand consistency': 'How cohesive the look, voice and themes are across posts (0–100).',
+  'Design quality': 'An expert read of layout, typography and visual polish (0–100).',
+  'Branded search': 'How many people search your brand name each month — a real-world demand signal.',
+  'Web mentions': 'How often your brand is talked about across the web.',
+  'Google rating': 'Your average star rating on Google Business Profile (review count in brackets).',
+};
+
+function smaTip(label){
+  const def = SMA_GLOSSARY[label] || SMA_GLOSSARY[String(label || '').toLowerCase()];
+  if(!def) return '';
+  const t = String(def).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return ` <i class="fas fa-circle-info sma-tip" title="${t}"></i>`;
+}
+
 export function renderSMAScorecard(d){
             const esc = (window._pmEsc) || (s => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])));
             const arr = x => Array.isArray(x) ? x : [];
@@ -154,7 +186,7 @@ export function renderSMAScorecard(d){
                 const score = d.overall_score!=null ? `
                     <div style="text-align:center;background:${hc}18;border:2px solid ${hc}40;border-radius:50%;width:74px;height:74px;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;">
                         <div style="font-size:24px;font-weight:800;color:${hc};line-height:1;">${esc(d.overall_score)}</div>
-                        <div style="font-size:10px;color:#94a3b8;font-weight:600;">/100</div>
+                        <div style="font-size:10px;color:#94a3b8;font-weight:600;">/100${smaTip('Overall score')}</div>
                     </div>` : '';
                 const health = d.overall_health ? `<span style="background:${hc};color:#fff;font-size:12px;font-weight:700;padding:4px 14px;border-radius:20px;">${esc(d.overall_health)}</span>` : '';
                 html += `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px 22px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.04);">
@@ -186,7 +218,7 @@ export function renderSMAScorecard(d){
                     const complColor = compl==null?'#94a3b8':compl>=80?'#16a34a':compl>=50?'#d97706':'#dc2626';
                     const gr = p.followers_growth_30d;
                     const stat = (lbl,val,vc)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #f1f5f9;">
-                        <span style="font-size:12px;color:#64748b;">${lbl}</span>
+                        <span style="font-size:12px;color:#64748b;">${lbl}${smaTip(lbl)}</span>
                         <b style="font-size:12px;color:${vc||'#1e293b'};">${val}</b></div>`;
                     return `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px;display:flex;flex-direction:column;">
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
@@ -201,7 +233,7 @@ export function renderSMAScorecard(d){
                             </div>
                             ${compl!=null?`<div style="text-align:right;">
                                 <div style="font-size:19px;font-weight:800;color:${complColor};line-height:1;">${compl}%</div>
-                                <div style="font-size:10px;color:#94a3b8;">complete</div>
+                                <div style="font-size:10px;color:#94a3b8;">complete${smaTip('complete')}</div>
                             </div>`:''}
                         </div>
                         ${stat('Followers', num(p.followers))}
@@ -248,7 +280,7 @@ export function renderSMAScorecard(d){
                     crInner += `<div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
                         ${scoreCircle}
                         <div style="flex:1;">
-                            <div style="font-size:12px;font-weight:700;color:#1e293b;margin-bottom:3px;">Brand consistency</div>
+                            <div style="font-size:12px;font-weight:700;color:#1e293b;margin-bottom:3px;">Brand consistency${smaTip('Brand consistency')}</div>
                             <div style="font-size:13px;color:#64748b;line-height:1.55;">${esc(bcons.notes||'How cohesive the look, voice and themes are across posts.')}</div>
                         </div>
                     </div>`;
@@ -280,7 +312,7 @@ export function renderSMAScorecard(d){
                                 <div style="font-size:9px;color:#94a3b8;font-weight:600;">/100</div>
                             </div>` : ''}
                             <div style="flex:1;">
-                                <div style="font-size:12px;font-weight:700;color:#0369a1;margin-bottom:6px;"><i class="fas fa-pen-ruler"></i> Design quality</div>
+                                <div style="font-size:12px;font-weight:700;color:#0369a1;margin-bottom:6px;"><i class="fas fa-pen-ruler"></i> Design quality${smaTip('Design quality')}</div>
                                 ${dq.layout ? `<div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:2px;">Layout &amp; whitespace</div><div style="font-size:13px;color:#374151;margin-bottom:8px;line-height:1.5;">${esc(dq.layout)}</div>` : ''}
                                 ${dq.template_use ? `<div style="margin-bottom:6px;"><span style="font-size:11px;font-weight:700;background:#e0f2fe;color:#0369a1;padding:2px 9px;border-radius:10px;">${esc(dq.template_use)}</span></div>` : ''}
                                 ${dq.typography ? `<div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:2px;">Typography</div><div style="font-size:13px;color:#374151;line-height:1.5;">${esc(dq.typography)}</div>` : ''}
@@ -352,11 +384,11 @@ export function renderSMAScorecard(d){
                             <thead><tr style="background:#1e293b;text-align:left;">
                                 <th style="padding:9px 12px;font-size:11px;color:#f1f5f9;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Competitor</th>
                                 <th style="padding:9px 12px;font-size:11px;color:#f1f5f9;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Platform</th>
-                                <th style="padding:9px 12px;font-size:11px;color:#f1f5f9;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Followers</th>
-                                <th style="padding:9px 12px;font-size:11px;color:#f1f5f9;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Eng. rate</th>
-                                <th style="padding:9px 12px;font-size:11px;color:#f1f5f9;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Posts/wk</th>
-                                <th style="padding:9px 12px;font-size:11px;color:#f1f5f9;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Last post</th>
-                                <th style="padding:9px 12px;font-size:11px;color:#f1f5f9;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Avg likes</th>
+                                <th style="padding:9px 12px;font-size:11px;color:#f1f5f9;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Followers${smaTip('Followers')}</th>
+                                <th style="padding:9px 12px;font-size:11px;color:#f1f5f9;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Eng. rate${smaTip('Eng. rate')}</th>
+                                <th style="padding:9px 12px;font-size:11px;color:#f1f5f9;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Posts/wk${smaTip('Posts/wk')}</th>
+                                <th style="padding:9px 12px;font-size:11px;color:#f1f5f9;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Last post${smaTip('Last post')}</th>
+                                <th style="padding:9px 12px;font-size:11px;color:#f1f5f9;text-transform:uppercase;letter-spacing:.5px;font-weight:700;">Avg likes${smaTip('Avg likes')}</th>
                             </tr></thead>
                             <tbody>${rows}</tbody>
                         </table>
@@ -447,7 +479,7 @@ export function renderSMAScorecard(d){
                             <i class="fas ${icon}" style="color:${color};font-size:20px;"></i>
                         </div>
                         <div>
-                            <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;">${label}</div>
+                            <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;">${label}${smaTip(label)}</div>
                             <div style="font-size:22px;font-weight:800;color:#1e293b;line-height:1.2;">${value}</div>
                         </div>
                     </div>`;
