@@ -5114,9 +5114,6 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 bestTitle = firstRealMsg ? firstRealMsg.content.substring(0, 50) + '...' : 'New Conversation';
             }
 
-            const userEmail = localStorage.getItem('clientEmail') || 'Internal User';
-            const userLabel = userEmail.split('@')[0];
-
             updateCloudStatus('syncing', 'Syncing...');
 
             try {
@@ -5133,7 +5130,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                             threadId: localStorage.getItem('threadId'),
                             mode: 'claude',
                             title: bestTitle,
-                            userLabel: userEmail,
+                            userLabel: chatUserLabel(), // Chat/Drive-authed account owns the conversation
                             timestamp: new Date().toISOString() // Ensure fresh timestamp on every save
                         }
                     })
@@ -6096,6 +6093,17 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
         function cbConnArr(k) { try { const v = JSON.parse(localStorage.getItem(k) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } }
         function cbGoogleUserEmail() { try { return (JSON.parse(localStorage.getItem('googleUser') || '{}').email) || ''; } catch { return ''; } }
         function cbSvcEmail(svc) { return cbConnLs('googleEmail_' + svc) || cbGoogleUserEmail() || ''; }
+        // The authoritative "who is this user" label for the chatbot. Prefers the Google
+        // account currently authorized for Chat spaces & Drive (the Workspace OAuth
+        // connection, captured into googleEmail_Workspace) — that's the identity the bot
+        // actually acts as when reading Google Chat / Drive. Falls back to the sign-in
+        // identity (googleUser / clientEmail) and finally the generated userId.
+        function chatUserLabel() {
+            return cbConnLs('googleEmail_Workspace')
+                || cbGoogleUserEmail()
+                || (localStorage.getItem('clientEmail') || '').trim()
+                || (typeof userId !== 'undefined' && userId) || 'User';
+        }
 
         function cbGetConnectionStates() {
             return [
@@ -11498,9 +11506,9 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     .trim();
             }
 
-            // Resolve the label for this user message — prefer Google-authed user
-            const _googleUser = (() => { try { return JSON.parse(localStorage.getItem('googleUser') || 'null'); } catch { return null; } })();
-            const resolvedLabel = senderLabel || (sender === 'user' ? (_googleUser?.email || localStorage.getItem('clientEmail') || userId || 'User') : null);
+            // Resolve the label for this user message — the account authorized for Chat
+            // spaces & Drive (Workspace connection) takes precedence. See chatUserLabel().
+            const resolvedLabel = senderLabel || (sender === 'user' ? chatUserLabel() : null);
 
             // Update local history
             if (!isRestoring) {
