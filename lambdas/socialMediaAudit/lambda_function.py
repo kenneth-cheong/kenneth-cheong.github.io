@@ -3382,6 +3382,17 @@ def cron_capture_one(body):
     for p in (prev_sc.get('platforms') or []):
         if p.get('platform') and p['platform'] not in have:
             sc.setdefault('platforms', []).append(p)
+    # Carry forward audience breakdowns (demographics / traffic sources) that
+    # report_refresh_audience attached out-of-band — the daily capture doesn't
+    # re-pull them, so without this the nightly overwrite of a re-captured card
+    # would silently wipe them.
+    prev_bd = {c.get('platform'): c for c in (prev_sc.get('platforms') or []) if c.get('breakdowns')}
+    for c in (sc.get('platforms') or []):
+        pc = prev_bd.get(c.get('platform'))
+        if pc and not c.get('breakdowns'):
+            c['breakdowns'] = pc['breakdowns']
+            if pc.get('breakdowns_asof'):
+                c['breakdowns_asof'] = pc['breakdowns_asof']
 
     if not (sc.get('platforms') or []):
         return {'ok': False, 'projectId': pid, 'month': month,
