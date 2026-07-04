@@ -125,7 +125,19 @@ TIKTOK_OAUTH_CLIENT_ID     = os.environ.get('TIKTOK_OAUTH_CLIENT_ID', '')       
 TIKTOK_OAUTH_CLIENT_SECRET = os.environ.get('TIKTOK_OAUTH_CLIENT_SECRET', '')
 TIKTOK_OAUTH_SCOPES        = os.environ.get('TIKTOK_OAUTH_SCOPES',
     'user.info.basic,user.info.profile,user.info.stats,video.list')
-GOOGLE_OAUTH_CLIENT_ID     = os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '')        # YouTube — frontend GIS only
+TIKTOK_API           = 'https://open.tiktokapis.com/v2'
+GOOGLE_OAUTH_CLIENT_ID     = os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '')        # YouTube "web" client id
+# YouTube moved from in-browser GIS (1-hour token, no refresh) to a server-side
+# offline code flow so the daily cron + walk-back backfill can pull unattended,
+# exactly like Meta/LinkedIn. The exchange needs the app SECRET (server-only) and
+# access_type=offline to get a refresh_token; the analytics scope unlocks the
+# time-windowed YouTube Analytics API (plain youtube.readonly can't do history).
+GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET', '')
+GOOGLE_OAUTH_SCOPES        = os.environ.get('GOOGLE_OAUTH_SCOPES',
+    'https://www.googleapis.com/auth/youtube.readonly '
+    'https://www.googleapis.com/auth/yt-analytics.readonly')
+YOUTUBE_DATA_API     = 'https://www.googleapis.com/youtube/v3'
+YOUTUBE_ANALYTICS_API = 'https://youtubeanalytics.googleapis.com/v2/reports'
 # How long a single cron_capture_one waits for its Apify runs before finalizing
 # with whatever finished. Keep below the Lambda timeout (set to 900s for cron).
 CRON_MAX_WAIT_SECS = int(os.environ.get('CRON_MAX_WAIT_SECS', '660'))
@@ -223,6 +235,10 @@ def lambda_handler(event, context):
             return _resp(200, report_backfill_meta(body))
         if action == 'report_backfill_linkedin':
             return _resp(200, report_backfill_linkedin(body))
+        if action == 'report_backfill_youtube':
+            return _resp(200, report_backfill_youtube(body))
+        if action == 'report_backfill_tiktok':
+            return _resp(200, report_backfill_tiktok(body))
         if action == 'meta_pages':
             return _resp(200, meta_pages(body))
         if action == 'report_delete_month':
@@ -2366,6 +2382,66 @@ def report_backfill_linkedin(body):
             'platforms': [c.get('platform') for c in li_platforms]}
 
 
+def _report_backfill_native(body, builder, who, has_keys, err_key):
+    """Shared backfill: pull ONE past month for a single platform family via a
+    native `builder(proj, month)` and merge it into that month, leaving other
+    platforms untouched. `has_keys` are the period-specific metric fields that
+    count as historical evidence (followers alone is the CURRENT value, so it's
+    excluded) — used to compute has_data so a caller can walk backwards until the
+    platform runs dry. Mirrors report_backfill_meta/linkedin exactly."""
+    pid   = (body.get('projectId') or (body.get('data') or {}).get('projectId') or '').strip()
+    month = (body.get('month') or (body.get('data') or {}).get('month') or '').strip()
+    if not pid or not re.match(r'^\d{4}-\d{2}$', month):
+        raise RuntimeError('Need projectId + month (YYYY-MM).')
+    proj = _rprojects().get_item(Key={'projectId': pid}).get('Item')
+    if not proj:
+        raise RuntimeError('Unknown project.')
+    proj = _dec(proj)
+    try:
+        cards = builder(proj, month)
+    except Exception as e:
+        return {'ok': False, 'month': month, 'has_data': False, err_key: str(e)[:200]}
+    def _has(c):
+        return bool(c.get('posts')) or any(c.get(k) is not None for k in has_keys)
+    if not any(_has(c) for c in cards):
+        return {'ok': True, 'month': month, 'has_data': False,
+                'platforms': [c.get('platform') for c in cards]}
+    existing = _rmonths().get_item(Key={'projectId': pid, 'month': month}).get('Item')
+    prev_sc, prev_recs = {}, None
+    if existing:
+        prev_recs = _dec(existing.get('recommendations'))
+        if isinstance(existing.get('scorecard'), str):
+            try: prev_sc = json.loads(existing['scorecard'])
+            except ValueError: prev_sc = {}
+    sc = _merge_meta_platforms(prev_sc or {}, cards)
+    kpis = _kpis_from_scorecard(sc)
+    recs = prev_recs or {'executive_summary': sc.get('executive_summary', ''),
+                         'overall_health': sc.get('overall_health')}
+    report_save_month({'data': {'projectId': pid, 'month': month, 'scorecard': sc,
+                                'kpis': kpis, 'recommendations': recs},
+                       'currentUser': {'email': who}})
+    return {'ok': True, 'month': month, 'has_data': True,
+            'platforms': [c.get('platform') for c in cards]}
+
+
+def report_backfill_youtube(body):
+    """Backfill ONE past month of native YouTube channel analytics + uploads via
+    the per-client offline token. YouTube keeps full history, so a caller can walk
+    back years until it runs dry. Merges into the month, other platforms intact."""
+    return _report_backfill_native(
+        body, _cron_youtube_platforms, 'youtube-backfill@auto',
+        ('impressions', 'views', 'reach', 'engagements', 'net_new_followers'), 'yt_error')
+
+
+def report_backfill_tiktok(body):
+    """Backfill TikTok via the per-client token. TikTok's Display API has no
+    historical analytics, so only the CURRENT month returns data; past months
+    report has_data:false and the walk-back stops immediately."""
+    return _report_backfill_native(
+        body, _cron_tiktok_platforms, 'tiktok-backfill@auto',
+        ('views', 'engagements', 'likes', 'comments', 'shares'), 'tt_error')
+
+
 def report_get_month(body):
     """One month's full payload (scorecard rehydrated, recommendations, kpis)."""
     pid   = (body.get('projectId') or '').strip()
@@ -2866,10 +2942,15 @@ def oauth_config(body):
                 'client_id': TIKTOK_OAUTH_CLIENT_ID, 'scopes': TIKTOK_OAUTH_SCOPES,
                 'flow': 'code', 'authorize': 'https://www.tiktok.com/v2/auth/authorize/'},
             'youtube': {
-                'configured': bool(GOOGLE_OAUTH_CLIENT_ID),
-                'client_id': GOOGLE_OAUTH_CLIENT_ID,
-                'scopes': 'https://www.googleapis.com/auth/youtube.readonly',
-                'flow': 'gis'},
+                # Server-side offline code flow (like Meta/LinkedIn) so the token
+                # refreshes for unattended monthly pulls. Falls back to in-browser
+                # GIS only if the app secret isn't configured on the server yet.
+                'configured': bool(GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET),
+                'client_id': GOOGLE_OAUTH_CLIENT_ID, 'scopes': GOOGLE_OAUTH_SCOPES,
+                'flow': 'code' if (GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET) else 'gis',
+                'authorize': 'https://accounts.google.com/o/oauth2/v2/auth',
+                'auth_params': {'access_type': 'offline', 'prompt': 'consent',
+                                'include_granted_scopes': 'true'}},
         },
     }
 
@@ -2891,6 +2972,8 @@ def oauth_exchange(body):
         return _oauth_linkedin(code, redirect)
     if platform == 'tiktok':
         return _oauth_tiktok(code, redirect)
+    if platform in ('youtube', 'google'):
+        return _oauth_youtube(code, redirect)
     raise RuntimeError(f'OAuth exchange not supported for platform: {platform or "(none)"}')
 
 
@@ -2978,6 +3061,63 @@ def _oauth_tiktok(code, redirect):
     return out
 
 
+def _oauth_youtube(code, redirect):
+    """Exchange a Google authorization code for an OFFLINE token set. Unlike
+    Meta/LinkedIn (long-lived tokens), Google access tokens live only ~1h, so we
+    also persist the refresh_token and let _yt_access_token() mint fresh access
+    tokens for each unattended monthly pull. Returns the same {token, name, …}
+    shape the frontend already persists, plus refresh_token/token_expiry."""
+    if not (GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET):
+        raise RuntimeError('YouTube sign-in is not set up on the server (GOOGLE_OAUTH_CLIENT_ID/SECRET).')
+    d = requests.post('https://oauth2.googleapis.com/token', timeout=20,
+                      data={'code': code, 'client_id': GOOGLE_OAUTH_CLIENT_ID,
+                            'client_secret': GOOGLE_OAUTH_CLIENT_SECRET,
+                            'redirect_uri': redirect,
+                            'grant_type': 'authorization_code'}).json()
+    token = d.get('access_token')
+    if not token:
+        raise RuntimeError('YouTube: ' + (d.get('error_description') or d.get('error') or 'token exchange failed'))
+    name = 'YouTube channel'
+    try:
+        chans = requests.get(YOUTUBE_DATA_API + '/channels', timeout=15,
+                             params={'part': 'snippet', 'mine': 'true'},
+                             headers={'Authorization': 'Bearer ' + token}).json().get('items') or []
+        if chans:
+            name = ((chans[0].get('snippet') or {}).get('title')) or name
+    except Exception:
+        pass
+    out = {'token': token, 'name': name}
+    if d.get('refresh_token'):
+        out['refresh_token'] = d['refresh_token']
+    if d.get('expires_in'):
+        out['expires_in'] = d['expires_in']
+        out['token_expiry'] = int(time.time()) + int(d['expires_in']) - 60
+    return out
+
+
+def _yt_access_token(conn):
+    """A currently-valid YouTube access token for a stored connection dict.
+    Reuses the saved access token while it's fresh; otherwise refreshes it from
+    refresh_token. Returns None when the connection can't yield a usable token
+    (so the caller falls back to Apify). Does NOT persist the refreshed token —
+    it's cheap to mint and connections are shared/mutated elsewhere."""
+    conn = conn or {}
+    tok, exp = conn.get('token'), conn.get('token_expiry')
+    if tok and (not exp or int(exp) > int(time.time())):
+        return tok
+    refresh = conn.get('refresh_token')
+    if not refresh or not (GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET):
+        return tok or None   # no refresh available — try the (maybe stale) token
+    try:
+        d = requests.post('https://oauth2.googleapis.com/token', timeout=20,
+                          data={'refresh_token': refresh, 'client_id': GOOGLE_OAUTH_CLIENT_ID,
+                                'client_secret': GOOGLE_OAUTH_CLIENT_SECRET,
+                                'grant_type': 'refresh_token'}).json()
+        return d.get('access_token') or tok or None
+    except Exception:
+        return tok or None
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # DAILY AUTO-CAPTURE (cron) — no user trigger
 #
@@ -3032,14 +3172,19 @@ def cron_capture_one(body):
         meta_error = str(e)[:200]
     meta_covered = {p.get('platform') for p in meta_platforms if p.get('platform')}
 
-    # 1b. LinkedIn private org analytics via the per-client connected token —
-    #     also free/owner-only, so pull before Apify and skip its paid scrape too.
-    li_platforms = []
-    try:
-        li_platforms = _cron_linkedin_platforms(proj, month)
-    except Exception as e:
-        meta_error = ((meta_error + ' | ') if meta_error else '') + 'LinkedIn: ' + str(e)[:160]
-    covered = meta_covered | {p.get('platform') for p in li_platforms if p.get('platform')}
+    # 1b. Other native/owner-only pulls via the per-client connected tokens —
+    #     LinkedIn org analytics, YouTube channel analytics, TikTok current stats.
+    #     All free & first-party, so pull before Apify and skip its paid scrape for
+    #     any platform a native token already covers (native-first, Apify fallback).
+    native_platforms = []
+    for label, builder in (('LinkedIn', _cron_linkedin_platforms),
+                           ('YouTube',  _cron_youtube_platforms),
+                           ('TikTok',   _cron_tiktok_platforms)):
+        try:
+            native_platforms += builder(proj, month)
+        except Exception as e:
+            meta_error = ((meta_error + ' | ') if meta_error else '') + label + ': ' + str(e)[:160]
+    covered = meta_covered | {p.get('platform') for p in native_platforms if p.get('platform')}
 
     # 2. Apify scrape (paid, public) — only for platforms not covered privately.
     sc = _cron_apify_scorecard(proj, month, skip=covered)
@@ -3047,7 +3192,7 @@ def cron_capture_one(body):
     # 3. Overlay the free private metrics (adds cards when Apify was skipped for
     #    them; merges field-level when both ran).
     sc = _merge_meta_platforms(sc, meta_platforms)
-    sc = _merge_meta_platforms(sc, li_platforms)
+    sc = _merge_meta_platforms(sc, native_platforms)
     if meta_error:
         sc = sc or {}
         sc['_meta_error'] = meta_error
@@ -3639,6 +3784,228 @@ def _cron_linkedin_platforms(proj, month):
     card = _meta_card('linkedin', _li_posts(org['id'], token, since, until), insights)
     if org.get('name'):
         card['account_name'] = org['name']
+    return [card]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# YouTube (Data API v3 + Analytics API v2) — native channel analytics + uploads
+# via the per-client OFFLINE OAuth token. Mirrors the LinkedIn path: returns []
+# (→ Apify public scrape falls back) when YouTube isn't tracked or no usable
+# token is connected. Cards match _meta_card's shape. Unlike TikTok, YouTube's
+# Analytics API keeps full channel history, so backfill can walk back years.
+# ──────────────────────────────────────────────────────────────────────────────
+def _yt_get(base, path, token, params=None):
+    r = requests.get(base + path, params=params or {}, timeout=25,
+                     headers={'Authorization': 'Bearer ' + token})
+    j = r.json() if r.content else {}
+    if isinstance(j, dict) and j.get('error'):
+        err = j['error']
+        msg = err.get('message') if isinstance(err, dict) else str(err)
+        raise RuntimeError('YouTube API: ' + (msg or f'HTTP {r.status_code}'))
+    return j
+
+
+def _yt_month_dates(month):
+    """(startDate, endDate) as YYYY-MM-DD for the Analytics API — endDate capped
+    at today so an in-progress month doesn't request future days."""
+    since, until = _meta_month_range(month)
+    start = datetime.fromtimestamp(since, tz=timezone.utc)
+    end   = datetime.fromtimestamp(max(until - 1, since), tz=timezone.utc)
+    return start.strftime('%Y-%m-%d'), end.strftime('%Y-%m-%d')
+
+
+def _yt_resolve_channel(token):
+    """The authorised user's OWN channel {id,title,subs,…}. The offline token is
+    the client's channel token, so channels?mine=true is authoritative; the
+    tracked handle is only a display fallback."""
+    items = _yt_get(YOUTUBE_DATA_API, '/channels', token,
+                    {'part': 'snippet,statistics', 'mine': 'true'}).get('items') or []
+    if not items:
+        return None
+    c = items[0]
+    st = c.get('statistics') or {}
+    return {'id': c.get('id'), 'title': (c.get('snippet') or {}).get('title'),
+            'subs': _num(st.get('subscriberCount')),
+            'views_total': _num(st.get('viewCount')),
+            'video_count': _num(st.get('videoCount'))}
+
+
+def _yt_analytics(channel_id, token, month):
+    """Month-windowed channel analytics. Maps YouTube's metric names onto the
+    internal scorecard keys (views→impressions, subscriber deltas→follower
+    gains). Returns {} on any access error so the card still forms from the
+    Data-API statistics + posts."""
+    start, end = _yt_month_dates(month)
+    try:
+        rows = _yt_get(YOUTUBE_ANALYTICS_API, '', token, {
+            'ids': 'channel==' + channel_id, 'startDate': start, 'endDate': end,
+            'metrics': ('views,estimatedMinutesWatched,likes,comments,shares,'
+                        'subscribersGained,subscribersLost,averageViewDuration')})
+    except Exception:
+        return {}
+    hdrs = [h.get('name') for h in (rows.get('columnHeaders') or [])]
+    data = rows.get('rows') or []
+    if not hdrs or not data or not data[0]:
+        return {}
+    vals = dict(zip(hdrs, data[0]))
+    out = {}
+    def s(k, v):
+        if v is not None:
+            out[k] = v
+    views = _num(vals.get('views'))
+    s('impressions', views); s('views', views)
+    likes    = _num(vals.get('likes'))
+    comments = _num(vals.get('comments'))
+    shares   = _num(vals.get('shares'))
+    s('likes', likes); s('comments', comments); s('shares', shares)
+    if likes is not None or comments is not None or shares is not None:
+        eng = (likes or 0) + (comments or 0) + (shares or 0)
+        s('engagements', eng)
+        if views:
+            s('engagement_rate', round(eng / views * 100, 2))
+    gained = _num(vals.get('subscribersGained'))
+    lost   = _num(vals.get('subscribersLost'))
+    if gained is not None or lost is not None:
+        net = (gained or 0) - (lost or 0)
+        s('followers_increase', gained); s('followers_decrease', lost)
+        s('net_new_followers', net); s('followers_growth_30d', net)
+    s('avg_view_duration', _num(vals.get('averageViewDuration')))
+    s('minutes_watched',   _num(vals.get('estimatedMinutesWatched')))
+    return out
+
+
+def _yt_posts(channel_id, token, since, until):
+    """This month's uploads in the internal post shape, with per-video stats."""
+    start = datetime.fromtimestamp(since, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    end   = datetime.fromtimestamp(until, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    try:
+        found = _yt_get(YOUTUBE_DATA_API, '/search', token, {
+            'part': 'id', 'channelId': channel_id, 'type': 'video', 'order': 'date',
+            'publishedAfter': start, 'publishedBefore': end, 'maxResults': 50}).get('items') or []
+    except Exception:
+        return []
+    ids = [((it.get('id') or {}).get('videoId')) for it in found]
+    ids = [v for v in ids if v]
+    if not ids:
+        return []
+    try:
+        vids = _yt_get(YOUTUBE_DATA_API, '/videos', token, {
+            'part': 'snippet,statistics', 'id': ','.join(ids[:50])}).get('items') or []
+    except Exception:
+        return []
+    out = []
+    for v in vids:
+        sn = v.get('snippet') or {}
+        st = v.get('statistics') or {}
+        text = sn.get('title') or ''
+        desc = sn.get('description') or ''
+        out.append({
+            'ts': sn.get('publishedAt'),
+            'likes': _num(st.get('likeCount')), 'comments': _num(st.get('commentCount')),
+            'shares': None, 'views': _num(st.get('viewCount')),
+            'type': 'video', 'hashtags': re.findall(r'#(\w+)', text + ' ' + desc),
+            'text': ' '.join(text.split())[:160], 'caption': ' '.join(text.split())[:400],
+            'image': _youtube_thumb({'id': v.get('id')}),
+            'url': 'https://www.youtube.com/watch?v=' + (v.get('id') or '')})
+    return _meta_in_window(out, since, until)
+
+
+def _cron_youtube_platforms(proj, month):
+    """Native YouTube channel analytics + uploads for the month via the per-client
+    offline token. Returns [] (→ Apify falls back) when YouTube isn't tracked or
+    no usable token is connected. Raises on a connected-but-unresolvable channel
+    so the caller can surface a reconnect hint."""
+    plats   = set(proj.get('platforms') or [])
+    handles = proj.get('handles') or {}
+    if not (('youtube' in plats) or handles.get('youtube')):
+        return []
+    conn  = (proj.get('connections') or {}).get('youtube') or {}
+    token = _yt_access_token(conn)
+    if not token:
+        return []
+    ch = _yt_resolve_channel(token)
+    if not ch or not ch.get('id'):
+        raise RuntimeError('YouTube connected but no channel resolved — reconnect.')
+    since, until = _meta_month_range(month)
+    insights = _yt_analytics(ch['id'], token, month)
+    if ch.get('subs') is not None:
+        insights.setdefault('followers', ch['subs'])
+    posts = _yt_posts(ch['id'], token, since, until)
+    if not (insights or posts):
+        return []
+    card = _meta_card('youtube', posts, insights)
+    if ch.get('title'):
+        card['account_name'] = ch['title']
+    return [card]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# TikTok (Display API) — native CURRENT stats + this-month videos via the
+# per-client token. The Display API has NO historical/period analytics (no
+# reach/impressions), so this only yields data for the CURRENT month going
+# forward; past months return [] (→ backfill walk stops immediately). Cards
+# match _meta_card's shape.
+# ──────────────────────────────────────────────────────────────────────────────
+def _tt_call(method, path, token, params=None, body=None):
+    r = requests.request(method, TIKTOK_API + path, params=params or {}, timeout=25,
+                         headers={'Authorization': 'Bearer ' + token,
+                                  'Content-Type': 'application/json'},
+                         json=body if body is not None else None)
+    j = r.json() if r.content else {}
+    err = j.get('error') or {}
+    if err and err.get('code') not in (None, 'ok'):
+        raise RuntimeError('TikTok API: ' + (err.get('message') or err.get('code')))
+    return j.get('data') or {}
+
+
+def _tt_posts(token, since, until):
+    fields = ('id,title,video_description,create_time,like_count,comment_count,'
+              'share_count,view_count,cover_image_url,share_url')
+    try:
+        data = _tt_call('POST', '/video/list/', token, {'fields': fields}, {'max_count': 20})
+    except Exception:
+        return []
+    out = []
+    for v in (data.get('videos') or []):
+        text = v.get('title') or v.get('video_description') or ''
+        out.append({
+            'ts': v.get('create_time'),
+            'likes': _num(v.get('like_count')), 'comments': _num(v.get('comment_count')),
+            'shares': _num(v.get('share_count')), 'views': _num(v.get('view_count')),
+            'type': 'video', 'hashtags': re.findall(r'#(\w+)', text),
+            'text': ' '.join(text.split())[:160], 'caption': ' '.join(text.split())[:400],
+            'image': v.get('cover_image_url') or '', 'url': v.get('share_url') or ''})
+    return _meta_in_window(out, since, until)
+
+
+def _cron_tiktok_platforms(proj, month):
+    """Native TikTok CURRENT follower/like counts + this-month videos via the
+    per-client token. Only the CURRENT month can be captured (no history in the
+    Display API) — past months return []. Returns [] when not tracked / no token."""
+    plats   = set(proj.get('platforms') or [])
+    handles = proj.get('handles') or {}
+    if not (('tiktok' in plats) or handles.get('tiktok')):
+        return []
+    token = (((proj.get('connections') or {}).get('tiktok')) or {}).get('token')
+    if not token:
+        return []
+    if month != _current_month():        # no historical reconstruction possible
+        return []
+    since, until = _meta_month_range(month)
+    try:
+        info = (_tt_call('GET', '/user/info/', token,
+                {'fields': 'display_name,follower_count,likes_count,video_count'}).get('user')) or {}
+    except Exception:
+        info = {}
+    insights = {}
+    if info.get('follower_count') is not None:
+        insights['followers'] = _num(info.get('follower_count'))
+    posts = _tt_posts(token, since, until)
+    if not (insights or posts):
+        return []
+    card = _meta_card('tiktok', posts, insights)
+    if info.get('display_name'):
+        card['account_name'] = info['display_name']
     return [card]
 
 
