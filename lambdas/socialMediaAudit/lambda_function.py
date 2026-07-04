@@ -243,6 +243,14 @@ def lambda_handler(event, context):
             return _resp(200, report_native_preview(body))
         if action == 'report_refresh_audience':
             return _resp(200, report_refresh_audience(body))
+        if action == 'report_connections_health':
+            return _resp(200, report_connections_health(body))
+        if action == 'report_connections_audit':
+            return _resp(200, report_connections_audit(body))
+        if action == 'cron_refresh_audience_all':
+            return _resp(200, cron_refresh_audience_all(body))
+        if action == 'cron_refresh_audience_one':
+            return _resp(200, cron_refresh_audience_one(body))
         if action == 'meta_pages':
             return _resp(200, meta_pages(body))
         if action == 'report_delete_month':
@@ -2130,6 +2138,9 @@ def report_save_project(body):
         # monthly capture (runMonth) reads. Brand name is always tracked server-side.
         'listenKeywords': data.get('listenKeywords') if data.get('listenKeywords') is not None else existing.get('listenKeywords', []),
         'listenEnabled':  data.get('listenEnabled')  if data.get('listenEnabled')  is not None else existing.get('listenEnabled', True),
+        # Competitor scrape cadence: 'daily' (default) | 'weekly' | 'off' — the main
+        # Apify cost lever now that owned platforms pull natively for free.
+        'competitor_cadence': data.get('competitor_cadence') if data.get('competitor_cadence') is not None else existing.get('competitor_cadence', 'daily'),
         'months':      existing.get('months', []),
         'created':     existing.get('created') or now,
         'created_by':  existing.get('created_by') or who,
@@ -2614,6 +2625,174 @@ def report_refresh_audience(body):
             'errors': errors}
 
 
+def _notify_alert(text):
+    """Best-effort push to a Google Chat incoming webhook (SR_ALERT_WEBHOOK). No-op
+    if the webhook isn't configured, so alerts degrade to the returned payload."""
+    hook = os.environ.get('SR_ALERT_WEBHOOK', '')
+    if not hook:
+        return False
+    try:
+        requests.post(hook, json={'text': text}, timeout=10)
+        return True
+    except Exception:
+        return False
+
+
+def _conn_days_left(c):
+    """Days until a stored token expires, from connect-time `at` (epoch ms) +
+    `expires_in` (s). None when the token is non-expiring / unknown."""
+    at, exp = c.get('at'), c.get('expires_in')
+    if not (at and exp):
+        return None
+    try:
+        return int((int(at) / 1000 + int(exp) - time.time()) / 86400)
+    except (ValueError, TypeError):
+        return None
+
+
+def _connection_status(proj):
+    """Per-platform connection health for one project. Actually validates each
+    stored token against the platform (resolves the page/org/channel), so it
+    catches stale/revoked tokens + unresolvable handles — the silent failure
+    modes that quietly degrade the daily pull to Apify or nothing.
+    status ∈ ok | expiring | reconnect | no_match | no_org | error | not_connected."""
+    conns = proj.get('connections') or {}
+    plats = set(proj.get('platforms') or [])
+    handles = proj.get('handles') or {}
+    def tracked(p): return (p in plats) or bool(handles.get(p))
+    out = []
+
+    def base(platform, label, c):
+        st = {'platform': platform, 'label': label, 'connected': False,
+              'name': c.get('name'), 'connected_at': c.get('at')}
+        dl = _conn_days_left(c)
+        if dl is not None:
+            st['days_left'] = dl
+        return st
+
+    if tracked('instagram') or tracked('facebook'):
+        c = conns.get('meta') or {}; token = c.get('token')
+        st = base('meta', 'Meta (Instagram / Facebook)', c); st['connected'] = bool(token)
+        if not token:
+            st['status'] = 'not_connected'; st['detail'] = 'Not connected — public scrape only (no reach/impressions/demographics).'
+        else:
+            try:
+                meta = _meta_resolve(proj, token)
+                if meta and (meta.get('pageId') or meta.get('igId')):
+                    st['status'] = 'ok'; st['resolved'] = meta.get('pageName') or meta.get('igName')
+                    st['detail'] = 'Connected: ' + (st['resolved'] or 'page resolved')
+                else:
+                    st['status'] = 'no_match'; st['detail'] = 'Token works but no Page/IG matched this handle — check the handle in Settings.'
+            except Exception as e:
+                st['status'] = 'error'; st['detail'] = 'Token error — reconnect. ' + str(e)[:100]
+            if st.get('status') == 'ok' and st.get('days_left') is not None and st['days_left'] <= 7:
+                st['status'] = 'expiring'; st['detail'] = f"Token expires in ~{st['days_left']}d — reconnect soon."
+        out.append(st)
+
+    if tracked('linkedin'):
+        c = conns.get('linkedin') or {}; token = c.get('token')
+        st = base('linkedin', 'LinkedIn', c); st['connected'] = bool(token)
+        if not token:
+            st['status'] = 'not_connected'; st['detail'] = 'Not connected — public scrape only.'
+        else:
+            try:
+                org = _li_resolve_org(proj, token)
+                if org and org.get('id'):
+                    st['status'] = 'ok'; st['resolved'] = org.get('name'); st['detail'] = 'Admin of ' + (org.get('name') or 'company page')
+                else:
+                    st['status'] = 'no_org'; st['detail'] = 'Connected but no ADMIN company page matched — analytics & demographics unavailable.'
+            except Exception as e:
+                st['status'] = 'error'; st['detail'] = 'Token error — reconnect. ' + str(e)[:100]
+            if st.get('status') == 'ok' and st.get('days_left') is not None and st['days_left'] <= 7:
+                st['status'] = 'expiring'; st['detail'] = f"Token expires in ~{st['days_left']}d — reconnect soon."
+        out.append(st)
+
+    if tracked('youtube'):
+        c = conns.get('youtube') or {}
+        has = bool(c.get('token') or c.get('refresh_token'))
+        st = base('youtube', 'YouTube', c); st['connected'] = has
+        if not has:
+            st['status'] = 'not_connected'; st['detail'] = 'Not connected — public scrape only.'
+        elif not c.get('refresh_token'):
+            st['status'] = 'reconnect'; st['detail'] = 'Legacy sign-in (no refresh token) — reconnect for unattended pulls + analytics/demographics.'
+        else:
+            try:
+                token = _yt_access_token(c)
+                ch = _yt_resolve_channel(token) if token else None
+                if ch and ch.get('id'):
+                    st['status'] = 'ok'; st['resolved'] = ch.get('title'); st['detail'] = 'Channel: ' + (ch.get('title') or 'resolved')
+                else:
+                    st['status'] = 'error'; st['detail'] = 'Token no longer valid — reconnect.'
+            except Exception as e:
+                st['status'] = 'error'; st['detail'] = 'Token error — reconnect. ' + str(e)[:100]
+        out.append(st)
+
+    if tracked('tiktok'):
+        c = conns.get('tiktok') or {}; token = c.get('token')
+        st = base('tiktok', 'TikTok', c); st['connected'] = bool(token)
+        if not token:
+            st['status'] = 'not_connected'; st['detail'] = 'Not connected — public scrape only.'
+        else:
+            try:
+                info = (_tt_call('GET', '/user/info/', token, {'fields': 'display_name'}).get('user')) or {}
+                st['status'] = 'ok'; st['resolved'] = info.get('display_name'); st['detail'] = 'Connected: ' + (info.get('display_name') or c.get('name') or 'account')
+            except Exception as e:
+                st['status'] = 'error'; st['detail'] = 'Token error — reconnect. ' + str(e)[:100]
+            if st.get('status') == 'ok' and st.get('days_left') is not None and st['days_left'] <= 7:
+                st['status'] = 'expiring'; st['detail'] = f"Token expires in ~{st['days_left']}d — reconnect soon."
+        out.append(st)
+
+    return out
+
+
+def report_connections_health(body):
+    """On-demand connection health for ONE project (Settings panel + roster badges)."""
+    pid = (body.get('projectId') or '').strip()
+    if not pid:
+        raise RuntimeError('Missing projectId.')
+    proj = _rprojects().get_item(Key={'projectId': pid}).get('Item')
+    if not proj:
+        raise RuntimeError('Unknown project.')
+    proj = _dec(proj)
+    conns = _connection_status(proj)
+    bad = [c for c in conns if c.get('status') in ('error', 'reconnect', 'expiring', 'no_org', 'no_match')]
+    return {'projectId': pid, 'name': proj.get('name'), 'connections': conns,
+            'needs_attention': len(bad)}
+
+
+# Statuses that warrant a heads-up in the token audit (not the benign
+# not-connected / ok ones).
+_CONN_ALERT = {'error', 'reconnect', 'expiring', 'no_org', 'no_match'}
+
+
+def report_connections_audit(body):
+    """Scan every project, validate all connected tokens, and push a digest of
+    stale/expiring/failing connections to SR_ALERT_WEBHOOK. Fired by EventBridge
+    (weekly). Runs inline — token checks are light and this isn't time-critical."""
+    resp = _rprojects().scan()
+    items = resp.get('Items', [])
+    while resp.get('LastEvaluatedKey'):
+        resp = _rprojects().scan(ExclusiveStartKey=resp['LastEvaluatedKey'])
+        items.extend(resp.get('Items', []))
+    problems = []
+    for it in items:
+        proj = _dec(it)
+        try:
+            for st in _connection_status(proj):
+                if st.get('status') in _CONN_ALERT:
+                    problems.append({'client': proj.get('name') or proj.get('projectId'),
+                                     'platform': st['label'], 'status': st['status'],
+                                     'detail': st.get('detail')})
+        except Exception:
+            continue
+    if problems:
+        lines = ['⚠️ *Social Reports — connection health* (%d issue%s)' % (len(problems), '' if len(problems) == 1 else 's'), '']
+        for p in problems[:40]:
+            lines.append(f"• *{p['client']}* — {p['platform']}: {p['status']} — {p['detail']}")
+        _notify_alert('\n'.join(lines))
+    return {'ok': True, 'scanned': len(items), 'problems': problems}
+
+
 def report_get_month(body):
     """One month's full payload (scorecard rehydrated, recommendations, kpis)."""
     pid   = (body.get('projectId') or '').strip()
@@ -2679,6 +2858,19 @@ def report_recommend(body):
         'tagged_posts': data.get('tagged_posts') or [],
         'goals':        data.get('goals') or '',
     }
+    # Compact audience/demographic + discovery summary from any breakdowns the
+    # platform cards carry, so the narrative can speak to WHO the audience is and
+    # HOW they discover the content (not just the headline KPIs).
+    audience = {}
+    for p in (data.get('platforms') or []):
+        bd = p.get('breakdowns') or {}
+        if not bd:
+            continue
+        audience[p.get('platform')] = {
+            k: [[r.get('name'), r.get('value')] for r in (v or [])[:5]]
+            for k, v in bd.items() if v}
+    if audience:
+        facts['audience_breakdowns'] = audience
     fallback = {
         'headline': 'Monthly performance captured.',
         'wins': [], 'concerns': [], 'recommendations': [], 'next_month_focus': [],
@@ -2698,6 +2890,9 @@ def report_recommend(body):
         '"next_month_focus":["2-3 priorities for next month"]}\n'
         "Ground every point in the numbers. Reference platforms by name. If tagged "
         "posts are present, comment on what made them work and how to repeat it. "
+        "If `audience_breakdowns` is present, work in WHO the audience is (age, "
+        "gender, location, seniority) and HOW they discover the content (traffic "
+        "sources) — e.g. tailor content/timing to the dominant segment. "
         "Keep it plain-English for a non-marketer client.\n\nDATA:\n"
         + json.dumps(facts, default=str)[:16000]
     )
@@ -3323,6 +3518,36 @@ def cron_capture_all(body):
     return {'ok': True, 'projects': fired, 'month': month}
 
 
+def cron_refresh_audience_all(body):
+    """Weekly fan-out: refresh audience breakdowns (demographics / traffic) for
+    every project so they stay current without a manual click. Same self-invoke
+    shape as cron_capture_all. Only projects with a connected platform actually
+    do any work (report_refresh_audience no-ops otherwise)."""
+    resp = _rprojects().scan(ProjectionExpression='projectId')
+    items = resp.get('Items', [])
+    while resp.get('LastEvaluatedKey'):
+        resp = _rprojects().scan(ProjectionExpression='projectId',
+                                 ExclusiveStartKey=resp['LastEvaluatedKey'])
+        items.extend(resp.get('Items', []))
+    fired = 0
+    for it in items:
+        pid = it.get('projectId')
+        if pid:
+            _self_invoke({'action': 'cron_refresh_audience_one', 'projectId': pid})
+            fired += 1
+    return {'ok': True, 'projects': fired}
+
+
+def cron_refresh_audience_one(body):
+    pid = (body.get('projectId') or '').strip()
+    if not pid:
+        raise RuntimeError('Missing projectId.')
+    try:
+        return report_refresh_audience({'projectId': pid})
+    except Exception as e:
+        return {'ok': False, 'projectId': pid, 'error': str(e)[:200]}
+
+
 def cron_capture_one(body):
     pid   = (body.get('projectId') or '').strip()
     month = (body.get('month') or '').strip() or _current_month()
@@ -3358,8 +3583,10 @@ def cron_capture_one(body):
             meta_error = ((meta_error + ' | ') if meta_error else '') + label + ': ' + str(e)[:160]
     covered = meta_covered | {p.get('platform') for p in native_platforms if p.get('platform')}
 
-    # 2. Apify scrape (paid, public) — only for platforms not covered privately.
-    sc = _cron_apify_scorecard(proj, month, skip=covered)
+    # 2. Apify scrape (paid, public) — only for platforms not covered privately,
+    #    and competitors only when their cadence says so (cost control).
+    sc = _cron_apify_scorecard(proj, month, skip=covered,
+                               include_competitors=_competitors_due(proj))
 
     # 3. Overlay the free private metrics (adds cards when Apify was skipped for
     #    them; merges field-level when both ran).
@@ -3382,17 +3609,27 @@ def cron_capture_one(body):
     for p in (prev_sc.get('platforms') or []):
         if p.get('platform') and p['platform'] not in have:
             sc.setdefault('platforms', []).append(p)
-    # Carry forward audience breakdowns (demographics / traffic sources) that
-    # report_refresh_audience attached out-of-band — the daily capture doesn't
-    # re-pull them, so without this the nightly overwrite of a re-captured card
-    # would silently wipe them.
-    prev_bd = {c.get('platform'): c for c in (prev_sc.get('platforms') or []) if c.get('breakdowns')}
+    # Reconcile each re-captured card against what was saved earlier THIS month:
+    #  (a) carry forward audience breakdowns (the daily capture doesn't re-pull
+    #      them, so the overwrite would otherwise wipe them); and
+    #  (b) keep-last-non-empty — a transient pull failure must not blank a scalar
+    #      we already had for the in-progress month (self-heals, never regresses).
+    # Only applies to the CURRENT churny month; past months are never re-captured.
+    _CARRY_SKIP = {'platform', 'found', 'posts', 'post_sample', 'top_posts', 'captions',
+                   'image_urls', 'content_mix', 'top_hashtags', 'breakdowns'}
+    prev_by = {c.get('platform'): c for c in (prev_sc.get('platforms') or [])}
     for c in (sc.get('platforms') or []):
-        pc = prev_bd.get(c.get('platform'))
-        if pc and not c.get('breakdowns'):
+        pc = prev_by.get(c.get('platform'))
+        if not pc:
+            continue
+        if pc.get('breakdowns') and not c.get('breakdowns'):
             c['breakdowns'] = pc['breakdowns']
-            if pc.get('breakdowns_asof'):
-                c['breakdowns_asof'] = pc['breakdowns_asof']
+            c['breakdowns_asof'] = pc.get('breakdowns_asof')
+        for k, v in pc.items():
+            if k in _CARRY_SKIP or isinstance(v, (dict, list)):
+                continue
+            if c.get(k) in (None, '') and v not in (None, ''):
+                c[k] = v
 
     if not (sc.get('platforms') or []):
         return {'ok': False, 'projectId': pid, 'month': month,
@@ -3409,16 +3646,30 @@ def cron_capture_one(body):
             'meta_error': sc.get('_meta_error')}
 
 
-def _cron_apify_scorecard(proj, month, skip=None):
+def _competitors_due(proj):
+    """Whether to (paid-)scrape competitors on this run, per the project's
+    `competitor_cadence`: 'daily' (default), 'weekly' (Mondays SGT only), or
+    'off'. Competitors have no first-party source, so this is the main remaining
+    Apify cost lever now that owned platforms pull natively for free."""
+    cad = (proj.get('competitor_cadence') or 'daily').lower()
+    if cad == 'off':
+        return False
+    if cad == 'weekly':
+        return (datetime.now(timezone.utc) + timedelta(hours=8)).weekday() == 0  # Mon SGT
+    return True
+
+
+def _cron_apify_scorecard(proj, month, skip=None, include_competitors=True):
     """Run the Apify pipeline synchronously (start → wait → finalize) and return
     the computed scorecard, or {} when the project has no live (scrapable)
     platforms or the scrape yields nothing. `skip` lists platforms already
-    covered for free by Meta — they're excluded so we don't pay Apify for them."""
+    covered for free by Meta — they're excluded so we don't pay Apify for them.
+    `include_competitors` gates the (paid) competitor scrape for cost control."""
     skip = skip or set()
     handles = proj.get('handles') or {}
     live = [p for p in (proj.get('platforms') or [])
             if p in ACTORS and (handles.get(p) or '').strip() and p not in skip]
-    comps = proj.get('competitors') or []
+    comps = (proj.get('competitors') or []) if include_competitors else []
     # Run Apify when there's ANY paid work to do — owned platforms not covered
     # natively, OR competitors (which have no first-party source and would
     # otherwise be dropped once all owned platforms are covered by native pulls).
