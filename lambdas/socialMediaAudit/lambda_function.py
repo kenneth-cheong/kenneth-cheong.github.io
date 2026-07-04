@@ -2164,6 +2164,17 @@ def report_delete_project(body):
     _rprojects().delete_item(Key={'projectId': pid})
     return {'ok': True}
 
+def _strip_fb_reach_er(sc):
+    """FB reach is deprecated, so a reach-based engagement_rate is never valid on a
+    Facebook card — engagement_rate_impr replaces it. Purge any stale value so old
+    captures + the keep-last-non-empty carry-forward can't resurface a 255%-style
+    figure. Returns sc (mutated in place)."""
+    for c in ((sc or {}).get('platforms') or []):
+        if c.get('platform') == 'facebook':
+            c.pop('engagement_rate', None)
+    return sc
+
+
 def report_save_month(body):
     """Persist one captured month: full scorecard + KPI summary + AI recs. Also
     refreshes the project's lightweight month index + latest-KPI snapshot."""
@@ -2177,6 +2188,8 @@ def report_save_month(body):
         raise RuntimeError('Unknown project.')
     now = _now_iso(); who = _who(body)
     scorecard = data.get('scorecard') or {}
+    if isinstance(scorecard, dict):
+        _strip_fb_reach_er(scorecard)      # invariant: FB has no reach-based ER
     kpis      = data.get('kpis') or {}
     recs      = data.get('recommendations')
 
@@ -3635,6 +3648,7 @@ def cron_capture_one(body):
         return {'ok': False, 'projectId': pid, 'month': month,
                 'reason': 'no data captured', 'meta_error': sc.get('_meta_error')}
 
+    _strip_fb_reach_er(sc)                 # before KPIs so the blend isn't skewed
     kpis = _kpis_from_scorecard(sc)
     recs = prev_recs or {'executive_summary': sc.get('executive_summary', ''),
                          'overall_health': sc.get('overall_health')}
@@ -3876,8 +3890,13 @@ def _meta_fb_insights(page_id, token, since, until):
     # matching the Brandwatch FB interaction-rate formula's numerator directly.
     engagements = _meta_sum_metric(page_id, 'page_post_engagements', token, since, until)
     s('engagements', engagements)
-    if impressions and engagements is not None:
-        s('engagement_rate', round(engagements / impressions * 100, 2))
+    # FB has no reach denominator anymore (deprecated), so express engagement rate
+    # over ORGANIC impressions and label it as such (engagement_rate_impr). Only
+    # when internally consistent (engagements ≤ impressions) — organic impressions
+    # vs all-post engagements can otherwise exceed 100%, so we suppress a bogus rate
+    # rather than show it.
+    if impressions and engagements is not None and 0 < engagements <= impressions:
+        s('engagement_rate_impr', round(engagements / impressions * 100, 2))
     s('profile_views', _meta_sum_metric(page_id, 'page_views_total', token, since, until))
     adds = _meta_sum_metric(page_id, 'page_daily_follows_unique', token, since, until)
     rem  = _meta_sum_metric(page_id, 'page_daily_unfollows_unique', token, since, until)
@@ -4090,7 +4109,11 @@ def _cron_meta_platforms(proj, month):
         fb    = _meta_fb_insights(meta['pageId'], meta['pageToken'], since, until)
         posts = _meta_fb_posts(meta['pageId'], meta['pageToken'], since, until)
         if fb or posts:
-            out.append(_meta_card('facebook', posts, fb))
+            card = _meta_card('facebook', posts, fb)
+            # FB has no reach-based engagement rate — drop the post-derived one so we
+            # don't show a "(reach)" figure; engagement_rate_impr is the honest metric.
+            card.pop('engagement_rate', None)
+            out.append(card)
     return out
 
 
