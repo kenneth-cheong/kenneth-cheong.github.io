@@ -4500,6 +4500,7 @@
 
             <div
                 style="position: sticky; bottom: 0; left: -32px; right: -32px; margin: auto -32px 0 -32px; padding: 20px 32px; background: #fff; border-top: 1px solid #e2e8f0; z-index: 10; box-shadow: 0 -10px 20px rgba(0,0,0,0.05);">
+                <div id="saveSyncStatus" role="status" aria-live="polite" style="text-align:center; font-size:0.72rem; font-weight:600; min-height:16px; margin-bottom:8px; color:#16a34a;"></div>
                 <button class="btn btn-primary" onclick="saveSettings()"
                     title="Save your settings and sync campaign data"
                     style="width: 100%; border-radius: 12px; height: 50px; font-weight: 700; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);">
@@ -6142,20 +6143,74 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 || (typeof userId !== 'undefined' && userId) || 'User';
         }
 
+        // ── Connector registry: single source of truth for status across the whole
+        // settings UI (overview grid, per-row badges, welcome snapshot). Add a connector
+        // here and its status/expiry/account rendering is handled everywhere automatically.
+        //   kind: 'oauth'  → Google OAuth token with an *_expires timestamp (expiry shown)
+        //         'token'  → long-lived access token (Meta/LinkedIn/TikTok), on/off only
+        //         'key'    → API key present (Monday), on/off only
+        //         'always' → server-side key, always available
+        const CB_CONNECTORS = [
+            { service: 'Monday',    label: 'Monday.com',     section: 'authSection',       kind: 'key',    tokenKey: 'mondayApiKey',          emailKey: 'monday_account_email' },
+            { service: 'Workspace', label: 'Google',         section: 'googleChatSection', kind: 'oauth',  tokenKey: 'googleToken_Workspace', expiresKey: 'googleToken_Workspace_expires', emailKey: 'googleEmail_Workspace' },
+            { service: 'Gsc',       label: 'Search Console', section: 'googleChatSection', kind: 'oauth',  tokenKey: 'googleToken_Gsc',       expiresKey: 'googleToken_Gsc_expires',       emailKey: 'googleEmail_Gsc' },
+            { service: 'Ga4',       label: 'GA4',            section: 'googleChatSection', kind: 'oauth',  tokenKey: 'googleToken_Ga4',       expiresKey: 'googleToken_Ga4_expires',       emailKey: 'googleEmail_Ga4' },
+            { service: 'Ads',       label: 'Google Ads',     section: 'googleChatSection', kind: 'oauth',  tokenKey: 'googleToken_Ads',       expiresKey: 'googleToken_Ads_expires',       emailKey: 'googleEmail_Ads' },
+            { service: 'SERanking', label: 'SE Ranking',     section: 'serankingSection',  kind: 'always', acctArrKey: 'selectedSERankingSiteIds', acctUnit: 'campaign(s)' },
+            { service: 'WorkDuo',   label: 'WorkDuo AI',     section: 'workduoSection',    kind: 'always', acctArrKey: 'selectedWorkDuoProjectIds', acctUnit: 'project(s)' },
+            { service: 'Ahrefs',    label: 'Ahrefs',         section: 'ahrefsSection',     kind: 'always' },
+            { service: 'Meta',      label: 'Meta Ads',       section: 'metaSection',       kind: 'token',  tokenKey: 'meta_access_token',     emailKey: 'meta_connected_name' },
+            { service: 'LinkedIn',  label: 'LinkedIn Ads',   section: 'linkedinSection',   kind: 'token',  tokenKey: 'linkedin_access_token', emailKey: 'linkedin_connected_name' },
+            { service: 'TikTok',    label: 'TikTok Ads',     section: 'tiktokSection',     kind: 'token',  tokenKey: 'tiktok_access_token',   emailKey: 'tiktok_connected_name' }
+        ];
+
+        // Unified status vocabulary used everywhere: 'connected' | 'expired' | 'off' | 'always'.
+        function cbConnectorState(c) {
+            if (c.kind === 'always') {
+                let acct = 'Server-side key';
+                if (c.acctArrKey) { const n = cbConnArr(c.acctArrKey).length; if (n > 0) acct = n + ' ' + c.acctUnit; }
+                return { status: 'always', acct, expiresAt: 0 };
+            }
+            const token = cbConnLs(c.tokenKey);
+            if (!token) return { status: 'off', acct: '', expiresAt: 0 };
+            let acct = '';
+            if (c.emailKey) acct = cbConnLs(c.emailKey) || (c.kind === 'oauth' ? cbGoogleUserEmail() : '') || '';
+            let expiresAt = 0, status = 'connected';
+            if (c.expiresKey) {
+                expiresAt = parseInt(cbConnLs(c.expiresKey) || '0', 10);
+                if (expiresAt && Date.now() > expiresAt) status = 'expired';
+            }
+            return { status, acct, expiresAt };
+        }
+
+        // Visual treatment per status — defined once so dots, badges and chips never drift.
+        function cbStatusStyle(status) {
+            switch (status) {
+                case 'connected': return { dot: '#10b981', glow: true,  text: '#1e293b', badgeBg: '#e6f4ea', badgeFg: '#1e7e34', word: 'Connected' };
+                case 'always':    return { dot: '#94a3b8', glow: false, text: '#475569', badgeBg: '#eef2f7', badgeFg: '#64748b', word: 'Always on' };
+                case 'expired':   return { dot: '#f59e0b', glow: true,  text: '#92400e', badgeBg: '#fef3c7', badgeFg: '#b45309', word: 'Reconnect' };
+                default:          return { dot: '#cbd5e1', glow: false, text: '#94a3b8', badgeBg: '#f1f5f9', badgeFg: '#64748b', word: 'Not connected' };
+            }
+        }
+
+        function cbFmtExpiry(expiresAt) {
+            if (!expiresAt) return '';
+            const ms = expiresAt - Date.now();
+            if (ms <= 0) return 'expired';
+            const mins = Math.round(ms / 60000);
+            if (mins < 60) return 'expires in ' + mins + 'm';
+            return 'expires in ' + Math.round(mins / 60) + 'h';
+        }
+
         function cbGetConnectionStates() {
-            return [
-                { name: 'Monday.com',     section: 'authSection',       on: !!cbConnLs('mondayApiKey'),          acct: cbConnLs('monday_account_email') || '' },
-                { name: 'Google',         section: 'googleChatSection', on: !!cbConnLs('googleToken_Workspace'), acct: cbSvcEmail('Workspace') },
-                { name: 'Search Console', section: 'googleChatSection', on: !!cbConnLs('googleToken_Gsc'),        acct: cbSvcEmail('Gsc') },
-                { name: 'GA4',            section: 'googleChatSection', on: !!cbConnLs('googleToken_Ga4'),     acct: cbSvcEmail('Ga4') },
-                { name: 'Google Ads',     section: 'googleChatSection', on: !!cbConnLs('googleToken_Ads'),      acct: cbSvcEmail('Ads') },
-                { name: 'SE Ranking',     section: 'serankingSection',  on: true,  acct: cbConnArr('selectedSERankingSiteIds').length > 0 ? cbConnArr('selectedSERankingSiteIds').length + ' campaign(s)' : 'Server-side key' },
-                { name: 'WorkDuo AI',     section: 'workduoSection',    on: true,  acct: cbConnArr('selectedWorkDuoProjectIds').length > 0 ? cbConnArr('selectedWorkDuoProjectIds').length + ' project(s)' : 'Server-side key' },
-                { name: 'Ahrefs',         section: 'ahrefsSection',     on: true, acct: 'Server-side key' },
-                { name: 'Meta Ads',       section: 'metaSection',       on: !!cbConnLs('meta_access_token'),     acct: cbConnLs('meta_connected_name') || '' },
-                { name: 'LinkedIn Ads',   section: 'linkedinSection',   on: !!cbConnLs('linkedin_access_token'), acct: cbConnLs('linkedin_connected_name') || '' },
-                { name: 'TikTok Ads',     section: 'tiktokSection',     on: !!cbConnLs('tiktok_access_token'),   acct: cbConnLs('tiktok_connected_name') || '' }
-            ];
+            return CB_CONNECTORS.map(c => {
+                const st = cbConnectorState(c);
+                return {
+                    name: c.label, section: c.section, service: c.service, kind: c.kind,
+                    on: (st.status === 'connected' || st.status === 'always'),
+                    status: st.status, acct: st.acct, expiresAt: st.expiresAt
+                };
+            });
         }
 
         function cbRenderConnectionsOverview() {
@@ -6164,21 +6219,27 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             cbCaptureMondayAccount();
             const states = cbGetConnectionStates();
             grid.innerHTML = states.map(s => {
-                const acct = s.on && s.acct ? String(s.acct) : '';
-                const acctClean = acct.replace(/"/g, '&quot;');
+                const sty = cbStatusStyle(s.status);
+                const exp = s.status === 'connected' ? cbFmtExpiry(s.expiresAt) : (s.status === 'expired' ? 'reconnect needed' : '');
+                const acct = s.acct ? String(s.acct) : '';
+                const sub = [acct, exp].filter(Boolean).join(' · ');
+                const subClean = sub.replace(/"/g, '&quot;');
+                const glowColor = s.status === 'expired' ? 'rgba(245,158,11,0.18)' : 'rgba(16,185,129,0.15)';
+                const subColor = s.status === 'expired' ? '#b45309' : '#94a3b8';
                 return `<button onclick="cbOpenConnectorSection('${s.section}')"
-                    title="${s.on ? 'Connected' : 'Not connected'}${acct ? ' — ' + acctClean : ''} — open ${s.name} settings"
+                    title="${sty.word}${acct ? ' — ' + acct.replace(/"/g, '&quot;') : ''} — open ${s.name} settings"
                     style="display:flex; align-items:flex-start; gap:7px; background:none; border:none; padding:3px 2px; cursor:pointer; text-align:left; min-width:0;">
-                    <span style="width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:3px; background:${s.on ? '#10b981' : '#cbd5e1'}; ${s.on ? 'box-shadow:0 0 0 3px rgba(16,185,129,0.15);' : ''}"></span>
+                    <span style="width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:3px; background:${sty.dot}; ${sty.glow ? 'box-shadow:0 0 0 3px ' + glowColor + ';' : ''}"></span>
                     <span style="min-width:0; display:flex; flex-direction:column; line-height:1.25;">
-                        <span style="font-size:0.75rem; font-weight:600; color:${s.on ? '#1e293b' : '#94a3b8'}; white-space:nowrap;">${s.name}</span>
-                        ${acct ? `<span style="font-size:0.62rem; color:#94a3b8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:135px;">${acctClean}</span>` : ''}
+                        <span style="font-size:0.75rem; font-weight:600; color:${sty.text}; white-space:nowrap;">${s.name}</span>
+                        ${subClean ? `<span style="font-size:0.62rem; color:${subColor}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:150px;">${subClean}</span>` : ''}
                     </span>
                 </button>`;
             }).join('');
             const count = states.filter(s => s.on).length;
             const badge = document.getElementById('integrationsCount');
             if (badge) badge.textContent = count + '/' + states.length;
+            refreshConnectorBadges();
             cbRefreshInternalWelcome();
         }
 
@@ -6637,6 +6698,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
         }
 
         function saveSettings() {
+            cbSetSaveStatus('Saving…', 'progress');
             const mondayKey = document.getElementById('mondayApiKey').value.trim();
             const newEmail = document.getElementById('clientEmail').value.trim();
             setUserIdFromEmail(newEmail);
@@ -6675,18 +6737,38 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 stopAutoSync();
             }
 
-            toggleSettings();
+            // #3b — keep the panel open and report progress inline instead of closing on
+            // save, so the user can see the result (and any sync) without losing their place.
+            try { if (typeof cbRenderConnectionsOverview === 'function') cbRenderConnectionsOverview(); } catch (e) {}
 
             // Only trigger a sync if there is something to sync:
             // client mode needs boards configured; internal mode needs the API key set.
             const hasBoards = (window.activeBoards || []).length > 0;
             const hasApiKey = !!mondayKey;
-            if (currentMode === 'internal' && hasApiKey) {
-                syncMondayToOpenAI();
-            } else if (currentMode !== 'internal' && hasBoards) {
-                syncMondayToOpenAI();
+            const willSync = (currentMode === 'internal' && hasApiKey) || (currentMode !== 'internal' && hasBoards);
+            if (willSync) {
+                cbSetSaveStatus('Saved ✓ · Syncing campaign data…', 'progress');
+                Promise.resolve()
+                    .then(() => syncMondayToOpenAI())
+                    .then(() => cbSetSaveStatus('Synced ✓', 'ok'))
+                    .catch(() => cbSetSaveStatus('Saved ✓ — sync failed, retry later', 'warn'));
             } else {
-                showToast('Settings saved.', 'success');
+                cbSetSaveStatus('Saved ✓', 'ok');
+            }
+        }
+
+        // Inline Save & Sync status shown under the footer button (panel stays open).
+        let cbSaveStatusTimer = null;
+        function cbSetSaveStatus(msg, kind) {
+            const el = document.getElementById('saveSyncStatus');
+            if (!el) { if (typeof showToast === 'function') showToast(msg, kind === 'warn' ? 'error' : 'success'); return; }
+            const colors = { ok: '#16a34a', progress: '#2563eb', warn: '#b45309' };
+            el.textContent = msg;
+            el.style.color = colors[kind] || '#16a34a';
+            if (cbSaveStatusTimer) clearTimeout(cbSaveStatusTimer);
+            // Terminal states auto-clear; progress states persist until the next update.
+            if (kind === 'ok' || kind === 'warn') {
+                cbSaveStatusTimer = setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 6000);
             }
         }
 
@@ -8179,27 +8261,44 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             const btnConnect = document.getElementById(`btnConnect${service}`);
             const btnDisconnect = document.getElementById(`btnDisconnect${service}`);
             const selector = document.getElementById(`selector${service}`);
-            const badge = document.getElementById(`statusBadge${service}`);
 
             if (connected) {
                 if (btnConnect) btnConnect.style.display = 'none';
                 if (btnDisconnect) btnDisconnect.style.display = 'block';
                 if (selector) selector.style.display = 'block';
-                if (badge) {
-                    badge.innerText = 'Connected';
-                    badge.style.background = '#e6f4ea';
-                    badge.style.color = '#1e7e34';
-                }
             } else {
                 if (btnConnect) btnConnect.style.display = 'block';
                 if (btnDisconnect) btnDisconnect.style.display = 'none';
                 if (selector) selector.style.display = 'none';
-                if (badge) {
-                    badge.innerText = '—';
-                    badge.style.background = '#f1f5f9';
-                    badge.style.color = '#64748b';
-                }
             }
+            // Badge text/colour is derived from the real stored state (incl. expiry), not
+            // just the boolean — so an expired-but-present token reads "Reconnect", not
+            // "Connected", and a live one shows its remaining lifetime.
+            cbRenderServiceBadge(service);
+        }
+
+        // Render a single connector's status badge from the registry (unified vocabulary +
+        // live expiry countdown). Safe no-op for connectors without a per-row badge.
+        function cbRenderServiceBadge(service) {
+            const badge = document.getElementById(`statusBadge${service}`);
+            if (!badge) return;
+            const c = (typeof CB_CONNECTORS !== 'undefined') ? CB_CONNECTORS.find(x => x.service === service) : null;
+            const st = c ? cbConnectorState(c) : { status: 'off', expiresAt: 0 };
+            const sty = cbStatusStyle(st.status);
+            let text = sty.word;
+            if (st.status === 'connected' && st.expiresAt) {
+                const e = cbFmtExpiry(st.expiresAt);
+                if (e && e !== 'expired') text = 'Connected · ' + e.replace('expires in ', '');
+            }
+            badge.innerText = text;
+            badge.style.background = sty.badgeBg;
+            badge.style.color = sty.badgeFg;
+            badge.title = sty.word + (st.expiresAt ? ' — ' + cbFmtExpiry(st.expiresAt) : '');
+        }
+
+        function refreshConnectorBadges() {
+            if (typeof CB_CONNECTORS === 'undefined') return;
+            CB_CONNECTORS.forEach(c => cbRenderServiceBadge(c.service));
         }
 
         async function initializeServiceData(service) {
