@@ -2549,6 +2549,19 @@ def _audience_breakdowns_for(proj, month):
                                            'asof': 'as of ' + datetime.now(timezone.utc).strftime('%d %b %Y')}
     except Exception as e:
         errors['linkedin'] = str(e)[:160]
+    # Instagram — current follower demographics (age/gender/country/city).
+    try:
+        if ('instagram' in plats) or handles.get('instagram'):
+            token = (conns.get('meta') or {}).get('token') or META_ACCESS_TOKEN
+            if token:
+                meta = _meta_resolve(proj, token)
+                if meta and meta.get('igId'):
+                    bd = _ig_breakdowns(meta['igId'], meta.get('pageToken') or token)
+                    if bd:
+                        out['instagram'] = {'breakdowns': bd,
+                                            'asof': 'as of ' + datetime.now(timezone.utc).strftime('%d %b %Y')}
+    except Exception as e:
+        errors['instagram'] = str(e)[:160]
     if errors:
         out['_errors'] = errors
     return out
@@ -3639,11 +3652,63 @@ def _meta_ig_insights(ig_id, token, since, until):
     s('shares',               _meta_sum_metric(ig_id, 'shares', token, since, until, tv))
     s('saves',                _meta_sum_metric(ig_id, 'saves', token, since, until, tv))
     s('profile_cta_clicks',   _meta_sum_metric(ig_id, 'profile_links_taps', token, since, until, tv))
+    s('website_clicks',       _meta_sum_metric(ig_id, 'website_clicks', token, since, until, tv))
     try:
         p = _meta_get('/' + ig_id, {'fields': 'followers_count', 'access_token': token})
         s('followers', p.get('followers_count'))
     except Exception:
         pass
+    return out
+
+
+# Instagram audience demographics (current followers) — follower_demographics with
+# a breakdown returns real data in v23.0 (unlike FB's fully-deprecated page_fans_*).
+_IG_GENDER = {'F': 'Female', 'M': 'Male', 'U': 'Unknown'}
+_IG_AGE_ORDER = ['13-17', '18-24', '25-34', '35-44', '45-54', '55-64', '65+']
+
+
+def _ig_demographic(ig_id, token, breakdown):
+    """One follower_demographics breakdown → sorted [{name,value}]."""
+    try:
+        j = _meta_get('/' + ig_id + '/insights', {
+            'metric': 'follower_demographics', 'period': 'lifetime',
+            'metric_type': 'total_value', 'breakdown': breakdown, 'access_token': token})
+    except Exception:
+        return []
+    rows = j.get('data') or []
+    if not rows:
+        return []
+    bds = ((rows[0].get('total_value') or {}).get('breakdowns') or [])
+    if not bds:
+        return []
+    out = []
+    for r in ((bds[0] or {}).get('results') or []):
+        dims = r.get('dimension_values') or []
+        name = dims[0] if dims else ''
+        v = _num(r.get('value')) or 0
+        if name and v:
+            out.append({'name': name, 'value': v})
+    return sorted(out, key=lambda x: -x['value'])
+
+
+def _ig_breakdowns(ig_id, token):
+    """Current-follower demographics: age, gender, top countries, top cities."""
+    out = {}
+    age = _ig_demographic(ig_id, token, 'age')
+    if age:
+        age.sort(key=lambda r: _IG_AGE_ORDER.index(r['name']) if r['name'] in _IG_AGE_ORDER else 99)
+        out['ig_age'] = age
+    gen = _ig_demographic(ig_id, token, 'gender')
+    if gen:
+        for r in gen:
+            r['name'] = _IG_GENDER.get(r['name'], r['name'])
+        out['ig_gender'] = gen
+    ctry = _ig_demographic(ig_id, token, 'country')
+    if ctry:
+        out['ig_country'] = ctry[:10]
+    city = _ig_demographic(ig_id, token, 'city')
+    if city:
+        out['ig_city'] = city[:10]
     return out
 
 
