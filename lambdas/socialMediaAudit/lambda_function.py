@@ -2536,6 +2536,19 @@ def _audience_breakdowns_for(proj, month):
                         out['youtube'] = {'breakdowns': bd, 'asof': 'for ' + month}
     except Exception as e:
         errors['youtube'] = str(e)[:160]
+    # LinkedIn — current-audience follower demographics + page-section views.
+    try:
+        if ('linkedin' in plats) or handles.get('linkedin'):
+            token = (conns.get('linkedin') or {}).get('token')
+            if token:
+                org = _li_resolve_org(proj, token)
+                if org and org.get('id'):
+                    bd = _li_breakdowns(org['id'], token)
+                    if bd:
+                        out['linkedin'] = {'breakdowns': bd,
+                                           'asof': 'as of ' + datetime.now(timezone.utc).strftime('%d %b %Y')}
+    except Exception as e:
+        errors['linkedin'] = str(e)[:160]
     if errors:
         out['_errors'] = errors
     return out
@@ -3918,6 +3931,118 @@ def _li_insights(oid, token, month):
     if fol is not None:
         out['followers'] = fol
     out.update(_li_follower_gains(oid, token, since_ms, until_ms))
+    try:
+        scalars, _sec = _li_page_stats(oid, token, since_ms, until_ms)
+        out.update(scalars)
+    except Exception:
+        pass
+    return out
+
+
+# LinkedIn reference enums — stable, so we label them locally instead of paying a
+# reference-API lookup per URN. Seniority + function are fixed lists; staff-count
+# is an enum string already.
+_LI_SENIORITY = {1: 'Unpaid', 2: 'Training', 3: 'Entry', 4: 'Senior', 5: 'Manager',
+                 6: 'Director', 7: 'VP', 8: 'CXO', 9: 'Partner', 10: 'Owner'}
+_LI_FUNCTION = {1: 'Accounting', 2: 'Administrative', 3: 'Arts & Design', 4: 'Business Development',
+                5: 'Community & Social Services', 6: 'Consulting', 7: 'Education', 8: 'Engineering',
+                9: 'Entrepreneurship', 10: 'Finance', 11: 'Healthcare Services', 12: 'Human Resources',
+                13: 'Information Technology', 14: 'Legal', 15: 'Marketing', 16: 'Media & Communications',
+                17: 'Military & Protective Services', 18: 'Operations', 19: 'Product Management',
+                20: 'Program & Project Mgmt', 21: 'Purchasing', 22: 'Quality Assurance',
+                23: 'Real Estate', 24: 'Research', 25: 'Sales', 26: 'Support'}
+_LI_STAFF = {'SIZE_1': '1', 'SIZE_2_TO_10': '2–10', 'SIZE_11_TO_50': '11–50',
+             'SIZE_51_TO_200': '51–200', 'SIZE_201_TO_500': '201–500', 'SIZE_501_TO_1000': '501–1K',
+             'SIZE_1001_TO_5000': '1K–5K', 'SIZE_5001_TO_10000': '5K–10K', 'SIZE_10001_OR_MORE': '10K+'}
+_LI_SECTION = {'overviewPageViews': 'Overview', 'aboutPageViews': 'About', 'peoplePageViews': 'People',
+               'jobsPageViews': 'Jobs', 'careersPageViews': 'Careers', 'lifeAtPageViews': 'Life',
+               'productsPageViews': 'Products', 'insightsPageViews': 'Insights'}
+
+
+def _li_urn_int(urn):
+    try:
+        return int(str(urn).rsplit(':', 1)[-1])
+    except (ValueError, TypeError):
+        return None
+
+
+def _li_page_stats(oid, token, since_ms, until_ms):
+    """Page views + unique visitors for the window, and views by page section.
+    Returns ({page_views, unique_visitors}, [{name,value}] sections)."""
+    try:
+        els = _li_get('/organizationPageStatistics', token, {
+            'q': 'organization', 'organization': 'urn:li:organization:' + oid,
+            'timeIntervals': _li_time_intervals(since_ms, until_ms)}).get('elements') or []
+    except Exception:
+        return {}, []
+    total_pv = total_uv = 0
+    sections, got = {}, False
+    for e in els:
+        views = ((e.get('totalPageStatistics') or {}).get('views') or {})
+        allv = views.get('allPageViews') or {}
+        total_pv += _num(allv.get('pageViews')) or 0
+        total_uv += _num(allv.get('uniquePageViews')) or 0
+        for sec, label in _LI_SECTION.items():
+            v = _num((views.get(sec) or {}).get('pageViews')) or 0
+            if v:
+                sections[label] = sections.get(label, 0) + v; got = True
+        if allv:
+            got = True
+    scalars = {}
+    if total_pv: scalars['page_views'] = total_pv
+    if total_uv: scalars['unique_visitors'] = total_uv
+    rows = sorted(({'name': k, 'value': v} for k, v in sections.items()),
+                  key=lambda r: -r['value'])[:8]
+    return (scalars if got else {}), rows
+
+
+def _li_follower_breakdowns(oid, token):
+    """Lifetime (current-audience) follower demographics: seniority, function,
+    company size. Queried WITHOUT timeIntervals so LinkedIn returns the
+    breakdown arrays. Shape: {key: [{name,value}]}."""
+    try:
+        els = _li_get('/organizationalEntityFollowerStatistics', token, {
+            'q': 'organizationalEntity',
+            'organizationalEntity': 'urn:li:organization:' + oid}).get('elements') or []
+    except Exception:
+        return {}
+    if not els:
+        return {}
+    e = els[0]
+    def cnt(it):
+        fc = it.get('followerCounts') or {}
+        return (_num(fc.get('organicFollowerCount')) or 0) + (_num(fc.get('paidFollowerCount')) or 0)
+    def build(field, subkey, labeler):
+        rows = []
+        for it in (e.get(field) or []):
+            lab = labeler(it.get(subkey))
+            v = cnt(it)
+            if lab and v:
+                rows.append({'name': lab, 'value': v})
+        return sorted(rows, key=lambda r: -r['value'])[:10]
+    out = {}
+    sen = build('followerCountsBySeniority', 'seniority',
+                lambda u: _LI_SENIORITY.get(_li_urn_int(u)))
+    fun = build('followerCountsByFunction', 'function',
+                lambda u: _LI_FUNCTION.get(_li_urn_int(u)))
+    siz = build('followerCountsByStaffCountRange', 'staffCountRange',
+                lambda u: _LI_STAFF.get(u))
+    if sen: out['li_seniority'] = sen
+    if fun: out['li_function'] = fun
+    if siz: out['li_company_size'] = siz
+    return out
+
+
+def _li_breakdowns(oid, token):
+    """All LinkedIn audience breakdowns for the Audience tab (current snapshot)."""
+    out = _li_follower_breakdowns(oid, token)
+    try:
+        now = int(time.time())
+        _sc, sec = _li_page_stats(oid, token, (now - 30 * 86400) * 1000, now * 1000)
+        if sec:
+            out['li_page_sections'] = sec
+    except Exception:
+        pass
     return out
 
 
