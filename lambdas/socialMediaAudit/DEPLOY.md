@@ -186,6 +186,33 @@ New scalar metrics + demographic/discovery **breakdowns**, shown in a new
   "Meta" → "Native" since owner-only metrics now span 4 platforms.
 - Deploy = same single-file zip; frontend = push index.html to main.
 
+## Process/UI improvements batch — added 2026-07-04 (DEPLOYED)
+- **Connection health** — `report_connections_health` (one project) + `report_connections_audit`
+  (all projects) LIVE-validate each stored token (resolve page/org/channel) and
+  classify: ok / expiring / reconnect / no_org / no_match / error / not_connected.
+  Frontend shows a health banner on the client detail + connected/stale/scrape
+  status dots on roster platform icons.
+- **Token alerts** — `report_connections_audit` pushes a digest of stale/failing
+  connections to a Google Chat webhook. **Set env `SR_ALERT_WEBHOOK`** (incoming
+  webhook URL) to enable; unset = it still runs + returns the digest, just no push.
+  EventBridge rule `socialMediaAudit-weekly-connection-audit` → `cron(0 23 ? * SUN *)`
+  (Mon 07:00 SGT), input `{"action":"report_connections_audit"}`.
+- **Weekly audience refresh** — `cron_refresh_audience_all`/`_one` fan-out keeps
+  demographics fresh. EventBridge rule `socialMediaAudit-weekly-audience-refresh`
+  → `cron(30 22 ? * SUN *)` (Mon 06:30 SGT), input `{"action":"cron_refresh_audience_all"}`.
+- **Competitor cadence** — project field `competitor_cadence` = daily|weekly|off
+  gates the paid competitor scrape (`_competitors_due`); Settings has the selector.
+- **Keep-last-non-empty** — the daily cron no longer lets a transient failed pull
+  blank a good scalar on the in-progress month (past months never re-captured).
+- **AI narrative** — `report_recommend` now feeds `audience_breakdowns` into the
+  prompt (WHO the audience is + HOW they discover). `aggregateRange` carries the
+  latest breakdown snapshot onto platform rows so genRecs + the export see it.
+- **Export** — the printable/PDF report (`reportHTML`/`printReport`) gained an
+  "Audience & insights" section (bar tables). **Audience shift** period-compare
+  annotates each breakdown vs the prior stored snapshot.
+- Both new EventBridge rules have `events.amazonaws.com` invoke permission
+  (statement-ids `eventbridge-weekly-audience-refresh` / `-connection-audit`).
+
 ---
 The generic steps below are kept for reference / rebuilding from scratch.
 
