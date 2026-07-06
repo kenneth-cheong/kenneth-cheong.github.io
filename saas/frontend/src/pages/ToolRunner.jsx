@@ -628,10 +628,23 @@ function CaptionCards({ text }) {
   );
 }
 
+// Time-to-rank buckets → a fast(green)→slow(red) scale so the column is scannable
+// at a glance. Anything unrecognised (e.g. "N/A") stays neutral.
+function timeToRankClass(s) {
+  const t = String(s).toLowerCase();
+  if (t.startsWith('0-3')) return 'bg-green-100 text-green-700';
+  if (t.startsWith('3-6')) return 'bg-lime-100 text-lime-700';
+  if (t.startsWith('6-9')) return 'bg-amber-100 text-amber-700';
+  if (t.startsWith('9-12')) return 'bg-orange-100 text-orange-700';
+  if (t.includes('more than 12')) return 'bg-red-100 text-red-700';
+  return 'bg-slate-100 text-slate-500';
+}
+
 function cell(col, val) {
   const c = col.toLowerCase();
   const s = String(val ?? '');
   if (!s || s === '—') return <span className="text-slate-400">—</span>;
+  if (c === 'timetorank') return <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${timeToRankClass(s)}`}>{s}</span>;
   if (c === 'priority') return <Badge t={s} tone={{ critical: 'red', high: 'amber', medium: 'blue', keep: 'slate' }[s.toLowerCase()]} />;
   if (c === 'severity') return <Badge t={s} tone={{ critical: 'red', high: 'red', medium: 'amber', low: 'green' }[s.toLowerCase()]} />;
   if (c === 'suitability') return <Badge t={s} tone={{ high: 'green', medium: 'amber', low: 'slate' }[s.toLowerCase()]} />;
