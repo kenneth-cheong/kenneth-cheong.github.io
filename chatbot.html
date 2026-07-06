@@ -6444,7 +6444,13 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     // as "Invalid API key" nor wipe out a previously-good cached account.
                     const errMsg = (data?.error || '').toString();
                     const isAuthFailure = /HTTP (401|403)/i.test(errMsg) || /unauthoriz|invalid.*(key|token)|not authenticated/i.test(errMsg);
-                    if (isAuthFailure) {
+                    // A SILENT re-check (page load / 6h staleness) must never DOWNGRADE a key the
+                    // user already verified. Monday's rate limit is shared account-wide, so a reload
+                    // can get a transient 401/429 that isn't a real auth problem — and wiping the
+                    // cached account here just forces yet another re-verify next load, a self-
+                    // sustaining false-"Invalid" loop. Only a user-initiated Verify (button/blur)
+                    // is allowed to declare the key invalid and clear the cached account.
+                    if (isAuthFailure && !silent) {
                         localStorage.removeItem('monday_account_email');
                         localStorage.removeItem('monday_account_name');
                         setMondayKeyStatus('error', '<i class="fas fa-circle-xmark"></i> Invalid API key — check and try again');
@@ -6452,6 +6458,11 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                         // Keep showing the last known-good connection; don't punish the user for a
                         // transient/rate-limited check.
                         setMondayKeyStatus('ok', `<i class="fas fa-circle-check"></i> Connected as <strong>${savedName || savedEmail}</strong>${savedEmail && savedName ? ` (${savedEmail})` : ''}`);
+                    } else if (silent) {
+                        // Background check with nothing cached to fall back on: stay quiet rather
+                        // than crying "invalid" on a transient/rate-limited response. The user's
+                        // next explicit Verify will surface the real state.
+                        setMondayKeyStatus('hidden');
                     } else {
                         setMondayKeyStatus('error', '<i class="fas fa-circle-exclamation"></i> Verification temporarily unavailable — try again shortly');
                     }
@@ -6460,6 +6471,8 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 // Network/parse failure: don't wipe a previously-good cached account.
                 if (hadCachedAccount) {
                     setMondayKeyStatus('ok', `<i class="fas fa-circle-check"></i> Connected as <strong>${savedName || savedEmail}</strong>${savedEmail && savedName ? ` (${savedEmail})` : ''}`);
+                } else if (silent) {
+                    setMondayKeyStatus('hidden');
                 } else {
                     setMondayKeyStatus('error', '<i class="fas fa-circle-xmark"></i> Verification failed — network error');
                 }
@@ -6518,10 +6531,14 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 if (hadCachedAccount) {
                     setMondayKeyStatus('ok', `<i class="fas fa-circle-check"></i> Connected as <strong>${savedName || savedEmail}</strong>${savedEmail && savedName ? ` (${savedEmail})` : ''}`);
                 }
+                // A recent successful verification is the authoritative skip signal — trust it and
+                // skip the live call even if name/email never got cached (some tokens return an
+                // empty `me`). Gating on hadCachedAccount instead re-verified on EVERY load for
+                // those tokens, hammering monday.com's shared per-account rate limit.
                 const verifiedAt = parseInt(localStorage.getItem('monday_account_verified_at') || '0', 10);
                 const staleAfterMs = 6 * 60 * 60 * 1000; // 6 hours
                 const isStale = !verifiedAt || (Date.now() - verifiedAt) > staleAfterMs;
-                if (!hadCachedAccount || isStale) {
+                if (isStale) {
                     verifyMondayApiKey(true /* silent: don't clobber a fresh cached badge with a spinner */);
                 }
             }
