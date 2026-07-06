@@ -6249,9 +6249,19 @@
 
             let filtered = getFilteredItems();
 
-            // If in manager view and staff cards are selected, scope down to those people
-            if (state.viewMode === 'manager' && state.selectedStaffNames.size > 0) {
+            // Mirror the person-scoping the user sees on screen, so the assistant never
+            // reports campaigns that aren't the selected person's. getFilteredItems()
+            // does NOT scope by assignee — each view does that itself:
+            //  - Today / Consultant views follow the header "You ▾" identity (currentUser)
+            //  - Manager view scopes to any selected staff cards
+            let scopedToPerson = null;
+            if ((state.viewMode === 'today' || state.viewMode === 'consultant') && state.currentUser) {
+                const me = state.currentUser;
+                filtered = filtered.filter(i => (i.people || []).some(p => p === me));
+                scopedToPerson = me;
+            } else if (state.viewMode === 'manager' && state.selectedStaffNames.size > 0) {
                 filtered = filtered.filter(i => i.people.some(p => state.selectedStaffNames.has(p)));
+                scopedToPerson = [...state.selectedStaffNames].join(', ');
             }
 
             // If we have too many items, sample them to avoid token limit issues (max ~150 items)
@@ -6272,6 +6282,7 @@
             return {
                 viewMode: state.viewMode,
                 currentUser: state.currentUser || null,
+                scopedToPerson,
                 totalVisibleItems: filtered.length,
                 itemsShownInContext: contextItems.length,
                 items: contextItems
@@ -6302,6 +6313,8 @@ You have two sources of data:
 2. MONDAY.COM LIVE QUERIES — use the monday_graphql tool to run any GraphQL query against the Monday.com API. The account slug is "${state.slug}". Board and item IDs are available in the campaign context. Useful for: fetching recent updates, reading specific column values, looking up items not in the audit list.
 
 Prefer the pre-loaded context for questions about the visible campaigns. Use monday_graphql when you need live or more detailed data.
+
+DATA SCOPING — IMPORTANT: The CURRENT VISIBLE CAMPAIGNS context has already been filtered to exactly what the user is looking at on screen. When "scopedToPerson" is set, every campaign in the context belongs to that person — treat that list as complete and authoritative for questions about "my"/their campaigns. Do NOT use monday_graphql to pull in other people's campaigns for such questions, and never present a campaign as a person's unless that exact name appears in the campaign's assignedTo list.
 
 Present data clearly. Use markdown tables where appropriate.
 
