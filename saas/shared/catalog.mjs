@@ -510,18 +510,25 @@ export function toolById(id) {
 // textarea | url | select | number. `options` for selects.
 // Full names — the upstream Lambdas (DataForSEO / Mangools / SERP) match these
 // exactly, so the form must submit "Singapore", not a "SG" code.
-// Locations + languages offered in the tool forms. Every value is an exact
-// DataForSEO location_name / language_name (verified against their API) so the
-// upstreams accept it as-is. ("Global" is an app-special handled per-tool.)
+// Locations + languages offered in the tool forms. Every value MUST be an exact
+// DataForSEO location_name / language_name (the upstreams match these strings
+// verbatim, so an unrecognised name fails the SERP/keyword call). ("Global" is an
+// app-special handled per-tool.) Keep to standard English country names when
+// adding markets, and smoke-test a new entry against a live run before relying on it.
 // Alphabetical so the dropdowns scan top-to-bottom; 'Global' is pinned first as
 // it is an app-special "worldwide" option, not a country.
 const LOCATIONS = [
   'Global',
-  'Australia', 'Brazil', 'Canada', 'China', 'France', 'Germany', 'Hong Kong',
-  'India', 'Indonesia', 'Ireland', 'Italy', 'Japan', 'Malaysia', 'Mexico',
-  'Netherlands', 'New Zealand', 'Philippines', 'Saudi Arabia', 'Singapore',
-  'South Africa', 'South Korea', 'Spain', 'Sweden', 'Switzerland', 'Taiwan',
-  'Thailand', 'United Arab Emirates', 'United Kingdom', 'United States', 'Vietnam',
+  'Argentina', 'Australia', 'Austria', 'Bangladesh', 'Belgium', 'Brazil',
+  'Bulgaria', 'Canada', 'Chile', 'China', 'Colombia', 'Croatia', 'Czechia',
+  'Denmark', 'Egypt', 'Finland', 'France', 'Germany', 'Greece', 'Hong Kong',
+  'Hungary', 'India', 'Indonesia', 'Ireland', 'Israel', 'Italy', 'Japan',
+  'Kazakhstan', 'Kenya', 'Malaysia', 'Mexico', 'Morocco', 'Netherlands',
+  'New Zealand', 'Nigeria', 'Norway', 'Pakistan', 'Peru', 'Philippines',
+  'Poland', 'Portugal', 'Qatar', 'Romania', 'Russia', 'Saudi Arabia',
+  'Singapore', 'Slovakia', 'Slovenia', 'South Africa', 'South Korea', 'Spain',
+  'Sri Lanka', 'Sweden', 'Switzerland', 'Taiwan', 'Thailand', 'Turkey',
+  'Ukraine', 'United Arab Emirates', 'United Kingdom', 'United States', 'Vietnam',
 ];
 const LANGUAGES = [
   'Arabic', 'Chinese (Simplified)', 'Chinese (Traditional)', 'Dutch', 'English',
@@ -586,13 +593,13 @@ export const INPUTS = {
       showWhen: { field: 'mode', in: ['Ranking keywords (for a domain)', 'Keywords from a webpage'] } },
     { name: 'domain', label: 'Your domain (optional — lets you estimate time-to-rank for chosen keywords)', type: 'url', placeholder: 'https://yoursite.com',
       showWhen: { field: 'mode', in: ['Keyword metrics', 'Similar keywords (from seed)'] } },
-    { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'United States' },
+    { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
     { name: 'language', label: 'Language', type: 'select', options: LANGUAGES, default: 'English' },
   ],
   'rank-checker': [
     { name: 'input', label: 'Keywords', type: 'tags', placeholder: 'add keywords to check', required: true },
     { name: 'target', label: 'Your domain', type: 'text', placeholder: 'example.com', required: true },
-    { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'United States' },
+    { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
     { name: 'language', label: 'Language', type: 'select', options: LANGUAGES, default: 'English' },
   ],
   'technical-seo': [
@@ -603,7 +610,7 @@ export const INPUTS = {
   'time-to-rank': [
     { name: 'domain', label: 'Your domain', type: 'url', placeholder: 'https://example.com', required: true },
     { name: 'input', label: 'Target keywords', type: 'tags', placeholder: 'add a keyword and press Enter', required: true },
-    { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'United States' },
+    { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
     { name: 'language', label: 'Language', type: 'select', options: LANGUAGES, default: 'English' },
   ],
   'anchor-cleaner': [
@@ -613,12 +620,12 @@ export const INPUTS = {
   onpage: [
     { name: 'input', label: 'Page URL', type: 'url', placeholder: 'https://example.com/page', required: true },
     { name: 'keywords', label: 'Target keywords', type: 'tags', placeholder: 'add a keyword and press Enter' },
-    { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'United States' },
+    { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
     { name: 'language', label: 'Language', type: 'select', options: LANGUAGES, default: 'English' },
   ],
   competitors: [
     { name: 'input', label: 'Keywords or domains', type: 'tags', placeholder: 'add a keyword or domain', required: true },
-    { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'United States' },
+    { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
     { name: 'language', label: 'Language', type: 'select', options: LANGUAGES, default: 'English' },
   ],
   'page-analysis': [
@@ -723,12 +730,12 @@ export const INPUTS = {
   'ai-discovery': [
     { name: 'input', label: 'Brand name', type: 'text', placeholder: 'Acme Co', required: true },
     { name: 'url', label: 'Website', type: 'url', placeholder: 'https://acme.co' },
-    { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'United States' },
+    { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
   ],
   'ai-mentions': [
     { name: 'input', label: 'Brand name', type: 'text', placeholder: 'Acme Co', required: true },
     { name: 'url', label: 'Website', type: 'url', placeholder: 'https://acme.co' },
-    { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'United States' },
+    { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
   ],
   'llms-txt': [
     { name: 'input', label: 'Website URL', type: 'url', placeholder: 'https://example.com', required: true },
@@ -742,7 +749,8 @@ export const INPUTS = {
     { name: 'brand', label: 'Brand name', type: 'text', placeholder: 'e.g. Acme Co' },
     { name: 'industry', label: 'Industry / niche', type: 'text', placeholder: 'e.g. SaaS / Project management' },
     { name: 'audience', label: 'Target audience', type: 'text', placeholder: 'e.g. startup founders, small business owners' },
-    { name: 'market', label: 'Target market', type: 'text', default: 'United States' },
+    { name: 'market', label: 'Target market', type: 'select', options: COUNTRIES, default: 'Singapore',
+      hint: 'The primary country or market you are optimising for.' },
   ],
   'forensic-audit': [{ name: 'input', label: 'Website URL', type: 'url', placeholder: 'https://example.com', required: true }],
 
@@ -758,7 +766,7 @@ export const INPUTS = {
       hint: 'The core of the plan. Describe the campaign or paste site URLs — goals, product/service, audience and timeframe all help.' },
     { name: 'budget', label: 'Monthly budget', type: 'text', placeholder: 'e.g. $5,000',
       hint: 'Total monthly ad spend to split across channels. A ballpark is fine.' },
-    { name: 'location', label: 'Target country / market', type: 'select', options: COUNTRIES, default: 'United States',
+    { name: 'location', label: 'Target country / market', type: 'select', options: COUNTRIES, default: 'Singapore',
       hint: 'The primary country or market you are advertising in.' },
     { name: 'startDate', label: 'Campaign start date', type: 'text', placeholder: 'YYYY-MM-DD' },
     { name: 'endDate', label: 'Campaign end date', type: 'text', placeholder: 'YYYY-MM-DD' },
@@ -790,7 +798,8 @@ export const INPUTS = {
   'perf-marketing': [
     { name: 'input', label: 'Website URL', type: 'url', placeholder: 'https://client.com', required: true },
     { name: 'category', label: 'Business category / what they sell', type: 'text', placeholder: 'e.g. Dental clinic — Invisalign & implants', required: true },
-    { name: 'country', label: 'Target country / market', type: 'text', default: 'United States' },
+    { name: 'country', label: 'Target country / market', type: 'select', options: COUNTRIES, default: 'Singapore',
+      hint: 'The primary country or market you are advertising in.' },
     { name: 'audience', label: 'Target audience', type: 'textarea', placeholder: 'Who are the customers? Age, location, intent, B2B/B2C…', required: true },
     { name: 'budget', label: 'Monthly budget', type: 'text', placeholder: 'e.g. $5,000 (optional — we suggest a range)' },
     { name: 'objectives', label: 'Campaign objectives / goals', type: 'text', placeholder: 'e.g. qualified leads / online sales / awareness', required: true },
@@ -800,7 +809,7 @@ export const INPUTS = {
   'sem-copy': [
     { name: 'input', label: 'Website URL', type: 'url', placeholder: 'https://example.com', required: true },
     { name: 'format', label: 'Ad format', type: 'select', options: ['Google Search', 'Google Performance Max', 'Google Display', 'Meta Image', 'Meta Video', 'Meta Carousel', 'Meta Collection', 'LinkedIn Image', 'LinkedIn Carousel', 'LinkedIn Video', 'LinkedIn Click to Message'], default: 'Google Search' },
-    { name: 'country', label: 'Country', type: 'select', options: COUNTRIES, default: 'United States',
+    { name: 'country', label: 'Country', type: 'select', options: COUNTRIES, default: 'Singapore',
       hint: 'The target market for this ad copy.' },
     { name: 'language', label: 'Language', type: 'text', default: 'English' },
     { name: 'keywords', label: 'Keywords to include', type: 'tags', placeholder: 'e.g. project management software, team collaboration',
@@ -863,7 +872,7 @@ export const INPUTS = {
     { name: 'objective', label: 'Primary objective', type: 'select', options: ['Lead Generation', 'Brand Authority', 'Local Visibility', 'E-commerce Revenue', 'Service Enquiries', 'Niche Dominance'], default: 'Lead Generation' },
     { name: 'targetAudience', label: 'Target audience', type: 'text', placeholder: 'e.g. startup founders, SME owners' },
     { name: 'marketContext', label: 'Market context', type: 'textarea', placeholder: 'Competitors, trends, positioning…' },
-    { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'United States' },
+    { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
     { name: 'language', label: 'Language', type: 'select', options: ['English', 'Chinese (Simplified)', 'Chinese (Traditional)', 'Malay', 'Indonesian', 'Tamil'], default: 'English' },
   ],
 };
