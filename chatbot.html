@@ -6428,6 +6428,10 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 const data = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
                 const me = data?.me ?? data?.data?.me;
                 if (me) {
+                    // Persist the key itself the instant it verifies, not only on "Save Settings".
+                    // Otherwise a refresh restores the old/blank mondayApiKey and the freshly
+                    // verified key is silently lost — the field reverts and re-reads as invalid.
+                    localStorage.setItem('mondayApiKey', key);
                     if (me.email) localStorage.setItem('monday_account_email', me.email);
                     if (me.name) localStorage.setItem('monday_account_name', me.name);
                     localStorage.setItem('monday_account_verified_at', String(Date.now()));
