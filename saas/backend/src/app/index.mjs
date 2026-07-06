@@ -47,6 +47,38 @@ function parseJsonLoose(s) {
   try { return JSON.parse(t.slice(a, b + 1)); } catch { return null; }
 }
 
+// Bound the beginner "north-star" plan before persisting it on the user record
+// (stored under onboarding.plan). Purely defensive: clamps sizes/strings and
+// keeps only known fields so a client can't write arbitrary/oversized blobs.
+function sanitizePlan(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const strs = (arr, n, len) => (Array.isArray(arr) ? arr : []).slice(0, n).map((x) => clampStr(x, len)).filter(Boolean);
+  const items = (arr, n) => (Array.isArray(arr) ? arr : []).slice(0, n).map((s) => (s && typeof s === 'object' ? {
+    ...(s.toolId ? { toolId: clampStr(s.toolId, 40) } : {}),
+    ...(s.action ? { action: clampStr(s.action, 40) } : {}),
+    ...(s.label ? { label: clampStr(s.label, 60) } : {}),
+    why: clampStr(s.why, 200),
+    ...(s.quickWin ? { quickWin: true } : {}),
+    ...(s.locked ? { locked: true } : {}),
+  } : null)).filter((s) => s && (s.toolId || s.action));
+  const done = {};
+  if (raw.done && typeof raw.done === 'object') {
+    for (const k of Object.keys(raw.done).slice(0, 40)) if (raw.done[k]) done[clampStr(k, 40)] = true;
+  }
+  return {
+    goals: strs(raw.goals, 8, 40),
+    have: strs(raw.have, 8, 24),
+    freeText: clampStr(raw.freeText, 500),
+    steps: items(raw.steps, 20),
+    locked: items(raw.locked, 20),
+    extras: items(raw.extras, 10),
+    quickWin: raw.quickWin ? clampStr(raw.quickWin, 40) : null,
+    aiRefined: !!raw.aiRefined,
+    done,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 // Coarse health of an integration pull, derived from the saved run preview
 // (same heuristic as the History page): 'issue' | 'empty' | 'ok'.
 function pullStatus(preview) {
@@ -133,6 +165,10 @@ export const handler = async (event) => {
         if (body.acceptedTerms) patch.acceptedTermsAt = new Date().toISOString();
       }
       if (typeof body.acceptedTermsVersion === 'string') patch.acceptedTermsVersion = clampStr(body.acceptedTermsVersion, 20);
+      // The beginner north-star plan (goal pathway + checklist progress) — synced
+      // here so it follows the user across devices. `null` clears it.
+      if (body.plan === null) patch.plan = null;
+      else if (body.plan && typeof body.plan === 'object') { const p = sanitizePlan(body.plan); if (p) patch.plan = p; }
       if (!Object.keys(patch).length) return badRequest('Nothing to update.');
       return ok({ onboarding: await updateOnboarding(user.userId, patch) });
     }

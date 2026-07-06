@@ -6,6 +6,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import { ProjectProvider } from './context/ProjectContext.jsx';
 import { SupportTicketsProvider } from './context/SupportTicketsContext.jsx';
+import { PlanProvider } from './context/PlanContext.jsx';
 import { init as initDiagnostics } from './lib/diagnostics.js';
 import './index.css';
 
@@ -20,7 +21,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <AuthProvider>
           <ProjectProvider>
             <SupportTicketsProvider>
-              <App />
+              <PlanProvider>
+                <App />
+              </PlanProvider>
             </SupportTicketsProvider>
           </ProjectProvider>
         </AuthProvider>

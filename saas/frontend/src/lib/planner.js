@@ -7,6 +7,7 @@
 
 import { api } from './api.js';
 import { toolById, tierMeets, SIMPLE_NAMES } from '@shared/catalog.mjs';
+import { getRecent, isStepDone } from './ui.js';
 
 // ── Navigation ───────────────────────────────────────────────────────────────
 // Non-tool suggestions (gaps we nudge the user to close) route to a page.
@@ -33,8 +34,22 @@ export function stepLabel({ toolId, action, label }) {
   return SIMPLE_NAMES[toolId]?.name || toolById(toolId)?.name || toolId;
 }
 
-// ── Persistence ──────────────────────────────────────────────────────────────
-const PLAN_KEY = 'dm_plan_v1';
+// ── Progress detection ───────────────────────────────────────────────────────
+// A step is "done" once its tool has actually been run. Most tools land in the
+// recents list; the two that don't run through ToolRunner (Site Health Check →
+// /audit, Rank Tracking → /tracking) drop their own completion markers instead.
+const STEP_DONE_KEY = { 'forensic-audit': 'audit', 'page-analysis': 'audit', 'rank-checker': 'tracking' };
+export function localStepDone(toolId) {
+  if (getRecent().includes(toolId)) return true;
+  const k = STEP_DONE_KEY[toolId];
+  return k ? isStepDone(k) : false;
+}
+
+// ── Local persistence (offline cache) ────────────────────────────────────────
+// PlanContext owns the durable, cross-device copy (on the user's account); this
+// localStorage cache gives an instant first paint and an offline fallback.
+// v2: flat record { goals, have, freeText, steps, locked, extras, quickWin, done }.
+const PLAN_KEY = 'dm_plan_v2';
 
 export function savePlan(plan) {
   try { localStorage.setItem(PLAN_KEY, JSON.stringify(plan)); } catch { /* quota / private mode */ }

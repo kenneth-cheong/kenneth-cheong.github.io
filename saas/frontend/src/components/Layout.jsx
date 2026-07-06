@@ -5,6 +5,7 @@ import { useSupportTickets } from '../context/SupportTicketsContext.jsx';
 import CreditMeter from './CreditMeter.jsx';
 import ChatDrawer from './ChatDrawer.jsx';
 import NotificationBell from './NotificationBell.jsx';
+import PlanWidget from './PlanWidget.jsx';
 import Toaster from './Toaster.jsx';
 import ExplainMenu from './ExplainMenu.jsx';
 import ProjectSelector from './ProjectSelector.jsx';
@@ -146,6 +147,7 @@ export default function Layout({ children }) {
             </nav>
             <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
               <ProjectSelector />
+              <PlanWidget />
               <CreditMeter />
               <NotificationBell />
               <button

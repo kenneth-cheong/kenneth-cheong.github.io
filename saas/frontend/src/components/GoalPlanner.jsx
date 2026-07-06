@@ -1,30 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp, Stethoscope, PenLine, LineChart, Sparkles, Swords, BarChart3,
-  Check, ArrowRight, Lock, Wand2, Plug, RotateCcw,
+  Check, ArrowRight, Lock, Wand2, Plug, RotateCcw, PartyPopper,
 } from 'lucide-react';
 import {
-  GOALS, INTAKE, SIMPLE_NAMES, PLANS, CREDIT_COSTS, buildPathway, toolById, tierMeets,
+  GOALS, INTAKE, SIMPLE_NAMES, PLANS, CREDIT_COSTS, buildPathway, toolById,
 } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
-import { useProjects } from '../context/ProjectContext.jsx';
+import { usePlan } from '../context/PlanContext.jsx';
 import { api } from '../lib/api.js';
-import { getRecent, isStepDone, toast } from '../lib/ui.js';
-import {
-  enrichPathway, stepTarget, stepLabel, savePlan, loadPlan, clearPlan,
-} from '../lib/planner.js';
+import { getRecent, toast } from '../lib/ui.js';
+import { enrichPathway, stepTarget, stepLabel } from '../lib/planner.js';
 
 const GOAL_ICON = { TrendingUp, Stethoscope, PenLine, LineChart, Sparkles, Swords, BarChart3 };
-
-// A step counts as "done" when its tool has been run. The two non-ToolRunner
-// goals (health→/audit, rankings→/tracking) record their own completion markers.
-const STEP_DONE_KEY = { 'forensic-audit': 'audit', 'page-analysis': 'audit', 'rank-checker': 'tracking' };
-function stepDone(toolId, ran) {
-  if (ran.includes(toolId)) return true;
-  const k = STEP_DONE_KEY[toolId];
-  return k ? isStepDone(k) : false;
-}
 
 const costLabel = (toolId) => {
   const c = CREDIT_COSTS[toolById(toolId)?.cost] ?? 0;
@@ -33,65 +22,70 @@ const costLabel = (toolId) => {
 
 export default function GoalPlanner({ initialGoal }) {
   const { user, setCredits, setOnboarding } = useAuth();
-  const { active } = useProjects();
+  const { plan, hasPlan, setPlan, clearPlan, isStepDone, progress } = usePlan();
   const navigate = useNavigate();
 
-  const saved = useMemo(loadPlan, []);
-  const [view, setView] = useState(saved?.plan ? 'plan' : 'intake');
-  const [goals, setGoals] = useState(
-    saved?.goals || (initialGoal ? [initialGoal] : user.onboarding?.goal ? [user.onboarding.goal] : []),
-  );
-  const [have, setHave] = useState(saved?.have || []);
-  const [freeText, setFreeText] = useState(saved?.freeText || '');
-  const [plan, setPlan] = useState(saved?.plan || null);
+  const [editing, setEditing] = useState(false);
+  const [goals, setGoals] = useState([]);
+  const [have, setHave] = useState([]);
+  const [freeText, setFreeText] = useState('');
   const [enriching, setEnriching] = useState(false);
   const [hasGoogle, setHasGoogle] = useState(false);
+  const [seeded, setSeeded] = useState(false);
 
   useEffect(() => {
     api.integrations().then((d) => setHasGoogle(Object.values(d.connected || {}).some((c) => c?.connected))).catch(() => {});
   }, []);
 
-  // A goal deep-link from the welcome flow lands here mid-session; select + build.
+  // Seed the intake form the first time we know there's no plan (deep-link or a
+  // previously-chosen goal). With a plan present we seed on demand via Edit goals.
   useEffect(() => {
-    if (initialGoal && !saved?.plan) { setGoals([initialGoal]); build([initialGoal], have); }
+    if (seeded || hasPlan) return;
+    setSeeded(true);
+    setGoals(initialGoal ? [initialGoal] : user.onboarding?.goal ? [user.onboarding.goal] : []);
+  }, [seeded, hasPlan, initialGoal, user.onboarding?.goal]);
+
+  // Welcome-flow deep-link (?goal=…) → build immediately if there's no plan yet.
+  useEffect(() => {
+    if (initialGoal && !hasPlan) build([initialGoal], []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialGoal]);
 
+  const showIntake = !hasPlan || editing;
   const toggle = (arr, set, id) => set(arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
 
   function build(goalIds = goals, haveIds = have) {
-    const base = buildPathway({
-      goalIds, have: haveIds, tier: user.tier, hasGoogle, ranTools: getRecent(),
+    const base = buildPathway({ goalIds, have: haveIds, tier: user.tier, hasGoogle, ranTools: getRecent() });
+    setPlan({
+      goals: goalIds, have: haveIds, freeText,
+      steps: base.steps, locked: base.locked, extras: base.extras, quickWin: base.quickWin,
+      aiRefined: false, done: {},
     });
-    setPlan(base);
-    setView('plan');
-    savePlan({ goals: goalIds, have: haveIds, freeText, plan: base });
+    setEditing(false);
     if (goalIds[0] && user.onboarding?.goal !== goalIds[0]) setOnboarding({ goal: goalIds[0] }).catch(() => {});
   }
 
   async function personalise() {
     setEnriching(true);
-    const result = await enrichPathway(plan, {
-      freeText, user,
-      onCredits: (c, t) => setCredits(c, t),
-    });
-    setPlan(result);
-    savePlan({ goals, have, freeText, plan: result });
+    const result = await enrichPathway(plan, { freeText: plan.freeText, user, onCredits: (c, t) => setCredits(c, t) });
+    setPlan(result); // enrichPathway spreads `plan`, so goals/have/freeText/done are preserved
     setEnriching(false);
     if (!result.aiRefined) toast('Couldn’t personalise just now — here’s your standard plan.', 'info');
   }
 
-  function reset() {
-    clearPlan(); setPlan(null); setView('intake');
-  }
+  function startEdit() { setGoals(plan?.goals || []); setHave(plan?.have || []); setFreeText(plan?.freeText || ''); setEditing(true); }
+  function reset() { clearPlan(); setEditing(false); setGoals([]); setHave([]); setFreeText(''); }
 
   const go = (item) => navigate(stepTarget(item).to);
 
   // ── Intake ──────────────────────────────────────────────────────────────────
-  if (view === 'intake') {
+  if (showIntake) {
     return (
       <section className="mt-8">
-        <h2 className="text-lg font-bold text-slate-900">{INTAKE.goalQuestion}</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-lg font-bold text-slate-900">{INTAKE.goalQuestion}</h2>
+          {hasPlan && <button onClick={() => setEditing(false)} className="text-sm font-medium text-slate-500 hover:text-slate-700">Cancel</button>}
+        </div>
         <p className="mt-1 text-sm text-slate-500">{INTAKE.goalHint}</p>
 
         <div className="dm-card-grid mt-4">
@@ -155,7 +149,7 @@ export default function GoalPlanner({ initialGoal }) {
           disabled={goals.length === 0}
           className="btn-primary mt-5 inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Build my plan <ArrowRight size={16} aria-hidden />
+          {hasPlan ? 'Update my plan' : 'Build my plan'} <ArrowRight size={16} aria-hidden />
         </button>
         {goals.length === 0 && <p className="mt-2 text-sm text-slate-400">Pick at least one goal above.</p>}
       </section>
@@ -163,15 +157,15 @@ export default function GoalPlanner({ initialGoal }) {
   }
 
   // ── Plan ────────────────────────────────────────────────────────────────────
-  const ran = getRecent();
-  const canPersonalise = freeText.trim().length > 0 && !plan.aiRefined;
+  const canPersonalise = (plan.freeText || '').trim().length > 0 && !plan.aiRefined;
+  const { done, total, pct, complete, next } = progress;
   return (
     <section className="mt-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-slate-900">Your plan — {plan.steps.length} step{plan.steps.length !== 1 ? 's' : ''}</h2>
+        <div className="min-w-0">
+          <h2 className="text-lg font-bold text-slate-900">Your plan</h2>
           <p className="mt-1 text-sm text-slate-500">
-            {plan.aiRefined ? 'Personalised for what you told us.' : 'Follow these in order — each opens ready to go.'}
+            {plan.aiRefined ? 'Personalised for what you told us. ' : ''}Your north star — keep chipping away.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -184,35 +178,56 @@ export default function GoalPlanner({ initialGoal }) {
               <Wand2 size={15} aria-hidden /> {enriching ? 'Personalising…' : 'Personalise with AI · 2 credits'}
             </button>
           )}
-          <button onClick={() => setView('intake')} className="text-sm font-medium text-brand-600 hover:text-brand-700">Edit goals</button>
+          <button onClick={startEdit} className="text-sm font-medium text-brand-600 hover:text-brand-700">Edit goals</button>
           <button onClick={reset} title="Start over" className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600">
             <RotateCcw size={15} aria-hidden />
           </button>
         </div>
       </div>
 
+      {/* Progress — the north-star bar */}
+      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+        {complete ? (
+          <div className="flex items-center gap-2 text-green-700">
+            <PartyPopper size={18} aria-hidden />
+            <span className="font-semibold">Plan complete — nice work! </span>
+            <button onClick={reset} className="text-sm font-semibold text-brand-600 hover:text-brand-700">Set a new goal →</button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-semibold text-slate-700">{done} of {total} done</span>
+              {next && <span className="truncate text-slate-500">Up next: <span className="font-medium text-slate-700">{stepLabel(next)}</span></span>}
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full rounded-full bg-brand-600 transition-[width] duration-500" style={{ width: `${pct}%` }} />
+            </div>
+          </>
+        )}
+      </div>
+
       {/* Ordered steps */}
       <ol className="mt-4 space-y-3">
         {plan.steps.map((s, i) => {
-          const done = stepDone(s.toolId, ran);
+          const isDone = isStepDone(s);
           return (
-            <li key={s.toolId} className={`card flex items-center gap-4 p-4 ${done ? 'border-green-200 bg-green-50/40' : ''}`}>
-              <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-sm font-bold text-white ${done ? 'bg-green-500' : 'bg-brand-600'}`}>
-                {done ? <Check size={15} aria-hidden /> : i + 1}
+            <li key={s.toolId} className={`card flex items-center gap-4 p-4 ${isDone ? 'border-green-200 bg-green-50/40' : ''}`}>
+              <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-sm font-bold text-white ${isDone ? 'bg-green-500' : 'bg-brand-600'}`}>
+                {isDone ? <Check size={15} aria-hidden /> : i + 1}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={`font-semibold ${done ? 'text-slate-500' : 'text-slate-900'}`}>{stepLabel(s)}</span>
-                  {s.quickWin && !done && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-700">Start here</span>}
+                  <span className={`font-semibold ${isDone ? 'text-slate-500' : 'text-slate-900'}`}>{stepLabel(s)}</span>
+                  {s.quickWin && !isDone && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-700">Start here</span>}
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">{costLabel(s.toolId)}</span>
                 </div>
                 <p className="mt-0.5 text-sm text-slate-500">{s.why}</p>
               </div>
               <button
                 onClick={() => go(s)}
-                className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold ${done ? 'text-brand-600 hover:bg-brand-50' : 'bg-brand-600 text-white hover:bg-brand-700'}`}
+                className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold ${isDone ? 'text-brand-600 hover:bg-brand-50' : 'bg-brand-600 text-white hover:bg-brand-700'}`}
               >
-                {done ? 'Again' : 'Open'} <ArrowRight size={14} className="inline" aria-hidden />
+                {isDone ? 'Again' : 'Open'} <ArrowRight size={14} className="inline" aria-hidden />
               </button>
             </li>
           );
