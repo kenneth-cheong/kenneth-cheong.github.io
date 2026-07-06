@@ -169,6 +169,11 @@ export const handler = async (event, context) => {
   const noCharge = !!(result && typeof result === 'object' && result._noCharge === true);
   if (result && typeof result === 'object') delete result._noCharge;
   const charge = willCharge && !softFailed && !noCharge;
+  // Per-item sub-calls (e.g. Keyword Analysis' on-demand per-keyword time-to-rank)
+  // charge like a run but must NOT each spawn a history row / notification — the
+  // user fired one "calculate" over N keywords, not N separate runs.
+  const skipHistory = !!(result && typeof result === 'object' && result._skipHistory === true);
+  if (result && typeof result === 'object') delete result._skipHistory;
 
   // ── Partial-results shaping for teaser / capped free tier ─────────────────
   let payload = result;
@@ -198,7 +203,7 @@ export const handler = async (event, context) => {
   // Persist the run so the user can re-open it from their history (best-effort).
   // Skip free sub-steps (discover/poll) so a single audit yields one history row.
   let runId = null;
-  if (!noCharge) {
+  if (!noCharge && !skipHistory) {
     try {
       const saved = await saveRun({
         userId: user.userId, tool: tool.id, toolName: tool.name,
@@ -2889,6 +2894,17 @@ async function keywordAnalysisRun(body) {
   const language = body.language || 'English';
   const user = body._email || 'saas';
 
+  // On-demand time-to-rank for ONE keyword (the frontend fans these out over the
+  // keywords the user picked, charging + streaming results per keyword). Returns
+  // just the estimate; `_skipHistory` keeps each sub-call out of run history.
+  if (body.timeRankOne) {
+    const domain = (body.domain || body.target || '').trim();
+    const kw = String(body.timeRankOne).trim();
+    if (!domain || !kw) return { _failed: true, text: 'A domain and keyword are required to estimate time to rank.' };
+    const [row] = await enrichTimeToRank([{ keyword: kw, difficulty: body.timeRankDifficulty ?? '—' }], domain, location, language, user, 1);
+    return { keyword: kw, timeToRank: row?.timeToRank ?? 'N/A', _skipHistory: true };
+  }
+
   // Recommend which keywords to prioritise (volume vs difficulty, intent, likely
   // time-to-rank), content angles and quick wins — from the real rows.
   const kaRecs = (rows) => aiRecommendations({
@@ -2935,10 +2951,12 @@ async function keywordAnalysisRun(body) {
   let rows = kwRows(map, cols);
   if (!rows.length) return { _failed: true, text: 'No keyword data was found — no credits were charged. Try different keywords or check the domain/URL.' };
 
+  // Time-to-rank is no longer auto-computed here — it's an explicit, per-keyword
+  // step the user triggers from the results (choose keywords → calculate). We
+  // just surface the domain/locale so the frontend knows where to estimate from.
   const domain = (body.domain || (/(ranking|webpage)/i.test(mode) ? (body.target || body.input) : '') || '').trim();
-  if (domain) rows = await enrichTimeToRank(rows, domain, location, language, user);
 
-  return withRecs({ rows }, await kaRecs(rows));
+  return withRecs({ rows, timeRank: { domain, location, language } }, await kaRecs(rows));
 }
 
 /** Google-Ads paid competition (0–1 or 0–100) → a readable Low/Medium/High band. */

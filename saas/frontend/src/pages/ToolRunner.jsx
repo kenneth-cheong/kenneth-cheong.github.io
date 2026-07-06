@@ -206,7 +206,7 @@ export default function ToolRunner() {
       )}
 
       {busy && tool.slow && <SlowProgress tool={tool} />}
-      {out && !busy && <Result out={out} tool={tool} project={active} user={user} />}
+      {out && !busy && <Result out={out} tool={tool} project={active} user={user} onCredits={setCredits} />}
 
       {modal && <UpgradeModal reason={modal.reason} requiredTier={modal.requiredTier} creditsRemaining={modal.creditsRemaining} creditsNeeded={modal.creditsNeeded} onClose={() => setModal(null)} />}
     </div>
@@ -292,7 +292,7 @@ function PrintHeader({ tool, project, user }) {
   );
 }
 
-function Result({ out, tool, project, user }) {
+function Result({ out, tool, project, user, onCredits }) {
   const [shareOpen, setShareOpen] = useState(false);
   if (out.error) return <p className="mt-6 flex items-center gap-1.5 text-red-600"><AlertTriangle size={16} aria-hidden /> {out.error}</p>;
   const r = out.result || {};
@@ -340,8 +340,12 @@ function Result({ out, tool, project, user }) {
               <Sparkles size={13} aria-hidden /> Explain this
             </button>
             {/* One canonical CSV: prefer the top-level rows, else the first table
-                section (previously both could render → two identical "CSV" buttons). */}
-            {r.rows && r.rows.length > 0
+                section (previously both could render → two identical "CSV" buttons).
+                Keyword Analysis owns its own CSV (inside KeywordAnalysisResult) so the
+                export includes any live time-to-rank column — suppress this one there. */}
+            {tool.id === 'keyword-analysis' && r.rows && r.rows.length > 0
+              ? null
+              : r.rows && r.rows.length > 0
               ? <ResultBtn onClick={() => downloadCsv(r.rows, `${tool.id}.csv`)}>CSV</ResultBtn>
               : sectionTable && <ResultBtn onClick={() => downloadCsv(sectionTable.rows, `${tool.id}.csv`)}>CSV</ResultBtn>}
             <ResultBtn onClick={() => copyText(copyableOf(r))}>Copy</ResultBtn>
@@ -383,7 +387,9 @@ function Result({ out, tool, project, user }) {
           </>
         )}
 
-        {hasRows && <ResultTable rows={r.rows} />}
+        {hasRows && (tool.id === 'keyword-analysis'
+          ? <KeywordAnalysisResult rows={r.rows} timeRank={r.timeRank} tool={tool} onCredits={onCredits} />
+          : <ResultTable rows={r.rows} />)}
         {postRowSections.length > 0 && <ResultSections sections={postRowSections} />}
 
         {r.blurredCount > 0 && (
@@ -420,7 +426,9 @@ function ResultBtn({ children, onClick }) {
 function ResultTable({ rows }) {
   const columns = Object.keys(rows[0] || {}).map((c) => ({
     key: c,
-    label: c, // upstream keys are already cased (e.g. "CPC") — don't humanise
+    // Split camelCase boundaries so "timeToRank" reads "time To Rank" (→ header
+    // "TIME TO RANK"); leaves already-cased keys ("CPC", "url", "keyword") intact.
+    label: c.replace(/([a-z])([A-Z])/g, '$1 $2'),
     render: (row) => cell(c, row[c]),
   }));
   const n = rows.length;
@@ -432,6 +440,106 @@ function ResultTable({ rows }) {
         </span>
       </div>
       <SortableTable columns={columns} rows={rows} filterable={rows.length > 8} />
+    </div>
+  );
+}
+
+// Run async `fn` over `items` with at most `size` in flight — powers the
+// keyword-by-keyword time-to-rank fan-out so results stream in as each finishes.
+async function pool(items, size, fn) {
+  const q = items.map((it, i) => [it, i]);
+  const worker = async () => { while (q.length) { const [it, i] = q.shift(); await fn(it, i); } };
+  await Promise.all(Array.from({ length: Math.min(size, q.length) }, worker));
+}
+
+// Keyword Analysis results: the base keyword table plus an opt-in, per-keyword
+// "time to rank" step. The user ticks keywords and hits Calculate; each keyword
+// is estimated via its own (billed) sub-call, and the column fills in live —
+// no waiting for the whole set. Only offered when the run carries a domain to
+// estimate against (always in the domain/URL modes; the optional field otherwise).
+function KeywordAnalysisResult({ rows: initialRows, timeRank, tool, onCredits }) {
+  const [rows, setRows] = useState(initialRows);
+  const [selected, setSelected] = useState(() => new Set());
+  const [pending, setPending] = useState(() => new Set());
+  const [running, setRunning] = useState(false);
+  const domain = (timeRank?.domain || '').trim();
+
+  // A fresh run (new rows object) resets selection + any computed estimates.
+  useEffect(() => { setRows(initialRows); setSelected(new Set()); setPending(new Set()); }, [initialRows]);
+
+  const toggle = (kw) => setSelected((s) => { const n = new Set(s); n.has(kw) ? n.delete(kw) : n.add(kw); return n; });
+  const uncomputed = (kw) => { const r = rows.find((x) => x.keyword === kw); return r && r.timeToRank == null; };
+  const selectableKws = rows.filter((r) => r.timeToRank == null).map((r) => r.keyword);
+  const allSel = selectableKws.length > 0 && selectableKws.every((k) => selected.has(k));
+  const toggleAll = () => setSelected(allSel ? new Set() : new Set(selectableKws));
+  const todo = [...selected].filter(uncomputed);
+
+  const baseKeys = Object.keys(rows[0] || {}).filter((k) => k !== 'timeToRank');
+  const columns = [
+    domain && {
+      key: '_sel', label: '', sortable: false,
+      render: (row) => row.timeToRank != null
+        ? <span className="text-slate-300" aria-hidden>✓</span>
+        : <input type="checkbox" checked={selected.has(row.keyword)} onChange={() => toggle(row.keyword)}
+            className="h-4 w-4 cursor-pointer rounded border-slate-300 text-brand-600 focus:ring-brand-500" aria-label={`Select ${row.keyword}`} />,
+    },
+    ...baseKeys.map((c) => ({ key: c, label: c.replace(/([a-z])([A-Z])/g, '$1 $2'), render: (row) => cell(c, row[c]) })),
+    domain && {
+      key: 'timeToRank', label: 'Time to rank',
+      render: (row) => pending.has(row.keyword)
+        ? <span className="inline-flex items-center gap-1 text-slate-400"><span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-brand-500" aria-hidden /> estimating…</span>
+        : row.timeToRank != null ? cell('timeToRank', row.timeToRank) : <span className="text-slate-300">—</span>,
+    },
+  ].filter(Boolean);
+
+  async function calculate() {
+    if (!todo.length || running) return;
+    setRunning(true);
+    setPending(new Set(todo));
+    let used = 0, denied = false;
+    await pool(todo, 4, async (kw) => {
+      const src = rows.find((r) => r.keyword === kw) || {};
+      try {
+        const res = await api.runTool(tool.id, {
+          timeRankOne: kw, domain, location: timeRank.location, language: timeRank.language,
+          timeRankDifficulty: src.difficulty,
+        }, true);
+        const ttr = res.result?.timeToRank ?? 'N/A';
+        setRows((rs) => rs.map((r) => r.keyword === kw ? { ...r, timeToRank: ttr } : r));
+        if (typeof res.creditsRemaining === 'number') onCredits(res.creditsRemaining, res.topupRemaining);
+        used += res.creditsUsed || 0;
+      } catch (e) {
+        if (e instanceof ApiError && (e.status === 402 || e.status === 403)) denied = true;
+        setRows((rs) => rs.map((r) => r.keyword === kw ? { ...r, timeToRank: 'N/A' } : r));
+      } finally {
+        setPending((p) => { const n = new Set(p); n.delete(kw); return n; });
+      }
+    });
+    setSelected(new Set());
+    setRunning(false);
+    if (used) toast(`−${used} credit${used > 1 ? 's' : ''} · time to rank for ${todo.length} keyword${todo.length > 1 ? 's' : ''}`, 'info');
+    if (denied) toast('Ran out of credits before finishing — the rest weren’t estimated.', 'error');
+  }
+
+  const n = rows.length;
+  return (
+    <div>
+      {domain && (
+        <div className="dm-no-print mb-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <button type="button" onClick={toggleAll} className="text-xs font-medium text-brand-600 hover:text-brand-700">
+            {allSel ? 'Clear selection' : 'Select all'}
+          </button>
+          <button type="button" onClick={calculate} disabled={running || todo.length === 0}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40">
+            {running ? 'Calculating…' : `Calculate time to rank${todo.length ? ` (${todo.length})` : ''}`}
+          </button>
+          {todo.length > 0 && <span className="text-xs text-slate-400">costs {todo.length} credit{todo.length > 1 ? 's' : ''} · estimated against {domain}</span>}
+        </div>
+      )}
+      <div className="mb-1.5 flex justify-end">
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium tabular-nums text-slate-500">{n.toLocaleString()} {n === 1 ? 'row' : 'rows'}</span>
+      </div>
+      <SortableTable columns={columns} rows={rows} rowKey={(r) => r.keyword} filterable={rows.length > 8} exportName={tool.id} />
     </div>
   );
 }
