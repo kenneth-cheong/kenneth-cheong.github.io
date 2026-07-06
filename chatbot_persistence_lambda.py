@@ -3,6 +3,8 @@ import os
 from datetime import datetime
 import uuid
 import certifi
+import urllib.request
+import urllib.parse
 from pymongo import MongoClient
 import bson
 from bson import ObjectId
@@ -80,6 +82,10 @@ def lambda_handler(event, context):
             return handle_save_app_setting(db, body, headers)
         elif action == 'get_app_setting':
             return handle_get_app_setting(db, body, headers)
+        elif action == 'save_monday_key':
+            return handle_save_monday_key(db, body, headers)
+        elif action == 'get_monday_key':
+            return handle_get_monday_key(db, body, headers)
         else:
             return response(400, {"error": f"Unsupported action: {action}"}, headers)
 
@@ -366,6 +372,61 @@ def handle_get_app_setting(db, body, headers):
         "value": (doc.get('value') if doc else None),
         "updated_by": (doc.get('updated_by') if doc else None),
         "updated_at": (doc.get('updated_at') if doc else None),
+    }, headers)
+
+# ── Per-user Monday API key sync (Google-verified only) ──────────────────────
+# The Monday key is a personal CREDENTIAL, so it is never keyed by a client-
+# asserted email. The frontend must send a Google ID token (JWT); we verify it
+# against Google and derive the identity server-side, so a key can only be
+# stored/read under the cryptographically-verified email that owns it.
+GOOGLE_TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo"
+
+def _verify_google_email(id_token):
+    """Verify a Google ID token via Google's tokeninfo endpoint. Returns the
+    lowercased, verified email on success, or None if the token is missing,
+    invalid, expired, unverified, or minted for a different OAuth client."""
+    if not id_token or not isinstance(id_token, str):
+        return None
+    try:
+        url = GOOGLE_TOKENINFO_URL + "?" + urllib.parse.urlencode({"id_token": id_token})
+        # tokeninfo returns HTTP 400 for a bad/expired token, which raises here.
+        with urllib.request.urlopen(url, timeout=5) as r:
+            info = json.loads(r.read().decode("utf-8"))
+    except Exception as e:
+        print(f"[GOOGLE-VERIFY] tokeninfo failed: {e}")
+        return None
+    # Audience must be OUR OAuth client — reject tokens minted for other apps.
+    expected_aud = os.environ.get("GOOGLE_CLIENT_ID", "")
+    if expected_aud and info.get("aud") != expected_aud:
+        print(f"[GOOGLE-VERIFY] aud mismatch (got {info.get('aud')})")
+        return None
+    if str(info.get("email_verified")).lower() not in ("true", "1"):
+        return None
+    email = (info.get("email") or "").strip().lower()
+    return email if "@" in email else None
+
+def handle_save_monday_key(db, body, headers):
+    email = _verify_google_email(body.get("idToken"))
+    if not email:
+        return response(401, {"error": "Google verification required"}, headers)
+    value = body.get("value")
+    if value is None:
+        return response(400, {"error": "Missing value"}, headers)
+    db.monday_keys.update_one(
+        {"email": email},
+        {"$set": {"value": value, "updated_at": datetime.utcnow()}},
+        upsert=True
+    )
+    return response(200, {"status": "success"}, headers)
+
+def handle_get_monday_key(db, body, headers):
+    email = _verify_google_email(body.get("idToken"))
+    if not email:
+        return response(401, {"error": "Google verification required"}, headers)
+    doc = db.monday_keys.find_one({"email": email})
+    return response(200, {
+        "value": (doc.get("value") if doc else None),
+        "updated_at": (doc.get("updated_at") if doc else None),
     }, headers)
 
 class JSONEncoder(json.JSONEncoder):

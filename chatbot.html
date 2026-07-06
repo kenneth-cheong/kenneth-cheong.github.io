@@ -3652,7 +3652,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2494</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2498</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -4896,9 +4896,17 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 if (!email) return;
                 const googleUser = { email, name: payload.name || email, picture: payload.picture || '' };
                 localStorage.setItem('googleUser', JSON.stringify(googleUser));
+                // Retain the raw signed JWT (+ its expiry) so cross-device sync of the
+                // Monday key can prove a VERIFIED Google identity to the persistence Lambda.
+                // A typed-email fallback never sets these, so it never triggers server sync.
+                localStorage.setItem('googleIdToken', response.credential);
+                localStorage.setItem('googleIdTokenExp', String((payload.exp || 0) * 1000));
                 setUserIdFromEmail(email);
                 document.getElementById('emailPromptOverlay').classList.remove('active');
                 fetchHistory();
+                // Fresh token in hand — pull this user's Monday key onto this device
+                // (only fills an empty field; never clobbers a locally-set key).
+                cbPullMondayKeyFromAccount(response.credential);
             } catch(e) {
                 console.error('[GOOGLE AUTH] Failed to decode credential:', e);
             }
@@ -6406,6 +6414,55 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             el.innerHTML = html;
         }
 
+        // ── Cross-device Monday key sync (Google-verified accounts only) ──────────
+        // The key is stored server-side keyed by the user's VERIFIED Google email so
+        // it follows them across devices. We prove identity by sending the raw Google
+        // ID token (JWT); the persistence Lambda verifies it and derives the email —
+        // the client can't assert an identity. No fresh token ⇒ no sync (typed-email
+        // fallback users stay local-only), which is the intended safety boundary.
+        function cbFreshGoogleIdToken() {
+            const t = localStorage.getItem('googleIdToken');
+            const exp = parseInt(localStorage.getItem('googleIdTokenExp') || '0', 10);
+            // 60s skew so we never send a token that expires mid-flight.
+            if (t && exp && Date.now() < exp - 60000) return t;
+            return null;
+        }
+
+        async function cbPushMondayKeyToAccount(key) {
+            const idToken = cbFreshGoogleIdToken();
+            if (!idToken || !key) return; // only sync verified Google users
+            try {
+                await fetch(PERSISTENCE_API_URL, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'save_monday_key', value: key, idToken })
+                });
+            } catch (e) { /* best-effort; the local key still works */ }
+        }
+
+        async function cbPullMondayKeyFromAccount(idToken) {
+            idToken = idToken || cbFreshGoogleIdToken();
+            if (!idToken) return; // Google-verified only
+            // Never overwrite a key already present on this device.
+            if ((localStorage.getItem('mondayApiKey') || '').trim()) return;
+            try {
+                const res = await fetch(PERSISTENCE_API_URL, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'get_monday_key', idToken })
+                });
+                const r = await res.json();
+                const data = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
+                const val = (data && data.value) ? String(data.value).trim() : '';
+                if (val && !(localStorage.getItem('mondayApiKey') || '').trim()) {
+                    localStorage.setItem('mondayApiKey', val);
+                    const el = document.getElementById('mondayApiKey');
+                    if (el) el.value = val;
+                    // Confirm it against Monday + paint the badge (silent: don't flip to
+                    // "Invalid" on a transient failure).
+                    if (typeof verifyMondayApiKey === 'function') verifyMondayApiKey(true);
+                }
+            } catch (e) { /* stay local-only on any failure */ }
+        }
+
         // Verify on blur only when a key is present (avoids firing on an empty field).
         function autoVerifyMondayKey() {
             const key = document.getElementById('mondayApiKey').value.trim();
@@ -6432,6 +6489,9 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     // Otherwise a refresh restores the old/blank mondayApiKey and the freshly
                     // verified key is silently lost — the field reverts and re-reads as invalid.
                     localStorage.setItem('mondayApiKey', key);
+                    // Sync the verified key up to the user's account (Google-verified users
+                    // only; no-op otherwise) so it follows them to their other devices.
+                    cbPushMondayKeyToAccount(key);
                     if (me.email) localStorage.setItem('monday_account_email', me.email);
                     if (me.name) localStorage.setItem('monday_account_name', me.name);
                     localStorage.setItem('monday_account_verified_at', String(Date.now()));
@@ -6541,6 +6601,12 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 if (isStale) {
                     verifyMondayApiKey(true /* silent: don't clobber a fresh cached badge with a spinner */);
                 }
+            } else {
+                // No key on this device — if the user is a verified Google user with a fresh
+                // token (e.g. resumed session), pull their key from their account. The login
+                // callback covers the first-login case; this covers a resumed session that
+                // still holds a valid token but lost its local key.
+                cbPullMondayKeyFromAccount();
             }
             // Sanitize legacy corrupted clientEmail (was stored as DOM element in older code)
             const _storedEmail = localStorage.getItem('clientEmail') || '';
