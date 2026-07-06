@@ -539,6 +539,19 @@ const LANGUAGES = [
   'Korean', 'Malay', 'Portuguese', 'Russian', 'Spanish', 'Tamil', 'Thai',
   'Vietnamese',
 ];
+// Broader language set for the LLM-fed tools (Caption, SEM Ad Copy, SEO Strategy).
+// These don't hit DataForSEO, so the value is free — no location_name constraint —
+// and the model writes in whatever is picked. 'English' pinned first (the default);
+// rest alphabetical. Rendered searchable (the form auto-upgrades selects >12 long).
+const LLM_LANGUAGES = [
+  'English',
+  'Arabic', 'Bengali', 'Bulgarian', 'Burmese', 'Chinese (Simplified)',
+  'Chinese (Traditional)', 'Czech', 'Danish', 'Dutch', 'Filipino', 'Finnish',
+  'French', 'German', 'Greek', 'Hebrew', 'Hindi', 'Hungarian', 'Indonesian',
+  'Italian', 'Japanese', 'Khmer', 'Korean', 'Malay', 'Norwegian', 'Persian',
+  'Polish', 'Portuguese', 'Punjabi', 'Romanian', 'Russian', 'Spanish', 'Swedish',
+  'Tagalog', 'Tamil', 'Telugu', 'Thai', 'Turkish', 'Ukrainian', 'Urdu', 'Vietnamese',
+];
 // Exhaustive country list for LLM-context fields (media plan, SEM ad copy). Unlike
 // LOCATIONS — which is capped to the markets the SERP/keyword APIs actually support —
 // these values only flow into a prompt, so any country is safe. Rendered as a
@@ -683,7 +696,7 @@ export const INPUTS = {
     { name: 'usp', label: 'Unique selling point', type: 'text', placeholder: 'What sets you apart' },
     { name: 'tone', label: 'Tone of voice', type: 'select', options: ['Friendly', 'Professional', 'Playful', 'Luxury', 'Bold'], default: 'Friendly' },
     { name: 'pov', label: 'Brand point of view', type: 'text', placeholder: 'e.g. first person plural (we)' },
-    { name: 'language', label: 'Language', type: 'select', options: ['English', 'Spanish', 'French', 'German', 'Portuguese', 'Chinese', 'Japanese', 'Arabic'], default: 'English' },
+    { name: 'language', label: 'Language', type: 'select', options: LLM_LANGUAGES, default: 'English' },
     { name: 'wordCount', label: 'Word count', type: 'text', placeholder: 'e.g. 60' },
     { name: 'emojis', label: 'Include emojis', type: 'select', options: ['Yes', 'No'], default: 'Yes' },
     { name: 'hashtags', label: 'Include hashtags', type: 'select', options: ['Yes', 'No'], default: 'Yes' },
@@ -814,7 +827,7 @@ export const INPUTS = {
     { name: 'format', label: 'Ad format', type: 'select', options: ['Google Search', 'Google Performance Max', 'Google Display', 'Meta Image', 'Meta Video', 'Meta Carousel', 'Meta Collection', 'LinkedIn Image', 'LinkedIn Carousel', 'LinkedIn Video', 'LinkedIn Click to Message'], default: 'Google Search' },
     { name: 'country', label: 'Country', type: 'select', options: COUNTRIES, default: 'Singapore',
       hint: 'The target market for this ad copy.' },
-    { name: 'language', label: 'Language', type: 'text', default: 'English' },
+    { name: 'language', label: 'Language', type: 'select', options: LLM_LANGUAGES, default: 'English' },
     { name: 'keywords', label: 'Keywords to include', type: 'tags', placeholder: 'e.g. project management software, team collaboration',
       hint: 'Optional. Keywords the ad copy should naturally incorporate where relevant.' },
     { name: 'tone', label: 'Tone', type: 'select', options: ['Professional', 'Friendly', 'Bold', 'Urgent', 'Salesy'], default: 'Professional' },
@@ -876,7 +889,7 @@ export const INPUTS = {
     { name: 'targetAudience', label: 'Target audience', type: 'text', placeholder: 'e.g. startup founders, SME owners' },
     { name: 'marketContext', label: 'Market context', type: 'textarea', placeholder: 'Competitors, trends, positioning…' },
     { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
-    { name: 'language', label: 'Language', type: 'select', options: ['English', 'Chinese (Simplified)', 'Chinese (Traditional)', 'Malay', 'Indonesian', 'Tamil'], default: 'English' },
+    { name: 'language', label: 'Language', type: 'select', options: LLM_LANGUAGES, default: 'English' },
   ],
 };
 
