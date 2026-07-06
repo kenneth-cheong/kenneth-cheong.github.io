@@ -515,6 +515,9 @@ export function toolById(id) {
 // verbatim, so an unrecognised name fails the SERP/keyword call). ("Global" is an
 // app-special handled per-tool.) Keep to standard English country names when
 // adding markets, and smoke-test a new entry against a live run before relying on it.
+// (Russia & Turkey were tested and are NOT served by the SERP backend — no name
+// variant resolves — so they're intentionally absent here; they remain in COUNTRIES,
+// which only feeds LLM tools.)
 // Alphabetical so the dropdowns scan top-to-bottom; 'Global' is pinned first as
 // it is an app-special "worldwide" option, not a country.
 const LOCATIONS = [
@@ -525,10 +528,10 @@ const LOCATIONS = [
   'Hungary', 'India', 'Indonesia', 'Ireland', 'Israel', 'Italy', 'Japan',
   'Kazakhstan', 'Kenya', 'Malaysia', 'Mexico', 'Morocco', 'Netherlands',
   'New Zealand', 'Nigeria', 'Norway', 'Pakistan', 'Peru', 'Philippines',
-  'Poland', 'Portugal', 'Qatar', 'Romania', 'Russia', 'Saudi Arabia',
-  'Singapore', 'Slovakia', 'Slovenia', 'South Africa', 'South Korea', 'Spain',
-  'Sri Lanka', 'Sweden', 'Switzerland', 'Taiwan', 'Thailand', 'Turkey',
-  'Ukraine', 'United Arab Emirates', 'United Kingdom', 'United States', 'Vietnam',
+  'Poland', 'Portugal', 'Qatar', 'Romania', 'Saudi Arabia', 'Singapore',
+  'Slovakia', 'Slovenia', 'South Africa', 'South Korea', 'Spain', 'Sri Lanka',
+  'Sweden', 'Switzerland', 'Taiwan', 'Thailand', 'Ukraine',
+  'United Arab Emirates', 'United Kingdom', 'United States', 'Vietnam',
 ];
 const LANGUAGES = [
   'Arabic', 'Chinese (Simplified)', 'Chinese (Traditional)', 'Dutch', 'English',
