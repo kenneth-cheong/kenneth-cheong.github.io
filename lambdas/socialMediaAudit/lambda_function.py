@@ -3763,11 +3763,27 @@ def _kpis_from_scorecard(sc):
     def _avg(f):
         v = _vals(f)
         return round(sum(v) / len(v), 2) if v else None
+    def _plat_metrics(p):
+        # Full per-platform metric slice (mirrors the combined loop below) so the
+        # Overview's per-platform filter can trend EVERY metric, not just followers
+        # + engagement_rate. Stored on both the month index and each daily snapshot.
+        o = {}
+        for k, agg in METRIC_AGG.items():
+            v = p.get(k)
+            if not _is_num(v):
+                continue
+            v = float(v)
+            if agg == 'avg':          o[k] = round(v, 2)
+            elif k == 'posts_per_week': o[k] = round(v, 1)
+            else:                     o[k] = int(round(v))
+        if o.get('net_new_followers') is None:
+            inc, dec = p.get('followers_increase'), p.get('followers_decrease')
+            if _is_num(inc) or _is_num(dec):
+                o['net_new_followers'] = (int(float(inc)) if _is_num(inc) else 0) - (int(float(dec)) if _is_num(dec) else 0)
+        return o
     out = {
         'platforms': len(plats),
-        'per_platform': {p.get('platform'): {
-            'followers': int(float(p['followers'])) if _is_num(p.get('followers')) else 0,
-            'engagement_rate': p.get('engagement_rate')} for p in plats},
+        'per_platform': {p.get('platform'): _plat_metrics(p) for p in plats},
     }
     for k, agg in METRIC_AGG.items():
         if not any(_is_num(p.get(k)) for p in plats):
