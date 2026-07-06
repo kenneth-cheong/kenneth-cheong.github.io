@@ -91,7 +91,7 @@
                 body: JSON.stringify(payload),
                 keepalive: true
             }).catch(function () { /* never surface reporter failures */ });
-            if (ctx.silent !== true) showLoggedToast();
+            if (ctx.silent !== true) showLoggedToast(ctx);
         } catch (e) { /* the reporter must never throw */ }
     }
 
@@ -106,20 +106,64 @@
         }
         return c;
     }
-    function showLoggedToast() {
+    // ── Turn a raw error/context into a short, human-readable "what & where". ──
+    function _fileTail(u) {
+        if (!u) return '';
+        try { return String(u).split('?')[0].split('#')[0].split('/').pop() || ''; } catch (e) { return ''; }
+    }
+    function _shortErr(v) {
+        var s;
+        if (v instanceof Error) s = v.message || v.name || String(v);
+        else if (typeof v === 'string') s = v;
+        else s = asText(v, 300);
+        s = String(s).split('\n')[0].trim();          // first line only
+        s = s.replace(/^Uncaught\s+(\(in promise\)\s+)?/i, ''); // drop noisy prefix
+        if (s.length > 150) s = s.slice(0, 150) + '…';
+        return s || 'Unexpected error';
+    }
+    // A friendly "where did it happen" label from the report context.
+    function _whereLabel(ctx) {
+        var fn = (ctx && ctx.function) || 'unknown';
+        if (fn === 'window.onerror') {
+            var src = _fileTail(ctx.inputs && ctx.inputs.source);
+            var ln = ctx.inputs && ctx.inputs.line;
+            return src ? (src + (ln ? ':' + ln : '')) : 'page script';
+        }
+        if (fn === 'unhandledrejection') return 'a background task';
+        if (fn.indexOf('fetch:') === 0) {
+            var parts = fn.slice(6).split(':');
+            var svc = parts[0] || 'API';
+            return parts[1] ? (svc + ' → ' + parts[1].replace(/_/g, ' ')) : svc;
+        }
+        return fn;
+    }
+    function showLoggedToast(ctx) {
         try {
             var c = _toastContainer();
             if (!c) return;
+            ctx = ctx || {};
+            var msg = _shortErr(ctx.error);
+            var where = _whereLabel(ctx);
             var t = document.createElement('div');
             t.setAttribute('role', 'status');
-            t.textContent = '⚠️ Something went wrong — the error has been logged and our team notified.';
-            t.style.cssText = 'background:#1e293b;color:#f1f5f9;font:500 13px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:10px 16px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.28);border:1px solid rgba(148,163,184,.25);opacity:0;transform:translateY(8px);transition:opacity .25s ease,transform .25s ease;pointer-events:auto;text-align:center;';
+            t.style.cssText = 'background:#1e293b;color:#f1f5f9;font:500 13px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:11px 16px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.28);border:1px solid rgba(148,163,184,.25);opacity:0;transform:translateY(8px);transition:opacity .25s ease,transform .25s ease;pointer-events:auto;text-align:left;max-width:min(460px,92vw);';
+            var head = document.createElement('div');
+            head.style.cssText = 'font-weight:600;display:flex;gap:7px;align-items:flex-start;';
+            head.appendChild(document.createTextNode('⚠️'));
+            var msgSpan = document.createElement('span');
+            msgSpan.textContent = msg;                 // textContent = no HTML injection from error text
+            head.appendChild(msgSpan);
+            var sub = document.createElement('div');
+            sub.style.cssText = 'margin-top:3px;padding-left:24px;font-size:12px;font-weight:500;color:#94a3b8;';
+            sub.textContent = (where ? 'in ' + where + ' — ' : '') + 'logged & sent to the team.';
+            t.appendChild(head);
+            t.appendChild(sub);
             c.appendChild(t);
             requestAnimationFrame(function () { t.style.opacity = '1'; t.style.transform = 'translateY(0)'; });
             setTimeout(function () {
                 t.style.opacity = '0'; t.style.transform = 'translateY(8px)';
                 setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 300);
-            }, 5000);
+            }, 7000);
         } catch (e) { /* toast must never break anything */ }
     }
 
@@ -183,18 +227,47 @@
         };
     }
 
+    // ── Noise filter ──────────────────────────────────────────────────────
+    // Not every uncaught error means the app is broken. Browser extensions,
+    // ResizeObserver reflow warnings, and cross-origin "Script error." carry no
+    // actionable info and shouldn't raise the scary banner. `soft` errors (e.g.
+    // an uncaught network failure) are still worth logging, but silently — no toast.
+    var NOISE_RE = /^(Script error\.?|ResizeObserver loop (limit exceeded|completed with undelivered notifications)|Non-Error promise rejection captured|ResizeObserver loop)$/i;
+    var SOFT_RE = /Failed to fetch|Load failed|NetworkError|The (network|operation) .*?(failed|aborted)|ERR_NETWORK|ERR_INTERNET_DISCONNECTED/i;
+    function _errText(v) {
+        try { return (v instanceof Error) ? (v.message || v.name || '') : String(v == null ? '' : v); }
+        catch (e) { return ''; }
+    }
+    function _isExtensionSource(src) {
+        return /^(chrome|moz|safari|webkit|ms-browser)-extension:\/\//i.test(String(src || ''));
+    }
+    // Returns: 'ignore' (drop entirely), 'soft' (log, no toast), or 'report' (log + toast).
+    function classify(errOrMsg, source) {
+        var msg = _errText(errOrMsg).split('\n')[0].trim();
+        if (_isExtensionSource(source)) return 'ignore';
+        if (!msg || NOISE_RE.test(msg)) return 'ignore';
+        try { if (errOrMsg && errOrMsg.name === 'AbortError') return 'ignore'; } catch (e) { }
+        if (SOFT_RE.test(msg)) return 'soft';
+        return 'report';
+    }
+
     // ── Global safety nets ────────────────────────────────────────────────
     window.addEventListener('error', function (ev) {
         if (!ev || !ev.message) return;           // ignore resource-load errors (no message)
+        var verdict = classify(ev.error || ev.message, ev.filename);
+        if (verdict === 'ignore') return;
         report({
             function: 'window.onerror',
             error: ev.error || ev.message,
-            inputs: { source: ev.filename, line: ev.lineno, col: ev.colno }
+            inputs: { source: ev.filename, line: ev.lineno, col: ev.colno },
+            silent: verdict === 'soft'
         });
     });
     window.addEventListener('unhandledrejection', function (ev) {
         var reason = ev && ev.reason;
         if (!reason) return;
-        report({ function: 'unhandledrejection', error: reason });
+        var verdict = classify(reason, (reason && reason.stack) || '');
+        if (verdict === 'ignore') return;
+        report({ function: 'unhandledrejection', error: reason, silent: verdict === 'soft' });
     });
 })();
