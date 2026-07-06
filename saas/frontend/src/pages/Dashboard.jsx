@@ -7,6 +7,7 @@ import { useProjects } from '../context/ProjectContext.jsx';
 import { api } from '../lib/api.js';
 import ToolCard from '../components/ToolCard.jsx';
 import ProfilePrompt from '../components/ProfilePrompt.jsx';
+import GoalPlanner from '../components/GoalPlanner.jsx';
 import { CategoryIcon } from '../lib/icons.jsx';
 import { getRecent, isStepDone } from '../lib/ui.js';
 
@@ -35,7 +36,7 @@ export default function Dashboard() {
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('All');
-  const [activeGoal, setActiveGoal] = useState(null);
+  const [plannerGoal, setPlannerGoal] = useState(null); // goal id deep-linked from the welcome flow
   const [googleConnected, setGoogleConnected] = useState(false);
   const [mode, setMode] = useState(() => {
     const saved = localStorage.getItem('dm_view_mode');
@@ -44,16 +45,17 @@ export default function Dashboard() {
     return getRecent().length ? 'advanced' : 'simple';
   });
   const simple = mode === 'simple';
-  const setView = (m) => { setMode(m); localStorage.setItem('dm_view_mode', m); setActiveGoal(null); };
+  const setView = (m) => { setMode(m); localStorage.setItem('dm_view_mode', m); };
 
-  // Arriving from the welcome flow with ?goal=<id> → open that goal in Simple
-  // mode, then strip the param so a refresh doesn't re-pin it. Keyed on the
-  // param value (not mount) because the dashboard is already mounted under the
-  // welcome overlay when it navigates here, so a mount-only effect never fires.
+  // Arriving from the welcome flow with ?goal=<id> → open Simple mode and hand
+  // the goal to the planner as a starting selection, then strip the param so a
+  // refresh doesn't re-pin it. Keyed on the param value (not mount) because the
+  // dashboard is already mounted under the welcome overlay when it navigates
+  // here, so a mount-only effect never fires.
   const goalParam = params.get('goal');
   useEffect(() => {
     if (goalParam && GOALS.some((x) => x.id === goalParam)) {
-      setMode('simple'); setActiveGoal(goalParam);
+      setMode('simple'); setPlannerGoal(goalParam);
       const next = new URLSearchParams(params); next.delete('goal'); setParams(next, { replace: true });
     }
   }, [goalParam]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -68,8 +70,6 @@ export default function Dashboard() {
   const recent = getRecent().map(toolById).filter(Boolean).filter(match);
   const searching = q !== '';
 
-  const goal = GOALS.find((g) => g.id === activeGoal);
-  const goalTools = goal ? goal.tools.map(toolById).filter(Boolean) : [];
   const Card = (t) => <ToolCard key={t.id} tool={display(t, simple)} userTier={user.tier} />;
 
   // Onboarding checklist — real progress, shown until dismissed. The middle
@@ -132,7 +132,7 @@ export default function Dashboard() {
       </div>
 
       {/* Onboarding checklist (until all done or dismissed) */}
-      {showOnboard && !allDone && !searching && !activeGoal && (
+      {showOnboard && !allDone && !searching && (
         <div className="mt-6 rounded-xl border border-brand-200 bg-brand-50/60 p-5">
           <div className="flex items-start justify-between">
             <h2 className="font-semibold text-brand-800">Get set up — {steps.filter((s) => s.done).length}/{steps.length} done</h2>

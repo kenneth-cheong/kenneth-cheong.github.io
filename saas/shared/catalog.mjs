@@ -315,6 +315,147 @@ export const SIMPLE_NAMES = {
   'landing-audit': { name: 'Check a landing page', desc: 'Will this page convert visitors? Find out.' },
 };
 
+// ── Goal intake → agentic pathway ────────────────────────────────────────────
+// Simple mode asks beginners what they want to achieve (multi-select GOALS + a
+// little context + free text), then `buildPathway` composes ONE ordered plan of
+// tools plus proactive "beyond the ask" suggestions. This engine is pure and
+// tier-aware so it always produces a sensible plan offline; the free-text-driven
+// AI layer (frontend lib/planner.js) only personalises what this returns.
+
+/** The extra multiple-choice context question shown under the goal chips. */
+export const INTAKE = {
+  goalQuestion: 'What would you like to get done?',
+  goalHint: 'Pick one or more — we’ll build you a step-by-step plan.',
+  context: {
+    key: 'have',
+    question: 'What do you already have? (optional)',
+    options: [
+      { id: 'website', label: 'A website' },
+      { id: 'content', label: 'Content / a blog' },
+      { id: 'adbudget', label: 'An ad budget' },
+      { id: 'nothing', label: 'Just getting started' },
+    ],
+  },
+};
+
+// Rough "when in the journey" weight per tool, so a merged goal set orders itself
+// into a path that reads understand → fix → plan → create → measure. Unlisted
+// tools fall to stage 3 (neutral middle).
+const TOOL_STAGE = {
+  // 1 · research / discovery
+  'keyword-analysis': 1, competitors: 1, persona: 1, 'page-analysis': 1,
+  // 2 · audit / diagnose
+  'technical-seo': 2, 'forensic-audit': 2, 'landing-audit': 2, 'content-check': 2,
+  'ai-discovery': 2, 'ai-mentions': 2, backlinks: 2,
+  // 3 · plan / strategy
+  'strategy-engine': 3, pillars: 3, 'media-plan': 3, 'perf-marketing': 3,
+  // 4 · create / optimise
+  onpage: 4, 'content-writer': 4, caption: 4, 'geo-onpage': 4, 'llms-txt': 4,
+  schema: 4, 'sem-copy': 4, 'anchor-cleaner': 4, 'social-audit': 4,
+  // 5 · track / measure
+  'rank-checker': 5, gsc: 5, ga4: 5, 'google-ads': 5, 'meta-ads': 5, 'linkedin-ads': 5,
+};
+const stageOf = (id) => TOOL_STAGE[id] ?? 3;
+
+// One plain-English reason per tool for why it's in the plan (falls back to the
+// Simple-mode description). Keep each to a single motivating sentence.
+const PATHWAY_REASONS = {
+  'keyword-analysis': 'Find the terms your customers actually search — the foundation of everything else.',
+  'rank-checker': 'See where you rank right now so you can measure progress.',
+  'technical-seo': 'Fix the broken tags, links and speed issues holding your rankings back.',
+  onpage: 'See exactly what to change to make a page outrank the competition.',
+  'strategy-engine': 'Turn the findings into a prioritised, do-this-next action plan.',
+  'forensic-audit': 'A deep SEO + AI-readiness audit with a health score and a fix list.',
+  'page-analysis': 'A fast snapshot of a site’s authority, links, speed and technical health.',
+  'landing-audit': 'Check whether a page actually converts the visitors it gets.',
+  'content-writer': 'Write or improve a page, then auto-check the quality.',
+  caption: 'Generate platform-ready captions in seconds.',
+  pillars: 'Map the topics and angles worth posting about.',
+  'content-check': 'Grade grammar, readability and keyword use before you publish.',
+  'ai-discovery': 'See whether ChatGPT, Gemini & Perplexity cite you.',
+  'geo-onpage': 'Rewrite a page so AI tools pick it up and cite it.',
+  'llms-txt': 'Create the file that tells AI tools how to read your site.',
+  competitors: 'Find who shares your keywords and how you stack up.',
+  backlinks: 'Audit your link profile and spot competitor links to chase.',
+  'media-plan': 'A channel + budget plan for your ad spend.',
+  'sem-copy': 'Generate Google / Meta / LinkedIn ad copy that converts.',
+  gsc: 'Your clicks, impressions and positions, straight from Google.',
+  ga4: 'Your visitors, sessions and conversions.',
+  'google-ads': 'Your ad spend, clicks and cost-per-result.',
+};
+const reasonFor = (id) => PATHWAY_REASONS[id] || SIMPLE_NAMES[id]?.desc || toolById(id)?.desc || '';
+
+/**
+ * Compose a single recommended pathway from the intake answers. Pure + tier-aware.
+ *
+ * @param {object}   a
+ * @param {string[]} a.goalIds   selected GOAL ids (multi-select)
+ * @param {string[]} [a.have]    selected INTAKE.context option ids
+ * @param {string}   [a.tier]    user tier (gates which tools are runnable now)
+ * @param {boolean}  [a.hasGoogle] is any Google integration connected?
+ * @param {string[]} [a.ranTools] tool ids the user has already run (skip nudging these)
+ * @returns {{ steps:{toolId,why,quickWin?}[], locked:{toolId,why}[],
+ *            extras:{toolId?,action?,label?,why,locked?}[], quickWin:string|null }}
+ */
+export function buildPathway({ goalIds = [], have = [], tier = 'free', hasGoogle = false, ranTools = [] } = {}) {
+  const chosen = (goalIds.length ? goalIds : ['visitors']);
+  const goalSet = new Set(chosen);
+
+  // 1 · union each chosen goal's tools, first-seen order preserved
+  const ordered = [];
+  const seen = new Set();
+  for (const gid of chosen) {
+    const g = GOALS.find((x) => x.id === gid);
+    for (const tid of (g?.tools || [])) if (!seen.has(tid)) { seen.add(tid); ordered.push(tid); }
+  }
+  // Sequencing rule: writing content without keyword research is a common beginner
+  // mistake — inject keyword research up front when they want content but didn't
+  // also ask to grow visitors.
+  if (goalSet.has('content') && !goalSet.has('visitors') && !seen.has('keyword-analysis')) {
+    seen.add('keyword-analysis'); ordered.unshift('keyword-analysis');
+  }
+
+  // 2 · order by journey stage (stable), then split runnable vs tier-locked
+  const byStage = ordered
+    .map((id, i) => ({ id, i }))
+    .sort((x, y) => (stageOf(x.id) - stageOf(y.id)) || (x.i - y.i))
+    .map((x) => x.id);
+
+  const steps = [];
+  const locked = [];
+  for (const id of byStage) {
+    const t = toolById(id);
+    if (!t) continue;
+    (tierMeets(tier, t.minTier) ? steps : locked).push({ toolId: id, why: reasonFor(id) });
+  }
+
+  // 3 · quick win = first runnable step that costs nothing, else the first step
+  const isFree = (id) => (CREDIT_COSTS[toolById(id)?.cost] ?? 0) === 0;
+  const quickWin = (steps.find((s) => isFree(s.toolId)) || steps[0])?.toolId || null;
+  if (quickWin) { const s = steps.find((x) => x.toolId === quickWin); if (s) s.quickWin = true; }
+
+  // 4 · proactive "beyond the ask" extras — gaps + adjacent wins we can see even
+  //     though the user didn't ask. Deduped against the plan + what they've run.
+  const inPlan = new Set([...steps, ...locked].map((s) => s.toolId));
+  const extras = [];
+  const pushTool = (id, why) => {
+    if (inPlan.has(id) || ranTools.includes(id) || extras.some((e) => e.toolId === id)) return;
+    const t = toolById(id); if (!t) return;
+    extras.push({ toolId: id, why, locked: !tierMeets(tier, t.minTier) });
+  };
+
+  if (!hasGoogle) {
+    extras.push({ action: 'connect-google', label: 'Connect Google', locked: false,
+      why: 'Link Search Console & Analytics (free) so you can measure the impact of everything above.' });
+  }
+  if (!goalSet.has('rankings')) pushTool('rank-checker', 'Track a keyword’s position over time so you can prove the plan worked.');
+  if (!goalSet.has('competitors')) pushTool('competitors', 'Size up who you’re really up against before you invest effort.');
+  if (!goalSet.has('ai-visibility')) pushTool('ai-discovery', 'Most competitors ignore this — check whether AI chatbots already cite you.');
+  if (have.includes('adbudget')) pushTool('sem-copy', 'You mentioned an ad budget — generate ad copy to put it to work.');
+
+  return { steps, locked, extras: extras.slice(0, 4), quickWin };
+}
+
 /** Jargon → plain definition, for the "i" info-icon tooltips shown next to
  *  every metric (stat cards, table headers, KPI tiles, trend charts). Matched
  *  case-insensitively against the metric label, so "Domain authority" and
