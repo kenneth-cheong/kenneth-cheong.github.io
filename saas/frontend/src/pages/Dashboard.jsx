@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Clock, Check, TrendingUp, Stethoscope, PenLine, LineChart, Sparkles, Swords, BarChart3, ChevronRight } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Clock, Check } from 'lucide-react';
 import { TOOLS, CATEGORIES, GOALS, SIMPLE_NAMES, toolById, tierMeets } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
@@ -10,8 +10,6 @@ import ProfilePrompt from '../components/ProfilePrompt.jsx';
 import GoalPlanner from '../components/GoalPlanner.jsx';
 import { CategoryIcon } from '../lib/icons.jsx';
 import { getRecent, isStepDone } from '../lib/ui.js';
-
-const GOAL_ICON = { TrendingUp, Stethoscope, PenLine, LineChart, Sparkles, Swords, BarChart3 };
 
 // The setup checklist's "first action" step, tailored to the goal the user
 // picked in the welcome flow — so step 2 matches what they said they want.
@@ -32,7 +30,6 @@ const display = (t, simple) => (simple && SIMPLE_NAMES[t.id] ? { ...t, ...SIMPLE
 export default function Dashboard() {
   const { user, setOnboarding } = useAuth();
   const { projects } = useProjects();
-  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('All');
@@ -145,33 +142,16 @@ export default function Dashboard() {
       )}
 
       {/* Progressive-profiling nudge — self-hides when complete/rewarded/snoozed */}
-      {!searching && !activeGoal && <ProfilePrompt />}
+      {!searching && <ProfilePrompt />}
 
-      {/* ───────── Simple mode: goal-first ───────── */}
+      {/* ───────── Simple mode: goal intake → agentic pathway ───────── */}
       {simple && !searching ? (
-        activeGoal ? (
-          <section className="mt-8">
-            <button onClick={() => setActiveGoal(null)} className="text-sm font-medium text-brand-600 hover:text-brand-700">← All goals</button>
-            <h2 className="mt-2 text-lg font-bold">{goal.label}</h2>
-            <p className="text-sm text-slate-500">{goal.desc}</p>
-            {goal.to && (
-              <Link to={goal.to} className="btn-primary mt-3 inline-block">Open {goal.label.toLowerCase()} →</Link>
-            )}
-            <div className="dm-card-grid mt-4">{goalTools.map(Card)}</div>
-          </section>
-        ) : (
-          <>
-            <section className="mt-8">
-              <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">What do you want to do?</h2>
-              <div className="dm-card-grid">
-                {GOALS.map((g) => <GoalCard key={g.id} goal={g} onClick={() => (g.to ? navigate(g.to) : setActiveGoal(g.id))} />)}
-              </div>
-            </section>
-            {recent.length > 0 && (
-              <Section title="Recently used" icon={<Clock size={14} aria-hidden />}>{recent.map((t) => Card(t))}</Section>
-            )}
-          </>
-        )
+        <>
+          <GoalPlanner initialGoal={plannerGoal} />
+          {recent.length > 0 && (
+            <Section title="Recently used" icon={<Clock size={14} aria-hidden />}>{recent.map((t) => Card(t))}</Section>
+          )}
+        </>
       ) : (
         /* ───────── Advanced mode (or searching): full tool grid ───────── */
         <>
@@ -203,19 +183,6 @@ export default function Dashboard() {
         </>
       )}
     </div>
-  );
-}
-
-function GoalCard({ goal, onClick }) {
-  const Icon = GOAL_ICON[goal.icon] || Sparkles;
-  return (
-    <button onClick={onClick} className="card group flex items-start gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:border-brand-400 hover:shadow-lift">
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600"><Icon size={20} aria-hidden /></span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1 font-semibold text-slate-800">{goal.label} <ChevronRight size={15} className="text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-brand-500" aria-hidden /></span>
-        <span className="mt-0.5 block text-sm text-slate-500">{goal.desc}</span>
-      </span>
-    </button>
   );
 }
 
