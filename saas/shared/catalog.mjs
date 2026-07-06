@@ -532,7 +532,15 @@ const LANGUAGES = [
 
 export const INPUTS = {
   'keyword-analysis': [
-    { name: 'mode', label: 'Mode', type: 'select', options: ['Keyword metrics', 'Similar keywords (from seed)', 'Ranking keywords (for a domain)', 'Keywords from a webpage'], default: 'Keyword metrics' },
+    { name: 'mode', label: 'What do you want to do?', type: 'segmented',
+      options: ['Keyword metrics', 'Similar keywords (from seed)', 'Ranking keywords (for a domain)', 'Keywords from a webpage'],
+      optionDesc: {
+        'Keyword metrics': 'Search volume, difficulty & intent for a keyword list.',
+        'Similar keywords (from seed)': 'Expand seed keywords into related keyword ideas.',
+        'Ranking keywords (for a domain)': 'See what keywords a domain already ranks for.',
+        'Keywords from a webpage': 'Extract target keywords from a page’s content.',
+      },
+      default: 'Keyword metrics' },
     { name: 'input', label: 'Keywords', type: 'tags', placeholder: 'add a keyword and press Enter', required: true,
       showWhen: { field: 'mode', in: ['Keyword metrics', 'Similar keywords (from seed)'] } },
     { name: 'target', label: 'Domain or page URL', type: 'url', placeholder: 'https://example.com', required: true,

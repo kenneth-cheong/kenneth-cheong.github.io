@@ -781,6 +781,30 @@ function SearchableSelect({ options, value, onChange, autoFocus }) {
   );
 }
 
+// Visible mode picker: selectable cards so every option is discoverable up
+// front (vs. a collapsed <select> that hides all but the default).
+function Segmented({ options, optionDesc = {}, value, onChange }) {
+  return (
+    <div className="mt-1.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+      {options.map((o) => {
+        const on = o === value;
+        return (
+          <button
+            key={o}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onChange(o)}
+            className={`rounded-lg border p-3 text-left transition ${on ? 'border-brand-600 bg-brand-50 ring-4 ring-brand-600/10' : 'border-slate-200 bg-white hover:border-brand-300'}`}
+          >
+            <span className={`block text-sm font-semibold ${on ? 'text-brand-700' : 'text-slate-700'}`}>{o}</span>
+            {optionDesc[o] && <span className="mt-0.5 block text-xs text-slate-500">{optionDesc[o]}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function Field({ field, value, onChange, autoFocus, provider, values }) {
   const base = 'field mt-1.5';
   return (
@@ -799,6 +823,8 @@ function Field({ field, value, onChange, autoFocus, provider, values }) {
         <input autoFocus={autoFocus} type="date" value={value || ''} max={field.max || '9999-12-31'} onChange={(e) => onChange(e.target.value)} className={base} />
       ) : field.type === 'multiselect' ? (
         <MultiSelect field={field} options={field.options} value={value} onChange={onChange} values={values} />
+      ) : field.type === 'segmented' ? (
+        <Segmented options={field.options} optionDesc={field.optionDesc} value={value} onChange={onChange} />
       ) : field.type === 'textarea' ? (
         <textarea autoFocus={autoFocus} rows={3} value={value} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} className={base} />
       ) : field.type === 'select' ? (
