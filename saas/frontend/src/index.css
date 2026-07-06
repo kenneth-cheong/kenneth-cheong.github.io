@@ -34,6 +34,19 @@
   .blur-locked {
     @apply pointer-events-none select-none blur-sm opacity-60;
   }
+  /* Attention-flashing ring for the Simple/Advanced view toggle — pulses a
+     brand-coloured border + glow so new users notice they can switch modes.
+     Applied until the user first clicks the toggle (see Dashboard.jsx). */
+  .dm-mode-attn {
+    animation: dm-mode-flash 1.15s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* Motion-sensitive users get a steady brand ring instead of flashing. */
+    .dm-mode-attn {
+      animation: none;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.55);
+    }
+  }
   /* Native <select> with a consistent brand chevron across OSes/browsers.
      Pair with a right-padding utility (e.g. pr-8) so text clears the chevron. */
   .dm-select {
@@ -49,6 +62,12 @@
    (Layout sets marginRight to the panel width): when the user widens the panel,
    the cards reflow to fewer columns instead of being crushed. `.dm-main` is the
    query container (set on <main>); the grids below query its inline size. */
+/* Pulsing brand ring for the Simple/Advanced toggle (see .dm-mode-attn). */
+@keyframes dm-mode-flash {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+  50%      { box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.45); }
+}
+
 .dm-main { container-type: inline-size; container-name: dm-main; }
 
 .dm-card-grid { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }

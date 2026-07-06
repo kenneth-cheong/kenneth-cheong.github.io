@@ -42,7 +42,14 @@ export default function Dashboard() {
     return getRecent().length ? 'advanced' : 'simple';
   });
   const simple = mode === 'simple';
-  const setView = (m) => { setMode(m); localStorage.setItem('dm_view_mode', m); };
+  // Flash the Simple/Advanced toggle to draw the eye until the user first uses
+  // it — then stop nagging (remembered across sessions).
+  const [switchSeen, setSwitchSeen] = useState(() => localStorage.getItem('dm_mode_switch_seen') === '1');
+  const setView = (m) => {
+    setMode(m);
+    localStorage.setItem('dm_view_mode', m);
+    if (!switchSeen) { setSwitchSeen(true); localStorage.setItem('dm_mode_switch_seen', '1'); }
+  };
 
   // Arriving from the welcome flow with ?goal=<id> → open Simple mode and hand
   // the goal to the planner as a starting selection, then strip the param so a
@@ -110,13 +117,16 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-3">
           {/* Simple ↔ Advanced view toggle */}
-          <div className="flex rounded-lg bg-slate-100 p-0.5 text-sm font-medium">
-            {[['simple', 'Simple'], ['advanced', 'Advanced']].map(([m, label]) => (
-              <button key={m} onClick={() => setView(m)}
-                className={`rounded-md px-3 py-1 ${mode === m ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                {label}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <span className="hidden text-xs font-medium uppercase tracking-wide text-slate-400 sm:inline">View</span>
+            <div className={`flex rounded-lg bg-slate-100 p-0.5 text-sm font-medium ${switchSeen ? '' : 'dm-mode-attn'}`}>
+              {[['simple', 'Simple'], ['advanced', 'Advanced']].map(([m, label]) => (
+                <button key={m} onClick={() => setView(m)}
+                  className={`rounded-md px-3 py-1 transition-colors ${mode === m ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
           <input
             value={q}
