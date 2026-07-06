@@ -3652,7 +3652,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2498</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2499</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -6463,10 +6463,23 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             } catch (e) { /* stay local-only on any failure */ }
         }
 
-        // Verify on blur only when a key is present (avoids firing on an empty field).
+        // Verify on blur, but only when the key actually changed. Re-hitting Monday on
+        // every blur (even when nothing changed) wastes the shared account-wide rate
+        // limit and needlessly risks a transient false-"Invalid". If this exact key was
+        // already verified recently, just repaint the cached badge.
         function autoVerifyMondayKey() {
             const key = document.getElementById('mondayApiKey').value.trim();
-            if (key) verifyMondayApiKey();
+            if (!key) return;
+            const savedName = localStorage.getItem('monday_account_name');
+            const savedEmail = localStorage.getItem('monday_account_email');
+            const verifiedAt = parseInt(localStorage.getItem('monday_account_verified_at') || '0', 10);
+            const fresh = verifiedAt && (Date.now() - verifiedAt) < 6 * 60 * 60 * 1000;
+            const unchanged = key === (localStorage.getItem('mondayApiKey') || '').trim();
+            if (unchanged && fresh && (savedName || savedEmail)) {
+                setMondayKeyStatus('ok', `<i class="fas fa-circle-check"></i> Connected as <strong>${savedName || savedEmail}</strong>${savedEmail && savedName ? ` (${savedEmail})` : ''}`);
+                return;
+            }
+            verifyMondayApiKey();
         }
 
         async function verifyMondayApiKey(silent) {
@@ -6478,54 +6491,55 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             const hadCachedAccount = !!(savedName || savedEmail);
             if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
             if (!silent || !hadCachedAccount) setMondayKeyStatus('checking', '<i class="fas fa-spinner fa-spin"></i> Checking key…');
-            try {
+
+            // One verify round-trip → { me } on success, { authFail:true } on an
+            // auth-looking failure (401/403/"invalid token"), or {} on anything else
+            // (rate limit, 5xx, timeout). Kept as a helper so we can retry cheaply.
+            const attempt = async () => {
                 const url = (typeof CB_MONDAY_LAMBDA_URL !== 'undefined' ? CB_MONDAY_LAMBDA_URL : MONDAY_LAMBDA_URL);
                 const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get_monday_data', query: '{ me { name email } }', api_key: key }) });
                 const r = await res.json();
                 const data = typeof r.body === 'string' ? JSON.parse(r.body) : (r.body || r);
                 const me = data?.me ?? data?.data?.me;
-                if (me) {
+                if (me) return { me };
+                const errMsg = (data?.error || '').toString();
+                const authFail = /HTTP (401|403)/i.test(errMsg) || /unauthoriz|invalid.*(key|token)|not authenticated/i.test(errMsg);
+                return { authFail };
+            };
+
+            try {
+                let r = await attempt();
+                // A SINGLE auth-looking failure is never trusted: Monday's rate limit is
+                // shared account-wide, so a valid key can get a transient 401. Confirm with
+                // one retry before EVER declaring the key invalid or wiping the cached
+                // account. A genuinely revoked key fails both times; a blip recovers.
+                if (!r.me && r.authFail) {
+                    await new Promise(res => setTimeout(res, 800));
+                    r = await attempt();
+                }
+                if (r.me) {
+                    const me = r.me;
                     // Persist the key itself the instant it verifies, not only on "Save Settings".
-                    // Otherwise a refresh restores the old/blank mondayApiKey and the freshly
-                    // verified key is silently lost — the field reverts and re-reads as invalid.
                     localStorage.setItem('mondayApiKey', key);
-                    // Sync the verified key up to the user's account (Google-verified users
-                    // only; no-op otherwise) so it follows them to their other devices.
+                    // Sync the verified key up to the user's account (Google-verified users only).
                     cbPushMondayKeyToAccount(key);
                     if (me.email) localStorage.setItem('monday_account_email', me.email);
                     if (me.name) localStorage.setItem('monday_account_name', me.name);
                     localStorage.setItem('monday_account_verified_at', String(Date.now()));
                     if (typeof cbRenderConnectionsOverview === 'function') cbRenderConnectionsOverview();
                     setMondayKeyStatus('ok', `<i class="fas fa-circle-check"></i> Connected as <strong>${me.name || me.email}</strong>${me.email ? ` (${me.email})` : ''}`);
+                } else if (r.authFail && !silent) {
+                    // Confirmed auth failure (failed TWICE) on a user-initiated check → real bad key.
+                    localStorage.removeItem('monday_account_email');
+                    localStorage.removeItem('monday_account_name');
+                    setMondayKeyStatus('error', '<i class="fas fa-circle-xmark"></i> Invalid API key — check and try again');
+                } else if (hadCachedAccount) {
+                    // Transient failure (or silent check): keep the last known-good connection.
+                    setMondayKeyStatus('ok', `<i class="fas fa-circle-check"></i> Connected as <strong>${savedName || savedEmail}</strong>${savedEmail && savedName ? ` (${savedEmail})` : ''}`);
+                } else if (silent) {
+                    setMondayKeyStatus('hidden');
                 } else {
-                    // Distinguish an actual bad/revoked key from transient failures (rate limits,
-                    // 5xx, timeouts). Monday.com's API budget is shared account-wide, so a page full
-                    // of colleagues auto-verifying at once can trip a 429 — that must NOT be reported
-                    // as "Invalid API key" nor wipe out a previously-good cached account.
-                    const errMsg = (data?.error || '').toString();
-                    const isAuthFailure = /HTTP (401|403)/i.test(errMsg) || /unauthoriz|invalid.*(key|token)|not authenticated/i.test(errMsg);
-                    // A SILENT re-check (page load / 6h staleness) must never DOWNGRADE a key the
-                    // user already verified. Monday's rate limit is shared account-wide, so a reload
-                    // can get a transient 401/429 that isn't a real auth problem — and wiping the
-                    // cached account here just forces yet another re-verify next load, a self-
-                    // sustaining false-"Invalid" loop. Only a user-initiated Verify (button/blur)
-                    // is allowed to declare the key invalid and clear the cached account.
-                    if (isAuthFailure && !silent) {
-                        localStorage.removeItem('monday_account_email');
-                        localStorage.removeItem('monday_account_name');
-                        setMondayKeyStatus('error', '<i class="fas fa-circle-xmark"></i> Invalid API key — check and try again');
-                    } else if (hadCachedAccount) {
-                        // Keep showing the last known-good connection; don't punish the user for a
-                        // transient/rate-limited check.
-                        setMondayKeyStatus('ok', `<i class="fas fa-circle-check"></i> Connected as <strong>${savedName || savedEmail}</strong>${savedEmail && savedName ? ` (${savedEmail})` : ''}`);
-                    } else if (silent) {
-                        // Background check with nothing cached to fall back on: stay quiet rather
-                        // than crying "invalid" on a transient/rate-limited response. The user's
-                        // next explicit Verify will surface the real state.
-                        setMondayKeyStatus('hidden');
-                    } else {
-                        setMondayKeyStatus('error', '<i class="fas fa-circle-exclamation"></i> Verification temporarily unavailable — try again shortly');
-                    }
+                    setMondayKeyStatus('error', '<i class="fas fa-circle-exclamation"></i> Verification temporarily unavailable — try again shortly');
                 }
             } catch (e) {
                 // Network/parse failure: don't wipe a previously-good cached account.
