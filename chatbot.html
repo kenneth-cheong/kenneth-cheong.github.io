@@ -3652,7 +3652,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2483</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2484</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -10674,6 +10674,10 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
         // (a) a Tesseract OCR text layer (works on any model) and (b) the page PNGs
         // (so Claude can read them as vision if the OCR text comes back too thin).
         // Capped to `maxPages` — OCR is slow and vision costs tokens per page.
+        // Languages loaded on the first OCR run (Singapore's official set — English,
+        // Chinese simplified + traditional, Malay, Tamil). Each adds a lazy one-time
+        // traineddata download; trim this list to lighten that first-run cost.
+        const CB_OCR_LANGS = ['eng', 'chi_sim', 'chi_tra', 'msa', 'tam'];
         async function cbOcrPdfPages(file, maxPages = 8) {
             if (typeof pdfjsLib === 'undefined' || !pdfjsLib.getDocument) {
                 return { text: '', pageImages: [], totalPages: 0, renderedPages: 0 };
@@ -10689,7 +10693,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             // Reuse one worker across pages (much faster than the per-call recognize API).
             let worker = null;
             if (haveTesseract && Tesseract.createWorker) {
-                try { worker = await Tesseract.createWorker('eng'); }
+                try { worker = await Tesseract.createWorker(CB_OCR_LANGS); }
                 catch (e) { console.warn('[OCR] worker init failed, falling back to Tesseract.recognize:', e); worker = null; }
             }
             let text = '';
@@ -10707,7 +10711,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     if (worker || (haveTesseract && Tesseract.recognize)) {
                         try {
                             const { data } = worker ? await worker.recognize(dataUrl)
-                                                    : await Tesseract.recognize(dataUrl, 'eng');
+                                                    : await Tesseract.recognize(dataUrl, CB_OCR_LANGS.join('+'));
                             if (data && data.text) text += data.text + '\n';
                         } catch (e) { console.warn('[OCR] page', i, 'recognise failed:', e); }
                     }
@@ -11414,7 +11418,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                             let handled = false;
 
                             if (ext === 'pdf') {
-                                const _ocrToast = showToast(`"${att.name}" has no selectable text — running OCR…`, 'loading', 0);
+                                const _ocrToast = showToast(`"${att.name}" has no selectable text — running OCR (first run loads language data)…`, 'loading', 0);
                                 let ocr = null;
                                 try { ocr = await cbOcrPdfPages(att, 8); }
                                 catch (e) { console.warn(`[OCR] failed for ${att.name}:`, e); }

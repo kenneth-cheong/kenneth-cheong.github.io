@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useSupportTickets } from '../context/SupportTicketsContext.jsx';
 import CreditMeter from './CreditMeter.jsx';
 import ChatDrawer from './ChatDrawer.jsx';
 import NotificationBell from './NotificationBell.jsx';
@@ -34,6 +35,17 @@ const menuNav = [
   { to: '/support', label: 'Support' },
 ];
 
+// Red count pill for unanswered support tickets, shown beside the Admin link.
+// Mirrors the NotificationBell badge so the whole app speaks one visual language.
+function TicketBadge({ count }) {
+  if (!count) return null;
+  return (
+    <span className="ml-1.5 inline-grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white align-middle" title={`${count} support ticket${count === 1 ? '' : 's'} awaiting a reply`}>
+      {count > 9 ? '9+' : count}
+    </span>
+  );
+}
+
 // User-resizable assistant panel. 384px is the default; drag the panel's left
 // edge to change it (ChatDrawer reports new widths via onResize). The width is
 // shared with the page margin below so content always tracks the panel.
@@ -44,6 +56,7 @@ const clampChatW = (w) => Math.min(CHAT_W_MAX, Math.max(CHAT_W_MIN, Math.round(w
 
 export default function Layout({ children }) {
   const { user, logout, setOnboarding } = useAuth();
+  const { unanswered } = useSupportTickets();
   const location = useLocation();
   const { fromProjectId, fromProjectName } = location.state || {};
   const [chatOpen, setChatOpen] = useState(false);
@@ -194,6 +207,7 @@ export default function Layout({ children }) {
                           className={({ isActive }) => `block px-3 py-1.5 text-sm ${isActive ? 'font-medium text-brand-700' : 'text-slate-600 hover:bg-slate-50'}`}
                         >
                           {n.label}
+                          {n.to === '/admin' && <TicketBadge count={unanswered} />}
                         </NavLink>
                       ))}
                       <button onClick={logout} className="mt-1 block w-full border-t border-slate-100 px-3 py-2 text-left text-sm text-slate-500 hover:bg-slate-50">
@@ -226,7 +240,10 @@ export default function Layout({ children }) {
           {menuOpen && (
             <nav className="flex flex-col border-t border-slate-100 px-4 py-2 md:hidden">
               {allLinks.map((n) => (
-                <NavLink key={n.to} to={n.to} end={n.end} onClick={() => setMenuOpen(false)} className={linkCls}>{n.label}</NavLink>
+                <NavLink key={n.to} to={n.to} end={n.end} onClick={() => setMenuOpen(false)} className={linkCls}>
+                  {n.label}
+                  {n.to === '/admin' && <TicketBadge count={unanswered} />}
+                </NavLink>
               ))}
               <button onClick={logout} className="mt-1 px-3 py-1.5 text-left text-sm text-slate-500">Sign out</button>
             </nav>

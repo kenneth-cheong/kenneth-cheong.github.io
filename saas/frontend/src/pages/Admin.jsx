@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { FileText, MonitorPlay } from 'lucide-react';
 import { PLANS, TIER_ORDER } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useSupportTickets } from '../context/SupportTicketsContext.jsx';
 import { api } from '../lib/api.js';
 import SortableTable from '../components/SortableTable.jsx';
 import TrialNdaGate from '../components/TrialNdaGate.jsx';
@@ -13,6 +14,7 @@ import DiagnosticsPanel from '../components/DiagnosticsPanel.jsx';
 // server-side (ADMIN_EMAILS) — the UI is a convenience over the gated API.
 export default function Admin() {
   const { user } = useAuth();
+  const { unanswered } = useSupportTickets();
   const [tab, setTab] = useState('users');
   if (!user.isAdmin) return <Navigate to="/" replace />;
 
@@ -27,6 +29,11 @@ export default function Admin() {
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${tab === k ? 'border-brand-500 text-brand-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
           >
             {label}
+            {k === 'tickets' && unanswered > 0 && (
+              <span className="ml-1.5 inline-grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white align-middle" title={`${unanswered} ticket${unanswered === 1 ? '' : 's'} awaiting a reply`}>
+                {unanswered > 9 ? '9+' : unanswered}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -1164,17 +1171,20 @@ function countdownCell(c) {
 }
 
 function AdminTickets() {
+  const { refresh: refreshBadge } = useSupportTickets();
   const [tickets, setTickets] = useState(null);
   const [settings, setSettings] = useState(null);
   const [sel, setSel] = useState(null);
   const [error, setError] = useState('');
 
   const load = () => { setError(''); api.adminTickets().then((d) => setTickets(d.tickets || [])).catch((e) => { setTickets([]); setError(e?.status === 403 ? 'Your account is not an admin.' : 'Could not load tickets.'); }); };
-  useEffect(() => { load(); }, []);
+  // Keep the shared menu/tab badge in step with what this console shows —
+  // replying to or closing a ticket drops it out of the unanswered count.
+  useEffect(() => { load(); refreshBadge(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // The lifecycle windows drive the reminder/auto-close countdowns below.
   useEffect(() => { api.adminSettings().then(({ settings }) => setSettings(settings)).catch(() => {}); }, []);
 
-  if (sel) return <AdminTicketDetail summary={sel} onBack={() => { setSel(null); load(); }} />;
+  if (sel) return <AdminTicketDetail summary={sel} onBack={() => { setSel(null); load(); refreshBadge(); }} />;
 
   const open = (tickets || []).filter((t) => t.status !== 'closed').length;
   return (
