@@ -960,6 +960,7 @@ function Field({ field, value, onChange, autoFocus, provider, values }) {
         <input autoFocus={autoFocus} type={field.type === 'number' ? 'number' : 'text'} inputMode={field.type === 'url' ? 'url' : undefined}
           value={value} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} className={base} />
       )}
+      {field.hint && <span className="mt-1 block whitespace-pre-line text-xs text-slate-400">{field.hint}</span>}
     </label>
   );
 }

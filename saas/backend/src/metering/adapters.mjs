@@ -128,6 +128,11 @@ export const ADAPTERS = {
     request: (body) => ({
       country: (body.country || 'Singapore').trim(),
       input: (body.input || '').trim(),
+      // Keywords the copy must naturally incorporate. The field is a tag input, so
+      // it arrives as an array (or a comma string from the API) — normalise to a
+      // clean comma-separated string for the upstream prompt.
+      keywords: (Array.isArray(body.keywords) ? body.keywords : String(body.keywords || '').split(','))
+        .map((k) => String(k).trim()).filter(Boolean).join(', '),
       tone: (body.tone || 'professional').toLowerCase(),
       language: (body.language || 'English').trim().toLowerCase(),
       // Map a friendly label → slug; pass a raw slug through; only fall back to
