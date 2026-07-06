@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, X, Minus } from 'lucide-react';
 import {
   PROFILE_FIELDS, PROFILE_REQUIRED_KEYS, PROFILE_BONUS,
   profileProgress, profileValueFilled,
@@ -11,6 +11,7 @@ import ProfileField from './ProfileField.jsx';
 
 const SNOOZE_KEY = 'dm_profile_snooze';
 const SNOOZE_DAYS = 7;
+const COLLAPSE_KEY = 'dm_profile_collapsed';
 
 // Progressive-profiling nudge on the Dashboard: shows the next 1–2 unanswered
 // required questions inline. Answering advances to the next; completing the whole
@@ -25,6 +26,7 @@ export default function ProfilePrompt() {
     const until = Number(localStorage.getItem(SNOOZE_KEY) || 0);
     return until > Date.now();
   });
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1');
 
   // Next 1–2 unanswered required fields (in schema order).
   const nextFields = useMemo(() => {
@@ -76,17 +78,49 @@ export default function ProfilePrompt() {
     setSnoozed(true);
   }
 
+  function collapse() {
+    localStorage.setItem(COLLAPSE_KEY, '1');
+    setCollapsed(true);
+  }
+
+  function expand() {
+    localStorage.removeItem(COLLAPSE_KEY);
+    setCollapsed(false);
+  }
+
+  // Collapsed: a small floating pill that stays out of the way but keeps the nudge reachable.
+  if (collapsed) {
+    return (
+      <button
+        onClick={expand}
+        className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full border border-brand-200 bg-white px-4 py-2.5 text-sm font-semibold text-brand-800 shadow-lg hover:bg-brand-50"
+      >
+        <Sparkles size={16} aria-hidden /> Finish profile
+        <span className="tabular-nums text-brand-600">{done}/{total}</span>
+      </button>
+    );
+  }
+
   return (
-    <div className="mt-6 rounded-xl border border-brand-200 bg-brand-50/60 p-5">
-      <div className="flex items-start justify-between gap-4">
+    <div className="fixed bottom-5 right-5 z-40 w-[calc(100vw-2.5rem)] max-w-sm rounded-xl border border-brand-200 bg-white p-5 shadow-2xl">
+      <div className="flex items-start justify-between gap-3">
         <h2 className="flex items-center gap-1.5 font-semibold text-brand-800">
           <Sparkles size={16} aria-hidden /> Complete your profile &amp; earn {PROFILE_BONUS} tokens
         </h2>
-        <button onClick={snooze} className="shrink-0 text-sm text-slate-400 hover:text-slate-700">Maybe later</button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button onClick={collapse} aria-label="Minimize" title="Minimize"
+            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+            <Minus size={16} aria-hidden />
+          </button>
+          <button onClick={snooze} aria-label="Dismiss" title="Maybe later"
+            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+            <X size={16} aria-hidden />
+          </button>
+        </div>
       </div>
 
       <div className="mt-2 flex items-center gap-3">
-        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/70">
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
           <div className="h-full rounded-full bg-brand-600 transition-all" style={{ width: `${pct}%` }} />
         </div>
         <span className="text-xs font-medium tabular-nums text-brand-700">{done}/{total}</span>
