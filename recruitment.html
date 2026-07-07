@@ -1837,6 +1837,11 @@
                             style="padding: 8px 16px; font-size: 0.85rem; background: var(--secondary);">
                             <i class="fas fa-magic"></i> Generate AI Criteria
                         </button>
+                        <button class="btn" onclick="autoBalanceCriteria()"
+                            style="padding: 8px 16px; font-size: 0.85rem; background: rgba(15,23,42,0.5); border: 1px solid var(--border); color: var(--text-main);"
+                            title="Distribute weights so they sum to 100%">
+                            <i class="fas fa-balance-scale"></i> Auto-balance
+                        </button>
                         <button class="btn btn-primary" onclick="addJobCriteria()"
                             style="padding: 8px 16px; font-size: 0.85rem;">
                             <i class="fas fa-plus"></i> Add Criteria
@@ -3045,15 +3050,13 @@
             document.getElementById('jobUrl').value = '';
             document.getElementById('jobDesc').value = '';
             document.getElementById('jobKpi').value = '';
-            // Placeholder starter criteria (BD/sales sample). Flagged isSeed so that
+            // Generic placeholder starter criteria (role-agnostic). Flagged isSeed so that
             // "Generate AI Criteria" replaces them with role-relevant ones instead of
-            // pinning these above the AI output.
+            // pinning these above the AI output. Editing a row graduates it to a real criterion.
             state.jobCriteria = [
-                { text: "Sales experience of at least 1 year", weight: 20, isSeed: true },
-                { text: "Sales experience in tech or digital marketing or media", weight: 20, isSeed: true },
-                { text: "Has worked in an agency or publishing company", weight: 20, isSeed: true },
-                { text: "Has done cold calls and cold outreach", weight: 20, isSeed: true },
-                { text: "Indicated has hit/exceeded sales targets consistently", weight: 20, isSeed: true }
+                { text: "Relevant experience for the role", weight: 34, isSeed: true },
+                { text: "Core skills & tools match", weight: 33, isSeed: true },
+                { text: "Culture & values fit", weight: 33, isSeed: true }
             ];
             state.jobQuestions = [];
             renderJobQuestions();
@@ -3161,6 +3164,63 @@
                 alert("Failed to save job to database. Check console for details.");
             }
         }
+        // Extract a JSON array from a raw model response (handles markdown fences / prose wrapping).
+        function extractJsonArray(content) {
+            if (Array.isArray(content)) return content;
+            if (typeof content !== 'string') return null;
+            let s = content;
+            const jsonMatch = s.match(/\[\s*\{[\s\S]*\}\s*\]/);
+            if (jsonMatch) {
+                s = jsonMatch[0];
+            } else {
+                const startIdx = s.indexOf('[');
+                const endIdx = s.lastIndexOf(']');
+                if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+                    s = s.substring(startIdx, endIdx + 1);
+                }
+            }
+            try { return JSON.parse(s); } catch (e) { return null; }
+        }
+
+        // Shared content-generator call that returns a parsed JSON array, retrying once on
+        // transport/format failures so a single bad LLM response doesn't fail the whole action.
+        async function requestAiJsonArray(prompt, { retries = 1 } = {}) {
+            const payload = {
+                prompt: prompt,            // For the updated Lambda
+                post_info: prompt,         // Fallback for the current Lambda
+                content_type: "plain-text",
+                action: "generate",
+                provider: getLlmProvider()
+            };
+            let lastErr;
+            for (let attempt = 0; attempt <= retries; attempt++) {
+                try {
+                    const response = await fetch('https://panc0eazwj.execute-api.ap-southeast-1.amazonaws.com/content-generator', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) throw new Error(`AI service returned HTTP ${response.status}`);
+
+                    const data = await response.json();
+                    let content = typeof data === 'object' ? (data.body || data.result || JSON.stringify(data)) : data;
+                    console.log("AI Raw Response:", content); // Debug log
+
+                    if (typeof content === 'string' && content.trim().startsWith('Error:')) {
+                        throw new Error(content.trim());
+                    }
+
+                    const arr = extractJsonArray(content);
+                    if (!Array.isArray(arr)) throw new Error("AI response was not valid JSON");
+                    return arr;
+                } catch (e) {
+                    lastErr = e;
+                    console.warn(`AI generation attempt ${attempt + 1} of ${retries + 1} failed:`, e.message);
+                }
+            }
+            throw lastErr || new Error("AI generation failed");
+        }
+
         async function generateAIQuestions() {
             const jd = document.getElementById('jobDesc').value.trim();
             const kpi = document.getElementById('jobKpi').value.trim();
@@ -3197,62 +3257,26 @@
                 JSON Keys: "metric", "question", "goodAnswer", "redFlags"
                 Example: [{"metric": "...", "question": "...", "goodAnswer": "...", "redFlags": "..."}]`;
 
-                const payload = {
-                    prompt: prompt,            // For the updated Lambda
-                    post_info: prompt,         // Fallback for the current Lambda
-                    content_type: "plain-text",
-                    action: "generate",
-                    provider: getLlmProvider()
-                };
+                const questions = await requestAiJsonArray(prompt);
 
-                const response = await fetch('https://panc0eazwj.execute-api.ap-southeast-1.amazonaws.com/content-generator', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) throw new Error("AI Generation failed");
-
-                const data = await response.json();
-                let content = typeof data === 'object' ? (data.body || data.result || JSON.stringify(data)) : data;
-
-                console.log("AI Raw Response:", content); // Debug log
-
-                // Extract JSON array more reliably
-                const jsonMatch = content.match(/\[\s*\{.*\}\s*\]/s);
-                if (jsonMatch) {
-                    content = jsonMatch[0];
-                } else {
-                    // Fallback to indices if regex fails
-                    const startIdx = content.indexOf('[');
-                    const endIdx = content.lastIndexOf(']');
-                    if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-                        content = content.substring(startIdx, endIdx + 1);
-                    }
-                }
-
-                const questions = JSON.parse(content);
-
-                if (Array.isArray(questions)) {
-                    if (!state.jobQuestions) state.jobQuestions = [];
-                    questions.forEach(q => {
-                        state.jobQuestions.push({
-                            id: 'q_' + Math.random().toString(36).substr(2, 9),
-                            metric: q.metric || "AI Metric",
-                            q: q.question || "AI Question",
-                            good: (q.goodAnswer || "Good answer indicators").replace(/^(The candidate|Candidate)\s+/i, ''),
-                            bad: (q.redFlags || "Red flag indicators").replace(/^(The candidate|Candidate)\s+/i, ''),
-                            isAi: true
-                        });
+                if (!state.jobQuestions) state.jobQuestions = [];
+                const before = state.jobQuestions.length;
+                questions.forEach(q => {
+                    state.jobQuestions.push({
+                        id: 'q_' + Math.random().toString(36).substr(2, 9),
+                        metric: q.metric || "AI Metric",
+                        q: q.question || "AI Question",
+                        good: (q.goodAnswer || "Good answer indicators").replace(/^(The candidate|Candidate)\s+/i, ''),
+                        bad: (q.redFlags || "Red flag indicators").replace(/^(The candidate|Candidate)\s+/i, ''),
+                        isAi: true
                     });
-                    renderJobQuestions();
-                } else {
-                    throw new Error("Invalid response format from AI");
-                }
+                });
+                renderJobQuestions();
+                showToast(`Added ${state.jobQuestions.length - before} interview question(s).`, 'success');
 
             } catch (error) {
                 console.error("Error generating questions:", error);
-                alert("Failed to generate questions. Please ensure the Job Description is detailed enough.");
+                showToast(`Couldn't generate questions: ${error.message}. Try a more detailed JD.`, 'error', 5000);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalBtnHtml;
@@ -3298,65 +3322,47 @@
                 JSON Keys: "text", "weight"
                 Example: [{"text": "...", "weight": 20}, {"text": "...", "weight": 15}, ...]`;
 
-                const payload = {
-                    prompt: prompt,
-                    post_info: prompt,
-                    content_type: "plain-text",
-                    action: "generate",
-                    provider: getLlmProvider()
-                };
+                const criteria = await requestAiJsonArray(prompt);
 
-                const response = await fetch('https://panc0eazwj.execute-api.ap-southeast-1.amazonaws.com/content-generator', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                if (!state.jobCriteria) state.jobCriteria = [];
+                // Discard untouched placeholder seed criteria so AI output isn't
+                // pinned below the sample rows; keep anything the user added/edited.
+                const kept = state.jobCriteria.filter(c => !c.isSeed);
+
+                // Case-insensitive dedup: skip AI rows that duplicate a kept criterion
+                // or an earlier AI row in this same batch.
+                const seen = new Set(kept.map(c => (c.text || '').trim().toLowerCase()));
+                const newCriteria = [];
+                let skipped = 0;
+                criteria.forEach(c => {
+                    const text = (c.text || '').trim();
+                    if (!text) return;
+                    const key = text.toLowerCase();
+                    if (seen.has(key)) { skipped++; return; }
+                    seen.add(key);
+                    newCriteria.push({ text, weight: parseInt(c.weight) || 10, isAi: true });
                 });
 
-                if (!response.ok) throw new Error("AI Generation failed");
-
-                const data = await response.json();
-                let content = typeof data === 'object' ? (data.body || data.result || JSON.stringify(data)) : data;
-
-                console.log("AI Raw Response (criteria):", content); // Debug log
-
-                if (typeof content === 'string' && content.trim().startsWith('Error:')) {
-                    throw new Error(content);
+                if (newCriteria.length === 0) {
+                    showToast("No new criteria to add — the AI's suggestions were already covered.", 'info', 5000);
+                    return;
                 }
 
-                // Extract JSON array reliably
-                const jsonMatch = content.match(/\[\s*\{.*\}\s*\]/s);
-                if (jsonMatch) {
-                    content = jsonMatch[0];
-                } else {
-                    const startIdx = content.indexOf('[');
-                    const endIdx = content.lastIndexOf(']');
-                    if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-                        content = content.substring(startIdx, endIdx + 1);
-                    }
-                }
+                state.jobCriteria = [...kept, ...newCriteria];
 
-                const criteria = JSON.parse(content);
+                // Note when weights had to be normalised back to 100%.
+                const rawTotal = state.jobCriteria.reduce((sum, c) => sum + (c.weight || 0), 0);
+                rebalanceWeights();
+                renderJobCriteria();
 
-                if (Array.isArray(criteria)) {
-                    if (!state.jobCriteria) state.jobCriteria = [];
-                    const newCriteria = criteria.map(c => ({
-                        text: c.text,
-                        weight: parseInt(c.weight) || 10,
-                        isAi: true
-                    }));
-                    // Discard untouched placeholder seed criteria so AI output isn't
-                    // pinned below the sample BD/sales rows; keep anything the user added/edited.
-                    const kept = state.jobCriteria.filter(c => !c.isSeed);
-                    state.jobCriteria = [...kept, ...newCriteria];
-                    rebalanceWeights();
-                    renderJobCriteria();
-                } else {
-                    throw new Error("Invalid response format from AI");
-                }
+                let msg = `Added ${newCriteria.length} criteria`;
+                if (skipped) msg += ` (skipped ${skipped} duplicate${skipped > 1 ? 's' : ''})`;
+                if (rawTotal !== 100) msg += `; weights rebalanced to 100%`;
+                showToast(msg + '.', 'success');
 
             } catch (error) {
                 console.error("Error generating criteria:", error);
-                alert("Failed to generate criteria. Please ensure the Job Description is detailed.");
+                showToast(`Couldn't generate criteria: ${error.message}. Try a more detailed JD.`, 'error', 5000);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalBtnHtml;
@@ -3487,6 +3493,16 @@
                 display.innerText = `${total}%`;
                 display.style.color = (total > 100 || total < 100) ? 'var(--accent)' : 'var(--secondary)';
             }
+        }
+
+        function autoBalanceCriteria() {
+            if (!state.jobCriteria || state.jobCriteria.length === 0) {
+                showToast("Add at least one criterion first.", 'info');
+                return;
+            }
+            rebalanceWeights();
+            renderJobCriteria();
+            showToast("Weights balanced to 100%.", 'success');
         }
 
         function rebalanceWeights() {
