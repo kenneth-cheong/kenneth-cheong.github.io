@@ -37,7 +37,7 @@ def lambda_handler(event, context):
             'Authorization': f'Bearer {api_key}',
             'Accept': 'application/json'
         })
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=18) as resp:
             return json.loads(resp.read().decode('utf-8'))
 
     def ok(data):
