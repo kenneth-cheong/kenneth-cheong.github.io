@@ -3,7 +3,7 @@ import os
 import urllib.request
 import urllib.parse
 import urllib.error
-from datetime import date
+from datetime import date, timedelta
 from concurrent.futures import ThreadPoolExecutor
 
 def lambda_handler(event, context):
@@ -39,6 +39,18 @@ def lambda_handler(event, context):
         })
         with urllib.request.urlopen(req, timeout=15) as resp:
             return json.loads(resp.read().decode('utf-8'))
+
+    def ok(data):
+        return {'statusCode': 200,
+                'headers': {**CORS, 'Content-Type': 'application/json'},
+                'body': json.dumps(data)}
+
+    def upstream_error(e):
+        if isinstance(e, urllib.error.HTTPError):
+            detail = e.read().decode('utf-8', 'ignore')
+            return {'statusCode': 502, 'headers': CORS,
+                    'body': json.dumps({'error': f'Ahrefs {e.code}: {detail}'})}
+        return {'statusCode': 502, 'headers': CORS, 'body': json.dumps({'error': str(e)})}
 
     if endpoint == 'overview':
         target = params.get('target', '')
@@ -116,6 +128,64 @@ def lambda_handler(event, context):
         except Exception as e:
             return {'statusCode': 502, 'headers': CORS, 'body': json.dumps({'error': str(e)})}
 
+    elif endpoint == 'top_pages':
+        # Which URLs earn the organic traffic (the biggest single "where is my
+        # traffic coming from" view). Ordered by estimated monthly traffic.
+        target  = params.get('target', '')
+        country = params.get('country')
+        limit   = params.get('limit', '50')
+        p = {
+            'target':   target,
+            'date':     today,
+            'select':   'url,sum_traffic,top_keyword,top_keyword_volume,top_keyword_best_position',
+            'limit':    limit,
+            'order_by': 'sum_traffic:desc',
+            'mode':     'subdomains',
+            'protocol': 'both',
+        }
+        if country:
+            p['country'] = country
+        try:
+            return ok(ahrefs_get('/site-explorer/top-pages', p))
+        except Exception as e:
+            return upstream_error(e)
+
+    elif endpoint == 'traffic_history':
+        # Month-by-month organic traffic (and its $ value) for the trailing year,
+        # so the UI can chart the trend behind the headline number.
+        target  = params.get('target', '')
+        country = params.get('country')
+        months  = int(params.get('months', 12) or 12)
+        date_from = (date.today() - timedelta(days=months * 31)).isoformat()
+        p = {
+            'target':           target,
+            'date_from':        date_from,
+            'date_to':          today,
+            'history_grouping': 'monthly',
+            'select':           'date,org_traffic,org_cost',
+            'mode':             'subdomains',
+        }
+        if country:
+            p['country'] = country
+        try:
+            return ok(ahrefs_get('/site-explorer/metrics-history', p))
+        except Exception as e:
+            return upstream_error(e)
+
+    elif endpoint == 'traffic_by_country':
+        # Organic traffic split by country of the searcher.
+        target = params.get('target', '')
+        p = {
+            'target': target,
+            'date':   today,
+            'select': 'country,org_traffic,org_keywords',
+            'mode':   'subdomains',
+        }
+        try:
+            return ok(ahrefs_get('/site-explorer/metrics-by-country', p))
+        except Exception as e:
+            return upstream_error(e)
+
     else:
         return {'statusCode': 400, 'headers': CORS,
-                'body': json.dumps({'error': f'Unknown endpoint: {endpoint}. Use "overview", "keywords", or "backlinks".'})}
+                'body': json.dumps({'error': f'Unknown endpoint: {endpoint}. Use "overview", "keywords", "backlinks", "top_pages", "traffic_history", or "traffic_by_country".'})}
