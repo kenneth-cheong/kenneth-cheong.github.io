@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { useParams, Link, useLocation, Navigate } from 'react-router-dom';
-import { toolById, inputsFor, tabsFor, exampleFor, CREDIT_COSTS, PLANS, tierMeets } from '@shared/catalog.mjs';
+import { useParams, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { toolById, inputsFor, tabsFor, exampleFor, CREDIT_COSTS, PLANS, tierMeets, isSchedulable, scheduleLimits } from '@shared/catalog.mjs';
 import { api, ApiError } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
@@ -12,7 +12,7 @@ import ShareModal from '../components/ShareModal.jsx';
 import { isShareable } from '../lib/shareCard.js';
 import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
 import { startToolTour, sampleResultFor, hasSeen, markSeen } from '../lib/tours.js';
-import { Lock, Compass, Sparkles, AlertTriangle, Share2 } from 'lucide-react';
+import { Lock, Compass, Sparkles, AlertTriangle, Share2, Clock } from 'lucide-react';
 
 const CONFIRM_AT = 25; // credits — confirm before running pricey tools
 
@@ -22,6 +22,7 @@ export default function ToolRunner() {
   const { activeId, active } = useProjects();
   const tool = toolById(toolId);
   const location = useLocation();
+  const navigate = useNavigate();
   const tabs = useMemo(() => tabsFor(tool), [tool]);
   const [tab, setTab] = useState(0);
   const activeTab = tabs?.[tab];
@@ -188,9 +189,18 @@ export default function ToolRunner() {
             <span>{cost === 0 ? 'Free to run' : `Costs ${cost} credit${cost > 1 ? 's' : ''}`}</span>
             {example && <button type="button" onClick={fillExample} className="font-medium text-brand-600 hover:text-brand-700">Try an example</button>}
           </div>
-          <button className="btn-primary" disabled={busy || !ready} onClick={() => run()} data-tour="tool-run">
-            {busy ? (tool.slow ? 'Generating…' : 'Running…') : unlocked ? 'Run tool' : 'Run preview'}
-          </button>
+          <div className="flex items-center gap-2">
+            {isSchedulable(tool) && scheduleLimits(user?.tier).enabled && !tabs && (
+              <button type="button" className="btn-ghost inline-flex items-center gap-1.5"
+                title="Run this automatically on a schedule"
+                onClick={() => navigate('/schedules', { state: { scheduleCreate: { toolId: tool.id, inputs: values } } })}>
+                <Clock size={15} />Schedule
+              </button>
+            )}
+            <button className="btn-primary" disabled={busy || !ready} onClick={() => run()} data-tour="tool-run">
+              {busy ? (tool.slow ? 'Generating…' : 'Running…') : unlocked ? 'Run tool' : 'Run preview'}
+            </button>
+          </div>
         </div>
       </div>
 

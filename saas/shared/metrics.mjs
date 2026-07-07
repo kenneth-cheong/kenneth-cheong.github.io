@@ -118,3 +118,29 @@ export function extractMetrics(toolId, result) {
   }
   return out;
 }
+
+/**
+ * Period-over-period diff of two runs of the SAME tool — powers the Scheduled
+ * Runs "this period vs previous" view. Aligns the headline metrics by key and
+ * computes the change + whether it's an improvement (respecting each metric's
+ * `dir` polarity, so a falling rank/CPA reads as green). `previousResult` may be
+ * null (the very first run) — every row then carries previous:null, delta:null.
+ *
+ * Returns [] for tools with no tracked metrics — the caller falls back to a plain
+ * run timeline. Never throws.
+ */
+export function compareRuns(toolId, currentResult, previousResult) {
+  const cur = extractMetrics(toolId, currentResult);
+  if (!cur.length) return [];
+  const prev = new Map(extractMetrics(toolId, previousResult).map((m) => [m.key, m.value]));
+  return cur.map((m) => {
+    const previous = prev.has(m.key) ? prev.get(m.key) : null;
+    const delta = previous == null ? null : m.value - previous;
+    const pct = previous == null || previous === 0 ? null : (delta / Math.abs(previous)) * 100;
+    let improved = null;
+    if (delta != null && delta !== 0 && m.dir !== 'neutral') {
+      improved = m.dir === 'down' ? delta < 0 : delta > 0;
+    }
+    return { key: m.key, label: m.label, unit: m.unit, dir: m.dir, current: m.value, previous, delta, pct, improved };
+  });
+}

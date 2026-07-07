@@ -47,6 +47,10 @@ export const PLANS = {
     monthlyCredits: 30,
     projects: 1,
     trackedKeywords: 0,
+    // Scheduled tool runs: `maxSchedules` active schedules, cadences in `scheduleFreqs`.
+    // Free can't schedule (the 30-credit budget can't sustain recurring runs) — an upsell.
+    maxSchedules: 0,
+    scheduleFreqs: [],
     blurb: 'Kick the tyres. Real tools, capped results.',
     highlights: ['30 AI credits / month', '1 project', 'Caption generator', 'Capped keyword + rank results'],
   },
@@ -57,8 +61,10 @@ export const PLANS = {
     monthlyCredits: 500,
     projects: 3,
     trackedKeywords: 25,
+    maxSchedules: 3,
+    scheduleFreqs: ['weekly', 'monthly'], // no daily — protects the monthly credit budget
     blurb: 'For solo marketers shipping content + SEO.',
-    highlights: ['500 credits / month', '3 projects', 'Full SEO Toolkit', 'Full AI Content Studio', '25 tracked keywords'],
+    highlights: ['500 credits / month', '3 projects', 'Full SEO Toolkit', 'Full AI Content Studio', '25 tracked keywords', '3 scheduled runs'],
   },
   pro: {
     id: 'pro',
@@ -67,9 +73,11 @@ export const PLANS = {
     monthlyCredits: 2000,
     projects: 10,
     trackedKeywords: 250,
+    maxSchedules: 15,
+    scheduleFreqs: ['daily', 'weekly', 'monthly'],
     popular: true,
     blurb: 'The serious operator plan. AI Visibility + ad integrations.',
-    highlights: ['2,000 credits / month', '10 projects', 'AI Visibility (GEO) suite', 'Google / Meta / GA4 integrations', '250 tracked keywords', 'Advanced AI model'],
+    highlights: ['2,000 credits / month', '10 projects', 'AI Visibility (GEO) suite', 'Google / Meta / GA4 integrations', '250 tracked keywords', '15 scheduled runs (daily)', 'Advanced AI model'],
   },
   expert: {
     id: 'expert',
@@ -78,8 +86,10 @@ export const PLANS = {
     monthlyCredits: 6000,
     projects: 25,
     trackedKeywords: 1000,
+    maxSchedules: 50,
+    scheduleFreqs: ['daily', 'weekly', 'monthly'],
     blurb: 'Agencies-of-one and power users.',
-    highlights: ['6,000 credits / month', '25 projects', 'White-label PDF export', 'API access', '1,000 tracked keywords', 'Priority AI queue'],
+    highlights: ['6,000 credits / month', '25 projects', 'White-label PDF export', 'API access', '1,000 tracked keywords', '50 scheduled runs (daily)', 'Priority AI queue'],
   },
 };
 
@@ -157,7 +167,7 @@ export const TOOLS = [
     desc: 'Link profile audit, dofollow/nofollow, competitor links.',
     teaser: { reveal: 'summary-only' } },
   { id: 'schema', name: 'Schema Generator', category: 'SEO', minTier: 'free',
-    cost: 'ai_short', upstream: null,
+    cost: 'ai_short', upstream: null, noSchedule: true, // interactive builder, no data to trend
     desc: 'Visual JSON-LD builder for rich snippets. No data fetch.' },
 
   // ── AI Content Studio ─────────────────────────────────────────────────────
@@ -214,7 +224,7 @@ export const TOOLS = [
   // AI content-gap & competitor strategy in one combined two-phase run. The
   // strategy phase is the single charged step; scrape/discover are free helpers.
   { id: 'social-audit', name: 'Social Media Audit', category: 'Strategy', minTier: 'pro',
-    cost: 'ai_long', upstream: 'socialMediaAudit', slow: true, route: '/social-audit',
+    cost: 'ai_long', upstream: 'socialMediaAudit', slow: true, route: '/social-audit', noSchedule: true, // bespoke two-phase async run
     desc: 'Live profile scrape + AI content-gap & competitor strategy across IG, TikTok, FB, LinkedIn & YouTube.' },
 
   // ── Strategy Engine (flagship: auto SEO action-plan generator) ────────────
@@ -241,6 +251,32 @@ export const TOOLS = [
     cost: 'integration_pull', upstream: null, integration: 'linkedin-ads',
     desc: 'Campaign spend, clicks, conversions and CPA from LinkedIn Ads.' },
 ];
+
+// ── Scheduled tool runs ──────────────────────────────────────────────────────
+// Which tools can be put on a recurring schedule, and what each plan is allowed
+// to schedule. A tool is schedulable unless it carries `noSchedule` (interactive
+// builders + the bespoke two-phase Social Audit). Integrations (0-credit Google
+// pulls) ARE schedulable — a weekly GSC snapshot is a natural comparison series.
+
+/** Is this tool eligible for scheduling at all? */
+export function isSchedulable(tool) {
+  return !!tool && !tool.noSchedule;
+}
+
+/** The catalog tools a user may schedule (all schedulable tools they can run). */
+export function schedulableTools() {
+  return TOOLS.filter(isSchedulable);
+}
+
+/** Scheduling entitlement for a tier: how many active schedules + which cadences. */
+export function scheduleLimits(tier) {
+  const plan = PLANS[tier] || PLANS.free;
+  return {
+    maxSchedules: plan.maxSchedules ?? 0,
+    freqs: plan.scheduleFreqs || [],
+    enabled: (plan.maxSchedules ?? 0) > 0,
+  };
+}
 
 export const CATEGORIES = ['SEO', 'Content', 'AI Visibility', 'Strategy', 'Integrations'];
 

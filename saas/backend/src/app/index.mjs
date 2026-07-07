@@ -11,13 +11,16 @@ import {
   createProject, listProjects, deleteProject,
   addTracked, listTracked, countTracked, removeTracked, appendSnapshot, mergeSnapshots,
   listMetrics,
+  createSchedule, listSchedules, getSchedule, updateSchedule, deleteSchedule, listScheduleRuns,
   exportAllUserData, deleteAllUserData, bumpTokenVersion, revokeSession,
   listAccessGrants, respondAccess, updateOnboarding, setEmailOptOut,
   updateProfile, claimProfileBonus,
 } from '../lib/dynamo.mjs';
 import { rankPosition, rankHistory } from '../lib/rank.mjs';
 import { UPSTREAMS } from '../metering/upstreams.mjs';
-import { CREDIT_COSTS, INTEGRATIONS, PLANS, PROFILE_FIELDS, PROFILE_BONUS, isProfileComplete } from '../../../shared/catalog.mjs';
+import { CREDIT_COSTS, INTEGRATIONS, PLANS, PROFILE_FIELDS, PROFILE_BONUS, isProfileComplete, TOOLS, tierMeets, scheduleLimits, isSchedulable } from '../../../shared/catalog.mjs';
+import { normaliseSchedule, nextRunAt } from '../../../shared/schedule.mjs';
+import { compareRuns } from '../../../shared/metrics.mjs';
 import { buildChatSystem } from '../lib/assistant.mjs';
 import { integrationSummary } from '../../../shared/connectors.mjs';
 import { connectorConfigured, providersInFamilyOf, familyOf, authorizeUrl, exchangeCodeFor, listAccountsFor, detectAccountFor, detectEmailFor, ga4CompatibleMetrics } from '../lib/integrations.mjs';
@@ -37,6 +40,43 @@ import { rateLimit, APP_LIMITS } from '../lib/ratelimit.mjs';
 const APP_ORIGIN = process.env.APP_ORIGIN || '';
 const redirect = (url) => ({ statusCode: 302, headers: { Location: url }, body: '' });
 const seg = (path, after) => decodeURIComponent((path.split(after)[1] || '').split('/')[0] || '');
+
+// ── Scheduled runs helpers ───────────────────────────────────────────────────
+// Fire a tool run through the metering gateway exactly as the schedules cron
+// does — a synthetic, authenticated /run event (Event mode) tagged with the
+// scheduleId, so billing + history + the completion notification all flow
+// through the one canonical path. Used by "Run now".
+let _lambda = null;
+async function invokeScheduledRun({ userId, email, tier, tool, inputs, projectId, scheduleId }) {
+  const { LambdaClient, InvokeCommand } = await import('@aws-sdk/client-lambda');
+  _lambda ||= new LambdaClient({});
+  const synthetic = {
+    rawPath: `/run/${tool.id}`,
+    requestContext: { http: { method: 'POST' }, authorizer: { lambda: { userId, email, tier } } },
+    headers: {},
+    body: JSON.stringify({ ...(inputs || {}), ...(projectId ? { projectId } : {}), _scheduleId: scheduleId }),
+  };
+  await _lambda.send(new InvokeCommand({
+    FunctionName: process.env.METERING_FN,
+    InvocationType: 'Event',
+    Payload: Buffer.from(JSON.stringify(synthetic)),
+  }));
+}
+
+/** Keep only plain scalar/array input fields (drop gateway keys + oversized/odd
+ *  values) before persisting a schedule's saved inputs. */
+function sanitizeScheduleInputs(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [k, v] of Object.entries(raw)) {
+    if (k.startsWith('_') || k === 'projectId') continue;
+    if (Object.keys(out).length >= 40) break;
+    if (typeof v === 'string') out[k] = v.slice(0, 4000);
+    else if (typeof v === 'number' || typeof v === 'boolean') out[k] = v;
+    else if (Array.isArray(v)) out[k] = v.slice(0, 100).map((x) => String(x).slice(0, 500));
+  }
+  return out;
+}
 
 // Lenient JSON extraction from an LLM reply (strips code fences / prose around it).
 function parseJsonLoose(s) {
@@ -391,6 +431,97 @@ export const handler = async (event) => {
     if (method === 'GET' && path.includes('/me/runs/')) {
       const run = await getRun(user.userId, seg(path, '/me/runs/'));
       return run ? ok({ run }) : badRequest('Run not found');
+    }
+
+    // ── Scheduled tool runs ───────────────────────────────────────────────────
+    // Recurring runs of a tool with saved inputs. The schedules cron fires them;
+    // each run lands in history tagged with scheduleId so periods can be diffed.
+    if (method === 'GET' && path.endsWith('/me/schedules')) {
+      return ok({ schedules: await listSchedules(user.userId), limits: scheduleLimits(user.tier) });
+    }
+    // Period-over-period comparison of a schedule's two most recent runs.
+    if (method === 'GET' && path.includes('/me/schedules/') && path.endsWith('/compare')) {
+      const scheduleId = seg(path, '/me/schedules/');
+      const s = await getSchedule(user.userId, scheduleId);
+      if (!s) return badRequest('Schedule not found.');
+      const runsSlim = await listScheduleRuns(scheduleId, 30); // GSI, newest first
+      const [curFull, prevFull] = await Promise.all([
+        runsSlim[0] ? getRun(user.userId, runsSlim[0].runId) : null,
+        runsSlim[1] ? getRun(user.userId, runsSlim[1].runId) : null,
+      ]);
+      const comparison = curFull ? compareRuns(s.toolId, curFull.result, prevFull?.result || null) : [];
+      return ok({
+        schedule: s,
+        runs: runsSlim.map((r) => ({ runId: r.runId, ts: r.ts, preview: r.preview, target: r.target, creditsUsed: r.creditsUsed })),
+        comparison,
+        current: curFull ? { runId: curFull.runId, ts: curFull.ts } : null,
+        previous: prevFull ? { runId: prevFull.runId, ts: prevFull.ts } : null,
+      });
+    }
+    if (method === 'POST' && path.endsWith('/me/schedules/update')) {
+      const s = await getSchedule(user.userId, body.scheduleId);
+      if (!s) return badRequest('Schedule not found.');
+      const patch = {};
+      if (typeof body.enabled === 'boolean') patch.enabled = body.enabled;
+      if (body.name != null) patch.name = clampStr(body.name, 80);
+      if (body.inputs && typeof body.inputs === 'object') patch.inputs = sanitizeScheduleInputs(body.inputs);
+      if ('projectId' in body) patch.projectId = body.projectId || null;
+      // Cadence change → renormalise, gate on plan, recompute the next fire, and
+      // clear whichever day field no longer applies.
+      if (body.frequency || body.hour != null || body.dayOfWeek != null || body.dayOfMonth != null || body.timezone) {
+        const norm = normaliseSchedule({
+          frequency: body.frequency || s.frequency, hour: body.hour ?? s.hour,
+          dayOfWeek: body.dayOfWeek ?? s.dayOfWeek, dayOfMonth: body.dayOfMonth ?? s.dayOfMonth,
+          timezone: body.timezone || s.timezone,
+        });
+        if (!norm.ok) return badRequest(norm.error);
+        const limits = scheduleLimits(user.tier);
+        if (!limits.freqs.includes(norm.spec.frequency)) return badRequest(`Your ${user.tier} plan allows ${limits.freqs.join(' / ') || 'no'} schedules.`);
+        patch.frequency = norm.spec.frequency;
+        patch.hour = norm.spec.hour;
+        patch.timezone = norm.spec.timezone;
+        patch.dayOfWeek = norm.spec.dayOfWeek ?? null;   // null → REMOVE the attribute
+        patch.dayOfMonth = norm.spec.dayOfMonth ?? null;
+        patch.nextRunAt = nextRunAt(norm.spec, Date.now());
+      }
+      // Re-enabling a schedule whose window has passed: roll it to the next fire
+      // so it doesn't immediately run on the next tick.
+      if (patch.enabled === true && patch.nextRunAt == null && s.nextRunAt <= Date.now()) {
+        patch.nextRunAt = nextRunAt(s, Date.now());
+      }
+      const updated = await updateSchedule(user.userId, body.scheduleId, patch);
+      return ok({ schedule: updated });
+    }
+    if (method === 'POST' && path.endsWith('/me/schedules/delete')) {
+      await deleteSchedule(user.userId, body.scheduleId);
+      return ok({ ok: true });
+    }
+    if (method === 'POST' && path.endsWith('/me/schedules/run-now')) {
+      const s = await getSchedule(user.userId, body.scheduleId);
+      if (!s) return badRequest('Schedule not found.');
+      const tool = TOOLS.find((t) => t.id === s.toolId);
+      if (!tool || !isSchedulable(tool)) return badRequest('That tool can’t be run.');
+      await invokeScheduledRun({ userId: user.userId, email: user.email, tier: user.tier, tool, inputs: s.inputs, projectId: s.projectId, scheduleId: s.scheduleId });
+      return ok({ ok: true, queued: true });
+    }
+    if (method === 'POST' && path.endsWith('/me/schedules')) {
+      const limits = scheduleLimits(user.tier);
+      if (!limits.enabled) return badRequest(`Scheduling isn’t available on the ${user.tier} plan — upgrade to automate tool runs.`);
+      const tool = TOOLS.find((t) => t.id === body.toolId);
+      if (!tool || !isSchedulable(tool)) return badRequest('That tool can’t be scheduled.');
+      if (!tierMeets(user.tier, tool.minTier)) return badRequest(`Your plan can’t run ${tool.name} — upgrade to schedule it.`);
+      const norm = normaliseSchedule(body);
+      if (!norm.ok) return badRequest(norm.error);
+      if (!limits.freqs.includes(norm.spec.frequency)) return badRequest(`Your ${user.tier} plan allows ${limits.freqs.join(' / ') || 'no'} schedules — pick a longer interval or upgrade.`);
+      const existing = await listSchedules(user.userId);
+      if (existing.length >= limits.maxSchedules) return badRequest(`Your ${user.tier} plan allows ${limits.maxSchedules} scheduled run${limits.maxSchedules === 1 ? '' : 's'}. Delete one or upgrade.`);
+      const schedule = await createSchedule({
+        userId: user.userId, toolId: tool.id, toolName: tool.name,
+        name: clampStr(body.name, 80) || tool.name,
+        inputs: sanitizeScheduleInputs(body.inputs), projectId: body.projectId || null,
+        spec: norm.spec, nextRunAt: nextRunAt(norm.spec, Date.now()),
+      });
+      return ok({ schedule });
     }
 
     // ── Projects ──────────────────────────────────────────────────────────────

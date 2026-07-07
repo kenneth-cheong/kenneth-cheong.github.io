@@ -13,7 +13,7 @@
 //   7. return result + { creditsUsed, creditsRemaining }
 // ─────────────────────────────────────────────────────────────────────────
 import { createHash } from 'node:crypto';
-import { getUser, putUser, spendCredits, totalCredits, saveRun, getCache, putCache, appendMetricSnapshots, addNotification } from '../lib/dynamo.mjs';
+import { getUser, putUser, spendCredits, totalCredits, saveRun, getCache, putCache, appendMetricSnapshots, addNotification, recordScheduleRun } from '../lib/dynamo.mjs';
 import { extractMetrics } from '../../../shared/metrics.mjs';
 import { UPSTREAMS } from './upstreams.mjs';
 import { ADAPTERS, parseStrategyJson, asciiPunct } from './adapters.mjs';
@@ -209,8 +209,16 @@ export const handler = async (event, context) => {
         userId: user.userId, tool: tool.id, toolName: tool.name,
         inputs: publicInputs(body), result: payload, creditsUsed,
         projectId: body.projectId || null,
+        // Tag runs fired by the schedules cron so they're queryable per-schedule.
+        scheduleId: body._scheduleId || null,
       });
       runId = saved.runId;
+      // Stamp the outcome onto the originating schedule (last run + count), so
+      // the Schedules page shows status without the cron waiting on the run.
+      if (body._scheduleId) {
+        try { await recordScheduleRun(user.userId, body._scheduleId, { runId, status: softFailed ? 'failed' : 'ok' }); }
+        catch (e) { console.error('schedule_record_failed', body._scheduleId, e.message); }
+      }
       // In-platform "run complete" ping — the notification bell polls these so a
       // user who navigated away still learns the result is ready. Best-effort;
       // skip soft failures (the message there is the result, not a completion).

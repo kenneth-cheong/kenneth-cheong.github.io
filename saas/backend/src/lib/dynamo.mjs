@@ -29,6 +29,7 @@ export const TABLES = {
   conversations: process.env.CONVERSATIONS_TABLE,
   shares: process.env.SHARES_TABLE,
   broadcasts: process.env.BROADCASTS_TABLE,
+  schedules: process.env.SCHEDULES_TABLE,
 };
 
 const rid = () => Math.random().toString(36).slice(2, 8);
@@ -596,16 +597,18 @@ function deriveTarget(inputs = {}) {
   }
 }
 
-export async function saveRun({ userId, tool, toolName, inputs, result, creditsUsed = 0, projectId = null }) {
+export async function saveRun({ userId, tool, toolName, inputs, result, creditsUsed = 0, projectId = null, scheduleId = null }) {
   const ts = new Date().toISOString();
   const runId = `${ts}#${Math.random().toString(36).slice(2, 8)}`;
   const preview = result?.text ? result.text.slice(0, 90)
     : Array.isArray(result?.rows) ? `${result.rows.length} rows`
     : result?.html ? 'report' : '';
-  await ddb.send(new PutCommand({
-    TableName: TABLES.runs,
-    Item: { userId, runId, tool, toolName: toolName || tool, inputs: inputs || {}, result: result || {}, preview, target: deriveTarget(inputs), creditsUsed, projectId, ts },
-  }));
+  const Item = { userId, runId, tool, toolName: toolName || tool, inputs: inputs || {}, result: result || {}, preview, target: deriveTarget(inputs), creditsUsed, projectId, ts };
+  // Tag schedule-driven runs so they're queryable via the sparse `scheduleIndex`
+  // GSI (period-over-period comparison). MUST be omitted — not null — when absent:
+  // a null-typed GSI key attribute would make the whole PutItem fail validation.
+  if (scheduleId) Item.scheduleId = scheduleId;
+  await ddb.send(new PutCommand({ TableName: TABLES.runs, Item }));
   // Stamp the user's last tool-use time for the broadcast audience filter. This
   // is the same source the backfill derives from (newest run ts == max here), so
   // the live value and a rebuilt one never diverge. Best-effort — a failed touch
@@ -639,6 +642,142 @@ export async function listRuns(userId, limit = 100) {
 export async function getRun(userId, runId) {
   const { Item } = await ddb.send(new GetCommand({ TableName: TABLES.runs, Key: { userId, runId } }));
   return Item || null;
+}
+
+// ── Scheduled tool runs ──────────────────────────────────────────────────────
+// A schedule is "run tool X with these saved inputs, on this cadence". The
+// schedules cron scans due rows, claims each (compare-and-swap on nextRunAt),
+// and fires it as a synthetic gateway run tagged with the scheduleId. The run
+// lands back in RunsTable, indexed by scheduleId via the sparse `scheduleIndex`
+// GSI, so the Schedules page can compare this period against the previous one.
+
+/** Fields a caller may mutate on a schedule (create-time fields are fixed). */
+const SCHEDULE_PATCHABLE = ['inputs', 'projectId', 'name', 'frequency', 'hour', 'dayOfWeek', 'dayOfMonth', 'timezone', 'enabled', 'nextRunAt'];
+
+export async function createSchedule({ userId, toolId, toolName, inputs = {}, projectId = null, name, spec, nextRunAt }) {
+  const now = new Date().toISOString();
+  const scheduleId = `sch_${now}#${rid()}`;
+  const item = {
+    userId, scheduleId,
+    toolId, toolName: toolName || toolId,
+    name: name || toolName || toolId,
+    inputs: inputs || {}, projectId: projectId || null,
+    frequency: spec.frequency, hour: spec.hour, timezone: spec.timezone,
+    ...(spec.dayOfWeek != null ? { dayOfWeek: spec.dayOfWeek } : {}),
+    ...(spec.dayOfMonth != null ? { dayOfMonth: spec.dayOfMonth } : {}),
+    enabled: true, nextRunAt,
+    runCount: 0, lastRunId: null, lastRunAt: null, lastStatus: null, lastFiredAt: null,
+    createdAt: now, updatedAt: now,
+  };
+  await ddb.send(new PutCommand({ TableName: TABLES.schedules, Item: item }));
+  return item;
+}
+
+export async function listSchedules(userId) {
+  const { Items } = await ddb.send(new QueryCommand({
+    TableName: TABLES.schedules,
+    KeyConditionExpression: 'userId = :u',
+    ExpressionAttributeValues: { ':u': userId },
+    ScanIndexForward: false, // newest first (scheduleId is timestamp-prefixed)
+  }));
+  return Items || [];
+}
+
+export async function getSchedule(userId, scheduleId) {
+  const { Item } = await ddb.send(new GetCommand({ TableName: TABLES.schedules, Key: { userId, scheduleId } }));
+  return Item || null;
+}
+
+export async function deleteSchedule(userId, scheduleId) {
+  await ddb.send(new DeleteCommand({ TableName: TABLES.schedules, Key: { userId, scheduleId } }));
+}
+
+/** Patch a schedule (whitelisted fields only). Pass dayOfWeek/dayOfMonth = null
+ *  to clear them when switching cadence. Returns the updated item. */
+export async function updateSchedule(userId, scheduleId, patch = {}) {
+  const sets = ['updatedAt = :now'];
+  const removes = [];
+  const names = {};
+  const values = { ':now': new Date().toISOString() };
+  for (const k of SCHEDULE_PATCHABLE) {
+    if (!(k in patch)) continue;
+    const v = patch[k];
+    if (v === undefined) continue;
+    if (v === null && (k === 'dayOfWeek' || k === 'dayOfMonth')) { names[`#${k}`] = k; removes.push(`#${k}`); continue; }
+    names[`#${k}`] = k; values[`:${k}`] = v; sets.push(`#${k} = :${k}`);
+  }
+  let expr = 'SET ' + sets.join(', ');
+  if (removes.length) expr += ' REMOVE ' + removes.join(', ');
+  const { Attributes } = await ddb.send(new UpdateCommand({
+    TableName: TABLES.schedules, Key: { userId, scheduleId },
+    ConditionExpression: 'attribute_exists(scheduleId)',
+    UpdateExpression: expr,
+    ...(Object.keys(names).length ? { ExpressionAttributeNames: names } : {}),
+    ExpressionAttributeValues: values,
+    ReturnValues: 'ALL_NEW',
+  }));
+  return Attributes || null;
+}
+
+/** All enabled schedules whose nextRunAt is due (≤ nowMs) — the cron's work list. */
+export async function scanDueSchedules(nowMs, limit = 250) {
+  const out = [];
+  let ExclusiveStartKey;
+  do {
+    const { Items, LastEvaluatedKey } = await ddb.send(new ScanCommand({
+      TableName: TABLES.schedules,
+      FilterExpression: 'enabled = :true AND nextRunAt <= :now',
+      ExpressionAttributeValues: { ':true': true, ':now': nowMs },
+      ExclusiveStartKey,
+    }));
+    out.push(...(Items || []));
+    ExclusiveStartKey = LastEvaluatedKey;
+  } while (ExclusiveStartKey && out.length < limit);
+  return out.slice(0, limit);
+}
+
+/** Compare-and-swap the next-fire time so two overlapping cron ticks can't fire
+ *  the same schedule twice. Returns true only for the caller that won the claim. */
+export async function claimScheduleRun(userId, scheduleId, expectedNextRunAt, newNextRunAt) {
+  try {
+    await ddb.send(new UpdateCommand({
+      TableName: TABLES.schedules, Key: { userId, scheduleId },
+      ConditionExpression: 'enabled = :true AND nextRunAt = :expected',
+      UpdateExpression: 'SET nextRunAt = :next, lastFiredAt = :now',
+      ExpressionAttributeValues: { ':true': true, ':expected': expectedNextRunAt, ':next': newNextRunAt, ':now': new Date().toISOString() },
+    }));
+    return true;
+  } catch (e) {
+    if (e.name === 'ConditionalCheckFailedException') return false;
+    throw e;
+  }
+}
+
+/** Stamp the outcome of a fired run onto its schedule (called from the gateway
+ *  after the run is saved, and by the cron when a run is skipped). */
+export async function recordScheduleRun(userId, scheduleId, { runId = null, status = 'ok' } = {}) {
+  try {
+    await ddb.send(new UpdateCommand({
+      TableName: TABLES.schedules, Key: { userId, scheduleId },
+      ConditionExpression: 'attribute_exists(scheduleId)',
+      UpdateExpression: 'SET lastRunId = :r, lastRunAt = :t, lastStatus = :s ADD runCount :one',
+      ExpressionAttributeValues: { ':r': runId, ':t': new Date().toISOString(), ':s': status, ':one': 1 },
+    }));
+  } catch (e) { if (e.name !== 'ConditionalCheckFailedException') throw e; }
+}
+
+/** Runs produced by a schedule, newest first — via the sparse `scheduleIndex`
+ *  GSI on RunsTable (only schedule-tagged runs are indexed). */
+export async function listScheduleRuns(scheduleId, limit = 30) {
+  const { Items } = await ddb.send(new QueryCommand({
+    TableName: TABLES.runs,
+    IndexName: 'scheduleIndex',
+    KeyConditionExpression: 'scheduleId = :s',
+    ExpressionAttributeValues: { ':s': scheduleId },
+    ScanIndexForward: false, // newest first (runId is timestamp-prefixed)
+    Limit: limit,
+  }));
+  return Items || [];
 }
 
 // ── Public share links (opt-in, auto-redacted) ───────────────────────────────
@@ -1223,13 +1362,13 @@ export async function listAccessGrants(userId) {
  * tokens are redacted (they're encrypted secrets, not user-portable data). */
 export async function exportAllUserData(userId) {
   const user = await getUser(userId);
-  const [ledger, runs, tickets, notifications, projects, tracked, conversations] = await Promise.all([
+  const [ledger, runs, tickets, notifications, projects, tracked, conversations, schedules] = await Promise.all([
     listLedger(userId, 1000), listRuns(userId, 1000), listTickets(userId, 1000),
     listNotifications(userId, 1000), listProjects(userId, 1000), listTracked(userId),
-    listConversations(userId, 1000),
+    listConversations(userId, 1000), listSchedules(userId),
   ]);
   const { integrations, ...profile } = user || {}; // drop OAuth tokens
-  return { exportedAt: new Date().toISOString(), profile, ledger, runs, tickets, notifications, projects, tracked, conversations };
+  return { exportedAt: new Date().toISOString(), profile, ledger, runs, tickets, notifications, projects, tracked, conversations, schedules };
 }
 
 /** Hard-delete every row we hold for a user across all tables, then the user
@@ -1243,6 +1382,7 @@ export async function deleteAllUserData(userId) {
     [TABLES.projects, 'projectId'],
     [TABLES.tracked, 'trackId'],
     [TABLES.conversations, 'conversationId'],
+    [TABLES.schedules, 'scheduleId'],
   ];
   for (const [TableName, rk] of tables) {
     let ExclusiveStartKey;

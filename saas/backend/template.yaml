@@ -89,6 +89,7 @@ Globals:
         METRICS_TABLE: !Ref MetricsTable
         CONVERSATIONS_TABLE: !Ref ConversationsTable
         SHARES_TABLE: !Ref SharesTable
+        SCHEDULES_TABLE: !Ref SchedulesTable
         APP_ORIGIN: !Ref AppOrigin
         JWT_SECRET: '{{resolve:secretsmanager:digimetrics-saas/jwt-secret:SecretString}}'
 
@@ -147,9 +148,38 @@ Resources:
       AttributeDefinitions:
         - { AttributeName: userId, AttributeType: S }
         - { AttributeName: runId, AttributeType: S }
+        - { AttributeName: scheduleId, AttributeType: S }
       KeySchema:
         - { AttributeName: userId, KeyType: HASH }
         - { AttributeName: runId, KeyType: RANGE }
+      # SPARSE index: only schedule-driven runs carry `scheduleId`, so this holds
+      # just those — the per-schedule run history for period-over-period compare.
+      GlobalSecondaryIndexes:
+        - IndexName: scheduleIndex
+          KeySchema:
+            - { AttributeName: scheduleId, KeyType: HASH }
+            - { AttributeName: runId, KeyType: RANGE }
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes: [ts, preview, target, creditsUsed, tool, toolName, projectId]
+
+  # Recurring tool-run schedules (userId#PK, scheduleId#SK). Each row is "run
+  # tool X with these saved inputs on this cadence"; the hourly SchedulesCronFn
+  # scans for due rows and fires them through the metering gateway.
+  SchedulesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - { AttributeName: userId, AttributeType: S }
+        - { AttributeName: scheduleId, AttributeType: S }
+      KeySchema:
+        - { AttributeName: userId, KeyType: HASH }
+        - { AttributeName: scheduleId, KeyType: RANGE }
 
   # Public share links: shareId → {userId, runId}. Auto-expire via TTL so old
   # links don't linger. Public /s/:id resolves a run without the viewer logging in.
@@ -477,6 +507,8 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref CacheTable }
         - DynamoDBCrudPolicy: { TableName: !Ref MetricsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref NotificationsTable }
+        # A scheduled run stamps its outcome (last run + count) onto the schedule.
+        - DynamoDBCrudPolicy: { TableName: !Ref SchedulesTable }
         # Async Social Audit finalize: the gateway invokes ITSELF (Event mode)
         # so the audit completes even if the browser tab closes. The name pattern
         # (not !GetAtt MeteringFn.Arn) avoids a CloudFormation circular dependency.
@@ -572,6 +604,8 @@ Resources:
           SMTP_HOST: !Ref SmtpHost
           SMTP_PORT: !Ref SmtpPort
           SMTP_PASS: '{{resolve:secretsmanager:digimetrics-saas/smtp-pass:SecretString}}'
+          # "Run now" on a schedule fires the metering gateway (Event mode).
+          METERING_FN: !Ref MeteringFn
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
@@ -582,6 +616,8 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref TrackedTable }
         - DynamoDBCrudPolicy: { TableName: !Ref MetricsTable }
         - DynamoDBCrudPolicy: { TableName: !Ref ConversationsTable }
+        # Scheduled tool runs — CRUD schedules + read the sparse scheduleIndex GSI.
+        - DynamoDBCrudPolicy: { TableName: !Ref SchedulesTable }
         # Rate-limit counters live in the Cache table (lib/ratelimit.mjs).
         - DynamoDBCrudPolicy: { TableName: !Ref CacheTable }
         - S3CrudPolicy: { BucketName: !Ref AttachmentsBucket }
@@ -589,6 +625,11 @@ Resources:
             - Effect: Allow
               Action: [ses:SendEmail, ses:SendRawEmail]
               Resource: '*'
+            # "Run now" invokes the metering gateway. Name pattern (not
+            # !GetAtt MeteringFn.Arn) keeps the IAM policy free of a hard ref.
+            - Effect: Allow
+              Action: lambda:InvokeFunction
+              Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-MeteringFn-*'
       Events:
         Chat: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /chat, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         ConversationsList: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /chat/conversations, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
@@ -606,6 +647,13 @@ Resources:
         MeProfile: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/profile, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         AuditSynthesize: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /audit/synthesize, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Run: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/me/runs/{runId}', Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        # Scheduled tool runs
+        Schedules: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/schedules, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        ScheduleCreate: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/schedules, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        ScheduleUpdate: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/schedules/update, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        ScheduleDelete: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/schedules/delete, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        ScheduleRunNow: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/schedules/run-now, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        ScheduleCompare: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/me/schedules/{scheduleId}/compare', Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Projects: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /projects, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         ProjectCreate: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /projects, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         ProjectDelete: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /projects/delete, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
@@ -718,6 +766,34 @@ Resources:
           Type: Schedule
           Properties:
             Schedule: rate(1 day)
+
+  # ── Scheduled: fire user-defined recurring tool runs (hourly) ───────────
+  # Scans due schedules, claims each (compare-and-swap on nextRunAt so two ticks
+  # can't double-fire), then Event-invokes the metering gateway with a synthetic
+  # authenticated run tagged with the scheduleId. Hourly cadence gives per-hour
+  # fire precision for the daily/weekly/monthly presets.
+  SchedulesCronFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .build/schedules-cron/
+      Handler: index.handler
+      Timeout: 300
+      Environment:
+        Variables:
+          METERING_FN: !Ref MeteringFn
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref SchedulesTable }
+        - DynamoDBReadPolicy: { TableName: !Ref UsersTable }
+        - DynamoDBCrudPolicy: { TableName: !Ref NotificationsTable }
+        - Statement:
+            - Effect: Allow
+              Action: lambda:InvokeFunction
+              Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${AWS::StackName}-MeteringFn-*'
+      Events:
+        Hourly:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 hour)
 
   # ── Streaming assistant chat (Anthropic Messages API, Haiku) ────────────
   # Public RESPONSE_STREAM Function URL — JWT is verified in-handler. Streams
@@ -1000,6 +1076,24 @@ Resources:
         - { Name: FunctionName, Value: !Ref RefillFn }
       Statistic: Sum
       Period: 86400
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmTopic], !Ref 'AWS::NoValue']
+
+  # Hourly, so alarm on a short window — a top-level throw means the whole tick
+  # died (per-schedule errors are caught internally).
+  SchedulesCronErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Hourly scheduled-runs cron failed.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - { Name: FunctionName, Value: !Ref SchedulesCronFn }
+      Statistic: Sum
+      Period: 3600
       EvaluationPeriods: 1
       Threshold: 1
       ComparisonOperator: GreaterThanOrEqualToThreshold

@@ -213,6 +213,13 @@ export const api = {
   // Public share link (opt-in, auto-redacted). Mint is idempotent per run.
   shareRun: (runId) => call(`/me/runs/${encodeURIComponent(runId)}/share`, { method: 'POST' }),
   revokeShare: (runId) => call(`/me/runs/${encodeURIComponent(runId)}/share/revoke`, { method: 'POST' }),
+  // Scheduled tool runs (recurring runs with saved inputs; period-over-period compare)
+  schedules: () => call('/me/schedules'),
+  createSchedule: (payload) => call('/me/schedules', { method: 'POST', body: payload }),
+  updateSchedule: (payload) => call('/me/schedules/update', { method: 'POST', body: payload }),
+  deleteSchedule: (scheduleId) => call('/me/schedules/delete', { method: 'POST', body: { scheduleId } }),
+  runScheduleNow: (scheduleId) => call('/me/schedules/run-now', { method: 'POST', body: { scheduleId } }),
+  scheduleCompare: (scheduleId) => call(`/me/schedules/${encodeURIComponent(scheduleId)}/compare`),
   // Notifications
   notifications: () => call('/me/notifications'),
   markNotificationsRead: () => call('/me/notifications/read', { method: 'POST' }),

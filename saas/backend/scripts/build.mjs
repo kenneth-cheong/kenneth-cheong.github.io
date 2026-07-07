@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const FUNCTIONS = ['authorizer', 'auth', 'me', 'metering', 'billing', 'admin', 'app', 'close', 'track', 'metricscron', 'refill', 'chatstream', 'share'];
+const FUNCTIONS = ['authorizer', 'auth', 'me', 'metering', 'billing', 'admin', 'app', 'close', 'track', 'metricscron', 'refill', 'chatstream', 'share', 'schedules-cron'];
 
 // Functions that need extra runtime assets copied next to their bundle.
 // ShareFn rasterises SVG → PNG with resvg-wasm, which needs the WASM binary and
