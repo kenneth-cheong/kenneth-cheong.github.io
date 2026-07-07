@@ -4283,16 +4283,21 @@
         // scope stays active for follow-up questions until the selection is cleared,
         // so buildChatContext() keeps feeding the assistant only these items.
         function askAISelected() {
-            const n = state.selectedItemIds.size;
-            if (!n) return;
+            if (!state.selectedItemIds.size) return;
             state.chatScopeToSelection = true;
             const panel = document.getElementById('chat-panel');
             if (panel && !panel.classList.contains('open')) toggleChat();
             const input = document.getElementById('chat-input');
             if (!input) return;
-            input.value = n === 1
+            // Checkboxes count individual task ITEMS; group them into campaigns (by
+            // board) so the prompt names the right unit — 2 rows can be 30+ items.
+            const items = [...state.selectedItemIds]
+                .map(id => state.auditedItems.find(i => i.id === id))
+                .filter(Boolean);
+            const campaignCount = new Set(items.map(i => i.bId)).size;
+            input.value = campaignCount <= 1
                 ? 'Give me a status summary of this selected campaign — deadline health, any blockers, and what needs attention next.'
-                : `Compare these ${n} selected campaigns — which need attention first and why? Call out overdue items, blockers, and the single most urgent next action for each.`;
+                : `Compare these ${campaignCount} selected campaigns — which need attention first and why? Call out overdue items, blockers, and the single most urgent next action for each.`;
             sendChatMessage();
         }
 
@@ -6283,6 +6288,7 @@
                     viewMode: state.viewMode,
                     focus: 'user-selected',
                     totalSelectedItems: sel.length,
+                    totalSelectedCampaigns: new Set(sel.map(i => i.bId)).size,
                     itemsShownInContext: contextItems.length,
                     items: contextItems
                 };
@@ -6350,7 +6356,7 @@
             const contextData = buildChatContext();
 
             const focusNote = contextData.focus === 'user-selected'
-                ? `\n\nUSER-SELECTED FOCUS: The user hand-picked exactly these ${contextData.totalSelectedItems} campaign(s) to ask about. Focus your answer on them specifically and do not bring in other campaigns unless the user explicitly asks.`
+                ? `\n\nUSER-SELECTED FOCUS: The user hand-picked ${contextData.totalSelectedItems} item(s) across ${contextData.totalSelectedCampaigns} campaign(s) to ask about. Focus your answer on them specifically and do not bring in other campaigns unless the user explicitly asks.`
                 : '';
 
             const system = `You are the Campaign Auditor AI Assistant, an expert analyst for a Monday.com-based campaign management system.
