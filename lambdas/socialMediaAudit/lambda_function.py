@@ -229,6 +229,8 @@ def lambda_handler(event, context):
             return _resp(200, report_save_month(body))
         if action == 'report_get_month':
             return _resp(200, report_get_month(body))
+        if action == 'report_save_recs':
+            return _resp(200, report_save_recs(body))
         if action == 'report_daily_series':
             return _resp(200, report_daily_series(body))
         if action == 'report_backfill_meta':
@@ -2822,7 +2824,32 @@ def report_get_month(body):
     return {'month': month, 'scorecard': sc,
             'kpis': _dec(it.get('kpis') or {}),
             'recommendations': _dec(it.get('recommendations')),
+            'recs_block': _dec(it.get('recs_block')),
             'savedAt': it.get('savedAt'), 'savedBy': it.get('savedBy')}
+
+def report_save_recs(body):
+    """Persist the AI 'Channel recommendations' block for a month WITHOUT touching
+    the scorecard/kpis/month-index — used when the user generates or inline-edits the
+    monthly report's recommendations, so they survive reloads. Stored on its own
+    attribute (recs_block) separate from the minimal scorecard `recommendations`."""
+    data  = body.get('data') or body
+    pid   = (data.get('projectId') or '').strip()
+    month = (data.get('month') or '').strip()
+    if not pid or not month:
+        raise RuntimeError('Missing projectId or month.')
+    block = data.get('recs_block')
+    now = _now_iso(); who = _who(body)
+    if block is None:
+        _rmonths().update_item(
+            Key={'projectId': pid, 'month': month},
+            UpdateExpression='REMOVE recs_block SET recs_savedAt = :t, recs_savedBy = :w',
+            ExpressionAttributeValues={':t': now, ':w': who})
+    else:
+        _rmonths().update_item(
+            Key={'projectId': pid, 'month': month},
+            UpdateExpression='SET recs_block = :b, recs_savedAt = :t, recs_savedBy = :w',
+            ExpressionAttributeValues={':b': _enc(block), ':t': now, ':w': who})
+    return {'ok': True}
 
 def report_delete_month(body):
     data  = body.get('data') or body
