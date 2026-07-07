@@ -6379,6 +6379,10 @@ ${JSON.stringify(contextData)}${focusNote}`;
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action: 'claude_chat_with_tools',
+                        // Route this chat through DeepSeek (OpenAI-compatible) instead of
+                        // Claude. The Lambda's tool loop is provider-agnostic, so the
+                        // monday_graphql tool (live Monday queries) still works.
+                        provider: 'deepseek',
                         system,
                         messages: chatHistory,
                         max_tokens: 4096,
@@ -6386,6 +6390,9 @@ ${JSON.stringify(contextData)}${focusNote}`;
                         google_tokens: {},
                         google_marketing_creds: {},
                         monday_slug: state.slug,
+                        // Pass the connected user's token so monday_graphql tool calls run
+                        // under their permissions (falls back to the Lambda's env key).
+                        monday_api_key: state.apiKey || '',
                         app_source: 'campaign-board-crawler.html',
                         client_email: localStorage.getItem('clientEmail') || ''
                     })
