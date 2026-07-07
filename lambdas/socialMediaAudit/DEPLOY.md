@@ -2,6 +2,18 @@
 
 Async Social Media Audit backend. Region: `ap-southeast-1`, account `167633412846`.
 
+## ⚠️ Source ↔ prod sync — READ BEFORE DEPLOYING (reconciled 2026-07-07)
+This Lambda's deployment package **bundles `requests`** (+certifi/idna/charset_normalizer/urllib3) at the zip root next to `lambda_function.py` — there are **no layers**. So **NEVER** `update-function-code` with a zip of *just* the repo file — that wipes the bundled deps.
+
+History: the repo file had **drifted from production** because per-post-metrics work (`_grid_post`, `_merge_posts`, `_meta_ig/fb_post_metrics`, `_li_*` post helpers, native Meta/LinkedIn post fetch) was deployed straight to prod and never committed, while commit a27de09 (`_plat_metrics` full per-platform slice) was committed but never deployed. **Reconciled 2026-07-07** — repo `lambda_function.py` now == deployed package. Keep it that way:
+
+**Safe deploy recipe (preserves bundled deps):**
+1. `URL=$(aws lambda get-function --function-name socialMediaAudit --region ap-southeast-1 --query Code.Location --output text)` then `curl -o pkg.zip "$URL"`.
+2. `unzip pkg.zip -d pkg/` → replace `pkg/lambda_function.py` with the repo file (they should already match; if not, STOP and reconcile) → apply your edit.
+3. `cd pkg && zip -qr ../new.zip . -x '*.pyc' -x '__pycache__/*'` (keep the deps!).
+4. `aws lambda update-function-code --function-name socialMediaAudit --region ap-southeast-1 --zip-file fileb://../new.zip` → `aws lambda wait function-updated …`.
+5. **Commit the same `lambda_function.py` change to the repo in the same PR** so source never drifts again. Optionally diff the freshly-downloaded deployed package against the repo file as a drift check.
+
 ## DEPLOYED (2026-06-15) — live resources
 - **Lambda:** `socialMediaAudit` (python3.13, timeout **900** [was 180; bumped for the cron poll loop], mem 256), role `socialMediaAudit-role` (AWSLambdaBasicExecutionRole + inline `sma-dynamodb`). Env: `APIFY_TOKEN`, `CLAUDE_API_KEY`, `DATAFORSEO_AUTH`, `META_ACCESS_TOKEN`, `CRON_MAX_WAIT_SECS`.
 - **DynamoDB:** `sma_jobs` (PK jobId, TTL on `ttl`), `sma_snapshots` (PK brand_platform, SK ts).

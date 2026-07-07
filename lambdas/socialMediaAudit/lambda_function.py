@@ -35,6 +35,7 @@ import statistics
 from decimal import Decimal
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
+from urllib.parse import quote, urlencode
 
 import requests
 import boto3
@@ -1254,6 +1255,42 @@ def _post_type(p):
     return 'image'
 
 
+# Per-post metric fields carried through to the grid when a source provides them
+# (owner-only insights like reach/interactions). Public scrapes omit these, so
+# they stay optional rather than emitting null noise.
+_GRID_POST_EXTRA = ('reach', 'impressions', 'interactions', 'reactions',
+                    'reactions_by_type', 'shares', 'saves', 'interaction_rate',
+                    'engagement_rate')
+
+
+def _grid_post(p, followers=None):
+    """Compact post for the visual grid: base display fields plus any per-post
+    metric fields actually present on the source post.
+
+    When no reach-based rate (interaction_rate) is available for a post — the
+    common case, since public scrapes carry no reach and Meta's per-post reach
+    is owner-only + short-lived — derive a follower-based engagement_rate from
+    the public interaction counts so EVERY post shows a comparable %. Marked
+    engagement_rate_basis='followers' so the client can label it accurately
+    (vs. the reach-based interaction_rate, which always wins when present)."""
+    out = {'image': p.get('image', ''), 'url': p.get('url', ''),
+           'text': p.get('text', ''), 'type': p['type'],
+           'likes': p['likes'], 'comments': p['comments'], 'views': p['views'],
+           'ts': p.get('ts')}
+    for k in _GRID_POST_EXTRA:
+        v = p.get(k)
+        if v is not None:
+            out[k] = v
+    if (followers and out.get('interaction_rate') is None
+            and out.get('engagement_rate') is None):
+        signals = [p.get(k) for k in ('likes', 'comments', 'shares', 'saves')]
+        if any(v is not None for v in signals):
+            eng = sum(v for v in signals if v is not None)
+            out['engagement_rate'] = round(eng / followers * 100, 2)
+            out['engagement_rate_basis'] = 'followers'
+    return out
+
+
 def _metrics_from(followers, following, verified, bio, link, category, pfp, posts):
     likes    = [p['likes'] for p in posts if p['likes'] is not None]
     comments = [p['comments'] for p in posts if p['comments'] is not None]
@@ -1309,10 +1346,7 @@ def _metrics_from(followers, following, verified, bio, link, category, pfp, post
         'post_sample': len(posts), 'top_posts': top_posts,
         # full post list for the visual grid — most-recent first, bounded for payload size
         'posts': [
-            {'image': p.get('image', ''), 'url': p.get('url', ''),
-             'text': p.get('text', ''), 'type': p['type'],
-             'likes': p['likes'], 'comments': p['comments'], 'views': p['views'],
-             'ts': p.get('ts')}
+            _grid_post(p, followers)
             for p in sorted(posts, key=lambda p: _to_epoch(p.get('ts')) or 0, reverse=True)[:MAX_GRID_POSTS]
         ],
         # raw content for the creative/style audit (not surfaced in platform cards)
@@ -2082,11 +2116,47 @@ def _dec(obj):
         return int(obj) if obj == obj.to_integral_value() else float(obj)
     return obj
 
+_EMAIL_RE = re.compile(r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}')
+
+def _clean_who(val):
+    """Normalise a user identifier to a short, plain string that is always safe to
+    store as created_by / updated_by.
+
+    index.html has historically shipped `currentUser.email` re-JSON-stringified on
+    every round-trip, so it arrives wrapped in compounding quote/backslash escaping
+    (e.g. '"\\"kenneth@mediaone.co\\""') and can balloon to ~2MB. Written verbatim
+    into a project item it single-handedly exceeds DynamoDB's 400KB item limit
+    (PutItem -> ValidationException "Item size has exceeded the maximum allowed
+    size"), which is what blocked new settings attributes like reportHiddenSegments
+    from ever persisting — the item's own history was never the problem. Pull out the
+    real email if there is one, otherwise strip escaping, and hard-cap the length so
+    no identifier can bloat an item regardless of what the client sends."""
+    if not isinstance(val, str):
+        val = str(val or '')
+    # Peel accidental JSON re-stringification: '"\"a@b\""' -> '"a@b"' -> 'a@b'.
+    for _ in range(8):
+        s = val.strip()
+        if len(s) >= 2 and s[0] == '"' and s[-1] == '"':
+            try:
+                nxt = json.loads(s)
+            except ValueError:
+                break
+            if isinstance(nxt, str) and nxt != val:
+                val = nxt
+                continue
+        break
+    m = _EMAIL_RE.search(val)
+    if m:
+        return m.group(0)[:320]
+    return val.strip().strip('"\\ ')[:320] or 'unknown'
+
 def _who(body):
     u = body.get('currentUser') or {}
     if isinstance(u, dict):
-        return (u.get('email') or u.get('name') or body.get('userEmail') or 'unknown')
-    return str(u or body.get('userEmail') or 'unknown')
+        raw = (u.get('email') or u.get('name') or body.get('userEmail') or 'unknown')
+    else:
+        raw = (u or body.get('userEmail') or 'unknown')
+    return _clean_who(raw)
 
 def report_list_projects(body):
     """All projects, lightweight (no full scorecards) — for the projects grid."""
@@ -2143,9 +2213,14 @@ def report_save_project(body):
         # Competitor scrape cadence: 'daily' (default) | 'weekly' | 'off' — the main
         # Apify cost lever now that owned platforms pull natively for free.
         'competitor_cadence': data.get('competitor_cadence') if data.get('competitor_cadence') is not None else existing.get('competitor_cadence', 'daily'),
+        # Report-only hide-list: tag segments the user chose to omit from the monthly
+        # report (see index.html setReportHiddenSegments / reportHTML). Stored as a
+        # HIDE-list so any new segment shows by default.
+        'reportHiddenSegments': data.get('reportHiddenSegments') if data.get('reportHiddenSegments') is not None else existing.get('reportHiddenSegments', []),
         'months':      existing.get('months', []),
         'created':     existing.get('created') or now,
-        'created_by':  existing.get('created_by') or who,
+        # Clean any legacy escaped/oversized identifier already on the record.
+        'created_by':  _clean_who(existing.get('created_by')) if existing.get('created_by') else who,
         'updated':     now,
         'updated_by':  who,
     }
@@ -3749,10 +3824,52 @@ def _cron_apify_scorecard(proj, month, skip=None, include_competitors=True):
     return {}
 
 
+_POST_FILL_KEYS = ('image', 'reach', 'impressions', 'interactions', 'reactions',
+                   'reactions_by_type', 'shares', 'comments', 'likes', 'views',
+                   'saves', 'interaction_rate', 'engagement_rate', 'engagement_rate_basis')
+
+
+def _merge_posts(existing, incoming):
+    """Merge a private-insights post list into an existing grid, keeping the best
+    of both. Whichever set has MORE thumbnails becomes the base (so a pre-image
+    legacy/private capture is upgraded to the imaged one, while a richer public
+    Apify grid is preserved); the other set then donates any per-post metric the
+    base is missing (e.g. reach, which the imaged pull may not return for an old
+    month). Posts are matched by timestamp first, then URL — permalink formats
+    differ between captures, but created_time is stable for the same post."""
+    existing = existing or []
+    incoming = incoming or []
+    if not incoming:
+        return existing
+    if not existing:
+        return incoming
+    ex_imgs = sum(1 for p in existing if p.get('image'))
+    in_imgs = sum(1 for p in incoming if p.get('image'))
+    base, donor = (incoming, existing) if in_imgs > ex_imgs else (existing, incoming)
+    d_by_ts, d_by_url = {}, {}
+    for p in donor:
+        k = _to_epoch(p.get('ts'))
+        if k is not None:
+            d_by_ts.setdefault(k, p)
+        u = p.get('url')
+        if u:
+            d_by_url.setdefault(u, p)
+    for p in base:
+        src = d_by_url.get(p.get('url')) or d_by_ts.get(_to_epoch(p.get('ts')))
+        if not src:
+            continue
+        for k in _POST_FILL_KEYS:
+            cur = p.get(k)
+            if (cur is None or cur == '') and src.get(k) not in (None, ''):
+                p[k] = src[k]
+    return base
+
+
 def _merge_meta_platforms(sc, meta_platforms):
     """Overlay Meta's private metrics onto the scorecard. For a platform already
     present (Apify-scraped IG/FB), the private fields are merged in at the field
-    level so the post grid + public counts from Apify are preserved."""
+    level; post grids are merged so private thumbnails/metrics backfill an
+    existing grid without discarding Apify's public counts."""
     sc = sc or {}
     if not meta_platforms:
         return sc
@@ -3764,7 +3881,10 @@ def _merge_meta_platforms(sc, meta_platforms):
             continue
         if plat in by:
             for k, v in mp.items():
-                if k in ('platform', 'posts') or v is None:
+                if k == 'platform' or v is None:
+                    continue
+                if k == 'posts':
+                    by[plat]['posts'] = _merge_posts(by[plat].get('posts'), v)
                     continue
                 by[plat][k] = v
         else:
@@ -4047,57 +4167,198 @@ def _meta_in_window(rows, since, until):
     return out
 
 
+def _meta_ig_post_metrics(media_id, token):
+    """Per-post reach + saves (+ shares, total interactions) for one IG media,
+    via a single insights call. All optional enrichments — any failure just
+    leaves them blank. Metrics are requested most-complete-first, falling back
+    so an unsupported metric on a given media type (e.g. shares on a static
+    image) can't blank the whole call. Mirrors _meta_fb_post_metrics for FB."""
+    if not media_id:
+        return {}
+    out = {}
+    # `views` (post-Jul-2024 replacement for the deprecated per-media impressions)
+    # is requested in the leading tiers; the tail tiers drop it so a media type
+    # that rejects `views` still yields reach/saves rather than blanking the call.
+    for metrics in ('reach,saved,shares,total_interactions,views',
+                    'reach,saved,total_interactions,views',
+                    'reach,saved,views', 'reach,views',
+                    'reach,saved,shares,total_interactions',
+                    'reach,saved,total_interactions',
+                    'reach,saved', 'reach'):
+        try:
+            rows = (_meta_get('/' + media_id + '/insights',
+                              {'metric': metrics, 'access_token': token}).get('data') or [])
+        except Exception:
+            continue
+        for r in rows:
+            vals = r.get('values') or []
+            val = vals[0].get('value') if vals else (r.get('total_value') or {}).get('value')
+            n = _num(val)
+            if n is None:
+                continue
+            name = r.get('name')
+            if name == 'reach':
+                out['reach'] = n
+            elif name == 'saved':
+                out['saves'] = n
+            elif name == 'shares':
+                out['shares'] = n
+            elif name == 'total_interactions':
+                out['interactions'] = n
+            elif name == 'views':
+                out['views'] = n
+        if out:
+            break
+    return out
+
+
 def _meta_ig_posts(ig_id, token, since, until):
     """This month's Instagram posts in the internal post shape (for the grid +
-    post-derived metrics). Needs instagram_basic."""
+    post-derived metrics). Needs instagram_basic; per-post reach/saves/shares
+    need instagram_manage_insights."""
     try:
         rows = _meta_get('/' + ig_id + '/media', {
-            'fields': 'caption,media_type,media_product_type,media_url,thumbnail_url,'
+            'fields': 'id,caption,media_type,media_product_type,media_url,thumbnail_url,'
                       'permalink,like_count,comments_count,timestamp',
             'since': since, 'until': until, 'limit': 50, 'access_token': token}).get('data') or []
     except Exception:
         return []
+    # Per-post reach + saves each need one insights call; fetch them concurrently
+    # so a full month of posts doesn't serialise into a slow pull (mirrors FB).
+    ids = [m.get('id') for m in rows if m.get('id')]
+    met_by_id = {}
+    if ids:
+        try:
+            with ThreadPoolExecutor(max_workers=min(8, len(ids))) as ex:
+                for mid, res in zip(ids, ex.map(lambda i: _meta_ig_post_metrics(i, token), ids)):
+                    met_by_id[mid] = res or {}
+        except Exception:
+            met_by_id = {}
     out = []
     for m in rows:
         mt = (m.get('media_type') or '').upper()
         pt = (m.get('media_product_type') or '').upper()
         typ = 'video' if (mt == 'VIDEO' or pt == 'REELS') else ('carousel' if mt == 'CAROUSEL_ALBUM' else 'image')
         text = m.get('caption') or ''
-        out.append({
+        met = met_by_id.get(m.get('id')) or {}
+        reach = met.get('reach')
+        interactions = met.get('interactions')
+        rec = {
             'ts': m.get('timestamp'), 'likes': _num(m.get('like_count')),
-            'comments': _num(m.get('comments_count')), 'shares': None, 'views': None,
+            'comments': _num(m.get('comments_count')),
+            'shares': met.get('shares'), 'views': met.get('views'),
+            'reach': reach, 'saves': met.get('saves'), 'interactions': interactions,
             'type': typ, 'hashtags': re.findall(r'#(\w+)', text),
             'text': ' '.join(text.split())[:160], 'caption': ' '.join(text.split())[:400],
             'image': m.get('thumbnail_url') or m.get('media_url') or '',
-            'url': m.get('permalink') or ''})
+            'url': m.get('permalink') or ''}
+        if reach and interactions is not None:
+            rec['interaction_rate'] = round(interactions / reach * 100, 2)
+        out.append(rec)
     return _meta_in_window(out, since, until)
+
+
+# Meta names two reactions oddly vs. the rest of the product ("sorry" = Sad,
+# "anger" = Angry) — normalise to the labels the report/frontend expect.
+_FB_REACTION_ALIAS = {'sorry': 'sad', 'anger': 'angry'}
+
+
+def _meta_fb_post_metrics(post_id, token):
+    """Per-post unique reach + reaction-type breakdown + video views for one Page
+    post. Returns a dict {reach, reactions_by_type, views} — all optional
+    enrichments, so any failure just leaves them blank. post_video_views is
+    requested first; if that metric is rejected (e.g. a non-video post) the call
+    is retried without it so reach + reactions still come back."""
+    if not post_id:
+        return {}
+    out = {}
+    for metric in ('post_impressions_unique,post_reactions_by_type_total,post_video_views',
+                   'post_impressions_unique,post_reactions_by_type_total'):
+        try:
+            rows = (_meta_get('/' + post_id + '/insights',
+                              {'metric': metric, 'access_token': token}).get('data') or [])
+        except Exception:
+            continue
+        for r in rows:
+            name = r.get('name')
+            vals = r.get('values') or []
+            if not vals:
+                continue
+            val = vals[0].get('value')
+            if name == 'post_impressions_unique':
+                out['reach'] = _num(val)
+            elif name == 'post_video_views':
+                n = _num(val)
+                if n:
+                    out['views'] = n
+            elif name == 'post_reactions_by_type_total' and isinstance(val, dict):
+                clean = {}
+                for k, v in val.items():
+                    n = _num(v)
+                    if n:
+                        key = _FB_REACTION_ALIAS.get(str(k).lower(), str(k).lower())
+                        clean[key] = clean.get(key, 0) + n
+                if clean:
+                    out['reactions_by_type'] = clean
+        if out:
+            break
+    return out
 
 
 def _meta_fb_posts(page_id, token, since, until):
     """This month's Facebook Page posts in the internal post shape. Needs
-    pages_read_engagement + pages_read_user_content."""
+    pages_read_engagement + pages_read_user_content. Carries the post thumbnail
+    (full_picture, falling back to the first attachment image) plus per-post
+    reach / interactions so the grid matches the report's FB metric set."""
     try:
         rows = _meta_get('/' + page_id + '/posts', {
-            'fields': 'message,created_time,permalink_url,full_picture,status_type,'
-                      'attachments{media_type},likes.summary(true).limit(0),'
+            'fields': 'id,message,created_time,permalink_url,full_picture,status_type,'
+                      'attachments{media_type,media{image{src}}},likes.summary(true).limit(0),'
                       'comments.summary(true).limit(0),shares',
             'since': since, 'until': until, 'limit': 50, 'access_token': token}).get('data') or []
     except Exception:
         return []
+    # Per-post reach + reaction breakdown need one insights call each; fetch them
+    # concurrently so a full month of posts doesn't serialise into a slow pull.
+    ids = [p.get('id') for p in rows if p.get('id')]
+    met_by_id = {}
+    if ids:
+        try:
+            with ThreadPoolExecutor(max_workers=min(8, len(ids))) as ex:
+                for pid, res in zip(ids, ex.map(lambda i: _meta_fb_post_metrics(i, token), ids)):
+                    met_by_id[pid] = res or {}
+        except Exception:
+            met_by_id = {}
     out = []
     for p in rows:
         att = (((p.get('attachments') or {}).get('data') or [{}]) or [{}])[0]
         mt = (att.get('media_type') or p.get('status_type') or '').lower()
         typ = 'video' if 'video' in mt else ('carousel' if ('album' in mt or 'carousel' in mt) else 'image')
         text = p.get('message') or ''
-        out.append({
+        # full_picture covers most posts; fall back to the first attachment's image
+        # (e.g. some video/link posts) so the grid thumbnail isn't left blank.
+        image = p.get('full_picture') or (((att.get('media') or {}).get('image') or {}).get('src')) or ''
+        likes = _num((((p.get('likes') or {}).get('summary') or {}).get('total_count')))
+        comments = _num((((p.get('comments') or {}).get('summary') or {}).get('total_count')))
+        shares = _num((p.get('shares') or {}).get('count'))
+        parts = [x for x in (likes, comments, shares) if x is not None]
+        interactions = sum(parts) if parts else None
+        met = met_by_id.get(p.get('id')) or {}
+        reach = met.get('reach')
+        rec = {
             'ts': p.get('created_time'),
-            'likes': _num((((p.get('likes') or {}).get('summary') or {}).get('total_count'))),
-            'comments': _num((((p.get('comments') or {}).get('summary') or {}).get('total_count'))),
-            'shares': _num((p.get('shares') or {}).get('count')), 'views': None,
+            'likes': likes, 'reactions': likes,
+            'comments': comments, 'shares': shares, 'views': met.get('views'),
+            'reach': reach, 'interactions': interactions,
             'type': typ, 'hashtags': re.findall(r'#(\w+)', text),
             'text': ' '.join(text.split())[:160], 'caption': ' '.join(text.split())[:400],
-            'image': p.get('full_picture') or '', 'url': p.get('permalink_url') or ''})
+            'image': image, 'url': p.get('permalink_url') or ''}
+        rbt = met.get('reactions_by_type')
+        if rbt:
+            rec['reactions_by_type'] = rbt
+        if reach and interactions is not None:
+            rec['interaction_rate'] = round(interactions / reach * 100, 2)
+        out.append(rec)
     return _meta_in_window(out, since, until)
 
 
@@ -4116,6 +4377,18 @@ def _meta_card(platform, posts, insights):
             v = d.get(k)
             if v is not None:
                 card[k] = v
+        # Sum any per-post reaction-type breakdowns into a card-level total so the
+        # report's Reactions chart can render (FB only — IG posts don't carry this).
+        agg = {}
+        for p in posts:
+            rbt = p.get('reactions_by_type')
+            if isinstance(rbt, dict):
+                for k, v in rbt.items():
+                    n = _num(v)
+                    if n:
+                        agg[k] = agg.get(k, 0) + n
+        if agg:
+            card['reactions_by_type'] = agg
     card.update(insights)
     return card
 
@@ -4166,14 +4439,36 @@ def _cron_meta_platforms(proj, month):
 # Meta (one global system token), LinkedIn org stats need a member token, so we
 # read it from proj['connections']['linkedin']. Cards match _meta_card's shape.
 # ──────────────────────────────────────────────────────────────────────────────
-def _li_get(path, token, params=None):
-    r = requests.get(LINKEDIN_API + path, params=params or {}, timeout=25, headers={
+def _li_get(path, token, params=None, raw=None):
+    params = dict(params or {})
+    # LinkedIn's Rest.li 2.0 parser needs the `timeIntervals` value's parens/colons
+    # LITERAL. requests would percent-encode them, which the API rejects as a syntax
+    # error (PARAM_INVALID) — so append it raw and let requests encode the rest.
+    # `raw` carries the same treatment for other Rest.li facets whose value is a
+    # List(...)/tuple the caller has already encoded (e.g. shares/ugcPosts facets).
+    ti = params.pop('timeIntervals', None)
+    url = LINKEDIN_API + path
+    if params:
+        url += '?' + urlencode(params)
+    if ti is not None:
+        url += ('&' if '?' in url else '?') + 'timeIntervals=' + ti
+    for _rk, _rv in (raw or {}).items():
+        url += ('&' if '?' in url else '?') + _rk + '=' + _rv
+    r = requests.get(url, timeout=25, headers={
         'Authorization': 'Bearer ' + token,
         'LinkedIn-Version': LINKEDIN_API_VERSION,
         'X-Restli-Protocol-Version': '2.0.0'})
     j = r.json() if r.content else {}
-    if isinstance(j, dict) and (j.get('serviceErrorCode') or (j.get('status') and int(j['status']) >= 400)):
-        raise RuntimeError(j.get('message') or j.get('error_description') or f'LinkedIn API {r.status_code}')
+    # Only a NUMERIC status ≥ 400 signals an error. Some payloads (e.g. the Images
+    # API) carry a non-numeric `status` like "AVAILABLE"; int()-ing that would throw
+    # and be mistaken for a failed call, blanking resolved thumbnails.
+    if isinstance(j, dict):
+        code = j.get('status')
+        http_err = isinstance(code, int) and code >= 400
+        if not http_err and isinstance(code, str) and code.isdigit():
+            http_err = int(code) >= 400
+        if j.get('serviceErrorCode') or http_err:
+            raise RuntimeError(j.get('message') or j.get('error_description') or f'LinkedIn API {r.status_code}')
     return j
 
 
@@ -4290,29 +4585,170 @@ def _li_follower_gains(oid, token, since_ms, until_ms):
     return {'followers_increase': total, 'net_new_followers': total, 'followers_growth_30d': total}
 
 
-def _li_posts(oid, token, since, until):
-    """Best-effort post grid for the month. Per-post engagement isn't fetched
-    (would cost one socialActions call each); aggregate engagement comes from
-    share statistics. Degrades to [] if r_organization_social isn't granted."""
+def _li_image_url(urn, token, _cache):
+    """Resolve a urn:li:image:… to a displayable media.licdn.com download URL
+    (cached per pull to avoid re-fetching a repeated asset). '' on any failure
+    or for non-image URNs (e.g. video), which fall back to a placeholder."""
+    if not urn or not isinstance(urn, str) or ':image:' not in urn:
+        return ''
+    if urn in _cache:
+        return _cache[urn]
+    url = ''
     try:
-        els = _li_get('/posts', token, {'q': 'author',
-                                        'author': 'urn:li:organization:' + oid,
-                                        'count': 25}).get('elements') or []
+        d = _li_get('/images/' + quote(urn, safe=''), token) or {}
+        url = d.get('downloadUrl') or ''
     except Exception:
-        return []
-    out = []
-    for p in els:
-        created = p.get('createdAt') or p.get('publishedAt') or p.get('firstPublishedAt')
-        e = _to_epoch(created)
-        if e is not None and not (since <= e < until):
+        url = ''
+    _cache[urn] = url
+    return url
+
+
+def _li_content_media(content, token, _cache):
+    """(image_url, type) from a Posts API `content` object across its shapes:
+    single media (image/video), multiImage carousel, and shared article."""
+    if not isinstance(content, dict):
+        return '', 'image'
+    media = content.get('media')
+    if isinstance(media, dict):
+        mid = media.get('id') or ''
+        typ = 'video' if isinstance(mid, str) and ':video:' in mid else 'image'
+        return _li_image_url(media.get('id') or media.get('thumbnail'), token, _cache), typ
+    multi = content.get('multiImage')
+    if isinstance(multi, dict):
+        for im in (multi.get('images') or []):
+            u = _li_image_url((im or {}).get('id'), token, _cache)
+            if u:
+                return u, 'carousel'
+        return '', 'carousel'
+    art = content.get('article')
+    if isinstance(art, dict):
+        return _li_image_url(art.get('thumbnail'), token, _cache), 'image'
+    return '', 'image'
+
+
+def _li_post_stats(oid, token, post_ids):
+    """Best-effort PER-POST LinkedIn statistics (impressions, reach, reactions,
+    comments, shares, interaction rate) via organizationalEntityShareStatistics
+    with a shares/ugcPosts facet — the one platform where per-post impressions
+    are cleanly available. Returns {post_urn: {...}}. Needs org-admin scope
+    (rw_organization_admin); per-share stats are LIFETIME (LinkedIn rejects a
+    timeIntervals filter alongside a specific-share facet). Any failure / missing
+    scope → {} so posts keep their existing (blank) values. Batched ≤20/URN type.
+
+    NOTE: per-share facet encoding needs live verification against a real org-admin
+    token; it's fully wrapped so a wrong shape simply yields no enrichment."""
+    if not post_ids:
+        return {}
+    oe = 'urn:li:organization:' + oid
+    buckets = {'shares': [], 'ugcPosts': []}
+    for pid in post_ids:
+        if not isinstance(pid, str):
             continue
+        if ':share:' in pid:
+            buckets['shares'].append(pid)
+        elif ':ugcPost:' in pid:
+            buckets['ugcPosts'].append(pid)
+    out = {}
+    for facet, urns in buckets.items():
+        for i in range(0, len(urns), 20):
+            chunk = urns[i:i + 20]
+            raw = {facet: 'List(' + ','.join(quote(u, safe='') for u in chunk) + ')'}
+            try:
+                els = _li_get('/organizationalEntityShareStatistics', token,
+                              {'q': 'organizationalEntity', 'organizationalEntity': oe},
+                              raw=raw).get('elements') or []
+            except Exception:
+                continue
+            for e in els:
+                urn = e.get('share') or e.get('ugcPost')
+                t = e.get('totalShareStatistics') or {}
+                if not urn or not t:
+                    continue
+                impr = _num(t.get('impressionCount'))
+                uniq = _num(t.get('uniqueImpressionsCount'))
+                likes = _num(t.get('likeCount')) or 0
+                comments = _num(t.get('commentCount')) or 0
+                shares = _num(t.get('shareCount')) or 0
+                rec = {'likes': likes, 'reactions': likes,
+                       'comments': comments, 'shares': shares}
+                if impr:
+                    rec['impressions'] = impr
+                if uniq:
+                    rec['reach'] = uniq
+                inter = likes + comments + shares
+                rec['interactions'] = inter
+                denom = impr or uniq           # LinkedIn rate ÷ impressions (else reach)
+                if denom:
+                    rec['interaction_rate'] = round(inter / denom * 100, 2)
+                out[urn] = rec
+    return out
+
+
+def _li_posts(oid, token, since, until):
+    """Post grid for a month. The /posts finder returns newest-first, so past
+    months lie beyond the first page — paginate (offset) until we've passed the
+    window's start (or hit a page cap), then keep only posts in [since,until).
+    Per-post engagement (impressions/reach/reactions/rate) is enriched from
+    _li_post_stats where the org-admin scope allows; aggregate engagement still
+    comes from share statistics. Thumbnails are resolved from each in-window
+    post's media URN. Degrades to [] if r_organization_social isn't granted."""
+    au = 'urn:li:organization:' + oid
+    def _created(p):
+        return p.get('createdAt') or p.get('publishedAt') or p.get('firstPublishedAt')
+    els, seen, start, PAGE, MAX = [], set(), 0, 50, 250
+    try:
+        while start < MAX:
+            j = _li_get('/posts', token, {'q': 'author', 'author': au,
+                                          'count': PAGE, 'start': start})
+            page = j.get('elements') or []
+            if not page:
+                break
+            for p in page:
+                pid = p.get('id')
+                if pid and pid in seen:
+                    continue
+                if pid:
+                    seen.add(pid)
+                els.append(p)
+            epochs = [_to_epoch(_created(p)) or 0 for p in page]
+            total = (j.get('paging') or {}).get('total')
+            start += PAGE
+            # newest-first: once a page's oldest post predates the window, stop.
+            if (epochs and min(epochs) < since) or (total is not None and start >= total):
+                break
+    except Exception:
+        if not els:
+            return []
+    # Keep in-window posts, then enrich them with per-post statistics in one
+    # batched call (best-effort — leaves values blank if the scope is missing).
+    inwin = []
+    for p in els:
+        e = _to_epoch(_created(p))
+        if e is None or (since <= e < until):
+            inwin.append(p)
+    try:
+        stats = _li_post_stats(oid, token, [p.get('id') for p in inwin if p.get('id')])
+    except Exception:
+        stats = {}
+    out, img_cache = [], {}
+    for p in inwin:
         text = p.get('commentary') if isinstance(p.get('commentary'), str) else ''
         text = text or ''
-        out.append({
-            'ts': created, 'likes': None, 'comments': None, 'shares': None, 'views': None,
-            'type': 'image', 'hashtags': re.findall(r'#(\w+)', text),
+        image, typ = _li_content_media(p.get('content'), token, img_cache)
+        pid = p.get('id') or ''
+        url = ('https://www.linkedin.com/feed/update/' + pid) if pid else ''
+        st = stats.get(pid) or {}
+        rec = {
+            'ts': _created(p),
+            'likes': st.get('likes'), 'comments': st.get('comments'),
+            'shares': st.get('shares'), 'views': None,
+            'type': typ, 'hashtags': re.findall(r'#(\w+)', text),
             'text': ' '.join(text.split())[:160], 'caption': ' '.join(text.split())[:400],
-            'image': '', 'url': ''})
+            'image': image, 'url': url}
+        for k in ('impressions', 'reach', 'reactions', 'interactions', 'interaction_rate'):
+            if st.get(k) is not None:
+                rec[k] = st[k]
+        out.append(rec)
     return out
 
 
@@ -4454,11 +4890,19 @@ def _cron_linkedin_platforms(proj, month):
     org = _li_resolve_org(proj, token)
     if not org:
         raise RuntimeError('LinkedIn connected but no admin company page matched this handle.')
-    insights = _li_insights(org['id'], token, month)
-    if not insights:
-        return []
     since, until = _meta_month_range(month)
-    card = _meta_card('linkedin', _li_posts(org['id'], token, since, until), insights)
+    # Share/follower/page statistics only cover ~the last 12 months; older months
+    # make LinkedIn reject the timeIntervals ("Invalid param"). Don't let that sink
+    # the whole pull — the /posts finder has full history, so we can still backfill
+    # the post grid (thumbnails) even when the period's stats are unavailable.
+    try:
+        insights = _li_insights(org['id'], token, month)
+    except Exception:
+        insights = {}
+    posts = _li_posts(org['id'], token, since, until)
+    if not insights and not posts:
+        return []
+    card = _meta_card('linkedin', posts, insights)
     if org.get('name'):
         card['account_name'] = org['name']
     return [card]
