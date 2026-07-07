@@ -3045,12 +3045,15 @@
             document.getElementById('jobUrl').value = '';
             document.getElementById('jobDesc').value = '';
             document.getElementById('jobKpi').value = '';
+            // Placeholder starter criteria (BD/sales sample). Flagged isSeed so that
+            // "Generate AI Criteria" replaces them with role-relevant ones instead of
+            // pinning these above the AI output.
             state.jobCriteria = [
-                { text: "Sales experience of at least 1 year", weight: 20 },
-                { text: "Sales experience in tech or digital marketing or media", weight: 20 },
-                { text: "Has worked in an agency or publishing company", weight: 20 },
-                { text: "Has done cold calls and cold outreach", weight: 20 },
-                { text: "Indicated has hit/exceeded sales targets consistently", weight: 20 }
+                { text: "Sales experience of at least 1 year", weight: 20, isSeed: true },
+                { text: "Sales experience in tech or digital marketing or media", weight: 20, isSeed: true },
+                { text: "Has worked in an agency or publishing company", weight: 20, isSeed: true },
+                { text: "Has done cold calls and cold outreach", weight: 20, isSeed: true },
+                { text: "Indicated has hit/exceeded sales targets consistently", weight: 20, isSeed: true }
             ];
             state.jobQuestions = [];
             renderJobQuestions();
@@ -3272,7 +3275,9 @@
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
 
             try {
-                const existingCriteria = (state.jobCriteria || []).map(c => c.text).join(", ");
+                // Only real (user-kept) criteria count as "existing" — placeholder seed
+                // criteria must not steer the AI toward complementing a BD/sales role.
+                const existingCriteria = (state.jobCriteria || []).filter(c => !c.isSeed).map(c => c.text).join(", ");
                 const prompt = `Based on the following Job Description and KPIs for the role of "${title}", suggest 4-6 highly relevant evaluation criteria for AI candidate scoring.
                 
                 ${existingCriteria ? `CURRENT CRITERIA ALREADY DEFINED: ${existingCriteria}. Please suggest COMPLEMENTARY criteria that are not already covered.` : ''}
@@ -3339,7 +3344,10 @@
                         weight: parseInt(c.weight) || 10,
                         isAi: true
                     }));
-                    state.jobCriteria = [...state.jobCriteria, ...newCriteria];
+                    // Discard untouched placeholder seed criteria so AI output isn't
+                    // pinned below the sample BD/sales rows; keep anything the user added/edited.
+                    const kept = state.jobCriteria.filter(c => !c.isSeed);
+                    state.jobCriteria = [...kept, ...newCriteria];
                     rebalanceWeights();
                     renderJobCriteria();
                 } else {
@@ -3466,6 +3474,9 @@
             if (field === 'weight') value = parseInt(value) || 0;
             if (state.jobCriteria[idx][field] === value) return;
             state.jobCriteria[idx][field] = value;
+            // Once the user edits a placeholder seed row, treat it as a real criterion
+            // so it survives a subsequent "Generate AI Criteria".
+            if (field === 'text') delete state.jobCriteria[idx].isSeed;
             if (field === 'weight') updateCriteriaTotal();
         }
 
