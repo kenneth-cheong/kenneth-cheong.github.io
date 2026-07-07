@@ -2304,6 +2304,7 @@
             campaignSort: 'priority_desc',
             filters: { text: '', people: new Set(), csManagers: new Set(), status: 'all', hiddenCsmStatuses: new Set(['Abandoned', 'Completed', 'Expired', 'Terminated', '[PSG]  Expired']) },
             selectedItemIds: new Set(),
+            chatScopeToSelection: false, // true while "Ask AI about selected" scopes the chat to selectedItemIds
             excludedStatusLabels: new Set([
                 'Archive', 'Done', 'Not Needed', 'Not Needed (AI)',
                 '[MO] Done', '[MO] Not Needed'
@@ -4269,11 +4270,29 @@
         }
 
         function askAIHygiene() {
+            state.chatScopeToSelection = false; // this flow builds hygiene context, not selection context
             const panel = document.getElementById('chat-panel');
             if (panel && !panel.classList.contains('open')) toggleChat();
             const input = document.getElementById('chat-input');
             if (!input) return;
             input.value = 'Using the campaign hygiene data, give me a prioritized shortlist of which boards to fix first this week. For each, name the owner (CSM), what specifically is wrong (lapsed vs blank, how long untouched), and a one-line recommended action.';
+            sendChatMessage();
+        }
+
+        // Open the AI Analyst scoped to just the checkbox-selected campaigns. The
+        // scope stays active for follow-up questions until the selection is cleared,
+        // so buildChatContext() keeps feeding the assistant only these items.
+        function askAISelected() {
+            const n = state.selectedItemIds.size;
+            if (!n) return;
+            state.chatScopeToSelection = true;
+            const panel = document.getElementById('chat-panel');
+            if (panel && !panel.classList.contains('open')) toggleChat();
+            const input = document.getElementById('chat-input');
+            if (!input) return;
+            input.value = n === 1
+                ? 'Give me a status summary of this selected campaign — deadline health, any blockers, and what needs attention next.'
+                : `Compare these ${n} selected campaigns — which need attention first and why? Call out overdue items, blockers, and the single most urgent next action for each.`;
             sendChatMessage();
         }
 
@@ -5671,6 +5690,7 @@
 
         function clearSelection() {
             state.selectedItemIds.clear();
+            state.chatScopeToSelection = false; // back to whole-screen chat context
             updateBulkBar();
             updateFilteredUI();
         }
@@ -6180,6 +6200,7 @@
                 panel.classList.remove('expanded');
                 resizer.style.display = '';
                 document.getElementById('chat-expand-btn').innerHTML = '<i class="fas fa-expand"></i>';
+                state.chatScopeToSelection = false; // closing ends the "ask about selected" session
             }
             document.getElementById('quick-prompts-modal').classList.remove('open');
         }
@@ -6232,7 +6253,41 @@
             document.removeEventListener('mouseup', stopChatResize);
         }
 
+        // Shared shape for a single campaign item passed to the assistant. Kept in
+        // one place so the view-scoped and selection-scoped branches never drift.
+        function _chatItemShape(i) {
+            return {
+                campaign: i.name,
+                board: i.bName,
+                assignedTo: i.people,
+                csManager: i.csManagers,
+                itemStatus: i.itemStatus,
+                masterStatus: i.masterStatus,
+                deadline: i.deadlineDisplay,
+                daysOverdue: i.daysOverdue,
+                techSummary: i.masterTechSummary || '',
+                priorityScore: calcPriority(i),
+                priorityTier: getPriorityTier(calcPriority(i)).label
+            };
+        }
+
         function buildChatContext() {
+            // "Ask AI about selected" wins over any view-based context: the user has
+            // hand-picked exactly these campaigns, so scope the assistant to them.
+            if (state.chatScopeToSelection && state.selectedItemIds.size > 0) {
+                const sel = [...state.selectedItemIds]
+                    .map(id => state.auditedItems.find(i => i.id === id))
+                    .filter(Boolean);
+                const contextItems = sel.slice(0, 150).map(_chatItemShape);
+                return {
+                    viewMode: state.viewMode,
+                    focus: 'user-selected',
+                    totalSelectedItems: sel.length,
+                    itemsShownInContext: contextItems.length,
+                    items: contextItems
+                };
+            }
+
             // Hygiene view feeds the leaderboard instead of the audit item list.
             if (state.viewMode === 'hygiene' && state.hygiene.loaded) {
                 const otMap = hygieneOnTimeMap();
@@ -6265,19 +6320,7 @@
             }
 
             // If we have too many items, sample them to avoid token limit issues (max ~150 items)
-            const contextItems = filtered.slice(0, 150).map(i => ({
-                campaign: i.name,
-                board: i.bName,
-                assignedTo: i.people,
-                csManager: i.csManagers,
-                itemStatus: i.itemStatus,
-                masterStatus: i.masterStatus,
-                deadline: i.deadlineDisplay,
-                daysOverdue: i.daysOverdue,
-                techSummary: i.masterTechSummary || '',
-                priorityScore: calcPriority(i),
-                priorityTier: getPriorityTier(calcPriority(i)).label
-            }));
+            const contextItems = filtered.slice(0, 150).map(_chatItemShape);
 
             return {
                 viewMode: state.viewMode,
@@ -6306,6 +6349,10 @@
 
             const contextData = buildChatContext();
 
+            const focusNote = contextData.focus === 'user-selected'
+                ? `\n\nUSER-SELECTED FOCUS: The user hand-picked exactly these ${contextData.totalSelectedItems} campaign(s) to ask about. Focus your answer on them specifically and do not bring in other campaigns unless the user explicitly asks.`
+                : '';
+
             const system = `You are the Campaign Auditor AI Assistant, an expert analyst for a Monday.com-based campaign management system.
 
 You have two sources of data:
@@ -6319,7 +6366,7 @@ DATA SCOPING — IMPORTANT: The CURRENT VISIBLE CAMPAIGNS context has already be
 Present data clearly. Use markdown tables where appropriate.
 
 CURRENT VISIBLE CAMPAIGNS CONTEXT:
-${JSON.stringify(contextData)}`;
+${JSON.stringify(contextData)}${focusNote}`;
 
             chatHistory.push({ role: 'user', content: text });
 
@@ -6425,7 +6472,10 @@ ${JSON.stringify(contextData)}`;
     <div id="bulk-action-bar" class="bulk-action-bar">
         <i class="fas fa-check-square" style="color:var(--primary);"></i>
         <span id="bulk-count" style="font-weight:600; font-size:13px;"></span>
-        <button class="btn btn-primary" onclick="showBulkStatusDropdown(this)" style="padding:6px 14px; font-size:12px;">
+        <button class="btn btn-primary" onclick="askAISelected()" style="padding:6px 14px; font-size:12px;" title="Ask the AI Analyst about just the selected campaigns">
+            <i class="fas fa-robot" style="margin-right:6px;"></i>Ask AI
+        </button>
+        <button class="btn btn-secondary" onclick="showBulkStatusDropdown(this)" style="padding:6px 14px; font-size:12px;">
             <i class="fas fa-edit" style="margin-right:6px;"></i>Change Status
         </button>
         <button class="btn btn-secondary" onclick="showBulkAssigneeDropdown(this)" style="padding:6px 14px; font-size:12px; border-color: rgba(56,189,248,0.4); color:var(--primary);">
@@ -6871,15 +6921,27 @@ ${JSON.stringify(contextData)}`;
             return null;
         }
 
-        // Helper to check if an element exists & is visible
+        // Helper to check if an element exists AND is genuinely on-screen.
+        // NOTE: getComputedStyle alone is not enough — an element can have
+        // display:block itself yet sit inside a display:none ancestor (e.g. the
+        // whole #step-results panel before an audit runs). Driver.js would then
+        // "highlight" a zero-size region — i.e. nothing. getClientRects() returns
+        // an empty list whenever the element (or any ancestor) is display:none, so
+        // it reliably catches the hidden-panel case, while still returning a box
+        // for a rendered container even if its own width/height computes oddly and
+        // for visible position:fixed elements (the chat button). We still check
+        // visibility/opacity explicitly since those keep the element in the layout.
         function elementVisible(selector) {
             const el = document.querySelector(selector);
             if (!el) return false;
             const style = window.getComputedStyle(el);
-            return style.display !== 'none' && style.visibility !== 'hidden';
+            if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity || '1') === 0) return false;
+            return el.getClientRects().length > 0;
         }
 
-        // Filter steps based on which elements are currently visible
+        // Filter steps to only those whose target is actually visible, so a tour
+        // never stops on a step that highlights empty space. Element-free steps
+        // (centered popovers) always pass.
         function filterAvailableSteps(steps) {
             return steps.filter(s => !s.element || elementVisible(s.element));
         }
@@ -7041,13 +7103,34 @@ ${JSON.stringify(contextData)}`;
                 },
                 {
                     popover: {
-                        title: '🎯 My Focus',
-                        description: `<strong>Definition:</strong> A personal filter mode that shows ONLY campaigns where you are listed as a Person or CS Manager.<br><br>
-                        <strong>How to use:</strong><br>
-                        1. Select your name from the "You" dropdown<br>
-                        2. Click the "My Focus" button<br>
-                        3. View your campaigns sorted by Priority Score<br><br>
-                        Perfect for daily standup prep!`,
+                        title: '🎭 Persona Modes',
+                        description: `<strong>Definition:</strong> The three top-level modes that frame the whole dashboard by <em>whose</em> tasks you want to see.<br><br>
+                        • <strong>Consultant</strong> — one person's work (Portfolio + Worklist tabs).<br>
+                        • <strong>Team Lead</strong> — a chosen group of team members (By Staff tab).<br>
+                        • <strong>Client Success</strong> — everyone, org-wide (All Campaigns, Timeliness, Hygiene tabs).<br><br>
+                        Pick a mode in the header, then its sub-tabs appear beside it.`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '🙋 "You ▾" Selector',
+                        description: `<strong>Definition:</strong> The identity picker (top-right of the toolbar) that tells the tool who <em>you</em> are.<br><br>
+                        <strong>What it does:</strong><br>
+                        • Highlights your rows in every view.<br>
+                        • Scopes your <strong>Worklist</strong> to just your tasks.<br>
+                        • In <strong>Consultant</strong> mode, chooses whose <strong>Portfolio</strong> you're viewing — switch it to inspect another consultant.<br><br>
+                        This replaced the old "My Focus" button. Perfect for daily standup prep!`,
+                    }
+                },
+                {
+                    popover: {
+                        title: '💚 Success Signal',
+                        description: `<strong>Definition:</strong> A 0–100 health score shown per campaign in the <strong>Portfolio</strong> (Consultant mode).<br><br>
+                        <strong>How to read it:</strong><br>
+                        • <span style="color:#10b981">70+</span> = healthy<br>
+                        • <span style="color:#f59e0b">40–69</span> = watch<br>
+                        • <span style="color:#ef4444">Below 70</span> counts toward the "at-risk" tally<br><br>
+                        It blends overdue pressure, pending approvals, and keyword pacing into one at-a-glance number.`,
                     }
                 },
                 {
@@ -7238,9 +7321,20 @@ ${JSON.stringify(contextData)}`;
                     }
                 },
                 {
+                    element: 'button[onclick="toggleSettings()"]',
+                    popover: {
+                        title: '⚙️ Settings, Lookup & Refresh',
+                        description: `A few toolbar helpers:<br><br>
+                        • <strong>Lookup Master</strong> — search the Master Board for a single campaign's details.<br>
+                        • <strong>Settings</strong> — change which folders are audited and which statuses are excluded.<br>
+                        • <strong>Quick Refresh</strong> — re-sync only the boards you can currently see (faster).<br>
+                        • <strong>Refresh All</strong> — re-pull every board from Monday.com.`,
+                    }
+                },
+                {
                     element: '#user-selector',
                     popover: {
-                        title: '👤 Select Yourself',
+                        title: '👤 Select Yourself ("You ▾")',
                         description: 'Choose your name to scope the Worklist to your tasks and highlight your rows in all views. In Consultant mode this also picks whose Portfolio you see — switch it to view another consultant.',
                     }
                 },
@@ -7248,24 +7342,29 @@ ${JSON.stringify(contextData)}`;
                     element: '#mode-switcher',
                     popover: {
                         title: '🎭 Modes',
-                        description: 'Three modes by whose tasks you need: <strong>Consultant</strong> (one person — Portfolio + Worklist), <strong>Team Lead</strong> (selected members, sorted by member or urgency), and <strong>Client Success</strong> (everything — All Campaigns, Timeliness, Hygiene). Each mode reveals its own sub-tabs.',
+                        description: `Three modes framed by <em>whose</em> tasks you need. Each reveals its own sub-tabs:<br><br>
+                        • <strong>Consultant</strong> — one person's <strong>Portfolio</strong> (campaign health KPIs: deliverables, overdue, approvals, success score, at-risk count) + <strong>Worklist</strong>.<br>
+                        • <strong>Team Lead</strong> — selected members, sorted by member or urgency (By Staff).<br>
+                        • <strong>Client Success</strong> — everyone (All Campaigns, Timeliness, Hygiene).<br><br>
+                        Not sure which to use? Click the <i class="fas fa-question"></i> next to the modes for a comparison cheat-sheet.`,
                     }
                 },
                 {
-                    element: '#view-timeliness',
+                    element: '#mode-clientsuccess',
                     popover: {
-                        title: '📊 Timeliness',
-                        description: `<strong>Completion Delta</strong> = Finish Date - Deadline.<br><br>
+                        title: '📊 Timeliness (Client Success mode)',
+                        description: `Switch to <strong>Client Success</strong> mode and open the <strong>Timeliness</strong> tab to track on-time delivery.<br><br>
+                        <strong>Completion Delta</strong> = Finish Date − Deadline:<br>
                         • <span style="color:#10b981">Negative</span> = Early ✓<br>
                         • <span style="color:#ef4444">Positive</span> = Late ✗<br><br>
-                        Tracks team estimation accuracy over time.`,
+                        Tracks the team's estimation accuracy over time.`,
                     }
                 },
                 {
-                    element: '#view-hygiene',
+                    element: '#mode-clientsuccess',
                     popover: {
-                        title: '🧹 Hygiene',
-                        description: `Ranks active campaign boards by <em>un-updated</em> date ranges:<br><br>
+                        title: '🧹 Hygiene (Client Success mode)',
+                        description: `Also under <strong>Client Success</strong> mode — the <strong>Hygiene</strong> tab ranks active campaign boards by <em>un-updated</em> date ranges:<br><br>
                         • <span style="color:#f87171">Lapsed</span> = date range ended in the past<br>
                         • <strong>Blank</strong> = no date / timeline set<br><br>
                         Group by board or CSM, flag boards "overdue for update", and copy a nudge for the owner. For a deep dive, run the dedicated <strong>Hygiene & Date Health</strong> tour.`,
@@ -7394,10 +7493,10 @@ ${JSON.stringify(contextData)}`;
                     }
                 },
                 {
-                    element: '.view-toggle-container',
+                    element: '#mode-switcher',
                     popover: {
-                        title: '5. Switch Views',
-                        description: 'Today (your worklist), By Staff, All Campaigns, or Timeliness analytics.',
+                        title: '5. Pick a Mode',
+                        description: 'Choose <strong>who</strong> you\'re looking at: <strong>Consultant</strong> (one person — Portfolio + Worklist), <strong>Team Lead</strong> (a chosen group — By Staff), or <strong>Client Success</strong> (everyone — All Campaigns, Timeliness, Hygiene). Each mode reveals its own sub-tabs.',
                     }
                 },
                 {
@@ -7453,47 +7552,43 @@ ${JSON.stringify(contextData)}`;
         function getViewsSteps() {
             return [
                 {
-                    element: '.view-toggle-container',
+                    element: '#mode-switcher',
                     popover: {
-                        title: '👁️ Five View Modes',
-                        description: 'Switch between different ways of looking at your data.',
+                        title: '👁️ Two-Level Navigation',
+                        description: `The dashboard is organised in <strong>two levels</strong>:<br><br>
+                        1. Pick a <strong>Mode</strong> here — <em>Consultant</em>, <em>Team Lead</em>, or <em>Client Success</em>. A mode answers "<em>whose</em> tasks am I looking at?"<br>
+                        2. Each mode then reveals its own <strong>sub-tabs</strong> (just to the right, above the results).<br><br>
+                        Tip: the <i class="fas fa-question"></i> button next to the modes opens a cheat-sheet comparing them. Let's walk through all three.`,
                     }
                 },
                 {
-                    element: '#view-today',
+                    element: '#mode-consultant',
                     popover: {
-                        title: '🎯 Today View',
-                        description: 'Your prioritised worklist — bucketed into Overdue, Due This Week, and Coming Up. Select yourself in the "You" picker to scope it to just your tasks.',
+                        title: '👤 Consultant Mode — one person',
+                        description: `Focuses on a <strong>single person's</strong> work (whoever is picked in the "You ▾" selector, top-right). It has two sub-tabs:<br><br>
+                        • <strong>Portfolio</strong> — that consultant's campaigns with health KPIs: total deliverables, overdue count, items awaiting approval, an average "success signal" score, and how many campaigns are at risk.<br>
+                        • <strong>Worklist</strong> — their to-do list, sorted most-urgent-first and bucketed into <span style="color:#ef4444">Overdue</span>, <span style="color:#f59e0b">Due This Week</span>, and Coming Up.<br><br>
+                        Best for working your own campaigns and daily task list.`,
                     }
                 },
                 {
-                    element: '#view-manager',
+                    element: '#mode-teamlead',
                     popover: {
-                        title: '👥 By Staff View',
-                        description: 'Manager dashboard with cards per team member showing their campaign counts (overdue, soon, 2w). Your card always sorts to the top when you\'ve selected yourself.',
+                        title: '👥 Team Lead Mode — a chosen group',
+                        description: `Watches a <strong>group of team members</strong> you pick from the staff grid. Its single view is:<br><br>
+                        • <strong>By Staff</strong> — a card per person showing their campaign counts (<span style="color:#ef4444">overdue</span> / <span style="color:#f59e0b">soon</span> / <span style="color:#38bdf8">2-week</span>). Sort the grid by member name or by urgency; your own card floats to the top once you've picked yourself.<br><br>
+                        Best for checking in on a team's workload and catching overdue items.`,
                     }
                 },
                 {
-                    element: '#view-auditor',
+                    element: '#mode-clientsuccess',
                     popover: {
-                        title: '📋 All Campaigns View',
-                        description: 'Detailed sortable table with all campaigns, expandable rows for updates & tech summaries.',
-                    }
-                },
-                {
-                    element: '#view-timeliness',
-                    popover: {
-                        title: '📊 Timeliness View',
-                        description: `Tracks completion accuracy. <strong>Completion Delta</strong> = Finish Date - Deadline.<br><br>
-                        Negative = Early. Positive = Late. Helps improve estimation over time.`,
-                    }
-                },
-                {
-                    element: '#view-hygiene',
-                    popover: {
-                        title: '🧹 Hygiene View',
-                        description: `Ranks your <strong>active</strong> campaign boards by how many date ranges are <em>un-updated</em> — <span style="color:#f87171">lapsed</span> (ended in the past) or blank (never set).<br><br>
-                        Group <strong>By board</strong> or <strong>By CSM</strong>, switch to a <strong>Heatmap</strong>, sort by count / % / At-risk, copy a nudge for the owner, or export to CSV. It pulls active campaigns straight from the repository — pick which statuses count under <strong>Active statuses</strong>.`,
+                        title: '🤝 Client Success Mode — everyone',
+                        description: `Shows <strong>all tasks across every consultant</strong> — org-wide health checks. Three sub-tabs:<br><br>
+                        • <strong>All Campaigns</strong> — a detailed sortable table of every campaign; expand a row for its updates &amp; tech summary.<br>
+                        • <strong>Timeliness</strong> — on-time delivery tracking. <strong>Completion Delta</strong> = Finish Date − Deadline (<span style="color:#10b981">negative = early</span>, <span style="color:#ef4444">positive = late</span>).<br>
+                        • <strong>Hygiene</strong> — ranks active boards by <em>un-updated</em> dates (lapsed or blank) so neglected campaigns surface early.<br><br>
+                        Tip: in this mode the <strong>Filter by CS/PM</strong> box narrows all three views to specific staff. For a deep dive on Hygiene, run its dedicated tour.`,
                     }
                 }
             ];
@@ -7502,10 +7597,11 @@ ${JSON.stringify(contextData)}`;
         function getHygieneTourSteps() {
             return [
                 {
-                    element: '#view-hygiene',
+                    element: '#mode-clientsuccess',
                     popover: {
                         title: '🧹 Hygiene View',
-                        description: `Find <strong>active</strong> campaign boards with many <em>un-updated</em> date ranges so neglected campaigns surface before clients notice. Open it from this toggle, then let it scan.`,
+                        description: `The Hygiene view lives under <strong>Client Success</strong> mode. Switch to it here, then open the <strong>Hygiene</strong> sub-tab.<br><br>
+                        It finds <strong>active</strong> campaign boards with many <em>un-updated</em> date ranges, so neglected campaigns surface before clients notice. Let it scan once you open it.`,
                     }
                 },
                 {
@@ -7557,6 +7653,13 @@ ${JSON.stringify(contextData)}`;
                     popover: {
                         title: '💬 How It Works',
                         description: 'The AI sees the campaigns currently visible (after filters). Ask anything about overdue items, assignees, status, or summaries.',
+                    }
+                },
+                {
+                    popover: {
+                        title: '🎯 Ask About Selected Campaigns',
+                        description: `Want the AI to focus on specific campaigns? In the <strong>All Campaigns</strong> view (Client Success mode), tick the checkboxes on the rows you care about, then click <strong>Ask AI</strong> in the bar that appears at the bottom.<br><br>
+                        It opens the chat scoped to <em>only</em> those campaigns — one gets a status summary, several get a side-by-side comparison of what needs attention first. Follow-up questions stay focused on them until you clear the selection.`,
                     }
                 },
                 {
