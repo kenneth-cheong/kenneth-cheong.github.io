@@ -232,6 +232,8 @@ def lambda_handler(event, context):
             return _resp(200, report_get_month(body))
         if action == 'report_save_recs':
             return _resp(200, report_save_recs(body))
+        if action == 'report_backfill_platform_kpis':
+            return _resp(200, report_backfill_platform_kpis(body))
         if action == 'report_daily_series':
             return _resp(200, report_daily_series(body))
         if action == 'report_backfill_meta':
@@ -2925,6 +2927,70 @@ def report_save_recs(body):
             UpdateExpression='SET recs_block = :b, recs_savedAt = :t, recs_savedBy = :w',
             ExpressionAttributeValues={':b': _enc(block), ':t': now, ':w': who})
     return {'ok': True}
+
+def report_backfill_platform_kpis(body):
+    """One-time backfill: enrich each stored month's per-platform KPI slice for
+    historical months so per-platform trend charts have data for EVERY metric (the
+    a27de09 `_plat_metrics` slice), not just followers + engagement_rate.
+
+    Recomputes ONLY from each month's already-saved scorecard — no re-scraping, so
+    historical figures are never overwritten with today's numbers. Non-destructive:
+    keeps the existing kpis blob intact and replaces ONLY its `per_platform` key
+    (skips a month if it has no real scorecard or the recompute yields nothing).
+    Updates both the month row and the project's month-index entry.
+
+    Pass data.projectId to scope to one project; omit to sweep all projects.
+    Intended to be called directly via `lambda invoke`, not through the API."""
+    data = body.get('data') or body
+    only_pid = (data.get('projectId') or '').strip()
+    now = _now_iso()
+    if only_pid:
+        it = _rprojects().get_item(Key={'projectId': only_pid}).get('Item')
+        projs = [it] if it else []
+    else:
+        projs, resp = [], _rprojects().scan()
+        projs.extend(resp.get('Items', []))
+        while resp.get('LastEvaluatedKey'):
+            resp = _rprojects().scan(ExclusiveStartKey=resp['LastEvaluatedKey'])
+            projs.extend(resp.get('Items', []))
+    report = []
+    for proj in projs:
+        proj = _dec(proj); pid = proj.get('projectId')
+        idx = _dec(proj.get('months')) or []
+        changed = 0
+        for entry in idx:
+            month = entry.get('month')
+            if not month:
+                continue
+            row = _rmonths().get_item(Key={'projectId': pid, 'month': month}).get('Item')
+            if not row:
+                continue
+            sc = row.get('scorecard')
+            if isinstance(sc, str):
+                try: sc = json.loads(sc)
+                except ValueError: sc = None
+            if not isinstance(sc, dict) or not sc.get('platforms'):
+                continue                          # manual/typed month with no real scorecard
+            _strip_fb_reach_er(sc)                # match capture-time invariant
+            pp = (_kpis_from_scorecard(sc) or {}).get('per_platform') or {}
+            if not pp:
+                continue
+            existing = _dec(row.get('kpis')) or {}
+            merged = dict(existing); merged['per_platform'] = pp
+            _rmonths().update_item(
+                Key={'projectId': pid, 'month': month},
+                UpdateExpression='SET kpis = :k, kpis_backfilled_at = :t',
+                ExpressionAttributeValues={':k': _enc(merged), ':t': now})
+            entry['kpis'] = merged
+            changed += 1
+        if changed:
+            _rprojects().update_item(
+                Key={'projectId': pid},
+                UpdateExpression='SET months = :m',
+                ExpressionAttributeValues={':m': _enc(idx)})
+        report.append({'projectId': pid, 'name': proj.get('name'), 'months_recomputed': changed})
+    total = sum(r['months_recomputed'] for r in report)
+    return {'ok': True, 'projects_scanned': len(projs), 'months_recomputed': total, 'detail': report}
 
 def report_delete_month(body):
     data  = body.get('data') or body
