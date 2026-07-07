@@ -40,10 +40,13 @@ function SchedField({ field, value, onChange }) {
   const t = field.type;
   let control;
   if (t === 'tags') {
-    const arr = Array.isArray(value) ? value : (value ? String(value).split(',').map((s) => s.trim()).filter(Boolean) : []);
+    // Hold the raw text while editing (an array seed is shown comma-joined) and
+    // only split into items at submit — splitting on every keystroke fights the
+    // caret and drops spaces mid-word.
+    const display = Array.isArray(value) ? value.join(', ') : (value ?? '');
     control = (
-      <input className={base} placeholder={field.placeholder || 'comma-separated'} value={arr.join(', ')}
-        onChange={(e) => onChange(e.target.value.split(',').map((s) => s.trim()).filter(Boolean))} />
+      <input className={base} placeholder={field.placeholder || 'comma-separated'} value={display}
+        onChange={(e) => onChange(e.target.value)} />
     );
   } else if (t === 'textarea') {
     control = <textarea rows={3} className={base} placeholder={field.placeholder} value={value || ''} onChange={(e) => onChange(e.target.value)} />;
@@ -104,15 +107,22 @@ function ScheduleModal({ editing, prefill, limits, projects, onClose, onSaved })
   const monthly = perRun * runsPerMonth(frequency);
 
   async function save() {
+    // Normalise a field's value for submit — `tags` are split from their raw
+    // edit string into a deduped item list here (not on every keystroke).
+    const normalise = (f, v) => {
+      if (f.type !== 'tags') return v;
+      const arr = Array.isArray(v) ? v : String(v || '').split(/[\n,]+/);
+      return [...new Set(arr.map((s) => String(s).trim()).filter(Boolean))];
+    };
     // Required-field check (visible fields only).
     for (const f of fields) {
       if (!isVisible(f, values)) continue;
-      const v = values[f.name];
+      const v = normalise(f, values[f.name]);
       const empty = v == null || v === '' || (Array.isArray(v) && v.length === 0);
       if (f.required && empty) { toast(`${f.label} is required.`, 'error'); return; }
     }
     const inputs = {};
-    for (const f of fields) if (isVisible(f, values)) inputs[f.name] = values[f.name];
+    for (const f of fields) if (isVisible(f, values)) inputs[f.name] = normalise(f, values[f.name]);
     const payload = {
       toolId, name: name || tool.name, inputs, projectId: projectId || null,
       frequency, hour: Number(hour), timezone: BROWSER_TZ,
