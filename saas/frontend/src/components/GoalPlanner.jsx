@@ -81,7 +81,7 @@ export default function GoalPlanner({ initialGoal }) {
   // ── Intake ──────────────────────────────────────────────────────────────────
   if (showIntake) {
     return (
-      <section className="mt-8">
+      <section className="mt-8" data-tour="pathway">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-bold text-slate-900">{INTAKE.goalQuestion}</h2>
           {hasPlan && <button onClick={() => setEditing(false)} className="text-sm font-medium text-slate-500 hover:text-slate-700">Cancel</button>}
@@ -160,7 +160,7 @@ export default function GoalPlanner({ initialGoal }) {
   const canPersonalise = (plan.freeText || '').trim().length > 0 && !plan.aiRefined;
   const { done, total, pct, complete, next } = progress;
   return (
-    <section className="mt-8">
+    <section className="mt-8" data-tour="pathway">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-lg font-bold text-slate-900">Your plan</h2>

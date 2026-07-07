@@ -19,7 +19,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
-import { CREDIT_COSTS, PLANS } from '@shared/catalog.mjs';
+import { CREDIT_COSTS, PLANS, TOOLS, isSchedulable } from '@shared/catalog.mjs';
 
 // ── driver.js base config (brand-themed via the .dm-tour popover class) ──────
 function run(steps, { onDone } = {}) {
@@ -707,7 +707,7 @@ export const TOOL_INTRO = {
   'landing-audit': 'Score a landing page on conversion potential — clarity, speed, trust and SEO — with concrete fixes.',
   'sem-copy': 'Extract USPs from a URL and generate ready-to-ship ad copy for Google, Meta or LinkedIn.',
   'perf-marketing': 'Get a paid-media plan: channel mix, budget split and the biggest opportunities for a campaign.',
-  gsc: 'Pull your own Google Search Console data — clicks, impressions, CTR and position. Costs 0 credits.',
+  gsc: 'Pull your own Google Search Console data — clicks, impressions, CTR and position. Tabs at the top switch between Search Insights, URL Inspection, Sitemaps and Indexing. Costs 0 credits.',
   ga4: 'Pull your own GA4 analytics — sessions, users, engagement and conversions. Costs 0 credits.',
   'google-ads': 'Pull your own Google Ads performance — spend, clicks, conversions and CPA. Costs 0 credits.',
   'meta-ads': 'Pull your own Facebook & Instagram Ads performance — spend, conversions and CPA. Costs 0 credits.',
@@ -783,13 +783,16 @@ export function startToolTour(tool, fields, hooks = {}) {
     },
   });
 
+  const scheduleNote = isSchedulable(tool)
+    ? ' ' + note('See a <b>Schedule</b> button next to Run? It sets this tool to run by itself on a repeat (daily/weekly/monthly) with these inputs saved.')
+    : '';
   steps.push({
     element: '[data-tour="tool-run"]',
     popover: {
       title: tool.slow ? 'Run it (give it a moment)' : 'Run it',
-      description: tool.slow
+      description: (tool.slow
         ? 'On your own data you’d hit run here — this tool calls live data + AI, so it takes ~30–150s with live progress. We’ve pre-run the example for you ↓'
-        : 'On your own data you’d hit run here. We’ve already run the example so you can see the output ↓',
+        : 'On your own data you’d hit run here. We’ve already run the example so you can see the output ↓') + scheduleNote,
       side: 'top',
       align: 'end',
     },
@@ -802,7 +805,7 @@ export function startToolTour(tool, fields, hooks = {}) {
       title: 'What you get back — live',
       description:
         lead(OUTPUT_BLURB[tool.id] || 'A clean, formatted report.') +
-        note('This is the <b>real result</b>, rendered just like your own run. Use <b>Copy</b>, <b>CSV</b>, <b>Print</b> (white-label PDF) or <b>Explain this</b> in the bar above it.'),
+        note('This is the <b>real result</b>, rendered just like your own run. In the bar above it you can <b>Explain this</b> (plain-English breakdown), <b>Copy</b>, download <b>CSV</b>, <b>Print</b> to a white-label PDF, or <b>Share</b> it as a branded image for social media.'),
       side: 'top',
       align: 'start',
     },
@@ -910,7 +913,7 @@ export function startSocialAuditTour(tool, hooks = {}) {
       element: '[data-tour="sma-run"]',
       popover: {
         title: 'Run it (give it a moment)',
-        description: `On your own data you’d hit run here — it costs <b>${cost} credits</b> and runs two phases (live scrape → strategy), so it takes ~30–150s with live progress. We’ve pre-run the example so you can see the output ↓`,
+        description: `On your own data you’d hit run here — it costs <b>${cost} credits</b> and runs two phases (live scrape → strategy), so it takes ~30–150s with live progress. It keeps running even if you close the tab, and notifies you when it’s done. We’ve pre-run the example so you can see the output ↓`,
         side: 'top', align: 'start',
       },
     },
@@ -955,18 +958,19 @@ export function startPlatformTour() {
       popover: {
         title: 'Welcome to Digimetrics',
         description:
-          lead('27 marketing tools across SEO, Content, AI Visibility, Strategy and your own Google data — in one workspace.') +
+          lead(`${TOOLS.length} marketing tools across SEO, Content, AI Visibility, Strategy and your own Google data — in one workspace.`) +
           note('This 60-second tour shows you around. You can replay it any time from the <b>?</b> in the top bar.'),
       },
     },
-    { element: '[data-tour="search"]', popover: { title: 'Find any tool', description: 'Search by name or what it does — e.g. “backlinks”, “captions”, “ai”. New here? Switch to <b>Simple mode</b> and pick a goal instead.', side: 'bottom', align: 'start' } },
+    { element: '[data-tour="search"]', popover: { title: 'Find any tool', description: 'Search by name or what it does — e.g. “backlinks”, “captions”, “ai”. New here? Switch to <b>Simple mode</b> (the toggle just left of this box) and pick a goal instead.', side: 'bottom', align: 'start' } },
+    { element: '[data-tour="pathway"]', popover: { title: 'Not sure where to start? Follow a plan', description: 'In <b>Simple mode</b> you tell us your goal — get more visitors, check your site’s health, show up in AI answers — and we build a step-by-step plan: the exact tools to run, in order, with a progress bar as you go. Add a sentence about your business and hit <b>Personalise with AI</b> to tailor it. Prefer to explore everything yourself? Flip to <b>Advanced</b> (top right).', side: 'top', align: 'start' } },
     { element: '[data-tour="categories"]', popover: { title: 'Browse by category', description: 'Filter the grid by SEO, Content, AI Visibility, Strategy or Integrations.', side: 'bottom', align: 'start' } },
     {
       element: 'main a[href^="/tool/"]',
       popover: {
         title: 'Every tool is a card',
         description:
-          'The badge shows its credit cost (green = free). A lock pill means it unlocks on a higher plan — but you still get one real preview run on locked tools. Open any tool and hit <b>Tour</b> to see a real worked example.',
+          'The badge shows its credit cost (green = free). A lock pill means it unlocks on a higher plan — and many locked tools still give you one real preview run, so you can see what you’d get. Open any tool and hit <b>Tour</b> to see a real worked example.',
         side: 'right',
         align: 'start',
       },
@@ -975,7 +979,8 @@ export function startPlatformTour() {
     { element: '[data-tour="credits"]', popover: { title: 'Your credits', description: `Most tools spend credits per run. Your plan refills monthly (${PLANS.starter.monthlyCredits.toLocaleString()} on Starter, ${PLANS.pro.monthlyCredits.toLocaleString()} on Pro). Click to see usage.`, side: 'bottom', align: 'end' } },
     { popover: { title: 'Rank tracking', description: 'Add keywords and we’ll track their Google positions over time — charted, no need to re-run by hand. Open it from a project or the “Track a keyword” starter step.' } },
     { element: '[data-tour="nav-/integrations"]', popover: { title: 'Connect your Google data', description: 'One click connects Search Console, GA4 and Google Ads. Those tools then cost 0 credits — it’s your data — and show a live freshness indicator.', side: 'bottom', align: 'start' } },
-    { element: '[data-tour="nav-/history"]', popover: { title: 'History', description: 'Every run is saved here. Re-open any result, or re-run it with one click.', side: 'bottom', align: 'start' } },
+    { element: '[data-tour="nav-/history"]', popover: { title: 'Runs — your history', description: 'Every run you do is saved under <b>Runs</b>. Re-open any past result, or re-run it with one click — no need to retype the inputs.', side: 'bottom', align: 'start' } },
+    { element: '[data-tour="nav-/schedules"]', popover: { title: 'Put tools on autopilot', description: 'Under <b>Schedules</b> you can set almost any tool to run by itself — daily, weekly or monthly — with the inputs saved. Each run lands in your history and shows what changed vs last time, so you spot movement without lifting a finger. (You can also start one from the <b>Schedule</b> button on a tool.)', side: 'bottom', align: 'start' } },
     { element: '[data-tour="assistant"]', popover: { title: 'AI assistant', description: 'Ask it anything — it streams answers, knows your account context and the product, can explain a result and even recommend + open the right tool. Reopen past chats from the history list.', side: 'bottom', align: 'end' } },
     {
       popover: {
