@@ -9,6 +9,7 @@ import NotificationBell from './NotificationBell.jsx';
 import PlanWidget from './PlanWidget.jsx';
 import Toaster from './Toaster.jsx';
 import ExplainMenu from './ExplainMenu.jsx';
+import ProactiveEngine from './ProactiveEngine.jsx';
 import ProjectSelector from './ProjectSelector.jsx';
 import Welcome from './Welcome.jsx';
 import ConsentGate from './ConsentGate.jsx';
@@ -65,6 +66,7 @@ export default function Layout({ children }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [acctOpen, setAcctOpen] = useState(false);
   const [ask, setAsk] = useState(null);
+  const [say, setSay] = useState(null); // proactive canned message to inject into the chat
   const wide = useMediaQuery('(min-width: 768px)');
   // Persisted, user-adjustable width for the assistant panel (desktop only).
   const [chatW, setChatW] = useState(() => {
@@ -119,9 +121,12 @@ export default function Layout({ children }) {
   useEffect(() => {
     const open = () => setChatOpen(true);
     const onAsk = (e) => { setChatOpen(true); setAsk({ text: e.detail?.text || '', id: Math.random().toString(36).slice(2) }); };
+    // Proactive Otter: a canned message to drop into the chat (no LLM call).
+    const onSay = (e) => { setChatOpen(true); setSay({ text: e.detail?.text || '', id: Math.random().toString(36).slice(2) }); };
     window.addEventListener('dm:open-chat', open);
     window.addEventListener('dm:ask', onAsk);
-    return () => { window.removeEventListener('dm:open-chat', open); window.removeEventListener('dm:ask', onAsk); };
+    window.addEventListener('dm:proactive-say', onSay);
+    return () => { window.removeEventListener('dm:open-chat', open); window.removeEventListener('dm:ask', onAsk); window.removeEventListener('dm:proactive-say', onSay); };
   }, []);
 
   const acctLinks = user.isAdmin ? [...menuNav, { to: '/admin', label: 'Admin' }] : menuNav;
@@ -154,17 +159,14 @@ export default function Layout({ children }) {
               <button
                 onClick={() => setChatOpen((o) => !o)}
                 data-tour="assistant"
-                title={chatOpen ? 'Close the Helpful Otter' : 'Open the Helpful Otter'}
-                aria-label={chatOpen ? 'Close the Helpful Otter assistant' : 'Open the Helpful Otter assistant'}
+                title={chatOpen ? 'Close Monty' : 'Open Monty'}
+                aria-label={chatOpen ? 'Close Monty the assistant' : 'Open Monty the assistant'}
                 className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm font-semibold ${chatOpen ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
               >
                 {/* Bare otter (no background circle). Sized to fit the fixed button
                     height so this matches the "Up next" pill in the header row. */}
                 <Mascot bare size={30} className="shrink-0" />
-                <span className="hidden leading-[1.05] lg:flex lg:flex-col lg:items-start text-[12px] font-semibold">
-                  <span>Helpful</span>
-                  <span>Otter</span>
-                </span>
+                <span className="hidden text-[13px] font-semibold lg:inline">Monty</span>
               </button>
 
               <button
@@ -278,7 +280,11 @@ export default function Layout({ children }) {
         width={wide ? chatW : '100%'}
         onResize={wide ? (w) => setChatW(clampChatW(w)) : undefined}
         ask={ask}
+        say={say}
       />
+      {/* Proactive Helpful Otter — desktop only (mobile chat is a full-screen sheet
+          it shouldn't hijack). Suppressed until the consent/NDA/welcome overlays clear. */}
+      {wide && <ProactiveEngine paused={needsConsent || needsNda || showWelcome} chatOpen={chatOpen} />}
       <ExplainMenu />
       <FaultReporter />
       <Toaster />

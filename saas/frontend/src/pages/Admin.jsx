@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { FileText, MonitorPlay } from 'lucide-react';
-import { PLANS, TIER_ORDER } from '@shared/catalog.mjs';
+import { PLANS, TIER_ORDER, PROACTIVE_EVENTS, PROACTIVE_TOKENS, DEFAULT_PROACTIVE } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSupportTickets } from '../context/SupportTicketsContext.jsx';
 import { api } from '../lib/api.js';
+import { interpolate } from '../lib/proactive.js';
 import SortableTable from '../components/SortableTable.jsx';
 import TrialNdaGate from '../components/TrialNdaGate.jsx';
 import DiagnosticsPanel from '../components/DiagnosticsPanel.jsx';
@@ -22,7 +23,7 @@ export default function Admin() {
     <div>
       <h1 className="text-2xl font-bold">Admin</h1>
       <div className="mt-3 flex gap-1 border-b border-slate-200">
-        {[['users', 'Users'], ['agreements', 'Agreements'], ['notifications', 'Notifications'], ['tickets', 'Support tickets'], ['settings', 'Settings']].map(([k, label]) => (
+        {[['users', 'Users'], ['agreements', 'Agreements'], ['notifications', 'Notifications'], ['assistant', 'Assistant'], ['tickets', 'Support tickets'], ['settings', 'Settings']].map(([k, label]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
@@ -37,8 +38,318 @@ export default function Admin() {
           </button>
         ))}
       </div>
-      {tab === 'users' ? <AdminUsers /> : tab === 'agreements' ? <AdminAgreements /> : tab === 'notifications' ? <AdminNotifications /> : tab === 'tickets' ? <AdminTickets /> : <AdminSettings />}
+      {tab === 'users' ? <AdminUsers /> : tab === 'agreements' ? <AdminAgreements /> : tab === 'notifications' ? <AdminNotifications /> : tab === 'assistant' ? <AdminAssistant /> : tab === 'tickets' ? <AdminTickets /> : <AdminSettings />}
     </div>
+  );
+}
+
+// ── Assistant (proactive Helpful Otter triggers) ─────────────────────────────
+// CRUD over the trigger set the Otter uses to *initiate* messages. Each trigger
+// binds an app event (+ optional conditions) to a canned message (free) or an
+// AI-phrased one (costs the user credits). Saved to the settings singleton and
+// served to every client via /me. Only a primary admin can save (server-gated).
+const EVENT_BY_KEY = Object.fromEntries(PROACTIVE_EVENTS.map((e) => [e.key, e]));
+const RUN_STATUS_OPTS = [['any', 'Any result'], ['success', 'Has results'], ['empty', 'Empty result'], ['error', 'Errored']];
+const SAMPLE_CTX = { firstName: 'Alex', domain: 'example.com', toolName: 'Keyword Analysis', credits: 12 };
+
+function blankTrigger() {
+  return {
+    id: 'trg_' + Math.random().toString(36).slice(2, 9),
+    label: 'New trigger', enabled: true, event: 'route_enter',
+    route: '/', idleSeconds: 25, runStatus: 'any', creditsBelow: 15,
+    emptyProjects: false, firstVisitOnly: false, minDaysAway: 0, tiers: [],
+    message: '', aiPhrase: false, aiPrompt: '',
+    cooldownHours: 24, maxPerSession: 1, priority: 0,
+  };
+}
+
+function AdminAssistant() {
+  const [cfg, setCfg] = useState(null); // { enabled, maxPerSession, defaultCooldownHours, triggers: [] }
+  const [dirty, setDirty] = useState(false);
+  const [openId, setOpenId] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.adminSettings()
+      .then(({ settings }) => setCfg(settings.proactive || DEFAULT_PROACTIVE))
+      .catch(() => setError('Could not load assistant settings.'));
+  }, []);
+
+  const patch = (p) => { setCfg((c) => ({ ...c, ...p })); setDirty(true); };
+  const patchTrigger = (id, p) => { setCfg((c) => ({ ...c, triggers: c.triggers.map((t) => (t.id === id ? { ...t, ...p } : t)) })); setDirty(true); };
+  const removeTrigger = (id) => { setCfg((c) => ({ ...c, triggers: c.triggers.filter((t) => t.id !== id) })); setDirty(true); };
+  const addTrigger = () => { const t = blankTrigger(); setCfg((c) => ({ ...c, triggers: [...c.triggers, t] })); setDirty(true); setOpenId(t.id); };
+  const move = (id, dir) => setCfg((c) => {
+    const i = c.triggers.findIndex((t) => t.id === id);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= c.triggers.length) return c;
+    const next = c.triggers.slice();
+    [next[i], next[j]] = [next[j], next[i]];
+    setDirty(true);
+    return { ...c, triggers: next };
+  });
+  const restoreDefaults = () => { if (confirm('Replace the current triggers with the built-in defaults? Unsaved edits will be lost.')) { setCfg(DEFAULT_PROACTIVE); setDirty(true); setOpenId(null); } };
+
+  async function save() {
+    // Client-side guard: server drops canned triggers with no message, so flag them here first.
+    const bad = cfg.triggers.find((t) => !t.aiPhrase && !t.message.trim());
+    if (bad) { setError(`“${bad.label}” needs a message (or switch it to AI-phrased).`); setOpenId(bad.id); return; }
+    setBusy(true); setError(''); setMsg('');
+    try {
+      const { settings } = await api.adminSetSettings({ proactive: cfg });
+      setCfg(settings.proactive); setDirty(false); setMsg('Saved — live for all users.'); setTimeout(() => setMsg(''), 2500);
+    } catch (e) {
+      setError(e?.payload?.error === 'admin_only' ? 'Only a primary admin can change assistant settings.' : (e?.message || 'Could not save. Please try again.'));
+    } finally { setBusy(false); }
+  }
+
+  if (!cfg && !error) return <p className="mt-6 text-sm text-slate-500">Loading…</p>;
+  if (!cfg) return <p className="mt-6 text-sm text-rose-600">{error}</p>;
+
+  return (
+    <div className="mt-4 space-y-4">
+      {/* Global controls */}
+      <div className="card p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold">Proactive assistant</h2>
+            <p className="mt-1 text-sm text-slate-500">Master switch for Monty reaching out on its own. When off, Monty only responds when a user messages it. Users can also mute proactive tips for themselves.</p>
+          </div>
+          <Toggle checked={cfg.enabled} onChange={(v) => patch({ enabled: v })} title="Enable proactive messages" />
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-sm font-medium">Max nudges per session</span>
+            <input type="number" min="0" max="20" className="field mt-1 w-24" value={cfg.maxPerSession}
+              onChange={(e) => patch({ maxPerSession: Number(e.target.value) })} />
+            <p className="mt-1 text-[11px] text-slate-400">Global cap across all triggers per app visit. 0 = no cap.</p>
+          </label>
+          <label className="block">
+            <span className="text-sm font-medium">Default cooldown (hours)</span>
+            <input type="number" min="0" max="8760" className="field mt-1 w-24" value={cfg.defaultCooldownHours}
+              onChange={(e) => patch({ defaultCooldownHours: Number(e.target.value) })} />
+            <p className="mt-1 text-[11px] text-slate-400">Used when a trigger doesn't set its own.</p>
+          </label>
+        </div>
+      </div>
+
+      {/* Trigger list */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-slate-700">Triggers <span className="font-normal text-slate-400">· {cfg.triggers.length}</span></h3>
+        <div className="flex items-center gap-2">
+          <button onClick={restoreDefaults} className="btn-ghost px-2.5 py-1.5 text-xs">Restore defaults</button>
+          <button onClick={addTrigger} className="btn-primary px-3 py-1.5 text-sm">+ New trigger</button>
+        </div>
+      </div>
+
+      {cfg.triggers.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-400">No triggers yet. Add one to let Monty reach out.</p>
+      ) : (
+        <div className="space-y-2">
+          {cfg.triggers.map((t, i) => (
+            <TriggerRow
+              key={t.id} t={t} index={i} total={cfg.triggers.length}
+              open={openId === t.id} onToggleOpen={() => setOpenId((o) => (o === t.id ? null : t.id))}
+              onPatch={(p) => patchTrigger(t.id, p)} onRemove={() => removeTrigger(t.id)}
+              onMove={(dir) => move(t.id, dir)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Save bar */}
+      <div className="sticky bottom-0 -mx-1 flex items-center gap-3 border-t border-slate-200 bg-white/95 px-1 py-3 backdrop-blur">
+        <button onClick={save} disabled={busy || !dirty} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">{busy ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}</button>
+        {dirty && <span className="text-xs text-amber-600">Unsaved changes</span>}
+        {msg && <span className="text-sm text-emerald-600">{msg}</span>}
+        {error && <span className="text-sm text-red-600">{error}</span>}
+      </div>
+    </div>
+  );
+}
+
+// One trigger: a summary row that expands into a full editor. `fields` from the
+// event catalog decides which condition inputs show, so the form always matches
+// the chosen event.
+function TriggerRow({ t, index, total, open, onToggleOpen, onPatch, onRemove, onMove }) {
+  const ev = EVENT_BY_KEY[t.event] || PROACTIVE_EVENTS[0];
+  const fields = new Set(ev.fields || []);
+  const preview = interpolate(t.message, SAMPLE_CTX) || (t.aiPhrase ? '(AI-phrased at send time)' : '(no message)');
+  const testInChat = () => window.dispatchEvent(new CustomEvent('dm:proactive-say', { detail: { text: interpolate(t.message, SAMPLE_CTX) } }));
+
+  return (
+    <div className={`rounded-xl border ${open ? 'border-brand-300 bg-brand-50/20' : 'border-slate-200'} `}>
+      {/* Summary */}
+      <div className="flex items-center gap-3 p-3">
+        <Toggle small checked={t.enabled} onChange={(v) => onPatch({ enabled: v })} title={t.enabled ? 'Enabled' : 'Disabled'} />
+        <button onClick={onToggleOpen} className="min-w-0 flex-1 text-left">
+          <div className="flex items-center gap-2">
+            <span className="truncate text-sm font-medium text-slate-800">{t.label || '(untitled)'}</span>
+            <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">{ev.label}</span>
+            {t.aiPhrase && <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-700">AI · costs credits</span>}
+          </div>
+          <div className="mt-0.5 truncate text-xs text-slate-400">{preview}</div>
+        </button>
+        <div className="flex shrink-0 items-center gap-0.5">
+          <button onClick={() => onMove(-1)} disabled={index === 0} className="rounded p-1 text-slate-400 hover:bg-slate-100 disabled:opacity-30" title="Move up" aria-label="Move up">↑</button>
+          <button onClick={() => onMove(1)} disabled={index === total - 1} className="rounded p-1 text-slate-400 hover:bg-slate-100 disabled:opacity-30" title="Move down" aria-label="Move down">↓</button>
+          <button onClick={onToggleOpen} className="rounded px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50">{open ? 'Close' : 'Edit'}</button>
+        </div>
+      </div>
+
+      {/* Editor */}
+      {open && (
+        <div className="space-y-4 border-t border-slate-200 p-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Label</span>
+              <input className="field mt-1 w-full" value={t.label} onChange={(e) => onPatch({ label: e.target.value })} />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">When (event)</span>
+              <select className="dm-select mt-1 w-full rounded border border-slate-300 py-2 pl-2 pr-7 text-sm" value={t.event} onChange={(e) => onPatch({ event: e.target.value })}>
+                {PROACTIVE_EVENTS.map((e) => <option key={e.key} value={e.key}>{e.label}</option>)}
+              </select>
+              <p className="mt-1 text-[11px] text-slate-400">{ev.help}</p>
+            </label>
+          </div>
+
+          {/* Conditions — only those relevant to the chosen event */}
+          {fields.size > 0 && (
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Conditions</div>
+              <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                {fields.has('route') && (
+                  <label className="block">
+                    <span className="text-sm">Page path</span>
+                    <input className="field mt-1 w-full" value={t.route} placeholder="/  ·  /tool/*  ·  /projects" onChange={(e) => onPatch({ route: e.target.value })} />
+                    <p className="mt-1 text-[11px] text-slate-400">Exact path, or end with * to match a prefix (e.g. /tool/*).</p>
+                  </label>
+                )}
+                {fields.has('idleSeconds') && (
+                  <label className="block">
+                    <span className="text-sm">Idle for (seconds)</span>
+                    <input type="number" min="5" max="600" className="field mt-1 w-28" value={t.idleSeconds} onChange={(e) => onPatch({ idleSeconds: Number(e.target.value) })} />
+                  </label>
+                )}
+                {fields.has('runStatus') && (
+                  <label className="block">
+                    <span className="text-sm">Run result</span>
+                    <select className="dm-select mt-1 w-full rounded border border-slate-300 py-2 pl-2 pr-7 text-sm" value={t.runStatus} onChange={(e) => onPatch({ runStatus: e.target.value })}>
+                      {RUN_STATUS_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </label>
+                )}
+                {fields.has('creditsBelow') && (
+                  <label className="block">
+                    <span className="text-sm">Credits below</span>
+                    <input type="number" min="0" className="field mt-1 w-28" value={t.creditsBelow} onChange={(e) => onPatch({ creditsBelow: Number(e.target.value) })} />
+                  </label>
+                )}
+                {fields.has('minDaysAway') && (
+                  <label className="block">
+                    <span className="text-sm">Away at least (days)</span>
+                    <input type="number" min="0" max="365" className="field mt-1 w-28" value={t.minDaysAway} onChange={(e) => onPatch({ minDaysAway: Number(e.target.value) })} />
+                    <p className="mt-1 text-[11px] text-slate-400">0 = fires on any app open.</p>
+                  </label>
+                )}
+                {fields.has('emptyProjects') && (
+                  <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                    <input type="checkbox" className="h-4 w-4" checked={t.emptyProjects} onChange={(e) => onPatch({ emptyProjects: e.target.checked })} />
+                    Only when the user has no projects yet
+                  </label>
+                )}
+                {fields.has('firstVisitOnly') && (
+                  <label className="flex items-center gap-2 text-sm sm:col-span-2">
+                    <input type="checkbox" className="h-4 w-4" checked={t.firstVisitOnly} onChange={(e) => onPatch({ firstVisitOnly: e.target.checked })} />
+                    Only on the very first visit
+                  </label>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Message */}
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Message</span>
+            <textarea rows={3} className="field mt-1 w-full" value={t.message} placeholder="Hi {firstName}! …" onChange={(e) => onPatch({ message: e.target.value })} />
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {PROACTIVE_TOKENS.map((tk) => (
+                <button key={tk.token} type="button" title={tk.help} onClick={() => onPatch({ message: `${t.message}${tk.token}` })}
+                  className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-500 hover:border-brand-300 hover:text-brand-700">{tk.token}</button>
+              ))}
+            </div>
+            <p className="mt-1 text-[11px] text-slate-400">Add clickable chips with tokens like <code>[[go:/pricing|Upgrade]]</code>, <code>[[tool:keyword-analysis]]</code>, <code>[[action:ticket]]</code>.</p>
+          </div>
+
+          {/* AI phrasing */}
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="h-4 w-4" checked={t.aiPhrase} onChange={(e) => onPatch({ aiPhrase: e.target.checked })} />
+            Let Monty phrase this with AI <span className="text-xs text-violet-600">· costs the user credits each time it fires</span>
+          </label>
+          {t.aiPhrase && (
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">AI instruction</span>
+              <textarea rows={2} className="field mt-1 w-full" value={t.aiPrompt} placeholder="e.g. Summarise the user's latest run and suggest one next step." onChange={(e) => onPatch({ aiPrompt: e.target.value })} />
+              <p className="mt-1 text-[11px] text-slate-400">Sent to the assistant as the user's message. Falls back to the message text above if blank.</p>
+            </label>
+          )}
+
+          {/* Pacing + audience */}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="block">
+              <span className="text-sm">Cooldown (hrs)</span>
+              <input type="number" min="0" max="8760" className="field mt-1 w-full" value={t.cooldownHours} onChange={(e) => onPatch({ cooldownHours: Number(e.target.value) })} />
+            </label>
+            <label className="block">
+              <span className="text-sm">Max / session</span>
+              <input type="number" min="1" max="20" className="field mt-1 w-full" value={t.maxPerSession} onChange={(e) => onPatch({ maxPerSession: Number(e.target.value) })} />
+            </label>
+            <label className="block">
+              <span className="text-sm">Priority</span>
+              <input type="number" min="-100" max="100" className="field mt-1 w-full" value={t.priority} onChange={(e) => onPatch({ priority: Number(e.target.value) })} />
+            </label>
+          </div>
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Only for tiers <span className="font-normal normal-case text-slate-400">(none = all)</span></span>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {TIER_ORDER.map((tier) => {
+                const on = t.tiers.includes(tier);
+                return (
+                  <button key={tier} type="button" onClick={() => onPatch({ tiers: on ? t.tiers.filter((x) => x !== tier) : [...t.tiers, tier] })}
+                    className={`rounded-full border px-2.5 py-1 text-xs font-medium ${on ? 'border-brand-500 bg-brand-100 text-brand-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>{PLANS[tier].name}</button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Preview + actions */}
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Preview</div>
+            <div className="mt-1.5 rounded-2xl rounded-bl-sm bg-slate-100 px-3 py-2 text-sm text-slate-800">{preview}</div>
+            <p className="mt-1 text-[11px] text-slate-400">Sample values: {SAMPLE_CTX.firstName} · {SAMPLE_CTX.domain} · {SAMPLE_CTX.credits} credits.</p>
+          </div>
+          <div className="flex items-center justify-between">
+            <button onClick={testInChat} className="btn-ghost px-3 py-1.5 text-xs" title="Drop this message into your own chat panel now">Preview in my chat</button>
+            <button onClick={onRemove} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50">Delete trigger</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Reusable pill switch (matches the toggles used elsewhere in Admin).
+function Toggle({ checked, onChange, title, small }) {
+  const w = small ? 'h-5 w-9' : 'h-6 w-11';
+  const dot = small ? 'h-4 w-4' : 'h-5 w-5';
+  return (
+    <button type="button" role="switch" aria-checked={checked} title={title} onClick={() => onChange(!checked)}
+      className={`relative inline-flex ${w} shrink-0 items-center rounded-full transition-colors ${checked ? 'bg-brand-600' : 'bg-slate-300'}`}>
+      <span className={`inline-block ${dot} transform rounded-full bg-white shadow transition-transform ${checked ? (small ? 'translate-x-4' : 'translate-x-5') : 'translate-x-0.5'}`} />
+    </button>
   );
 }
 

@@ -8,9 +8,10 @@ import { toast } from '../lib/ui.js';
 import { X, Plus, History, Trash2, ArrowLeft, ArrowRight, Settings } from 'lucide-react';
 import PlanPanelCard from './PlanPanelCard.jsx';
 import Mascot from './Mascot.jsx';
+import { proactiveMuted, setProactiveMuted } from '../lib/proactive.js';
 
 const COST = CREDIT_COSTS.ai_chat ?? 2;
-const GREETING = { role: 'assistant', content: "Hi! I'm your Helpful Otter, the Digimetrics assistant. Ask me about any tool, how to get started, or your connected Search Console / GA4 / Ads numbers." };
+const GREETING = { role: 'assistant', content: "Hi! I'm Monty the Border Collie, your Digimetrics assistant. Ask me about any tool, how to get started, or your connected Search Console / GA4 / Ads numbers." };
 
 // Render an assistant message, turning [[tool:id]] / [[go:path|label]] /
 // [[action:verb|arg]] tokens into clickable chips (chipFor builds each one).
@@ -52,7 +53,7 @@ function ago(iso) {
 // when open). Each reply costs `ai_chat` credits and the bot can answer about
 // the user's connected GSC / GA4 / Google Ads data. Conversations persist
 // server-side: start a new one or reopen past ones from the history list.
-export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }) {
+export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, say }) {
   const { user, setCredits } = useAuth();
   const { active, activeId } = useProjects();
   const navigate = useNavigate();
@@ -105,6 +106,10 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
   // it's trivially reversible from Settings (and we can eyeball it before art lands).
   const [mascot, setMascot] = useState(() => localStorage.getItem('dm:mascot') !== '0');
   const toggleMascot = () => setMascot((on) => { const next = !on; localStorage.setItem('dm:mascot', next ? '1' : '0'); return next; });
+  // Whether the Otter may start a conversation on its own (proactive nudges).
+  // Mirrors the global flag the ProactiveEngine reads; off = purely reactive.
+  const [proTips, setProTips] = useState(() => !proactiveMuted());
+  const toggleProTips = () => setProTips((on) => { const next = !on; setProactiveMuted(!next); return next; });
   const [convos, setConvos] = useState([]);
   const [loadingConvos, setLoadingConvos] = useState(false);
   const threadRef = useRef(null);
@@ -236,6 +241,20 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ask]);
 
+  // Inject a proactive Otter message (canned, admin-authored). Unlike `ask` this
+  // doesn't call the LLM or cost credits — it just drops an assistant bubble the
+  // user can reply to. `proactive: true` marks it (styling / future analytics).
+  const saidRef = useRef(null);
+  useEffect(() => {
+    if (say?.text && say.id !== saidRef.current) {
+      saidRef.current = say.id;
+      setView('chat');
+      stickRef.current = true;
+      setMsgs((m) => [...m, { role: 'assistant', content: say.text, proactive: true }]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [say]);
+
   // Drag the left edge to resize. The panel is fixed to the right, so the new
   // width is simply the distance from the cursor to the right edge of the
   // viewport. Layout owns/clamps/persists the actual value via onResize.
@@ -283,8 +302,8 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
         </div>
       )}
       <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-900 px-4 py-3 text-white">
-        {mascot && <Mascot size={34} className="shrink-0" title="Helpful Otter, your assistant" />}
-        <span className="font-semibold">Helpful Otter</span>
+        {mascot && <Mascot size={34} className="shrink-0" title="Monty, your assistant" />}
+        <span className="font-semibold">Monty</span>
         {/* Hide the per-message credit cost when the panel is narrow — the longer
             "Helpful Otter" title + controls need the room; it returns when widened. */}
         {width >= 460 && <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs">{COST} credits / message</span>}
@@ -323,7 +342,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
           <div className="px-1 pb-2">
             <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 p-3">
               <div className="min-w-0">
-                <div className="flex items-center gap-2 text-sm font-medium text-slate-800"><Mascot size={20} /> Show Helpful Otter</div>
+                <div className="flex items-center gap-2 text-sm font-medium text-slate-800"><Mascot size={20} /> Show Monty</div>
                 <p className="mt-0.5 text-xs text-slate-500">Show the friendly assistant character in the panel. Turn off for a plain, text-only look.</p>
               </div>
               <button
@@ -335,6 +354,24 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
                 className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${mascot ? 'bg-brand-600' : 'bg-slate-300'}`}
               >
                 <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${mascot ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+          </div>
+          <div className="px-1 pb-2">
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 p-3">
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-slate-800">Proactive tips</div>
+                <p className="mt-0.5 text-xs text-slate-500">Let Monty start a chat when it spots something useful — a finished run, low credits, a page you seem stuck on. Turn off to keep it reactive only.</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={proTips}
+                onClick={toggleProTips}
+                title="Let the assistant reach out proactively"
+                className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${proTips ? 'bg-brand-600' : 'bg-slate-300'}`}
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${proTips ? 'translate-x-5' : 'translate-x-0.5'}`} />
               </button>
             </div>
           </div>

@@ -239,6 +239,9 @@ export const handler = async (event) => {
       if (!Number.isInteger(n) || n < 0 || n > 365) return badRequest(`${key} must be a whole number of days between 0 and 365.`);
       patch[key] = n;
     }
+    // Proactive-assistant config (Admin → Assistant). Stored as-is; updateSettings
+    // normalizes/validates the nested shape before persisting.
+    if (body.proactive && typeof body.proactive === 'object') patch.proactive = body.proactive;
     if (!Object.keys(patch).length) return badRequest('No valid setting provided.');
     const settings = await updateSettings(patch, c.email);
     console.log(JSON.stringify({ audit: 'admin_settings', admin: c.email, patch, at: new Date().toISOString() }));

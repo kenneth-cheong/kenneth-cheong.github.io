@@ -1192,3 +1192,126 @@ export function profileProgress(profile) {
   const done = PROFILE_REQUIRED_KEYS.filter((k) => profileValueFilled(p[k])).length;
   return { done, total: PROFILE_REQUIRED_KEYS.length };
 }
+
+// ── Proactive assistant (Helpful Otter nudges) ───────────────────────────────
+// The Otter can *initiate* a message based on what the user is doing. A trigger
+// binds an app EVENT (opened a page, went idle, finished a run…) + optional
+// CONDITIONS to a canned message (free) or an AI-phrased one (costs credits).
+// This whole config is admin-editable (Admin → Assistant) and served to every
+// client via /me. The engine that evaluates these lives in the frontend
+// (lib/proactive.js + components/ProactiveEngine.jsx).
+
+// The fixed catalog of events the app knows how to emit. `fields` lists which
+// condition inputs the admin form should show for that event.
+export const PROACTIVE_EVENTS = [
+  { key: 'app_open',       label: 'App opened',          help: 'Fires once per app load, after onboarding overlays clear.', fields: ['emptyProjects', 'firstVisitOnly', 'minDaysAway'] },
+  { key: 'route_enter',    label: 'Opens a page',        help: 'Fires when the user navigates to a page matching the pattern.', fields: ['route'] },
+  { key: 'idle',           label: 'Idle on a page',      help: 'Fires after the user sits inactive on a matching page.', fields: ['route', 'idleSeconds'] },
+  { key: 'run_finished',   label: 'Tool run finished',   help: 'Fires when a tool run completes.', fields: ['runStatus'] },
+  { key: 'low_credits',    label: 'Credits run low',     help: 'Fires when the balance drops below the threshold.', fields: ['creditsBelow'] },
+  { key: 'plan_step_done', label: 'Plan step completed', help: 'Fires when the user ticks off a goal-plan step.', fields: [] },
+];
+export const PROACTIVE_EVENT_KEYS = PROACTIVE_EVENTS.map((e) => e.key);
+
+// Tokens usable inside a message body — replaced at fire time with live values.
+export const PROACTIVE_TOKENS = [
+  { token: '{firstName}', help: "The user's first name (falls back to “there”)." },
+  { token: '{domain}',    help: "The active project's domain (falls back to “your site”)." },
+  { token: '{toolName}',  help: 'The tool involved (run-finished / tool pages).' },
+  { token: '{credits}',   help: 'Current total credit balance.' },
+];
+// Message bodies may also contain the same clickable chip tokens the chat uses:
+//   [[tool:id]]  [[go:/path|Label]]  [[action:verb|arg]]
+
+const RUN_STATUSES = ['any', 'success', 'empty', 'error'];
+
+// Coerce one raw trigger into a clean, fully-defaulted shape. Used by the admin
+// save path (server-side validation) and the admin UI (new-row defaults), so
+// the two never drift. Returns null for unusable rows (bad event / no message).
+export function normalizeProactiveTrigger(raw, i = 0) {
+  const t = raw && typeof raw === 'object' ? raw : {};
+  const event = PROACTIVE_EVENT_KEYS.includes(t.event) ? t.event : 'route_enter';
+  const message = clampStr(t.message, 500).trim();
+  if (!message && !t.aiPhrase) return null; // canned trigger with no text is meaningless
+  const num = (v, d, lo, hi) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return d;
+    return Math.min(hi, Math.max(lo, Math.round(n)));
+  };
+  const id = clampStr(t.id, 40).trim() || `trg_${i}_${event}`;
+  return {
+    id,
+    label: clampStr(t.label, 80).trim() || PROACTIVE_EVENTS.find((e) => e.key === event)?.label || 'Trigger',
+    enabled: t.enabled !== false,
+    event,
+    // conditions (only the ones relevant to `event` are honoured by the engine)
+    route: clampStr(t.route, 120).trim() || (event === 'route_enter' || event === 'idle' ? '/' : ''),
+    idleSeconds: num(t.idleSeconds, 25, 5, 600),
+    runStatus: RUN_STATUSES.includes(t.runStatus) ? t.runStatus : 'any',
+    creditsBelow: num(t.creditsBelow, 20, 0, 100000),
+    emptyProjects: !!t.emptyProjects,
+    firstVisitOnly: !!t.firstVisitOnly,
+    minDaysAway: num(t.minDaysAway, 0, 0, 365),
+    tiers: Array.isArray(t.tiers) ? t.tiers.filter((x) => TIER_ORDER.includes(x)) : [],
+    // message
+    message,
+    aiPhrase: !!t.aiPhrase,
+    aiPrompt: clampStr(t.aiPrompt, 500).trim(),
+    // pacing
+    cooldownHours: num(t.cooldownHours, 24, 0, 8760),
+    maxPerSession: num(t.maxPerSession, 1, 1, 20),
+    priority: num(t.priority, 0, -100, 100),
+  };
+}
+
+// Normalize the whole config object (global caps + triggers array).
+export function normalizeProactive(raw) {
+  const c = raw && typeof raw === 'object' ? raw : {};
+  const num = (v, d, lo, hi) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return d;
+    return Math.min(hi, Math.max(lo, Math.round(n)));
+  };
+  const triggers = (Array.isArray(c.triggers) ? c.triggers : [])
+    .slice(0, 100)
+    .map((t, i) => normalizeProactiveTrigger(t, i))
+    .filter(Boolean);
+  return {
+    enabled: c.enabled !== false,
+    maxPerSession: num(c.maxPerSession, 2, 0, 20),      // global cap across all triggers, per app session
+    defaultCooldownHours: num(c.defaultCooldownHours, 24, 0, 8760),
+    triggers,
+  };
+}
+
+// Small local clamp so this module stays dependency-free (mirrors http.clampStr).
+function clampStr(v, max) {
+  const s = v == null ? '' : String(v);
+  return s.length > max ? s.slice(0, max) : s;
+}
+
+// Seeded default triggers — the high-value set. Ships enabled so the feature is
+// alive on first deploy; admins tune/disable/add from Admin → Assistant.
+export const DEFAULT_PROACTIVE = normalizeProactive({
+  enabled: true,
+  maxPerSession: 2,
+  defaultCooldownHours: 24,
+  triggers: [
+    { id: 'welcome_empty', label: 'Empty dashboard → onboard', event: 'app_open', emptyProjects: true, priority: 30, cooldownHours: 72,
+      message: "Hi {firstName}! I'm Monty, your Digimetrics assistant. Want to start by setting up your first project? [[go:/projects|Create a project]]" },
+    { id: 'welcome_back', label: 'Returning after a week', event: 'app_open', minDaysAway: 7, priority: 20, cooldownHours: 48,
+      message: "Welcome back, {firstName}! Want a quick recap of what changed, or shall we pick up your plan? [[go:/projects|My projects]]" },
+    { id: 'dashboard_idle', label: 'Idle on dashboard', event: 'idle', route: '/', idleSeconds: 30, priority: 5, cooldownHours: 24,
+      message: 'Not sure where to start? Tell me your goal and I’ll suggest the right tool.' },
+    { id: 'tool_form_idle', label: 'Stuck on a tool form', event: 'idle', route: '/tool/*', idleSeconds: 25, priority: 10, cooldownHours: 12,
+      message: 'Need a hand with {toolName}? I can explain what it does or help you fill it in.' },
+    { id: 'run_done', label: 'Run finished → next step', event: 'run_finished', runStatus: 'success', priority: 15, cooldownHours: 2,
+      message: 'Your {toolName} run is done ✅ Want me to explain the results in plain English or suggest what to do next?' },
+    { id: 'run_empty', label: 'Run returned nothing', event: 'run_finished', runStatus: 'empty', priority: 18, cooldownHours: 2,
+      message: 'That run didn’t return data — usually it’s the domain or input format. Want me to help fix it and re-run?' },
+    { id: 'low_credits', label: 'Credits running low', event: 'low_credits', creditsBelow: 15, priority: 25, cooldownHours: 24,
+      message: 'Heads up {firstName} — you’re down to {credits} credits. [[go:/account|Top up]] or [[go:/pricing|upgrade]] to keep going.' },
+    { id: 'plan_step', label: 'Plan step done → nudge next', event: 'plan_step_done', priority: 12, cooldownHours: 1,
+      message: 'Nice work — another step done! Ready for the next one? [[go:/|Back to my plan]]' },
+  ],
+});

@@ -16,6 +16,25 @@ import { Lock, Compass, Sparkles, AlertTriangle, Share2, Clock } from 'lucide-re
 
 const CONFIRM_AT = 25; // credits — confirm before running pricey tools
 
+// Tell the proactive assistant a run finished. Status is a coarse read of the
+// payload so triggers can distinguish "here are your results" from "nothing came
+// back" without every tool needing a bespoke shape.
+function runStatusOf(res) {
+  const r = res?.result;
+  if (r == null) {
+    const meaningful = res && Object.keys(res).some((k) => !['creditsUsed', 'creditsRemaining', 'topupRemaining'].includes(k));
+    return meaningful ? 'success' : 'empty';
+  }
+  if (Array.isArray(r)) return r.length ? 'success' : 'empty';
+  if (Array.isArray(r.rows)) return r.rows.length ? 'success' : 'empty';
+  if (Array.isArray(r.data)) return r.data.length ? 'success' : 'empty';
+  if (typeof r === 'object') return Object.keys(r).length ? 'success' : 'empty';
+  return 'success';
+}
+function emitRunFinished(toolName, status) {
+  window.dispatchEvent(new CustomEvent('dm:proactive-event', { detail: { event: 'run_finished', status, toolName } }));
+}
+
 export default function ToolRunner() {
   const { toolId } = useParams();
   const { user, setCredits } = useAuth();
@@ -123,6 +142,8 @@ export default function ToolRunner() {
       if (res.creditsUsed > 0) toast(`−${res.creditsUsed} credit${res.creditsUsed > 1 ? 's' : ''} · ${res.creditsRemaining} left`, 'info');
       saveLastInput(tool.id, vals);
       pushRecent(tool.id);
+      // Let the proactive Otter react to a finished run (success vs. empty result).
+      emitRunFinished(tool.name, runStatusOf(res));
     } catch (e) {
       if (e instanceof ApiError && (e.status === 402 || e.status === 403)) {
         setModal({
@@ -133,6 +154,7 @@ export default function ToolRunner() {
         });
       } else {
         setOut({ error: e.message });
+        emitRunFinished(tool.name, 'error');
       }
     } finally {
       setBusy(false);

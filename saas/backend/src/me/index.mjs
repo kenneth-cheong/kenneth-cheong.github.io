@@ -1,7 +1,7 @@
 // Authenticated profile + usage endpoints:
 //   GET /me          -> current user (tier, live credit balance, plan limits)
 //   GET /me/usage    -> recent credit-ledger rows for the usage dashboard
-import { getUser, listLedger, totalCredits } from '../lib/dynamo.mjs';
+import { getUser, listLedger, totalCredits, getSettings } from '../lib/dynamo.mjs';
 import { PLANS } from '../../../shared/catalog.mjs';
 import { ok, unauthorized, forbidden, serverError, claims } from '../lib/http.mjs';
 import { isStaff, isAdmin, accountBlocked } from '../lib/admin.mjs';
@@ -23,8 +23,20 @@ export const handler = async (event) => {
     }
 
     const plan = PLANS[user.tier];
+    // Proactive-assistant config, admin-tuned (Admin → Assistant). Ship the master
+    // switch + global caps, and only the ENABLED triggers so clients don't carry or
+    // evaluate ones an admin has turned off.
+    const settings = await getSettings();
+    const pa = settings.proactive || {};
+    const proactive = {
+      enabled: pa.enabled !== false,
+      maxPerSession: pa.maxPerSession,
+      defaultCooldownHours: pa.defaultCooldownHours,
+      triggers: (pa.triggers || []).filter((t) => t.enabled),
+    };
     return ok({
       user: {
+        proactive,
         userId: user.userId,
         email: user.email,
         name: user.name,

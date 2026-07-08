@@ -91,5 +91,16 @@ export function PlanProvider({ children }) {
     };
   }, [plan, setPlan, clear, markDone]);
 
+  // Let the proactive Otter react when a plan step gets ticked off. Fires only on
+  // a net increase (skips the initial baseline) so mount/reconcile is silent.
+  const prevDone = useRef(null);
+  useEffect(() => {
+    const done = value.progress.done;
+    if (prevDone.current != null && done > prevDone.current) {
+      window.dispatchEvent(new CustomEvent('dm:proactive-event', { detail: { event: 'plan_step_done' } }));
+    }
+    prevDone.current = done;
+  }, [value.progress.done]);
+
   return <PlanCtx.Provider value={value}>{children}</PlanCtx.Provider>;
 }

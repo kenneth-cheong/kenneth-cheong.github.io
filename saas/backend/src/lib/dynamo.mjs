@@ -11,6 +11,7 @@ import {
   BatchWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { encrypt } from './crypto.mjs';
+import { normalizeProactive, DEFAULT_PROACTIVE } from '../../../shared/catalog.mjs';
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
   marshallOptions: { removeUndefinedValues: true },
@@ -362,6 +363,9 @@ function viewSettings(item) {
     passwordAuthEnabled: s.passwordAuthEnabled !== false,
     ticketReminderDays: num(s.ticketReminderDays, DEFAULT_SETTINGS.ticketReminderDays),
     ticketAutoCloseDays: num(s.ticketAutoCloseDays, DEFAULT_SETTINGS.ticketAutoCloseDays),
+    // Proactive-assistant config: fall back to the seeded defaults until an admin
+    // has saved a config of their own. Always normalized so clients get a clean shape.
+    proactive: s.proactive ? normalizeProactive(s.proactive) : DEFAULT_PROACTIVE,
   };
 }
 
@@ -373,9 +377,13 @@ export async function getSettings() {
 /** Merge a partial patch onto the settings singleton; returns the new view. */
 export async function updateSettings(patch = {}, adminEmail) {
   const current = (await getUser(SETTINGS_ID)) || {};
+  // Proactive config is a nested object — normalize/validate it before it lands
+  // so a malformed payload can't poison every client that reads it via /me.
+  const clean = { ...patch };
+  if ('proactive' in clean) clean.proactive = normalizeProactive(clean.proactive);
   const next = {
     ...current,
-    ...patch,
+    ...clean,
     userId: SETTINGS_ID,
     updatedAt: new Date().toISOString(),
     updatedBy: adminEmail || current.updatedBy || null,
