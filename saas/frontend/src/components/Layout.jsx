@@ -154,6 +154,8 @@ export default function Layout({ children }) {
               <button
                 onClick={() => setChatOpen((o) => !o)}
                 data-tour="assistant"
+                title={chatOpen ? 'Close the AI assistant' : 'Open the AI assistant'}
+                aria-label={chatOpen ? 'Close the AI assistant' : 'Open the AI assistant'}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold ${chatOpen ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
               >
                 <MessageCircle size={16} aria-hidden /><span className="hidden lg:inline">Assistant</span>
@@ -175,6 +177,7 @@ export default function Layout({ children }) {
                   onClick={() => setAcctOpen((o) => !o)}
                   data-tour="account-menu"
                   className="flex items-center gap-1.5 rounded-lg py-1 pl-1 pr-1.5 hover:bg-slate-100"
+                  title="Account, usage, billing & settings"
                   aria-label="Account menu"
                 >
                   {user.picture ? (
