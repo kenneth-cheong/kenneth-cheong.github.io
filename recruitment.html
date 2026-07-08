@@ -5858,7 +5858,7 @@
             applyScheduleTemplate(c, document.getElementById('scheduleTemplate').value);
         }
 
-        async function openScheduleEmailModal() {
+        async function openScheduleEmailModal(preferredTemplateId) {
             const c = state.candidates.find(cand => String(cand.id) === String(editingCandId));
             if (!c || !c.email) {
                 alert("No email address found for this candidate. Please add one first.");
@@ -5869,9 +5869,14 @@
             document.getElementById('scheduleSenderEmail2').textContent = email || 'your Gmail';
             document.getElementById('scheduleRecipientEmail').textContent = c.email;
             document.getElementById('scheduleAuthEmail').textContent = email || 'your account';
-            // Populate the template picker (default selected) and pre-fill subject/body.
+            // Populate the template picker and pre-fill subject/body. A preferred
+            // template (e.g. Rejection, when reached from Reject Candidate) is used
+            // when it exists; otherwise fall back to the default template.
             populateScheduleTemplatePicker();
-            applyScheduleTemplate(c, state.defaultTemplateId);
+            const tmplId = (preferredTemplateId != null && getTemplateById(preferredTemplateId))
+                ? preferredTemplateId : state.defaultTemplateId;
+            document.getElementById('scheduleTemplate').value = tmplId;
+            applyScheduleTemplate(c, tmplId);
             // Always open the modal first so the click clearly does something, then resolve auth.
             setScheduleModalState('loading');
             document.getElementById('scheduleEmailModal').style.display = 'flex';
@@ -5978,10 +5983,20 @@
 
         function rejectCurrentCandidate() {
             if (editingCandId && confirm('Are you sure you want to reject this candidate?')) {
-                updateCandidateStatus(editingCandId, 'Rejected');
+                const rejectedId = editingCandId;
+                updateCandidateStatus(rejectedId, 'Rejected');
                 closeDetailModal();
                 renderCandidates();
                 filterCandidatesRepo();
+
+                // Offer to schedule a rejection email to the candidate.
+                const cand = state.candidates.find(c => String(c.id) === String(rejectedId));
+                if (cand && cand.email &&
+                    confirm('Candidate rejected. Would you like to schedule a rejection email to them?')) {
+                    editingCandId = rejectedId; // ensure the schedule modal targets this candidate
+                    const rejTmpl = state.emailTemplates.find(t => /reject/i.test(t.name || ''));
+                    openScheduleEmailModal(rejTmpl ? rejTmpl.id : null);
+                }
             }
         }
 
