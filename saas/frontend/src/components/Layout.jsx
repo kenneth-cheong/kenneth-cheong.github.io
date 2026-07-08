@@ -156,11 +156,11 @@ export default function Layout({ children }) {
                 data-tour="assistant"
                 title={chatOpen ? 'Close the Helpful Otter' : 'Open the Helpful Otter'}
                 aria-label={chatOpen ? 'Close the Helpful Otter assistant' : 'Open the Helpful Otter assistant'}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold ${chatOpen ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm font-semibold ${chatOpen ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
               >
-                {/* Bare otter (no background circle) so it can go bigger and sit
-                    directly on the button; slight negative margin keeps the row height. */}
-                <Mascot bare size={42} className="shrink-0 -my-0.5" />
+                {/* Bare otter (no background circle). Sized to fit the fixed button
+                    height so this matches the "Up next" pill in the header row. */}
+                <Mascot bare size={30} className="shrink-0" />
                 <span className="hidden leading-[1.05] lg:flex lg:flex-col lg:items-start text-[12px] font-semibold">
                   <span>Helpful</span>
                   <span>Otter</span>
