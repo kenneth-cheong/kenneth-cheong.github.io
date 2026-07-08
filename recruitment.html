@@ -18,6 +18,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <!-- Guided walkthrough (driver.js) -->
+    <script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css" />
     <style>
         :root {
             --primary: #6366f1;
@@ -1267,6 +1270,9 @@
                 <a href="#" class="nav-item" onclick="showCandidates()" id="nav-candidates">
                     <span class="nav-icon"><i class="fas fa-user-tie"></i></span><span>Candidates</span>
                 </a>
+                <a href="#" class="nav-item" onclick="openTourPicker(); return false;" id="nav-tour">
+                    <span class="nav-icon"><i class="fas fa-circle-question"></i></span><span>Take a Tour</span>
+                </a>
             </nav>
 
             <nav class="nav-section">
@@ -2003,12 +2009,12 @@
                     </div>
                     <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 12px;">
                         <div style="display: flex; gap: 8px;">
-                            <button class="btn"
+                            <button class="btn" id="detailEmailBtn"
                                 style="background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);"
                                 onclick="sendCandidateEmail()">
                                 <i class="fas fa-envelope"></i> Email
                             </button>
-                            <button class="btn"
+                            <button class="btn" id="detailScheduleBtn"
                                 style="background: var(--glass); color: var(--secondary); border: 1px solid var(--secondary);"
                                 onclick="openScheduleEmailModal()">
                                 <i class="fas fa-clock"></i> Schedule Email
@@ -2113,8 +2119,8 @@
                 </div>
 
                 <div style="margin-top: 32px; display: flex; gap: 16px;">
-                    <button class="btn btn-primary" onclick="viewCV()">View Original CV</button>
-                    <button class="btn" style="background: rgba(244, 63, 94, 0.1); color: var(--accent);"
+                    <button class="btn btn-primary" id="detailViewCvBtn" onclick="viewCV()">View Original CV</button>
+                    <button class="btn" id="detailRejectBtn" style="background: rgba(244, 63, 94, 0.1); color: var(--accent);"
                         onclick="rejectCurrentCandidate()">Reject Candidate</button>
                     <button class="btn" style="background: rgba(244, 63, 94, 0.1); color: var(--accent);"
                         onclick="deleteCurrentCandidate()">
@@ -2592,6 +2598,8 @@
                 showToast("Error during initialization", "error");
             } finally {
                 toggleLoading(false);
+                // First-time visitors get the guided walkthrough automatically (once).
+                maybeAutoStartTour();
             }
         }
 
@@ -2642,6 +2650,483 @@
 
         // Initialize on load
         window.onload = initApp;
+
+        /* ═══════════════════════════════════════════════════════════════════
+           GUIDED WALKTHROUGH (driver.js)
+           A plain-English, click-through tour of the whole app. Written for
+           someone who has never used a recruitment tool before — no jargon.
+           Launch: sidebar "Take a Tour", or auto-runs once for new users.
+           ═══════════════════════════════════════════════════════════════════ */
+        const RECRUITMENT_TOUR_FLAG = 'recruitmentTourSeen_v1';
+
+        function maybeAutoStartTour() {
+            try {
+                if (localStorage.getItem(RECRUITMENT_TOUR_FLAG)) return; // already seen
+                // Small delay so the dashboard has finished painting.
+                setTimeout(() => startRecruitmentTour(), 900);
+            } catch (e) { /* localStorage blocked — just skip the auto-tour */ }
+        }
+
+        // Helper: safely switch the main view for a tour step (function may live
+        // in a later script block, so guard every call).
+        function tourShow(fnName) {
+            try { if (typeof window[fnName] === 'function') window[fnName](); } catch (e) {}
+        }
+
+        // driver.js doesn't reliably strip its highlight class from a previous
+        // element once that element's section is hidden between steps, so the
+        // "lit" class accumulates. Clear it before each step; driver re-adds it
+        // to the current element after onHighlightStarted runs.
+        function tourCleanStale() {
+            document.querySelectorAll('.driver-active-element')
+                .forEach(e => e.classList.remove('driver-active-element'));
+        }
+
+        // The sidebar is icon-only until hovered; driver's overlay blocks hover,
+        // so we expand it directly whenever a tour step points at the menu.
+        function tourExpandNav() { tourCleanStale(); try { if (typeof expandSidebar === 'function') expandSidebar(); } catch (e) {} }
+        function tourCollapseNav() { tourCleanStale(); try { if (typeof collapseSidebar === 'function') collapseSidebar(); } catch (e) {} }
+
+        // Shared factory: builds a driver.js tour with our standard styling and
+        // robust exit handling. onStart runs before the tour opens (e.g. open a
+        // modal); onEnd runs on every exit path (X / ESC / overlay / "Got it!").
+        function runTour({ steps, onStart, onEnd }) {
+            if (!window.driver || !window.driver.js) {
+                showToast('The tour is still loading — please try again in a moment.', 'info');
+                return;
+            }
+            const driver = window.driver.js.driver;
+            // "Seen" just means "don't auto-open the welcome tour again". Set it as
+            // soon as any tour starts; the Tours menu can always replay them.
+            try { localStorage.setItem(RECRUITMENT_TOUR_FLAG, 'true'); } catch (e) {}
+            try { if (onStart) onStart(); } catch (e) {}
+            window.scrollTo({ top: 0, behavior: 'instant' });
+
+            const cleanup = () => { tourCleanStale(); try { if (onEnd) onEnd(); } catch (e) {} };
+
+            // driver.js leaves its highlight class on prior elements when they get
+            // hidden between steps, so it accumulates. Wrap every step to clear
+            // stale highlights first; driver re-adds the class to the current
+            // element after this runs. This guarantees exactly one lit element per
+            // step across all tours, whatever each step's own logic does.
+            const wrappedSteps = steps.map(s => {
+                const orig = s.onHighlightStarted;
+                return Object.assign({}, s, {
+                    onHighlightStarted: (el, step, opts) => {
+                        tourCleanStale();
+                        if (orig) try { orig(el, step, opts); } catch (e) {}
+                    }
+                });
+            });
+
+            const tour = driver({
+                showProgress: true,
+                allowClose: true,
+                animate: false, // instant transitions keep highlight cleanup in sync across sections/modals
+                stagePadding: 8,
+                overlayColor: 'rgba(15, 23, 42, 0.75)',
+                nextBtnText: 'Next →',
+                prevBtnText: '← Back',
+                doneBtnText: 'Got it!',
+                // driver.js v1.3.1's onDestroyed doesn't fire on a programmatic close
+                // here; onDestroyStarted (ESC/overlay/Done) and onCloseClick (the X)
+                // do — and when defined we must call destroy() ourselves.
+                onDestroyStarted: () => { cleanup(); tour.destroy(); },
+                onCloseClick: () => { cleanup(); tour.destroy(); },
+                steps: wrappedSteps
+            });
+            setTimeout(() => tour.drive(), 250);
+            return tour;
+        }
+
+        // ── 1. The full "show me around" walkthrough ─────────────────────────
+        function startRecruitmentTour() {
+            runTour({
+                onStart: () => tourShow('showDashboard'),
+                onEnd: () => { tourCollapseNav(); tourShow('showDashboard'); },
+                steps: [
+                    {
+                        popover: {
+                            title: '👋 Welcome!',
+                            description: "This tool helps you hire people. It reads CVs for you, gives each applicant a score, and keeps everyone organised in one place.<br><br>Let's take a quick look around — it only takes about a minute. You can leave anytime by pressing <b>Esc</b>."
+                        }
+                    },
+                    {
+                        element: '#sidebar',
+                        popover: {
+                            title: 'The Menu',
+                            description: "This menu on the left is how you move around. Every part of the tool is one click away from here. (It grows wider when your mouse is over it.)",
+                            side: 'right', align: 'start'
+                        },
+                        onHighlightStarted: () => tourExpandNav()
+                    },
+                    {
+                        element: '#nav-dashboard',
+                        popover: {
+                            title: 'Dashboard — Your Home Screen',
+                            description: "This is your starting page. It gives you a quick health-check of your hiring, so you can see how things are going at a glance.",
+                            side: 'right', align: 'start'
+                        },
+                        onHighlightStarted: () => { tourExpandNav(); tourShow('showDashboard'); }
+                    },
+                    {
+                        element: '.dashboard-grid',
+                        popover: {
+                            title: 'Your Numbers at a Glance',
+                            description: "These three boxes show the essentials: how many jobs you're hiring for, how many people have applied, and how many are top-quality matches. Click any box to jump straight to the details.",
+                            side: 'bottom', align: 'center'
+                        },
+                        onHighlightStarted: () => { tourCollapseNav(); tourShow('showDashboard'); }
+                    },
+                    {
+                        element: '#nav-jobs',
+                        popover: {
+                            title: 'Jobs — What You\'re Hiring For',
+                            description: "A \"job\" is a role you want to fill, like <em>\"Marketing Manager\"</em>. This is where you create jobs and see everyone who applied for each one.",
+                            side: 'right', align: 'start'
+                        },
+                        onHighlightStarted: () => { tourExpandNav(); tourShow('showJobs'); }
+                    },
+                    {
+                        element: '#createJobBtn',
+                        popover: {
+                            title: 'Add a New Job',
+                            description: "Click here to open a new role. You describe the job once, and the tool works out what a great candidate should look like — so it can score applicants for you later.",
+                            side: 'bottom', align: 'end'
+                        },
+                        onHighlightStarted: () => { tourCollapseNav(); tourShow('showJobs'); }
+                    },
+                    {
+                        element: '#nav-candidates',
+                        popover: {
+                            title: 'Candidates — Everyone Who Applied',
+                            description: "This is your full list of applicants across every job — one big, searchable list of people.",
+                            side: 'right', align: 'start'
+                        },
+                        onHighlightStarted: () => { tourExpandNav(); tourShow('showCandidates'); }
+                    },
+                    {
+                        element: '#repoTable',
+                        popover: {
+                            title: 'The Applicant List',
+                            description: "Each row is one person who applied. The tool reads their CV and gives them a <b>score out of 100</b>, so the strongest people rise to the top. No more reading hundreds of CVs by hand!<br><br>Click any person to see their full profile, shortlist them, invite them to interview, or turn them down.",
+                            side: 'top', align: 'center'
+                        },
+                        onHighlightStarted: () => { tourCollapseNav(); tourShow('showCandidates'); }
+                    },
+                    {
+                        element: '#rcLauncher',
+                        popover: {
+                            title: '🤖 Your AI Helper',
+                            description: "See this button? It's your assistant. Ask it questions in plain English — like <em>\"Who are my top 5 candidates for the sales role?\"</em> — and it answers instantly. You can even drop in a CV and ask it what it thinks.",
+                            side: 'left', align: 'end'
+                        },
+                        onHighlightStarted: () => {
+                            tourCollapseNav();
+                            const l = document.getElementById('rcLauncher');
+                            if (l) l.style.display = 'flex';
+                        }
+                    },
+                    {
+                        element: '#nav-users',
+                        popover: {
+                            title: 'Your Team',
+                            description: "Work with others? Add your colleagues here so they can help review and score candidates alongside you.",
+                            side: 'right', align: 'start'
+                        },
+                        onHighlightStarted: () => { tourExpandNav(); tourShow('showUsers'); }
+                    },
+                    {
+                        element: '#nav-audit',
+                        popover: {
+                            title: 'Activity Log — The History Book',
+                            description: "This keeps a record of who did what and when. If you ever wonder \"who moved this candidate?\", the answer is here.",
+                            side: 'right', align: 'start'
+                        },
+                        onHighlightStarted: () => { tourExpandNav(); tourShow('showAuditLogs'); }
+                    },
+                    {
+                        element: '#nav-settings',
+                        popover: {
+                            title: 'Settings — Set Up Your Emails',
+                            description: "Here you write ready-made email messages once — like a friendly \"Sorry, not this time\" or \"You're invited to interview\" — and connect your Gmail so the tool can send them for you, even scheduling them for later.",
+                            side: 'right', align: 'start'
+                        },
+                        onHighlightStarted: () => { tourExpandNav(); tourShow('showSettings'); }
+                    },
+                    {
+                        element: '#nav-tour',
+                        popover: {
+                            title: 'Want to See This Again?',
+                            description: "Any time you feel lost, click <b>Take a Tour</b> here. As well as this overview, you'll find short how-to guides for <b>creating a job</b>, <b>uploading CVs</b>, and <b>reviewing a candidate</b>.",
+                            side: 'right', align: 'start'
+                        },
+                        onHighlightStarted: () => tourExpandNav()
+                    },
+                    {
+                        popover: {
+                            title: "🎉 You're All Set!",
+                            description: "A great first step: go to <b>Jobs</b>, create your first role, then upload a few CVs and watch the tool score them for you.<br><br>Happy hiring!"
+                        },
+                        onHighlightStarted: () => tourCleanStale()
+                    }
+                ]
+            });
+        }
+
+        // ── 2. Deep dive: creating a job ─────────────────────────────────────
+        function startCreateJobTour() {
+            runTour({
+                // Open the New Job form (resets to a clean, blank job) before we begin.
+                onStart: () => { tourShow('showJobs'); tourShow('createNewJob'); },
+                onEnd: () => tourShow('closeJobModal'),
+                steps: [
+                    {
+                        element: '#jobModal .modal-content',
+                        popover: {
+                            title: '📝 Creating a Job',
+                            description: "This is the New Job form. You fill it in once, and the tool uses it to score everyone who applies. Let's go through it.",
+                            side: 'left', align: 'start'
+                        }
+                    },
+                    {
+                        element: '#jobTitle',
+                        popover: {
+                            title: 'Give the Job a Name',
+                            description: "Start with the job title, like <em>\"Sales Executive\"</em>. This is just so you can recognise it later.",
+                            side: 'bottom', align: 'start'
+                        }
+                    },
+                    {
+                        element: '#jobDesc',
+                        popover: {
+                            title: 'Paste the Job Advert',
+                            description: "Copy the full job description here — the same words you'd put on a job site. The more detail you give, the better the tool understands who you're looking for.",
+                            side: 'top', align: 'start'
+                        }
+                    },
+                    {
+                        element: '#generateCriteriaBtn',
+                        popover: {
+                            title: '✨ Let the AI Do the Thinking',
+                            description: "Click <b>Generate AI Criteria</b> and the tool reads your job advert and writes a checklist of what a great candidate should have — automatically. You don't have to figure it out yourself.",
+                            side: 'bottom', align: 'end'
+                        }
+                    },
+                    {
+                        element: '#jobCriteriaBody',
+                        popover: {
+                            title: 'The Scoring Checklist',
+                            description: "Each row is something the tool looks for, and the <b>Weight</b> is how important it is. A higher weight means it matters more to the final score. You can edit any of these or change the weights to match what you care about.",
+                            side: 'top', align: 'center'
+                        }
+                    },
+                    {
+                        element: '#generateQuestionsBtn',
+                        popover: {
+                            title: 'Interview Questions, Written for You',
+                            description: "This creates ready-to-use interview questions based on the job — with suggested good answers and red flags to watch for. Handy when it's time to actually meet the candidate.",
+                            side: 'bottom', align: 'end'
+                        }
+                    },
+                    {
+                        element: '#saveJobBtn',
+                        popover: {
+                            title: 'Save and You\'re Done',
+                            description: "Click <b>Create Job</b> to save it. After that, you can start adding CVs and the tool will score each applicant against everything you just set up.",
+                            side: 'top', align: 'end'
+                        }
+                    }
+                ]
+            });
+        }
+
+        // ── 3. Deep dive: uploading & scoring CVs ────────────────────────────
+        function startUploadTour() {
+            runTour({
+                // Reveal the upload panel on its own so the tour has something to point at,
+                // even if the user hasn't opened a specific job yet.
+                onStart: () => {
+                    tourShow('showJobs');
+                    const p = document.getElementById('uploadPanel');
+                    if (p) { p.style.display = 'block'; p.scrollIntoView({ block: 'start' }); }
+                },
+                onEnd: () => {
+                    const p = document.getElementById('uploadPanel');
+                    if (p) p.style.display = 'none';
+                    tourShow('showJobs');
+                },
+                steps: [
+                    {
+                        element: '#uploadPanel',
+                        popover: {
+                            title: '📤 Adding CVs',
+                            description: "Once you've created a job, this is where you feed in the CVs. You normally reach it by opening a job and choosing to upload.",
+                            side: 'top', align: 'center'
+                        }
+                    },
+                    {
+                        element: '#dropZone',
+                        popover: {
+                            title: 'Just Drag & Drop',
+                            description: "Drag CV files straight onto this box, or click <b>Browse Files</b> to pick them. You can add lots at once — PDFs, Word docs, images, even a ZIP folder full of CVs.",
+                            side: 'top', align: 'center'
+                        }
+                    },
+                    {
+                        element: '#dropZone .btn-primary',
+                        popover: {
+                            title: 'Pick Files From Your Computer',
+                            description: "Prefer not to drag? Click here to choose files the normal way.",
+                            side: 'bottom', align: 'center'
+                        }
+                    },
+                    {
+                        element: '#uploadPanel',
+                        popover: {
+                            title: 'The Tool Reads Every CV',
+                            description: "After you add files, the tool opens each CV, pulls out the important bits (experience, skills, contact details) and gives every person a score — so the best matches rise to the top of your candidate list automatically.",
+                            side: 'top', align: 'center'
+                        }
+                    }
+                ]
+            });
+        }
+
+        // ── 4. Deep dive: reviewing a candidate ──────────────────────────────
+        async function startCandidateTour() {
+            // This tour needs a real profile open so the panels aren't empty. Make
+            // sure the candidate list is loaded first (it may be empty if the user
+            // hasn't visited Candidates yet), so we have a real id to open.
+            try {
+                if (!(state.candidates || []).some(c => c && !c.deleted)) {
+                    await showCandidates();
+                }
+            } catch (e) {}
+            const first = (state.candidates || []).find(c => c && !c.deleted) || (state.candidates || [])[0];
+            if (!first) {
+                showToast("Add a few candidates first, then this tour can show you around a profile.", "info");
+                return;
+            }
+            runTour({
+                // Reveal the Candidates section directly (not via showCandidates(),
+                // which would reload and momentarily clear state) then open the profile.
+                onStart: () => {
+                    try { if (typeof hideAllSections === 'function') hideAllSections(); } catch (e) {}
+                    const sec = document.getElementById('candidatesSection');
+                    if (sec) sec.style.display = 'block';
+                    try { if (typeof setActiveNavItem === 'function') setActiveNavItem('nav-candidates'); } catch (e) {}
+                    try { viewCandidate(first.id); } catch (e) {}
+                },
+                onEnd: () => tourShow('closeDetailModal'),
+                steps: [
+                    {
+                        element: '#detailNameSection',
+                        popover: {
+                            title: '👤 The Candidate Profile',
+                            description: "This is everything the tool learned about one applicant. Their name, contact details and — most importantly — the <b>AI Score</b> out of 100.",
+                            side: 'bottom', align: 'start'
+                        }
+                    },
+                    {
+                        element: '#detailReasons',
+                        popover: {
+                            title: 'Why They Scored Well',
+                            description: "In plain English, this explains <em>why</em> the tool rated this person the way it did — the strengths it spotted in their CV.",
+                            side: 'right', align: 'start'
+                        }
+                    },
+                    {
+                        element: '#scoreChart',
+                        popover: {
+                            title: 'The Score, Broken Down',
+                            description: "This chart shows how the person did on each part of your checklist — so you can see at a glance where they're strong and where they're weaker.",
+                            side: 'top', align: 'center'
+                        }
+                    },
+                    {
+                        element: '#modalStatus',
+                        popover: {
+                            title: 'Move Them Along',
+                            description: "Use this to set where the person is in your process — like <b>Shortlisted</b>, <b>Interviewed</b> or <b>Offered</b>. It keeps everyone organised.",
+                            side: 'left', align: 'end'
+                        }
+                    },
+                    {
+                        element: '#detailScheduleBtn',
+                        popover: {
+                            title: 'Email Them — Even Later',
+                            description: "<b>Email</b> writes to them now; <b>Schedule Email</b> sends a message at a time you choose (great for a \"thanks for applying\" note a week from now). You set up the wording once in Settings.",
+                            side: 'bottom', align: 'end'
+                        }
+                    },
+                    {
+                        element: '#detailRejectBtn',
+                        popover: {
+                            title: 'Not the Right Fit?',
+                            description: "<b>Reject Candidate</b> marks them as turned down (you can still find them later). After rejecting, the tool offers to schedule a polite \"sorry\" email for you.",
+                            side: 'top', align: 'start'
+                        }
+                    }
+                ]
+            });
+        }
+
+        /* ── The "Guided Tours" picker ──────────────────────────────────────
+           Clicking the sidebar "Take a Tour" opens this simple menu so users
+           can choose the overview or a focused how-to. */
+        const TOUR_MENU = [
+            { key: 'full',      icon: '🧭', label: 'Show me around', sub: 'A quick tour of the whole app', fn: startRecruitmentTour },
+            { key: 'createJob', icon: '📝', label: 'How to create a job', sub: 'Set up a role for the AI to score against', fn: startCreateJobTour },
+            { key: 'upload',    icon: '📤', label: 'How to upload & score CVs', sub: 'Add CVs and let the tool read them', fn: startUploadTour },
+            { key: 'candidate', icon: '👤', label: 'How to review a candidate', sub: 'Read a profile and take action', fn: startCandidateTour }
+        ];
+
+        function openTourPicker() {
+            let modal = document.getElementById('tourPickerModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'tourPickerModal';
+                modal.className = 'modal';
+                modal.innerHTML =
+                    '<div class="modal-content" style="max-width: 540px;">' +
+                        '<div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">' +
+                            '<h2 style="margin:0;">📚 Guided Tours</h2>' +
+                            '<button onclick="closeTourPicker()" style="background:none;border:none;color:var(--text-dim);font-size:1.5rem;cursor:pointer;line-height:1;">&times;</button>' +
+                        '</div>' +
+                        '<p style="color:var(--text-dim); margin-bottom:20px;">Pick what you\'d like to learn. Each one takes about a minute.</p>' +
+                        '<div id="tourPickerList" style="display:flex; flex-direction:column; gap:12px;"></div>' +
+                    '</div>';
+                document.body.appendChild(modal);
+                // Click outside the card to close.
+                modal.addEventListener('click', (e) => { if (e.target === modal) closeTourPicker(); });
+            }
+            const list = modal.querySelector('#tourPickerList');
+            list.innerHTML = TOUR_MENU.map(t =>
+                '<button class="tour-picker-item" data-key="' + t.key + '" ' +
+                    'style="display:flex; align-items:center; gap:14px; text-align:left; padding:16px; border-radius:14px; ' +
+                    'background:var(--glass); border:1px solid var(--border); color:var(--text-main); cursor:pointer; transition:border-color .2s, background .2s;" ' +
+                    'onmouseover="this.style.borderColor=\'var(--primary)\'; this.style.background=\'rgba(99,102,241,0.08)\';" ' +
+                    'onmouseout="this.style.borderColor=\'var(--border)\'; this.style.background=\'var(--glass)\';">' +
+                    '<span style="font-size:1.6rem; flex-shrink:0;">' + t.icon + '</span>' +
+                    '<span><span style="display:block; font-weight:700;">' + t.label + '</span>' +
+                    '<span style="display:block; font-size:0.8rem; color:var(--text-dim); margin-top:2px;">' + t.sub + '</span></span>' +
+                '</button>'
+            ).join('');
+            list.querySelectorAll('.tour-picker-item').forEach(btn => {
+                btn.onclick = () => {
+                    const entry = TOUR_MENU.find(t => t.key === btn.dataset.key);
+                    closeTourPicker();
+                    if (entry) setTimeout(entry.fn, 200); // let the modal close first
+                };
+            });
+            modal.style.display = 'flex';
+        }
+
+        function closeTourPicker() {
+            const modal = document.getElementById('tourPickerModal');
+            if (modal) modal.style.display = 'none';
+        }
 
         function saveApiKey(key) {
             state.apiKey = key;
