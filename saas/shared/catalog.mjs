@@ -360,7 +360,7 @@ export const SIMPLE_NAMES = {
 
 /** The extra multiple-choice context question shown under the goal chips. */
 export const INTAKE = {
-  goalQuestion: 'What would you like to get done?',
+  goalQuestion: 'Choose your goals',
   goalHint: 'Pick one or more — we’ll build you a step-by-step plan.',
   context: {
     key: 'have',
