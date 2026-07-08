@@ -7782,6 +7782,8 @@
             if (blTourOriginalRole !== undefined) { state.role = blTourOriginalRole; blTourOriginalRole = undefined; }
             if (typeof renderOrders === 'function') renderOrders();
             if (typeof renderRankingsTable === 'function') renderRankingsTable();
+            if (typeof renderProgramKpis === 'function') renderProgramKpis();
+            if (typeof renderVendorScorecard === 'function') renderVendorScorecard();
         }
 
         function initBacklinksTour() {
@@ -7822,9 +7824,37 @@
                         }
                     },
                     {
+                        element: '#programKpis',
+                        popover: {
+                            title: 'Step 4: Program KPIs',
+                            description: 'Tracked-data only, for CEO/Finance oversight (SOP §11): ordered vs delivered vs approved links, average cost per link, $5 routine cost-cap compliance and turnaround times &mdash; no estimated figures.',
+                            side: "top", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            if (typeof showTab === 'function') showTab('dashboard');
+                            ensureBlTourDemoData();
+                            if (typeof renderProgramKpis === 'function') renderProgramKpis();
+                            if (typeof renderVendorScorecard === 'function') renderVendorScorecard();
+                        }
+                    },
+                    {
+                        element: '#vendorScorecard',
+                        popover: {
+                            title: 'Step 5: Vendor Performance',
+                            description: 'The quarterly-audit scorecard (SOP §7F / §8.7): delivery accuracy, issue frequency and cost alignment per vendor. Use the window selector to review 90 days through all-time; vendors with repeated quality failures should be flagged for corrective action.',
+                            side: "top", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            if (typeof showTab === 'function') showTab('dashboard');
+                            ensureBlTourDemoData();
+                            if (typeof renderProgramKpis === 'function') renderProgramKpis();
+                            if (typeof renderVendorScorecard === 'function') renderVendorScorecard();
+                        }
+                    },
+                    {
                         element: '#nav-campaigns',
                         popover: {
-                            title: 'Step 4: Campaign Repository',
+                            title: 'Step 6: Campaign Info Repository',
                             description: 'Centralise all your link-building strategies and active Monday.com board data here.',
                             side: "right", align: 'start'
                         }
@@ -7832,7 +7862,7 @@
                     {
                         element: '#importBtn',
                         popover: {
-                            title: 'Step 5: Monday.com Synchronization',
+                            title: 'Step 7: Monday.com Synchronization',
                             description: 'Keep your dashboard current by syncing the latest board items directly from Monday.com.',
                             side: "top", align: 'start'
                         },
@@ -7843,7 +7873,7 @@
                     {
                         element: '#nav-orders',
                         popover: {
-                            title: 'Step 6: Fulfilled Orders',
+                            title: 'Step 8: Delivered Backlinks',
                             description: 'Review and manage all delivered backlinks, including technical validation results.',
                             side: "right", align: 'start'
                         },
@@ -7856,7 +7886,7 @@
                     {
                         element: '#orderStats',
                         popover: {
-                            title: 'Step 7: Consultant Pre-Vendor Review Gate',
+                            title: 'Step 9: Consultant Pre-Vendor Review Gate',
                             description: 'Special orders (guest post / high-DA / DA-DR booster) carry a consultant checkpoint before they go to a vendor (SOP §7B). Whenever one is outstanding, an amber &quot;X to review&quot; chip shows up right here on the stats line.',
                             side: "bottom", align: 'start'
                         }
@@ -7872,7 +7902,7 @@
                     {
                         element: '#nav-rankings',
                         popover: {
-                            title: 'Step 8: Keyword Rankings',
+                            title: 'Step 10: Keyword Rankings',
                             description: 'Analyze real-time keyword movements powered by our SE Ranking integration.',
                             side: "right", align: 'start'
                         },
@@ -7885,7 +7915,7 @@
                     {
                         element: '#backlinkPlanning',
                         popover: {
-                            title: 'Step 9: Routine Backlink Planner',
+                            title: 'Step 11: Routine Backlink Planner',
                             description: 'Applies the SOP §7C routine ratio &mdash; 1 routine backlink per 10 tracked keywords &mdash; and compares that to routine (non-special) links already ordered, so you know exactly how many more to order and can target the struggling (off page 1) and low-hanging-fruit (page 2) keywords first.',
                             side: "top", align: 'start'
                         }
@@ -7893,7 +7923,7 @@
                     {
                         element: '#linkSiteBtn',
                         popover: {
-                            title: 'Step 10: Global Ranking Sync',
+                            title: 'Step 12: Global Ranking Sync',
                             description: 'Link your SE Ranking properties to pull live keyword position data into your dashboard.',
                             side: "top", align: 'start'
                         }
@@ -7901,7 +7931,7 @@
                     {
                         element: '#nav-validator',
                         popover: {
-                            title: 'Step 11: Bulk Link Validator',
+                            title: 'Step 13: Bulk Link Validator',
                             description: 'Perform automated quality and uptime audits on massive lists of backlinks at scale.',
                             side: "right", align: 'start'
                         }
@@ -7909,7 +7939,7 @@
                     {
                         element: '#cartBadgeBtn',
                         popover: {
-                            title: 'Step 12: Order Processing',
+                            title: 'Step 14: Order Processing',
                             description: 'Manage your wishlist and process bulk orders to your preferred vendors.',
                             side: "left", align: 'start'
                         }
@@ -7917,15 +7947,37 @@
                     {
                         element: '#nav-vendors',
                         popover: {
-                            title: 'Step 13: Access Control',
+                            title: 'Step 15: User Management',
                             description: 'Manage user permissions and vendor profiles with granular capability settings.',
                             side: "right", align: 'start'
                         }
                     },
                     {
+                        element: '#nav-cost',
+                        popover: {
+                            title: 'Step 16: Cost Management',
+                            description: 'Reconcile spend across BDs, campaigns and vendors. Track cost per link against the routine $5 cap and see exactly where the link-building budget is going.',
+                            side: "right", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            if (typeof showTab === 'function') showTab('cost');
+                        }
+                    },
+                    {
+                        element: '#costMultiSelect',
+                        popover: {
+                            title: 'Step 17: Cost Filtering & Views',
+                            description: 'Slice costs by BD &amp; campaign here, then narrow by vendor and month &mdash; and toggle List vs Charts to break spend down however Finance needs it.',
+                            side: "bottom", align: 'start'
+                        },
+                        onHighlightStarted: () => {
+                            if (typeof showTab === 'function') showTab('cost');
+                        }
+                    },
+                    {
                         element: '.nav-item[onclick="logout()"]',
                         popover: {
-                            title: 'Step 14: Secure Logout',
+                            title: 'Step 18: Secure Logout',
                             description: 'Ensure your session is securely terminated and local cache is cleared.',
                             side: "right", align: 'start'
                         }
