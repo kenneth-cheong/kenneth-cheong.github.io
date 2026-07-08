@@ -29,6 +29,8 @@ export default function Mascot({ size = 28, mood = 'idle', className = '', title
       <g clipPath={`url(#${clip})`}>
         {/* avatar background */}
         <circle cx="24" cy="24" r="24" fill="#e8f0ff" />
+        {/* Nudge the whole otter down ~3.5 units so it sits centred in the circle. */}
+        <g transform="translate(0 3.5)">
         {/* ears (behind head) */}
         <circle cx="14.5" cy="13.5" r="3.4" fill="#7d5236" />
         <circle cx="14.5" cy="13.9" r="1.7" fill="#5c3c28" />
@@ -61,6 +63,7 @@ export default function Mascot({ size = 28, mood = 'idle', className = '', title
         <ellipse cx="35.4" cy="16.5" rx="2.4" ry="3.5" fill="#2b3648" />
         <path d="M12.6 19.6C10.6 24 12.2 29 19 29.6" stroke="#2b3648" strokeWidth="1.7" fill="none" strokeLinecap="round" />
         <circle cx="19.3" cy="29.7" r="1.5" fill="#2b3648" />
+        </g>
       </g>
     </svg>
   );
