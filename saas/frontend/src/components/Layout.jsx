@@ -24,11 +24,11 @@ import { Menu, MessageCircle, HelpCircle, ChevronDown, ChevronLeft } from 'lucid
 const primaryNav = [
   { to: '/', label: 'Tools', end: true },
   { to: '/projects', label: 'Projects' },
-  { to: '/integrations', label: 'Integrations' },
   { to: '/schedules', label: 'Schedules' },
 ];
 const menuNav = [
   { to: '/account', label: 'Account' },
+  { to: '/integrations', label: 'Integrations' },
   { to: '/profile', label: 'Profile' },
   { to: '/account#billing', label: 'Billing' },
   { to: '/usage', label: 'Usage' },
