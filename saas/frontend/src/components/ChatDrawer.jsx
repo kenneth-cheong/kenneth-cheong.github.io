@@ -284,8 +284,10 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
       )}
       <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-900 px-4 py-3 text-white">
         {mascot && <Mascot size={34} className="shrink-0" title="Helpful Otter, your assistant" />}
-        <span className="font-semibold">Assistant</span>
-        <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs">{COST} credits / message</span>
+        <span className="font-semibold">Helpful Otter</span>
+        {/* Hide the per-message credit cost when the panel is narrow — the longer
+            "Helpful Otter" title + controls need the room; it returns when widened. */}
+        {width >= 460 && <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs">{COST} credits / message</span>}
         <div className="ml-auto flex items-center gap-1">
           <button onClick={newChat} className="rounded p-1 text-slate-300 hover:bg-white/10 hover:text-white" title="New chat" aria-label="New chat"><Plus size={18} aria-hidden /></button>
           <button onClick={() => (view === 'history' ? setView('chat') : openHistory())} className={`rounded p-1 hover:bg-white/10 hover:text-white ${view === 'history' ? 'text-white' : 'text-slate-300'}`} title="History" aria-label="History"><History size={18} aria-hidden /></button>

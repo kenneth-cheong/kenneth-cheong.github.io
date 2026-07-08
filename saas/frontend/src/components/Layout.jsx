@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useSupportTickets } from '../context/SupportTicketsContext.jsx';
 import CreditMeter from './CreditMeter.jsx';
 import ChatDrawer from './ChatDrawer.jsx';
+import Mascot from './Mascot.jsx';
 import NotificationBell from './NotificationBell.jsx';
 import PlanWidget from './PlanWidget.jsx';
 import Toaster from './Toaster.jsx';
@@ -17,7 +18,7 @@ import { setUser as setDiagnosticsUser } from '../lib/diagnostics.js';
 import { useMediaQuery, needsWelcome, hasAcceptedTerms, hasAcceptedNda } from '../lib/ui.js';
 import { PLANS } from '@shared/catalog.mjs';
 import { startPlatformTour, hasSeen, markSeen } from '../lib/tours.js';
-import { Menu, MessageCircle, HelpCircle, ChevronDown, ChevronLeft } from 'lucide-react';
+import { Menu, HelpCircle, ChevronDown, ChevronLeft } from 'lucide-react';
 
 // Core workflow links stay in the top bar; account/meta links live in the
 // right-side account dropdown so the row never overflows.
@@ -157,7 +158,7 @@ export default function Layout({ children }) {
                 aria-label={chatOpen ? 'Close the AI assistant' : 'Open the AI assistant'}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold ${chatOpen ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
               >
-                <MessageCircle size={16} aria-hidden /><span className="hidden lg:inline">Assistant</span>
+                <Mascot size={22} className="shrink-0 -mx-0.5" /><span className="hidden lg:inline">Assistant</span>
               </button>
 
               <button
