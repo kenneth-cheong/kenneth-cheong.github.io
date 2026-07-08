@@ -1,55 +1,47 @@
 import { useId } from 'react';
 
-// "Helpful Otter" — the assistant's face. A friendly otter avatar drawn as inline
-// SVG so we're not blocked on a designer: it needs no asset pipeline. Swap the
-// guts of this one component for real artwork (or an <img>) later and every
-// placement updates at once.
+// "Monty the Border Collie" — the assistant's face. A friendly border collie drawn
+// as inline SVG so we're not blocked on a designer: it needs no asset pipeline.
+// Swap the guts of this one component for real artwork (or an <img>) later and
+// every placement updates at once.
 //
-// `mood` nudges the expression: 'idle' (default) or 'happy' (bigger smile).
-// `bare` drops the soft background circle and frames the otter tightly — use it
-// where the host already provides shape/contrast (e.g. the nav button), so the
-// otter can be larger. The default keeps the circle so it reads on the dark
-// panel header. Decorative unless given a `title`.
-export default function Mascot({ size = 28, mood = 'idle', className = '', title, bare = false }) {
+// `bare` drops the soft background circle and frames Monty tightly — use it where
+// the host already provides shape/contrast (e.g. the nav button), so he can be
+// larger. The default keeps the circle so it reads on the dark panel header.
+// `mood` is accepted for API compatibility. Decorative unless given a `title`.
+export default function Mascot({ size = 28, mood = 'idle', className = '', title, bare = false }) { // eslint-disable-line no-unused-vars
   const clip = useId();
-  const smile = mood === 'happy'
-    ? 'M24 30.4Q21.5 33 19.6 31.4M24 30.4Q26.5 33 28.4 31.4'
-    : 'M24 30.4Q22 32.4 20.2 31.2M24 30.4Q26 32.4 27.8 31.2';
-  // The otter itself (native coords, no background). Reused by both variants.
+  // Monty himself (native coords, no background). Reused by both variants.
   const parts = (
     <>
-      {/* ears (behind head) */}
-      <circle cx="14.5" cy="13.5" r="3.4" fill="#7d5236" />
-      <circle cx="14.5" cy="13.9" r="1.7" fill="#5c3c28" />
-      <circle cx="33.5" cy="13.5" r="3.4" fill="#7d5236" />
-      <circle cx="33.5" cy="13.9" r="1.7" fill="#5c3c28" />
+      {/* ears */}
+      <path d="M11 16 L14.5 6 L20 12 Z" fill="#2b2b2b" stroke="#2b2b2b" strokeWidth="2.5" strokeLinejoin="round" />
+      <path d="M37 16 L33.5 6 L28 12 Z" fill="#2b2b2b" stroke="#2b2b2b" strokeWidth="2.5" strokeLinejoin="round" />
       {/* head */}
-      <circle cx="24" cy="23" r="13" fill="#9c6b4a" />
-      {/* muzzle / cheeks */}
-      <ellipse cx="24" cy="29" rx="9.5" ry="7" fill="#f0e2d2" />
-      <circle cx="15.8" cy="30" r="1.9" fill="#f2a0a0" opacity="0.3" />
-      <circle cx="32.2" cy="30" r="1.9" fill="#f2a0a0" opacity="0.3" />
+      <circle cx="24" cy="23" r="12.5" fill="#2b2b2b" />
+      {/* white blaze + muzzle */}
+      <path d="M24 10 Q21.5 10 21.5 15.5 Q21.5 21 24 21 Q26.5 21 26.5 15.5 Q26.5 10 24 10 Z" fill="#f7f7f7" />
+      <ellipse cx="24" cy="29.5" rx="8.5" ry="7" fill="#f7f7f7" />
+      {/* tongue */}
+      <path d="M22 32.2 Q24 35.8 26 32.2 Z" fill="#f28a8a" />
       {/* eyes */}
-      <circle cx="18.8" cy="20" r="2.9" fill="#fff" />
-      <circle cx="19.2" cy="20.3" r="1.9" fill="#2a1c12" />
-      <circle cx="18.4" cy="19.4" r="0.7" fill="#fff" />
-      <circle cx="29.2" cy="20" r="2.9" fill="#fff" />
-      <circle cx="28.8" cy="20.3" r="1.9" fill="#2a1c12" />
-      <circle cx="28" cy="19.4" r="0.7" fill="#fff" />
-      {/* nose (heart) */}
-      <path d="M24 28.4c-1.8-1-3-2-3-3.2 0-1 .9-1.6 1.7-1.6.6 0 1 .3 1.3.8.3-.5.7-.8 1.3-.8.8 0 1.7.6 1.7 1.6 0 1.2-1.2 2.2-3 3.2z" fill="#3d2820" />
-      {/* mouth */}
-      <path d="M24 28.4V30.4" stroke="#5c3c28" strokeWidth="1.2" strokeLinecap="round" />
-      <path d={smile} stroke="#5c3c28" strokeWidth="1.3" fill="none" strokeLinecap="round" />
-      {/* whiskers */}
-      <path d="M15 27 9 25.5M15 29H8.5M15 31 9 32.5" stroke="#cbb9a7" strokeWidth="0.9" strokeLinecap="round" />
-      <path d="M33 27 39 25.5M33 29H39.5M33 31 39 32.5" stroke="#cbb9a7" strokeWidth="0.9" strokeLinecap="round" />
-      {/* headset — band over the crown, ear cups, mic boom to the mouth */}
-      <path d="M12.6 14.5A12 12 0 0 1 35.4 14.5" stroke="#2b3648" strokeWidth="2.4" fill="none" strokeLinecap="round" />
-      <ellipse cx="12.6" cy="16.5" rx="2.4" ry="3.5" fill="#2b3648" />
-      <ellipse cx="35.4" cy="16.5" rx="2.4" ry="3.5" fill="#2b3648" />
-      <path d="M12.6 19.6C10.6 24 12.2 29 19 29.6" stroke="#2b3648" strokeWidth="1.7" fill="none" strokeLinecap="round" />
-      <circle cx="19.3" cy="29.7" r="1.5" fill="#2b3648" />
+      <ellipse cx="17.8" cy="18.5" rx="2.2" ry="2.6" fill="#8a5a2b" />
+      <circle cx="17.8" cy="18.8" r="1.2" fill="#201509" />
+      <circle cx="17.2" cy="17.9" r="0.5" fill="#fff" />
+      <ellipse cx="30.2" cy="18.5" rx="2.2" ry="2.6" fill="#8a5a2b" />
+      <circle cx="30.2" cy="18.8" r="1.2" fill="#201509" />
+      <circle cx="29.6" cy="17.9" r="0.5" fill="#fff" />
+      {/* nose + mouth */}
+      <ellipse cx="24" cy="27" rx="2.7" ry="2.1" fill="#1a1a1a" />
+      <circle cx="23" cy="26.3" r="0.7" fill="#5a5a5a" />
+      <path d="M24 29V31" stroke="#2b2b2b" strokeWidth="1.1" strokeLinecap="round" />
+      <path d="M24 31Q21 33.2 18.8 31.4M24 31Q27 33.2 29.2 31.4" stroke="#2b2b2b" strokeWidth="1.1" fill="none" strokeLinecap="round" />
+      {/* headset — blue so it pops on the black fur (band, ear cups, mic boom) */}
+      <path d="M11.5 20A13 13 0 0 1 36.5 20" stroke="#2563eb" strokeWidth="2.6" fill="none" strokeLinecap="round" />
+      <ellipse cx="11.5" cy="20.5" rx="2.6" ry="3.9" fill="#2563eb" />
+      <ellipse cx="36.5" cy="20.5" rx="2.6" ry="3.9" fill="#2563eb" />
+      <path d="M11.5 23.8C9.5 27.5 11.2 31.5 17.6 31.8" stroke="#2563eb" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+      <circle cx="17.9" cy="31.9" r="1.5" fill="#2563eb" />
     </>
   );
   return (
@@ -71,8 +63,8 @@ export default function Mascot({ size = 28, mood = 'idle', className = '', title
           <g clipPath={`url(#${clip})`}>
             {/* avatar background */}
             <circle cx="24" cy="24" r="24" fill="#e8f0ff" />
-            {/* Nudge the whole otter down ~3.5 units so it sits centred in the circle. */}
-            <g transform="translate(0 3.5)">{parts}</g>
+            {/* Nudge Monty down ~3 units so he sits centred in the circle. */}
+            <g transform="translate(0 3)">{parts}</g>
           </g>
         </>
       )}
