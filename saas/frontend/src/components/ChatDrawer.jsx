@@ -7,9 +7,10 @@ import { CREDIT_COSTS, toolById } from '@shared/catalog.mjs';
 import { toast } from '../lib/ui.js';
 import { X, Plus, History, Trash2, ArrowLeft, ArrowRight, Settings } from 'lucide-react';
 import PlanPanelCard from './PlanPanelCard.jsx';
+import Mascot from './Mascot.jsx';
 
 const COST = CREDIT_COSTS.ai_chat ?? 2;
-const GREETING = { role: 'assistant', content: "Hi! I'm your Digimetrics assistant. Ask me about any tool, how to get started, or your connected Search Console / GA4 / Ads numbers." };
+const GREETING = { role: 'assistant', content: "Hi! I'm your Helpful Otter, the Digimetrics assistant. Ask me about any tool, how to get started, or your connected Search Console / GA4 / Ads numbers." };
 
 // Render an assistant message, turning [[tool:id]] / [[go:path|label]] /
 // [[action:verb|arg]] tokens into clickable chips (chipFor builds each one).
@@ -100,6 +101,10 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
   // entry). Default on; users toggle it off here so reloads stay quiet.
   const [autoOpen, setAutoOpen] = useState(() => localStorage.getItem('dm:chatAutoOpen') !== '0');
   const toggleAutoOpen = () => setAutoOpen((on) => { const next = !on; localStorage.setItem('dm:chatAutoOpen', next ? '1' : '0'); return next; });
+  // Show the assistant's mascot face ("Helpful Otter"). On by default; a prototype flag so
+  // it's trivially reversible from Settings (and we can eyeball it before art lands).
+  const [mascot, setMascot] = useState(() => localStorage.getItem('dm:mascot') !== '0');
+  const toggleMascot = () => setMascot((on) => { const next = !on; localStorage.setItem('dm:mascot', next ? '1' : '0'); return next; });
   const [convos, setConvos] = useState([]);
   const [loadingConvos, setLoadingConvos] = useState(false);
   const threadRef = useRef(null);
@@ -278,6 +283,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
         </div>
       )}
       <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-900 px-4 py-3 text-white">
+        {mascot && <Mascot size={34} className="shrink-0" title="Helpful Otter, your assistant" />}
         <span className="font-semibold">Assistant</span>
         <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs">{COST} credits / message</span>
         <div className="ml-auto flex items-center gap-1">
@@ -309,6 +315,24 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
                 className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${autoOpen ? 'bg-brand-600' : 'bg-slate-300'}`}
               >
                 <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${autoOpen ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
+          </div>
+          <div className="px-1 pb-2">
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 p-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-sm font-medium text-slate-800"><Mascot size={20} /> Show Helpful Otter</div>
+                <p className="mt-0.5 text-xs text-slate-500">Show the friendly assistant character in the panel. Turn off for a plain, text-only look.</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={mascot}
+                onClick={toggleMascot}
+                title="Show the assistant mascot"
+                className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${mascot ? 'bg-brand-600' : 'bg-slate-300'}`}
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${mascot ? 'translate-x-5' : 'translate-x-0.5'}`} />
               </button>
             </div>
           </div>
@@ -347,21 +371,37 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
         <>
           <PlanPanelCard />
           <div ref={threadRef} onScroll={onThreadScroll} className="flex-1 space-y-3 overflow-y-auto p-3">
-            {msgs.map((m, i) => (
-              <div
-                key={i}
-                className={`max-w-[88%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
-                  m.role === 'user'
-                    ? 'ml-auto rounded-br-sm bg-brand-600 text-white'
-                    : m.error
-                      ? 'rounded-bl-sm border border-red-200 bg-red-50 text-red-700'
-                      : 'rounded-bl-sm bg-slate-100 text-slate-800'
-                }`}
-              >
-                {m.role === 'assistant' ? (m.content ? renderMessage(m.content, chipFor) : <TypingDots />) : m.content}
+            {msgs.map((m, i) => {
+              const isUser = m.role === 'user';
+              const bubble = (
+                <div
+                  className={`max-w-[86%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
+                    isUser
+                      ? 'ml-auto rounded-br-sm bg-brand-600 text-white'
+                      : m.error
+                        ? 'rounded-bl-sm border border-red-200 bg-red-50 text-red-700'
+                        : 'rounded-bl-sm bg-slate-100 text-slate-800'
+                  }`}
+                >
+                  {m.role === 'assistant' ? (m.content ? renderMessage(m.content, chipFor) : <TypingDots />) : m.content}
+                </div>
+              );
+              if (isUser) return <div key={i}>{bubble}</div>;
+              // Assistant reply — front it with the mascot so guidance reads as
+              // coming from one character (skip on error bubbles: no face on failures).
+              return (
+                <div key={i} className="flex items-end gap-2">
+                  {mascot && !m.error && <Mascot size={40} className="mb-0.5 shrink-0" />}
+                  {bubble}
+                </div>
+              );
+            })}
+            {busy && msgs[msgs.length - 1]?.role === 'user' && (
+              <div className="flex items-end gap-2">
+                {mascot && <Mascot size={40} className="mb-0.5 shrink-0" />}
+                <div className="w-fit rounded-2xl rounded-bl-sm bg-slate-100 px-3 py-2"><TypingDots /></div>
               </div>
-            ))}
-            {busy && msgs[msgs.length - 1]?.role === 'user' && <div className="w-fit rounded-2xl rounded-bl-sm bg-slate-100 px-3 py-2"><TypingDots /></div>}
+            )}
             {msgs.length <= 1 && !busy && (
               <div className="flex flex-wrap gap-2 pt-1">
                 {suggestions.map((s) => (
