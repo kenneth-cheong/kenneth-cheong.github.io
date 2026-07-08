@@ -4,9 +4,22 @@ import { PLANS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { toast } from '../lib/ui.js';
+import History from './History.jsx';
+
+// The workspace page: projects on top, run history below — one place to manage a
+// site's projects and revisit everything you've run for them. (Reachable at both
+// /projects and the legacy /history path.)
+export default function Projects() {
+  return (
+    <div className="mx-auto max-w-5xl space-y-12">
+      <ProjectsSection />
+      <History embedded />
+    </div>
+  );
+}
 
 // A project groups a site's runs + connected data. Tier-limited.
-export default function Projects() {
+function ProjectsSection() {
   const { user } = useAuth();
   const { projects, activeId, setActive, create, remove } = useProjects();
   const navigate = useNavigate();
@@ -27,7 +40,7 @@ export default function Projects() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <section>
       <h1 className="text-2xl font-bold">Projects</h1>
       <p className="mt-1 text-slate-600">Group a site's runs and connected data. {projects.length}/{limit} used on your {PLANS[user.tier].name} plan.</p>
 
@@ -65,6 +78,6 @@ export default function Projects() {
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

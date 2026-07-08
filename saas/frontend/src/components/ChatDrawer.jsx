@@ -6,6 +6,7 @@ import { useProjects } from '../context/ProjectContext.jsx';
 import { CREDIT_COSTS, toolById } from '@shared/catalog.mjs';
 import { toast } from '../lib/ui.js';
 import { X, Plus, History, Trash2, ArrowLeft, ArrowRight, Settings } from 'lucide-react';
+import PlanPanelCard from './PlanPanelCard.jsx';
 
 const COST = CREDIT_COSTS.ai_chat ?? 2;
 const GREETING = { role: 'assistant', content: "Hi! I'm your Digimetrics assistant. Ask me about any tool, how to get started, or your connected Search Console / GA4 / Ads numbers." };
@@ -344,6 +345,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask }
         </div>
       ) : (
         <>
+          <PlanPanelCard />
           <div ref={threadRef} onScroll={onThreadScroll} className="flex-1 space-y-3 overflow-y-auto p-3">
             {msgs.map((m, i) => (
               <div

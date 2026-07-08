@@ -40,7 +40,6 @@ const Account = lazyWithReload(() => import('./pages/Account.jsx'));
 const Profile = lazyWithReload(() => import('./pages/Profile.jsx'));
 const Usage = lazyWithReload(() => import('./pages/Usage.jsx'));
 const Admin = lazyWithReload(() => import('./pages/Admin.jsx'));
-const History = lazyWithReload(() => import('./pages/History.jsx'));
 const Support = lazyWithReload(() => import('./pages/Support.jsx'));
 const Integrations = lazyWithReload(() => import('./pages/Integrations.jsx'));
 const Projects = lazyWithReload(() => import('./pages/Projects.jsx'));
@@ -102,7 +101,8 @@ export default function App() {
           <Route path="/account" element={<Account />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/usage" element={<Usage />} />
-          <Route path="/history" element={<History />} />
+          {/* Legacy path — Runs now lives on the merged Projects page. */}
+          <Route path="/history" element={<Projects />} />
           <Route path="/schedules" element={<Schedules />} />
           <Route path="/support" element={<Support />} />
           <Route path="/support/:ticketId" element={<Support />} />

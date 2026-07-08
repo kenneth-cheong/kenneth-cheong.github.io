@@ -22,7 +22,9 @@ function statusOf(r) {
 
 // Every tool run is saved server-side; clicking one re-opens it in the tool
 // with the original inputs and the saved result (no re-run, no extra credits).
-export default function History() {
+// `embedded` renders it as a section (no page width wrapper) so it can sit below
+// Projects on the merged workspace page; the parent owns the max-width.
+export default function History({ embedded = false }) {
   const [runs, setRuns] = useState(null);
   const [opening, setOpening] = useState(null);
   const [scope, setScope] = useState('all'); // 'all' | 'project'
@@ -95,7 +97,7 @@ export default function History() {
   );
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className={embedded ? '' : 'mx-auto max-w-5xl'} id={embedded ? 'runs' : undefined}>
       <h1 className="text-2xl font-bold">Runs</h1>
       <p className="mt-1 text-slate-600">Every tool run is saved here. Click a row to revisit the result and the exact inputs.</p>
 

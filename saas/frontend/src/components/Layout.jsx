@@ -25,7 +25,6 @@ const primaryNav = [
   { to: '/', label: 'Tools', end: true },
   { to: '/projects', label: 'Projects' },
   { to: '/integrations', label: 'Integrations' },
-  { to: '/history', label: 'Runs' },
   { to: '/schedules', label: 'Schedules' },
 ];
 const menuNav = [
