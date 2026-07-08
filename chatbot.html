@@ -3652,7 +3652,7 @@
         </div>
 
         <header>
-            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2544</span></h1>
+            <h1><i class="fas fa-robot"></i> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2545</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -4803,14 +4803,12 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             const status = document.getElementById('reportFormatStatus');
             if (status) status.textContent = 'Reset to default — click Save format to apply.';
         }
-        // Always start a fresh conversation on page load / reload. Past chats are
-        // already saved to cloud history (browse them via the history sidebar), so
-        // nothing is lost — we just don't auto-restore the previous session into the
-        // live window. Shared links (?share=) are handled separately and load their
-        // own messages, so we keep the stored state in that one case.
-        const _startFreshChat = !new URLSearchParams(location.search).has('share');
-        let currentConversationId = _startFreshChat ? null : (localStorage.getItem('chatbot_conversationId') || null);
-        let chatHistory = _startFreshChat ? [] : JSON.parse(localStorage.getItem('chatbot_history') || '[]');
+        // Resume the last conversation across reloads — including the reload a version
+        // update triggers — so an in-progress chat is never lost off the screen. Users
+        // start a fresh thread with the "New Chat" button. Shared links (?share=) load
+        // their own stored state, same as before.
+        let currentConversationId = localStorage.getItem('chatbot_conversationId') || null;
+        let chatHistory = JSON.parse(localStorage.getItem('chatbot_history') || '[]');
         // An id with no restored history is a desync: a past failed/empty load once
         // persisted [] next to a live conversationId, so the next message would overwrite
         // the server thread. Disown the orphan id — a fresh save mints a new one instead
@@ -4825,16 +4823,18 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
         // against the server or successfully save — this gates the first save from
         // blindly overwriting a thread another session/device may have advanced.
         let conversationVerified = !currentConversationId;
-        // Server revision this client last saw for currentConversationId. Sent as baseRev
-        // on save so the backend can reject a stale overwrite (optimistic concurrency);
-        // a conflict triggers a merge + retry. See saveConversation().
-        let currentConvRev = 0;
-        if (_startFreshChat) {
-            localStorage.removeItem('chatbot_conversationId');
-            localStorage.removeItem('chatbot_history');
-            localStorage.removeItem('threadId');
-            threadId = null;
-        }
+        // Server revision this client last saw for currentConversationId. Persisted so a
+        // resumed session (or a recovery flush) sends the right baseRev for the optimistic-
+        // concurrency guard; a conflict triggers a merge + retry. See saveConversation().
+        let currentConvRev = parseInt(localStorage.getItem('chatbot_convRev') || '0', 10) || 0;
+        // Set whenever a message is pushed, cleared on a confirmed cloud save. Drives the
+        // pagehide/visibility beacon flush so the last turn survives a reload or tab close
+        // even though the routine cloud save only fires after a bot reply.
+        let _historyDirty = false;
+        // A prior session left an unconfirmed (dirty) tail — a save that never got
+        // acknowledged. We flush it to the cloud once on load (see the restore block) so
+        // it lands in History instead of being lost; baseRev makes that flush safe.
+        const _pendingUnsynced = localStorage.getItem('chatbot_unsynced') === '1';
 
         // Google Client ID — fetched from Lambda env var on load
         let _googleClientId = localStorage.getItem('googleClientId') || '';
@@ -5179,6 +5179,9 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     localStorage.setItem('chatbot_conversationId', currentConversationId);
                 }
                 if (typeof data.rev === 'number') currentConvRev = data.rev;
+                try { localStorage.setItem('chatbot_convRev', String(currentConvRev)); } catch (e) {}
+                _historyDirty = false;
+                try { localStorage.removeItem('chatbot_unsynced'); } catch (e) {}
                 conversationVerified = true;   // our history is now the server's latest
                 updateCloudStatus('synced', 'Cloud Synced');
                 return true;
@@ -5188,6 +5191,43 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 return false;
             }
         }
+
+        // Best-effort flush of the current thread as the page is being hidden/unloaded —
+        // covers the window the routine save misses (a trailing user turn with no bot
+        // reply yet, or a reply whose async save didn't finish before a reload/close).
+        // Uses sendBeacon (survives unload; text/plain avoids a CORS preflight and the
+        // Lambda parses the body regardless of content-type). Fire-and-forget: the reply
+        // isn't read, so baseRev conflicts are simply ignored server-side (no overwrite),
+        // and the dirty flag persists so the next load's recovery flush reconciles.
+        function _beaconFlushChat() {
+            try {
+                if (!_historyDirty || !chatHistory.length || !userId) return;
+                let title = localStorage.getItem(`title_${currentConversationId}`);
+                if (!title) {
+                    const f = chatHistory.find(m => m.role === 'user' && (m.content || '').length > 5 && !String(m.content).includes('Internal data loaded'));
+                    title = f ? String(f.content).substring(0, 50) + '...' : 'New Conversation';
+                }
+                const payload = {
+                    action: 'save_conversation',
+                    data: {
+                        userId: userId,
+                        conversationId: currentConversationId,
+                        messages: chatHistory,
+                        baseRev: currentConvRev,
+                        threadId: localStorage.getItem('threadId'),
+                        mode: 'claude',
+                        title: title,
+                        userLabel: (typeof chatUserLabel === 'function' ? chatUserLabel() : null),
+                        timestamp: new Date().toISOString()
+                    }
+                };
+                const blob = new Blob([JSON.stringify(payload)], { type: 'text/plain' });
+                if (navigator.sendBeacon && navigator.sendBeacon(PERSISTENCE_API_URL, blob)) return;
+                fetch(PERSISTENCE_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), keepalive: true }).catch(() => {});
+            } catch (e) { /* unload path — never throw */ }
+        }
+        window.addEventListener('pagehide', _beaconFlushChat);
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') _beaconFlushChat(); });
 
         let _allHistoryConvs = [];
 
@@ -5504,11 +5544,13 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     chatHistory = loadedMsgs;
                     conversationVerified = true;   // freshly loaded from the server
                     currentConvRev = (typeof convData.rev === 'number') ? convData.rev : 0;
+                    _historyDirty = false;
                     window._cbSessionDocs = [];   // don't carry the prior conversation's uploaded docs into this one
                     currentConvShared = !!convData.shared;
                     refreshVisibilityIndicator();
                     localStorage.setItem('chatbot_conversationId', currentConversationId);
                     localStorage.setItem('chatbot_history', JSON.stringify(chatHistory));
+                    try { localStorage.setItem('chatbot_convRev', String(currentConvRev)); localStorage.removeItem('chatbot_unsynced'); } catch (e) {}
 
                     if (convData.threadId) {
                         localStorage.setItem('threadId', convData.threadId);
@@ -5540,11 +5582,14 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             chatHistory = [];
             conversationVerified = true;   // fresh thread — nothing to clobber
             currentConvRev = 0;
+            _historyDirty = false;
             window._cbSessionDocs = [];   // drop documents uploaded in the previous conversation
             currentConvShared = false;
             refreshVisibilityIndicator();
             localStorage.removeItem('chatbot_conversationId');
             localStorage.removeItem('chatbot_history');
+            localStorage.removeItem('chatbot_convRev');
+            localStorage.removeItem('chatbot_unsynced');
             localStorage.removeItem('threadId');
             threadId = null;
 
@@ -5708,6 +5753,14 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     addMessage(m.role === 'user' ? 'user' : 'bot', m.content, m.toolLog, m.attachments || m.attachment || null, true, m.userLabel);
                 });
                 updateCloudStatus('synced', 'Session Restored');
+                // If a prior session left an unconfirmed tail (a save that never got
+                // acknowledged), flush it to the cloud now so it reaches History. This
+                // goes through saveConversation() → reconcileBeforeSave(), so baseRev/CAS
+                // still guards against clobbering a thread another device advanced.
+                if (_pendingUnsynced && userId) {
+                    _historyDirty = true;
+                    setTimeout(() => { saveConversation(); }, 1500);
+                }
             }
 
             // Restore mode
@@ -11959,8 +12012,10 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 if (sender === 'user' && resolvedLabel) entry.userLabel = resolvedLabel;
                 if (sender === 'bot' && modelProvider) entry.modelProvider = modelProvider;
                 chatHistory.push(entry);
+                _historyDirty = true;
                 try {
                     localStorage.setItem('chatbot_history', JSON.stringify(chatHistory));
+                    localStorage.setItem('chatbot_unsynced', '1');
                 } catch (e) {
                     console.warn("[HISTORY] Could not save chatHistory to localStorage (Storage full)", e);
                 }
