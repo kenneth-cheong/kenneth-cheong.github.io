@@ -161,7 +161,7 @@ export default function Layout({ children }) {
                 {/* Bare otter (no background circle) so it can go bigger and sit
                     directly on the button; slight negative margin keeps the row height. */}
                 <Mascot bare size={42} className="shrink-0 -my-0.5" />
-                <span className="hidden leading-[1.05] lg:flex lg:flex-col lg:items-start text-[11px] font-bold uppercase tracking-wide">
+                <span className="hidden leading-[1.05] lg:flex lg:flex-col lg:items-start text-[12px] font-semibold">
                   <span>Helpful</span>
                   <span>Otter</span>
                 </span>
