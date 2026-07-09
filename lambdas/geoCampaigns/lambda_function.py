@@ -772,6 +772,12 @@ def export_daily(campaign, proj=None, max_windows=24):
 
 
 def _range_dates(req):
+    """Resolve a date-range request into (startDate, endDate, preset, label) for the DB-backed
+    metrics_for_range path. Mirrors the DEPLOYED Lambda: every dashboard preset is accepted (the
+    frontend dropdown offers last7/14/30/90/180/365 days, thismonth, lastmonth, ytd, all, custom).
+    Windowed ranges clamp naturally against whatever daily data exists — build_model_from_db only
+    returns dates actually present in geoCampaignDaily, so an over-wide start just yields the data
+    floor (e.g. last90days/ytd/all all resolve to the earliest exported day)."""
     dr = (req.get("dateRange") or "last30days").strip()
     today = _today()
     if dr == "custom":
@@ -779,11 +785,21 @@ def _range_dates(req):
         if not (sd and ed):
             raise RuntimeError("custom range requires startDate and endDate (YYYY-MM-DD)")
         return sd, ed, dr, f"{sd} → {ed}"
-    if dr == "last7days":
-        return (today - timedelta(days=6)).isoformat(), today.isoformat(), dr, dr
-    if dr == "last30days":
-        return (today - timedelta(days=29)).isoformat(), today.isoformat(), dr, dr
-    raise RuntimeError("unsupported dateRange — use last7days, last30days, or custom")
+    if dr == "all":
+        # Wide floor; between(start, today) excludes the "__meta__" row ("_" sorts above digits).
+        return today.replace(year=2000, month=1, day=1).isoformat(), today.isoformat(), dr, dr
+    if dr == "ytd":
+        return today.replace(month=1, day=1).isoformat(), today.isoformat(), dr, dr
+    if dr == "thismonth":
+        return today.replace(day=1).isoformat(), today.isoformat(), dr, dr
+    if dr == "lastmonth":
+        end = today.replace(day=1) - timedelta(days=1)   # last day of previous month
+        return end.replace(day=1).isoformat(), end.isoformat(), dr, dr
+    m = re.match(r"last(\d+)days$", dr)
+    if m:
+        return (today - timedelta(days=int(m.group(1)) - 1)).isoformat(), today.isoformat(), dr, dr
+    raise RuntimeError(
+        "unsupported dateRange — use last<N>days, thismonth, lastmonth, ytd, all, or custom")
 
 
 def build_model_from_db(cid, start, end, label):
