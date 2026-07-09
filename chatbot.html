@@ -11329,9 +11329,9 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             CURRENT CONTEXT:
             - Monday.com: ${localStorage.getItem('mondayApiKey') ? 'Connected' : 'Not connected'}
             - Campaign boards loaded: ${(window.activeBoards || []).length} board(s) | Selected in focus filter: ${(() => { try { return (msState.msBoardDropdown.selected || []).length; } catch { return 0; } })()} board(s)
-            - GSC Site(s): ${gscSites.length ? gscSites.join(', ') : 'None selected'}
-            - GA4 Property/ies: ${ga4Props.length ? ga4Props.join(', ') : 'None selected'}
-            - Google Ads Account(s): ${adsAccs.length ? adsAccs.join(', ') : 'None selected'}
+            - Google Search Console: ${localStorage.getItem('googleToken_Gsc') ? 'Connected' : 'Not connected'} — Site(s) in focus: ${gscSites.length ? gscSites.join(', ') : 'None selected (connector still usable; pass a site url)'}
+            - Google Analytics 4: ${localStorage.getItem('googleToken_Ga4') ? 'Connected' : 'Not connected'} — Property/ies in focus: ${ga4Props.length ? ga4Props.join(', ') : 'None selected (connector still usable; pass a property id)'}
+            - Google Ads: ${localStorage.getItem('googleToken_Ads') ? 'Connected' : 'Not connected'} — Account(s) in focus: ${adsAccs.length ? adsAccs.join(', ') : 'None selected (connector still usable — resolve an account by name/id from context, or audit the whole MCC with get_ads_mcc_change_sweep without selecting one)'}
             - Meta Ad Account(s): ${(() => { try { const m = JSON.parse(localStorage.getItem('selectedMetaAccount') || '[]'); return m.length ? m.map(s=>s.label||s.value).join(', ') : 'None selected'; } catch { return 'None selected'; } })()}
             - meta_ad_account_ids: ${(() => { try { return JSON.stringify(JSON.parse(localStorage.getItem('selectedMetaAccount') || '[]').map(s=>s.value||s).filter(Boolean)); } catch { return '[]'; } })()}
             - Meta Ads token: ${localStorage.getItem('meta_access_token') ? 'Connected' : 'Not connected'}
@@ -11407,16 +11407,16 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             CONNECTOR PROMPTS — read carefully:
             When a user's question would meaningfully benefit from a connector listed as "Not connected" or "None selected" above, append one of the markers below at the end of your response. The client renders them as clickable setup cards.
             Rules:
-            - Only emit a marker if the connector is explicitly "Not connected" / "None selected" in CURRENT CONTEXT above.
-            - Never emit a marker for an already-connected service.
+            - Emit a marker ONLY when the connector itself is "Not connected" in CURRENT CONTEXT. Do NOT emit one merely because an account/site/property shows "None selected" — a Connected connector with nothing in focus is still fully usable: resolve the account/site by name or id from context, and for Google Ads you can audit the whole MCC with get_ads_mcc_change_sweep without selecting anything. "None selected" is NOT "Not connected".
+            - Never emit a marker for a service shown as "Connected" (e.g. if "Google Ads: Connected" appears, NEVER emit SETUP_CONNECTOR:google_ads — even with no account in focus).
             - Emit at most 2 markers per response.
             - Always answer as best you can first — markers are supplemental, not a replacement.
             - For campaign boards: emit [ACTION: SELECT_CAMPAIGN] only when boards ARE loaded (> 0) but none are selected in the focus filter AND the question is clearly about a specific campaign.
             Available markers:
             [ACTION: SETUP_CONNECTOR:monday] — Monday.com not connected
-            [ACTION: SETUP_CONNECTOR:gsc] — Search Console not selected
-            [ACTION: SETUP_CONNECTOR:ga4] — Google Analytics not selected
-            [ACTION: SETUP_CONNECTOR:google_ads] — Google Ads not selected
+            [ACTION: SETUP_CONNECTOR:gsc] — Search Console connector not connected
+            [ACTION: SETUP_CONNECTOR:ga4] — Google Analytics connector not connected
+            [ACTION: SETUP_CONNECTOR:google_ads] — Google Ads connector not connected (do NOT use for merely "no account in focus")
             [ACTION: SETUP_CONNECTOR:meta] — Meta Ads not connected
             [ACTION: SETUP_CONNECTOR:linkedin] — LinkedIn Ads not connected
             [ACTION: SETUP_CONNECTOR:tiktok] — TikTok Ads not connected
