@@ -176,7 +176,7 @@ function gauge(cxp, cyp, r, pct, a) {
     <circle cx="${cxp}" cy="${cyp}" r="${r}" fill="none" stroke="#eef2f7" stroke-width="26"/>
     <circle cx="${cxp}" cy="${cyp}" r="${r}" fill="none" stroke="${a}" stroke-width="26" stroke-linecap="round"
       stroke-dasharray="${C}" stroke-dashoffset="${off}" transform="rotate(-90 ${cxp} ${cyp})"/>
-    <text x="${cxp}" y="${cyp + 28}" text-anchor="middle" font-family="${FONT}" font-size="92" font-weight="900" letter-spacing="-3" fill="${a}">${pct}%</text>`;
+    <text x="${cxp}" y="${cyp + 33}" text-anchor="middle" font-family="${FONT}" font-size="92" font-weight="900" letter-spacing="-3" fill="${a}">${pct}%</text>`;
 }
 
 // Monty the Border Collie as a circular avatar — a 1:1 reproduction of the in-app
