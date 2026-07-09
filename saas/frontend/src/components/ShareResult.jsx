@@ -10,9 +10,12 @@ import { isShareable } from '../lib/shareCard.js';
 //
 // `force` shows the button for hand-assembled summaries (e.g. dashboard pages)
 // that isShareable() can't introspect from a raw tool payload.
+// `snapshot` opts this result into public share links even without a saved run:
+// the modal posts the compact summary and the server persists it on the share.
 export default function ShareResult({
   tool, out, project, user,
   force = false,
+  snapshot = false,
   label = 'Share',
   className = 'inline-flex items-center gap-1 rounded-md border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700 hover:border-brand-400 hover:bg-brand-100',
 }) {
@@ -23,7 +26,7 @@ export default function ShareResult({
       <button onClick={() => setOpen(true)} title="Create a branded image to share on social media" className={className}>
         <Share2 size={13} aria-hidden /> {label}
       </button>
-      <ShareModal open={open} onClose={() => setOpen(false)} tool={tool} out={out} project={project} user={user} />
+      <ShareModal open={open} onClose={() => setOpen(false)} tool={tool} out={out} project={project} user={user} snapshot={snapshot} />
     </>
   );
 }

@@ -11,10 +11,14 @@ import {
 // client-rendered SVG; the exported PNG prefers the server card (ShareFn,
 // pixel-identical but with the embedded brand font) when the run was saved,
 // falling back to client-side <canvas> rasterisation otherwise.
-export default function ShareModal({ open, onClose, tool, out, project, user }) {
+export default function ShareModal({ open, onClose, tool, out, project, user, snapshot = false }) {
   const [format, setFormat] = useState('square');
   const [shareUrl, setShareUrl] = useState('');
+  const [snapShareId, setSnapShareId] = useState(''); // shareId of a minted snapshot (dashboard tools)
   const [linking, setLinking] = useState(false);
+  // A result can be published to a public link if it's a saved run OR a
+  // dashboard snapshot (which the server persists on the share itself).
+  const publishable = !!(out?.runId || snapshot);
   const summary = useMemo(
     () => (open ? buildShareSummary(tool, out, project, user) : null),
     [open, tool, out, project, user],
@@ -24,7 +28,7 @@ export default function ShareModal({ open, onClose, tool, out, project, user }) 
 
   useEffect(() => {
     if (!open) return;
-    setShareUrl(''); // a fresh open never leaks the previous run's link
+    setShareUrl(''); setSnapShareId(''); // a fresh open never leaks the previous run's link
     const onKey = (e) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -60,12 +64,23 @@ export default function ShareModal({ open, onClose, tool, out, project, user }) 
   // platform then unfurls the card image from the link's OG tags, with the
   // caption prefilled. The window is opened synchronously (before the await) so
   // the popup isn't blocked, then redirected once the link is ready.
+  // Mint the public link. Saved runs mint by runId; dashboard snapshots post the
+  // compact summary and the server persists it on the share. Returns { url }.
+  const mint = async () => {
+    if (out?.runId) return api.shareRun(out.runId);
+    const r = await api.shareRun('snap', {
+      toolId: tool.id, toolName: tool.name, result: out.result, target: project?.domain || '',
+    });
+    if (r.shareId) setSnapShareId(r.shareId);
+    return r;
+  };
+
   const onSocial = async (key) => {
     const w = window.open('about:blank', '_blank', 'width=600,height=640');
     let url = shareUrl;
-    if (!url && out?.runId) {
+    if (!url && publishable) {
       setLinking(true);
-      try { const r = await api.shareRun(out.runId); url = r.url; setShareUrl(url); }
+      try { const r = await mint(); url = r.url; setShareUrl(url); }
       catch { /* no link — fall back to caption + generic CTA link */ }
       finally { setLinking(false); }
     }
@@ -76,13 +91,13 @@ export default function ShareModal({ open, onClose, tool, out, project, user }) 
 
   const onCreateLink = async () => {
     setLinking(true);
-    try { const { url } = await api.shareRun(out.runId); setShareUrl(url); toast('Public link created', 'success'); }
+    try { const { url } = await mint(); setShareUrl(url); toast('Public link created', 'success'); }
     catch { toast('Could not create link', 'error'); }
     finally { setLinking(false); }
   };
   const onRevoke = async () => {
     setLinking(true);
-    try { await api.revokeShare(out.runId); setShareUrl(''); toast('Public link revoked', 'success'); }
+    try { await api.revokeShare(out?.runId || 'snap', snapShareId || undefined); setShareUrl(''); setSnapShareId(''); toast('Public link revoked', 'success'); }
     catch { toast('Could not revoke link', 'error'); }
     finally { setLinking(false); }
   };
@@ -140,8 +155,8 @@ export default function ShareModal({ open, onClose, tool, out, project, user }) 
             </button>
           </div>
 
-          {/* Public link (opt-in, auto-redacted). Only for saved runs. */}
-          {out?.runId && (
+          {/* Public link (opt-in, auto-redacted). Saved runs or dashboard snapshots. */}
+          {publishable && (
             <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
               <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <Globe size={13} /> Public link
@@ -166,7 +181,7 @@ export default function ShareModal({ open, onClose, tool, out, project, user }) 
           )}
 
           <p className="text-[11px] leading-relaxed text-slate-400">
-            {out?.runId
+            {publishable
               ? 'Posting to a platform creates a public link so the card image unfurls automatically, with your caption. On mobile, “Share…” attaches the image file directly.'
               : 'Social buttons open the composer with your caption — attach the downloaded image to finish the post.'}
           </p>

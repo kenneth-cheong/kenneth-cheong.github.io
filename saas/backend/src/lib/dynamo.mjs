@@ -795,10 +795,15 @@ export async function listScheduleRuns(scheduleId, limit = 30) {
 // `ttl` (epoch seconds) lets DynamoDB auto-expire stale links.
 const SHARE_TTL_DAYS = 365;
 
-/** Create-or-return a stable share for a run (idempotent per {userId, runId}). */
-export async function createShare({ userId, runId, shareId }) {
+/**
+ * Create a public share. Normally it points at a saved run ({runId}); dashboard
+ * tools that have no run instead embed a self-contained `snapshot`
+ * ({tool,toolName,result,target}) so the public card renders without a run row.
+ */
+export async function createShare({ userId, runId = null, shareId, snapshot = null }) {
   const ttl = Math.floor(Date.now() / 1000) + SHARE_TTL_DAYS * 86400;
-  const Item = { shareId, userId, runId, revoked: false, createdAt: new Date().toISOString(), ttl };
+  const Item = { shareId, userId, runId: runId || null, revoked: false, createdAt: new Date().toISOString(), ttl };
+  if (snapshot) Item.snapshot = snapshot;
   await ddb.send(new PutCommand({ TableName: TABLES.shares, Item }));
   return Item;
 }

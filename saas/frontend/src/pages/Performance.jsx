@@ -125,7 +125,7 @@ export default function Performance() {
         {metrics.length > 0 && (
           <div className="flex flex-wrap gap-2">
             <button onClick={exportCsv} className="btn-ghost text-sm">Export CSV</button>
-            <ShareResult tool={SHARE_TOOL} out={shareOut} project={active} user={null} force label="Share" className={SHARE_BTN} />
+            <ShareResult tool={SHARE_TOOL} out={shareOut} project={active} user={null} force snapshot label="Share" className={SHARE_BTN} />
           </div>
         )}
       </div>

@@ -168,7 +168,7 @@ export default function Tracking() {
             <button onClick={exportCsv} className="btn-ghost text-sm">Export CSV</button>
             <button onClick={() => setConfirmBackfill(true)} disabled={backfilling} className="btn-ghost text-sm">{backfilling ? 'Backfilling…' : 'Backfill history'}</button>
             <button onClick={refreshAll} disabled={refreshing} className="btn-ghost text-sm">{refreshing ? 'Refreshing…' : 'Refresh positions'}</button>
-            <ShareResult tool={SHARE_TOOL} out={shareOut} project={active} user={user} force label="Share" className={SHARE_BTN} />
+            <ShareResult tool={SHARE_TOOL} out={shareOut} project={active} user={user} force snapshot label="Share" className={SHARE_BTN} />
           </div>
         )}
       </div>

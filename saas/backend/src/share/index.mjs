@@ -73,6 +73,43 @@ const pngResponse = (png, origin, cacheable) => ({
   body: Buffer.from(png).toString('base64'),
 });
 
+const safeJson = (s) => { try { return JSON.parse(s || '{}') || {}; } catch { return {}; } };
+
+// Dashboard tools (Social/Site Audit, Performance, Tracking) have no saved run,
+// so their Share button posts a compact stats "snapshot" that we persist on the
+// share record itself. Accept ONLY a small stats-sections summary — strip
+// everything else and cap sizes. (The renderer + OG page escape text anyway.)
+const clip = (v, n) => String(v ?? '').slice(0, n);
+const SNAP_TONES = new Set(['green', 'amber', 'red', 'orange', 'blue', 'slate']);
+function sanitizeSnapshotResult(result) {
+  const sections = Array.isArray(result?.sections) ? result.sections : null;
+  if (!sections) return null;
+  const out = [];
+  for (const sec of sections.slice(0, 4)) {
+    if (sec?.type !== 'stats' || !Array.isArray(sec.items)) continue;
+    const items = [];
+    for (const it of sec.items.slice(0, 8)) {
+      const label = clip(it?.label, 60), value = clip(it?.value, 60);
+      if (!label || !value) continue;
+      const item = { label, value };
+      if (SNAP_TONES.has(it?.tone)) item.tone = it.tone;
+      items.push(item);
+    }
+    if (items.length) out.push({ type: 'stats', items });
+  }
+  return out.length ? { sections: out } : null;
+}
+
+// A run-shaped object for the renderer, sourced from either the embedded
+// snapshot or the saved run the share points at.
+async function runForShare(share) {
+  if (share.snapshot) {
+    const s = share.snapshot;
+    return { tool: s.tool, toolName: s.toolName, result: s.result || {}, target: s.target || '' };
+  }
+  return share.runId ? getRun(share.userId, share.runId) : null;
+}
+
 const htmlEsc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 const htmlResponse = (statusCode, html) => ({
@@ -140,7 +177,7 @@ export async function handler(event) {
 
       if (path.endsWith('/card.png')) {
         if (gone) return json(404, { error: 'Not found' });
-        const run = await getRun(share.userId, share.runId);
+        const run = await runForShare(share);
         if (!run) return json(404, { error: 'Not found' });
         const fmt = event.queryStringParameters?.format;
         const { png } = await renderRun(run, FORMATS[fmt] ? fmt : 'wide', true);
@@ -148,7 +185,7 @@ export async function handler(event) {
       }
       // OG landing page
       if (gone) return htmlResponse(404, '<!doctype html><meta charset="utf-8"><title>Link unavailable</title><body style="font-family:system-ui;text-align:center;padding:60px;color:#475569">This share link is no longer available.</body>');
-      const run = await getRun(share.userId, share.runId);
+      const run = await runForShare(share);
       if (!run) return htmlResponse(404, '<!doctype html><meta charset="utf-8"><body>Not found</body>');
       const { summary } = await renderRun(run, 'wide', true);
       const base = baseUrl(event);
@@ -165,15 +202,32 @@ export async function handler(event) {
     const runId = event.pathParameters?.runId ? decodeURIComponent(event.pathParameters.runId) : null;
     if (!runId) return json(400, { error: 'Missing runId' });
 
-    // Revoke the public link.
+    // Revoke the public link. Snapshot shares carry no run, so the client sends
+    // the shareId directly; run-backed shares are found via the run row.
     if (path.endsWith('/share/revoke')) {
+      const sid = safeJson(event.body).shareId;
+      if (sid) { await revokeShare(sid, userId).catch(() => {}); return json(200, { ok: true }); }
       const run = await getRun(userId, runId);
       if (run?.shareId) { await revokeShare(run.shareId, userId).catch(() => {}); await setRunShareId(userId, runId, null); }
       return json(200, { ok: true });
     }
 
-    // Mint (or return the existing) public link — idempotent per run.
+    // Mint the public link. Two shapes:
+    //  • run-backed: idempotent per run (reuses the run's existing shareId)
+    //  • snapshot: the client posts a self-contained stats summary (dashboard
+    //    tools with no saved run) which we embed on a fresh share record.
     if (path.endsWith('/share')) {
+      const snap = safeJson(event.body).snapshot;
+      if (snap) {
+        const result = sanitizeSnapshotResult(snap.result);
+        if (!result) return json(400, { error: 'Invalid snapshot' });
+        const shareId = randomBytes(9).toString('base64url');
+        await createShare({
+          userId, shareId,
+          snapshot: { tool: clip(snap.toolId, 64) || 'report', toolName: clip(snap.toolName, 80) || 'Report', result, target: clip(snap.target, 200) },
+        });
+        return json(200, { shareId, url: `${baseUrl(event)}/s/${shareId}` });
+      }
       const run = await getRun(userId, runId);
       if (!run) return json(404, { error: 'Run not found' });
       let shareId = run.shareId || null;

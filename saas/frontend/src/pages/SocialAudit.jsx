@@ -757,7 +757,7 @@ export default function SocialAudit() {
       <div ref={resultsRef} data-tour="sma-results" className="mt-6 space-y-4">
         {doneJob && (
           <div className="flex justify-end">
-            <ShareResult tool={SHARE_TOOL} out={socialShareOut(doneJob)} project={active} user={user} force label="Share result" className={SHARE_BTN} />
+            <ShareResult tool={SHARE_TOOL} out={socialShareOut(doneJob)} project={active} user={user} force snapshot label="Share result" className={SHARE_BTN} />
           </div>
         )}
         {scorecardHtml && <div dangerouslySetInnerHTML={{ __html: scorecardHtml }} />}

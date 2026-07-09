@@ -210,9 +210,12 @@ export const api = {
   // fetch it with the bearer token rather than putting it in an <img src>.
   runCard: (runId, format = 'square') =>
     callBlob(`/me/runs/${encodeURIComponent(runId)}/card?format=${encodeURIComponent(format)}`),
-  // Public share link (opt-in, auto-redacted). Mint is idempotent per run.
-  shareRun: (runId) => call(`/me/runs/${encodeURIComponent(runId)}/share`, { method: 'POST' }),
-  revokeShare: (runId) => call(`/me/runs/${encodeURIComponent(runId)}/share/revoke`, { method: 'POST' }),
+  // Public share link (opt-in, auto-redacted). Mint is idempotent per run. For
+  // dashboard tools with no saved run, pass a `snapshot` ({toolId,toolName,
+  // result,target}) — the server embeds it on the share and returns its shareId.
+  shareRun: (runId, snapshot) => call(`/me/runs/${encodeURIComponent(runId)}/share`, { method: 'POST', body: snapshot ? { snapshot } : undefined }),
+  // Revoke by run (run-backed shares) or by shareId (snapshot shares).
+  revokeShare: (runId, shareId) => call(`/me/runs/${encodeURIComponent(runId)}/share/revoke`, { method: 'POST', body: shareId ? { shareId } : undefined }),
   // Scheduled tool runs (recurring runs with saved inputs; period-over-period compare)
   schedules: () => call('/me/schedules'),
   createSchedule: (payload) => call('/me/schedules', { method: 'POST', body: payload }),

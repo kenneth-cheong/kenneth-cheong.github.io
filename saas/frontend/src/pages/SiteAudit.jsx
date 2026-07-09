@@ -162,7 +162,7 @@ export default function SiteAudit() {
       {report && (
         <>
           <div className="mt-6 -mb-2 flex justify-end">
-            <ShareResult tool={SHARE_TOOL} out={auditShareOut(report)} project={active} user={user} force label="Share result" className={SHARE_BTN} />
+            <ShareResult tool={SHARE_TOOL} out={auditShareOut(report)} project={active} user={user} force snapshot label="Share result" className={SHARE_BTN} />
           </div>
           <Report report={report} />
         </>
