@@ -4362,6 +4362,80 @@ def lambda_handler(event, context):
                     q["app_source"] = body.get('app_source')
                 deleted = db.usage_logs.delete_many(q)
                 result = {"statusCode": 200, "body": json.dumps({"success": True, "deleted": deleted.deleted_count}, cls=JSONEncoder)}
+        elif action == 'seo_kpi_save':
+            # Persist today's SEO Team Performance Dashboard snapshot (idempotent per UTC day).
+            # Called best-effort by the cockpit card on every load so daily history accrues.
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                snap = body.get('snapshot', {}) or {}
+                day = datetime.utcnow().strftime('%Y-%m-%d')
+                doc = {
+                    "orgId": "digimetrics", "day": day,
+                    "scores":  snap.get('scores', {}),
+                    "overall": snap.get('overall', {}),
+                    "regular": snap.get('regular', {}),
+                    "psg":     snap.get('psg', {}),
+                    "updatedAt": datetime.utcnow(),
+                }
+                db.seo_kpi_daily.update_one(
+                    {"orgId": "digimetrics", "day": day},
+                    {"$set": doc}, upsert=True)
+                result = {"statusCode": 200, "body": json.dumps({"success": True, "day": day}, cls=JSONEncoder)}
+        elif action == 'seo_kpi_history':
+            # Monthly hit-rate trend: seeded historical months (from the SEO Performance
+            # Sheet "Summary" tab) plus the current month derived from the latest daily snapshot.
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                monthly = list(db.seo_kpi_monthly.find({"orgId": "digimetrics"}, {"_id": 0}).sort("period", 1))
+                series = [{"period": m.get("period"), "overall": m.get("overall"),
+                           "regular": m.get("regular"), "psg": m.get("psg"),
+                           "contractedKws": m.get("contractedKws")} for m in monthly]
+                latest = db.seo_kpi_daily.find_one({"orgId": "digimetrics"}, {"_id": 0}, sort=[("day", -1)])
+                if latest:
+                    cur = (latest.get("day") or "")[:7]  # YYYY-MM
+                    pt = {"period": cur,
+                          "overall": (latest.get("overall") or {}).get("pct"),
+                          "regular": (latest.get("regular") or {}).get("pct"),
+                          "psg":     (latest.get("psg") or {}).get("pct"),
+                          "contractedKws": (latest.get("scores") or {}).get("contractedKws")}
+                    series = [s for s in series if s.get("period") != cur] + [pt]
+                result = {"statusCode": 200, "body": json.dumps({"series": series}, cls=JSONEncoder)}
+        elif action == 'seo_kpi_seed_history':
+            # One-time (idempotent) seed of monthly history into seo_kpi_monthly.
+            # Accepts a `months` array, else falls back to the 2025 Jan-Jul series
+            # captured from the sheet's "Summary" tab. Upserts by period so re-runs
+            # and later corrections are safe.
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                months = body.get('months')
+                if not months:
+                    _p  = ["2025-01","2025-02","2025-03","2025-04","2025-05","2025-06","2025-07"]
+                    _ov = [58.11,52.38,47.56,38.33,42.62,49.15,43.94]
+                    _rg = [78.79,81.08,68.75,35.42,42.55,45.65,40.82]
+                    _pg = [41.46,29.79,34.00,50.00,42.86,61.54,52.94]
+                    _kw = [3515,3432,3093,1724,1628,1573,1559]
+                    months = [{"period": _p[i], "overall": _ov[i], "regular": _rg[i],
+                               "psg": _pg[i], "contractedKws": _kw[i]} for i in range(len(_p))]
+                n = 0
+                for m in months:
+                    if not m.get('period'):
+                        continue
+                    db.seo_kpi_monthly.update_one(
+                        {"orgId": "digimetrics", "period": m['period']},
+                        {"$set": {"orgId": "digimetrics", "period": m['period'],
+                                  "overall": m.get('overall'), "regular": m.get('regular'),
+                                  "psg": m.get('psg'), "contractedKws": m.get('contractedKws'),
+                                  "source": m.get('source', 'sheet-summary'),
+                                  "updatedAt": datetime.utcnow()}},
+                        upsert=True)
+                    n += 1
+                result = {"statusCode": 200, "body": json.dumps({"success": True, "seeded": n}, cls=JSONEncoder)}
         elif action == 'get_monday_data':
             params = body.get('data', body)
             query = params.get('query') or body.get('query')
