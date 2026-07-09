@@ -1539,10 +1539,15 @@ function AdminTickets() {
 }
 
 function AdminTicketDetail({ summary, onBack }) {
+  const { user: me } = useAuth();
   const [ticket, setTicket] = useState(null);
   const [reply, setReply] = useState('');
   const [busy, setBusy] = useState(false);
   const [warn, setWarn] = useState('');
+  // Identity the customer sees on this reply: the "Monty" persona (default) or
+  // the staff member's own name/email.
+  const [asMonty, setAsMonty] = useState(true);
+  const myName = me?.name || me?.email || 'me';
   const threadRef = useRef(null);
 
   const load = () => api.adminTicket(summary.userId, summary.ticketId).then((d) => setTicket(d.ticket)).catch(() => setTicket(false));
@@ -1553,7 +1558,7 @@ function AdminTicketDetail({ summary, onBack }) {
     if (!reply.trim()) return;
     setBusy(true); setWarn('');
     try {
-      const { ticket: t, email } = await api.adminReplyTicket(summary.userId, summary.ticketId, reply.trim());
+      const { ticket: t, email } = await api.adminReplyTicket(summary.userId, summary.ticketId, reply.trim(), [], asMonty);
       setTicket(t); setReply('');
       // The customer always gets an in-app notification; warn only when the
       // EMAIL didn't reach them, so staff can follow up another way.
@@ -1601,7 +1606,9 @@ function AdminTicketDetail({ summary, onBack }) {
             <div key={m.id} className={`flex ${staff ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 ${staff ? 'rounded-br-sm bg-brand-600 text-white' : 'rounded-bl-sm bg-white text-slate-800 shadow-sm ring-1 ring-slate-200'}`}>
                 <div className={`mb-0.5 text-[11px] ${staff ? 'text-white/70' : 'text-slate-400'}`}>
-                  {staff ? `Support${m.authorEmail ? ` · ${m.authorEmail}` : ''}` : (m.authorEmail || 'Customer')} · {new Date(m.ts).toLocaleString()}
+                  {staff
+                    ? `${m.authorName || 'Support'}${m.agentEmail && m.agentEmail !== m.authorEmail ? ` · sent by ${m.agentEmail}` : ''}`
+                    : (m.authorEmail || 'Customer')} · {new Date(m.ts).toLocaleString()}
                 </div>
                 {m.body && <div className="whitespace-pre-wrap text-sm">{m.body}</div>}
                 {(m.attachments || []).length > 0 && (
@@ -1627,16 +1634,32 @@ function AdminTicketDetail({ summary, onBack }) {
 
       {/* Reply as the support agent. */}
       <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+        {/* Choose the identity the customer sees on this reply. */}
+        <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="text-slate-400">Reply as</span>
+          <div className="inline-flex rounded-lg border border-slate-200 p-0.5">
+            <button
+              type="button"
+              onClick={() => setAsMonty(true)}
+              className={`rounded-md px-2.5 py-1 font-medium ${asMonty ? 'bg-brand-600 text-white' : 'text-slate-500 hover:text-slate-700'}`}
+            >Monty</button>
+            <button
+              type="button"
+              onClick={() => setAsMonty(false)}
+              className={`rounded-md px-2.5 py-1 font-medium ${!asMonty ? 'bg-brand-600 text-white' : 'text-slate-500 hover:text-slate-700'}`}
+            >{myName}</button>
+          </div>
+        </div>
         <textarea
           value={reply}
           onChange={(e) => setReply(e.target.value)}
           onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send(); }}
           rows={3}
-          placeholder="Reply to the customer as Support…  (⌘/Ctrl + Enter to send)"
+          placeholder={`Reply to the customer as ${asMonty ? 'Monty' : myName}…  (⌘/Ctrl + Enter to send)`}
           className="w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-brand-500 focus:outline-none"
         />
         <div className="mt-2 flex items-center justify-between">
-          <span className="text-xs text-slate-400">Emails + notifies {ticket.userEmail || 'the customer'}.</span>
+          <span className="text-xs text-slate-400">Emails + notifies {ticket.userEmail || 'the customer'} as <strong className="text-slate-500">{asMonty ? 'Monty' : myName}</strong>.</span>
           <button onClick={send} disabled={busy || !reply.trim()} className="btn-primary disabled:opacity-50">{busy ? 'Sending…' : 'Send reply'}</button>
         </div>
       </div>

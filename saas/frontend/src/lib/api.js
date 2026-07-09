@@ -241,8 +241,9 @@ export const api = {
   adminTickets: () => call('/support/tickets?all=1'),
   adminTicket: (ownerUserId, ticketId) =>
     call(`/support/tickets/${encodeURIComponent(ticketId)}?ownerUserId=${encodeURIComponent(ownerUserId)}`),
-  adminReplyTicket: (ownerUserId, ticketId, body, attachments = []) =>
-    call(`/support/tickets/${encodeURIComponent(ticketId)}/reply`, { method: 'POST', body: { body, attachments, asAgent: true, ownerUserId } }),
+  // fromMonty: reply as the "Monty" persona (default) or as the staff member themselves.
+  adminReplyTicket: (ownerUserId, ticketId, body, attachments = [], fromMonty = true) =>
+    call(`/support/tickets/${encodeURIComponent(ticketId)}/reply`, { method: 'POST', body: { body, attachments, asAgent: true, ownerUserId, fromMonty } }),
   adminCloseTicket: (ownerUserId, ticketId) =>
     call(`/support/tickets/${encodeURIComponent(ticketId)}/close`, { method: 'POST', body: { ownerUserId } }),
   // Projects

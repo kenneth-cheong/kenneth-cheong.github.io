@@ -31,7 +31,7 @@ import Stripe from 'stripe';
 // Only used by account deletion (to cancel an active subscription so a deleted
 // account isn't billed). Null when no key is configured.
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
-import { sendEmail, sendRawEmail, sendSmtpEmail, sendNotice, smtpConfigured, SUPPORT_INBOX } from '../lib/email.mjs';
+import { sendEmail, sendRawEmail, sendSmtpEmail, sendNotice, smtpConfigured, SUPPORT_INBOX, noticeFrom } from '../lib/email.mjs';
 import { buildAcceptancePdf } from '../lib/pdf.mjs';
 import { isStaff, accountBlocked } from '../lib/admin.mjs';
 import { ok, badRequest, unauthorized, forbidden, paymentRequired, tooManyRequests, serverError, parseBody, claims, preflight, isEmail, clampStr } from '../lib/http.mjs';
@@ -657,8 +657,10 @@ export const handler = async (event) => {
       // Admins can open any user's ticket by passing the owner's id.
       const owner = (isStaff(user) && event.queryStringParameters?.ownerUserId) || user.userId;
       const ticket = await getTicket(owner, seg(path, '/support/tickets/'));
+      if (!ticket) return badRequest('Ticket not found');
       // Mint fresh presigned URLs for attachments (private bucket — stored urls expire).
-      return ticket ? ok({ ticket: await signTicketAttachments(ticket) }) : badRequest('Ticket not found');
+      const signed = await signTicketAttachments(ticket);
+      return ok({ ticket: isStaff(user) ? signed : redactTicketForCustomer(signed) });
     }
     if (method === 'POST' && path.includes('/reply')) {
       const ticketId = seg(path, '/support/tickets/');
@@ -668,13 +670,23 @@ export const handler = async (event) => {
       const asAgent = !!body.asAgent && isStaff(user);
       const ownerId = asAgent && body.ownerUserId ? body.ownerUserId : user.userId;
       const author = asAgent ? 'agent' : 'user';
-      const { ticket } = await addTicketMessage({ userId: ownerId, ticketId, author, authorEmail: user.email, body: text, attachments: body.attachments || [] });
+      // Staff choose the identity the customer sees: reply as "Monty" (the
+      // platform persona — hides who the real person was) or as themselves (their
+      // own name/email). Resolved server-side so the client can't spoof a name.
+      const asMonty = asAgent && body.fromMonty !== false; // default to Monty
+      const authorName = author === 'agent' ? (asMonty ? 'Monty' : (user.name || user.email)) : '';
+      // Public email shown to the customer: none for a Monty reply (stay in
+      // persona); the staff address when they reply as themselves. `agentEmail`
+      // always records who really sent it, for admin accountability (redacted
+      // from the customer's copy of the ticket).
+      const publicEmail = author === 'agent' ? (asMonty ? '' : user.email) : user.email;
+      const { ticket } = await addTicketMessage({ userId: ownerId, ticketId, author, authorEmail: publicEmail, authorName, agentEmail: author === 'agent' ? user.email : undefined, body: text, attachments: body.attachments || [] });
       // For an agent reply, return whether the customer was actually emailed so
       // the admin UI can warn the staff member when delivery failed.
       let email = null;
-      if (author === 'agent') email = await notifyReply(ownerId, ticket, text);
+      if (author === 'agent') email = await notifyReply(ownerId, ticket, text, authorName);
       else if (SUPPORT_INBOX) await sendNotice({ to: SUPPORT_INBOX, replyTo: user.email, subject: `Reply on ${ticket.id}`, text: `${user.email} replied:\n\n${text}` });
-      return ok({ ticket, email });
+      return ok({ ticket: isStaff(user) ? ticket : redactTicketForCustomer(ticket), email });
     }
     if (method === 'POST' && path.includes('/close')) {
       // Admins can close any user's ticket by passing the owner's id.
@@ -783,15 +795,26 @@ async function oauthCallback(event) {
 // fires; the email is best-effort. Returns delivery info so the replying staff
 // member can be warned when the customer wasn't reached by email.
 //   delivered: true  → email sent, false → send failed, null → no address on file
-async function notifyReply(ownerId, ticket, text) {
-  await addNotification({ userId: ownerId, title: `Support replied to ${ticket.id}`, body: text.slice(0, 120), ticketId: ticket.ticketId });
+// Strip the internal `agentEmail` (who on staff really sent an agent reply)
+// from a ticket before it's served to the customer — they only ever see the
+// public identity (authorName / authorEmail). Admins keep the full record.
+function redactTicketForCustomer(ticket) {
+  if (!ticket?.messages) return ticket;
+  ticket.messages = ticket.messages.map(({ agentEmail, ...m }) => m);
+  return ticket;
+}
+
+async function notifyReply(ownerId, ticket, text, senderName) {
+  const who = senderName || 'Support';
+  await addNotification({ userId: ownerId, title: `${who} replied to ${ticket.id}`, body: text.slice(0, 120), ticketId: ticket.ticketId });
   const recipients = [ticket.userEmail, ...(ticket.additionalEmails || [])].filter(Boolean);
   const delivered = recipients.length
     ? await sendNotice({
         to: recipients,
+        from: noticeFrom(`${who} · Digimetrics Support`),
         replyTo: SUPPORT_INBOX || undefined,
         subject: `Re: ${ticket.subject} [${ticket.id}]`,
-        text: `Support has replied to your ticket ${ticket.id}:\n\n${text}\n\nView it: ${APP_ORIGIN}/support/${encodeURIComponent(ticket.ticketId)}`,
+        text: `${who} has replied to your ticket ${ticket.id}:\n\n${text}\n\nView it: ${APP_ORIGIN}/support/${encodeURIComponent(ticket.ticketId)}`,
       })
     : null;
   return { recipients, delivered };

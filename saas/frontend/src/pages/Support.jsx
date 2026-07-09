@@ -206,7 +206,7 @@ function TicketDetail({ ticketId }) {
           return (
             <div key={m.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 ${mine ? 'rounded-br-sm bg-brand-600 text-white' : 'rounded-bl-sm bg-white text-slate-800 shadow-sm ring-1 ring-slate-200'}`}>
-                <div className={`mb-0.5 text-[11px] ${mine ? 'text-white/70' : 'text-slate-400'}`}>{mine ? 'You' : 'Support'} · {new Date(m.ts).toLocaleString()}</div>
+                <div className={`mb-0.5 text-[11px] ${mine ? 'text-white/70' : 'text-slate-400'}`}>{mine ? 'You' : (m.authorName || 'Support')} · {new Date(m.ts).toLocaleString()}</div>
                 {m.body && <div className="whitespace-pre-wrap text-sm">{m.body}</div>}
                 <Attachments items={m.attachments} light={mine} />
               </div>

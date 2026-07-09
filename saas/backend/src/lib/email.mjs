@@ -159,3 +159,16 @@ function encodeHeader(s = '') {
 }
 
 export const SUPPORT_INBOX = process.env.SES_SUPPORT || '';
+
+// Build a From header that keeps our sending address but shows a chosen display
+// name, e.g. noticeFrom('Monty · Digimetrics') → '"Monty · Digimetrics" <no-reply@mediaone.co>'.
+// The address is fixed to whatever the transport is allowed to send as (SMTP_FROM
+// / SES_FROM); only the friendly name varies. Returns undefined when we have no
+// address or no name, so callers fall back to the transport default.
+export function noticeFrom(displayName) {
+  const base = SMTP_FROM || process.env.SMTP_USER || FROM || '';
+  const addr = (base.match(/<([^>]+)>/) || [])[1] || base.trim();
+  const name = String(displayName || '').replace(/["\r\n]/g, '').trim();
+  if (!addr || !name) return undefined;
+  return `"${encodeHeader(name)}" <${addr}>`;
+}

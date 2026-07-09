@@ -943,10 +943,15 @@ export async function getTicket(userId, ticketId) {
   return Item || null;
 }
 
-export async function addTicketMessage({ userId, ticketId, author, authorEmail, body, attachments = [], status }) {
+export async function addTicketMessage({ userId, ticketId, author, authorEmail, authorName, agentEmail, body, attachments = [], status }) {
   const t = await getTicket(userId, ticketId);
   if (!t) throw new Error('Ticket not found');
   const msg = { id: 'm_' + rid(), author, authorEmail: authorEmail || '', body, attachments, ts: new Date().toISOString() };
+  // Public display name the customer sees on a staff reply ("Monty" or the
+  // staff member's own name). agentEmail records who really sent it, for admin
+  // accountability — redacted before the ticket is served to the customer.
+  if (authorName) msg.authorName = authorName;
+  if (agentEmail) msg.agentEmail = agentEmail;
   const messages = [...(t.messages || []), msg];
   const newStatus = status || (author === 'user' ? 'open' : 'answered');
   await ddb.send(new UpdateCommand({
