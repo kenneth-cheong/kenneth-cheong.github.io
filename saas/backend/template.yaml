@@ -464,6 +464,12 @@ Resources:
       CodeUri: .build/share/
       Handler: index.handler
       MemorySize: 1024
+      Environment:
+        Variables:
+          # Public share links are served from platform.digimetrics.ai via an
+          # Amplify /s/* reverse-proxy rewrite (not the raw execute-api host),
+          # so social unfurls show the brand domain. (Merged with Globals env.)
+          PUBLIC_SHARE_ORIGIN: https://platform.digimetrics.ai
       Policies:
         # CRUD on Runs: read the saved run + stamp the run's public shareId.
         - DynamoDBCrudPolicy: { TableName: !Ref RunsTable }
