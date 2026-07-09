@@ -8,6 +8,8 @@
 // Browser-only helpers (canvas rasterise, clipboard, native share) live in
 // frontend/src/lib/shareCard.js, which re-exports everything below.
 
+import { MONTY_DATA_URI } from './montyAvatar.mjs';
+
 export const CTA_HOST = 'platform.digimetrics.ai';
 export const CTA_URL = `https://${CTA_HOST}/?ref=share`;
 // The app typeface first; the rest are fallbacks for the browser canvas path
@@ -177,6 +179,31 @@ function gauge(cxp, cyp, r, pct, a) {
     <text x="${cxp}" y="${cyp + 28}" text-anchor="middle" font-family="${FONT}" font-size="92" font-weight="900" letter-spacing="-3" fill="${a}">${pct}%</text>`;
 }
 
+// Monty the Border Collie as a circular avatar — a 1:1 reproduction of the in-app
+// mascot (Mascot.jsx): the same head-zoomed crop of the artwork PLUS the blue
+// support-headset overlay. The mascot is authored in a 48² box (circle r=24), so
+// we scale it into place with s = r/24 and reuse its exact coordinates. `ring` =
+// outer ring colour; `rw` = its width. clipPath id is unique per (cx,cy).
+function montyAvatar(cx, cy, r, { ring = '#ffffff', rw = 6, halo = null } = {}) {
+  const id = `monty${Math.round(cx)}x${Math.round(cy)}`;
+  const s = r / 24;
+  return `
+    ${halo ? `<circle cx="${cx}" cy="${cy}" r="${r + rw + 6}" fill="none" stroke="${halo}" stroke-width="3" stroke-opacity="0.35"/>` : ''}
+    <clipPath id="${id}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="#ffffff"/>
+    <g clip-path="url(#${id})">
+      <g transform="translate(${cx} ${cy}) scale(${s}) translate(-24 -24)">
+        <image href="${MONTY_DATA_URI}" x="-12.52" y="-11.48" width="73.04" height="73.04"/>
+        <path d="M8.4 20 Q24 -1 39.6 20" stroke="#2563eb" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+        <ellipse cx="8.4" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/>
+        <ellipse cx="39.6" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/>
+        <path d="M8.4 24 Q5.5 31 16 32.2" stroke="#2563eb" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        <circle cx="16.3" cy="32.2" r="1.5" fill="#2563eb"/>
+      </g>
+    </g>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${ring}" stroke-width="${rw}"/>`;
+}
+
 export function renderCardSvg(summary, format = 'square') {
   const f = FORMATS[format] || FORMATS.square;
   const { w, h } = f;
@@ -184,78 +211,91 @@ export function renderCardSvg(summary, format = 'square') {
   const pad = wide ? 64 : 80;
   const cx = w / 2;
   const a = accentOf(summary.tone);
-  const headerH = wide ? 0 : 150;
+  const headerH = wide ? 0 : 156;
 
-  // Header lockup + tagline
-  const header = `
-    ${wide ? '' : `<rect width="${w}" height="${headerH}" fill="url(#brandBand)"/>`}
-    ${wide
-      ? brandLockup(pad, 58, { onDark: false, scale: 0.8 })
-      : brandLockup(cx - lockupWidth(0.92) / 2, 74, { onDark: true, scale: 0.92 })}
-    ${wide ? '' : `<text x="${cx}" y="128" text-anchor="middle" font-family="${FONT}" font-size="22" font-weight="600" letter-spacing="4" fill="#bfdbfe">SEO · GEO · AI VISIBILITY</text>`}`;
+  // Monty's circular avatar: a friendly mascot in the header (square/portrait)
+  // or a large face on the right (wide). Wide reserves the right side for him,
+  // so the text column stops short of it.
+  const montyR = wide ? 148 : 52;
+  const montyCx = wide ? w - pad - montyR - 4 : w - pad - montyR;
+  const montyCy = wide ? h / 2 - 2 : 80;
+  const colR = wide ? montyCx - montyR - 44 : w - pad; // right edge of the text column
 
-  // Title + domain pill
+  // ── Header: brand lockup + tagline, Monty avatar ──
+  const header = wide
+    ? `${brandLockup(pad, 62, { onDark: false, scale: 0.82 })}
+       <text x="${pad}" y="108" font-family="${FONT}" font-size="18" font-weight="700" letter-spacing="3" fill="${a}">SEO · GEO · AI VISIBILITY</text>`
+    : `<rect width="${w}" height="${headerH}" fill="url(#brandBand)"/>
+       ${brandLockup(pad, 66, { onDark: true, scale: 0.82 })}
+       <text x="${pad}" y="124" font-family="${FONT}" font-size="17" font-weight="700" letter-spacing="3" fill="#bfdbfe">SEO · GEO · AI VISIBILITY</text>
+       ${montyAvatar(montyCx, montyCy, montyR, { ring: '#ffffff', rw: 6 })}`;
+
+  // ── Title + domain pill ──
   const anchor = wide ? 'start' : 'middle';
   const titleX = wide ? pad : cx;
-  const titleY = wide ? 150 : headerH + 110;
+  const titleY = wide ? 172 : headerH + 98;
   const pillText = summary.sub || '';
-  const pillW = Math.min(w - pad * 2, pillText.length * 16 + 56);
+  const pillW = Math.min((wide ? colR : w) - pad * 2, pillText.length * 15 + 52);
   // Redacted public cards have no domain → no pill (just title + hero).
   const pill = pillText ? `
-    <g transform="translate(${wide ? pad : cx - pillW / 2},${titleY + 30})">
-      <rect width="${pillW}" height="48" rx="24" fill="#f1f5f9"/>
-      <circle cx="28" cy="24" r="6" fill="${a}"/>
-      <text x="${pillW / 2 + 12}" y="32" text-anchor="middle" font-family="${FONT}" font-size="24" font-weight="600" fill="#475569">${esc(pillText)}</text>
+    <g transform="translate(${wide ? pad : cx - pillW / 2},${titleY + 28})">
+      <rect width="${pillW}" height="46" rx="23" fill="#eef2f8"/>
+      <circle cx="27" cy="23" r="6" fill="${a}"/>
+      <text x="${pillW / 2 + 13}" y="31" text-anchor="middle" font-family="${FONT}" font-size="23" font-weight="600" fill="#475569">${esc(pillText)}</text>
     </g>` : '';
   const titleBlock = `
-    <text x="${titleX}" y="${titleY}" text-anchor="${anchor}" font-family="${FONT}" font-size="${wide ? 52 : 54}" font-weight="800" letter-spacing="-1" fill="#0f172a">${esc(summary.headline)}</text>
+    <text x="${titleX}" y="${titleY}" text-anchor="${anchor}" font-family="${FONT}" font-size="54" font-weight="800" letter-spacing="-1" fill="#0f172a">${esc(summary.headline)}</text>
     ${pill}`;
 
-  // Hero zone — gauge for %, big number for a value, check badge for "done".
-  const heroCy = wide ? h / 2 + 6 : Math.round((titleY + 80 + (h - 250)) / 2);
-  const labelLines = wrap(summary.statLabel || '', wide ? 30 : 26, summary.kind === 'done' ? 3 : 2);
+  // ── Hero — gauge for %, big number for a value, check badge for "done" ──
+  const heroX = wide ? pad : cx;
+  const heroCy = wide ? Math.round(h / 2 + 40) : Math.round((titleY + 70 + (h - 250)) / 2);
+  const labelLines = wrap(summary.statLabel || '', wide ? 22 : 26, summary.kind === 'done' ? 3 : 2);
   let hero = '';
   if (summary.pct != null && !wide) {
     hero = `
-      ${gauge(cx, heroCy - 10, 130, summary.pct, a)}
-      ${labelLines.map((ln, i) => `<text x="${cx}" y="${heroCy + 150 + i * 36}" text-anchor="middle" font-family="${FONT}" font-size="30" font-weight="600" fill="#475569">${esc(ln)}</text>`).join('')}`;
+      ${gauge(cx, heroCy - 10, 128, summary.pct, a)}
+      ${labelLines.map((ln, i) => `<text x="${cx}" y="${heroCy + 148 + i * 36}" text-anchor="middle" font-family="${FONT}" font-size="30" font-weight="600" fill="#475569">${esc(ln)}</text>`).join('')}`;
   } else if (summary.kind === 'done') {
-    const badgeCy = heroCy - 30;
+    const bcy = heroCy - 30;
     hero = `
-      <circle cx="${wide ? pad + 70 : cx}" cy="${badgeCy}" r="64" fill="${accentTintOf(summary.tone)}"/>
-      <path d="M ${(wide ? pad + 70 : cx) - 30} ${badgeCy} l 20 22 l 40 -44" fill="none" stroke="${a}" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
-      ${labelLines.map((ln, i) => `<text x="${wide ? pad : cx}" y="${badgeCy + 110 + i * 40}" text-anchor="${anchor}" font-family="${FONT}" font-size="34" font-weight="700" fill="#1e293b">${esc(ln)}</text>`).join('')}`;
+      <circle cx="${heroX + (wide ? 60 : 0)}" cy="${bcy}" r="62" fill="${accentTintOf(summary.tone)}"/>
+      <path d="M ${heroX + (wide ? 60 : 0) - 29} ${bcy} l 19 21 l 39 -43" fill="none" stroke="${a}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+      ${labelLines.map((ln, i) => `<text x="${heroX}" y="${bcy + 108 + i * 40}" text-anchor="${anchor}" font-family="${FONT}" font-size="34" font-weight="700" fill="#1e293b">${esc(ln)}</text>`).join('')}`;
   } else {
     const big = String(summary.stat || '').length <= 6;
+    const fs = big ? (wide ? 138 : 220) : (wide ? 62 : 92);
+    const uY = heroCy + (big ? 44 : 24);
     hero = `
-      <text x="${wide ? pad : cx}" y="${heroCy + (big ? 30 : 10)}" text-anchor="${anchor}" font-family="${FONT}" font-size="${big ? (wide ? 150 : 220) : (wide ? 70 : 92)}" font-weight="900" letter-spacing="-4" fill="${a}">${esc(summary.stat)}</text>
-      ${labelLines.map((ln, i) => `<text x="${wide ? pad : cx}" y="${heroCy + (big ? 100 : 70) + i * 38}" text-anchor="${anchor}" font-family="${FONT}" font-size="30" font-weight="600" fill="#475569">${esc(ln)}</text>`).join('')}`;
+      <text x="${heroX}" y="${heroCy + (big ? 30 : 10)}" text-anchor="${anchor}" font-family="${FONT}" font-size="${fs}" font-weight="900" letter-spacing="-4" fill="${a}">${esc(summary.stat)}</text>
+      <rect x="${wide ? pad + 2 : cx - 42}" y="${uY}" width="84" height="8" rx="4" fill="${a}" fill-opacity="0.22"/>
+      ${labelLines.map((ln, i) => `<text x="${heroX}" y="${uY + 54 + i * 38}" text-anchor="${anchor}" font-family="${FONT}" font-size="30" font-weight="600" fill="#475569">${esc(ln)}</text>`).join('')}`;
   }
 
-  // Support chips (square/portrait only)
+  // ── Support chips (square/portrait only) ──
   const sup = wide ? [] : (summary.supports || []).slice(0, 3);
   const supportChips = sup.map((s, i) => {
-    const chipW = (w - pad * 2 - (sup.length - 1) * 20) / sup.length;
-    const x = pad + i * (chipW + 20);
-    const y = h - 272;
+    const chipW = (w - pad * 2 - (sup.length - 1) * 18) / sup.length;
+    const x = pad + i * (chipW + 18);
+    const y = h - 268;
     return `
       <g transform="translate(${x},${y})">
-        <rect width="${chipW}" height="112" rx="20" fill="#ffffff" stroke="#e2e8f0"/>
+        <rect width="${chipW}" height="112" rx="20" fill="#f8fafc" stroke="#eef2f7"/>
         <rect width="6" height="112" rx="3" fill="${a}"/>
-        <text x="${chipW / 2}" y="50" text-anchor="middle" font-family="${FONT}" font-size="36" font-weight="800" fill="#0f172a">${esc(String(s.value).slice(0, 12))}</text>
-        <text x="${chipW / 2}" y="84" text-anchor="middle" font-family="${FONT}" font-size="18" font-weight="600" fill="#64748b">${esc(String(s.label).slice(0, 24))}</text>
+        <text x="${chipW / 2 + 3}" y="50" text-anchor="middle" font-family="${FONT}" font-size="36" font-weight="800" fill="#0f172a">${esc(String(s.value).slice(0, 12))}</text>
+        <text x="${chipW / 2 + 3}" y="84" text-anchor="middle" font-family="${FONT}" font-size="18" font-weight="600" fill="#64748b">${esc(String(s.label).slice(0, 24))}</text>
       </g>`;
   }).join('');
 
-  // CTA pill. The arrow is drawn as a path (not a "→" glyph) so it renders
-  // identically on the browser canvas and resvg's subset font — and so it's
-  // centred precisely we lay out [label][arrow][host] as a measured group.
+  // ── CTA pill. The arrow is a drawn path (not a "→" glyph) so it renders
+  // identically on the browser canvas and resvg's subset font — and we lay out
+  // [label][arrow][host] as a measured group so it centres precisely. ──
   const cf = 26;
   const cw = (s) => s.length * cf * 0.55; // rough advance width
   const label = 'Run your free audit', host = CTA_HOST;
   const gap = 16, arrowW = 30;
   const groupW = cw(label) + gap + arrowW + gap + cw(host);
-  const ctaW = Math.max(wide ? 540 : 600, groupW + 72);
+  const ctaW = Math.max(wide ? 520 : 600, groupW + 72);
   const ctaY = h - (wide ? 64 : 84);
   const gx = (ctaW - groupW) / 2;          // group start within the pill
   const ax = gx + cw(label) + gap;         // arrow start
@@ -272,21 +312,27 @@ export function renderCardSvg(summary, format = 'square') {
     <linearGradient id="brandBand" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#2563eb"/><stop offset="1" stop-color="#1e40af"/>
     </linearGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f4f7fc"/>
+    </linearGradient>
     <radialGradient id="blob" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="${a}" stop-opacity="0.10"/><stop offset="1" stop-color="${a}" stop-opacity="0"/>
+      <stop offset="0" stop-color="${a}" stop-opacity="0.13"/><stop offset="1" stop-color="${a}" stop-opacity="0"/>
     </radialGradient>
-    <pattern id="dots" width="32" height="32" patternUnits="userSpaceOnUse">
-      <circle cx="2" cy="2" r="2" fill="#0f172a" fill-opacity="0.035"/>
+    <pattern id="dots" width="34" height="34" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.8" fill="#0f172a" fill-opacity="0.022"/>
     </pattern>
   </defs>
-  <rect width="${w}" height="${h}" fill="#ffffff"/>
+  <rect width="${w}" height="${h}" fill="url(#bg)"/>
   <rect x="0" y="${headerH}" width="${w}" height="${h - headerH}" fill="url(#dots)"/>
-  <circle cx="${w - 60}" cy="${h - 120}" r="${wide ? 220 : 340}" fill="url(#blob)"/>
-  <rect x="1" y="1" width="${w - 2}" height="${h - 2}" rx="${wide ? 0 : 4}" fill="none" stroke="#e2e8f0" stroke-width="2"/>
+  ${wide
+    ? `<circle cx="${montyCx}" cy="${montyCy}" r="250" fill="url(#blob)"/>`
+    : `<circle cx="${w - 40}" cy="${h - 96}" r="320" fill="url(#blob)"/><circle cx="40" cy="${h - 40}" r="180" fill="url(#blob)"/>`}
+  <rect x="1" y="1" width="${w - 2}" height="${h - 2}" fill="none" stroke="#e2e8f0" stroke-width="2"/>
   ${header}
   ${titleBlock}
   ${hero}
   ${supportChips}
+  ${wide ? montyAvatar(montyCx, montyCy, montyR, { ring: '#ffffff', rw: 7, halo: a }) : ''}
   ${cta}
 </svg>`;
 }
