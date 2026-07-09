@@ -4,6 +4,7 @@ import { toolById, tierMeets, CREDIT_COSTS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { api, ApiError } from '../lib/api.js';
+import ShareResult from '../components/ShareResult.jsx';
 import { toast } from '../lib/ui.js';
 import { Loader2, Wand2, Plus, X, Microscope, ScanSearch, Compass } from 'lucide-react';
 import { renderSMAScorecard, renderSocialAudit, installSmaGlobals } from '../lib/smaRender.js';
@@ -14,6 +15,31 @@ import { startSocialAuditTour, hasSeen, markSeen } from '../lib/tours.js';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 
 const TOOL = toolById('social-audit');
+
+const SHARE_TOOL = { id: 'social-audit', name: 'Social Media Audit' };
+const SHARE_BTN = 'btn-ghost inline-flex items-center gap-1 text-sm';
+const fmtCompact = (n) => {
+  const a = Math.abs(n);
+  if (a >= 1e6) return `${Math.round(n / 1e5) / 10}M`;
+  if (a >= 1e3) return `${Math.round(n / 100) / 10}K`;
+  return String(Math.round(n));
+};
+// Distil a finished audit job (its live scorecard + strategy) into a branded
+// share card. Total following is the hero; no % values, so it stays a big
+// number rather than a near-empty gauge ring.
+function socialShareOut(job) {
+  const plats = Array.isArray(job?.scorecard?.platforms) ? job.scorecard.platforms.filter((p) => p && p.found !== false) : [];
+  if (!plats.length) return null;
+  const followers = plats.reduce((s, p) => s + (Number(p.followers) || 0), 0);
+  const growth = plats.reduce((s, p) => s + (Number(p.followers_growth_30d) || 0), 0);
+  const comps = Array.isArray(job?.sca?.competitors) ? job.sca.competitors.length : 0;
+  const items = [];
+  if (followers) items.push({ label: 'Total following', value: fmtCompact(followers), tone: 'green' });
+  items.push({ label: 'Platforms audited', value: String(plats.length) });
+  if (growth) items.push({ label: 'New followers · 30d', value: `${growth >= 0 ? '+' : ''}${fmtCompact(growth)}`, tone: growth >= 0 ? 'green' : 'red' });
+  if (comps) items.push({ label: 'Competitors analyzed', value: String(comps) });
+  return { result: { sections: [{ type: 'stats', items }] } };
+}
 
 const SMA_PLATFORMS = [
   { key: 'instagram', label: 'Instagram', ph: '@handle' },
@@ -278,6 +304,7 @@ export default function SocialAudit() {
   const [scaError, setScaError] = useState('');
   const [scorecardHtml, setScorecardHtml] = useState(null);
   const [scaHtml, setScaHtml] = useState(null);
+  const [doneJob, setDoneJob] = useState(null); // finished audit → branded share card
   const resultsRef = useRef(null);
 
   // Install the globals the scorecard markup wires via inline onclick.
@@ -307,6 +334,7 @@ export default function SocialAudit() {
         installSmaGlobals();
         setScorecardHtml(renderSMAScorecard(TOUR_SCORECARD));
         setScaHtml(renderSocialAudit(TOUR_SCA));
+        setDoneJob({ scorecard: TOUR_SCORECARD, sca: TOUR_SCA });
       },
       clear: () => {
         setBrand(''); setDomain(active?.domain || ''); setIndustry(''); setGoals(''); setAudience('');
@@ -316,7 +344,7 @@ export default function SocialAudit() {
         setMode('starter');
         setSuggestStatus(null); setDiscoverStatus(null); setCompStatus(null);
         setError(''); setScaError('');
-        setScorecardHtml(null); setScaHtml(null);
+        setScorecardHtml(null); setScaHtml(null); setDoneJob(null);
       },
     });
   }
@@ -435,7 +463,7 @@ export default function SocialAudit() {
   async function runAudit() {
     if (!brand.trim()) { setError('Please enter a brand name.'); return; }
     setError(''); setScaError('');
-    setScorecardHtml(null); setScaHtml(null);
+    setScorecardHtml(null); setScaHtml(null); setDoneJob(null);
     setBusy(true);
     setLoadingText('Starting…');
     try {
@@ -516,6 +544,7 @@ export default function SocialAudit() {
           onCredits(job);
           if (!job.sca) throw new Error('No strategy data returned.');
           setScaHtml(renderSocialAudit(job.sca));
+          setDoneJob(job);
           setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
           done = job;
         } else if (job.status === 'error') {
@@ -726,6 +755,11 @@ export default function SocialAudit() {
 
       {/* Results — bespoke HTML scorecards (Font Awesome styled, ported 1:1). */}
       <div ref={resultsRef} data-tour="sma-results" className="mt-6 space-y-4">
+        {doneJob && (
+          <div className="flex justify-end">
+            <ShareResult tool={SHARE_TOOL} out={socialShareOut(doneJob)} project={active} user={user} force label="Share result" className={SHARE_BTN} />
+          </div>
+        )}
         {scorecardHtml && <div dangerouslySetInnerHTML={{ __html: scorecardHtml }} />}
         {scaHtml && <div dangerouslySetInnerHTML={{ __html: scaHtml }} />}
       </div>

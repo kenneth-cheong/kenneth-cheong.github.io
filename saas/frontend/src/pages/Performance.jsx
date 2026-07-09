@@ -5,10 +5,13 @@ import { CATEGORY_META } from '@shared/catalog.mjs';
 import { useProjects } from '../context/ProjectContext.jsx';
 import MetricChart from '../components/MetricChart.jsx';
 import InfoTip, { glossaryFor } from '../components/InfoTip.jsx';
+import ShareResult from '../components/ShareResult.jsx';
 import { api } from '../lib/api.js';
 import { toast, downloadCsv } from '../lib/ui.js';
 
 const PERIODS = [['7', '7d'], ['28', '28d'], ['90', '90d'], ['all', 'All']];
+const SHARE_TOOL = { id: 'performance', name: 'SEO Performance' };
+const SHARE_BTN = 'btn-ghost inline-flex items-center gap-1 text-sm';
 
 // Accent colour per metric group (reuses the dashboard category palette).
 const GROUP_COLOR = {
@@ -67,6 +70,23 @@ export default function Performance() {
 
   const orderedGroups = GROUP_ORDER.filter((g) => groups.has(g));
 
+  // Branded share card — up to four headline metrics with their latest values,
+  // tone-coded by trend polarity. Client-side share (no saved run).
+  const shareOut = useMemo(() => {
+    const withVal = metrics.filter((m) => m.lastValue != null);
+    if (!withVal.length) return null;
+    const items = withVal.slice(0, 4).map((m) => {
+      const hist = m.history || [];
+      let tone = null;
+      if (hist.length >= 2 && m.dir !== 'neutral') {
+        const a = hist[0].value, b = hist[hist.length - 1].value;
+        if (a !== b) { const up = b > a; tone = (m.dir === 'up' ? up : !up) ? 'green' : 'red'; }
+      }
+      return { label: m.label, value: fmtVal(m.lastValue, m.unit), tone };
+    });
+    return { result: { sections: [{ type: 'stats', items }] } };
+  }, [metrics]);
+
   function exportCsv() {
     const rows = [];
     for (const m of metrics) for (const h of (m.history || [])) {
@@ -98,7 +118,12 @@ export default function Performance() {
             {active ? <>Tool metrics over time for <strong>{active.name}</strong>.</> : 'Pick a project to see its performance.'}
           </p>
         </div>
-        {metrics.length > 0 && <button onClick={exportCsv} className="btn-ghost text-sm">Export CSV</button>}
+        {metrics.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            <button onClick={exportCsv} className="btn-ghost text-sm">Export CSV</button>
+            <ShareResult tool={SHARE_TOOL} out={shareOut} project={active} user={null} force label="Share" className={SHARE_BTN} />
+          </div>
+        )}
       </div>
 
       {!activeId ? (

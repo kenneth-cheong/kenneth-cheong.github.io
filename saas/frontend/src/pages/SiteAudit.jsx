@@ -4,10 +4,25 @@ import { AUDIT_TOOLS, toolById, tierMeets, tierRank, CREDIT_COSTS, PLANS } from 
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { api, ApiError } from '../lib/api.js';
+import ShareResult from '../components/ShareResult.jsx';
 import { toast, markStepDone } from '../lib/ui.js';
 import { Check, Loader2, AlertTriangle, ChevronRight } from 'lucide-react';
 
 const RUN_URL = import.meta.env.VITE_RUN_URL || '';
+const SHARE_TOOL = { id: 'site-audit', name: 'Site Health Check' };
+const SHARE_BTN = 'btn-ghost inline-flex items-center gap-1 text-sm';
+
+// Distil the audit report into a branded share card (score gauge + supports).
+function auditShareOut(report) {
+  if (!report) return null;
+  const score = Math.max(0, Math.min(100, Math.round(Number(report.score) || 0)));
+  const tone = score >= 80 ? 'green' : score >= 50 ? 'amber' : 'red';
+  const items = [{ label: 'Health score', value: `${score}%`, tone }];
+  if (report.grade) items.push({ label: 'Grade', value: String(report.grade) });
+  if (Array.isArray(report.fixes) && report.fixes.length) items.push({ label: 'Fixes to do', value: String(report.fixes.length) });
+  if (Array.isArray(report.areas) && report.areas.length) items.push({ label: 'Areas checked', value: String(report.areas.length) });
+  return { result: { sections: [{ type: 'stats', items }] } };
+}
 
 // Compact text summary of a heterogeneous tool result, for the AI synthesiser.
 function summarize(result) {
@@ -144,7 +159,14 @@ export default function SiteAudit() {
         </div>
       )}
 
-      {report && <Report report={report} />}
+      {report && (
+        <>
+          <div className="mt-6 -mb-2 flex justify-end">
+            <ShareResult tool={SHARE_TOOL} out={auditShareOut(report)} project={active} user={user} force label="Share result" className={SHARE_BTN} />
+          </div>
+          <Report report={report} />
+        </>
+      )}
     </div>
   );
 }

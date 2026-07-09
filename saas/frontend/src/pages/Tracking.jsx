@@ -4,10 +4,13 @@ import { PLANS, CREDIT_COSTS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import LineChart from '../components/LineChart.jsx';
+import ShareResult from '../components/ShareResult.jsx';
 import { api } from '../lib/api.js';
 import { toast, downloadCsv, markStepDone } from '../lib/ui.js';
 
 const PERIODS = [['7', '7d'], ['28', '28d'], ['90', '90d'], ['all', 'All'], ['custom', 'Custom']];
+const SHARE_TOOL = { id: 'keyword-tracking', name: 'Keyword Tracking' };
+const SHARE_BTN = 'btn-ghost inline-flex items-center gap-1 text-sm';
 
 // Tracked keywords for the active project — rank position over time. The daily
 // scheduled job appends a point automatically; "Refresh" pulls one on demand.
@@ -139,6 +142,18 @@ export default function Tracking() {
   const top10Count = ranked.filter((t) => t.lastPosition <= 10).length;
   const bestKeyword = ranked.length ? ranked.reduce((a, b) => a.lastPosition < b.lastPosition ? a : b) : null;
 
+  // Branded share card — a hand-built stats summary (no saved run, so sharing is
+  // client-side: download / copy / caption). Needs at least one ranked keyword.
+  const shareOut = useMemo(() => {
+    if (!ranked.length) return null;
+    const items = [];
+    if (avgPosition != null) items.push({ label: 'Avg. Google position', value: `#${avgPosition}`, tone: avgPosition <= 10 ? 'green' : avgPosition <= 20 ? 'amber' : null });
+    items.push({ label: 'Keywords tracked', value: tracked.length.toLocaleString() });
+    items.push({ label: 'In top 10', value: top10Count.toLocaleString(), tone: top10Count ? 'green' : null });
+    if (bestKeyword) items.push({ label: 'Best rank', value: `#${bestKeyword.lastPosition}`, tone: 'green' });
+    return { result: { sections: [{ type: 'stats', items }] } };
+  }, [ranked.length, avgPosition, tracked.length, top10Count, bestKeyword]);
+
   return (
     <div className="mx-auto max-w-3xl">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -153,6 +168,7 @@ export default function Tracking() {
             <button onClick={exportCsv} className="btn-ghost text-sm">Export CSV</button>
             <button onClick={() => setConfirmBackfill(true)} disabled={backfilling} className="btn-ghost text-sm">{backfilling ? 'Backfilling…' : 'Backfill history'}</button>
             <button onClick={refreshAll} disabled={refreshing} className="btn-ghost text-sm">{refreshing ? 'Refreshing…' : 'Refresh positions'}</button>
+            <ShareResult tool={SHARE_TOOL} out={shareOut} project={active} user={user} force label="Share" className={SHARE_BTN} />
           </div>
         )}
       </div>
