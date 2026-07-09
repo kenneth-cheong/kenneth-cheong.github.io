@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { FileText, MonitorPlay, RefreshCw } from 'lucide-react';
+import { FileText, MonitorPlay, RefreshCw, Info } from 'lucide-react';
 import TrendChart from '../components/TrendChart.jsx';
 import { PLANS, TIER_ORDER, PROACTIVE_EVENTS, PROACTIVE_TOKENS, DEFAULT_PROACTIVE } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -1790,8 +1790,14 @@ function AdminPlatform() {
           <RefreshCw size={14} /> Refresh
         </button>
       </div>
+      <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700">
+        <Info size={13} className="mt-0.5 shrink-0" />
+        <span>
+          Heads up on cost: each load or refresh runs one <b>AWS Cost Explorer</b> query (~US$0.01 per call), so changing the range or hitting Refresh costs about a cent. Traffic metrics, builds and the access-log detail are effectively free.
+        </span>
+      </p>
       {data?.app && (
-        <p className="mt-2 text-xs text-slate-400">
+        <p className="mt-1 text-xs text-slate-400">
           {data.app.domain} · branch {data.app.branch}
         </p>
       )}
