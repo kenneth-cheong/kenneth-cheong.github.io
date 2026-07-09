@@ -4122,6 +4122,107 @@ def claude_chat(body):
         return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
 # ───────────────────────────────────────────────────────────────────────────
 
+# ── SEO Team Performance Dashboard: server-side snapshot (for the daily cron) ──
+# Mirrors computeSeoKpiModel() in index.html. Keep the two in sync — the frontend
+# is the source of truth for the live view; this exists so the EventBridge cron
+# can persist a daily snapshot even when nobody has the cockpit open.
+SEO_KPI_BOARD_ID = '2845615047'
+SEO_KPI_ACTIVE_STATUSES = ['lived (pm)', 'renewed no pause', 'guarantee (seo)', 'renewed (new timeline)']
+
+def _seo_kpi_num(v):
+    try:
+        return float(str(v if v is not None else '').replace(',', ''))
+    except (TypeError, ValueError):
+        return 0.0
+
+def _seo_kpi_compute(items):
+    today = datetime.utcnow()
+    rows = []
+    for item in items or []:
+        cv = {c.get('id'): c for c in (item.get('column_values') or [])}
+        def txt(cid):
+            return ((cv.get(cid, {}) or {}).get('text') or '').strip()
+        pt_tokens = [t for t in re.split(r'[\s,]+', txt('tags').lower()) if t]
+        if 'seo' not in pt_tokens:
+            continue
+        name = item.get('name') or ''
+        seo_status_l = txt('color1').lower()
+        camp_type_l = txt('status').lower()
+        contracted = _seo_kpi_num(txt('numbers8'))
+        f9 = ((cv.get('formula9', {}) or {}).get('display_value') or (cv.get('formula9', {}) or {}).get('text') or '').strip()
+        low = f9.lower()
+        if 'kpi hit' in low or f9.startswith('✅'):
+            kpi = 'HIT'
+        elif 'not hit' in low or f9.startswith('❌'):
+            kpi = 'NOT HIT'
+        elif f9 and ('excluded' in low or 'input kpi' in low):
+            kpi = 'NA'
+        else:
+            is_cluster = 'cluster' in camp_type_l
+            is_special = 'special' in camp_type_l
+            is_excluded = 'excluded' in camp_type_l or 'internal kpi' in camp_type_l or camp_type_l in ('na', '')
+            if is_excluded:
+                kpi = 'NA'
+            elif is_special:
+                kpi = 'HIT' if _seo_kpi_num(txt('numbers40')) == 999 else 'NOT HIT'
+            elif is_cluster:
+                k = _seo_kpi_num(txt('numeric_mksrz985'))
+                kpi = ('HIT' if _seo_kpi_num(txt('numbers_18')) >= k else 'NOT HIT') if k > 0 else 'NA'
+            else:
+                k = _seo_kpi_num(txt('numbers3'))
+                kpi = ('HIT' if _seo_kpi_num(txt('numbers98')) >= k else 'NOT HIT') if k > 0 else 'NA'
+        over2 = False
+        parts = txt('timeline5').split(' - ')
+        if len(parts) >= 2:
+            try:
+                s = datetime.strptime(parts[0].strip(), '%Y-%m-%d')
+                if today >= s:
+                    over2 = (today - s).days >= 61
+            except ValueError:
+                pass
+        is_active = any(st in seo_status_l for st in SEO_KPI_ACTIVE_STATUSES)
+        is_psg = bool(re.search(r'\(\s*psg', name, re.I)) or 'psg' in pt_tokens
+        rows.append({'over2': over2, 'isActive': is_active, 'isPsg': is_psg,
+                     'kpiStatus': kpi, 'contracted': contracted})
+    active = [r for r in rows if r['isActive']]
+    scores = {
+        'totalActive': len(active),
+        'over2': sum(1 for r in active if r['over2']),
+        'psg': sum(1 for r in active if r['isPsg']),
+        'contractedKws': sum(r['contracted'] for r in active),
+    }
+    def rate(sub):
+        h = sum(1 for r in sub if r['kpiStatus'] == 'HIT')
+        m = sum(1 for r in sub if r['kpiStatus'] == 'NOT HIT')
+        return {'hit': h, 'miss': m, 'total': h + m, 'pct': int(round(h * 100.0 / (h + m))) if (h + m) else None}
+    scored = [r for r in active if r['kpiStatus'] in ('HIT', 'NOT HIT')]
+    donuts = {'all': rate(scored),
+              'regular': rate([r for r in scored if not r['isPsg']]),
+              'psg': rate([r for r in scored if r['isPsg']])}
+    return scores, donuts
+
+def _seo_kpi_pull_board():
+    items = []
+    cursor = None
+    for _ in range(15):
+        cur = ',cursor:"%s"' % cursor if cursor else ''
+        q = ('{ boards(ids:[' + SEO_KPI_BOARD_ID + ']){ items_page(limit:200' + cur + '){ cursor items{ id name '
+             'column_values(ids:["tags","status","color1","numbers3","numbers98","timeline5","people6",'
+             '"numeric_mksrz985","numbers_18","numbers40","numbers8","total_kws","formula9"])'
+             '{ id text ... on FormulaValue { display_value } } } } } }')
+        res = run_monday_graphql(q)
+        data = res.get('data', res) if isinstance(res, dict) else {}
+        boards = (data or {}).get('boards') or []
+        page = boards[0].get('items_page') if boards else None
+        if not page:
+            break
+        items.extend(page.get('items') or [])
+        cursor = page.get('cursor')
+        if not cursor:
+            break
+    return items
+# ───────────────────────────────────────────────────────────────────────────
+
 def lambda_handler(event, context):
     # Standard CORS headers
     headers = {
@@ -4383,6 +4484,24 @@ def lambda_handler(event, context):
                     {"orgId": "digimetrics", "day": day},
                     {"$set": doc}, upsert=True)
                 result = {"statusCode": 200, "body": json.dumps({"success": True, "day": day}, cls=JSONEncoder)}
+        elif action == 'seo_kpi_cron':
+            # Daily EventBridge trigger: compute today's snapshot server-side (no
+            # frontend involved) so history accrues even if nobody opens the cockpit.
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                items = _seo_kpi_pull_board()
+                scores, donuts = _seo_kpi_compute(items)
+                day = datetime.utcnow().strftime('%Y-%m-%d')
+                db.seo_kpi_daily.update_one(
+                    {"orgId": "digimetrics", "day": day},
+                    {"$set": {"orgId": "digimetrics", "day": day, "scores": scores,
+                              "overall": donuts['all'], "regular": donuts['regular'], "psg": donuts['psg'],
+                              "source": "cron", "updatedAt": datetime.utcnow()}},
+                    upsert=True)
+                result = {"statusCode": 200, "body": json.dumps(
+                    {"success": True, "day": day, "items": len(items), "scores": scores, "donuts": donuts}, cls=JSONEncoder)}
         elif action == 'seo_kpi_history':
             # Monthly hit-rate trend: seeded historical months (from the SEO Performance
             # Sheet "Summary" tab) plus the current month derived from the latest daily snapshot.
