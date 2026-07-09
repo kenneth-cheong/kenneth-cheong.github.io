@@ -314,7 +314,7 @@ export function renderCardSvg(summary, format = 'square') {
       <stop offset="0" stop-color="#2563eb"/><stop offset="1" stop-color="#1e40af"/>
     </linearGradient>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f4f7fc"/>
+      <stop offset="0" stop-color="#e7edf7"/><stop offset="1" stop-color="#cdd9ec"/>
     </linearGradient>
     <radialGradient id="blob" cx="0.5" cy="0.5" r="0.5">
       <stop offset="0" stop-color="${a}" stop-opacity="0.13"/><stop offset="1" stop-color="${a}" stop-opacity="0"/>
