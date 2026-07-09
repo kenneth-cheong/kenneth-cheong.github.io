@@ -1307,6 +1307,8 @@ export const DEFAULT_PROACTIVE = normalizeProactive({
       message: 'Need a hand with {toolName}? I can explain what it does or help you fill it in.' },
     { id: 'run_done', label: 'Run finished → next step', event: 'run_finished', runStatus: 'success', priority: 15, cooldownHours: 2,
       message: 'Your {toolName} run is done ✅ Want me to explain the results in plain English or suggest what to do next?' },
+    { id: 'explain_gesture', label: 'Teach highlight-to-ask gesture', event: 'run_finished', runStatus: 'success', priority: 16, cooldownHours: 168, maxPerSession: 1,
+      message: "Quick tip {firstName}: you don't have to type — highlight any part of your results (or right-click a card) and I'll explain what it means and what to do about it. Give it a try 👆" },
     { id: 'run_empty', label: 'Run returned nothing', event: 'run_finished', runStatus: 'empty', priority: 18, cooldownHours: 2,
       message: 'That run didn’t return data — usually it’s the domain or input format. Want me to help fix it and re-run?' },
     { id: 'low_credits', label: 'Credits running low', event: 'low_credits', creditsBelow: 15, priority: 25, cooldownHours: 24,
