@@ -117,7 +117,14 @@ function ogPage({ summary, imageUrl, pageUrl }) {
 </div></body></html>`;
 }
 
-const baseUrl = (event) => `https://${event.requestContext?.domainName || event.headers?.host || CTA_HOST}`;
+// Public share links should be branded (platform.digimetrics.ai), NOT the raw
+// execute-api host the request happens to arrive on — otherwise social unfurls
+// show the ugly AWS domain. Gated on PUBLIC_SHARE_ORIGIN: only flip it on once
+// platform.digimetrics.ai/s/* is reverse-proxied to this API (Amplify rewrite),
+// so the branded URL resolves back here. Unset ⇒ current request-host behaviour.
+const baseUrl = (event) =>
+  process.env.PUBLIC_SHARE_ORIGIN ||
+  `https://${event.requestContext?.domainName || event.headers?.host || CTA_HOST}`;
 
 export async function handler(event) {
   const method = event.requestContext?.http?.method || 'GET';
