@@ -2178,27 +2178,36 @@ def lambda_handler(event, context):
               f"content_type: {content_type}, "
               f"target_reader: {target_reader}")
 
-        response = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
-            },
-            json={
-                "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 8096,
-                "system": system_str,
-                "messages": [{"role": "user", "content": user_msg}]
-            },
-            timeout=90
-        )
+        # Route through the hardened helper: exponential-backoff retries on
+        # 429/5xx/529 + circuit breaker. A raw requests.post here used to
+        # swallow an Anthropic error (no 'content' key) into result_text = ""
+        # and return HTTP 200 {"result": ""}, which the UI silently ignored —
+        # so an overloaded/rate-limited API looked like "the button does nothing".
+        resp_json = _anthropic_request(api_key, {
+            "model":      "claude-haiku-4-5-20251001",
+            "max_tokens": 8096,
+            "system":     system_str,
+            "messages":   [{"role": "user", "content": user_msg}]
+        })
 
-        resp_json   = response.json()
-        result_text = (
-            resp_json['content'][0]['text']
-            if 'content' in resp_json else ""
-        )
+        # Concatenate every text block (the model may split its reply).
+        result_text = "".join(
+            block.get("text", "")
+            for block in resp_json.get("content", [])
+            if isinstance(block, dict) and block.get("type") == "text"
+        ).strip()
+
+        # Empty completion → surface it as an error so the caller can retry,
+        # rather than returning an empty 200 that overwrites nothing silently.
+        if not result_text:
+            stop = resp_json.get("stop_reason")
+            err  = resp_json.get("error", {})
+            detail = err.get("message") if isinstance(err, dict) else str(err)
+            raise RuntimeError(
+                detail or
+                f"Anthropic returned no content (stop_reason={stop}). "
+                f"The service may be busy — please retry."
+            )
 
         # ── Post-processing for targeted fragment generation ───────────────
         if action == "generate" and "CURRENT CONTENT:" in prompt_override:
