@@ -258,7 +258,7 @@ function ComparePanel({ scheduleId }) {
   }, [scheduleId]);
 
   async function openRun(runId) {
-    try { const { run } = await api.run(runId); navigate(`/tool/${run.tool}`, { state: { values: run.inputs, result: run.result } }); } catch { /* ignore */ }
+    try { const { run } = await api.run(runId); navigate(`/tool/${run.tool}`, { state: { values: run.inputs, result: run.result, runId } }); } catch { /* ignore */ }
   }
 
   if (err) return <div className="border-t border-slate-100 px-4 py-3 text-sm text-rose-600">{err}</div>;

@@ -64,12 +64,12 @@ export default function ToolRunner() {
   };
   const [values, setValues] = useState(seedValues);
   const [busy, setBusy] = useState(false);
-  const [out, setOut] = useState(location.state?.result ? { result: location.state.result } : null);
+  const [out, setOut] = useState(location.state?.result ? { result: location.state.result, runId: location.state.runId } : null);
   const [modal, setModal] = useState(null);
   const shownRef = useRef([]); // latest visible fields, for the auto-started tour
 
   // Reset the form + result when navigating between tools (same route component).
-  useEffect(() => { setTab(0); setValues(seedValues()); setOut(location.state?.result ? { result: location.state.result } : null); /* eslint-disable-next-line */ }, [toolId]);
+  useEffect(() => { setTab(0); setValues(seedValues()); setOut(location.state?.result ? { result: location.state.result, runId: location.state.runId } : null); /* eslint-disable-next-line */ }, [toolId]);
 
   // First tool a user ever opens → auto-run that tool's guided tour, once.
   useEffect(() => {

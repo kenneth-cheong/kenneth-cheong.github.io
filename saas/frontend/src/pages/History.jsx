@@ -63,7 +63,7 @@ export default function History({ embedded = false }) {
     setOpening(runId);
     try {
       const { run } = await api.run(runId);
-      navigate(`/tool/${run.tool}`, { state: { values: run.inputs, result: run.result } });
+      navigate(`/tool/${run.tool}`, { state: { values: run.inputs, result: run.result, runId } });
     } catch {
       setOpening(null);
     }

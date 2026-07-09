@@ -54,7 +54,7 @@ export default function ProjectDetail() {
     setOpening(runId);
     try {
       const { run } = await api.run(runId);
-      navigate(`/tool/${run.tool}`, { state: { values: run.inputs, result: run.result, ...fromState } });
+      navigate(`/tool/${run.tool}`, { state: { values: run.inputs, result: run.result, ...fromState, runId } });
     } catch { setOpening(null); }
   }
 
