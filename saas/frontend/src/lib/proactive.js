@@ -79,6 +79,9 @@ export function resolveConfig(cfg) {
 
 // Does trigger `t` satisfy this event's conditions given the live context?
 function conditionsMet(t, event, { path, ctx = {}, detail = {} }) {
+  // Universal gate: a trigger flagged profileIncomplete only fires while the
+  // user still has the profile-completion bonus to claim (works on any event).
+  if (t.profileIncomplete && !ctx.profileIncomplete) return false;
   switch (event) {
     case 'route_enter':
     case 'idle':

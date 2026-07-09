@@ -39,6 +39,8 @@ export default function ProactiveEngine({ paused = false, chatOpen = false }) {
     tier: user?.tier,
     credits: user?.credits,
     emptyProjects: (projects?.length || 0) === 0,
+    profileIncomplete: !user?.profileBonusGranted, // bonus still claimable → profile not done
+
     toolName: toolNameFromPath(path),
     ...extra,
   }), [user, active, projects, path]);
