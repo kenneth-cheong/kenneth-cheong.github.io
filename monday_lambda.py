@@ -1332,6 +1332,111 @@ def run_google_ads_report(customer_id, query, token):
     except Exception as e:
         return {"error": str(e)}
 
+
+def _micros_to_units(v):
+    """Convert a Google Ads *Micros value (int64, usually delivered as a string) to
+    account-currency units. 1,000,000 micros = 1 unit."""
+    try:
+        return round(int(v) / 1_000_000, 2)
+    except (TypeError, ValueError):
+        try:
+            return round(float(v) / 1_000_000, 2)
+        except (TypeError, ValueError):
+            return None
+
+
+def _convert_micros_in_obj(obj):
+    """Recursively add a currency-unit sibling for every *Micros / *_micros field so the
+    LLM never has to hand-divide micros — the source of the recurring 10x spend errors.
+    e.g. costMicros:"3259030000" -> also cost:3259.03; averageCpcMicros -> averageCpc."""
+    if isinstance(obj, dict):
+        for k in list(obj.keys()):
+            v = obj[k]
+            if isinstance(v, (dict, list)):
+                _convert_micros_in_obj(v)
+            elif k.endswith("Micros") or k.endswith("_micros"):
+                base = k[:-7] if k.endswith("_micros") else k[:-6]
+                base = base.rstrip("_")
+                if base and base not in obj:
+                    conv = _micros_to_units(v)
+                    if conv is not None:
+                        obj[base] = conv
+    elif isinstance(obj, list):
+        for it in obj:
+            _convert_micros_in_obj(it)
+
+
+def normalize_ads_report_for_llm(raw):
+    """Post-process a Google Ads searchStream response before handing it to the model.
+    (1) Converts every monetary *Micros field to account-currency units (÷1,000,000 applied).
+    (2) Adds an authoritative _summary.total_cost so the model never sums micros by hand.
+    (3) Surfaces the account currency_code so spend is never mislabelled by country.
+    Returns a dict {_note, _summary, results}. On error payloads, returns them untouched."""
+    if isinstance(raw, dict) and raw.get("error"):
+        return raw
+    batches = raw if isinstance(raw, list) else [raw]
+    all_results = []
+    currency = None
+    for batch in batches:
+        if not isinstance(batch, dict):
+            continue
+        for row in (batch.get("results") or []):
+            _convert_micros_in_obj(row)
+            all_results.append(row)
+            if currency is None:
+                cust = row.get("customer") or {}
+                currency = cust.get("currencyCode") or cust.get("currency_code") or currency
+
+    total_cost = 0.0
+    has_cost = False
+    for row in all_results:
+        m = row.get("metrics") if isinstance(row, dict) else None
+        if isinstance(m, dict) and isinstance(m.get("cost"), (int, float)):
+            total_cost += m["cost"]
+            has_cost = True
+
+    summary = {"row_count": len(all_results)}
+    if has_cost:
+        summary["total_cost"] = round(total_cost, 2)
+    if currency:
+        summary["currency_code"] = currency
+
+    return {
+        "_note": (
+            "Monetary *Micros fields have ALREADY been converted to account-currency units "
+            "(÷1,000,000 applied) and added as plain siblings — use the 'cost' field, NOT "
+            "'costMicros'. Do NOT divide, multiply, or add zeros. '_summary.total_cost' is the "
+            "authoritative account total for this query — use it directly instead of summing "
+            "rows yourself. Report every money figure in '_summary.currency_code'; never infer "
+            "the currency from the account's name or country."
+        ),
+        "_summary": summary,
+        "results": all_results,
+    }
+
+
+def fetch_ads_account_currency(customer_id, token):
+    """Fetch a Google Ads account's currency code via a tiny customer query. Used as a
+    fallback so spend is always labelled in the correct currency even when the model's GAQL
+    did not SELECT customer.currency_code."""
+    if not customer_id or not token:
+        return None
+    try:
+        raw = run_google_ads_report(
+            customer_id, "SELECT customer.currency_code FROM customer LIMIT 1", token)
+        batches = raw if isinstance(raw, list) else [raw]
+        for b in batches:
+            if isinstance(b, dict):
+                for row in (b.get("results") or []):
+                    cust = row.get("customer") or {}
+                    cc = cust.get("currencyCode") or cust.get("currency_code")
+                    if cc:
+                        return cc
+    except Exception:
+        pass
+    return None
+
+
 def run_google_ads_change_history(customer_id, token, days=30,
                                   agency_email_contains="mediaone.co",
                                   flag_after_days=14, campaign_contains=None,
@@ -1460,6 +1565,166 @@ def run_google_ads_change_history(customer_id, token, days=30,
                  f"user whose email contains '{agency_email_contains}' within {flag_after_days} days. "
                  "Account-level changes are grouped under '(account-level)'."),
     }
+
+
+# MediaOne's manager (MCC) account id. Also used as the login-customer-id on every
+# Google Ads call, so it is a valid ancestor for enumerating the whole hierarchy.
+MEDIAONE_MCC_ID = "4695999392"
+
+
+def list_google_ads_child_accounts(manager_id, token):
+    """Enumerate every ENABLED client account under a Google Ads manager (MCC) via the
+    customer_client resource. Returns non-manager leaf accounts only (the ones that hold
+    campaigns). change_event cannot be queried at the MCC level, so a portfolio-wide audit
+    must fan out to these child ids one at a time."""
+    if not manager_id:
+        return {"error": "Missing manager (MCC) customer id"}
+    if not token:
+        return {"error": "Missing Google Ads token. Connect Google Ads first."}
+    manager_id = str(manager_id).replace("-", "").strip()
+    query = (
+        "SELECT customer_client.id, customer_client.descriptive_name, customer_client.manager, "
+        "customer_client.status, customer_client.currency_code, customer_client.level "
+        "FROM customer_client WHERE customer_client.status = 'ENABLED'"
+    )
+    raw = run_google_ads_report(manager_id, query, token)
+    if isinstance(raw, dict) and raw.get("error"):
+        return raw
+    batches = raw if isinstance(raw, list) else [raw]
+    seen = set()
+    children = []
+    for batch in batches:
+        if not isinstance(batch, dict):
+            continue
+        for row in (batch.get("results") or []):
+            cc = row.get("customerClient") or {}
+            cid = str(cc.get("id") or "").strip()
+            if not cid or cid == manager_id or cid in seen:
+                continue
+            # Skip manager (MCC) nodes — only leaf accounts hold campaigns/change history.
+            if cc.get("manager") in (True, "true", "TRUE"):
+                continue
+            seen.add(cid)
+            children.append({
+                "id": cid,
+                "name": cc.get("descriptiveName") or "",
+                "currency_code": cc.get("currencyCode") or cc.get("currency_code"),
+            })
+    return {"manager_id": manager_id, "child_accounts": children, "count": len(children)}
+
+
+def _account_has_active_matching_campaign(customer_id, token, campaign_contains):
+    """Return True if the account has at least one ENABLED campaign whose name contains
+    campaign_contains (case-insensitive). Used to avoid flagging accounts that simply have
+    no matching campaigns as 'unoptimised'."""
+    if not campaign_contains:
+        return True
+    safe = str(campaign_contains).replace("'", "").replace("\\", "")
+    q = ("SELECT campaign.name FROM campaign "
+         "WHERE campaign.status = 'ENABLED' "
+         f"AND campaign.name LIKE '%{safe}%' LIMIT 1")
+    raw = run_google_ads_report(customer_id, q, token)
+    if isinstance(raw, dict) and raw.get("error"):
+        return None  # unknown — don't hide the account on an API error
+    batches = raw if isinstance(raw, list) else [raw]
+    for b in batches:
+        if isinstance(b, dict) and (b.get("results") or []):
+            return True
+    return False
+
+
+def run_google_ads_mcc_change_sweep(token, manager_id=None, days=30,
+                                    agency_email_contains="mediaone.co",
+                                    flag_after_days=14, campaign_contains=None,
+                                    max_accounts=50, offset=0):
+    """Comb an ENTIRE Google Ads MCC for accounts NOT optimised recently — i.e. no change
+    by an agency user (email containing agency_email_contains) within flag_after_days.
+    Enumerates child accounts under the manager, then fans out the per-account change-history
+    check concurrently. Bounded by max_accounts (+ offset) per call so a 300+ account portfolio
+    is paged rather than timing out; the caller loops with a rising offset until done."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    if not token:
+        return {"error": "Missing Google Ads token. Connect Google Ads first."}
+    manager_id = str(manager_id or MEDIAONE_MCC_ID).replace("-", "").strip()
+    try:
+        max_accounts = min(max(int(max_accounts), 1), 120)
+    except (TypeError, ValueError):
+        max_accounts = 50
+    try:
+        offset = max(int(offset), 0)
+    except (TypeError, ValueError):
+        offset = 0
+
+    listing = list_google_ads_child_accounts(manager_id, token)
+    if isinstance(listing, dict) and listing.get("error"):
+        return {"error": f"Could not enumerate MCC {manager_id}: {listing['error']}",
+                "hint": "Confirm this is a manager (MCC) id and Google Ads is connected with access to it."}
+    children = listing.get("child_accounts", [])
+    total = len(children)
+    batch = children[offset:offset + max_accounts]
+
+    def _check(acct):
+        res = run_google_ads_change_history(
+            acct["id"], token, days, agency_email_contains, flag_after_days, campaign_contains)
+        return acct, res
+
+    unoptimised, errored, scanned_ok = [], [], 0
+    with ThreadPoolExecutor(max_workers=12) as ex:
+        for acct, res in ex.map(_check, batch):
+            if isinstance(res, dict) and res.get("error"):
+                errored.append({"id": acct["id"], "name": acct["name"], "error": res["error"]})
+                continue
+            scanned_ok += 1
+            if res.get("account_unoptimised"):
+                unoptimised.append({
+                    "id": acct["id"],
+                    "name": acct["name"],
+                    "currency_code": acct.get("currency_code"),
+                    "last_agency_change": res.get("last_agency_change"),
+                    "days_since_agency_change": res.get("days_since_last_agency_change"),
+                    "agency_events": res.get("agency_events"),
+                    "unoptimised_campaigns": [c.get("campaign") for c in res.get("unoptimised_campaigns", [])][:20],
+                })
+
+    # When a campaign-name filter is set, drop flagged accounts that have no ENABLED campaign
+    # matching it, so "active campaigns containing X" is honoured (verify only the small
+    # flagged subset to keep the call cheap).
+    if campaign_contains and unoptimised:
+        def _verify(acct):
+            return acct, _account_has_active_matching_campaign(acct["id"], token, campaign_contains)
+        kept = []
+        with ThreadPoolExecutor(max_workers=12) as ex:
+            for acct, has in ex.map(_verify, unoptimised):
+                if has is False:
+                    continue  # no matching active campaign → not a relevant flag
+                acct["has_active_matching_campaign"] = bool(has)
+                kept.append(acct)
+        unoptimised = kept
+
+    next_offset = offset + len(batch)
+    more = next_offset < total
+    return {
+        "manager_id": manager_id,
+        "total_child_accounts": total,
+        "scanned_range": [offset, next_offset],
+        "scanned_ok": scanned_ok,
+        "window_days": days,
+        "flag_after_days": flag_after_days,
+        "agency_email_contains": agency_email_contains,
+        "campaign_contains": campaign_contains,
+        "unoptimised_accounts": unoptimised,
+        "unoptimised_count": len(unoptimised),
+        "errored_accounts": errored[:20],
+        "more_accounts_remaining": more,
+        "next_offset": next_offset if more else None,
+        "note": ("Swept child accounts under the MCC for change history. 'unoptimised' = no change by a "
+                 f"user whose email contains '{agency_email_contains}' in the last {flag_after_days} days "
+                 "(within the 30-day change_event retention window). "
+                 + ("Call again with offset=next_offset to continue the remaining accounts." if more
+                    else "All child accounts in the MCC have been scanned.")),
+    }
+
 
 def run_gsc_performance(site_url, tool_input, token):
     import urllib.parse
@@ -1638,6 +1903,7 @@ TOOL_LABELS = {
     "get_ga4_report":                  "Fetching GA4 analytics",
     "get_ads_report":                  "Fetching Google Ads data",
     "get_ads_change_history":          "Pulling Google Ads change history",
+    "get_ads_mcc_change_sweep":        "Combing the MCC for unoptimised accounts",
     "save_memory_note":                "Saving to memory",
     "get_seranking_report":            "Fetching SE Ranking positions",
     "get_seranking_backlinks":         "Fetching SE Ranking backlinks",
@@ -2233,7 +2499,10 @@ def claude_chat_with_tools(body):
                 "from an agency user (email containing 'mediaone.co') in the last 14 days. Google only "
                 "retains change history for the last 30 days. Returns per-campaign last-agency-change "
                 "dates, an unoptimised_campaigns list, and the raw events. Distinct from get_ads_report, "
-                "which only returns performance metrics, not the audit trail."
+                "which only returns performance metrics, not the audit trail. For a whole-portfolio / "
+                "'comb the entire MCC' audit across ALL accounts, use get_ads_mcc_change_sweep instead — "
+                "change_event cannot be queried at the MCC level, so this single-account tool would need "
+                "to be called once per account."
             ),
             "input_schema": {
                 "type": "object",
@@ -2245,6 +2514,36 @@ def claude_chat_with_tools(body):
                     "campaign_contains": {"type": "string", "description": "Optional case-insensitive campaign-name filter to scope the audit to specific campaigns."}
                 },
                 "required": ["customerId"]
+            }
+        },
+        {
+            "name": "get_ads_mcc_change_sweep",
+            "description": (
+                "Comb an ENTIRE Google Ads MCC (manager account) and return which CHILD ACCOUNTS have NOT "
+                "been optimised recently — no change by an agency user (email containing 'mediaone.co') "
+                "within the flag window. USE THIS whenever the user wants a portfolio-wide audit: 'which "
+                "accounts haven't been touched/optimised lately', 'comb through the whole MCC', 'list "
+                "accounts with no recent change history', etc. It auto-enumerates every enabled child "
+                "account under the manager (you do NOT need to know the account ids), then checks each "
+                "one's change history. managerCustomerId defaults to the MediaOne MCC (4695999392) — you "
+                "usually do NOT need to pass it. Results are paged: it scans up to max_accounts per call "
+                "and returns more_accounts_remaining + next_offset; if more remain, call again with that "
+                "offset until more_accounts_remaining is false, accumulating unoptimised_accounts. "
+                "Returns unoptimised_accounts [{id, name, currency_code, last_agency_change, "
+                "days_since_agency_change}], total_child_accounts, and the scanned range."
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "managerCustomerId": {"type": "string", "description": "The MCC/manager Customer ID to sweep. Defaults to the MediaOne MCC 4695999392 if omitted."},
+                    "days": {"type": "integer", "description": "Days of change history to inspect per account (1-30; default 30)."},
+                    "agency_email_contains": {"type": "string", "description": "Substring identifying agency users. Default 'mediaone.co'."},
+                    "flag_after_days": {"type": "integer", "description": "Flag an account with no agency change within this many days. Default 14."},
+                    "campaign_contains": {"type": "string", "description": "Optional: only flag accounts that have an ENABLED campaign whose name contains this (e.g. 'MO')."},
+                    "max_accounts": {"type": "integer", "description": "How many child accounts to scan in this call (default 50, max 120). Use with offset to page a large MCC."},
+                    "offset": {"type": "integer", "description": "Start index into the child-account list for paging. Default 0. Pass next_offset from the previous call to continue."}
+                },
+                "required": []
             }
         },
         {
@@ -2959,7 +3258,18 @@ def claude_chat_with_tools(body):
                         ads_token = body.get('google_tokens', {}).get('ads')
                         
                         print(f"[TOOLS] Fetching Google Ads Report for {customerId}")
-                        result_data = run_google_ads_report(customerId, query, ads_token)
+                        raw_ads = run_google_ads_report(customerId, query, ads_token)
+                        # Convert micros->currency + attach an authoritative pre-summed total,
+                        # so the model never hand-divides micros (root cause of 10x spend errors).
+                        result_data = normalize_ads_report_for_llm(raw_ads)
+                        # Guarantee the currency is known even if the GAQL omitted customer.currency_code,
+                        # so an SGD account is never mislabelled (e.g. as MYR) from its country.
+                        if (isinstance(result_data, dict)
+                                and not result_data.get("_summary", {}).get("currency_code")
+                                and customerId and ads_token):
+                            cc = fetch_ads_account_currency(customerId, ads_token)
+                            if cc:
+                                result_data.setdefault("_summary", {})["currency_code"] = cc
                         result_str = json.dumps(result_data)
 
                         tool_results.append({
@@ -2989,6 +3299,30 @@ def claude_chat_with_tools(body):
                             "content":     result_str
                         })
                         tool_call_log.append(f"Pulled Google Ads change history for {customerId}")
+
+                    elif tool_name == "get_ads_mcc_change_sweep":
+                        ads_token = body.get('google_tokens', {}).get('ads')
+                        mgr = tool_input.get("managerCustomerId")
+                        print(f"[TOOLS] MCC change sweep (manager={mgr or 'default MediaOne MCC'})")
+                        result_data = run_google_ads_mcc_change_sweep(
+                            ads_token,
+                            manager_id=mgr,
+                            days=tool_input.get("days", 30),
+                            agency_email_contains=tool_input.get("agency_email_contains", "mediaone.co"),
+                            flag_after_days=tool_input.get("flag_after_days", 14),
+                            campaign_contains=tool_input.get("campaign_contains"),
+                            max_accounts=tool_input.get("max_accounts", 50),
+                            offset=tool_input.get("offset", 0),
+                        )
+                        result_str = json.dumps(result_data)
+                        if len(result_str) > 40000:
+                            result_str = result_str[:40000] + "\n... [result truncated — lower max_accounts]"
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     result_str
+                        })
+                        tool_call_log.append("Swept MCC for unoptimised Google Ads accounts")
 
                     elif tool_name == "get_gsc_performance":
                         siteUrl = tool_input.get("siteUrl")
