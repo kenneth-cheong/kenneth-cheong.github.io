@@ -2209,12 +2209,19 @@ def lambda_handler(event, context):
                 f"The service may be busy — please retry."
             )
 
-        # Strip a wrapping markdown code fence (```html … ```) the model
-        # sometimes adds around the HTML, so the literal fence never reaches
-        # the editor or saved content.
-        if action == "add_links" and result_text.startswith("```"):
-            result_text = re.sub(r'^```(?:html)?\s*', '', result_text)
-            result_text = re.sub(r'```\s*$', '', result_text).strip()
+        # The model sometimes wraps the HTML in a markdown code fence and
+        # appends commentary after it (e.g. ```html … ``` \n **Note:** …).
+        # Prefer the content INSIDE the first fenced block; otherwise trim stray
+        # leading/trailing fences. Keeps the fence + any trailing note out of the
+        # editor and saved content.
+        if action == "add_links":
+            fence = re.search(r'```(?:html)?\s*([\s\S]*?)```', result_text,
+                              re.IGNORECASE)
+            if fence:
+                result_text = fence.group(1).strip()
+            elif result_text.startswith("```"):
+                result_text = re.sub(r'^```(?:html)?\s*', '', result_text)
+                result_text = re.sub(r'```\s*$', '', result_text).strip()
 
         # ── Post-processing for targeted fragment generation ───────────────
         if action == "generate" and "CURRENT CONTENT:" in prompt_override:
