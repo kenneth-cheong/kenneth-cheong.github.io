@@ -21,7 +21,7 @@ def lambda_handler(event, context):
     pacific = timezone("Asia/Singapore")
     local_datetime = pacific.localize(datetime.today())
 
-    uri = "mongodb+srv://kenneth:S8942769z@digimetrics.gns7b.mongodb.net/?retryWrites=true&w=majority&appName=digimetrics"
+    uri = os.environ.get('MONGO_URI', '')
     client = MongoClient(uri)
     database = client["webpage"]
     collection = database["ranking_keywords"]

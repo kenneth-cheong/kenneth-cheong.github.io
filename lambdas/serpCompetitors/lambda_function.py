@@ -9,7 +9,7 @@ def lambda_handler(event, context):
 
     api_url = "https://api.dataforseo.com/v3/dataforseo_labs/google/serp_competitors/live"
     headers = {
-        'Authorization': 'Basic c3ViQG1lZGlhb25lLmNvOjliZGZkNDBjNzRmMmZjNTM=',
+        'Authorization': ('Basic ' + os.environ.get('DATAFORSEO_AUTH', '')),
         "Content-Type": "application/json"
     }
     payload=[{
