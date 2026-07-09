@@ -70,10 +70,14 @@ export default function Performance() {
 
   const orderedGroups = GROUP_ORDER.filter((g) => groups.has(g));
 
-  // Branded share card — up to four headline metrics with their latest values,
-  // tone-coded by trend polarity. Client-side share (no saved run).
+  // Branded share card — the four most significant metrics (ranked by magnitude
+  // so a real number leads instead of an all-zero GA4 metric), tone-coded by
+  // trend polarity. Client-side share (no saved run).
   const shareOut = useMemo(() => {
-    const withVal = metrics.filter((m) => m.lastValue != null);
+    const withVal = metrics
+      .filter((m) => m.lastValue != null)
+      .slice()
+      .sort((a, b) => Math.abs(Number(b.lastValue) || 0) - Math.abs(Number(a.lastValue) || 0));
     if (!withVal.length) return null;
     const items = withVal.slice(0, 4).map((m) => {
       const hist = m.history || [];
