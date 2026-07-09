@@ -2296,6 +2296,8 @@
             modeLastView: {},              // remembers the last sub-view used in each mode
             teamSort: 'member',            // Team Lead details ordering: member | urgency
             selectedStaffNames: new Set(),
+            auditorHealthFilter: null,     // health-band drill on the CS KPI strip chips
+            consultantKpiFilter: null,     // KPI-tile drill on the consultant portfolio
             currentUser: localStorage.getItem('current_user') || '',
             mondayUsers: [],
             boardColumnSettings: {},
@@ -2991,7 +2993,11 @@
                     <div style="font-size:1.5rem;font-weight:800;color:${color};line-height:1;">${val}</div>
                     <div style="font-size:11px;color:var(--muted);font-weight:600;margin-top:4px;">${lab}</div>
                 </div>`;
-            const chip = (n, label, color) => `<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:${color};"><span style="width:9px;height:9px;border-radius:50%;background:${color};display:inline-block;"></span>${n} ${label}</span>`;
+            const chip = (n, label, color, band) => {
+                const on = n > 0 && band;
+                const active = state.auditorHealthFilter === band;
+                return `<span ${on ? `onclick="auditorHealthDrill('${band}')" role="button" tabindex="0"` : ''} title="${on ? 'Filter the campaigns below to ' + label.toLowerCase() : ''}" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:${color};${on ? 'cursor:pointer;' : ''}${active ? 'text-decoration:underline;text-underline-offset:3px;' : ''}"><span style="width:9px;height:9px;border-radius:50%;background:${color};display:inline-block;"></span>${n} ${label}${on ? ' <i class="fas fa-up-right-from-square" style="font-size:8px;opacity:.5;"></i>' : ''}</span>`;
+            };
 
             el.innerHTML = `
                 <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
@@ -3005,10 +3011,10 @@
                 </div>
                 <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;">
                     <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;">Campaign health</span>
-                    ${chip(health.green, 'On track', 'var(--success)')}
-                    ${chip(health.amber, 'Watch', '#eab308')}
-                    ${chip(health.orange, 'At risk', 'var(--warning)')}
-                    ${chip(health.red, 'Critical', 'var(--danger)')}
+                    ${chip(health.green, 'On track', 'var(--success)', 'green')}
+                    ${chip(health.amber, 'Watch', '#eab308', 'amber')}
+                    ${chip(health.orange, 'At risk', 'var(--warning)', 'orange')}
+                    ${chip(health.red, 'Critical', 'var(--danger)', 'red')}
                 </div>`;
             cbLoadSatisfaction(); // fills the satisfaction tile once data arrives
         }
@@ -3021,7 +3027,10 @@
                 groups[i.bId].counts[i.status === '2w' ? 'v2w' : i.status]++;
             });
 
-            const sortedGroups = sortCampaignGroups(Object.values(groups));
+            let groupsArr = Object.values(groups);
+            // Health-band drill from the CS KPI-strip chips → narrow to matching campaigns.
+            if (state.auditorHealthFilter) groupsArr = groupsArr.filter(g => _successSignal(g).key === state.auditorHealthFilter);
+            const sortedGroups = sortCampaignGroups(groupsArr);
             sortedGroups.forEach(g => {
                 g.items.sort((a, b) => {
                     let vA = a[state.sort.key] || '', vB = b[state.sort.key] || '';
@@ -3035,6 +3044,14 @@
 
             const body = document.getElementById('results-table-body');
             let html = '';
+
+            if (state.auditorHealthFilter) {
+                const bandLabels = { green: 'On track', amber: 'Watch', orange: 'At risk', red: 'Critical' };
+                html += `<tr><td colspan="7" style="padding:8px 14px;background:rgba(99,102,241,0.1);border-bottom:1px solid rgba(99,102,241,0.3);font-size:13px;color:var(--text);">
+                    <i class="fas fa-filter" style="color:var(--primary);margin-right:6px;"></i> Showing ${sortedGroups.length} campaign(s) &mdash; health: ${bandLabels[state.auditorHealthFilter] || state.auditorHealthFilter}.
+                    <button onclick="event.stopPropagation(); auditorHealthDrill('${state.auditorHealthFilter}')" style="margin-left:10px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:3px 10px;cursor:pointer;font-size:12px;">Clear filter</button>
+                </td></tr>`;
+            }
 
             sortedGroups.forEach(g => {
                 const isExpanded = state.expandedBoardIds.has(g.id);
@@ -3098,6 +3115,30 @@
                 else if (kind === 'kwbehind' && _campaignKwBehind(i.bId, i.bName)) add(i);
             });
             state.selectedStaffNames = match;
+            updateFilteredUI();
+        }
+
+        // Manager "Campaign health" chips → drill to the staff on campaigns in that band.
+        function managerDrillHealth(band) {
+            const filtered = getFilteredItems();
+            const camps = {};
+            filtered.forEach(i => {
+                if (!camps[i.bId]) camps[i.bId] = { id: i.bId, name: i.bName, items: [], counts: { overdue: 0, soon: 0, v2w: 0 } };
+                camps[i.bId].items.push(i);
+                camps[i.bId].counts[i.status === '2w' ? 'v2w' : i.status]++;
+            });
+            const match = new Set();
+            filtered.forEach(i => {
+                const c = camps[i.bId];
+                if (c && _successSignal(c).key === band) i.people.forEach(p => { if (!p.toLowerCase().includes('deleted')) match.add(p); });
+            });
+            state.selectedStaffNames = match;
+            updateFilteredUI();
+        }
+
+        // CS KPI-strip "Campaign health" chips → filter the campaign list below to that band.
+        function auditorHealthDrill(band) {
+            state.auditorHealthFilter = (state.auditorHealthFilter === band) ? null : band;
             updateFilteredUI();
         }
 
@@ -3285,7 +3326,10 @@
                     <div style="font-size:1.5rem;font-weight:800;color:${color};line-height:1;">${val}</div>
                     <div style="font-size:11px;color:var(--muted);font-weight:600;margin-top:4px;">${lab}${onclick ? ' <i class="fas fa-up-right-from-square" style="font-size:9px;opacity:.5;"></i>' : ''}</div>
                 </div>`;
-            const statusChip = (n, label, color) => `<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:${color};"><span style="width:9px;height:9px;border-radius:50%;background:${color};display:inline-block;"></span>${n} ${label}</span>`;
+            const statusChip = (n, label, color, band) => {
+                const on = n > 0 && band;
+                return `<span ${on ? `onclick="managerDrillHealth('${band}')" role="button" tabindex="0"` : ''} title="${on ? 'Drill down to staff on ' + label.toLowerCase() + ' campaigns' : ''}" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:${color};${on ? 'cursor:pointer;' : ''}"><span style="width:9px;height:9px;border-radius:50%;background:${color};display:inline-block;"></span>${n} ${label}${on ? ' <i class="fas fa-up-right-from-square" style="font-size:8px;opacity:.5;"></i>' : ''}</span>`;
+            };
             const pendingTile = (label, icon) => `
                 <div title="${label} — connect a data source" style="flex:1;min-width:112px;background:var(--surface);border:1px dashed var(--border);border-radius:12px;padding:12px 14px;opacity:.75;">
                     <div style="font-size:1.05rem;font-weight:800;color:var(--muted);line-height:1;">${icon}</div>
@@ -3304,10 +3348,10 @@
                 </div>
                 <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;">
                     <span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;">Campaign health</span>
-                    ${statusChip(mgrHealth.green, 'On track', 'var(--success)')}
-                    ${statusChip(mgrHealth.amber, 'Watch', '#eab308')}
-                    ${statusChip(mgrHealth.orange, 'At risk', 'var(--warning)')}
-                    ${statusChip(mgrHealth.red, 'Critical', 'var(--danger)')}
+                    ${statusChip(mgrHealth.green, 'On track', 'var(--success)', 'green')}
+                    ${statusChip(mgrHealth.amber, 'Watch', '#eab308', 'amber')}
+                    ${statusChip(mgrHealth.orange, 'At risk', 'var(--warning)', 'orange')}
+                    ${statusChip(mgrHealth.red, 'Critical', 'var(--danger)', 'red')}
                 </div>`;
 
             // Render Grid
