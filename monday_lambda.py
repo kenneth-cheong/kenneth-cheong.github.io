@@ -1327,6 +1327,7 @@ def run_google_ads_report(customer_id, query, token):
     try:
         r = requests.post(url, headers=headers, json=payload, timeout=30)
         if r.status_code != 200:
+            print(f"[GADS_ERR] {r.status_code} cid={customer_id} detail={r.text[:600]} | query={query[:200]}")
             return {"error": f"Google Ads API {r.status_code}", "detail": r.text[:500]}
         return r.json()
     except Exception as e:
@@ -1468,13 +1469,20 @@ def run_google_ads_change_history(customer_id, token, days=30,
     except (TypeError, ValueError):
         lim = 1000
 
-    since_str = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    # change_event REQUIRES a bounded date range — a lower bound alone (>=) is rejected as
+    # CHANGE_DATE_RANGE_INFINITE. Supply BOTH ends. A small future buffer on the upper end
+    # avoids cutting off same-day changes due to UTC vs account-timezone skew; the lower end
+    # is held just inside the 30-day retention window to avoid CHANGE_DATE_RANGE_TOO_LONG.
+    now = datetime.utcnow()
+    since_str = (now - timedelta(days=min(days, 29))).strftime("%Y-%m-%d %H:%M:%S")
+    until_str = (now + timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
     query = (
         "SELECT change_event.change_date_time, change_event.user_email, "
         "change_event.change_resource_type, change_event.resource_change_operation, "
         "change_event.changed_fields, change_event.campaign, campaign.name "
         "FROM change_event "
         f"WHERE change_event.change_date_time >= '{since_str}' "
+        f"AND change_event.change_date_time <= '{until_str}' "
         "ORDER BY change_event.change_date_time DESC "
         f"LIMIT {lim}"
     )
