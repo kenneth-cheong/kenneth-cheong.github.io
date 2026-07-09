@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { FileText, MonitorPlay } from 'lucide-react';
+import { FileText, MonitorPlay, RefreshCw } from 'lucide-react';
+import TrendChart from '../components/TrendChart.jsx';
 import { PLANS, TIER_ORDER, PROACTIVE_EVENTS, PROACTIVE_TOKENS, DEFAULT_PROACTIVE } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSupportTickets } from '../context/SupportTicketsContext.jsx';
@@ -23,7 +24,7 @@ export default function Admin() {
     <div>
       <h1 className="text-2xl font-bold">Admin</h1>
       <div className="mt-3 flex gap-1 border-b border-slate-200">
-        {[['users', 'Users'], ['agreements', 'Agreements'], ['notifications', 'Notifications'], ['assistant', 'Assistant'], ['tickets', 'Support tickets'], ['settings', 'Settings']].map(([k, label]) => (
+        {[['users', 'Users'], ['agreements', 'Agreements'], ['notifications', 'Notifications'], ['assistant', 'Assistant'], ['tickets', 'Support tickets'], ['platform', 'Platform'], ['settings', 'Settings']].map(([k, label]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
@@ -38,7 +39,7 @@ export default function Admin() {
           </button>
         ))}
       </div>
-      {tab === 'users' ? <AdminUsers /> : tab === 'agreements' ? <AdminAgreements /> : tab === 'notifications' ? <AdminNotifications /> : tab === 'assistant' ? <AdminAssistant /> : tab === 'tickets' ? <AdminTickets /> : <AdminSettings />}
+      {tab === 'users' ? <AdminUsers /> : tab === 'agreements' ? <AdminAgreements /> : tab === 'notifications' ? <AdminNotifications /> : tab === 'assistant' ? <AdminAssistant /> : tab === 'tickets' ? <AdminTickets /> : tab === 'platform' ? <AdminPlatform /> : <AdminSettings />}
     </div>
   );
 }
@@ -1728,4 +1729,264 @@ function CreateUserDialog({ onClose, onCreated }) {
 function fmtWhen(iso) {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString();
+}
+
+// ── Platform (Amplify Hosting) usage ──────────────────────────────────────────
+const RANGE_PRESETS = [['1', '24h'], ['7', '7 days'], ['30', '30 days'], ['90', '90 days']];
+
+function AdminPlatform() {
+  const [days, setDays] = useState('30');
+  const [custom, setCustom] = useState({ from: '', to: '' }); // YYYY-MM-DD; overrides preset when both set
+  const [data, setData] = useState(null); // null = loading
+  const [error, setError] = useState('');
+
+  // Resolve the active window into ISO from/to the API accepts. A complete
+  // custom range wins; otherwise it's a `days` lookback from now.
+  const rangeArgs = () => {
+    if (custom.from && custom.to) return { from: `${custom.from}T00:00:00Z`, to: `${custom.to}T23:59:59Z` };
+    const to = new Date();
+    const from = new Date(to.getTime() - Number(days) * 86400000);
+    return { from: from.toISOString(), to: to.toISOString() };
+  };
+
+  const load = () => {
+    setData(null); setError('');
+    api.adminPlatformUsage(rangeArgs())
+      .then(setData)
+      .catch((e) => { setError(e.message || 'Could not load usage.'); setData(undefined); });
+  };
+  // Reload whenever the window changes.
+  useEffect(load, [days, custom.from, custom.to]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const t = data?.totals, d = data?.derived;
+  const chartSeries = data?.series?.length ? [
+    { label: 'Requests', color: '#2563eb', points: data.series.map((p) => ({ date: p.t, value: p.requests || 0 })) },
+    { label: 'Data out (MB)', color: '#7c3aed', points: data.series.map((p) => ({ date: p.t, value: (p.bytesDownloaded || 0) / 1e6 })) },
+  ] : [];
+
+  return (
+    <div className="mt-4">
+      {/* Range toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-lg border border-slate-300 p-0.5">
+          {RANGE_PRESETS.map(([v, label]) => (
+            <button key={v}
+              onClick={() => { setCustom({ from: '', to: '' }); setDays(v); }}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${!(custom.from && custom.to) && days === v ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1.5 text-sm text-slate-500">
+          <input type="date" value={custom.from} max={custom.to || undefined}
+            onChange={(e) => setCustom((c) => ({ ...c, from: e.target.value }))}
+            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
+          <span>→</span>
+          <input type="date" value={custom.to} min={custom.from || undefined}
+            onChange={(e) => setCustom((c) => ({ ...c, to: e.target.value }))}
+            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
+        </div>
+        <button onClick={load} title="Refresh" className="btn-ghost ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm">
+          <RefreshCw size={14} /> Refresh
+        </button>
+      </div>
+      {data?.app && (
+        <p className="mt-2 text-xs text-slate-400">
+          {data.app.domain} · branch {data.app.branch}
+        </p>
+      )}
+
+      {error && <div className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {data === null && <div className="mt-6 text-sm text-slate-500">Loading Amplify usage…</div>}
+
+      {data && t && (
+        <>
+          {/* Headline stat tiles */}
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <Stat label="Requests" value={fmtNum(t.requests)} />
+            <Stat label="Data transfer out" value={fmtBytes(t.bytesDownloaded)} />
+            <Stat label="Error rate" value={fmtPct(d.errorRate)} sub={`${fmtNum(t.errors4xx)} × 4xx · ${fmtNum(t.errors5xx)} × 5xx`} tone={d.errorRate > 0.05 ? 'warn' : 'ok'} />
+            <Stat label="Avg latency" value={`${Math.round(d.avgLatency * 1000)} ms`} sub={`p90 ${Math.round(d.peakLatencyP90 * 1000)} ms`} />
+            <Stat label="Est. spend" value={data.cost?.totalCost != null ? `$${data.cost.totalCost.toFixed(2)}` : '—'} sub={data.cost?.estimated ? 'incl. estimated' : ''} />
+          </div>
+
+          {/* Traffic chart */}
+          <Panel title="Traffic">
+            {chartSeries.length ? <TrendChart series={chartSeries} /> : <Empty>No traffic in this window.</Empty>}
+            <p className="mt-2 text-xs text-slate-400">Avg page weight {fmtBytes(d.avgPageWeight)} · uploaded {fmtBytes(t.bytesUploaded)}</p>
+          </Panel>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Cost breakdown */}
+            <Panel title="Cost (Cost Explorer)">
+              {data.cost?.error ? <Empty>Cost data unavailable: {data.cost.error}</Empty>
+                : data.cost?.byType?.length ? (
+                <table className="w-full text-sm">
+                  <thead><tr className="text-left text-xs uppercase tracking-wide" style={{ background: '#1e293b', color: '#f1f5f9' }}>
+                    <th className="rounded-l px-2 py-1.5 font-semibold">Usage type</th>
+                    <th className="px-2 py-1.5 text-right font-semibold">Quantity</th>
+                    <th className="rounded-r px-2 py-1.5 text-right font-semibold">Cost</th>
+                  </tr></thead>
+                  <tbody>
+                    {data.cost.byType.map((r) => (
+                      <tr key={r.usageType} className="border-b border-slate-100">
+                        <td className="px-2 py-1.5">{r.usageType}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{r.quantity.toFixed(3)} {r.unit === 'GigaBytes' ? 'GB' : r.unit}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">${r.cost.toFixed(4)}</td>
+                      </tr>
+                    ))}
+                    <tr className="font-semibold"><td className="px-2 py-1.5">Total</td><td /><td className="px-2 py-1.5 text-right tabular-nums">${data.cost.totalCost.toFixed(2)}</td></tr>
+                  </tbody>
+                </table>
+              ) : <Empty>No Amplify spend recorded for this window.</Empty>}
+              {data.cost?.granularity && <p className="mt-2 text-xs text-slate-400">{data.cost.granularity.toLowerCase()} granularity{data.cost.estimated ? ' · latest days estimated' : ''}</p>}
+            </Panel>
+
+            {/* Build / deploy activity */}
+            <Panel title="Builds & deploys">
+              {data.builds?.error ? <Empty>Build data unavailable: {data.builds.error}</Empty> : (
+                <>
+                  <div className="grid grid-cols-4 gap-2 text-center">
+                    <MiniStat label="Builds" value={fmtNum(data.builds?.count || 0)} />
+                    <MiniStat label="Succeeded" value={fmtNum(data.builds?.succeeded || 0)} tone="ok" />
+                    <MiniStat label="Failed" value={fmtNum(data.builds?.failed || 0)} tone={data.builds?.failed ? 'warn' : undefined} />
+                    <MiniStat label="Build min" value={fmtNum(data.builds?.buildMinutes || 0)} />
+                  </div>
+                  {data.builds?.recent?.length > 0 && (
+                    <ul className="mt-3 space-y-1 text-xs text-slate-500">
+                      {data.builds.recent.map((j) => (
+                        <li key={j.id} className="flex justify-between">
+                          <span className={j.status === 'FAILED' ? 'text-red-600' : j.status === 'SUCCEED' ? 'text-emerald-600' : ''}>{j.status}</span>
+                          <span>{j.startTime ? fmtWhen(j.startTime) : '—'}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+            </Panel>
+          </div>
+
+          {/* Access-log breakdowns (on demand) */}
+          <AccessLogPanel rangeArgs={rangeArgs} rangeKey={`${days}|${custom.from}|${custom.to}`} />
+        </>
+      )}
+    </div>
+  );
+}
+
+// Heavy, on-demand: fetches + parses the per-request access log only when opened.
+function AccessLogPanel({ rangeArgs, rangeKey }) {
+  const [state, setState] = useState('idle'); // idle | loading | done | error
+  const [logs, setLogs] = useState(null);
+  const [error, setError] = useState('');
+
+  // A range change invalidates any loaded logs (they belonged to the old window).
+  useEffect(() => { setState('idle'); setLogs(null); setError(''); }, [rangeKey]);
+
+  const load = () => {
+    setState('loading'); setError('');
+    api.adminPlatformAccessLogs(rangeArgs())
+      .then((d) => { setLogs(d); setState('done'); })
+      .catch((e) => { setError(e.message || 'Could not load access logs.'); setState('error'); });
+  };
+
+  return (
+    <Panel title="Traffic detail (access logs)">
+      {state === 'idle' && (
+        <div className="text-sm text-slate-500">
+          <p>Per-request breakdown — top pages, referrers, devices, edge geography and cache-hit ratio. This exports and parses the raw access log, so it takes a few seconds.</p>
+          <button onClick={load} className="btn-primary mt-3 px-3 py-2 text-sm">Load traffic detail</button>
+        </div>
+      )}
+      {state === 'loading' && <div className="text-sm text-slate-500">Exporting &amp; parsing access log…</div>}
+      {state === 'error' && (
+        <div className="text-sm text-red-700">{error} <button onClick={load} className="ml-2 underline">Retry</button></div>
+      )}
+      {state === 'done' && logs && (
+        <div>
+          <div className="mb-3 flex flex-wrap gap-4 text-sm text-slate-600">
+            <span><b>{fmtNum(logs.rows)}</b> requests parsed</span>
+            <span>Cache hit ratio <b>{fmtPct(logs.cacheHitRatio)}</b></span>
+            <span>{fmtBytes(logs.bytes)} served</span>
+            <span className="text-slate-400">{logs.status['2xx']} · 2xx / {logs.status['4xx']} · 4xx / {logs.status['5xx']} · 5xx</span>
+            {logs.truncated && <span className="text-amber-600">sampled (window truncated)</span>}
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <RankList title="Top pages" rows={logs.topPages} />
+            <RankList title="Top referrers" rows={logs.topReferrers} empty="Direct / no referrer data" />
+            <RankList title="Edge geography" rows={logs.edgeGeo} />
+            <RankList title="Devices" rows={logs.devices} />
+            <RankList title="Browsers" rows={logs.browsers} />
+          </div>
+          <button onClick={load} className="btn-ghost mt-3 inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm"><RefreshCw size={14} /> Reload</button>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+function RankList({ title, rows, empty = 'No data' }) {
+  const max = Math.max(1, ...(rows || []).map((r) => r.count));
+  return (
+    <div>
+      <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h4>
+      {rows?.length ? (
+        <ul className="space-y-1">
+          {rows.map((r) => (
+            <li key={r.name} className="relative flex items-center justify-between overflow-hidden rounded px-2 py-1 text-sm">
+              <span className="absolute inset-y-0 left-0 bg-brand-50" style={{ width: `${(r.count / max) * 100}%` }} aria-hidden />
+              <span className="relative z-10 mr-2 truncate text-slate-700" title={r.name}>{r.name}</span>
+              <span className="relative z-10 shrink-0 tabular-nums text-slate-500">{fmtNum(r.count)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : <p className="text-sm text-slate-400">{empty}</p>}
+    </div>
+  );
+}
+
+function Panel({ title, children }) {
+  return (
+    <section className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+      <h3 className="mb-3 text-sm font-semibold text-slate-800">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function Stat({ label, value, sub, tone }) {
+  const color = tone === 'warn' ? 'text-amber-600' : tone === 'ok' ? 'text-emerald-600' : 'text-slate-900';
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
+      <div className="text-xs font-medium text-slate-500">{label}</div>
+      <div className={`mt-1 text-xl font-bold tabular-nums ${color}`}>{value}</div>
+      {sub && <div className="mt-0.5 text-[11px] text-slate-400">{sub}</div>}
+    </div>
+  );
+}
+
+function MiniStat({ label, value, tone }) {
+  const color = tone === 'warn' ? 'text-amber-600' : tone === 'ok' ? 'text-emerald-600' : 'text-slate-800';
+  return (
+    <div className="rounded-lg bg-slate-50 py-2">
+      <div className={`text-lg font-bold tabular-nums ${color}`}>{value}</div>
+      <div className="text-[11px] text-slate-500">{label}</div>
+    </div>
+  );
+}
+
+const Empty = ({ children }) => <p className="py-3 text-sm text-slate-400">{children}</p>;
+
+function fmtNum(n) {
+  const v = Number(n) || 0;
+  return v.toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+function fmtPct(f) { return `${((Number(f) || 0) * 100).toFixed(1)}%`; }
+function fmtBytes(n) {
+  let v = Number(n) || 0;
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }

@@ -293,6 +293,22 @@ export const api = {
     call('/admin/notifications/send', { method: 'POST', body: { filter, title, body, link, channels } }),
   adminBroadcastHistory: () => call('/admin/notifications/history'),
   adminBackfillActivity: () => call('/admin/notifications/backfill', { method: 'POST' }),
+  // Platform (Amplify Hosting) usage over a date range: fast traffic/cost/build
+  // panel, plus the heavier on-demand access-log breakdowns.
+  adminPlatformUsage: ({ from, to } = {}) => {
+    const p = new URLSearchParams();
+    if (from) p.set('from', from);
+    if (to) p.set('to', to);
+    const qs = p.toString();
+    return call(`/admin/platform/usage${qs ? `?${qs}` : ''}`);
+  },
+  adminPlatformAccessLogs: ({ from, to } = {}) => {
+    const p = new URLSearchParams();
+    if (from) p.set('from', from);
+    if (to) p.set('to', to);
+    const qs = p.toString();
+    return call(`/admin/platform/access-logs${qs ? `?${qs}` : ''}`);
+  },
   // Product-email preference (Account toggle) + the public one-click unsubscribe.
   setEmailPrefs: (emailOptOut) => call('/me/email-prefs', { method: 'POST', body: { emailOptOut } }),
   unsubscribeEmail: (token) => call('/notify/unsubscribe', { method: 'POST', body: { token }, auth: false }),

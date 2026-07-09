@@ -21,6 +21,18 @@ Parameters:
     Type: String
     Default: tom@mediaone.co,june@mediaone.co,kenneth@mediaone.co
     Description: Comma-separated allowlist of admin emails (access to /admin/*).
+  AmplifyAppId:
+    Type: String
+    Default: d1q0hza133u0y9
+    Description: Amplify Hosting app id backing the frontend (Admin → Platform usage).
+  AmplifyDomain:
+    Type: String
+    Default: digimetrics.ai
+    Description: Amplify custom domain used for access-log exports (Admin → Platform).
+  AmplifyBranch:
+    Type: String
+    Default: main
+    Description: Amplify branch whose build/deploy activity is reported.
   GoogleClientSecret:
     Type: String
     NoEcho: true
@@ -840,6 +852,9 @@ Resources:
           ADMIN_EMAILS: !Ref AdminEmails
           SES_FROM: !Ref SesFrom
           BROADCASTS_TABLE: !Ref BroadcastsTable
+          AMPLIFY_APP_ID: !Ref AmplifyAppId
+          AMPLIFY_DOMAIN: !Ref AmplifyDomain
+          AMPLIFY_BRANCH: !Ref AmplifyBranch
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
@@ -853,6 +868,18 @@ Resources:
             - Effect: Allow
               Action: [ses:SendEmail, ses:SendRawEmail]
               Resource: '*'
+        # Admin → Platform usage: hosting traffic metrics, spend, build history,
+        # and access-log exports for the Amplify app. All read-only; the metric
+        # and cost APIs don't support resource-level scoping, so Resource is '*'.
+        - Statement:
+            - Effect: Allow
+              Action: [cloudwatch:GetMetricData, ce:GetCostAndUsage]
+              Resource: '*'
+            - Effect: Allow
+              Action: [amplify:ListJobs, amplify:GenerateAccessLogs, amplify:GetApp]
+              Resource:
+                - !Sub 'arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}'
+                - !Sub 'arn:${AWS::Partition}:amplify:${AWS::Region}:${AWS::AccountId}:apps/${AmplifyAppId}/*'
       Events:
         Users: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/users, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         UserCreate: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/users, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
@@ -872,6 +899,8 @@ Resources:
         BroadcastPreview: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/preview, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         BroadcastSend: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/send, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         BroadcastBackfill: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/backfill, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        PlatformUsage: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/platform/usage, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        PlatformAccessLogs: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/platform/access-logs, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
 
   # ── Observability: SNS topic + CloudWatch alarms ────────────────────────
   # The topic (and email subscription) only exist when AlarmEmail is set; the

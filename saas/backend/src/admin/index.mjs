@@ -34,6 +34,7 @@ import {
 } from '../lib/dynamo.mjs';
 import { PLANS, NDA_VERSION } from '../../../shared/catalog.mjs';
 import { isAdmin, isStaff, ACCOUNT_STATUSES } from '../lib/admin.mjs';
+import { amplifyUsage, amplifyAccessLogs } from '../lib/platform-usage.mjs';
 import { sendEmail } from '../lib/email.mjs';
 import { buildAcceptancePdf } from '../lib/pdf.mjs';
 import { signUnsubToken } from '../lib/jwt.mjs';
@@ -138,6 +139,34 @@ export const handler = async (event) => {
   if (method === 'GET' && path.endsWith('/admin/usage')) {
     if (!q.userId) return badRequest('userId required');
     return ok(await toolUsageCounts(q.userId));
+  }
+
+  // ── Platform (Amplify Hosting) usage ───────────────────────────────────────
+  // Infrastructure-level operational metrics (traffic, cost, builds) for the
+  // hosting app itself — not any user's content — so it's staff-visible like the
+  // usage counts above. The date range is caller-controlled (from/to or days).
+  if (method === 'GET' && path.endsWith('/admin/platform/usage')) {
+    let range;
+    try { range = parseRange(q); } catch (e) { return badRequest(e.message); }
+    try {
+      return ok(await amplifyUsage(range));
+    } catch (e) {
+      console.error('platform_usage_error', e);
+      return serverError(e.message || 'Could not load Amplify usage.');
+    }
+  }
+  // Per-request access-log breakdowns (top pages, referrers, devices, edge geo,
+  // cache-hit ratio). Heavier — an on-demand log export + parse — so it's its own
+  // route the UI only hits when the operator opens the panel. Window is capped.
+  if (method === 'GET' && path.endsWith('/admin/platform/access-logs')) {
+    let range;
+    try { range = parseRange(q, { maxDays: 31 }); } catch (e) { return badRequest(e.message); }
+    try {
+      return ok(await amplifyAccessLogs(range));
+    } catch (e) {
+      console.error('platform_access_logs_error', e);
+      return serverError(e.message || 'Could not load access logs.');
+    }
   }
 
   // ── Consent-gated access to a user's activity ──────────────────────────────
@@ -320,6 +349,23 @@ export const handler = async (event) => {
     return serverError('Something went wrong. Please try again.');
   }
 };
+
+// Resolve a {from, to} Date window from query params. Accepts either an explicit
+// from/to (ISO date or datetime) or a `days` lookback; defaults to 30 days. The
+// range is validated (from < to) and hard-capped so a typo can't request a
+// year-long log export.
+function parseRange(q = {}, { maxDays = 400, defaultDays = 30 } = {}) {
+  const now = Date.now();
+  let to = q.to ? Date.parse(q.to) : now;
+  let from = q.from ? Date.parse(q.from)
+    : Number.isFinite(Number(q.days)) ? to - Math.max(1, Number(q.days)) * 86400000
+    : to - defaultDays * 86400000;
+  if (!Number.isFinite(from) || !Number.isFinite(to)) throw new Error('Invalid from/to date.');
+  if (from >= to) throw new Error('`from` must be before `to`.');
+  if (to > now + 86400000) to = now; // clamp a future end to now
+  if ((to - from) > maxDays * 86400000) throw new Error(`Range too large (max ${maxDays} days).`);
+  return { from: new Date(from), to: new Date(to) };
+}
 
 // ── Broadcast audience resolution ────────────────────────────────────────────
 // Filter shape (all fields optional):
