@@ -218,6 +218,16 @@ def extract_definition(project):
             qmap[t] = q
     queries_clean = [qmap[p.lower()] for p in prompt_clean if p.lower() in qmap]
 
+    # query text -> topic map (keyed by the exact prompt text the frontend renders).
+    # This is what the GEO dashboard reads as `record.topics` to group queries by topic.
+    topics = {}
+    for p in prompt_clean[:30]:
+        q = qmap.get(p.lower())
+        if q:
+            t = (q.get("topic") or "").strip()
+            if t:
+                topics[p] = t
+
     definition = {
         "id": pid,
         "source": "workduo",
@@ -231,6 +241,7 @@ def extract_definition(project):
         "competitors": comp_clean[:8],
         "prompts": prompt_clean[:30],
         "queries": queries_clean[:30],
+        "topics": topics,
     }
     return definition, diag
 
@@ -277,6 +288,12 @@ def h_import(req):
                 item["metrics"] = existing["metrics"]
                 item["hasMetrics"] = True
                 item["createdAt"] = existing.get("createdAt", item["createdAt"])
+            # Merge topics so any manual per-query re-tagging done in the UI survives a
+            # re-import: fresh Workduo topics are the base, existing overrides win on top.
+            if existing and isinstance(existing.get("topics"), dict):
+                merged = dict(item.get("topics") or {})
+                merged.update(existing["topics"])
+                item["topics"] = merged
             _table.put_item(Item=item)
         imported.append(definition)
     return _resp(200, {"imported": len(imported), "dryRun": dry,
@@ -293,8 +310,9 @@ def h_list():
         kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
     out = []
     for it in items:
-        if str(it.get("id") or "").startswith(RUN_PREFIX):
-            continue  # live-run job items live in this table too — never list them as campaigns
+        iid = str(it.get("id") or "")
+        if iid.startswith(RUN_PREFIX) or "#m#" in iid or it.get("type") == "metrics_month":
+            continue  # live-run jobs + per-month snapshots share this table — never list them as campaigns
         self_vis, days = None, 0
         if it.get("metrics"):
             try:
@@ -310,6 +328,11 @@ def h_list():
             "alternativeNames": it.get("alternativeNames", []),
             "hasMetrics": bool(it.get("metrics")), "selfVisibility": self_vis, "dataDays": days,
             "metricsSource": it.get("metricsSource"),
+            "monthsAvailable": [str(x) for x in (it.get("monthsAvailable") or [])],
+            "latestMonth": it.get("latestMonth"),
+            "monthlyPlatforms": [str(x) for x in (it.get("monthlyPlatforms") or [])],
+            "monthlyEnabled": it.get("monthlyEnabled"),
+            "monthlyIncludeCompetitors": bool(it.get("monthlyIncludeCompetitors")),
             "updatedAt": it.get("updatedAt"), "metricsUpdatedAt": it.get("metricsUpdatedAt"),
             "activeRunId": it.get("activeRunId"),  # non-null while a live run is in progress for this campaign
         })
@@ -327,24 +350,108 @@ def h_get(req):
             it["metrics"] = json.loads(it["metrics"])
         except Exception:
             pass
+    if isinstance(it.get("history"), str):
+        try:
+            it["history"] = json.loads(it["history"])
+        except Exception:
+            pass
     return _resp(200, {"campaign": it})
+
+
+def _month_item_id(cid, month):
+    # Per-month full-model snapshots live in this table under a derived id so any number
+    # of months can be archived without ever bumping the campaign record toward the 400KB cap.
+    return cid + "#m#" + month
+
+
+def _history_point(month, model):
+    """A tiny per-month summary for the month-over-month trend (kept on the campaign record)."""
+    self_m = (model.get("self") or {}) if isinstance(model, dict) else {}
+    def _n(v):
+        try:
+            return round(float(v), 2)
+        except Exception:
+            return 0
+    return {"month": month,
+            "positive": int(model.get("positive", 0) or 0) if isinstance(model, dict) else 0,
+            "negative": int(model.get("negative", 0) or 0) if isinstance(model, dict) else 0,
+            "visibility": _n(self_m.get("visibility")), "sov": _n(self_m.get("sov")),
+            "mentions": int(self_m.get("mentions", 0) or 0),
+            "ownedShare": _n(model.get("ownedShare") if isinstance(model, dict) else 0)}
+
+
+def _archive_model(cid, month, model):
+    """Persist a model permanently: full month snapshot as its own item + merge the month
+    into the campaign record's index (monthsAvailable) and compact month-over-month history.
+    Shared by the API save_metrics path AND the headless run worker (so cron runs archive
+    with no browser open). Returns the updated monthsAvailable list."""
+    model_json = json.dumps(model)
+    now = _now()
+    _table.put_item(Item={"id": _month_item_id(cid, month), "type": "metrics_month",
+                          "campaignId": cid, "month": month, "model": model_json, "updatedAt": now})
+    it = _table.get_item(Key={"id": cid}).get("Item") or {}
+    months = [str(x) for x in (it.get("monthsAvailable") or [])]
+    if month not in months:
+        months.append(month)
+    months = sorted(set(months))
+    try:
+        hist = json.loads(it["history"]) if isinstance(it.get("history"), str) else (it.get("history") or [])
+    except Exception:
+        hist = []
+    hist = [h for h in hist if h.get("month") != month] + [_history_point(month, model)]
+    hist = sorted(hist, key=lambda h: h.get("month") or "")
+    _table.update_item(
+        Key={"id": cid},
+        UpdateExpression="SET #m = :m, hasMetrics = :h, metricsUpdatedAt = :t, updatedAt = :t, "
+                         "monthsAvailable = :ma, history = :hi, latestMonth = :lm",
+        ExpressionAttributeNames={"#m": "metrics"},
+        ExpressionAttributeValues={":m": model_json, ":h": True, ":t": now, ":ma": months,
+                                   ":hi": json.dumps(hist), ":lm": month},
+    )
+    return months
 
 
 def h_save_metrics(req):
     cid = str(req.get("id") or "")
     model = req.get("model")
+    month = str(req.get("month") or "").strip()  # 'YYYY-MM' — when given, also archive permanently
     if not cid or model is None:
         return _resp(400, {"error": "id and model required"})
     it = _table.get_item(Key={"id": cid}).get("Item")
     if not it:
         return _resp(404, {"error": "campaign not found — import it first"})
+    if month:
+        months = _archive_model(cid, month, model)
+        return _resp(200, {"ok": True, "id": cid, "month": month,
+                           "monthsAvailable": months, "metricsUpdatedAt": _now()})
+    model_json = json.dumps(model)
+    now = _now()
+    # No month → legacy "latest only" save (kept for back-compat / ad-hoc callers).
     _table.update_item(
         Key={"id": cid},
         UpdateExpression="SET #m = :m, hasMetrics = :h, metricsUpdatedAt = :t, updatedAt = :t",
         ExpressionAttributeNames={"#m": "metrics"},
-        ExpressionAttributeValues={":m": json.dumps(model), ":h": True, ":t": _now()},
+        ExpressionAttributeValues={":m": model_json, ":h": True, ":t": now},
     )
-    return _resp(200, {"ok": True, "id": cid, "metricsUpdatedAt": _now()})
+    return _resp(200, {"ok": True, "id": cid, "metricsUpdatedAt": now})
+
+
+def h_get_month(req):
+    """Load one archived month's full model (evidence/themes and all)."""
+    cid = str(req.get("id") or "")
+    month = str(req.get("month") or "").strip()
+    if not cid or not month:
+        return _resp(400, {"error": "id and month required"})
+    it = _table.get_item(Key={"id": _month_item_id(cid, month)}).get("Item")
+    if not it:
+        return _resp(404, {"error": "no archived data for that month"})
+    model = it.get("model")
+    if isinstance(model, str):
+        try:
+            model = json.loads(model)
+        except Exception:
+            pass
+    return _resp(200, {"month": month, "model": model, "updatedAt": it.get("updatedAt")})
 
 
 def h_delete(req):
@@ -742,9 +849,13 @@ def export_daily(campaign, proj=None, max_windows=24):
                     continue
                 win_rows += 1
                 _acc_overall(day(d)["ents"].setdefault(em["id"], _blank()), r)
+                t = r.get("topic") or "General"
+                # Per-entity per-topic daily accumulators (same shape as `ents`) so the range view
+                # can scope visibility/SOV/position/owned by topic for EVERY entity, not just self.
+                et = day(d).setdefault("entTopics", {}).setdefault(em["id"], {}).setdefault(t, _blank())
+                _acc_overall(et, r)
                 if em["isSelf"]:
                     # keep the tracked brand's per-topic split so the range view can plot topic trends
-                    t = r.get("topic") or "General"
                     st = day(d).setdefault("selfTopics", {}).setdefault(t, {"m": 0, "r": 0})
                     st["m"] += r.get("mentions", 0) or 0
                     st["r"] += r.get("totalResponses", 0) or 0
@@ -761,23 +872,25 @@ def export_daily(campaign, proj=None, max_windows=24):
     with _daily_tbl.batch_writer() as bw:
         for d, data in days.items():
             bw.put_item(Item={"campaignId": pid, "date": d, "blob": json.dumps(data)})
-    # mark the definition row so the frontend knows daily data is queryable
+    # mark the definition row so the frontend knows daily data is queryable.
+    # Never shrink dailyDays: an incremental refresh (small max_windows) writes
+    # only recent days but must not clobber the full-history count already stored.
+    prior_days = 0
+    try:
+        prior_days = int((campaign or {}).get("dailyDays") or 0)
+    except Exception:
+        prior_days = 0
+    stored_days = max(len(days), prior_days)
     try:
         _table.update_item(Key={"id": pid},
                            UpdateExpression="SET hasDaily = :h, dailyDays = :d, dailyUpdatedAt = :t",
-                           ExpressionAttributeValues={":h": True, ":d": len(days), ":t": _now()})
+                           ExpressionAttributeValues={":h": True, ":d": stored_days, ":t": _now()})
     except Exception:
         pass
     return {"days": len(days), "windows": windows_used, "entities": len(metas)}
 
 
 def _range_dates(req):
-    """Resolve a date-range request into (startDate, endDate, preset, label) for the DB-backed
-    metrics_for_range path. Mirrors the DEPLOYED Lambda: every dashboard preset is accepted (the
-    frontend dropdown offers last7/14/30/90/180/365 days, thismonth, lastmonth, ytd, all, custom).
-    Windowed ranges clamp naturally against whatever daily data exists — build_model_from_db only
-    returns dates actually present in geoCampaignDaily, so an over-wide start just yields the data
-    floor (e.g. last90days/ytd/all all resolve to the earliest exported day)."""
     dr = (req.get("dateRange") or "last30days").strip()
     today = _today()
     if dr == "custom":
@@ -785,25 +898,33 @@ def _range_dates(req):
         if not (sd and ed):
             raise RuntimeError("custom range requires startDate and endDate (YYYY-MM-DD)")
         return sd, ed, dr, f"{sd} → {ed}"
-    if dr == "all":
-        # Wide floor; between(start, today) excludes the "__meta__" row ("_" sorts above digits).
-        return today.replace(year=2000, month=1, day=1).isoformat(), today.isoformat(), dr, dr
-    if dr == "ytd":
-        return today.replace(month=1, day=1).isoformat(), today.isoformat(), dr, dr
-    if dr == "thismonth":
-        return today.replace(day=1).isoformat(), today.isoformat(), dr, dr
-    if dr == "lastmonth":
-        end = today.replace(day=1) - timedelta(days=1)   # last day of previous month
-        return end.replace(day=1).isoformat(), end.isoformat(), dr, dr
-    m = re.match(r"last(\d+)days$", dr)
+    # Rolling "last N days" — accepts any lastNdays (last7days, last14days, last90days, …).
+    m = re.match(r"^last(\d+)days$", dr)
     if m:
-        return (today - timedelta(days=int(m.group(1)) - 1)).isoformat(), today.isoformat(), dr, dr
-    raise RuntimeError(
-        "unsupported dateRange — use last<N>days, thismonth, lastmonth, ytd, all, or custom")
+        n = max(1, int(m.group(1)))
+        return (today - timedelta(days=n - 1)).isoformat(), today.isoformat(), dr, dr
+    if dr == "thismonth":  # month-to-date
+        start = today.replace(day=1)
+        return start.isoformat(), today.isoformat(), dr, dr
+    if dr == "lastmonth":  # previous full calendar month
+        first_this = today.replace(day=1)
+        last_prev = first_this - timedelta(days=1)
+        start = last_prev.replace(day=1)
+        return start.isoformat(), last_prev.isoformat(), dr, dr
+    if dr == "ytd":  # year-to-date
+        return today.replace(month=1, day=1).isoformat(), today.isoformat(), dr, dr
+    if dr == "all":  # everything in the daily store
+        return "2000-01-01", today.isoformat(), dr, dr
+    raise RuntimeError("unsupported dateRange — use lastNdays (e.g. last30days), "
+                       "thismonth, lastmonth, ytd, all, or custom")
 
 
-def build_model_from_db(cid, start, end, label):
-    """Build the dashboard model for a date range entirely from geoCampaignDaily — no Workduo."""
+def build_model_from_db(cid, start, end, label, topic=None):
+    """Build the dashboard model for a date range entirely from geoCampaignDaily — no Workduo.
+    When `topic` is given, every entity's metrics (visibility/SOV/position/owned + the per-brand
+    trend lines) are scoped to that topic using the per-entity-per-topic `entTopics` accumulators;
+    otherwise the whole-brand `ents` totals are used. `availableTopics` always lists the topics
+    present in the range so the caller can offer a topic picker."""
     meta_item = _daily_tbl.get_item(Key={"campaignId": cid, "date": "__meta__"}).get("Item")
     if not meta_item:
         raise RuntimeError("no daily data exported for this campaign yet")
@@ -817,11 +938,20 @@ def build_model_from_db(cid, start, end, label):
         resp = _daily_tbl.query(KeyConditionExpression=cond, ExclusiveStartKey=resp["LastEvaluatedKey"])
         items.extend(resp.get("Items", []))
 
-    ent_tot, series, topic_by_date = {}, {}, {}
+    ent_tot, series, topic_by_date, avail_topics = {}, {}, {}, set()
     for it in items:
         d = it["date"]
         data = json.loads(it["blob"])
-        for eid, ov in data.get("ents", {}).items():
+        ent_topics = data.get("entTopics") or {}
+        for _tm in ent_topics.values():
+            avail_topics.update(_tm.keys())
+        # Per-day per-entity source: topic-scoped slice when a topic is requested, else the
+        # whole-brand overall. entTopics values share the `ents` shape so the math is identical.
+        if topic:
+            src = {eid: (tm.get(topic)) for eid, tm in ent_topics.items() if tm.get(topic)}
+        else:
+            src = data.get("ents", {})
+        for eid, ov in src.items():
             t = ent_tot.setdefault(eid, _blank())
             for k in t:
                 t[k] += ov.get(k, 0)
@@ -829,8 +959,11 @@ def build_model_from_db(cid, start, end, label):
             series.setdefault(d, {})[nm] = round(ov["m"] / ov["r"] * 100, 1) if ov.get("r") else 0
         st = data.get("selfTopics") or {}
         if st:
+            avail_topics.update(st.keys())
             topic_by_date[d] = {tp: round(v["m"] / v["r"] * 100, 1) if v.get("r") else 0
                                 for tp, v in st.items()}
+    if topic and not ent_tot:
+        raise RuntimeError("no per-topic data for this range yet — re-export daily history to populate topics")
 
     def overall(t):
         return {"visibility": round(t["m"] / t["r"] * 100, 1) if t["r"] else 0,
@@ -885,7 +1018,8 @@ def build_model_from_db(cid, start, end, label):
             "ownedShare": self_m["ownedShare"], "ownedCount": self_m["ownedCount"],
             "positive": 0, "negative": 0, "sentimentThemes": [], "sentimentAvailable": False,
             "citationsDetailAvailable": False, "plats": [{"label": "ChatGPT"}, {"label": "Google AI Overview"}],
-            "dateRange": label, "dataSource": "db"}
+            "dateRange": label, "dataSource": "db",
+            "availableTopics": sorted(avail_topics), "topicScope": topic or None}
 
 
 def h_export_daily(req):
@@ -900,17 +1034,21 @@ def h_export_daily(req):
 def h_export_daily_all(req):
     flt = (req.get("filter") or "(Live)").lower()
     force = bool(req.get("force"))
+    # refresh=True re-pulls existing campaigns too (for a scheduled top-up); combine
+    # with maxWindows=1 to cheaply refresh just the last ~30 days for every client.
+    refresh = bool(req.get("refresh"))
+    kw = {"max_windows": int(req["maxWindows"])} if req.get("maxWindows") else {}
     projs = fetch_workduo_projects()
     matched = [p for p in projs if flt in (p.get("name") or "").lower() and (p.get("entity") or {}).get("id")]
     results = []
     for p in matched:
         pid, name = str(p.get("id")), (p.get("name") or "")
-        if not force and _daily_tbl.get_item(Key={"campaignId": pid, "date": "__meta__"}).get("Item"):
+        if not force and not refresh and _daily_tbl.get_item(Key={"campaignId": pid, "date": "__meta__"}).get("Item"):
             results.append({"id": pid, "name": name, "status": "skipped"})
             continue
         item = _table.get_item(Key={"id": pid}).get("Item") or {"id": pid, "brand": name}
         try:
-            r = export_daily(item, proj=p)
+            r = export_daily(item, proj=p, **kw)
             results.append({"id": pid, "name": name, "status": "done", **r})
         except Exception as e:
             results.append({"id": pid, "name": name, "status": "error", "error": str(e)})
@@ -1021,7 +1159,10 @@ def h_metrics_for_range(req):
     DynamoDB daily store — NO Workduo calls. Fast (single DynamoDB date-range query)."""
     cid = str(req.get("id") or "")
     start, end, preset, label = _range_dates(req)
-    model = build_model_from_db(cid, start, end, label)
+    topic = (req.get("topic") or "").strip() or None
+    if topic and topic.lower() in ("all", "all topics"):
+        topic = None
+    model = build_model_from_db(cid, start, end, label, topic=topic)
     model["dateRangePreset"] = preset
     return _resp(200, {"id": cid, "model": model})
 
@@ -1196,7 +1337,46 @@ def _unwrap(raw):
     return raw
 
 
+ALERT_WEBHOOK = os.environ.get("GEO_ALERT_WEBHOOK", "")  # Google Chat incoming-webhook URL (optional)
+MIN_OK_RATIO = float(os.environ.get("GEO_MIN_OK_RATIO", "0.8"))  # min share of calls that must succeed to archive
+
+
+def _alert(text):
+    """Surface a scheduled-run failure/summary to Google Chat (if GEO_ALERT_WEBHOOK is set) and
+    always to CloudWatch. Never raises — alerting must not break the run."""
+    try:
+        print("[GEO-ALERT]", text)
+        if ALERT_WEBHOOK:
+            data = json.dumps({"text": text}).encode()
+            req = urllib.request.Request(ALERT_WEBHOOK, data=data, method="POST",
+                                         headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=10).read()
+    except Exception as e:
+        print("[GEO-ALERT] webhook failed:", str(e)[:160])
+
+
 def _verify_one(prompt, brand, url, model, source, location, deadline=None):
+    """Retry wrapper around one prompt×brand×platform check. Successful results (incl. a valid
+    'not mentioned') return immediately; only failures are retried, with short backoff, and only
+    when they look transient — so a flaky DataForSEO call self-heals instead of silently dropping
+    the data point. Bounded to 3 attempts and never re-tries a permanent/bad-request error."""
+    last = {"ok": False, "error": "no attempt"}
+    for attempt in range(3):
+        if deadline and time.time() > deadline:
+            return {"ok": False, "error": "deadline exceeded"}
+        res = _verify_once(prompt, brand, url, model, source, location, deadline)
+        if res.get("ok"):
+            return res
+        last = res
+        err = (res.get("error") or "").lower()
+        if any(x in err for x in ("400", "invalid", "required", "unsupported", "deadline")):
+            break  # permanent — retrying won't help
+        if attempt < 2:
+            time.sleep(min(2 ** attempt, 5))  # 1s, then 2s
+    return last
+
+
+def _verify_once(prompt, brand, url, model, source, location, deadline=None):
     """Python port of the JS WD.verifyOne — one prompt × brand × platform check.
     Returns the same dict shape the JS buildModel consumes. Never raises."""
     endpoint = DFS_ENDPOINT if source == "dataforseo" else AI_ENDPOINT
@@ -1235,9 +1415,176 @@ def _verify_one(prompt, brand, url, model, source, location, deadline=None):
         return {"ok": True, "mentioned": bool(a.get("is_mentioned")),
                 "score": _num(a.get("visibility_score")), "sentiment": a.get("sentiment") or "neutral",
                 "cited": bool(a.get("is_cited")), "rank": int(_num(a.get("rank"))),
-                "snippet": a.get("mention_snippet") or "", "citations": cits[:12]}
+                "snippet": a.get("mention_snippet") or "", "citations": cits[:12],
+                # Evidence that grounds the sentiment for the user (self brand only — see run_job).
+                "reason": (a.get("sentiment_reason") or "")[:200],
+                "theme": (a.get("sentiment_theme") or "").strip()[:60],
+                "response": (result.get("response") or "")[:1200]}
     except Exception as e:
         return {"ok": False, "error": str(e)[:200]}
+
+
+_PLAT_LABELS = {"chatgpt": "ChatGPT", "gpt-4o-mini": "ChatGPT", "gpt-4o": "ChatGPT",
+                "gemini": "Gemini", "gemini-2.5-flash": "Gemini", "perplexity": "Perplexity",
+                "claude": "Claude", "claude-haiku-4-5": "Claude", "copilot": "Copilot",
+                "google-ai-overview": "Google AI Overview", "google-ai-mode": "Google AI Mode"}
+
+
+def _plat_label(pid):
+    return _PLAT_LABELS.get(pid, pid)
+
+
+def _cur_month():
+    return _today().strftime("%Y-%m")
+
+
+def _avg(xs):
+    xs = [x for x in xs if x is not None]
+    return sum(xs) / len(xs) if xs else 0
+
+
+def _build_model_py(cfg, results):
+    """Faithful Python port of the browser's WD.buildModel + packModel, so a run can be
+    turned into the dashboard's model — and archived — entirely server-side (no browser).
+    Produces the fields every dashboard page reads, incl. sentimentEvidence + sentimentThemes."""
+    brand = cfg.get("brand") or ""
+    target = cfg.get("target") or ""
+    location = cfg.get("location") or ""
+    comps = cfg.get("competitors") or []
+    prompts = cfg.get("prompts") or []
+    plat_ids = cfg.get("platforms") or []
+    self_domain = domain_of(target)
+
+    entities = [{"name": brand, "target": target, "isSelf": True}] + \
+               [{"name": c, "target": "", "isSelf": False} for c in comps]
+    by_ent = [[] for _ in entities]
+    for o in results:
+        ei = o.get("ei")
+        if isinstance(ei, int) and 0 <= ei < len(by_ent) and o.get("res"):
+            by_ent[ei].append(o)
+
+    def _slug_domain(name):
+        return re.sub(r"[^a-z0-9]+", "", (name or "").lower()) + ".com"
+
+    ent_metrics = []
+    for ei, ent in enumerate(entities):
+        cells = [o for o in by_ent[ei] if (o.get("res") or {}).get("ok")]
+        total = len(by_ent[ei]) or 1
+        mentioned = [o for o in cells if o["res"].get("mentioned")]
+        vis = _avg([(o["res"].get("score") or 0) if o["res"].get("mentioned") else 0 for o in cells])
+        positions = [o["res"].get("rank") for o in mentioned if (o["res"].get("rank") or 0) > 0]
+        ent_metrics.append({"name": ent["name"],
+                            "domain": domain_of(ent["target"]) or _slug_domain(ent["name"]),
+                            "isSelf": ent["isSelf"], "visibility": round(vis, 1),
+                            "mentions": len(mentioned), "total": total,
+                            "avgPosition": round(_avg(positions), 1) if positions else 0,
+                            "_mentionCount": len(mentioned)})
+    total_m = sum(e["_mentionCount"] for e in ent_metrics) or 1
+    for e in ent_metrics:
+        e["sov"] = round(e["_mentionCount"] / total_m * 100, 1)
+    ent_metrics.sort(key=lambda e: -e["visibility"])
+    self_m = next((e for e in ent_metrics if e["isSelf"]),
+                  ent_metrics[0] if ent_metrics else {"name": brand, "visibility": 0, "sov": 0,
+                                                       "mentions": 0, "avgPosition": 0})
+
+    self_cells = [o for o in (by_ent[0] if by_ent else []) if (o.get("res") or {}).get("ok")]
+    pos = len([o for o in self_cells if o["res"].get("mentioned") and o["res"].get("sentiment") == "positive"])
+    neg = len([o for o in self_cells if o["res"].get("mentioned") and o["res"].get("sentiment") == "negative"])
+
+    # ---- sentiment evidence (the quotes/reasons behind each mention) ----
+    rank = {"negative": 0, "positive": 1, "neutral": 2}
+    evidence = []
+    for o in self_cells:
+        r = o["res"]
+        if r.get("mentioned") and (r.get("snippet") or r.get("reason")):
+            cits = r.get("citations") or []
+            pi = o.get("pi")
+            evidence.append({"engine": _plat_label(o.get("pl")),
+                             "prompt": prompts[pi] if isinstance(pi, int) and 0 <= pi < len(prompts) else (o.get("prompt") or ""),
+                             "sentiment": r.get("sentiment") or "neutral", "theme": r.get("theme") or "",
+                             "snippet": r.get("snippet") or "", "reason": r.get("reason") or "",
+                             "response": r.get("response") or "", "url": cits[0] if cits else ""})
+    evidence.sort(key=lambda e: rank.get(e["sentiment"], 9))
+    theme_map = {}
+    for e in evidence:
+        th = (e["theme"] or "").strip()
+        if not th:
+            continue
+        cat = "negative" if e["sentiment"] == "negative" else ("positive" if e["sentiment"] == "positive" else "neutral")
+        tm = theme_map.setdefault(cat + "|" + th.lower(), {"theme": th, "category": cat, "occurrences": 0, "examples": []})
+        tm["occurrences"] += 1
+        if len(tm["examples"]) < 6:
+            tm["examples"].append(e)
+    themes = sorted(theme_map.values(), key=lambda t: -t["occurrences"])
+
+    # ---- citations ----
+    cmap = {}
+    for o in self_cells:
+        for u in (o["res"].get("citations") or []):
+            c = cmap.get(u)
+            if not c:
+                c = cmap[u] = {"url": u, "domain": domain_of(u), "count": 0, "queries": set()}
+            c["count"] += 1
+            if o.get("pi") is not None:
+                c["queries"].add(o["pi"])
+    comp_roots = [e["domain"].split(".")[0] for e in ent_metrics if not e["isSelf"] and e["domain"]]
+    cits = []
+    for u, c in cmap.items():
+        owned = c["domain"] == self_domain
+        typ = "Owned" if owned else ("Competitor" if any(root and root in c["domain"] for root in comp_roots) else "Other")
+        cits.append({"url": u, "domain": c["domain"], "count": c["count"], "queryCount": len(c["queries"]),
+                     "owned": owned, "type": typ})
+    total_cit = sum(c["count"] for c in cits) or 1
+    for c in cits:
+        c["share"] = round(c["count"] / total_cit * 100, 1)
+        c["used"] = round(c["queryCount"] / (len(prompts) or 1) * 100, 1)
+    cits.sort(key=lambda c: -c["count"])
+    owned_count = sum(c["count"] for c in cits if c["owned"])
+    owned_share = round(owned_count / total_cit * 100, 1)
+
+    # ---- per-prompt rows ----
+    prompt_rows = []
+    for pi, pr in enumerate(prompts):
+        self_p = [o for o in (by_ent[0] if by_ent else []) if o.get("pi") == pi and (o.get("res") or {}).get("ok")]
+        self_vis = _avg([(o["res"].get("score") or 0) if o["res"].get("mentioned") else 0 for o in self_p])
+        comp_vis = 0
+        if len(by_ent) > 1:
+            cp = [o for o in by_ent[1] if o.get("pi") == pi and (o.get("res") or {}).get("ok")]
+            comp_vis = _avg([(o["res"].get("score") or 0) if o["res"].get("mentioned") else 0 for o in cp])
+        prompt_rows.append({"text": pr, "topic": "No Topic", "region": location, "responses": len(self_p),
+                            "visibility": round(self_vis, 1), "sov": self_m.get("sov", 0),
+                            "avgPosition": self_m.get("avgPosition", 0),
+                            "selfPct": round(self_vis, 1), "competitorPct": round(comp_vis, 1)})
+
+    # ---- packModel-derived structures ----
+    top = ent_metrics[:5]
+    rest = round(sum(e["sov"] for e in ent_metrics[5:]), 1)
+    sov_break = [{"name": e["name"], "value": e["sov"], "color": PALETTE[i % len(PALETTE)], "isSelf": e["isSelf"]}
+                 for i, e in enumerate(top)]
+    if rest > 0.05:
+        sov_break.append({"name": "Others", "value": rest, "color": "#cbd5e1", "isSelf": False})
+    type_totals = {}
+    for c in cits:
+        type_totals[c["type"]] = type_totals.get(c["type"], 0) + c["count"]
+    citation_types = [{"type": k, "count": type_totals.get(k, 0), "color": col}
+                      for k, col in (("Owned", "#1e3a8a"), ("Competitor", "#f59e0b"),
+                                     ("Social", "#14b8a6"), ("Other", "#8b5cf6")) if type_totals.get(k, 0) > 0]
+
+    today = _today().isoformat()
+    vis_point = {"date": today, "self": self_m.get("visibility", 0), "sov": self_m.get("sov", 0),
+                 "positive": pos, "negative": neg, "mentions": self_m.get("mentions", 0),
+                 "avgPosition": self_m.get("avgPosition", 0), "ownedShare": owned_share,
+                 "ownedCount": owned_count, "byBrand": {e["name"]: e["visibility"] for e in ent_metrics[:5]},
+                 "byTopic": {}}
+    return {"brand": brand, "target": target, "domain": self_domain, "location": location, "live": True,
+            "engineLabel": "DataForSEO" if (cfg.get("source") or "dataforseo") == "dataforseo" else "Bright Data",
+            "entities": ent_metrics, "self": self_m, "positive": pos, "negative": neg,
+            "sentimentEvidence": evidence, "sentimentThemes": themes,
+            "citations": cits, "ownedCount": owned_count, "ownedShare": owned_share, "citationTypes": citation_types,
+            "sovBreakdown": sov_break, "prompts": prompt_rows, "primaryComp": comps[0] if comps else None,
+            "plats": [{"id": pid, "label": _plat_label(pid)} for pid in plat_ids],
+            "visibilitySeries": [vis_point],
+            "sentimentSeries": [{"date": today, "positive": pos, "negative": neg}]}
 
 
 def _build_jobs(cfg):
@@ -1272,7 +1619,10 @@ def h_start_live_run(req):
     cfg = {"brand": brand, "target": target, "location": req.get("location") or "",
            "source": req.get("source") or "dataforseo",
            "competitors": [str(c).strip() for c in (req.get("competitors") or []) if str(c).strip()],
-           "prompts": prompts, "platforms": platforms, "campaignId": str(req.get("id") or "")}
+           "prompts": prompts, "platforms": platforms, "campaignId": str(req.get("id") or ""),
+           # Month to permanently archive this run under (YYYY-MM). Empty for ad-hoc/no-campaign runs;
+           # the worker defaults it to the current month when a campaign is attached.
+           "month": str(req.get("month") or "").strip()}
     total = len(_build_jobs(cfg))
     run_id = uuid.uuid4().hex
     _table.put_item(Item={
@@ -1290,6 +1640,271 @@ def h_start_live_run(req):
     _lambda_client.invoke(FunctionName=FUNCTION_NAME, InvocationType="Event",
                           Payload=json.dumps({"action": "_live_run_worker", "runId": run_id}).encode())
     return _resp(200, {"ok": True, "runId": run_id, "total": total})
+
+
+def h_monthly_run_all(req):
+    """Scheduled monthly fan-out: start a live analysis for every eligible campaign, each of
+    which archives itself server-side (see h_live_run_worker) under the target month. Fired by
+    the EventBridge rule geoCampaigns-monthly-sentiment-run; also callable manually.
+
+    filter   — campaign-name substring to match (default '(live)'; pass '' to run every campaign)
+    month    — YYYY-MM to archive under (default: current month)
+    platforms— DEFAULT engines for campaigns that haven't chosen their own (default ['chatgpt']);
+               each campaign's own monthlyPlatforms setting overrides this.
+    limit    — safety cap on how many runs to start in one invocation (default 200)
+    dryRun   — list who WOULD run (with estimated call counts) without starting anything
+
+    Per-campaign settings (set via save_monthly_config) control cost:
+      monthlyEnabled            — False excludes the campaign from the schedule
+      monthlyPlatforms          — the engines to run (falls back to the `platforms` default)
+      monthlyIncludeCompetitors — when False (default), runs self-only (no competitor calls)
+    """
+    flt = (req.get("filter") if req.get("filter") is not None else "(live)").lower()
+    month = str(req.get("month") or _cur_month())
+    # Cost-safe default: ONE engine, and competitors are opt-in per campaign (see below). A campaign
+    # can opt into more engines / competitors via its own saved monthly settings.
+    default_platforms = [str(p).strip() for p in (req.get("platforms") or ["chatgpt"]) if str(p).strip()]
+    source = req.get("source") or "dataforseo"
+    limit = int(req.get("limit") or 200)
+    dry = bool(req.get("dryRun"))
+    force = bool(req.get("force"))  # ignore idempotency and re-run even already-archived months
+
+    items, kwargs = [], {}
+    while True:
+        page = _table.scan(**kwargs)
+        items.extend(page.get("Items", []))
+        if "LastEvaluatedKey" not in page:
+            break
+        kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
+
+    started, skipped, est_calls = [], [], 0
+    for it in items:
+        iid = str(it.get("id") or "")
+        if iid.startswith(RUN_PREFIX) or "#m#" in iid or it.get("type") == "metrics_month":
+            continue
+        name = it.get("name") or ""
+        if flt and flt not in name.lower():
+            continue
+        if it.get("monthlyEnabled") is False:
+            skipped.append({"id": iid, "name": name, "why": "disabled in settings"})
+            continue
+        # Idempotency: don't re-run (or re-spend on) a campaign already archived for this month, and
+        # never double-start one whose run is still in progress. This makes re-fires + the reconcile
+        # pass safe — they only pick up the campaigns still MISSING this month. `force` overrides.
+        if not force and month in [str(x) for x in (it.get("monthsAvailable") or [])]:
+            skipped.append({"id": iid, "name": name, "why": "already archived this month"})
+            continue
+        if it.get("activeRunId"):
+            skipped.append({"id": iid, "name": name, "why": "run already in progress"})
+            continue
+        prompts = [str(p).strip() for p in (it.get("prompts") or []) if str(p).strip()]
+        brand = (it.get("brand") or name or "").strip()
+        target = (it.get("target") or it.get("domain") or "").strip()
+        if not prompts or not brand or not target:
+            skipped.append({"id": iid, "name": name, "why": "missing prompts/brand/target"})
+            continue
+        # Per-campaign engine choice (falls back to the cost-safe default), and competitors opt-in.
+        cpl = it.get("monthlyPlatforms")
+        platforms = [str(p).strip() for p in cpl if str(p).strip()] if cpl else list(default_platforms)
+        if not platforms:
+            skipped.append({"id": iid, "name": name, "why": "no engines selected"})
+            continue
+        competitors = (it.get("competitors") or []) if it.get("monthlyIncludeCompetitors") else []
+        calls = (1 + len(competitors)) * len(prompts) * len(platforms)
+        est_calls += calls
+        if len(started) >= limit:
+            skipped.append({"id": iid, "name": name, "why": "limit"})
+            continue
+        if dry:
+            started.append({"id": iid, "name": name, "engines": platforms,
+                            "competitors": len(competitors), "prompts": len(prompts), "estCalls": calls})
+            continue
+        r = h_start_live_run({"id": iid, "brand": brand, "target": target,
+                              "location": it.get("region") or "", "competitors": competitors,
+                              "prompts": prompts, "platforms": platforms,
+                              "source": source, "month": month})
+        try:
+            rid = json.loads(r.get("body") or "{}").get("runId")
+        except Exception:
+            rid = None
+        started.append({"id": iid, "name": name, "engines": platforms, "runId": rid, "estCalls": calls})
+
+    if not dry:
+        no_rid = [s["name"] for s in started if not s.get("runId")]
+        msg = ("GEO monthly run (%s): started %d campaign(s), ~%d calls (≈$%.2f); skipped %d."
+               % (month, len(started), est_calls, round(est_calls * 0.0137, 2), len(skipped)))
+        if no_rid:
+            msg += " Failed to start: " + ", ".join(no_rid[:10])
+        _alert(msg)
+    return _resp(200, {"month": month, "dryRun": dry, "filter": flt, "started": len(started),
+                       "estCalls": est_calls, "estCostUsd": round(est_calls * 0.0137, 2),
+                       "runs": started, "skipped": skipped})
+
+
+def h_save_monthly_config(req):
+    """Persist a campaign's scheduled-run preferences: which engines to use, whether to include
+    competitors, and whether it's part of the monthly schedule at all. Read by h_monthly_run_all."""
+    cid = str(req.get("id") or "")
+    if not cid:
+        return _resp(400, {"error": "id required"})
+    it = _table.get_item(Key={"id": cid}).get("Item")
+    if not it:
+        return _resp(404, {"error": "campaign not found"})
+    platforms = [str(p).strip() for p in (req.get("platforms") or []) if str(p).strip()]
+    enabled = bool(req.get("enabled", True))
+    include_comp = bool(req.get("includeCompetitors", False))
+    _table.update_item(
+        Key={"id": cid},
+        UpdateExpression="SET monthlyPlatforms = :p, monthlyEnabled = :e, "
+                         "monthlyIncludeCompetitors = :c, updatedAt = :t",
+        ExpressionAttributeValues={":p": platforms, ":e": enabled, ":c": include_comp, ":t": _now()},
+    )
+    return _resp(200, {"ok": True, "id": cid, "monthlyPlatforms": platforms,
+                       "monthlyEnabled": enabled, "monthlyIncludeCompetitors": include_comp})
+
+
+def _is_campaign_id(cid):
+    """True for real campaign records — excludes live-run jobs and per-month snapshots,
+    which share this table under prefixed / derived ids."""
+    return bool(cid) and not cid.startswith(RUN_PREFIX) and "#m#" not in cid
+
+
+def _workduo_topics_for(pid):
+    """Pull {queryText: topic} for one Workduo project straight from /core/v1/queries.
+    Keyed by the exact query text so it lines up with the campaign's stored prompts."""
+    topics = {}
+    for url in (f"{WD_CORE}/queries", f"{WD_CORE}/projects/{pid}/queries", f"{WD_DATA}/queries"):
+        params = {"projectId": pid, "pageSize": 200} if "projects/" not in url else {"pageSize": 200}
+        st, body = _wd_get(url, params)
+        if st != 200:
+            continue
+        rows = _rows(body)
+        for p in rows:
+            if not isinstance(p, dict):
+                continue
+            txt = _first(p, "query", "prompt", "text", "promptText", "name")
+            topic = (p.get("topic") or p.get("topicName") or "").strip()
+            if txt and topic:
+                topics[str(txt).strip()] = topic
+        if rows:
+            break
+    return topics
+
+
+def h_seed_topics(req):
+    """Backfill the per-query `topics` map on campaign records from Workduo. Pass a single
+    `id` to seed one campaign, or omit it to seed every Workduo-sourced campaign. Existing
+    (manually edited) topics win over the freshly pulled ones. This is the 'get topics from
+    Workduo and update the database' path."""
+    cid = str(req.get("id") or "")
+    if cid:
+        targets = [cid] if _is_campaign_id(cid) else []
+    else:
+        items, kwargs = [], {}
+        while True:
+            page = _table.scan(**kwargs)
+            items.extend(page.get("Items", []))
+            if "LastEvaluatedKey" not in page:
+                break
+            kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
+        targets = [str(it.get("id")) for it in items
+                   if _is_campaign_id(str(it.get("id"))) and it.get("source") == "workduo"]
+    results = []
+    for pid in targets:
+        it = _table.get_item(Key={"id": pid}).get("Item")
+        if not it:
+            results.append({"id": pid, "error": "not found"})
+            continue
+        fresh = _workduo_topics_for(pid)
+        # Fall back to topics already captured on the stored queries[] if Workduo returns none.
+        if not fresh:
+            for q in (it.get("queries") or []):
+                if isinstance(q, dict):
+                    t = (q.get("topic") or "").strip()
+                    if q.get("text") and t:
+                        fresh[str(q["text"]).strip()] = t
+        merged = dict(fresh)
+        if isinstance(it.get("topics"), dict):
+            merged.update(it["topics"])  # manual UI edits win
+        _table.update_item(
+            Key={"id": pid},
+            UpdateExpression="SET topics = :t, updatedAt = :u",
+            ExpressionAttributeValues={":t": merged, ":u": _now()},
+        )
+        results.append({"id": pid, "name": it.get("name"),
+                        "topics": len(merged), "fromWorkduo": len(fresh),
+                        "distinct": sorted(set(merged.values()))})
+    return _resp(200, {"ok": True, "seeded": len(results), "campaigns": results})
+
+
+def h_set_topic(req):
+    """Persist a single per-query topic tag onto the campaign's shared `topics` map so it's
+    the same for every user. Empty topic removes the tag. Wired to the Queries-table dropdown."""
+    cid = str(req.get("id") or "")
+    if not _is_campaign_id(cid):
+        return _resp(400, {"error": "valid campaign id required"})
+    it = _table.get_item(Key={"id": cid}).get("Item")
+    if not it:
+        return _resp(404, {"error": "campaign not found"})
+    query = (req.get("query") or "").strip()
+    if not query:
+        return _resp(400, {"error": "query required"})
+    topic = (req.get("topic") or "").strip()
+    topics = dict(it.get("topics") or {})
+    if topic:
+        topics[query] = topic
+    else:
+        topics.pop(query, None)
+    _table.update_item(
+        Key={"id": cid},
+        UpdateExpression="SET topics = :t, updatedAt = :u",
+        ExpressionAttributeValues={":t": topics, ":u": _now()},
+    )
+    return _resp(200, {"ok": True, "id": cid, "topics": topics})
+
+
+def h_set_prompts(req):
+    """Replace a campaign's tracked prompts (add / remove / edit). Accepts `prompts` as a list
+    of strings OR a list of {text, topic} objects. Topics for surviving prompts are preserved;
+    topics for removed prompts are pruned. Metrics/history are left untouched — new prompts
+    simply have no data until the next run."""
+    cid = str(req.get("id") or "")
+    if not _is_campaign_id(cid):
+        return _resp(400, {"error": "valid campaign id required"})
+    it = _table.get_item(Key={"id": cid}).get("Item")
+    if not it:
+        return _resp(404, {"error": "campaign not found"})
+    region = it.get("region") or "Singapore"
+    old_topics = dict(it.get("topics") or {})
+    raw = req.get("prompts")
+    if not isinstance(raw, list):
+        return _resp(400, {"error": "prompts (list) required"})
+    prompts, queries, topics, seen = [], [], {}, set()
+    for entry in raw:
+        if isinstance(entry, dict):
+            txt = (entry.get("text") or entry.get("query") or "").strip()
+            topic = (entry.get("topic") or "").strip()
+        else:
+            txt = str(entry or "").strip()
+            topic = ""
+        if not txt or txt.lower() in seen:
+            continue
+        seen.add(txt.lower())
+        if not topic:
+            topic = (old_topics.get(txt) or "").strip()  # keep existing tag on edit
+        prompts.append(txt)
+        queries.append({"text": txt, "topic": topic or "General", "region": region})
+        if topic:
+            topics[txt] = topic
+    if not prompts:
+        return _resp(400, {"error": "at least one non-empty prompt required"})
+    _table.update_item(
+        Key={"id": cid},
+        UpdateExpression="SET prompts = :p, queries = :q, topics = :t, updatedAt = :u",
+        ExpressionAttributeValues={":p": prompts[:60], ":q": queries[:60],
+                                   ":t": topics, ":u": _now()},
+    )
+    return _resp(200, {"ok": True, "id": cid, "prompts": prompts[:60], "topics": topics})
 
 
 def h_live_run_worker(req):
@@ -1317,6 +1932,10 @@ def h_live_run_worker(req):
             res = _verify_one(j["prompt"], j["brand"], j["url"], j["pl"], source, location, deadline)
         except Exception as e:
             res = {"ok": False, "error": str(e)[:200]}
+        # Evidence (the full AI response) is only surfaced for the self brand (ei==0); drop it
+        # for competitors to keep the stored results well under DynamoDB's 400KB item cap.
+        if j["ei"] != 0 and isinstance(res, dict):
+            res.pop("response", None)
         outs[idx] = {"ei": j["ei"], "pi": j["pi"], "pl": j["pl"], "prompt": j["prompt"], "res": res}
         with lock:
             state["done"] += 1
@@ -1336,11 +1955,24 @@ def h_live_run_worker(req):
             list(ex.map(run_job, range(total)))
         results = [o for o in outs if o is not None]
         payload = json.dumps(results)
-        if len(payload) > 300000:  # keep the item comfortably under DynamoDB's 400KB cap
+        # Keep the item comfortably under DynamoDB's 400KB cap by shedding the heaviest
+        # fields first (full response text), then citations, then responses entirely.
+        if len(payload) > 300000:
+            for o in results:
+                r = o.get("res") or {}
+                if r.get("response"):
+                    r["response"] = r["response"][:400]
+            payload = json.dumps(results)
+        if len(payload) > 300000:
             for o in results:
                 r = o.get("res") or {}
                 if isinstance(r.get("citations"), list):
                     r["citations"] = r["citations"][:3]
+            payload = json.dumps(results)
+        if len(payload) > 300000:
+            for o in results:
+                r = o.get("res") or {}
+                r.pop("response", None)
             payload = json.dumps(results)
         _table.update_item(
             Key=key,
@@ -1349,7 +1981,31 @@ def h_live_run_worker(req):
             ExpressionAttributeValues={":s": "done", ":r": payload, ":t": _now(),
                                        ":p": {"done": total, "total": total}},
         )
+        # Headless archive: build the model server-side and persist it permanently under this
+        # month, so scheduled (cron) runs archive with no browser open. Interactive runs are also
+        # archived here, then harmlessly overwritten by the browser's richer client-built model.
+        # BUT only archive a run that mostly succeeded — a degraded run (e.g. rate-limited/low
+        # balance, most calls failed) is left UNarchived so the reconcile pass re-runs just this
+        # campaign, instead of freezing bad data into the permanent monthly history.
+        if campaign_id:
+            ok_cells = sum(1 for o in results if (o.get("res") or {}).get("ok"))
+            ratio = (ok_cells / len(results)) if results else 0.0
+            archive_month = cfg.get("month") or _cur_month()
+            cname = cfg.get("brand") or campaign_id
+            if ratio >= MIN_OK_RATIO:
+                try:
+                    _archive_model(campaign_id, archive_month, _build_model_py(cfg, results))
+                except Exception as e:
+                    _alert("GEO monthly: archive FAILED for %s (%s): %s" % (cname, archive_month, str(e)[:180]))
+            else:
+                _table.update_item(Key=key, UpdateExpression="SET incompleteRatio = :r",
+                                   ExpressionAttributeValues={":r": str(round(ratio, 2))})
+                _alert("GEO monthly: %s INCOMPLETE for %s — only %d%% of %d calls succeeded; "
+                       "not archived, will retry on reconcile."
+                       % (cname, archive_month, round(ratio * 100), len(results)))
     except Exception as e:
+        _alert("GEO monthly: run CRASHED for campaign %s: %s"
+               % (cfg.get("brand") or campaign_id, str(e)[:180]))
         _table.update_item(Key=key, UpdateExpression="SET #s = :s, runError = :e",
                            ExpressionAttributeNames={"#s": "status"},
                            ExpressionAttributeValues={":s": "error", ":e": str(e)[:500]})
@@ -1413,6 +2069,8 @@ def lambda_handler(event, context):
             return h_get(req)
         if action == "save_metrics":
             return h_save_metrics(req)
+        if action == "get_month":
+            return h_get_month(req)
         if action == "delete":
             return h_delete(req)
         if action == "inspect":
@@ -1429,6 +2087,16 @@ def lambda_handler(event, context):
             return h_citations_worker(req)
         if action == "start_run":
             return h_start_live_run(req)
+        if action == "monthly_run_all":
+            return h_monthly_run_all(req)
+        if action == "save_monthly_config":
+            return h_save_monthly_config(req)
+        if action == "seed_topics":
+            return h_seed_topics(req)
+        if action == "set_topic":
+            return h_set_topic(req)
+        if action == "set_prompts":
+            return h_set_prompts(req)
         if action == "run_status":
             return h_run_status(req)
         if action == "_live_run_worker":
