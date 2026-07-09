@@ -26,7 +26,7 @@ def lambda_handler(event, context):
         "order_by": ["keyword_data.keyword_info.search_volume,desc"]
         }]
 
-    response = requests.request("POST", api_url, headers=headers, json=payload)
+    response = requests.request("POST", api_url, headers=headers, json=payload, timeout=25)
 
     output = {}
 

@@ -344,7 +344,7 @@ def lambda_handler(event, context):
             'Content-Type': 'application/json'
         }
 
-        response = requests.request("POST", api_url, headers=headers, json=payload)
+        response = requests.request("POST", api_url, headers=headers, json=payload, timeout=55)
         print(response.json())
 
         output = {}
@@ -385,7 +385,7 @@ def lambda_handler(event, context):
             'Content-Type': 'application/json'
         }
 
-        response = requests.request("POST", api_url, headers=headers, json=payload)
+        response = requests.request("POST", api_url, headers=headers, json=payload, timeout=55)
 
         output = {}
 

@@ -195,7 +195,7 @@ def run_analysis(event):
             'Content-Type': 'application/json'
         }
 
-        response = requests.post(api_url, headers=headers, json=payload)
+        response = requests.post(api_url, headers=headers, json=payload, timeout=55)
         resp_json = response.json()
         
         if 'tasks' in resp_json and resp_json['tasks'][0]['result']:
@@ -225,7 +225,7 @@ def run_analysis(event):
                 'Authorization': f"Bearer {os.environ.get('OPENAI_API_KEY')}"
             }
             
-            gpt_resp = requests.post(gpt_url, headers=gpt_headers, json=gpt_payload)
+            gpt_resp = requests.post(gpt_url, headers=gpt_headers, json=gpt_payload, timeout=55)
             gpt_json = gpt_resp.json()
 
             if gpt_resp.status_code == 200 and 'choices' in gpt_json:
@@ -235,7 +235,7 @@ def run_analysis(event):
 
                 if gpt_kw_list:
                     payload[0]['keywords'] = gpt_kw_list
-                    response = requests.post(api_url, headers=headers, json=payload)
+                    response = requests.post(api_url, headers=headers, json=payload, timeout=55)
                     resp_json = response.json()
                     if 'tasks' in resp_json and resp_json['tasks'][0]['result']:
                         for suggestion in resp_json['tasks'][0]['result']:
