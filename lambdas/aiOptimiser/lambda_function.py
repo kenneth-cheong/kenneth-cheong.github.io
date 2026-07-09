@@ -8,6 +8,38 @@ import boto3
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 
+# ── Shared response helpers ───────────────────────────────────────────────────
+# Every browser-facing return MUST carry CORS headers, INCLUDING errors — the
+# API Gateway does not inject them, so a header-less error response is blocked by
+# the browser and the caller sees an opaque "Failed to fetch" instead of the
+# real {'error': …} message. Route all returns through _resp().
+_CORS = {
+    'Access-Control-Allow-Origin':  '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'OPTIONS,POST',
+}
+
+def _resp(status, payload, default=None):
+    return {
+        'statusCode': status,
+        'headers':    _CORS,
+        'body':       json.dumps(payload, default=default),
+    }
+
+def _safe_int(val, fallback=0):
+    """int() that tolerates junk user input ('', 'abc', None) instead of
+    raising ValueError → opaque 500."""
+    try:
+        return int(float(val))
+    except (TypeError, ValueError):
+        return fallback
+
+def _safe_float(val, fallback=None):
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return fallback
+
 # ── Shared Caption Learnings (DynamoDB) ───────────────────────────────────────
 _CG_LEARNINGS_TABLE = 'cg_learnings'
 _CG_WORKSPACE_ID    = 'digimetrics_cg'
@@ -36,7 +68,7 @@ def handle_learnings(action, event):
             )
             items = resp.get('Items', [])
             # Sort newest-first by id (timestamp-based)
-            items.sort(key=lambda x: int(x.get('id', 0)), reverse=True)
+            items.sort(key=lambda x: _safe_int(x.get('id', 0), 0), reverse=True)
             return {'statusCode': 200, 'headers': CORS, 'body': json.dumps({'items': items}, default=_cg_json_default)}
 
         elif action == 'learnings_upsert':
@@ -822,7 +854,7 @@ def build_structured_prompt(action, body):
         sample_text        = body.get('sampleText', '')
         brand_guide_text   = body.get('brandGuideText', '')
         webpage_text       = body.get('webpageText', '')
-        variation_index    = int(body.get('variationIndex', 0) or 0)
+        variation_index    = _safe_int(body.get('variationIndex', 0), 0)
         language           = (f.get('language') or '').lower()
         previous_captions  = body.get('previousCaptions', []) or []
         has_images         = bool(body.get('images'))
@@ -1232,7 +1264,7 @@ def build_structured_prompt(action, body):
         persona_context = body.get('personaContext', '')
         deep_compare    = body.get('deepCompareContext', '')
         selected_topics = body.get('selectedTopics', '')
-        target_wc       = int(body.get('targetWordCount', 0) or 0)
+        target_wc       = _safe_int(body.get('targetWordCount', 0), 0)
         locale          = body.get('locale', 'Global')
         wc_block = (
             f"⚠️ MANDATORY TARGET WORD COUNT: {target_wc} words. You MUST plan enough sections and depth "
@@ -1284,10 +1316,10 @@ def build_structured_prompt(action, body):
         section_header      = body.get('sectionHeader', '')
         section_context     = body.get('sectionContext', '')
         ref_urls            = body.get('refUrls', '')
-        section_target      = int(body.get('sectionTarget', 0) or 0)
-        total_target        = int(body.get('totalTarget', 0) or 0)
-        section_index       = int(body.get('sectionIndex', 0) or 0)
-        total_sections      = int(body.get('totalSections', 1) or 1)
+        section_target      = _safe_int(body.get('sectionTarget', 0), 0)
+        total_target        = _safe_int(body.get('totalTarget', 0), 0)
+        section_index       = _safe_int(body.get('sectionIndex', 0), 0)
+        total_sections      = _safe_int(body.get('totalSections', 1), 1) or 1
         wc_block = (
             f"⚠️ MANDATORY WORD COUNT REQUIREMENT: You MUST write AT LEAST {section_target} words for "
             f"this section (section {section_index + 1} of {total_sections}). "
@@ -1298,7 +1330,7 @@ def build_structured_prompt(action, body):
         ) if section_target > 0 else ''
 
         retry_text       = body.get('retryText', '')
-        retry_word_count = int(body.get('retryWordCount', 0) or 0)
+        retry_word_count = _safe_int(body.get('retryWordCount', 0), 0)
 
         system = (
             "You are an expert SEO content writer creating high-quality, "
@@ -1959,15 +1991,7 @@ def lambda_handler(event, context):
         if action in OPTIMISER_PROMPT_ACTIONS:
             built_prompt = build_optimiser_prompt(action, event)
             if not built_prompt:
-                return {
-                    'statusCode': 400,
-                    'headers': {
-                        'Access-Control-Allow-Origin':  '*',
-                        'Access-Control-Allow-Headers': 'Content-Type',
-                        'Access-Control-Allow-Methods': 'OPTIONS,POST'
-                    },
-                    'body': json.dumps({'error': f"Could not build prompt for action '{action}'"})
-                }
+                return _resp(400, {'error': f"Could not build prompt for action '{action}'"})
             event = dict(event)
             event['prompt'] = built_prompt
             action = 'generate'
@@ -1976,7 +2000,7 @@ def lambda_handler(event, context):
         if action in _STRUCTURED_ACTIONS:
             api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
             if not api_key:
-                return {'statusCode': 500, 'body': json.dumps({'error': 'API key not configured'})}
+                return _resp(500, {'error': 'API key not configured'})
 
             # The AI Strategy Engine's research is told to "read the page". Rather
             # than pay for Anthropic web_fetch, scrape the URL live via the existing
@@ -2001,13 +2025,10 @@ def lambda_handler(event, context):
 
             system_str, user_str = build_structured_prompt(action, event)
             if system_str is None:
-                return {
-                    'statusCode': 400,
-                    'body': json.dumps({'error': f"Unknown structured action: '{action}'"})
-                }
+                return _resp(400, {'error': f"Unknown structured action: '{action}'"})
 
             settings_s   = event.get('settings', {})
-            max_tokens_s = int(settings_s.get('maxTokens', event.get('max_tokens', 8096)))
+            max_tokens_s = _safe_int(settings_s.get('maxTokens', event.get('max_tokens', 8096)), 8096)
 
             # Vision: when the caption generator sends image attachments, let the
             # model SEE the post's visuals so the caption actually matches them.
@@ -2056,9 +2077,9 @@ def lambda_handler(event, context):
                 'system':     system_str,
                 'messages':   [{'role': 'user', 'content': user_content}]
             }
-            temperature_s = settings_s.get('temperature')
+            temperature_s = _safe_float(settings_s.get('temperature'))
             if temperature_s is not None:
-                request_body['temperature'] = float(temperature_s)
+                request_body['temperature'] = temperature_s
 
             if action == 'strategy_url_research':
                 # Always force a JSON object so the frontend's JSON.parse can't
@@ -2082,29 +2103,28 @@ def lambda_handler(event, context):
             try:
                 resp_json   = _anthropic_request(api_key, request_body)
                 result_text = _extract_text(resp_json)
+                # Empty completion → surface as an error (same as the main path)
+                # so the client can retry, instead of a 200 with '' that then
+                # breaks a downstream JSON.parse or renders nothing.
                 if not result_text:
                     print(f"[aiOptimiser] empty result for '{action}'. resp: "
                           f"{json.dumps(resp_json)[:1000]}")
+                    stop = resp_json.get('stop_reason')
+                    raise RuntimeError(
+                        f"AI returned no content (stop_reason={stop}). "
+                        f"The service may be busy — please retry."
+                    )
             except Exception as e:
                 print(f"Structured action '{action}' failed: {e}")
-                return {
-                    'statusCode': 502,
-                    'headers': {
-                        'Access-Control-Allow-Origin':  '*',
-                        'Access-Control-Allow-Headers': 'Content-Type',
-                        'Access-Control-Allow-Methods': 'OPTIONS,POST'
-                    },
-                    'body': json.dumps({'error': f"AI request failed: {e}"})
-                }
-            return {
-                'statusCode': 200,
-                'headers': {
-                    'Access-Control-Allow-Origin':  '*',
-                    'Access-Control-Allow-Headers': 'Content-Type',
-                    'Access-Control-Allow-Methods': 'OPTIONS,POST'
+                return _resp(502, {'error': f"AI request failed: {e}"})
+            _usage_s = resp_json.get('usage') or {}
+            return _resp(200, {
+                'result': result_text,
+                'usage': {
+                    'input_tokens':  _usage_s.get('input_tokens', 0),
+                    'output_tokens': _usage_s.get('output_tokens', 0),
                 },
-                'body': json.dumps({'result': result_text})
-            }
+            })
 
         content            = event.get('content', '')
         prompt_override    = event.get('prompt', '')
@@ -2134,10 +2154,7 @@ def lambda_handler(event, context):
         # ── API key ────────────────────────────────────────────────────────
         api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
         if not api_key:
-            return {
-                'statusCode': 500,
-                'body': json.dumps({'error': 'API key not configured'})
-            }
+            return _resp(500, {'error': 'API key not configured'})
 
         # ── Build message layers ───────────────────────────────────────────
         linking_guidelines = build_linking_guidelines(settings, action)
@@ -2155,10 +2172,7 @@ def lambda_handler(event, context):
         user_msg = build_user_msg(action, content, prompt_override)
 
         if user_msg is None:
-            return {
-                'statusCode': 400,
-                'body': json.dumps({'error': f"Invalid action: '{action}'"})
-            }
+            return _resp(400, {'error': f"Invalid action: '{action}'"})
 
         # ── Compose message array ──────────────────────────────────────────
         # Translate gets a lightweight override — no quality framework needed
@@ -2247,18 +2261,16 @@ def lambda_handler(event, context):
             result_text = placement_tag + result_text
 
         # ── Response ───────────────────────────────────────────────────────
-        return {
-            'statusCode': 200,
-            'headers': {
-                'Access-Control-Allow-Origin':  '*',
-                'Access-Control-Allow-Headers': 'Content-Type',
-                'Access-Control-Allow-Methods': 'OPTIONS,POST'
+        # Surface real model token usage so the editor can show actual consumption
+        # (input + output) and an estimated cost instead of a words×1.3 guess.
+        _usage = resp_json.get('usage') or {}
+        return _resp(200, {
+            'result': result_text,
+            'usage': {
+                'input_tokens':  _usage.get('input_tokens', 0),
+                'output_tokens': _usage.get('output_tokens', 0),
             },
-            'body': json.dumps({'result': result_text})
-        }
+        })
 
     except Exception as e:
-        return {
-            'statusCode': 500,
-            'body': json.dumps({'error': str(e)})
-        }
+        return _resp(500, {'error': str(e)})
