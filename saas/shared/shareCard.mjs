@@ -253,9 +253,10 @@ export function renderCardSvg(summary, format = 'square') {
   const labelLines = wrap(summary.statLabel || '', wide ? 22 : 26, summary.kind === 'done' ? 3 : 2);
   let hero = '';
   if (summary.pct != null && !wide) {
+    // Label sits clear below the ring's outer edge (heroCy-10 + 128 + 13 half-stroke).
     hero = `
       ${gauge(cx, heroCy - 10, 128, summary.pct, a)}
-      ${labelLines.map((ln, i) => `<text x="${cx}" y="${heroCy + 148 + i * 36}" text-anchor="middle" font-family="${FONT}" font-size="30" font-weight="600" fill="#475569">${esc(ln)}</text>`).join('')}`;
+      ${labelLines.map((ln, i) => `<text x="${cx}" y="${heroCy + 174 + i * 36}" text-anchor="middle" font-family="${FONT}" font-size="30" font-weight="600" fill="#475569">${esc(ln)}</text>`).join('')}`;
   } else if (summary.kind === 'done') {
     const bcy = heroCy - 30;
     hero = `
