@@ -246,6 +246,9 @@ export const api = {
     call(`/support/tickets/${encodeURIComponent(ticketId)}/reply`, { method: 'POST', body: { body, attachments, asAgent: true, ownerUserId, fromMonty } }),
   adminCloseTicket: (ownerUserId, ticketId) =>
     call(`/support/tickets/${encodeURIComponent(ticketId)}/close`, { method: 'POST', body: { ownerUserId } }),
+  // Re-send the email for a past staff reply (no new message posted).
+  adminResendReply: (ownerUserId, ticketId, messageId) =>
+    call(`/support/tickets/${encodeURIComponent(ticketId)}/resend`, { method: 'POST', body: { ownerUserId, messageId } }),
   // Projects
   projects: () => call('/projects'),
   createProject: (name, domain) => call('/projects', { method: 'POST', body: { name, domain } }),

@@ -691,6 +691,20 @@ export const handler = async (event) => {
       else if (SUPPORT_INBOX) await sendNotice({ to: SUPPORT_INBOX, replyTo: user.email, subject: `Reply on ${ticket.id}`, text: `${user.email} replied:\n\n${text}` });
       return ok({ ticket: isStaff(user) ? ticket : redactTicketForCustomer(ticket), email });
     }
+    if (method === 'POST' && path.includes('/resend')) {
+      // Staff-only: re-send the email for a past staff reply (customer says they
+      // never received it). Re-uses the reply's stored public identity + body;
+      // posts no new message and no in-app notification — email delivery only.
+      if (!isStaff(user)) return forbidden('Staff only.');
+      const ticketId = seg(path, '/support/tickets/');
+      const ownerId = body.ownerUserId || user.userId;
+      const ticket = await getTicket(ownerId, ticketId);
+      if (!ticket) return badRequest('Ticket not found');
+      const msg = (ticket.messages || []).find((m) => m.id === body.messageId && m.author === 'agent');
+      if (!msg) return badRequest('Reply not found');
+      const email = await emailReply(ticket, msg.body || '', msg.authorName || 'Support');
+      return ok({ email });
+    }
     if (method === 'POST' && path.includes('/close')) {
       // Admins can close any user's ticket by passing the owner's id.
       const owner = (isStaff(user) && body.ownerUserId) || user.userId;
@@ -813,6 +827,16 @@ function redactTicketForCustomer(ticket) {
 async function notifyReply(ownerId, ticket, text, senderName) {
   const who = senderName || 'Support';
   await addNotification({ userId: ownerId, title: `${who} replied to ${ticket.id}`, body: text.slice(0, 120), ticketId: ticket.ticketId });
+  return emailReply(ticket, text, who);
+}
+
+// Send (or re-send) the email for a staff reply. Shared by the live reply path
+// and the admin "Re-email" action, so a customer who says they never got the
+// email can be re-notified without posting a duplicate message. No in-app
+// notification here — that's owned by notifyReply on the original reply.
+//   delivered: true → sent, false → send failed, null → no address on file
+async function emailReply(ticket, text, senderName) {
+  const who = senderName || 'Support';
   const recipients = [ticket.userEmail, ...(ticket.additionalEmails || [])].filter(Boolean);
   const delivered = recipients.length
     ? await sendNotice({

@@ -1547,6 +1547,8 @@ function AdminTicketDetail({ summary, onBack }) {
   const [attachments, setAttachments] = useState([]);
   const [busy, setBusy] = useState(false);
   const [warn, setWarn] = useState('');
+  // Per-message re-email status: messageId → 'sending' | 'ok' | 'fail'.
+  const [resent, setResent] = useState({});
   // Identity the customer sees on this reply: the "Monty" persona (default) or
   // the staff member's own name/email.
   const [asMonty, setAsMonty] = useState(true);
@@ -1572,6 +1574,27 @@ function AdminTicketDetail({ summary, onBack }) {
       }
     }
     catch { /* surfaced by the disabled state resetting */ } finally { setBusy(false); }
+  }
+  // Re-send the email for a past staff reply (customer says they never got it).
+  // Posts no new message — email delivery only. Reuses the amber banner on
+  // failure and marks the bubble ✓/✗ inline.
+  async function resendReply(m) {
+    setResent((r) => ({ ...r, [m.id]: 'sending' })); setWarn('');
+    try {
+      const { email } = await api.adminResendReply(summary.userId, summary.ticketId, m.id);
+      if (email && email.delivered === false) {
+        setResent((r) => ({ ...r, [m.id]: 'fail' }));
+        setWarn(`Re-send failed — the email to ${email.recipients?.join(', ') || 'the customer'} could not be delivered. SES may still be in the sandbox, or the address bounced.`);
+      } else if (email && email.delivered === null) {
+        setResent((r) => ({ ...r, [m.id]: 'fail' }));
+        setWarn('Nothing to re-send to — this customer has no email address on file.');
+      } else {
+        setResent((r) => ({ ...r, [m.id]: 'ok' }));
+      }
+    } catch {
+      setResent((r) => ({ ...r, [m.id]: 'fail' }));
+      setWarn('Could not re-send the email. Please try again.');
+    }
   }
   async function close() {
     if (!confirm('Close this ticket?')) return;
@@ -1615,6 +1638,18 @@ function AdminTicketDetail({ summary, onBack }) {
                 </div>
                 {m.body && <div className="whitespace-pre-wrap text-sm">{m.body}</div>}
                 <Attachments items={m.attachments} light={staff} />
+                {staff && (
+                  <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-white/70">
+                    <button
+                      type="button"
+                      onClick={() => resendReply(m)}
+                      disabled={resent[m.id] === 'sending'}
+                      className="rounded px-1.5 py-0.5 font-medium text-white/80 underline decoration-white/30 underline-offset-2 hover:text-white disabled:opacity-60"
+                    >{resent[m.id] === 'sending' ? 'Re-sending…' : 'Re-email'}</button>
+                    {resent[m.id] === 'ok' && <span aria-live="polite">✓ Sent</span>}
+                    {resent[m.id] === 'fail' && <span aria-live="polite">✗ Failed</span>}
+                  </div>
+                )}
               </div>
             </div>
           );
