@@ -38,7 +38,7 @@ import {
   claims,
   preflight,
 } from '../lib/http.mjs';
-import { accountBlocked } from '../lib/admin.mjs';
+import { accountBlocked, isStaff } from '../lib/admin.mjs';
 import { verify } from '../lib/jwt.mjs';
 import { rateLimit, RUN_LIMITS } from '../lib/ratelimit.mjs';
 
@@ -96,6 +96,9 @@ export const handler = async (event, context) => {
   // Audit finalizer needs to re-authenticate the user it runs on behalf of).
   body._userId = c.userId;
   body._tier = user.tier;
+  // Staff-only capabilities (e.g. the Content Optimiser's multi-model A/B run).
+  // Gateway-trusted, never taken from the client body.
+  body._isStaff = isStaff(user);
   // Connected-integration state for the Integrations tools (gsc/ga4/google-ads).
   body._integrations = user.integrations || {};
   const unitCost = CREDIT_COSTS[tool.cost] ?? 0;
@@ -2858,9 +2861,9 @@ function parseOutlineSections(outline) {
 }
 
 /** Single-call fallback article (the previous behaviour). */
-async function freeformDraft(url, { topic, keyword, secondaryArr, settings }) {
+async function freeformDraft(url, { topic, keyword, secondaryArr, settings, provider }) {
   const raw = await postUpstream(url, {
-    action: 'content_freeform',
+    action: 'content_freeform', provider,
     userPrompt: `Write a focused, SEO-friendly article about: "${topic}". Use clear H2/H3 headings, a short intro, scannable sections and a brief conclusion. Primary keyword: ${keyword || topic}.`,
     personaContext: {}, selectedTopics: [], primary_keyword: keyword, secondary_keywords: secondaryArr,
     compliance_guidelines: [], settings,
@@ -2871,21 +2874,21 @@ async function freeformDraft(url, { topic, keyword, secondaryArr, settings }) {
 /** Write flow: outline → sections (parallel) → polish. Sections are written
  *  concurrently and the polish pass harmonises flow — keeps the one-shot run
  *  inside the gateway budget. Falls back to a single freeform draft on failure. */
-async function writeArticle(url, { topic, keyword, secondaryArr, settings }) {
+async function writeArticle(url, { topic, keyword, secondaryArr, settings, provider }) {
   const secondary = secondaryArr.join(', ');
   let outline = '';
   try {
     outline = aiText(await postUpstream(url, {
-      action: 'content_outline', topic, keyword, pageTypeContext: settings.pageType,
+      action: 'content_outline', provider, topic, keyword, pageTypeContext: settings.pageType,
       personaContext: {}, deepCompareContext: '', selectedTopics: [], targetWordCount: 0, locale: settings.locale,
     }));
   } catch { /* fall back to freeform */ }
-  if (!outline || !outline.trim()) return freeformDraft(url, { topic, keyword, secondaryArr, settings });
+  if (!outline || !outline.trim()) return freeformDraft(url, { topic, keyword, secondaryArr, settings, provider });
 
   const sections = parseOutlineSections(outline).slice(0, 7); // cap for time budget
   const written = await Promise.all(sections.map((sec, i) =>
     postUpstream(url, {
-      action: 'content_section', topic, primaryKeyword: keyword, secondaryKeywords: secondary,
+      action: 'content_section', provider, topic, primaryKeyword: keyword, secondaryKeywords: secondary,
       pageTypeContext: settings.pageType, personaInstruction: '', complianceInstruction: '',
       deepCompareContext: '', outline, recentContent: '', sectionHeader: sec.header, sectionContext: sec.body,
       refUrls: [], sectionTarget: 0, totalTarget: 0, sectionIndex: i, totalSections: sections.length,
@@ -2893,10 +2896,10 @@ async function writeArticle(url, { topic, keyword, secondaryArr, settings }) {
     }).then((raw) => stripEditorialMeta(aiText(raw))).catch(() => '')
   ));
   let full = written.filter(Boolean).join('\n\n');
-  if (!full.trim()) return freeformDraft(url, { topic, keyword, secondaryArr, settings });
+  if (!full.trim()) return freeformDraft(url, { topic, keyword, secondaryArr, settings, provider });
 
   try {
-    const polished = stripEditorialMeta(aiText(await postUpstream(url, { action: 'content_polish', fullContent: full, settings })));
+    const polished = stripEditorialMeta(aiText(await postUpstream(url, { action: 'content_polish', provider, fullContent: full, settings })));
     if (polished && polished.trim()) full = polished;
   } catch { /* keep unpolished draft */ }
   return full;
@@ -2904,11 +2907,11 @@ async function writeArticle(url, { topic, keyword, secondaryArr, settings }) {
 
 /** Optimise flow: gap analysis → rewrite applying the gaps. Returns the improved
  *  draft (empty if the rewrite failed) plus the gap summary for display. */
-async function optimiseExisting(url, { content, keyword, settings }) {
+async function optimiseExisting(url, { content, keyword, settings, provider }) {
   let gap = '';
   try {
     gap = aiText(await postUpstream(url, {
-      action: 'content_gap', pageTypeContext: settings.pageType, personaContext: {},
+      action: 'content_gap', provider, pageTypeContext: settings.pageType, personaContext: {},
       deepCompareContext: '', selectedTopics: [], keyword, editorContent: content, settings,
     }));
   } catch { /* no gap analysis */ }
@@ -2916,7 +2919,7 @@ async function optimiseExisting(url, { content, keyword, settings }) {
   if (gap && gap.trim()) {
     try {
       rewrite = aiText(await postUpstream(url, {
-        action: 'content_rewrite', personaContext: {}, selectedTopics: [], keyword,
+        action: 'content_rewrite', provider, personaContext: {}, selectedTopics: [], keyword,
         suggestions: gap, originalContent: content, settings,
       }));
       rewrite = stripEditorialMeta((rewrite || '').replace(/```(?:markdown)?\s*/gi, '').replace(/```\s*$/g, '').trim());
@@ -2927,10 +2930,10 @@ async function optimiseExisting(url, { content, keyword, settings }) {
 
 /** AI-Links: insert credible external citations. Feeds HTML in (add_links
  *  preserves existing HTML) and returns sanitised HTML. */
-async function addAiLinks(url, { content, keyword, secondaryArr, settings }) {
+async function addAiLinks(url, { content, keyword, secondaryArr, settings, provider }) {
   try {
     let out = aiText(await postUpstream(url, {
-      action: 'add_links', content: mdToHtml(content), settings,
+      action: 'add_links', provider, content: mdToHtml(content), settings,
       primary_keyword: keyword, secondary_keywords: secondaryArr.join(', '),
     }));
     if (typeof out !== 'string' || !out.trim()) return '';
@@ -2942,10 +2945,10 @@ async function addAiLinks(url, { content, keyword, secondaryArr, settings }) {
 }
 
 /** Suggest an SEO meta title + description for the produced draft. */
-async function generateMeta(url, { content, keyword, settings }) {
+async function generateMeta(url, { content, keyword, settings, provider }) {
   try {
     const t = aiText(await postUpstream(url, {
-      action: 'content_freeform',
+      action: 'content_freeform', provider,
       userPrompt: `Based on the article below, write ONE SEO meta title (max 60 characters) and ONE meta description (max 155 characters) targeting the keyword "${keyword || ''}". Reply as exactly two lines and nothing else:\nTitle: <title>\nDescription: <description>\n\nARTICLE:\n${content.slice(0, 3500)}`,
       personaContext: {}, selectedTopics: [], primary_keyword: keyword, secondary_keywords: [],
       compliance_guidelines: [], settings,
@@ -2956,8 +2959,44 @@ async function generateMeta(url, { content, keyword, settings }) {
   } catch { return null; }
 }
 
+// Staff-only A/B model comparison. Frontend multi-select labels → aiOptimiser
+// provider ids. Both keys run the SAME pipeline so the drafts are comparable.
+const OPTIMISER_MODELS = {
+  haiku:    { provider: 'anthropic', label: 'Claude Haiku 4.5' },
+  deepseek: { provider: 'deepseek',  label: 'DeepSeek V3' },
+};
+
+/** Resolve the requested model keys. Non-staff (or an unset field) always get
+ *  Haiku only — DeepSeek + multi-model runs are a staff quality-comparison tool
+ *  (a second model doubles the AI spend), so the choice is gateway-enforced. */
+function selectedOptimiserModels(body) {
+  const raw = Array.isArray(body.models) ? body.models : String(body.models || '').split(',');
+  let keys = raw.map((s) => String(s).trim().toLowerCase()).filter((k) => OPTIMISER_MODELS[k]);
+  if (!body._isStaff) keys = keys.filter((k) => k === 'haiku');
+  keys = [...new Set(keys)];
+  return keys.length ? keys : ['haiku'];
+}
+
 async function contentOptimiserRun(body) {
   const url = UPSTREAMS.aiOptimiser;
+  const models = selectedOptimiserModels(body);
+
+  // Each selected model runs the full pipeline. Distinct providers hit distinct
+  // vendor rate limits, so running both in parallel adds little wall-clock.
+  const runs = await Promise.all(models.map(async (key) => ({
+    key, label: OPTIMISER_MODELS[key].label,
+    view: await runOptimiserPipeline(url, body, OPTIMISER_MODELS[key].provider),
+  })));
+
+  if (runs.length === 1) {
+    if (runs[0].view.empty) return { text: 'Add some content to optimise (or a topic to write about).' };
+    return { html: renderOptimiser(runs[0].view) };
+  }
+  return { html: renderOptimiserComparison(runs) };
+}
+
+/** Run the whole optimise/write + QA pipeline once, through a single provider. */
+async function runOptimiserPipeline(url, body, provider) {
   const settings = aiContentSettings(body);
   const keyword = (body.keyword || '').trim();
   const secondaryArr = splitItems(body.secondary);
@@ -2967,22 +3006,22 @@ async function contentOptimiserRun(body) {
   let draft = '';        // the (improved) draft we produced, as markdown
   let gapSummary = '';
   if (writing) {
-    draft = await writeArticle(url, { topic: content, keyword, secondaryArr, settings });
+    draft = await writeArticle(url, { topic: content, keyword, secondaryArr, settings, provider });
     if (draft) content = draft;
   } else if (content) {
-    const opt = await optimiseExisting(url, { content, keyword, settings });
+    const opt = await optimiseExisting(url, { content, keyword, settings, provider });
     gapSummary = opt.gap;
     if (opt.rewrite) { draft = opt.rewrite; content = opt.rewrite; }
   }
-  if (!content) return { text: 'Add some content to optimise (or a topic to write about).' };
+  if (!content) return { empty: true };
 
   // Enrich the produced draft with AI-Links + suggested meta (parallel — no extra
   // wall-clock). Only runs when we actually generated/rewrote content.
   let linkedHtml = '', meta = null;
   if (draft) {
     [linkedHtml, meta] = await Promise.all([
-      addAiLinks(url, { content: draft, keyword, secondaryArr, settings }),
-      generateMeta(url, { content: draft, keyword, settings }),
+      addAiLinks(url, { content: draft, keyword, secondaryArr, settings, provider }),
+      generateMeta(url, { content: draft, keyword, settings, provider }),
     ]);
   }
 
@@ -3003,14 +3042,32 @@ async function contentOptimiserRun(body) {
   };
 
   const results = await Promise.all(agents.map((a) =>
-    postUpstream(url, { action: 'optimiser_agent', agentKey: a.key, context, settings })
+    postUpstream(url, { action: 'optimiser_agent', provider, agentKey: a.key, context, settings })
       .then((raw) => ({ a, parsed: parseAgentResult(aiText(raw)) }))
       .catch((e) => ({ a, parsed: { error: e.message } }))
   ));
 
   const draftHtml = linkedHtml || (draft ? mdToHtml(draft) : '');
   const linkCount = linkedHtml ? (linkedHtml.match(/<a\s+[^>]*href=/gi) || []).length : 0;
-  return { html: renderOptimiser({ writing, draftHtml, wordCount, flesch, meta, gapSummary, linkCount, results }) };
+  return { writing, draftHtml, wordCount, flesch, meta, gapSummary, linkCount, results };
+}
+
+/** Render two (or more) model runs side by side for staff quality comparison. */
+function renderOptimiserComparison(runs) {
+  const palette = ['#4f46e5', '#0e7490', '#b45309', '#9333ea'];
+  const cols = runs.map((r, i) => {
+    const accent = palette[i % palette.length];
+    const inner = r.view.empty
+      ? '<p style="color:#64748b;margin:0">Add some content to optimise (or a topic to write about).</p>'
+      : renderOptimiser(r.view);
+    return `<div style="flex:1 1 360px;min-width:0;border:1px solid #e2e8f0;border-radius:12px;padding:14px;background:#fff">
+      <div style="display:flex;align-items:center;gap:8px;margin:0 0 12px;padding-bottom:8px;border-bottom:2px solid ${accent}">
+        <span style="width:10px;height:10px;border-radius:999px;background:${accent};display:inline-block"></span>
+        <span style="font-weight:800;font-size:15px;color:#0f172a">${esc(r.label)}</span>
+      </div>${inner}</div>`;
+  }).join('');
+  return `<div style="margin:0 0 12px;color:#475569;font-size:13px">⚖️ Model comparison — the same inputs run through each model, one section per model below. Compare the drafts, readability and QA scores to judge quality.</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">${cols}</div>`;
 }
 
 /** Replica of the agency's parseAgentStructuredResult(): JSON header + ---CONTENT---. */

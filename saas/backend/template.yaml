@@ -503,7 +503,10 @@ Resources:
       # Long timeout for the Function-URL (slow-tool) path; the API-Gateway path
       # is still capped at the platform's 30s regardless. The background Social
       # Audit finalizer (a self-invoked async run) also lives within this budget.
-      Timeout: 300
+      # 450s (< the Function URL's 15-min cap) gives headroom for the staff
+      # Content Optimiser dual-model A/B run, where two full pipelines (each with
+      # a long rewrite + 8 QA agents) run in parallel and can approach ~5 min.
+      Timeout: 450
       Environment:
         Variables:
           GATEWAY_SECRET: '{{resolve:secretsmanager:digimetrics-saas/gateway-secret:SecretString}}'

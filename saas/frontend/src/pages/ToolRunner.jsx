@@ -127,7 +127,7 @@ export default function ToolRunner() {
     setOut(null);
     setValues((v) => { const next = { ...v }; for (const f of tabs[i].fields) if (!(f.name in next)) next[f.name] = f.default ?? ''; return next; });
   }
-  const isVisible = (f) => !f.showWhen || (f.showWhen.in || []).includes(values[f.showWhen.field]);
+  const isVisible = (f) => (!f.staffOnly || user.isAdmin) && (!f.showWhen || (f.showWhen.in || []).includes(values[f.showWhen.field]));
   const shown = fields.filter(isVisible);
   shownRef.current = shown;
   const missing = shown.filter((f) => f.required && !String(values[f.name] || '').trim());
