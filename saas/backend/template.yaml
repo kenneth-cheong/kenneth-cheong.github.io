@@ -507,6 +507,10 @@ Resources:
       Environment:
         Variables:
           GATEWAY_SECRET: '{{resolve:secretsmanager:digimetrics-saas/gateway-secret:SecretString}}'
+          # Staff allowlist — must match MeFn so a staff member the frontend shows
+          # staff-only controls to (e.g. the Content Optimiser's multi-model A/B
+          # run) is also recognised as staff by the gateway that enforces it.
+          ADMIN_EMAILS: !Ref AdminEmails
           # "Run complete" in-platform notifications + the async Social Audit
           # finalizer write to the notifications table.
           NOTIFICATIONS_TABLE: !Ref NotificationsTable
@@ -855,6 +859,8 @@ Resources:
           AMPLIFY_APP_ID: !Ref AmplifyAppId
           AMPLIFY_DOMAIN: !Ref AmplifyDomain
           AMPLIFY_BRANCH: !Ref AmplifyBranch
+          # Finances balance sheet: read Stripe revenue (read-only list calls).
+          STRIPE_SECRET_KEY: '{{resolve:secretsmanager:digimetrics-saas/stripe-secret-key:SecretString}}'
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBCrudPolicy: { TableName: !Ref LedgerTable }
@@ -901,6 +907,7 @@ Resources:
         BroadcastBackfill: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/backfill, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         PlatformUsage: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/platform/usage, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         PlatformAccessLogs: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/platform/access-logs, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        Finances: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/finances, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
 
   # ── Observability: SNS topic + CloudWatch alarms ────────────────────────
   # The topic (and email subscription) only exist when AlarmEmail is set; the

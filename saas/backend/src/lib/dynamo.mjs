@@ -588,6 +588,51 @@ export async function listLedger(userId, limit = 100) {
   return Items || [];
 }
 
+/**
+ * Total credits CONSUMED (tool + chat spends) across ALL users within a window.
+ * Drives the estimated AI/data COGS line on the admin balance sheet — one credit
+ * of consumption maps to a fixed vendor-spend estimate. The ledger is the
+ * authoritative per-spend record, so we scan it filtered to `spend` rows whose
+ * `at` timestamp falls in [from,to]. Bounded/best-effort: at MVP volume the
+ * table is small; a page cap stops a runaway scan on a very large ledger.
+ * Returns { credits, rows, byTool: [{ tool, credits }] }.
+ */
+export async function creditsConsumed({ from, to }) {
+  const fromISO = (from instanceof Date ? from : new Date(from)).toISOString();
+  const toISO = (to instanceof Date ? to : new Date(to)).toISOString();
+  const byTool = {};
+  let credits = 0, rows = 0, ExclusiveStartKey, pages = 0, truncated = false;
+  do {
+    const res = await ddb.send(new ScanCommand({
+      TableName: TABLES.ledger,
+      // Only real consumption: `spend` rows (tool runs + assistant chat). Grants,
+      // top-ups and refunds carry other actions and are excluded.
+      FilterExpression: '#a = :spend AND #at BETWEEN :from AND :to',
+      ExpressionAttributeNames: { '#a': 'action', '#at': 'at' },
+      ExpressionAttributeValues: { ':spend': 'spend', ':from': fromISO, ':to': toISO },
+      ProjectionExpression: 'delta, tool',
+      ExclusiveStartKey,
+    }));
+    for (const it of res.Items || []) {
+      const c = Math.abs(Number(it.delta) || 0);
+      credits += c;
+      rows++;
+      const t = it.tool || 'other';
+      byTool[t] = (byTool[t] || 0) + c;
+    }
+    ExclusiveStartKey = res.LastEvaluatedKey;
+    if (pages++ >= 60) { truncated = !!ExclusiveStartKey; break; }
+  } while (ExclusiveStartKey);
+  return {
+    credits,
+    rows,
+    truncated,
+    byTool: Object.entries(byTool)
+      .map(([tool, c]) => ({ tool, credits: c }))
+      .sort((a, b) => b.credits - a.credits),
+  };
+}
+
 // ── Run history ──────────────────────────────────────────────────────────────
 // One row per tool run so users can re-open past results. Sort key is time-first
 // so a query (ScanIndexForward:false) returns newest first. Results can be large

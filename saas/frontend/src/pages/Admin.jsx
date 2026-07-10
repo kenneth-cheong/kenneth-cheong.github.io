@@ -26,7 +26,7 @@ export default function Admin() {
     <div>
       <h1 className="text-2xl font-bold">Admin</h1>
       <div className="mt-3 flex gap-1 border-b border-slate-200">
-        {[['users', 'Users'], ['agreements', 'Agreements'], ['notifications', 'Notifications'], ['assistant', 'Assistant'], ['tickets', 'Support tickets'], ['platform', 'Platform'], ['settings', 'Settings']].map(([k, label]) => (
+        {[['users', 'Users'], ['agreements', 'Agreements'], ['notifications', 'Notifications'], ['assistant', 'Assistant'], ['tickets', 'Support tickets'], ['finances', 'Finances'], ['platform', 'Platform'], ['settings', 'Settings']].map(([k, label]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
@@ -41,7 +41,7 @@ export default function Admin() {
           </button>
         ))}
       </div>
-      {tab === 'users' ? <AdminUsers /> : tab === 'agreements' ? <AdminAgreements /> : tab === 'notifications' ? <AdminNotifications /> : tab === 'assistant' ? <AdminAssistant /> : tab === 'tickets' ? <AdminTickets /> : tab === 'platform' ? <AdminPlatform /> : <AdminSettings />}
+      {tab === 'users' ? <AdminUsers /> : tab === 'agreements' ? <AdminAgreements /> : tab === 'notifications' ? <AdminNotifications /> : tab === 'assistant' ? <AdminAssistant /> : tab === 'tickets' ? <AdminTickets /> : tab === 'finances' ? <AdminFinances /> : tab === 'platform' ? <AdminPlatform /> : <AdminSettings />}
     </div>
   );
 }
@@ -1756,6 +1756,240 @@ function fmtWhen(iso) {
 // ── Platform (Amplify Hosting) usage ──────────────────────────────────────────
 const RANGE_PRESETS = [['1', '24h'], ['7', '7 days'], ['30', '30 days'], ['90', '90 days']];
 
+// ── Finances (balance sheet: cost vs revenue) ────────────────────────────────
+// Company P&L for a window: Stripe revenue vs AWS spend + an ESTIMATED AI/data
+// COGS line, reconciled into SGD. Revenue is authoritative (Stripe); AWS is
+// authoritative (Cost Explorer, USD→SGD); COGS is an estimate from credits
+// consumed and labelled as such.
+function AdminFinances() {
+  const [days, setDays] = useState('30');
+  const [custom, setCustom] = useState({ from: '', to: '' });
+  const [data, setData] = useState(null); // null = loading, undefined = errored
+  const [error, setError] = useState('');
+
+  const rangeArgs = () => {
+    if (custom.from && custom.to) return { from: `${custom.from}T00:00:00Z`, to: `${custom.to}T23:59:59Z` };
+    const to = new Date();
+    const from = new Date(to.getTime() - Number(days) * 86400000);
+    return { from: from.toISOString(), to: to.toISOString() };
+  };
+
+  const load = () => {
+    setData(null); setError('');
+    api.adminFinances(rangeArgs())
+      .then(setData)
+      .catch((e) => { setError(e.message || 'Could not load finances.'); setData(undefined); });
+  };
+  useEffect(load, [days, custom.from, custom.to]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const ccy = data?.currency || 'SGD';
+  const rev = data?.revenue;
+  const cost = data?.cost;
+  const profit = data?.profit;
+  const revErr = rev?.error;
+  const money = (n) => fmtMoney(n, ccy);
+
+  return (
+    <div className="mt-4">
+      {/* Range toolbar */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-lg border border-slate-300 p-0.5">
+          {RANGE_PRESETS.filter(([v]) => v !== '1').map(([v, label]) => (
+            <button key={v}
+              onClick={() => { setCustom({ from: '', to: '' }); setDays(v); }}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${!(custom.from && custom.to) && days === v ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1.5 text-sm text-slate-500">
+          <input type="date" value={custom.from} max={custom.to || undefined}
+            onChange={(e) => setCustom((c) => ({ ...c, from: e.target.value }))}
+            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
+          <span>→</span>
+          <input type="date" value={custom.to} min={custom.from || undefined}
+            onChange={(e) => setCustom((c) => ({ ...c, to: e.target.value }))}
+            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
+        </div>
+        <button onClick={load} title="Refresh" className="btn-ghost ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm">
+          <RefreshCw size={14} /> Refresh
+        </button>
+      </div>
+      <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700">
+        <Info size={13} className="mt-0.5 shrink-0" />
+        <span>
+          Each load runs one <b>AWS Cost Explorer</b> query (~US$0.01) plus a few read-only Stripe calls. Revenue and AWS spend are actual figures; the <b>AI &amp; data COGS</b> line is an estimate (see notes below).
+        </span>
+      </p>
+
+      {error && <div className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {data === null && <div className="mt-6 text-sm text-slate-500">Loading finances…</div>}
+
+      {data && cost && (
+        <>
+          {/* Headline stat tiles */}
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <Stat label="Net revenue" value={revErr ? '—' : money(rev.net)} sub={revErr ? '' : `${money(rev.gross)} gross`} />
+            <Stat label="Total cost" value={money(cost.totalSgd)} sub="AWS + est. COGS" />
+            <Stat label="Gross profit" value={money(profit?.grossProfitSgd)} tone={profit?.grossProfitSgd >= 0 ? 'ok' : 'warn'} sub="net revenue − cost" />
+            <Stat label="Gross margin" value={profit?.marginPct == null ? '—' : fmtPct(profit.marginPct)} tone={profit?.marginPct == null ? undefined : profit.marginPct >= 0.5 ? 'ok' : profit.marginPct >= 0 ? undefined : 'warn'} />
+            <Stat label="Run-rate MRR" value={money(data.mrr?.total)} sub={`${data.mrr?.byPlan?.reduce((a, p) => a + p.count, 0) || 0} paid subs`} />
+          </div>
+
+          {revErr && (
+            <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              Revenue unavailable: {revErr}. Costs are still shown below.
+            </div>
+          )}
+
+          {/* Balance sheet: revenue vs cost, side by side */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Panel title={`Revenue (${rev?.currency || ccy})`}>
+              {revErr ? <Empty>Revenue unavailable.</Empty> : (
+                <table className="w-full text-sm">
+                  <tbody>
+                    <LedgerRow label="Subscriptions" value={money(rev.subscriptions)} />
+                    <LedgerRow label="Top-ups" value={money(rev.topups)} />
+                    <LedgerRow label="Gross revenue" value={money(rev.gross)} strong border />
+                    <LedgerRow label="Stripe fees" value={`− ${money(rev.fees)}`} muted />
+                    <LedgerRow label="Refunds" value={`− ${money(rev.refunds)}`} muted />
+                    <LedgerRow label="Net revenue" value={money(rev.net)} strong border />
+                  </tbody>
+                </table>
+              )}
+            </Panel>
+
+            <Panel title="Costs (SGD)">
+              <table className="w-full text-sm">
+                <tbody>
+                  <LedgerRow
+                    label="AWS infrastructure"
+                    value={cost.aws?.error ? '—' : money(cost.aws?.sgd)}
+                    sub={cost.aws?.error ? cost.aws.error : (cost.aws?.usd != null ? `${fmtMoney(cost.aws.usd, 'USD')} × ${data.fx?.usdSgd} FX` : '')}
+                  />
+                  <LedgerRow
+                    label="AI & data COGS"
+                    value={money(cost.cogs?.sgd)}
+                    tag="est."
+                    sub={`${fmtNum(cost.cogs?.credits)} credits × US$${cost.cogs?.usdPerCredit}/credit`}
+                  />
+                  <LedgerRow label="Total cost" value={money(cost.totalSgd)} strong border />
+                </tbody>
+              </table>
+            </Panel>
+          </div>
+
+          {/* Bottom line */}
+          <section className="mt-4 rounded-xl border border-slate-200 bg-slate-900 p-4 text-white">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-xs font-medium uppercase tracking-wide text-slate-400">Gross profit ({ccy})</div>
+                <div className={`mt-0.5 text-3xl font-bold tabular-nums ${profit?.grossProfitSgd >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {money(profit?.grossProfitSgd)}
+                </div>
+              </div>
+              <div className="text-right text-sm text-slate-300">
+                <div>Net revenue {revErr ? '—' : money(rev.net)}</div>
+                <div>− Total cost {money(cost.totalSgd)}</div>
+                <div className="mt-1 font-semibold text-white">Margin {profit?.marginPct == null ? '—' : fmtPct(profit.marginPct)}</div>
+              </div>
+            </div>
+          </section>
+
+          {/* Breakdowns */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* MRR by plan */}
+            <Panel title="Run-rate MRR by plan">
+              {data.mrr?.byPlan?.length ? (
+                <table className="w-full text-sm">
+                  <thead><tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                    <th className="py-1.5 font-semibold">Plan</th>
+                    <th className="py-1.5 text-right font-semibold">Subs</th>
+                    <th className="py-1.5 text-right font-semibold">MRR</th>
+                  </tr></thead>
+                  <tbody>
+                    {data.mrr.byPlan.map((p) => (
+                      <tr key={p.tier} className="border-b border-slate-100">
+                        <td className="py-1.5">{p.name}</td>
+                        <td className="py-1.5 text-right tabular-nums">{p.count}</td>
+                        <td className="py-1.5 text-right tabular-nums">{money(p.mrr)}</td>
+                      </tr>
+                    ))}
+                    <tr className="font-semibold"><td className="py-1.5">Total</td>
+                      <td className="py-1.5 text-right tabular-nums">{data.mrr.byPlan.reduce((a, p) => a + p.count, 0)}</td>
+                      <td className="py-1.5 text-right tabular-nums">{money(data.mrr.total)}</td></tr>
+                  </tbody>
+                </table>
+              ) : <Empty>No active paid subscriptions.</Empty>}
+            </Panel>
+
+            {/* AWS cost by service */}
+            <Panel title="AWS cost by service (USD)">
+              {cost.aws?.error ? <Empty>Cost data unavailable: {cost.aws.error}</Empty>
+                : cost.aws?.byService?.length ? (
+                <table className="w-full text-sm">
+                  <tbody>
+                    {cost.aws.byService.slice(0, 12).map((r) => (
+                      <tr key={r.service} className="border-b border-slate-100">
+                        <td className="py-1.5">{r.service}</td>
+                        <td className="py-1.5 text-right tabular-nums">{fmtMoney(r.usd, 'USD')}</td>
+                      </tr>
+                    ))}
+                    <tr className="font-semibold"><td className="py-1.5">Total</td>
+                      <td className="py-1.5 text-right tabular-nums">{fmtMoney(cost.aws.usd, 'USD')}</td></tr>
+                  </tbody>
+                </table>
+              ) : <Empty>No AWS spend recorded for this window.</Empty>}
+            </Panel>
+          </div>
+
+          {/* COGS by tool */}
+          {cost.cogs?.byTool?.length > 0 && (
+            <Panel title="Credits consumed by tool (drives estimated COGS)">
+              <table className="w-full text-sm">
+                <tbody>
+                  {cost.cogs.byTool.slice(0, 15).map((r) => (
+                    <tr key={r.tool} className="border-b border-slate-100">
+                      <td className="py-1.5 font-mono text-xs">{r.tool}</td>
+                      <td className="py-1.5 text-right tabular-nums text-slate-500">{fmtNum(r.credits)} credits</td>
+                      <td className="py-1.5 text-right tabular-nums">{money(round2(r.credits * cost.cogs.usdPerCredit * (data.fx?.usdSgd || 1)))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {cost.cogs.truncated && <p className="mt-2 text-xs text-amber-600">Ledger scan truncated — COGS may be understated for very long windows.</p>}
+            </Panel>
+          )}
+
+          {/* Method notes */}
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
+            <p className="font-semibold text-slate-600">How these numbers are built</p>
+            <ul className="mt-1.5 list-disc space-y-1 pl-4">
+              <li><b>Revenue</b> — actual, from Stripe: paid invoices = subscriptions, one-time charges = top-ups. Fees &amp; refunds from Stripe balance transactions. Settled in {rev?.currency || 'SGD'}.</li>
+              <li><b>AWS</b> — actual, from Cost Explorer (all services), converted USD→{ccy} at {data.fx?.usdSgd} ({data.fx?.source} rate){cost.aws?.estimated ? '; latest days are AWS estimates' : ''}.</li>
+              <li><b>AI &amp; data COGS</b> — <b>estimated</b>: {fmtNum(cost.cogs?.credits)} credits consumed × US${cost.cogs?.usdPerCredit}/credit (Claude / DeepSeek / DataForSEO / Apify vendor spend). Not a billed figure.</li>
+              <li><b>Run-rate MRR</b> — a snapshot of active paid subscribers × plan price, not windowed.</li>
+            </ul>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function LedgerRow({ label, value, sub, strong, border, muted, tag }) {
+  return (
+    <tr className={border ? 'border-t border-slate-200' : ''}>
+      <td className={`py-1.5 ${strong ? 'font-semibold text-slate-800' : muted ? 'text-slate-500' : ''}`}>
+        {label}
+        {tag && <span className="ml-1.5 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-semibold text-amber-700 align-middle">{tag}</span>}
+        {sub && <div className="text-[11px] font-normal text-slate-400">{sub}</div>}
+      </td>
+      <td className={`py-1.5 text-right tabular-nums ${strong ? 'font-semibold text-slate-900' : muted ? 'text-slate-500' : 'text-slate-700'}`}>{value}</td>
+    </tr>
+  );
+}
+
 function AdminPlatform() {
   const [days, setDays] = useState('30');
   const [custom, setCustom] = useState({ from: '', to: '' }); // YYYY-MM-DD; overrides preset when both set
@@ -2011,6 +2245,14 @@ function fmtNum(n) {
   return v.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
 function fmtPct(f) { return `${((Number(f) || 0) * 100).toFixed(1)}%`; }
+// Currency with a sign-aware negative (−S$5.00, not S$-5.00). SGD → "S$", else code.
+function fmtMoney(n, ccy = 'SGD') {
+  const v = Number(n) || 0;
+  const sym = ccy === 'SGD' ? 'S$' : ccy === 'USD' ? 'US$' : `${ccy} `;
+  const body = `${sym}${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return v < 0 ? `−${body}` : body;
+}
+const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 function fmtBytes(n) {
   let v = Number(n) || 0;
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];

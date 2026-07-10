@@ -31,10 +31,13 @@ import {
   recordBroadcast,
   listBroadcasts,
   backfillActivity,
+  scanAllUsers,
+  creditsConsumed,
 } from '../lib/dynamo.mjs';
 import { PLANS, NDA_VERSION } from '../../../shared/catalog.mjs';
 import { isAdmin, isStaff, ACCOUNT_STATUSES } from '../lib/admin.mjs';
 import { amplifyUsage, amplifyAccessLogs } from '../lib/platform-usage.mjs';
+import { financeReport } from '../lib/finances.mjs';
 import { sendEmail } from '../lib/email.mjs';
 import { buildAcceptancePdf } from '../lib/pdf.mjs';
 import { signUnsubToken } from '../lib/jwt.mjs';
@@ -166,6 +169,24 @@ export const handler = async (event) => {
     } catch (e) {
       console.error('platform_access_logs_error', e);
       return serverError(e.message || 'Could not load access logs.');
+    }
+  }
+
+  // ── Finances (balance sheet: cost vs revenue) ──────────────────────────────
+  // Company-level P&L for the window: Stripe revenue vs AWS spend + an estimated
+  // AI/data COGS line, reconciled into SGD. Like the platform + usage routes,
+  // this is operational/business metadata (no user's private content), so it's
+  // staff-visible. Each load runs one Cost Explorer query (~US$0.01) + a few
+  // Stripe list calls.
+  if (method === 'GET' && path.endsWith('/admin/finances')) {
+    let range;
+    try { range = parseRange(q); } catch (e) { return badRequest(e.message); }
+    try {
+      const [users, consumed] = await Promise.all([scanAllUsers(), creditsConsumed(range)]);
+      return ok(await financeReport({ ...range, users, consumed }));
+    } catch (e) {
+      console.error('finances_error', e);
+      return serverError(e.message || 'Could not load finances.');
     }
   }
 

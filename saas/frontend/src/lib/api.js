@@ -310,6 +310,14 @@ export const api = {
     const qs = p.toString();
     return call(`/admin/platform/access-logs${qs ? `?${qs}` : ''}`);
   },
+  // Finances balance sheet (Stripe revenue vs AWS + estimated COGS, in SGD).
+  adminFinances: ({ from, to } = {}) => {
+    const p = new URLSearchParams();
+    if (from) p.set('from', from);
+    if (to) p.set('to', to);
+    const qs = p.toString();
+    return call(`/admin/finances${qs ? `?${qs}` : ''}`);
+  },
   // Product-email preference (Account toggle) + the public one-click unsubscribe.
   setEmailPrefs: (emailOptOut) => call('/me/email-prefs', { method: 'POST', body: { emailOptOut } }),
   unsubscribeEmail: (token) => call('/notify/unsubscribe', { method: 'POST', body: { token }, auth: false }),
