@@ -4634,7 +4634,7 @@ def _seo_kpi_pull_board():
         cur = ',cursor:"%s"' % cursor if cursor else ''
         q = ('{ boards(ids:[' + SEO_KPI_BOARD_ID + ']){ items_page(limit:200' + cur + '){ cursor items{ id name '
              'column_values(ids:["tags","status","color1","numbers3","numbers98","timeline5","people6",'
-             '"numeric_mksrz985","numbers_18","numbers40","numbers8","total_kws","formula9"])'
+             '"dup__of_people","numeric_mksrz985","numbers_18","numbers_1","numbers_19","numbers40","numbers8","total_kws","formula9"])'
              '{ id text ... on FormulaValue { display_value } } } } } }')
         res = run_monday_graphql(q)
         data = res.get('data', res) if isinstance(res, dict) else {}
@@ -4647,6 +4647,78 @@ def _seo_kpi_pull_board():
         if not cursor:
             break
     return items
+
+def _seo_kpi_compute_rows(items):
+    """Full per-campaign rows for the "Raw Data" tab — mirrors the frontend
+    computeSeoKpiModel() field-for-field so a stored daily snapshot renders
+    identically to a live pull. Numeric board fields are kept as text so blanks
+    stay blank and real zeros stay 0 (matching the source sheet)."""
+    today = datetime.utcnow()
+    pulled_date = "%d/%d/%d" % (today.month, today.day, today.year)
+    rows = []
+    for item in items or []:
+        cv = {c.get('id'): c for c in (item.get('column_values') or [])}
+        def txt(cid, _cv=cv):
+            return ((_cv.get(cid, {}) or {}).get('text') or '').strip()
+        pt_tokens = [t for t in re.split(r'[\s,]+', txt('tags').lower()) if t]
+        if 'seo' not in pt_tokens:
+            continue
+        name = item.get('name') or ''
+        seo_status = txt('color1'); seo_status_l = seo_status.lower()
+        camp_type = txt('status'); camp_type_l = camp_type.lower()
+        consultant = txt('people6')
+        timeline = txt('timeline5')
+        contracted = _seo_kpi_num(txt('numbers8'))
+        guaranteed = _seo_kpi_num(txt('total_kws'))
+        f9 = ((cv.get('formula9', {}) or {}).get('display_value') or (cv.get('formula9', {}) or {}).get('text') or '').strip()
+        low = f9.lower()
+        if 'kpi hit' in low or f9.startswith('✅'):
+            kpi = 'HIT'
+        elif 'not hit' in low or f9.startswith('❌'):
+            kpi = 'NOT HIT'
+        elif f9 and ('excluded' in low or 'input kpi' in low):
+            kpi = 'NA'
+        else:
+            is_cluster = 'cluster' in camp_type_l
+            is_special = 'special' in camp_type_l
+            is_excluded = 'excluded' in camp_type_l or 'internal kpi' in camp_type_l or camp_type_l in ('na', '')
+            if is_excluded:
+                kpi = 'NA'
+            elif is_special:
+                kpi = 'HIT' if _seo_kpi_num(txt('numbers40')) == 999 else 'NOT HIT'
+            elif is_cluster:
+                k = _seo_kpi_num(txt('numeric_mksrz985'))
+                kpi = ('HIT' if _seo_kpi_num(txt('numbers_18')) >= k else 'NOT HIT') if k > 0 else 'NA'
+            else:
+                k = _seo_kpi_num(txt('numbers3'))
+                kpi = ('HIT' if _seo_kpi_num(txt('numbers98')) >= k else 'NOT HIT') if k > 0 else 'NA'
+        over2 = False; start_str = ''; end_str = ''
+        parts = timeline.split(' - ')
+        if len(parts) >= 2:
+            try:
+                s = datetime.strptime(parts[0].strip(), '%Y-%m-%d')
+                datetime.strptime(parts[1].strip(), '%Y-%m-%d')
+                start_str = parts[0].strip(); end_str = parts[1].strip()
+                if today >= s:
+                    over2 = (today - s).days >= 61
+            except ValueError:
+                pass
+        is_active = any(st in seo_status_l for st in SEO_KPI_ACTIVE_STATUSES)
+        is_psg = bool(re.search(r'\(\s*psg', name, re.I)) or 'psg' in pt_tokens
+        rows.append({
+            'id': item.get('id'), 'name': name, 'consultant': consultant,
+            'seoStatus': seo_status, 'campType': camp_type, 'timeline': timeline,
+            'startStr': start_str, 'endStr': end_str, 'over2': over2,
+            'isActive': is_active, 'isPsg': is_psg, 'kpiStatus': kpi,
+            'contracted': contracted, 'guaranteed': guaranteed,
+            'projectType': txt('tags'), 'asstSeo': txt('dup__of_people'),
+            'guaranteedStr': txt('total_kws'), 'kpiKws': txt('numbers3'), 'p1Kws': txt('numbers98'),
+            'clusterTotal': txt('numbers_1'), 'clusterKpiPct': txt('numbers_19'),
+            'clusterKpi': txt('numeric_mksrz985'), 'clustersHit': txt('numbers_18'),
+            'manualCheck': txt('numbers40'), 'contractedStr': txt('numbers8'),
+            'pulledDate': pulled_date,
+        })
+    return rows
 # ───────────────────────────────────────────────────────────────────────────
 
 def lambda_handler(event, context):
@@ -4926,8 +4998,17 @@ def lambda_handler(event, context):
                               "overall": donuts['all'], "regular": donuts['regular'], "psg": donuts['psg'],
                               "source": "cron", "updatedAt": datetime.utcnow()}},
                     upsert=True)
+                # Full per-campaign raw snapshot — one doc per UTC day, kept forever,
+                # so the "Raw Data" tab can travel back to any historical day.
+                raw_rows = _seo_kpi_compute_rows(items)
+                db.seo_kpi_daily_raw.update_one(
+                    {"orgId": "digimetrics", "day": day},
+                    {"$set": {"orgId": "digimetrics", "day": day, "rows": raw_rows,
+                              "count": len(raw_rows), "source": "cron", "updatedAt": datetime.utcnow()}},
+                    upsert=True)
                 result = {"statusCode": 200, "body": json.dumps(
-                    {"success": True, "day": day, "items": len(items), "scores": scores, "donuts": donuts}, cls=JSONEncoder)}
+                    {"success": True, "day": day, "items": len(items), "rawCount": len(raw_rows),
+                     "scores": scores, "donuts": donuts}, cls=JSONEncoder)}
         elif action == 'seo_kpi_history':
             # Monthly hit-rate trend: seeded historical months (from the SEO Performance
             # Sheet "Summary" tab) plus the current month derived from the latest daily snapshot.
@@ -4981,6 +5062,59 @@ def lambda_handler(event, context):
                         upsert=True)
                     n += 1
                 result = {"statusCode": 200, "body": json.dumps({"success": True, "seeded": n}, cls=JSONEncoder)}
+        elif action == 'seo_kpi_raw_dates':
+            # List the days for which a full raw snapshot exists (newest first).
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                days = db.seo_kpi_daily_raw.distinct("day", {"orgId": "digimetrics"})
+                days = sorted([d for d in days if d], reverse=True)
+                result = {"statusCode": 200, "body": json.dumps({"days": days}, cls=JSONEncoder)}
+        elif action == 'seo_kpi_raw_get':
+            # Return one day's full raw rows (or the latest snapshot if day omitted).
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                day = body.get('day')
+                if day and day != 'latest':
+                    doc = db.seo_kpi_daily_raw.find_one({"orgId": "digimetrics", "day": day}, {"_id": 0})
+                else:
+                    doc = db.seo_kpi_daily_raw.find_one({"orgId": "digimetrics"}, {"_id": 0}, sort=[("day", -1)])
+                if not doc:
+                    result = {"statusCode": 200, "body": json.dumps({"day": day, "rows": [], "count": 0}, cls=JSONEncoder)}
+                else:
+                    result = {"statusCode": 200, "body": json.dumps(
+                        {"day": doc.get("day"), "rows": doc.get("rows", []),
+                         "count": doc.get("count", len(doc.get("rows", [])))}, cls=JSONEncoder)}
+        elif action == 'seo_kpi_raw_import':
+            # Bulk backfill of historical raw snapshots (e.g. from the SEO Performance
+            # Sheet). Accepts {snapshots:[{day, rows}], source}. Idempotent per day.
+            # Never clobbers a server-pulled 'cron' snapshot unless force=True.
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                snaps = body.get('snapshots') or []
+                src = body.get('source', 'sheet')
+                force = bool(body.get('force'))
+                imported = 0; skipped = 0
+                for s in snaps:
+                    day = s.get('day'); rows = s.get('rows')
+                    if not day or rows is None:
+                        skipped += 1; continue
+                    if not force:
+                        existing = db.seo_kpi_daily_raw.find_one({"orgId": "digimetrics", "day": day}, {"source": 1})
+                        if existing and existing.get('source') == 'cron':
+                            skipped += 1; continue
+                    db.seo_kpi_daily_raw.update_one(
+                        {"orgId": "digimetrics", "day": day},
+                        {"$set": {"orgId": "digimetrics", "day": day, "rows": rows,
+                                  "count": len(rows), "source": src, "updatedAt": datetime.utcnow()}},
+                        upsert=True)
+                    imported += 1
+                result = {"statusCode": 200, "body": json.dumps({"success": True, "imported": imported, "skipped": skipped}, cls=JSONEncoder)}
         elif action == 'get_monday_data':
             params = body.get('data', body)
             query = params.get('query') or body.get('query')
