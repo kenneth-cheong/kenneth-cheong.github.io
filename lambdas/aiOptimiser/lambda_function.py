@@ -1353,7 +1353,16 @@ def build_structured_prompt(action, body):
             "CRITICAL CONTENT GUIDELINES (EEAT):\n"
             "1. EXPERIENCE (E): Write with a first-person perspective or direct experience.\n"
             "2. EXPERTISE (E): Provide deep, focused coverage of the intent.\n"
-            "3. AUTHORITATIVENESS (A): Reference credible sources (placeholders like [Source: Name])."
+            "3. AUTHORITATIVENESS (A): Reference credible sources (placeholders like [Source: Name]).\n\n"
+            "OUTPUT HYGIENE (publishable content ONLY):\n"
+            "- Return ONLY the finished, publishable article prose for this section.\n"
+            "- Convert headings into real Markdown headings (## / ###). NEVER print "
+            "the literal label 'H1:', 'H2:', 'H3:' before a heading.\n"
+            "- NEVER include editorial or meta text such as 'Word Count:', "
+            "'Target Word Count', 'Section X of Y', 'Meta Description', 'Slug', or "
+            "notes about hitting the word target. These are instructions to you, "
+            "not content for the reader — the word count is an internal target and "
+            "must not appear anywhere in your output."
         )
         if retry_text:
             user = (

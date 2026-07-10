@@ -88,12 +88,13 @@ Here are the topics found across competitors, with their frequency of occurrence
 {json.dumps(all_topics)}
 
 Your task:
-1. Perform a HOLISTIC analysis of all topics. Do not just pick from the top of the list.
-2. Identify and consolidate highly similar or near-identical topics into a single, most representative topic. However, keep distinct sub-topics and nuanced variations as separate entries to ensure comprehensive coverage.
-3. Weigh topics by their frequency across the competitive landscape. High-frequency topics are "Must-Haves".
-4. Cherry-pick the most important 10-20 topics for a comprehensive content strategy for SEO ranking purposes. Ensure a mix of common "Must-Have" topics and unique "Differentiator" topics found in successful competitors.
-5. Use the web_search tool to verify current SEO trends for this keyword to improve your selection and identify missing high-growth topics.
-6. After any research, your FINAL message must be ONLY a JSON array of the selected topic strings, with no surrounding prose, explanation, or markdown fences.
+1. Perform a HOLISTIC analysis of the ENTIRE list. Scan all of it — do not just pick from the top or from the highest-frequency entries.
+2. Consolidate near-identical topics into a single representative entry, but keep distinct sub-topics and nuanced angles as separate entries for comprehensive coverage.
+3. Frequency is a signal of importance, but it must NOT dominate the selection. Generic, foundational topics — e.g. "definition", "what is", "overview", "introduction", "importance", "benefits", "types", and broad "strategies" — appear across almost every competitor, so they naturally have the highest frequency. Include AT MOST 2-3 of these foundational topics. Never let them fill the list.
+4. Deliberately build a DIVERSE MIX that covers the full topic landscape and reads as a well-rounded article with good flow. Beyond the few foundational topics, prioritise specific, actionable, differentiating angles wherever the competitor data supports them, such as: concrete techniques & tactics, tools/software/platforms, best practices, step-by-step how-tos, examples & case studies, comparisons, metrics & measurement, segmentation, common mistakes, and niche sub-topics. Prefer a spread ACROSS these categories over multiple variations of the same foundational idea.
+5. Cherry-pick the most valuable 10-20 topics that together form a comprehensive article flowing logically from brief foundational context into specific, high-value depth.
+6. Use the web_search tool to verify current SEO trends for this keyword and surface high-growth sub-topics that strengthen the diversity of the mix.
+7. After any research, your FINAL message must be ONLY a JSON array of the selected topic strings, with no surrounding prose, explanation, or markdown fences.
 
 Format: ["Consolidated Topic A", "Must-Have Topic B", "Unique Insight C", ...]"""
 
