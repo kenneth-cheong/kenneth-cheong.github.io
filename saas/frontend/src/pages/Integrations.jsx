@@ -51,6 +51,9 @@ export default function Integrations() {
     byFamily[fam].sources.push(p);
   }
   const famConnected = (fam) => fam.sources.some((p) => connected[p.id]?.connected);
+  // A family is connectable only if its OAuth is wired up on this deployment
+  // (e.g. Meta is pending app review) — otherwise we show "Coming soon".
+  const famConfigured = (fam) => fam.sources.some((p) => p.configured);
 
   async function connectFamily(fam) {
     setBusy(fam.id);
@@ -105,6 +108,7 @@ export default function Integrations() {
       <div className="mt-6 space-y-6">
         {families.map((fam) => {
           const isConn = famConnected(fam);
+          const isConfigured = famConfigured(fam);
           const redirecting = busy === fam.id;
           return (
             <div key={fam.id}>
@@ -116,7 +120,9 @@ export default function Integrations() {
                     <div className="font-semibold">{fam.meta.label || fam.id}</div>
                     <div className="text-sm text-slate-500">{fam.meta.blurb}</div>
                   </div>
-                  {isConn ? (
+                  {!isConfigured ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500" title="This connector is awaiting platform approval — you can still enter an account ID manually inside the tool.">Coming soon</span>
+                  ) : isConn ? (
                     <>
                       <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700"><Check size={13} aria-hidden /> Connected</span>
                       <button onClick={() => connectFamily(fam)} disabled={redirecting} className="btn-ghost px-3 py-1.5 text-sm">{redirecting ? '…' : 'Reconnect'}</button>

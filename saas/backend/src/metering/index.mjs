@@ -866,10 +866,44 @@ async function captionRun(body) {
     postUpstream(UPSTREAMS.aiOptimiser, { ...base, variationIndex: i, sampleText, settings: { temperature: 0.75 + i * 0.02 } })
       .then(pick).catch(() => '')
   ));
-  const clean = variations.map((v) => String(v || '').trim()).filter(Boolean);
+  // The upstream may return each caption as a JSON object ({hook,body,cta,…}),
+  // sometimes fenced — assemble it into clean, paste-ready prose rather than
+  // leaking the raw JSON to the user.
+  const clean = variations.map((v) => captionToProse(v)).filter(Boolean);
   if (!clean.length) return { text: 'No caption generated. Please try again.' };
   if (clean.length === 1) return { text: clean[0] };
   return { text: clean.map((v, i) => `━━━ Variation ${i + 1} ━━━\n\n${v}`).join('\n\n\n') };
+}
+
+// A caption may come back as prose OR as a JSON object (optionally ```json-fenced)
+// with hook/body/cta/caption fields. Return clean prose either way; on any parse
+// failure fall back to the fence-stripped raw text so we never show worse output.
+function captionToProse(raw) {
+  let s = String(raw || '').trim();
+  if (!s) return '';
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence) s = fence[1].trim();
+  const start = s.indexOf('{');
+  if (start !== -1) {
+    let depth = 0;
+    for (let i = start; i < s.length; i++) {
+      if (s[i] === '{') depth++;
+      else if (s[i] === '}' && --depth === 0) {
+        try {
+          const o = JSON.parse(s.slice(start, i + 1));
+          if (o && typeof o === 'object') {
+            if (typeof o.caption === 'string' && o.caption.trim()) return o.caption.trim();
+            const parts = [o.hook, o.body, o.cta].map((x) => (x == null ? '' : String(x).trim())).filter(Boolean);
+            const hashtags = Array.isArray(o.hashtags) ? o.hashtags.map((h) => (String(h).startsWith('#') ? h : `#${h}`)).join(' ') : (o.hashtags ? String(o.hashtags) : '');
+            if (hashtags) parts.push(hashtags.trim());
+            if (parts.length) return parts.join('\n\n');
+          }
+        } catch { /* fall through to raw */ }
+        break;
+      }
+    }
+  }
+  return s;
 }
 
 // ── Media Plan: plan + auto-personas + marketing funnel ───────────────────────
@@ -2451,6 +2485,7 @@ function sectionsBacklinks(target, mode, s, refDomains, anchors, backlinks = [],
       { label: 'Broken backlinks', value: n(s.brokenBacklinks), tone: s.brokenBacklinks > 0 ? 'amber' : undefined },
       { label: 'Referring IPs', value: n(s.referringIps) },
     ] },
+    { type: 'text', text: 'Source: DataForSEO. Totals can differ from the Page Technical & Domain Analysis tool (which uses Ahrefs) — providers crawl different link indexes, so treat each as a trend, not an absolute count.' },
   ];
   for (const sec of [
     breakdown('Link types', s.types),
@@ -3001,7 +3036,9 @@ function renderOptimiser({ writing, draftHtml, wordCount, flesch, meta, gapSumma
     const findings = Array.isArray(p.findings) && p.findings.length
       ? `<ul style="margin:6px 0 0;padding-left:18px">${p.findings.map((f) => `<li>${esc(typeof f === 'string' ? f : (f.issue || f.title || JSON.stringify(f)))}${f && f.fix ? ` — <span style="color:#475569">${esc(f.fix)}</span>` : ''}</li>`).join('')}</ul>`
       : '';
-    const detail = p.content ? `<div style="white-space:pre-wrap;color:#334155;margin-top:6px;font-size:13px">${esc(p.content.slice(0, 1200))}</div>` : '';
+    // Agent content is markdown (## headings, **bold**, lists) — render it, don't
+    // dump the raw source (mdToHtml escapes first, so it's XSS-safe).
+    const detail = p.content ? `<div style="color:#334155;margin-top:6px;font-size:13px">${mdToHtml(p.content.slice(0, 2000))}</div>` : '';
     return `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:8px 0">
       <div><strong>${esc(label)}</strong>${score}</div>
       ${p.summary ? `<p style="color:#475569;margin:6px 0">${esc(p.summary)}</p>` : ''}${findings}${detail}</div>`;

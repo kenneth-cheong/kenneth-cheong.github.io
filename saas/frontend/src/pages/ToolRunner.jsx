@@ -11,7 +11,7 @@ import SortableTable from '../components/SortableTable.jsx';
 import ShareResult from '../components/ShareResult.jsx';
 import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
 import { startToolTour, sampleResultFor, hasSeen, markSeen } from '../lib/tours.js';
-import { Lock, Compass, Sparkles, AlertTriangle, Clock } from 'lucide-react';
+import { Lock, Compass, Sparkles, AlertTriangle, Clock, ChevronRight } from 'lucide-react';
 
 const CONFIRM_AT = 25; // credits — confirm before running pricey tools
 
@@ -46,29 +46,59 @@ export default function ToolRunner() {
   const activeTab = tabs?.[tab];
   const fields = useMemo(() => (tabs ? activeTab?.fields || [] : tool ? inputsFor(tool) : []), [tool, tabs, activeTab]);
 
+  // Smart default for a tool's site/URL field: the active project's domain, so
+  // beginners don't have to know/paste their own site. Returns '' for non-site
+  // fields (a site field is url-typed, named domain/website/target, or a text
+  // field whose placeholder is a domain example — excludes free-text like a topic).
+  const siteDefault = (f) => {
+    const dom = (active?.domain || '').trim();
+    if (!dom) return '';
+    const bare = dom.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    if (f.type === 'url') return /^https?:\/\//.test(dom) ? dom : `https://${bare}`;
+    const looksSite = ['domain', 'website', 'target'].includes(f.name)
+      || (f.type !== 'textarea' && /example\.com|yoursite|https?:\/\//i.test(f.placeholder || ''));
+    return looksSite ? bare : '';
+  };
   const seedValues = () => {
     const fromHistory = location.state?.values;
     const last = fromHistory ? {} : (loadLastInput(toolId) || {});
-    // Smart default: prefill a tool's URL/domain field from the active project so
-    // beginners don't have to know/paste their own site each time.
-    const dom = (active?.domain || '').trim();
-    const prefill = (f) => {
-      if (!dom) return '';
-      const bare = dom.replace(/^https?:\/\//, '').replace(/\/+$/, '');
-      if (f.type === 'url') return /^https?:\/\//.test(dom) ? dom : `https://${bare}`;
-      if (f.name === 'domain' || f.name === 'website') return bare;
-      return '';
-    };
-    return Object.fromEntries(fields.map((f) => [f.name, fromHistory?.[f.name] ?? last[f.name] ?? f.default ?? prefill(f)]));
+    // Site/URL field ALWAYS defaults to the active project's domain — never a
+    // stale last-run value from a different project (which confused beginners).
+    // Other fields keep their last-used value → default.
+    return Object.fromEntries(fields.map((f) => {
+      const p = siteDefault(f);
+      if (f.name in (fromHistory || {})) return [f.name, fromHistory[f.name]];
+      if (p) return [f.name, p];
+      return [f.name, last[f.name] ?? f.default ?? ''];
+    }));
   };
   const [values, setValues] = useState(seedValues);
   const [busy, setBusy] = useState(false);
   const [out, setOut] = useState(location.state?.result ? { result: location.state.result, runId: location.state.runId } : null);
   const [modal, setModal] = useState(null);
+  const [showAdv, setShowAdv] = useState(false); // reveal collapsed optional fields on long forms
   const shownRef = useRef([]); // latest visible fields, for the auto-started tour
 
   // Reset the form + result when navigating between tools (same route component).
   useEffect(() => { setTab(0); setValues(seedValues()); setOut(location.state?.result ? { result: location.state.result, runId: location.state.runId } : null); /* eslint-disable-next-line */ }, [toolId]);
+
+  // The active project often loads AFTER first render, so the initial seed can
+  // miss the domain and fall back to a stale value. Once the project's domain is
+  // known (or changes), (re)apply it to the site field — but never clobber a run
+  // in progress, a shown result, or a value the user has already edited.
+  const projDomain = active?.domain || '';
+  useEffect(() => {
+    if (!projDomain || busy || out) return;
+    setValues((v) => {
+      const next = { ...v };
+      for (const f of fields) {
+        const p = siteDefault(f);
+        if (p && p !== v[f.name]) next[f.name] = p;
+      }
+      return next;
+    });
+    // eslint-disable-next-line
+  }, [projDomain, toolId]);
 
   // First tool a user ever opens → auto-run that tool's guided tour, once.
   useEffect(() => {
@@ -100,6 +130,14 @@ export default function ToolRunner() {
   const shown = fields.filter(isVisible);
   shownRef.current = shown;
   const ready = shown.every((f) => !f.required || String(values[f.name] || '').trim());
+
+  // Long forms overwhelm beginners: keep required fields + the first couple of
+  // optional ones visible, and tuck the rest behind an "Advanced options" toggle.
+  const optionalShown = shown.filter((f) => !f.required);
+  const collapseForm = shown.length >= 8 && optionalShown.length >= 5;
+  const advSet = collapseForm ? new Set(optionalShown.slice(2)) : new Set();
+  const primaryFields = shown.filter((f) => !advSet.has(f));
+  const advancedFields = shown.filter((f) => advSet.has(f));
   const example = exampleFor(tool.id);
 
   function fillExample() {
@@ -201,9 +239,26 @@ export default function ToolRunner() {
 
       <div className={`card ${tabs ? 'mt-4' : 'mt-6'} p-5`}>
         <div className="space-y-4">
-          {shown.map((f, i) => (
+          {primaryFields.map((f, i) => (
             <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} autoFocus={i === 0} provider={tool.integration} values={values} />
           ))}
+          {advancedFields.length > 0 && (
+            <div className="border-t border-slate-100 pt-3">
+              <button type="button" onClick={() => setShowAdv((s) => !s)}
+                className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700">
+                <ChevronRight size={15} className={`transition-transform ${showAdv ? 'rotate-90' : ''}`} aria-hidden />
+                {showAdv ? 'Hide' : 'Show'} advanced options
+                <span className="text-xs font-normal text-slate-400">({advancedFields.length} optional)</span>
+              </button>
+              {showAdv && (
+                <div className="mt-4 space-y-4">
+                  {advancedFields.map((f) => (
+                    <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} provider={tool.integration} values={values} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <div className="mt-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-xs text-slate-400" data-tour="tool-actions">
@@ -218,7 +273,8 @@ export default function ToolRunner() {
                 <Clock size={15} />Schedule
               </button>
             )}
-            <button className="btn-primary" disabled={busy || !ready} onClick={() => run()} data-tour="tool-run">
+            <button className="btn-primary" disabled={busy || !ready} onClick={() => run()} data-tour="tool-run"
+              title={!ready ? 'Fill in the required fields first' : undefined}>
               {busy ? (tool.slow ? 'Generating…' : 'Running…') : unlocked ? 'Run tool' : 'Run preview'}
             </button>
           </div>

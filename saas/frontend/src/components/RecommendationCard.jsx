@@ -76,7 +76,7 @@ export default function RecommendationCard({ card, sectionTitle, context }) {
 
       {/* Action row — the bridge from "finding" to "done". */}
       <div className="dm-no-print mt-3 flex flex-wrap items-center gap-1.5">
-        <button onClick={how} className={`${btn} bg-slate-100 text-slate-700 hover:bg-slate-200`}>
+        <button onClick={how} title="Monty explains it step by step (uses AI credits)" className={`${btn} bg-slate-100 text-slate-700 hover:bg-slate-200`}>
           <ListChecks size={14} aria-hidden /> How do I do this?
         </button>
         <button onClick={doIt} title="The assistant drafts it for you (uses AI credits)" className={`${btn} bg-brand-600 text-white hover:bg-brand-700`}>

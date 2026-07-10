@@ -111,6 +111,7 @@ function StatCard({ it }) {
   const t = tone(it.tone);
   const pct = pctOf(it.value);
   const def = glossaryFor(it.label);
+  const isEmpty = it.value == null || ['', '—', '-', 'n/a', 'na'].includes(String(it.value).trim().toLowerCase());
   return (
     <div className={`rounded-xl border ${t.border} ${t.bg} p-3.5`}>
       <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -119,6 +120,8 @@ function StatCard({ it }) {
       </div>
       {pct != null
         ? <div className="mt-1.5"><Gauge pct={pct} stroke={t.stroke} /></div>
+        : isEmpty
+        ? <div className="mt-1 flex items-center gap-1 text-2xl font-bold leading-tight text-slate-300">—<InfoTip text="Not available — this metric couldn’t be measured for this site or page." size={14} /></div>
         : <div className={`mt-1 text-2xl font-bold leading-tight ${t.text}`}>{it.value}</div>}
       {it.delta && (
         <div className={`mt-1.5 inline-flex items-center gap-1 text-xs font-semibold ${it.deltaTone === 'red' ? 'text-red-600' : it.deltaTone === 'green' ? 'text-emerald-600' : 'text-slate-400'}`}>

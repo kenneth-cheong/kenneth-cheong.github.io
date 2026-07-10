@@ -82,7 +82,12 @@ export const ADAPTERS = {
       if (answer && typeof answer === 'object') {
         answer = Array.isArray(answer) ? answer.map((b) => b?.text || '').join('') : (answer.text || '');
       }
-      return { text: String(answer || '') };
+      answer = String(answer || '');
+      // The upstream returns a full HTML document — RENDER it, don't dump the raw
+      // `<!DOCTYPE html>…` source as text. Extract the body fragment (the app's
+      // .dm-report wrapper styles it); fall back to text when it isn't HTML.
+      if (/<\/?[a-z][\s\S]*>/i.test(answer)) return { html: htmlFragment(answer) };
+      return { text: answer };
     },
   },
 
@@ -345,6 +350,25 @@ function pickText(raw) {
   const d = unwrap(raw);
   if (typeof d === 'string') return d;
   return d.result || d.text || d.content || d.response || '';
+}
+
+/**
+ * Turn a full HTML document from an upstream into a safe, embeddable fragment:
+ * drop the doctype/head (and its page-wide <style>, which would leak into the
+ * whole app) and unwrap <html>/<body>, keeping only the body's inner content.
+ * Also strips <script>. The app's .dm-report wrapper provides the styling.
+ */
+function htmlFragment(html) {
+  let s = String(html || '');
+  const body = s.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  if (body) s = body[1];
+  return s
+    .replace(/<!DOCTYPE[^>]*>/gi, '')
+    .replace(/<\/?(?:html|head|body)[^>]*>/gi, '')
+    .replace(/<head[\s\S]*?<\/head>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .trim();
 }
 
 /** Unwrap a `body` that may be a JSON string or an object. */

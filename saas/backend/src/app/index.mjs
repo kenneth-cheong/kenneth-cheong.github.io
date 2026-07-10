@@ -697,9 +697,11 @@ export const handler = async (event) => {
 
     // ── Integrations (Google OAuth) ───────────────────────────────────────────
     if (method === 'GET' && path.endsWith('/integrations')) {
-      // Only surface connectors whose OAuth is wired up on this deployment, so a
-      // half-built integration (env vars unset) never shows a dead Connect button.
-      const providers = INTEGRATIONS.filter((p) => connectorConfigured(p.id));
+      // Surface every connector, flagging whether its OAuth is wired up on this
+      // deployment. Unconfigured ones render as "Coming soon" (no dead Connect
+      // button) rather than vanishing — so a tool that says "connect in
+      // Integrations" never points at a source that isn't listed.
+      const providers = INTEGRATIONS.map((p) => ({ ...p, configured: connectorConfigured(p.id) }));
       // Last-pull health per source, derived from the most recent run of each
       // integration tool (newest-first), so the UI can flag "data flowing" vs
       // "no data / failed" beyond just "account selected".
@@ -707,6 +709,7 @@ export const handler = async (event) => {
       try {
         const recent = await listRuns(user.userId, 100);
         for (const p of providers) {
+          if (!p.configured) continue;
           const r = recent.find((x) => x.tool === p.id);
           if (r) lastPull[p.id] = { status: pullStatus(r.preview), at: r.ts };
         }
