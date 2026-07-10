@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { CREDIT_COSTS, toolById } from '@shared/catalog.mjs';
 import { toast } from '../lib/ui.js';
-import { X, Plus, History, Trash2, ArrowLeft, ArrowRight, Settings } from 'lucide-react';
+import { X, Plus, History, Trash2, ArrowLeft, ArrowRight, Settings, Bell, BellOff } from 'lucide-react';
 import PlanPanelCard from './PlanPanelCard.jsx';
 import Mascot from './Mascot.jsx';
 import { proactiveMuted, setProactiveMuted } from '../lib/proactive.js';
@@ -308,6 +308,19 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
             "Helpful Otter" title + controls need the room; it returns when widened. */}
         {width >= 460 && <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs">{COST} credits / message</span>}
         <div className="ml-auto flex items-center gap-1">
+          {/* One-tap switch for Monty's proactive prompts (Monty starting a chat
+              on its own). On by default; off = reactive-only. Mirrors the fuller
+              "Proactive tips" toggle in Settings. */}
+          <button
+            onClick={toggleProTips}
+            role="switch"
+            aria-checked={proTips}
+            className={`rounded p-1 hover:bg-white/10 hover:text-white ${proTips ? 'text-slate-300' : 'text-amber-300'}`}
+            title={proTips ? 'Monty prompts are ON — click to stop Monty starting chats' : 'Monty prompts are OFF — click to let Monty offer tips'}
+            aria-label={proTips ? 'Turn off Monty prompts' : 'Turn on Monty prompts'}
+          >
+            {proTips ? <Bell size={18} aria-hidden /> : <BellOff size={18} aria-hidden />}
+          </button>
           <button onClick={newChat} className="rounded p-1 text-slate-300 hover:bg-white/10 hover:text-white" title="New chat" aria-label="New chat"><Plus size={18} aria-hidden /></button>
           <button onClick={() => (view === 'history' ? setView('chat') : openHistory())} className={`rounded p-1 hover:bg-white/10 hover:text-white ${view === 'history' ? 'text-white' : 'text-slate-300'}`} title="History" aria-label="History"><History size={18} aria-hidden /></button>
           <button onClick={() => setView((v) => (v === 'settings' ? 'chat' : 'settings'))} className={`rounded p-1 hover:bg-white/10 hover:text-white ${view === 'settings' ? 'text-white' : 'text-slate-300'}`} title="Settings" aria-label="Settings"><Settings size={18} aria-hidden /></button>

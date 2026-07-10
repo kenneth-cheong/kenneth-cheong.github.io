@@ -1296,7 +1296,9 @@ function clampStr(v, max) {
 // alive on first deploy; admins tune/disable/add from Admin → Assistant.
 export const DEFAULT_PROACTIVE = normalizeProactive({
   enabled: true,
-  maxPerSession: 2,
+  maxPerSession: 0,   // 0 = unlimited: Monty stays on all the time. Per-trigger
+                      // cooldowns still stop any one nudge repeating; the user can
+                      // silence all proactive prompts from the chat-panel switch.
   defaultCooldownHours: 24,
   triggers: [
     { id: 'welcome_empty', label: 'Empty dashboard → onboard', event: 'app_open', emptyProjects: true, priority: 30, cooldownHours: 72,
