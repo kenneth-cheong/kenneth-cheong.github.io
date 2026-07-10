@@ -524,16 +524,41 @@ def google_refresh_token(body):
 #     enabled account, and posts a Google Chat alert once per threshold-crossing.
 #   • ads_test_webhook: sends a "hello" to a webhook so users can verify it.
 # ══════════════════════════════════════════════════════════════════════
-CCE_CONFIG_URL = 'https://vy6llwyf9j.execute-api.ap-southeast-1.amazonaws.com/prod/clientContextEngine'
 _ADS_TOKEN_CACHE = {"token": None, "exp": 0}
 
-def _cce_get_config():
-    try:
-        r = requests.post(CCE_CONFIG_URL, json={"action": "get_config"}, timeout=15)
-        return (r.json() or {}).get("config", {}) or {}
-    except Exception as e:
-        print(f"[ADS_SWEEP] CCE get_config failed: {e}")
-        return {}
+# The monitor config (webhook, accounts, mappings) lives in Mongo
+# (db.google_ads_config singleton) — NOT the clientContextEngine blob, whose
+# save_config is admin-only. Anyone signed in can save here, and the sweep
+# reads it directly (no cross-Lambda hop).
+def _ads_get_config():
+    db = get_db()
+    doc = db.google_ads_config.find_one({"_id": "singleton"}) if db is not None else None
+    return (doc or {}).get("config", {}) or {}
+
+def _ads_auth_info():
+    db = get_db()
+    doc = db.google_ads_auth.find_one({"_id": "mcc"}) if db is not None else None
+    return {"authorized": bool(doc and doc.get("refresh_token")),
+            "by": (doc or {}).get("authorized_by", ""),
+            "at": (doc or {}).get("authorized_at", "")}
+
+def ads_config_get(body):
+    return {"statusCode": 200, "body": json.dumps({"config": _ads_get_config(), "auth": _ads_auth_info()})}
+
+def ads_config_save(body):
+    cfg = body.get('config')
+    if not isinstance(cfg, dict):
+        return {"statusCode": 400, "body": json.dumps({"error": "missing config object"})}
+    db = get_db()
+    if db is not None:
+        db.google_ads_config.update_one(
+            {"_id": "singleton"},
+            {"$set": {"config": cfg, "updated_by": body.get('userEmail', ''),
+                      "updated": datetime.now(timezone.utc).isoformat()}}, upsert=True)
+    return {"statusCode": 200, "body": json.dumps({"ok": True})}
+
+def ads_auth_status(body):
+    return {"statusCode": 200, "body": json.dumps(_ads_auth_info())}
 
 def ads_offline_authorize(body):
     code = body.get('code')
@@ -627,7 +652,7 @@ def ads_budget_sweep(body, event):
     token = _ads_service_token()
     if not token:
         return {"statusCode": 200, "body": json.dumps({"skipped": "no offline authorization stored"})}
-    cfg = _cce_get_config().get('adsBudgetMonitor', {}) or {}
+    cfg = _ads_get_config()
     webhook = (cfg.get('webhookUrl') or '').strip()
     accounts = cfg.get('accounts', []) or []
     month = datetime.now(timezone.utc).strftime('%Y-%m')
@@ -4955,6 +4980,12 @@ def lambda_handler(event, context):
             result = google_refresh_token(body)
         elif action == 'ads_offline_authorize':
             result = ads_offline_authorize(body)
+        elif action == 'ads_config_get':
+            result = ads_config_get(body)
+        elif action == 'ads_config_save':
+            result = ads_config_save(body)
+        elif action == 'ads_auth_status':
+            result = ads_auth_status(body)
         elif action == 'ads_test_webhook':
             result = ads_test_webhook(body)
         elif action == 'ads_budget_sweep':
