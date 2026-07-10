@@ -535,6 +535,48 @@ def _ads_get_config():
     doc = db.google_ads_config.find_one({"_id": "singleton"}) if db is not None else None
     return (doc or {}).get("config", {}) or {}
 
+# Last-known month-to-date spend per account (db.google_ads_spend), written by
+# both the client "Refresh spend now" and the daily sweep, so the tool shows a
+# persistent value across reloads / for everyone.
+def _ads_spend_map():
+    db = get_db()
+    if db is None:
+        return {}
+    out = {}
+    for d in db.google_ads_spend.find({}):
+        out[d.get("_id")] = {"cost": d.get("cost", 0), "currency": d.get("currency", ""),
+                             "cap": d.get("cap", 0), "pct": d.get("pct", 0),
+                             "month": d.get("month", ""), "at": d.get("at", ""), "by": d.get("by", "")}
+    return out
+
+def _ads_store_spend(cid, cost, currency='', cap=0, pct=0, by=''):
+    db = get_db()
+    if db is None:
+        return
+    db.google_ads_spend.update_one({"_id": cid}, {"$set": {
+        "cost": cost, "currency": currency, "cap": cap, "pct": pct,
+        "month": datetime.now(timezone.utc).strftime('%Y-%m'),
+        "at": datetime.now(timezone.utc).isoformat(), "by": by}}, upsert=True)
+
+def ads_spend_save(body):
+    who = body.get('userEmail', '') or 'user'
+    saved = 0
+    for e in (body.get('entries') or []):
+        cid = str(e.get('customerId') or '').replace('-', '').strip()
+        if not cid:
+            continue
+        try:
+            cost = float(e.get('cost') or 0)
+        except (TypeError, ValueError):
+            continue
+        try:
+            cap = float(e.get('cap') or 0)
+        except (TypeError, ValueError):
+            cap = 0
+        _ads_store_spend(cid, cost, e.get('currency', ''), cap, e.get('pct') or 0, who)
+        saved += 1
+    return {"statusCode": 200, "body": json.dumps({"ok": True, "saved": saved})}
+
 def _jwt_email(id_token):
     """Extract the email claim from an OIDC id_token (no signature check needed —
     it came straight from Google's token endpoint over TLS)."""
@@ -558,7 +600,7 @@ def _ads_auth_info():
     return {"authorized": bool(accounts), "accounts": accounts}
 
 def ads_config_get(body):
-    return {"statusCode": 200, "body": json.dumps({"config": _ads_get_config(), "auth": _ads_auth_info()})}
+    return {"statusCode": 200, "body": json.dumps({"config": _ads_get_config(), "auth": _ads_auth_info(), "spend": _ads_spend_map()})}
 
 def ads_config_save(body):
     cfg = body.get('config')
@@ -716,6 +758,7 @@ def ads_budget_sweep(body, event):
             print(f"[ADS_SWEEP] {cid} no authorized account had access: {last_err}")
             continue
         pct = round(cost / cap * 100)
+        _ads_store_spend(cid, cost, a.get('currency') or 'SGD', cap, pct, 'sweep')
         # Per-account list of alert thresholds (falls back to legacy single alertPct).
         raw = a.get('alertPcts')
         if raw is None:
@@ -5034,6 +5077,8 @@ def lambda_handler(event, context):
             result = ads_config_get(body)
         elif action == 'ads_config_save':
             result = ads_config_save(body)
+        elif action == 'ads_spend_save':
+            result = ads_spend_save(body)
         elif action == 'ads_auth_status':
             result = ads_auth_status(body)
         elif action == 'ads_auth_revoke':
