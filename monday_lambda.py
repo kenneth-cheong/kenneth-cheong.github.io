@@ -3023,12 +3023,29 @@ def claude_chat_with_tools(body):
     # the admin usage dashboard sees the true cost of the whole turn, not just
     # the last round. Normalises Anthropic (input/output_tokens) and DeepSeek
     # (prompt/completion_tokens) shapes into one running total.
-    usage_total = {"input_tokens": 0, "output_tokens": 0}
+    usage_total = {"input_tokens": 0, "output_tokens": 0,
+                   "cache_hit_tokens": 0, "cache_write_tokens": 0}
     def _accumulate_usage(u):
         if not isinstance(u, dict):
             return
-        usage_total["input_tokens"]  += (u.get("input_tokens")  or u.get("prompt_tokens")     or 0)
-        usage_total["output_tokens"] += (u.get("output_tokens") or u.get("completion_tokens") or 0)
+        # Cache-aware normalisation so the dashboard can price cached input at the
+        # (much cheaper) cache rate instead of the flat miss rate.
+        #   cache_hit   = already-cached input read back (Anthropic cache_read /
+        #                 DeepSeek prompt_cache_hit) — billed at the cache-read rate.
+        #   cache_write = Anthropic cache_creation (DeepSeek has none) — cache-write rate.
+        cache_hit   = int(u.get("cache_read_input_tokens")     or u.get("prompt_cache_hit_tokens") or 0)
+        cache_write = int(u.get("cache_creation_input_tokens") or 0)
+        # Normalise to TOTAL input across providers. DeepSeek `prompt_tokens`
+        # already includes cache hits; Anthropic `input_tokens` EXCLUDES cache,
+        # so add the cached portions back to get the true total.
+        if u.get("prompt_tokens") is not None:
+            total_in = int(u.get("prompt_tokens") or 0)
+        else:
+            total_in = int(u.get("input_tokens") or 0) + cache_hit + cache_write
+        usage_total["input_tokens"]       += total_in
+        usage_total["output_tokens"]      += (u.get("output_tokens") or u.get("completion_tokens") or 0)
+        usage_total["cache_hit_tokens"]   += cache_hit
+        usage_total["cache_write_tokens"] += cache_write
 
     def _log_usage(rounds):
         """Best-effort: persist this turn's token usage to the usage_logs
@@ -3043,6 +3060,14 @@ def claude_chat_with_tools(body):
             # clientEmail in localStorage is sometimes wrapped in escaped quotes/
             # backslashes; extract the bare address so the dashboard groups cleanly.
             email = clean_email(body.get('client_email') or body.get('clientEmail'))
+            # Distinct server-side tools this turn invoked, for the dashboard's
+            # per-tool breakdown. Prefer the friendly label; memory-note calls
+            # are internal bookkeeping, not a user-facing tool, so exclude them.
+            tools_used = sorted({
+                (t.get("label") or t.get("name"))
+                for t in tool_events
+                if t.get("name") and t.get("name") != "save_memory_note"
+            })
             db.usage_logs.insert_one({
                 "orgId":           "digimetrics",
                 "ts":              time.time(),
@@ -3051,8 +3076,11 @@ def claude_chat_with_tools(body):
                 "app_source":      body.get('app_source') or 'unknown',
                 "provider":        provider,
                 "model":           model,
-                "input_tokens":    int(usage_total["input_tokens"]),
-                "output_tokens":   int(usage_total["output_tokens"]),
+                "input_tokens":      int(usage_total["input_tokens"]),
+                "output_tokens":     int(usage_total["output_tokens"]),
+                "cache_hit_tokens":  int(usage_total["cache_hit_tokens"]),
+                "cache_write_tokens": int(usage_total["cache_write_tokens"]),
+                "tools_used":        tools_used,
                 "rounds":          rounds,
                 "conversation_id": body.get('conversation_id') or '',
             })
@@ -4919,12 +4947,15 @@ def lambda_handler(event, context):
                 rows = list(cursor)
 
                 def _blank():
-                    return {"messages": 0, "input_tokens": 0, "output_tokens": 0}
+                    return {"messages": 0, "input_tokens": 0, "output_tokens": 0,
+                            "cache_hit_tokens": 0, "cache_write_tokens": 0}
                 totals = _blank()
-                by_model, by_user, by_app, by_day = {}, {}, {}, {}
+                by_model, by_user, by_app, by_day, by_tool = {}, {}, {}, {}, {}
                 for r in rows:
                     it = int(r.get("input_tokens") or 0)
                     ot = int(r.get("output_tokens") or 0)
+                    ch = int(r.get("cache_hit_tokens") or 0)
+                    cw = int(r.get("cache_write_tokens") or 0)
                     # Normalise possibly-escaped emails on read so old rows group
                     # under the same clean key as new ones; also fix `recent`.
                     r["email"] = clean_email(r.get("email"))
@@ -4936,9 +4967,25 @@ def lambda_handler(event, context):
                         (by_day,   datetime.utcfromtimestamp(r.get("ts") or 0).strftime("%Y-%m-%d")),
                     ):
                         tgt = bucket if key is None else bucket.setdefault(key, _blank())
-                        tgt["messages"]      += 1
-                        tgt["input_tokens"]  += it
-                        tgt["output_tokens"] += ot
+                        tgt["messages"]           += 1
+                        tgt["input_tokens"]       += it
+                        tgt["output_tokens"]      += ot
+                        tgt["cache_hit_tokens"]   += ch
+                        tgt["cache_write_tokens"] += cw
+
+                    # By-tool is one-to-many: a single turn can invoke several
+                    # tools, so it counts toward each (token sums may therefore
+                    # exceed the totals — the UI notes this). Turns that used no
+                    # tool bucket under a plain-chat label. Old rows written before
+                    # `tools_used` existed also fall there.
+                    tools_used = r.get("tools_used") or ["(plain chat — no tool)"]
+                    for tname in tools_used:
+                        tgt = by_tool.setdefault(tname, _blank())
+                        tgt["messages"]           += 1
+                        tgt["input_tokens"]       += it
+                        tgt["output_tokens"]      += ot
+                        tgt["cache_hit_tokens"]   += ch
+                        tgt["cache_write_tokens"] += cw
 
                 result = {"statusCode": 200, "body": json.dumps({
                     "days":      days,
@@ -4946,6 +4993,7 @@ def lambda_handler(event, context):
                     "by_model":  by_model,
                     "by_user":   by_user,
                     "by_app":    by_app,
+                    "by_tool":   by_tool,
                     "by_day":    by_day,
                     "recent":    rows[:60],
                 }, cls=JSONEncoder)}
