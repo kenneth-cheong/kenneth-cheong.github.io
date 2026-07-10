@@ -556,21 +556,87 @@ def tiktok_get_advertisers(body):
     except Exception as e:
         return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
 
+# Report data_level -> the entity it groups by. Each entry gives the id field that
+# identifies a row, the name field we want on the row, and the management endpoint that
+# maps id -> name. TikTok's integrated report does NOT reliably return entity names
+# (campaign_name etc.), only ids — so for these levels we resolve names ourselves via the
+# management endpoints and stitch them onto each row. This is what lets the chatbot match
+# TikTok campaigns to monday boards by name instead of only by opaque id.
+TIKTOK_ENTITY_BY_LEVEL = {
+    "AUCTION_CAMPAIGN": {"id": "campaign_id", "name": "campaign_name",
+                         "endpoint": "/campaign/get/", "ids_filter": "campaign_ids"},
+    "AUCTION_ADGROUP":  {"id": "adgroup_id",  "name": "adgroup_name",
+                         "endpoint": "/adgroup/get/",  "ids_filter": "adgroup_ids"},
+    "AUCTION_AD":       {"id": "ad_id",       "name": "ad_name",
+                         "endpoint": "/ad/get/",       "ids_filter": "ad_ids"},
+}
+
+def tiktok_resolve_entity_names(access_token, advertiser_id, entity, ids):
+    """Build an {id: name} map for a set of TikTok campaign/adgroup/ad ids.
+
+    Uses the entity's management endpoint (e.g. /campaign/get/). Filters by the requested
+    ids in chunks so we only fetch what the report actually returned. Best-effort: on any
+    error it returns whatever it resolved (possibly empty) rather than failing the report."""
+    id_field, name_field = entity["id"], entity["name"]
+    ids = [str(i) for i in ids if i is not None and str(i) != ""]
+    out = {}
+    if not ids:
+        return out
+    # De-dupe while preserving order, then chunk (TikTok caps filter list sizes).
+    seen, unique_ids = set(), []
+    for i in ids:
+        if i not in seen:
+            seen.add(i); unique_ids.append(i)
+    for start in range(0, len(unique_ids), 100):
+        chunk = unique_ids[start:start + 100]
+        try:
+            r = requests.get(
+                f'{TIKTOK_API_BASE}{entity["endpoint"]}',
+                headers={"Access-Token": access_token, "Content-Type": "application/json"},
+                params={
+                    "advertiser_id": str(advertiser_id),
+                    "filtering": json.dumps({entity["ids_filter"]: chunk}),
+                    "fields": json.dumps([id_field, name_field]),
+                    "page": 1,
+                    "page_size": 100,
+                },
+                timeout=20
+            )
+            data = r.json()
+            if data.get('code') != 0:
+                continue
+            for item in data.get('data', {}).get('list', []):
+                ent_id = str(item.get(id_field, ""))
+                if ent_id:
+                    out[ent_id] = item.get(name_field)
+        except Exception:
+            continue
+    return out
+
 def run_tiktok_report(access_token, advertiser_id, start_date, end_date,
                       dimensions=None, metrics=None, data_level="AUCTION_ADVERTISER"):
-    """Fetch a TikTok integrated BASIC report for a single advertiser."""
+    """Fetch a TikTok integrated BASIC report for a single advertiser.
+
+    For campaign/adgroup/ad levels the entity name is resolved and attached to every row
+    (report rows only carry ids), so downstream matching by campaign name works."""
     if not access_token:
         return {"error": "Missing TikTok access token. Connect TikTok Ads first."}
     if not advertiser_id:
         return {"error": "Missing advertiser_id"}
     if not start_date or not end_date:
         return {"error": "start_date and end_date (YYYY-MM-DD) are required"}
+    entity = TIKTOK_ENTITY_BY_LEVEL.get(data_level)
     if not dimensions:
-        dimensions = ["stat_time_day"]
+        # Default the grouping dimension to the report's own level so campaign-level
+        # requests actually break down by campaign instead of defaulting to a daily total.
+        dimensions = [entity["id"]] if entity else ["stat_time_day"]
     if not metrics:
         metrics = ["spend", "impressions", "clicks", "ctr", "cpc", "cpm",
                    "conversion", "cost_per_conversion", "conversion_rate",
                    "reach", "result", "cost_per_result"]
+    # Ensure the entity id is in dimensions so each row is identifiable and name-joinable.
+    if entity and entity["id"] not in dimensions:
+        dimensions = [entity["id"]] + list(dimensions)
     params = {
         "advertiser_id": str(advertiser_id),
         "report_type": "BASIC",
@@ -596,6 +662,21 @@ def run_tiktok_report(access_token, advertiser_id, start_date, end_date,
                     "hint": "If a metric is incompatible with data_level, retry with a smaller metrics list.",
                     "raw": data}
         d = data.get('data', {})
+        rows = d.get('list', [])
+        # Attach the entity name to every row by resolving ids via the management endpoint.
+        if entity and rows:
+            id_field, name_field = entity["id"], entity["name"]
+            row_ids = []
+            for row in rows:
+                dims = row.get("dimensions", {}) if isinstance(row, dict) else {}
+                if dims.get(id_field) is not None:
+                    row_ids.append(dims.get(id_field))
+            name_map = tiktok_resolve_entity_names(access_token, advertiser_id, entity, row_ids)
+            if name_map:
+                for row in rows:
+                    dims = row.get("dimensions") if isinstance(row, dict) else None
+                    if isinstance(dims, dict) and dims.get(id_field) is not None:
+                        dims.setdefault(name_field, name_map.get(str(dims.get(id_field))))
         return {
             "advertiser_id": str(advertiser_id),
             "start_date": start_date,
@@ -603,7 +684,7 @@ def run_tiktok_report(access_token, advertiser_id, start_date, end_date,
             "dimensions": dimensions,
             "metrics": metrics,
             "data_level": data_level,
-            "rows": d.get('list', []),
+            "rows": rows,
             "page_info": d.get('page_info', {})
         }
     except Exception as e:
@@ -2737,7 +2818,10 @@ def claude_chat_with_tools(body):
                 "whenever the user asks about TikTok Ads or TikTok paid social performance. The "
                 "advertiser_id values are in the synced context under 'tiktok_advertiser_ids'. "
                 "Call once per advertiser_id. For a daily time series use dimensions ['stat_time_day']; "
-                "for a single aggregated total use ['advertiser_id']."
+                "for a single aggregated total use ['advertiser_id']. To break spend down by campaign, "
+                "set data_level='AUCTION_CAMPAIGN' — each row then includes BOTH campaign_id and "
+                "campaign_name (the name is resolved automatically), so you can match campaigns to "
+                "monday boards by name. Do NOT claim TikTok only returns campaign ids; names are provided."
             ),
             "input_schema": {
                 "type": "object",
@@ -3391,11 +3475,11 @@ def claude_chat_with_tools(body):
                         ser_headers = {"Authorization": f"Token {SERANKING_TOKEN}", "Content-Type": "application/json"}
                         
                         # Fetch Keywords
-                        kw_res = requests.get(f'https://api4.seranking.com/sites/{site_id}/keywords', headers=ser_headers)
+                        kw_res = requests.get(f'https://api4.seranking.com/sites/{site_id}/keywords', headers=ser_headers, timeout=175)
                         keywords = kw_res.json() if kw_res.status_code == 200 else []
                         
                         # Fetch Groups
-                        group_res = requests.get(f'https://api4.seranking.com/keyword-groups/{site_id}', headers=ser_headers)
+                        group_res = requests.get(f'https://api4.seranking.com/keyword-groups/{site_id}', headers=ser_headers, timeout=175)
                         groups = group_res.json() if group_res.status_code == 200 else []
                         group_map = {str(g.get('id')): g.get('name', 'Unknown') for g in groups if isinstance(g, dict) and 'id' in g} if isinstance(groups, list) else {}
                         
@@ -3403,7 +3487,7 @@ def claude_chat_with_tools(body):
                         
                         if include_pos:
                             today = datetime.today().strftime('%Y-%m-%d')
-                            pos_res = requests.get(f'https://api4.seranking.com/sites/{site_id}/positions?date_from={today}&date_to={today}', headers=ser_headers)
+                            pos_res = requests.get(f'https://api4.seranking.com/sites/{site_id}/positions?date_from={today}&date_to={today}', headers=ser_headers, timeout=175)
                             pos_data = pos_res.json() if pos_res.status_code == 200 else []
                             
                             pos_map = {}
