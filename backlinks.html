@@ -994,11 +994,15 @@
             <div id="validatorTab" class="content-tab" style="display: none;">
                 <div class="card">
                     <h3>Bulk Backlink Validator</h3>
-                    <p style="color: var(--text-dim); margin-bottom: 20px;">Enter list of URLs (one per line) to verify
-                        existence, HTTPS, and DA.</p>
+                    <p style="color: var(--text-dim); margin-bottom: 8px;">Enter one placement per line to verify
+                        existence, HTTPS, and DA. Add an optional <strong>target URL</strong> and <strong>expected
+                        anchor</strong> — separated by commas or tabs — to also check the link and anchor text on the page.</p>
+                    <p style="color: var(--text-dim); font-size: 0.8rem; margin-bottom: 12px;">
+                        Format: <code>placement URL, target URL, expected anchor</code> — only the placement URL is
+                        required. Tab-separated works too (paste straight from a spreadsheet).</p>
                     <textarea id="bulkUrls"
-                        placeholder="https://example.com/blog-post-1&#10;https://sample.net/article-2"
-                        style="width: 100%; height: 200px; padding: 16px; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; color: white; margin-bottom: 16px;"></textarea>
+                        placeholder="https://example.com/blog-post-1, https://yoursite.com/page, best running shoes&#10;https://sample.net/article-2, https://yoursite.com, brand name&#10;https://another.com/post-3"
+                        style="width: 100%; height: 200px; padding: 16px; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; color: white; margin-bottom: 16px; font-family: monospace; font-size: 0.85rem;"></textarea>
                     <button class="btn btn-primary" onclick="startBulkValidation()">
                         <i class="fas fa-play"></i> Run Validation
                     </button>
@@ -1006,11 +1010,14 @@
 
                 <div id="validationResults" class="card" style="display: none;">
                     <h3>Validation Results</h3>
+                    <div style="overflow-x: auto;">
                     <table>
                         <thead>
                             <tr>
-                                <th>URL</th>
+                                <th>Placement URL</th>
                                 <th>Existence</th>
+                                <th>Target URL</th>
+                                <th>Anchor Text</th>
                                 <th>HTTPS</th>
                                 <th>Moz DA</th>
                                 <th>Status</th>
@@ -1018,6 +1025,7 @@
                         </thead>
                         <tbody id="validationBody"></tbody>
                     </table>
+                    </div>
                 </div>
             </div>
 
@@ -5877,33 +5885,91 @@
         }
 
         // Validation Logic
+        // Parse one bulk-validator line into { placement, target, anchor }.
+        // Fields are separated by tab (spreadsheet paste) or comma; only placement
+        // is required. Anchor text may itself contain the delimiter, so everything
+        // after the second field is rejoined back into the anchor.
+        function parseBulkValidatorLine(line) {
+            const raw = String(line || '').trim();
+            if (!raw) return null;
+            const delim = raw.includes('\t') ? '\t' : ',';
+            const parts = raw.split(delim);
+            const placement = (parts[0] || '').trim();
+            if (!placement) return null;
+            const target = (parts[1] || '').trim();
+            const anchor = parts.slice(2).join(delim).trim();
+            return { placement, target, anchor };
+        }
+
         async function startBulkValidation() {
-            const urls = document.getElementById('bulkUrls').value.split('\n').filter(u => u.trim());
-            if (!urls.length) return;
+            const rows = document.getElementById('bulkUrls').value
+                .split('\n').map(parseBulkValidatorLine).filter(Boolean);
+            if (!rows.length) return;
+
+            const norm = (s) => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+            const esc = (s) => String(s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+            const icon = (ok) => `<i class="fas ${ok ? 'fa-check-circle' : 'fa-times-circle'}" style="color: ${ok ? 'var(--secondary)' : 'var(--accent)'}"></i>`;
 
             const resultsContainer = document.getElementById('validationResults');
             const body = document.getElementById('validationBody');
             resultsContainer.style.display = 'block';
             body.innerHTML = '';
 
-            for (const url of urls) {
+            for (const item of rows) {
+                const { placement, target, anchor } = item;
                 const row = document.createElement('tr');
-                row.innerHTML = `<td colspan="5">Checking ${url}...</td>`;
+                row.innerHTML = `<td colspan="7">Checking ${esc(placement)}...</td>`;
                 body.appendChild(row);
 
-                // Sequence: HTTPS -> Moz DA -> Existence
+                // One getHtml fetch (reused for existence + anchor/target parsing),
+                // plus SSL and Moz DA. getHtml throttles >3 concurrent, so keep the
+                // outer loop sequential — one placement at a time.
                 const [ssl, metrics, html] = await Promise.all([
-                    fetchSsl(url),
-                    fetchMozMetrics(url),
-                    checkExistence(url)
+                    fetchSsl(placement).catch(() => false),
+                    fetchMozMetrics(placement).catch(() => ({ DA: null })),
+                    fetchPageHtml(placement)
                 ]);
 
+                const exists = !!html;
+                const page = target ? analyzeBacklinkPage(html, target) : null;
+
+                // Target-URL cell: pass if a link to the target is on the page
+                let targetCell = '<span style="color: var(--text-dim);">—</span>';
+                if (target) {
+                    targetCell = page && page.linkFound
+                        ? `${icon(true)} <span style="font-size:0.75rem; color:var(--text-dim);">present</span>`
+                        : `${icon(false)} <span style="font-size:0.75rem; color:var(--text-dim);">missing</span>`;
+                }
+
+                // Anchor cell: compare found anchor to expected (when both are known)
+                let anchorCell = '<span style="color: var(--text-dim);">—</span>';
+                let anchorPass = true;
+                if (target && page) {
+                    if (!page.linkFound) {
+                        anchorCell = `<span style="color: var(--accent); font-size:0.8rem;">link not found</span>`;
+                        anchorPass = false;
+                    } else if (!anchor) {
+                        // No expected anchor supplied — just show what's on the page
+                        anchorCell = `<span style="font-size:0.8rem;">"${esc(page.anchorText) || '(empty)'}"</span>`;
+                    } else {
+                        anchorPass = norm(page.anchorText) === norm(anchor);
+                        anchorCell = `${icon(anchorPass)} <span style="font-size:0.8rem;" title="expected: ${esc(anchor)}">"${esc(page.anchorText) || '(empty)'}"</span>`;
+                    }
+                }
+
+                // Overall status: existence, plus target/anchor when those were requested
+                let pass = exists;
+                if (target) pass = pass && !!(page && page.linkFound);
+                if (target && anchor) pass = pass && anchorPass;
+
                 row.innerHTML = `
-                    <td>${url}</td>
-                    <td><i class="fas ${html ? 'fa-check-circle' : 'fa-times-circle'}" style="color: ${html ? 'var(--secondary)' : 'var(--accent)'}"></i></td>
+                    <td style="word-break: break-all;">${esc(placement)}</td>
+                    <td>${icon(exists)}</td>
+                    <td>${targetCell}</td>
+                    <td>${anchorCell}</td>
                     <td><i class="fas ${ssl ? 'fa-lock' : 'fa-unlock'}" style="color: ${ssl ? 'var(--secondary)' : 'var(--accent)'}"></i></td>
                     <td>${metrics.DA || 'N/A'}</td>
-                    <td><span class="badge" style="background: ${html ? 'var(--secondary)' : 'var(--accent)'}">${html ? 'PASS' : 'FAIL'}</span></td>
+                    <td><span class="badge" style="background: ${pass ? 'var(--secondary)' : 'var(--accent)'}">${pass ? 'PASS' : 'FAIL'}</span></td>
                 `;
             }
         }
