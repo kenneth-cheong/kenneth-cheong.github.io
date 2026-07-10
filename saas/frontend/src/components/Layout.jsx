@@ -16,6 +16,7 @@ import ConsentGate from './ConsentGate.jsx';
 import TrialNdaGate from './TrialNdaGate.jsx';
 import FaultReporter from './FaultReporter.jsx';
 import { setUser as setDiagnosticsUser } from '../lib/diagnostics.js';
+import { identify as identifyRecording } from '../lib/analytics.js';
 import { useMediaQuery, needsWelcome, hasAcceptedTerms, hasAcceptedNda } from '../lib/ui.js';
 import { PLANS } from '@shared/catalog.mjs';
 import { startPlatformTour, hasSeen, markSeen } from '../lib/tours.js';
@@ -74,8 +75,9 @@ export default function Layout({ children }) {
     return clampChatW(Number.isFinite(saved) && saved > 0 ? saved : CHAT_W_DEFAULT);
   });
   useEffect(() => { localStorage.setItem('dm:chatWidth', String(chatW)); }, [chatW]);
-  // Stamp identity onto fault reports so support can tie a report to an account.
-  useEffect(() => { setDiagnosticsUser(user); }, [user]);
+  // Stamp identity onto fault reports so support can tie a report to an account,
+  // and onto the session recording so a tester's runs are findable by email.
+  useEffect(() => { setDiagnosticsUser(user); identifyRecording(user); }, [user]);
   // Shows automatically for brand-new accounts; `?welcome=1` re-opens it anytime
   // (lets anyone replay the intro — tours were otherwise one-shot).
   const [forceWelcome, setForceWelcome] = useState(() => new URLSearchParams(window.location.search).has('welcome'));
