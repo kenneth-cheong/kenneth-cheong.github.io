@@ -10,6 +10,8 @@ import { interpolate } from '../lib/proactive.js';
 import SortableTable from '../components/SortableTable.jsx';
 import TrialNdaGate from '../components/TrialNdaGate.jsx';
 import DiagnosticsPanel from '../components/DiagnosticsPanel.jsx';
+import { Attachments } from '../components/Attachments.jsx';
+import { TicketComposer } from '../components/TicketComposer.jsx';
 
 // Admin-only console: manage users (tier + credits) and the support inbox
 // (view / reply / close every user's ticket). Gated client-side here AND
@@ -1542,6 +1544,7 @@ function AdminTicketDetail({ summary, onBack }) {
   const { user: me } = useAuth();
   const [ticket, setTicket] = useState(null);
   const [reply, setReply] = useState('');
+  const [attachments, setAttachments] = useState([]);
   const [busy, setBusy] = useState(false);
   const [warn, setWarn] = useState('');
   // Identity the customer sees on this reply: the "Monty" persona (default) or
@@ -1555,11 +1558,11 @@ function AdminTicketDetail({ summary, onBack }) {
   useEffect(() => { if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight; }, [ticket]);
 
   async function send() {
-    if (!reply.trim()) return;
+    if (!reply.trim() && !attachments.length) return;
     setBusy(true); setWarn('');
     try {
-      const { ticket: t, email } = await api.adminReplyTicket(summary.userId, summary.ticketId, reply.trim(), [], asMonty);
-      setTicket(t); setReply('');
+      const { ticket: t, email } = await api.adminReplyTicket(summary.userId, summary.ticketId, reply.trim(), attachments, asMonty);
+      setTicket(t); setReply(''); setAttachments([]);
       // The customer always gets an in-app notification; warn only when the
       // EMAIL didn't reach them, so staff can follow up another way.
       if (email && email.delivered === false) {
@@ -1611,13 +1614,7 @@ function AdminTicketDetail({ summary, onBack }) {
                     : (m.authorEmail || 'Customer')} · {new Date(m.ts).toLocaleString()}
                 </div>
                 {m.body && <div className="whitespace-pre-wrap text-sm">{m.body}</div>}
-                {(m.attachments || []).length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {m.attachments.map((a, i) => (
-                      <a key={i} href={a.url} target="_blank" rel="noreferrer" className={`text-xs underline ${staff ? 'text-white/80' : 'text-brand-600'}`}>{a.name || 'attachment'}</a>
-                    ))}
-                  </div>
-                )}
+                <Attachments items={m.attachments} light={staff} />
               </div>
             </div>
           );
@@ -1634,33 +1631,35 @@ function AdminTicketDetail({ summary, onBack }) {
 
       {/* Reply as the support agent. */}
       <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
-        {/* Choose the identity the customer sees on this reply. */}
-        <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="text-slate-400">Reply as</span>
-          <div className="inline-flex rounded-lg border border-slate-200 p-0.5">
-            <button
-              type="button"
-              onClick={() => setAsMonty(true)}
-              className={`rounded-md px-2.5 py-1 font-medium ${asMonty ? 'bg-brand-600 text-white' : 'text-slate-500 hover:text-slate-700'}`}
-            >Monty</button>
-            <button
-              type="button"
-              onClick={() => setAsMonty(false)}
-              className={`rounded-md px-2.5 py-1 font-medium ${!asMonty ? 'bg-brand-600 text-white' : 'text-slate-500 hover:text-slate-700'}`}
-            >{myName}</button>
-          </div>
-        </div>
-        <textarea
+        <TicketComposer
           value={reply}
-          onChange={(e) => setReply(e.target.value)}
-          onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send(); }}
-          rows={3}
+          onChange={setReply}
+          attachments={attachments}
+          setAttachments={setAttachments}
+          onSubmit={send}
           placeholder={`Reply to the customer as ${asMonty ? 'Monty' : myName}…  (⌘/Ctrl + Enter to send)`}
-          className="w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-brand-500 focus:outline-none"
+          header={(
+            /* Choose the identity the customer sees on this reply. */
+            <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="text-slate-400">Reply as</span>
+              <div className="inline-flex rounded-lg border border-slate-200 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setAsMonty(true)}
+                  className={`rounded-md px-2.5 py-1 font-medium ${asMonty ? 'bg-brand-600 text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                >Monty</button>
+                <button
+                  type="button"
+                  onClick={() => setAsMonty(false)}
+                  className={`rounded-md px-2.5 py-1 font-medium ${!asMonty ? 'bg-brand-600 text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                >{myName}</button>
+              </div>
+            </div>
+          )}
         />
         <div className="mt-2 flex items-center justify-between">
           <span className="text-xs text-slate-400">Emails + notifies {ticket.userEmail || 'the customer'} as <strong className="text-slate-500">{asMonty ? 'Monty' : myName}</strong>.</span>
-          <button onClick={send} disabled={busy || !reply.trim()} className="btn-primary disabled:opacity-50">{busy ? 'Sending…' : 'Send reply'}</button>
+          <button onClick={send} disabled={busy || (!reply.trim() && !attachments.length)} className="btn-primary disabled:opacity-50">{busy ? 'Sending…' : 'Send reply'}</button>
         </div>
       </div>
     </div>

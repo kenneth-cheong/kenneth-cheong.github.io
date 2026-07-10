@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Paperclip, MessageCircle } from 'lucide-react';
+import { MessageCircle } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
-import { Attachments, uploadFile } from '../components/Attachments.jsx';
+import { Attachments } from '../components/Attachments.jsx';
+import { TicketComposer as Composer } from '../components/TicketComposer.jsx';
 import DiagnosticsPanel from '../components/DiagnosticsPanel.jsx';
 
 const CATEGORIES = [
@@ -17,40 +18,6 @@ const CATEGORIES = [
 ];
 
 const openAssistant = () => window.dispatchEvent(new Event('dm:open-chat'));
-
-// Composer (textarea + file upload + paste-to-attach), reused by create & reply.
-function Composer({ value, onChange, attachments, setAttachments, placeholder, onSubmit }) {
-  const fileRef = useRef(null);
-  const [uploading, setUploading] = useState(false);
-  async function add(files) {
-    const list = [...files].filter(Boolean);
-    if (!list.length) return;
-    setUploading(true);
-    try { const up = await Promise.all(list.map(uploadFile)); setAttachments((a) => [...a, ...up]); } catch { /* ignore */ } finally { setUploading(false); }
-  }
-  function onPaste(e) {
-    const imgs = [...(e.clipboardData?.items || [])].filter((it) => it.type.startsWith('image/')).map((it) => it.getAsFile());
-    if (imgs.length) { e.preventDefault(); add(imgs); }
-  }
-  function onKey(e) {
-    if (onSubmit && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); onSubmit(); }
-  }
-  return (
-    <div>
-      <textarea
-        rows={3} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} onPaste={onPaste} onKeyDown={onKey}
-        className="w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-brand-500 focus:outline-none"
-      />
-      <Attachments items={attachments} onRemove={(i) => setAttachments((a) => a.filter((_, j) => j !== i))} />
-      <div className="mt-1.5 flex items-center gap-3 text-xs text-slate-500">
-        <button type="button" onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1 font-medium text-brand-600 hover:text-brand-700"><Paperclip size={13} aria-hidden /> Attach files</button>
-        <span>or paste a screenshot</span>
-        {uploading && <span>uploading…</span>}
-        <input ref={fileRef} type="file" multiple accept="image/*,.pdf,.txt,.doc,.docx" className="hidden" onChange={(e) => add(e.target.files)} />
-      </div>
-    </div>
-  );
-}
 
 export default function Support() {
   const { ticketId } = useParams();
