@@ -54,6 +54,54 @@ def _cg_json_default(o):
         return int(o) if o % 1 == 0 else float(o)
     raise TypeError(f'Object of type {type(o).__name__} is not JSON serializable')
 
+def handle_author_profile(action, event):
+    """Per-user Author Profile store (POV / E-E-A-T authorship), reusing the cg_learnings
+    table. Keyed (workspace_id, id='author#<email>'). The profile is stored as a JSON
+    string to sidestep DynamoDB's None/float restrictions on nested maps."""
+    CORS = {
+        'Access-Control-Allow-Origin':  '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'OPTIONS,POST',
+    }
+    def _r(code, payload):
+        return {'statusCode': code, 'headers': CORS, 'body': json.dumps(payload, default=_cg_json_default)}
+    email = (event.get('userEmail') or event.get('user') or '').strip().lower()
+    if not email:
+        return _r(400, {'error': 'userEmail is required'})
+    key_id = 'author#' + email
+    try:
+        table = _cg_table()
+        if action == 'author_get':
+            item = table.get_item(Key={'workspace_id': _CG_WORKSPACE_ID, 'id': key_id}).get('Item')
+            if not item:
+                return _r(200, {'profile': None})
+            prof = item.get('profile')
+            if isinstance(prof, str):
+                try: prof = json.loads(prof)
+                except Exception: prof = None
+            return _r(200, {'profile': prof, 'updated_at': item.get('updated_at')})
+
+        elif action == 'author_save':
+            profile = event.get('profile')
+            if not isinstance(profile, dict):
+                return _r(400, {'error': 'profile object is required'})
+            table.put_item(Item={
+                'workspace_id': _CG_WORKSPACE_ID,
+                'id':           key_id,
+                'kind':         'author_profile',
+                'profile':      json.dumps(profile),
+                'updated_at':   int(time.time()),
+                'updated_by':   email,
+            })
+            return _r(200, {'ok': True})
+
+        elif action == 'author_delete':
+            table.delete_item(Key={'workspace_id': _CG_WORKSPACE_ID, 'id': key_id})
+            return _r(200, {'ok': True})
+    except Exception as e:
+        return _r(500, {'error': str(e)})
+
+
 def handle_learnings(action, event):
     CORS = {
         'Access-Control-Allow-Origin':  '*',
@@ -482,6 +530,8 @@ AUDIENCE CONTEXT:
 - Industry: {settings.get('industry', 'General')}
 
 {linking_guidelines}
+
+{_author_pov_block({'authorProfile': settings.get('authorProfile'), 'pov': settings.get('pov')})}
 """
     return msg.strip()
 
@@ -614,6 +664,27 @@ _STRUCTURED_ACTIONS = {
     'content_outline', 'content_section', 'content_polish', 'strategy_url_research',
     'smm_report', 'image_alt_rationale',
     'topic_extract', 'topic_hierarchy',
+    'author_extract',
+}
+
+# Author Profile (POV / E-E-A-T authorship). Extracted from a crawled bio/LinkedIn/site,
+# then user-confirmed and persisted; injected as a first-person voice layer at write time.
+_AUTHOR_EXTRACT_SCHEMA = {
+    'type': 'object',
+    'properties': {
+        'name':                {'type': 'string'},
+        'headline':            {'type': 'string'},
+        'years_experience':    {'type': ['integer', 'null']},
+        'location':            {'type': 'string'},
+        'expertise':           {'type': 'array', 'items': {'type': 'string'}},
+        'communities':         {'type': 'array', 'items': {'type': 'string'}},
+        'achievements':        {'type': 'array', 'items': {'type': 'string'}},
+        'signature_pov':       {'type': 'array', 'items': {'type': 'string'}},
+        'voice_notes':         {'type': 'string'},
+        'credibility_summary': {'type': 'string'},
+    },
+    'required': ['name', 'expertise', 'signature_pov'],
+    'additionalProperties': False,
 }
 
 # Forced-JSON schemas for the Topic Selection pipeline so the client's JSON.parse
@@ -1363,6 +1434,7 @@ def build_structured_prompt(action, body):
             f'TOPIC: "{topic}"\n'
             f'PRIMARY KEYWORD: "{keyword}"\n\n'
             f"{wc_block}"
+            f"{_author_pov_block(body)}"
             "INSTRUCTIONS:\n"
             "1. Ensure the outline is unique and high-value.\n"
             "2. Cover the cherry-picked topics comprehensively.\n"
@@ -1425,6 +1497,7 @@ def build_structured_prompt(action, body):
             f"{recent_content or 'None (This is the start of the article)'}\n\n"
             f"CURRENT SECTION TO WRITE:\n{section_header}\n{section_context}\n\n"
             f"REFERENCE URLS (IF APPLICABLE):\n{ref_urls or 'None provided'}\n\n"
+            f"{_author_pov_block(body)}"
             "CRITICAL CONTENT GUIDELINES (EEAT):\n"
             "1. EXPERIENCE (E): Write with a first-person perspective or direct experience.\n"
             "2. EXPERTISE (E): Provide deep, focused coverage of the intent.\n"
@@ -1799,7 +1872,91 @@ def build_structured_prompt(action, body):
         )
         return system, user
 
+    elif action == 'author_extract':
+        # Build a factual author profile from crawled bio text (LinkedIn/about/site).
+        # Facts only — the model must NOT invent credentials; blanks are fine.
+        content   = (body.get('content') or '')
+        name_hint = (body.get('name_hint') or '').strip()
+        src       = (body.get('source_url') or '').strip()
+        if len(content) > 16000:
+            content = content[:16000]
+        system = (
+            "You are building a factual author profile for E-E-A-T authorship. You extract ONLY what "
+            "the provided text supports — you never invent experience, employers, years, or awards."
+        )
+        user = (
+            (f"NAME HINT (the person we're profiling): \"{name_hint}\"\n" if name_hint else "")
+            + f"SOURCE: {src or 'n/a'}\n\n"
+            "CRAWLED BIO / PROFILE TEXT:\n"
+            f"\"\"\"\n{content}\n\"\"\"\n\n"
+            "Extract a factual author profile. RULES:\n"
+            "- Use ONLY facts supported by the text. If something isn't stated, leave it blank/empty — "
+            "do NOT guess years of experience, employers, clients, or awards.\n"
+            "- `signature_pov`: 3-6 SHORT first-person point-of-view lines this author could truthfully "
+            "say, grounded strictly in the extracted facts (e.g. \"In my years working in search, I keep "
+            "seeing...\"). These are angles a writer can weave into articles — not fabricated anecdotes.\n"
+            "- `voice_notes`: one line on how this person writes/speaks (tone, register) if inferable.\n"
+            "- `credibility_summary`: a 1-2 sentence author bio suitable for a byline / author schema.\n\n"
+            "Return a JSON object with: name, headline, years_experience (integer or null), location, "
+            "expertise[], communities[], achievements[], signature_pov[], voice_notes, credibility_summary."
+        )
+        return system, user
+
     return None, None
+
+
+def _author_pov_block(src):
+    """Build the AUTHOR VOICE & POV system block from a user-verified author profile.
+    `src` is a dict carrying 'authorProfile' (dict) and 'pov' ({enabled, intensity}).
+    Returns '' when there's no profile or POV is disabled.
+
+    This is the sanctioned exception to the constitution's no-first-person rule: first
+    person IS allowed here, but ONLY drawing on these user-confirmed facts — never invented."""
+    prof = (src or {}).get('authorProfile') or {}
+    pov  = (src or {}).get('pov') or {}
+    if not prof or not pov.get('enabled', False):
+        return ''
+    name = (prof.get('name') or '').strip()
+    expertise = prof.get('expertise') or []
+    if not name and not expertise:
+        return ''
+    intensity = (pov.get('intensity') or 'medium').lower()
+    intensity_line = {
+        'light':  "INTENSITY: light — one or two subtle first-person touches at most; keep it mostly neutral.",
+        'medium': "INTENSITY: medium — weave the author's lens into a few natural places where it adds authority.",
+        'strong': "INTENSITY: strong — lead with the author's first-person experience and perspective throughout.",
+    }.get(intensity, "INTENSITY: medium — weave the author's lens into a few natural places.")
+    L = [
+        "================================================================",
+        "AUTHOR VOICE & POINT OF VIEW (user-verified — first person IS permitted here)",
+        "================================================================",
+        ("This section is written BY a real, verified author whose credentials are listed below. You "
+         "MAY and SHOULD write in this author's first-person voice, weaving their genuine experience "
+         "and point of view in where it strengthens authority (the 'Experience' in E-E-A-T). This is "
+         "NOT fabrication — these are the author's real, user-confirmed credentials. STRICT RULE: draw "
+         "ONLY on the facts listed here; NEVER invent experience, years, clients, employers, or "
+         "achievements beyond this list. If a first-person claim isn't supported below, write it in "
+         "neutral third person instead."),
+    ]
+    if name:
+        headline = (prof.get('headline') or '').strip()
+        L.append(f"AUTHOR: {name}" + (f" — {headline}" if headline else ""))
+    yrs = prof.get('years_experience')
+    if yrs or expertise:
+        L.append("EXPERIENCE: " + (f"{yrs}+ years. " if yrs else "")
+                 + ("Expertise: " + ", ".join(expertise) if expertise else ""))
+    cred = (prof.get('communities') or []) + (prof.get('achievements') or [])
+    if cred:
+        L.append("CREDIBILITY: " + "; ".join(cred))
+    pov_lines = prof.get('signature_pov') or []
+    if pov_lines:
+        L.append("POV / ANGLES TO WEAVE IN NATURALLY (don't dump all at once — pick what fits this section):")
+        L += [f"  - {p}" for p in pov_lines[:6]]
+    voice = (prof.get('voice_notes') or '').strip()
+    if voice:
+        L.append(f"VOICE: {voice}")
+    L.append(intensity_line)
+    return "\n".join(L) + "\n\n"
 
 
 # ── SEO RSS Feed Fetcher ───────────────────────────────────────────────────────
@@ -2217,6 +2374,10 @@ def lambda_handler(event, context):
         if action in ('learnings_list', 'learnings_upsert', 'learnings_delete'):
             return handle_learnings(action, event)
 
+        # Author Profile persistence (per user) — "remembered for all articles".
+        if action in ('author_get', 'author_save', 'author_delete'):
+            return handle_author_profile(action, event)
+
         # ── Optimiser prompts (migrated from client) ───────────────────────
         # Build the prompt server-side from structured params, then run it
         # through the standard `generate` path so behaviour is unchanged.
@@ -2340,6 +2501,10 @@ def lambda_handler(event, context):
             elif action == 'topic_hierarchy':
                 request_body['output_config'] = {
                     'format': {'type': 'json_schema', 'schema': _TOPIC_HIERARCHY_SCHEMA}
+                }
+            elif action == 'author_extract':
+                request_body['output_config'] = {
+                    'format': {'type': 'json_schema', 'schema': _AUTHOR_EXTRACT_SCHEMA}
                 }
 
             try:
