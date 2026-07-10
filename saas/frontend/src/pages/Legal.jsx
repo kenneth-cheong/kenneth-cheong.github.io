@@ -5,7 +5,7 @@ import { TERMS_VERSION } from '@shared/catalog.mjs';
 // standard sections — HAVE A LAWYER REVIEW before relying on them commercially.
 // Rendered both logged-out (public) and logged-in (inside the app shell).
 
-const UPDATED = '19 June 2026';
+const UPDATED = '10 July 2026';
 const COMPANY = 'Digimetrics';
 const CONTACT = 'support@mediaone.co';
 
@@ -67,11 +67,12 @@ export function Privacy() {
         <li><strong>Usage data:</strong> tools you run, inputs/outputs, credit ledger, support tickets, tracked keywords and projects.</li>
         <li><strong>Billing data:</strong> handled by Stripe; we store a customer reference and invoice metadata, not your full card details.</li>
         <li><strong>Integrations:</strong> if you connect Google Search Console / Analytics / Ads, we store access tokens (encrypted) to fetch your data on your behalf.</li>
+        <li><strong>Session recordings & analytics:</strong> to understand how the app is used and improve its design, we record anonymised product-usage sessions (mouse movement, clicks, scrolling, and the pages you visit) via Microsoft Clarity. Text you type into fields is masked and not captured. These recordings are used internally for usability and troubleshooting only.</li>
       </ul>
       <h2>2. How we use it</h2>
       <p>To provide the Service, process payments, run the tools you request, provide support, prevent abuse, and meet legal obligations.</p>
       <h2>3. Sharing</h2>
-      <p>We share data only with processors that run the Service: cloud hosting (AWS), payments (Stripe), and AI/data providers needed to fulfil a tool you run. We do not sell your personal data.</p>
+      <p>We share data only with processors that run the Service: cloud hosting (AWS), payments (Stripe), product analytics and session recording (Microsoft Clarity), and AI/data providers needed to fulfil a tool you run. We do not sell your personal data.</p>
       <h2>4. Retention</h2>
       <p>We keep your data while your account is active. When you delete your account, your data is removed from our systems (some records, such as invoices, may be retained where law requires).</p>
       <h2>5. Your rights</h2>
