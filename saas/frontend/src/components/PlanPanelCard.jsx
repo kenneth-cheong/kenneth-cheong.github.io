@@ -13,7 +13,7 @@ const LS_KEY = 'dm:planPanelExpanded';
 // next" in front of the user with far more room than the header chip. Reads the
 // shared PlanContext, so it stays in lock-step with the dashboard + header widget.
 export default function PlanPanelCard() {
-  const { hasPlan, plan, progress, isStepDone } = usePlan();
+  const { hasPlan, plan, progress, isStepDone, toggleDone } = usePlan();
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(() => localStorage.getItem(LS_KEY) !== '0');
   const toggle = () => setExpanded((e) => { const n = !e; localStorage.setItem(LS_KEY, n ? '1' : '0'); return n; });
@@ -73,7 +73,15 @@ export default function PlanPanelCard() {
                   onClick={() => goStep(s)}
                   className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-white/70 ${isNext ? 'bg-white ring-1 ring-brand-200' : ''}`}
                 >
-                  <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white ${isDone ? 'bg-green-500' : 'bg-brand-600'}`}>
+                  {/* Manual (recommendation) steps can't be auto-detected, so the
+                      circle is a real tick toggle; tool steps just show status. */}
+                  <span
+                    role={s.manual ? 'checkbox' : undefined}
+                    aria-checked={s.manual ? isDone : undefined}
+                    onClick={s.manual ? (e) => { e.stopPropagation(); toggleDone(s.toolId); } : undefined}
+                    title={s.manual ? (isDone ? 'Mark as not done' : 'Mark as done') : undefined}
+                    className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white ${isDone ? 'bg-green-500' : 'bg-brand-600'} ${s.manual ? 'cursor-pointer ring-offset-1 hover:ring-2 hover:ring-brand-300' : ''}`}
+                  >
                     {isDone ? <Check size={12} aria-hidden /> : i + 1}
                   </span>
                   <span className={`flex-1 truncate text-xs ${isDone ? 'text-slate-400 line-through' : isNext ? 'font-semibold text-slate-800' : 'text-slate-600'}`}>{stepLabel(s)}</span>

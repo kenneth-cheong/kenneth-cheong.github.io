@@ -356,6 +356,10 @@ function Result({ out, tool, project, user, onCredits }) {
     window.dispatchEvent(new CustomEvent('dm:ask', { detail: { text: prompt } }));
   };
 
+  // Context handed to each recommendation card so the assistant answers in the
+  // tool's frame ("from the X tool, for your site Y") and "Add to plan" links back.
+  const recContext = { toolName: tool.name, domain: project?.domain, route: tool.route || `/tool/${tool.id}` };
+
   return (
     <div className="mt-6" data-tour="tool-result">
       <div className="dm-no-print mb-2 flex items-center gap-2">
@@ -406,7 +410,7 @@ function Result({ out, tool, project, user, onCredits }) {
               ? <CaptionCards text={r.text} />
               : <pre className="whitespace-pre-wrap text-sm text-slate-700">{r.text}</pre>)}
             {r.preview && <pre className="whitespace-pre-wrap text-sm text-slate-500">{r.preview}</pre>}
-            {preRowSections.length > 0 && <ResultSections sections={preRowSections} />}
+            {preRowSections.length > 0 && <ResultSections sections={preRowSections} context={recContext} />}
             {r.html && <div className="dm-report max-w-none text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: r.html }} />}
           </>
         )}
@@ -414,7 +418,7 @@ function Result({ out, tool, project, user, onCredits }) {
         {hasRows && (tool.id === 'keyword-analysis'
           ? <KeywordAnalysisResult rows={r.rows} timeRank={r.timeRank} tool={tool} onCredits={onCredits} />
           : <ResultTable rows={r.rows} />)}
-        {postRowSections.length > 0 && <ResultSections sections={postRowSections} />}
+        {postRowSections.length > 0 && <ResultSections sections={postRowSections} context={recContext} />}
 
         {r.blurredCount > 0 && (
           <div className="relative mt-1">

@@ -21,10 +21,28 @@ const ACTION_ROUTES = {
  * URL from the active project, so we don't need to thread values through here.
  * @returns {{ to:string }}
  */
-export function stepTarget({ toolId, action }) {
+export function stepTarget({ toolId, action, to }) {
+  if (to) return { to };                 // ad-hoc steps carry an explicit route
   if (action) return { to: ACTION_ROUTES[action] || '/dashboard' };
   const t = toolById(toolId);
   return { to: t?.route || `/tool/${toolId}` };
+}
+
+// ── Ad-hoc "recommendation" steps ─────────────────────────────────────────────
+// A recommendation added from a tool result isn't a tool run, so it needs its own
+// id (never a real toolId — that would collide with run-detection and auto-tick).
+// The id is derived from the title so re-adding the same recommendation is
+// idempotent (dedupe in addStep). `manual: true` means it's ticked by hand
+// (localStepDone can't detect it); `to` deep-links back to where it came from.
+export function recStep({ title, why, to }) {
+  const slug = String(title || 'note').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48);
+  return {
+    toolId: `rec:${slug || 'note'}`,
+    label: String(title || 'Recommendation').slice(0, 80),
+    why: String(why || '').replace(/\s+/g, ' ').trim().slice(0, 140),
+    manual: true,
+    to: to || '/dashboard',
+  };
 }
 
 /** Beginner-friendly label for a plan item (tool or action). */

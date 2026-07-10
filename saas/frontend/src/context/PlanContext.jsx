@@ -57,6 +57,32 @@ export function PlanProvider({ children }) {
     });
   }, [queueSync]);
 
+  // Append an ad-hoc step (e.g. a recommendation added from a tool result).
+  // Dedupes by id, and seeds a bare plan if the user doesn't have one yet, so
+  // "Add to plan" works before they've set a formal goal.
+  const addStep = useCallback((step) => {
+    if (!step?.toolId) return;
+    setPlanState((p) => {
+      const base = p || { steps: [], done: {}, adhoc: true };
+      if (base.steps.some((s) => s.toolId === step.toolId)) return base; // already there
+      const next = { ...base, steps: [...base.steps, step] };
+      cachePlan(next); queueSync(next);
+      return next;
+    });
+  }, [queueSync]);
+
+  // Manual tick/untick — for `manual` steps whose completion can't be auto-detected.
+  const toggleDone = useCallback((toolId) => {
+    setPlanState((p) => {
+      if (!p) return p;
+      const done = { ...(p.done || {}) };
+      if (done[toolId]) delete done[toolId]; else done[toolId] = true;
+      const next = { ...p, done };
+      cachePlan(next); queueSync(next);
+      return next;
+    });
+  }, [queueSync]);
+
   // Reconcile with locally-observed tool runs: when a plan step's tool has been
   // run on this device, tick it (and persist, so other devices see it too).
   // Runs on mount and whenever the tab regains focus (a run may have happened in
@@ -80,6 +106,8 @@ export function PlanProvider({ children }) {
       setPlan,
       clearPlan: clear,
       markDone,
+      addStep,
+      toggleDone,
       isStepDone: isDone,
       progress: {
         done: doneCount,
@@ -89,7 +117,7 @@ export function PlanProvider({ children }) {
         next,
       },
     };
-  }, [plan, setPlan, clear, markDone]);
+  }, [plan, setPlan, clear, markDone, addStep, toggleDone]);
 
   // Let the proactive Otter react when a plan step gets ticked off. Fires only on
   // a net increase (skips the initial baseline) so mount/reconcile is silent.

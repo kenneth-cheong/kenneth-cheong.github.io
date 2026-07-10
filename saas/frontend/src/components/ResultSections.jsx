@@ -3,6 +3,7 @@ import TrendChart from './TrendChart.jsx';
 import SortableTable from './SortableTable.jsx';
 import { copyText, toast } from '../lib/ui.js';
 import InfoTip, { glossaryFor } from './InfoTip.jsx';
+import RecommendationCard from './RecommendationCard.jsx';
 import { Check, X, Info, TrendingUp, TrendingDown } from 'lucide-react';
 
 // Themed renderer for the structured `sections` result format. Turns the raw
@@ -22,8 +23,8 @@ const TONES = {
 };
 const tone = (t) => TONES[t] || TONES.slate;
 
-export default function ResultSections({ sections }) {
-  return <div className="space-y-6">{sections.map((s, i) => <Section key={i} s={s} />)}</div>;
+export default function ResultSections({ sections, context }) {
+  return <div className="space-y-6">{sections.map((s, i) => <Section key={i} s={s} context={context} />)}</div>;
 }
 
 // Accented sub-section title — a small brand bar gives the report visual rhythm.
@@ -37,7 +38,7 @@ function Title({ children }) {
 }
 function Block({ title, children }) { return <div>{title && <Title>{title}</Title>}{children}</div>; }
 
-function Section({ s }) {
+function Section({ s, context }) {
   switch (s.type) {
     case 'heading':
       return <h3 className="border-b border-slate-100 pb-2 text-xl font-bold tracking-tight text-slate-900">{s.text}</h3>;
@@ -63,7 +64,19 @@ function Section({ s }) {
     case 'chart':
       return <Block title={s.title}>{Array.isArray(s.series) ? <TrendChart series={s.series} /> : <LineChart data={s.data} />}</Block>;
     case 'cards':
-      return <Block title={s.title}>{s.note && <p className="-mt-1 mb-3 text-sm text-slate-500">{s.note}</p>}<div className="space-y-2.5">{s.items.map((c, i) => <Card key={i} c={c} />)}</div></Block>;
+      // Cards that carry a `body` are real recommendations/insights → give them
+      // the actionable card (How / Do it for me / Add to plan). Cards without a
+      // body (ranked "opportunity" cards: lines + barPct + meta) stay plain.
+      return (
+        <Block title={s.title}>
+          {s.note && <p className="-mt-1 mb-3 text-sm text-slate-500">{s.note}</p>}
+          <div className="space-y-2.5">
+            {s.items.map((c, i) => (c && c.body
+              ? <RecommendationCard key={i} card={c} sectionTitle={s.title} context={context} />
+              : <Card key={i} c={c} />))}
+          </div>
+        </Block>
+      );
     case 'table':
       return <TableSection s={s} />;
     case 'code':
