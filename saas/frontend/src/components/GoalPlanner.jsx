@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp, Stethoscope, PenLine, LineChart, Sparkles, Swords, BarChart3,
-  Check, ArrowRight, Lock, Wand2, Plug, RotateCcw, PartyPopper,
+  Check, ArrowRight, ArrowUp, Lock, Wand2, Plug, RotateCcw, PartyPopper,
 } from 'lucide-react';
 import {
   GOALS, INTAKE, SIMPLE_NAMES, PLANS, CREDIT_COSTS, buildPathway, toolById,
@@ -32,6 +32,7 @@ export default function GoalPlanner({ initialGoal }) {
   const [enriching, setEnriching] = useState(false);
   const [hasGoogle, setHasGoogle] = useState(false);
   const [seeded, setSeeded] = useState(false);
+  const [nudge, setNudge] = useState(false);
 
   useEffect(() => {
     api.integrations().then((d) => setHasGoogle(Object.values(d.connected || {}).some((c) => c?.connected))).catch(() => {});
@@ -83,19 +84,27 @@ export default function GoalPlanner({ initialGoal }) {
     return (
       <section className="mt-8" data-tour="pathway">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-bold text-slate-900">{INTAKE.goalQuestion}</h2>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h2 className="text-lg font-bold text-slate-900">{INTAKE.goalQuestion}</h2>
+            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${goals.length ? 'bg-brand-100 text-brand-700' : 'bg-amber-100 text-amber-700'}`}>
+              {goals.length ? `${goals.length} selected` : 'Pick at least 1'}
+            </span>
+          </div>
           {hasPlan && <button onClick={() => setEditing(false)} className="text-sm font-medium text-slate-500 hover:text-slate-700">Cancel</button>}
         </div>
         <p className="mt-1 text-sm text-slate-500">{INTAKE.goalHint}</p>
 
-        <div className="dm-card-grid mt-4">
+        <div
+          id="goal-grid"
+          className={`dm-card-grid mt-4 rounded-2xl transition ${nudge && goals.length === 0 ? 'p-3 ring-2 ring-amber-400 ring-offset-2 ring-offset-white' : ''}`}
+        >
           {GOALS.map((g) => {
             const Icon = GOAL_ICON[g.icon] || Sparkles;
             const on = goals.includes(g.id);
             return (
               <button
                 key={g.id}
-                onClick={() => toggle(goals, setGoals, g.id)}
+                onClick={() => { toggle(goals, setGoals, g.id); setNudge(false); }}
                 aria-pressed={on}
                 className={`card group flex items-start gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lift ${on ? 'border-brand-500 ring-2 ring-brand-200' : 'hover:border-brand-400'}`}
               >
@@ -144,14 +153,27 @@ export default function GoalPlanner({ initialGoal }) {
           />
         </div>
 
-        <button
-          onClick={() => build()}
-          disabled={goals.length === 0}
-          className="btn-primary mt-5 inline-flex items-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {hasPlan ? 'Update my plan' : 'Build my plan'} <ArrowRight size={16} aria-hidden />
-        </button>
-        {goals.length === 0 && <p className="mt-2 text-sm text-slate-400">Pick at least one goal above.</p>}
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => {
+              if (goals.length === 0) {
+                setNudge(true);
+                document.getElementById('goal-grid')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+              }
+              build();
+            }}
+            aria-disabled={goals.length === 0}
+            className={`btn-primary inline-flex items-center gap-2 ${goals.length === 0 ? 'opacity-60' : ''}`}
+          >
+            {hasPlan ? 'Update my plan' : 'Build my plan'} <ArrowRight size={16} aria-hidden />
+          </button>
+          {goals.length === 0 && (
+            <span className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${nudge ? 'bg-amber-100 text-amber-800' : 'text-amber-600'}`}>
+              <ArrowUp size={15} aria-hidden /> Pick at least one goal above to continue.
+            </span>
+          )}
+        </div>
       </section>
     );
   }

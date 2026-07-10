@@ -29,6 +29,7 @@ export default function Tracking() {
   const [period, setPeriod] = useState('28');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
+  const [nudge, setNudge] = useState(false); // highlight empty keyword/domain after an incomplete add attempt
   const limit = PLANS[user.tier]?.trackedKeywords ?? 0;
   const backfillCost = CREDIT_COSTS.rank_backfill * tracked.length;
 
@@ -37,7 +38,7 @@ export default function Tracking() {
 
   async function add(e) {
     e.preventDefault();
-    if (!keyword.trim() || !domain.trim()) return;
+    if (!keyword.trim() || !domain.trim()) { setNudge(true); return; }
     setBusy(true);
     try { await api.addTracked(keyword.trim(), domain.trim(), 'Singapore', activeId); markStepDone('tracking'); setKeyword(''); toast('Keyword tracked', 'success'); load(); }
     catch (err) { toast(err.message, 'error'); }
@@ -46,7 +47,7 @@ export default function Tracking() {
   async function addBulk(e) {
     e.preventDefault();
     const kws = [...new Set(bulkText.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean))];
-    if (!kws.length || !domain.trim()) return;
+    if (!kws.length || !domain.trim()) { setNudge(true); return; }
     setBusy(true);
     try {
       const { tracked } = await api.addTrackedBulk(kws, domain.trim(), 'Singapore', activeId);
@@ -188,29 +189,31 @@ export default function Tracking() {
           {/* Add form — single keyword or a pasted bulk list. */}
           <form onSubmit={bulk ? addBulk : add} className="card mt-6 p-5">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-700">{bulk ? 'Keywords (one per line)' : 'Keyword'}</span>
+              <span className="text-sm font-medium text-slate-700">{bulk ? 'Keywords (one per line)' : 'Keyword'}<span className="text-amber-500"> *</span></span>
               <button type="button" onClick={() => setBulk((b) => !b)} className="text-xs font-medium text-brand-600 hover:text-brand-700">
                 {bulk ? 'Single keyword' : '+ Add multiple'}
               </button>
             </div>
             <div className="flex flex-wrap items-end gap-3">
               {bulk ? (
-                <textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} rows={4} placeholder={'self storage singapore\ncheap storage\nstorage units sg'}
-                  className="block w-full flex-1 rounded-lg border border-slate-300 p-2.5 text-sm focus:border-brand-500 focus:outline-none" />
+                <textarea value={bulkText} onChange={(e) => { setNudge(false); setBulkText(e.target.value); }} rows={4} placeholder={'self storage singapore\ncheap storage\nstorage units sg'}
+                  className={`block w-full flex-1 rounded-lg border p-2.5 text-sm focus:outline-none ${nudge && !bulkText.trim() ? 'border-amber-400 ring-4 ring-amber-400/20' : 'border-slate-300 focus:border-brand-500'}`} />
               ) : (
-                <input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="self storage singapore"
-                  className="block flex-1 rounded-lg border border-slate-300 p-2.5 text-sm focus:border-brand-500 focus:outline-none" />
+                <input value={keyword} onChange={(e) => { setNudge(false); setKeyword(e.target.value); }} placeholder="self storage singapore"
+                  className={`block flex-1 rounded-lg border p-2.5 text-sm focus:outline-none ${nudge && !keyword.trim() ? 'border-amber-400 ring-4 ring-amber-400/20' : 'border-slate-300 focus:border-brand-500'}`} />
               )}
               <label className="block flex-1">
-                <span className="text-sm font-medium text-slate-700">Domain</span>
-                <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="acme.sg"
-                  className="mt-1.5 w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-brand-500 focus:outline-none" />
+                <span className="text-sm font-medium text-slate-700">Domain<span className="text-amber-500"> *</span></span>
+                <input value={domain} onChange={(e) => { setNudge(false); setDomain(e.target.value); }} placeholder="acme.sg"
+                  className={`mt-1.5 w-full rounded-lg border p-2.5 text-sm focus:outline-none ${nudge && !domain.trim() ? 'border-amber-400 ring-4 ring-amber-400/20' : 'border-slate-300 focus:border-brand-500'}`} />
               </label>
               <button className="btn-primary" disabled={busy || (!bulk && tracked.length >= limit)}>
                 {busy ? 'Registering…' : bulk ? 'Track keywords' : (tracked.length >= limit ? 'Limit reached' : 'Track')}
               </button>
             </div>
-            {bulk && <p className="mt-2 text-xs text-slate-400">Up to {Math.max(0, limit - tracked.length)} more. Positions are checked right after adding.</p>}
+            {nudge
+              ? <p className="mt-2 text-xs font-semibold text-amber-600">Enter {bulk ? 'at least one keyword' : 'a keyword'} and a domain to start tracking.</p>
+              : bulk && <p className="mt-2 text-xs text-slate-400">Up to {Math.max(0, limit - tracked.length)} more. Positions are checked right after adding.</p>}
           </form>
 
           {/* Period selector + custom date range. */}

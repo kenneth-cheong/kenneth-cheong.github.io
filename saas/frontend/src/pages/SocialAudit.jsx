@@ -6,7 +6,7 @@ import { useProjects } from '../context/ProjectContext.jsx';
 import { api, ApiError } from '../lib/api.js';
 import ShareResult from '../components/ShareResult.jsx';
 import { toast } from '../lib/ui.js';
-import { Loader2, Wand2, Plus, X, Microscope, ScanSearch, Compass } from 'lucide-react';
+import { Loader2, Wand2, Plus, X, Microscope, ScanSearch, Compass, AlertTriangle } from 'lucide-react';
 import { renderSMAScorecard, renderSocialAudit, installSmaGlobals } from '../lib/smaRender.js';
 import { startSocialAuditTour, hasSeen, markSeen } from '../lib/tours.js';
 // Bundled (not CDN) so the strict production CSP serves them from 'self'. FA's
@@ -302,6 +302,7 @@ export default function SocialAudit() {
   const [loadingText, setLoadingText] = useState('');
   const [error, setError] = useState('');
   const [scaError, setScaError] = useState('');
+  const [nudge, setNudge] = useState(false); // highlight the empty brand field after an incomplete run attempt
   const [scorecardHtml, setScorecardHtml] = useState(null);
   const [scaHtml, setScaHtml] = useState(null);
   const [doneJob, setDoneJob] = useState(null); // finished audit → branded share card
@@ -461,7 +462,12 @@ export default function SocialAudit() {
   // `start` kicks off a background job (live scrape → strategy → save → notify)
   // that completes even if this tab is closed; we only poll for live progress.
   async function runAudit() {
-    if (!brand.trim()) { setError('Please enter a brand name.'); return; }
+    if (!brand.trim()) {
+      setNudge(true);
+      const el = document.getElementById('sma-brand-input');
+      el?.focus(); el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     setError(''); setScaError('');
     setScorecardHtml(null); setScaHtml(null); setDoneJob(null);
     setBusy(true);
@@ -604,8 +610,9 @@ export default function SocialAudit() {
         <p className="mt-1 text-xs text-slate-400">Only the brand name is required — leave the rest blank and AI will fill them in (you can edit before auditing).</p>
         <div className="mt-3 space-y-3">
           <div>
-            <label className="block text-sm font-medium text-slate-700">Brand name <span className="text-red-500">*</span></label>
-            <input className="field mt-1" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. MediaOne" disabled={busy} />
+            <label htmlFor="sma-brand-input" className="block text-sm font-medium text-slate-700">Brand name <span className="text-amber-500">*</span></label>
+            <input id="sma-brand-input" className={`field mt-1${nudge ? ' !border-amber-400 !ring-4 !ring-amber-400/20' : ''}`} value={brand} onChange={(e) => { setNudge(false); setBrand(e.target.value); }} placeholder="e.g. MediaOne" disabled={busy} />
+            {nudge && <p className="mt-1 text-xs font-semibold text-amber-600">Enter a brand name to run the audit.</p>}
           </div>
           <button type="button" onClick={autoFindDetails} disabled={busy || findingDetails}
             data-tour="sma-autofind" className="btn-ghost text-xs text-brand-700">
@@ -744,10 +751,15 @@ export default function SocialAudit() {
 
       {/* Run */}
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        <button onClick={runAudit} disabled={busy} data-tour="sma-run" className="btn-primary">
+        <button onClick={runAudit} disabled={busy} aria-disabled={busy || !brand.trim()} data-tour="sma-run" className={`btn-primary ${brand.trim() ? '' : 'opacity-60'}`}>
           {busy ? <Loader2 size={16} className="animate-spin" /> : (mode === 'pro' ? <Microscope size={16} /> : <ScanSearch size={16} />)}
           {busy ? 'Running…' : `Run Audit${mode === 'pro' ? ' (Pro)' : ''} · ${cost} cr`}
         </button>
+        {!busy && !brand.trim() && (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-600">
+            <AlertTriangle size={13} aria-hidden /> Brand name is required
+          </span>
+        )}
         {busy && loadingText && <span className="text-sm text-slate-500"><Loader2 size={13} className="mr-1 inline animate-spin" />{loadingText}</span>}
       </div>
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}

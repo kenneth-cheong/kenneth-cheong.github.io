@@ -50,6 +50,7 @@ export default function SiteAudit() {
   const [steps, setSteps] = useState(null); // [{id,label,status}]
   const [report, setReport] = useState(null);
   const [running, setRunning] = useState(false);
+  const [nudge, setNudge] = useState(false); // highlight the empty URL field after an incomplete run attempt
 
   // Prefill the site from the active project once it loads (it may arrive after mount).
   useEffect(() => {
@@ -71,7 +72,7 @@ export default function SiteAudit() {
 
   async function run() {
     const site = url.trim();
-    if (!site) { toast('Enter your website URL first.', 'error'); return; }
+    if (!site) { setNudge(true); document.getElementById('audit-url')?.focus(); return; }
     if (!window.confirm(`This runs ${runnable.length} checks on ${site} and builds one report — about ${cost} credits. Continue?`)) return;
 
     setReport(null);
@@ -130,15 +131,19 @@ export default function SiteAudit() {
       <p className="mt-1 text-slate-600">One click runs {runnable.length} checks and gives you a single score with the top things to fix — in plain English.</p>
 
       <div className="card mt-6 p-5">
-        <label className="block text-sm font-medium text-slate-700">Your website</label>
+        <label htmlFor="audit-url" className="block text-sm font-medium text-slate-700">
+          Your website<span className="text-amber-500"> *</span>
+        </label>
         <div className="mt-1.5 flex flex-wrap gap-3">
-          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://yoursite.com" disabled={running}
-            className="field flex-1" />
-          <button onClick={run} disabled={running} className="btn-primary">
+          <input id="audit-url" value={url} onChange={(e) => { setNudge(false); setUrl(e.target.value); }} placeholder="https://yoursite.com" disabled={running}
+            className={`field flex-1${nudge ? ' !border-amber-400 !ring-4 !ring-amber-400/20' : ''}`} />
+          <button onClick={run} disabled={running} aria-disabled={running || !url.trim()} className={`btn-primary ${url.trim() ? '' : 'opacity-60'}`}>
             {running ? 'Running…' : `Run health check · ${cost} cr`}
           </button>
         </div>
-        <p className="mt-2 text-xs text-slate-400">Runs: {runnable.map((a) => a.label).join(' · ')}. Takes ~1–3 minutes.</p>
+        {nudge
+          ? <p className="mt-2 text-xs font-semibold text-amber-600">Enter your website URL first to run the check.</p>
+          : <p className="mt-2 text-xs text-slate-400">Runs: {runnable.map((a) => a.label).join(' · ')}. Takes ~1–3 minutes.</p>}
       </div>
 
       {/* Live progress */}

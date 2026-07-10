@@ -74,13 +74,14 @@ export default function ToolRunner() {
   };
   const [values, setValues] = useState(seedValues);
   const [busy, setBusy] = useState(false);
+  const [nudge, setNudge] = useState(false); // highlight missing required fields after an incomplete run attempt
   const [out, setOut] = useState(location.state?.result ? { result: location.state.result, runId: location.state.runId } : null);
   const [modal, setModal] = useState(null);
   const [showAdv, setShowAdv] = useState(false); // reveal collapsed optional fields on long forms
   const shownRef = useRef([]); // latest visible fields, for the auto-started tour
 
   // Reset the form + result when navigating between tools (same route component).
-  useEffect(() => { setTab(0); setValues(seedValues()); setOut(location.state?.result ? { result: location.state.result, runId: location.state.runId } : null); /* eslint-disable-next-line */ }, [toolId]);
+  useEffect(() => { setTab(0); setValues(seedValues()); setNudge(false); setOut(location.state?.result ? { result: location.state.result, runId: location.state.runId } : null); /* eslint-disable-next-line */ }, [toolId]);
 
   // The active project often loads AFTER first render, so the initial seed can
   // miss the domain and fall back to a stale value. Once the project's domain is
@@ -118,7 +119,7 @@ export default function ToolRunner() {
   if (tool.route) return <Navigate to={tool.route} replace />;
   const unlocked = tierMeets(user.tier, tool.minTier);
   const cost = CREDIT_COSTS[tool.cost] ?? 0;
-  const set = (name, v) => setValues((s) => ({ ...s, [name]: v }));
+  const set = (name, v) => { setNudge(false); setValues((s) => ({ ...s, [name]: v })); };
   // Switch GSC sub-tool tab: clear the previous result, seed any new fields'
   // defaults, but keep shared values (e.g. the selected property) across tabs.
   function selectTab(i) {
@@ -129,7 +130,21 @@ export default function ToolRunner() {
   const isVisible = (f) => !f.showWhen || (f.showWhen.in || []).includes(values[f.showWhen.field]);
   const shown = fields.filter(isVisible);
   shownRef.current = shown;
-  const ready = shown.every((f) => !f.required || String(values[f.name] || '').trim());
+  const missing = shown.filter((f) => f.required && !String(values[f.name] || '').trim());
+  const ready = missing.length === 0;
+  const isMissing = (f) => nudge && missing.includes(f);
+
+  // Run was clicked without the required fields → don't disable silently. Light up
+  // the empty required fields in amber and scroll to the first one (matches the
+  // goal-picker's "self-teaching" nudge instead of a dead, greyed-out button).
+  function attemptRun() {
+    if (!ready) {
+      setNudge(true);
+      document.querySelector(`[data-tour-field="${missing[0]?.name}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    run();
+  }
 
   // Long forms overwhelm beginners: keep required fields + the first couple of
   // optional ones visible, and tuck the rest behind an "Advanced options" toggle.
@@ -240,7 +255,7 @@ export default function ToolRunner() {
       <div className={`card ${tabs ? 'mt-4' : 'mt-6'} p-5`}>
         <div className="space-y-4">
           {primaryFields.map((f, i) => (
-            <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} autoFocus={i === 0} provider={tool.integration} values={values} />
+            <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} autoFocus={i === 0} provider={tool.integration} values={values} invalid={isMissing(f)} />
           ))}
           {advancedFields.length > 0 && (
             <div className="border-t border-slate-100 pt-3">
@@ -260,12 +275,19 @@ export default function ToolRunner() {
             </div>
           )}
         </div>
-        <div className="mt-4 flex items-center justify-between gap-3">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-xs text-slate-400" data-tour="tool-actions">
             <span>{cost === 0 ? 'Free to run' : `Costs ${cost} credit${cost > 1 ? 's' : ''}`}</span>
             {example && <button type="button" onClick={fillExample} className="font-medium text-brand-600 hover:text-brand-700">Try an example</button>}
+            {shown.some((f) => f.required) && <span><span className="text-amber-500">*</span> Required</span>}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {!ready && (
+              <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${nudge ? 'bg-amber-100 text-amber-800' : 'text-amber-600'}`}>
+                <AlertTriangle size={13} aria-hidden />
+                {missing.length === 1 ? `“${missing[0].label}” is required` : `${missing.length} required fields left`}
+              </span>
+            )}
             {isSchedulable(tool) && scheduleLimits(user?.tier).enabled && !tabs && (
               <button type="button" className="btn-ghost inline-flex items-center gap-1.5"
                 title="Run this automatically on a schedule"
@@ -273,8 +295,8 @@ export default function ToolRunner() {
                 <Clock size={15} />Schedule
               </button>
             )}
-            <button className="btn-primary" disabled={busy || !ready} onClick={() => run()} data-tour="tool-run"
-              title={!ready ? 'Fill in the required fields first' : undefined}>
+            <button className={`btn-primary ${!ready ? 'opacity-60' : ''}`} disabled={busy} aria-disabled={busy || !ready}
+              onClick={attemptRun} data-tour="tool-run">
               {busy ? (tool.slow ? 'Generating…' : 'Running…') : unlocked ? 'Run tool' : 'Run preview'}
             </button>
           </div>
@@ -1010,12 +1032,12 @@ function Segmented({ options, optionDesc = {}, value, onChange }) {
   );
 }
 
-function Field({ field, value, onChange, autoFocus, provider, values }) {
-  const base = 'field mt-1.5';
+function Field({ field, value, onChange, autoFocus, provider, values, invalid }) {
+  const base = `field mt-1.5${invalid ? ' !border-amber-400 !ring-4 !ring-amber-400/20' : ''}`;
   return (
-    <label className="block" data-tour-field={field.name}>
+    <label className={`block ${invalid ? '-ml-3 rounded-lg border-l-2 border-amber-400 bg-amber-50/50 pl-3' : ''}`} data-tour-field={field.name}>
       <span className="text-sm font-medium text-slate-700">
-        {field.label}{field.required && <span className="text-slate-400"> *</span>}
+        {field.label}{field.required && <span className={invalid ? 'font-bold text-amber-600' : 'text-amber-500'}> *</span>}
       </span>
       {field.type === 'account' ? (
         <AccountField provider={provider} value={value} onChange={onChange} placeholder={field.placeholder} />
@@ -1044,6 +1066,7 @@ function Field({ field, value, onChange, autoFocus, provider, values }) {
         <input autoFocus={autoFocus} type={field.type === 'number' ? 'number' : 'text'} inputMode={field.type === 'url' ? 'url' : undefined}
           value={value} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} className={base} />
       )}
+      {invalid && <span className="mt-1 block text-xs font-semibold text-amber-600">Please fill this in to continue.</span>}
       {field.hint && <span className="mt-1 block whitespace-pre-line text-xs text-slate-400">{field.hint}</span>}
     </label>
   );
