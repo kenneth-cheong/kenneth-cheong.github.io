@@ -524,7 +524,7 @@ def google_refresh_token(body):
 #     enabled account, and posts a Google Chat alert once per threshold-crossing.
 #   • ads_test_webhook: sends a "hello" to a webhook so users can verify it.
 # ══════════════════════════════════════════════════════════════════════
-_ADS_TOKEN_CACHE = {"token": None, "exp": 0}
+_ADS_TOKEN_CACHE = {}  # doc _id (email) -> {"token": ..., "exp": ...}
 
 # The monitor config (webhook, accounts, mappings) lives in Mongo
 # (db.google_ads_config singleton) — NOT the clientContextEngine blob, whose
@@ -535,12 +535,27 @@ def _ads_get_config():
     doc = db.google_ads_config.find_one({"_id": "singleton"}) if db is not None else None
     return (doc or {}).get("config", {}) or {}
 
-def _ads_auth_info():
+def _jwt_email(id_token):
+    """Extract the email claim from an OIDC id_token (no signature check needed —
+    it came straight from Google's token endpoint over TLS)."""
+    try:
+        payload = (id_token or '').split('.')[1]
+        payload += '=' * (-len(payload) % 4)
+        return (json.loads(base64.urlsafe_b64decode(payload)) or {}).get('email', '')
+    except Exception:
+        return ''
+
+def _ads_auth_docs():
     db = get_db()
-    doc = db.google_ads_auth.find_one({"_id": "mcc"}) if db is not None else None
-    return {"authorized": bool(doc and doc.get("refresh_token")),
-            "by": (doc or {}).get("authorized_by", ""),
-            "at": (doc or {}).get("authorized_at", "")}
+    if db is None:
+        return []
+    return [d for d in db.google_ads_auth.find({}) if d.get("refresh_token")]
+
+def _ads_auth_info():
+    accounts = [{"email": d.get("email") or d.get("_id"),
+                 "at": d.get("authorized_at", ""),
+                 "by": d.get("authorized_by", "")} for d in _ads_auth_docs()]
+    return {"authorized": bool(accounts), "accounts": accounts}
 
 def ads_config_get(body):
     return {"statusCode": 200, "body": json.dumps({"config": _ads_get_config(), "auth": _ads_auth_info()})}
@@ -560,6 +575,17 @@ def ads_config_save(body):
 def ads_auth_status(body):
     return {"statusCode": 200, "body": json.dumps(_ads_auth_info())}
 
+def ads_auth_revoke(body):
+    """Remove one authorized Google account (by email / doc id)."""
+    email = (body.get('email') or '').strip()
+    if not email:
+        return {"statusCode": 400, "body": json.dumps({"error": "missing email"})}
+    db = get_db()
+    if db is not None:
+        db.google_ads_auth.delete_one({"_id": email})
+    _ADS_TOKEN_CACHE.pop(email, None)
+    return {"statusCode": 200, "body": json.dumps({"ok": True})}
+
 def ads_offline_authorize(body):
     code = body.get('code')
     client_id = body.get('client_id') or os.environ.get('GOOGLE_CLIENT_ID')
@@ -578,31 +604,31 @@ def ads_offline_authorize(body):
         refresh = tok.get('refresh_token')
         if not refresh:
             return {"statusCode": 400, "body": json.dumps({"error": "Google did not return a refresh token. Revoke this app at myaccount.google.com/permissions, then authorize again to force offline consent."})}
+        # One stored token per Google account, keyed by email (from the id_token).
+        email = _jwt_email(tok.get('id_token', '')) or (body.get('authorized_by') or '').strip() or 'account'
         db = get_db()
         if db is not None:
             db.google_ads_auth.update_one(
-                {"_id": "mcc"},
-                {"$set": {"refresh_token": refresh, "client_id": client_id,
-                          "authorized_by": body.get('authorized_by', ''),
+                {"_id": email},
+                {"$set": {"refresh_token": refresh, "client_id": client_id, "email": email,
+                          "authorized_by": (body.get('authorized_by') or '') or email,
                           "authorized_at": datetime.now(timezone.utc).isoformat()}},
                 upsert=True)
-        _ADS_TOKEN_CACHE["token"] = None
-        return {"statusCode": 200, "body": json.dumps({"ok": True})}
+        _ADS_TOKEN_CACHE.pop(email, None)
+        return {"statusCode": 200, "body": json.dumps({"ok": True, "email": email})}
     except Exception as e:
         return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
 
-def _ads_service_token():
-    """Mint a Google Ads access token from the stored MCC refresh token (cached)."""
+def _ads_token_for(doc):
+    """Mint (and cache) a Google Ads access token for one stored auth doc."""
+    key = doc.get("_id")
     now = datetime.now(timezone.utc).timestamp()
-    if _ADS_TOKEN_CACHE["token"] and _ADS_TOKEN_CACHE["exp"] - 60 > now:
-        return _ADS_TOKEN_CACHE["token"]
-    db = get_db()
-    doc = db.google_ads_auth.find_one({"_id": "mcc"}) if db is not None else None
-    if not doc or not doc.get("refresh_token"):
-        return None
+    cached = _ADS_TOKEN_CACHE.get(key)
+    if cached and cached["exp"] - 60 > now:
+        return cached["token"]
     client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
     client_id = doc.get("client_id") or os.environ.get('GOOGLE_CLIENT_ID')
-    if not client_secret or not client_id:
+    if not doc.get("refresh_token") or not client_secret or not client_id:
         return None
     try:
         r = requests.post('https://oauth2.googleapis.com/token', data={
@@ -611,13 +637,21 @@ def _ads_service_token():
         }, timeout=15)
         tok = r.json()
     except Exception as e:
-        print(f"[ADS_SWEEP] token refresh failed: {e}")
+        print(f"[ADS_SWEEP] token refresh failed for {key}: {e}")
         return None
     at = tok.get('access_token')
     if at:
-        _ADS_TOKEN_CACHE["token"] = at
-        _ADS_TOKEN_CACHE["exp"] = now + int(tok.get('expires_in', 3600))
+        _ADS_TOKEN_CACHE[key] = {"token": at, "exp": now + int(tok.get('expires_in', 3600))}
     return at
+
+def _ads_all_tokens():
+    """Access tokens for every authorized Google account."""
+    out = []
+    for d in _ads_auth_docs():
+        t = _ads_token_for(d)
+        if t:
+            out.append({"email": d.get("email") or d.get("_id"), "token": t})
+    return out
 
 def _post_gchat(webhook_url, text):
     if not webhook_url:
@@ -649,8 +683,8 @@ def _ads_month_cost(customer_id, token):
     return micros / 1_000_000.0
 
 def ads_budget_sweep(body, event):
-    token = _ads_service_token()
-    if not token:
+    tokens = _ads_all_tokens()
+    if not tokens:
         return {"statusCode": 200, "body": json.dumps({"skipped": "no offline authorization stored"})}
     cfg = _ads_get_config()
     webhook = (cfg.get('webhookUrl') or '').strip()
@@ -669,10 +703,17 @@ def ads_budget_sweep(body, event):
         if not cid or cap <= 0:
             continue
         checked += 1
-        try:
-            cost = _ads_month_cost(cid, token)
-        except Exception as e:
-            print(f"[ADS_SWEEP] {cid} cost error: {e}")
+        # Try each authorized account's token until one can read this customer.
+        cost, last_err = None, None
+        for tk in tokens:
+            try:
+                cost = _ads_month_cost(cid, tk["token"])
+                break
+            except Exception as e:
+                last_err = e
+                continue
+        if cost is None:
+            print(f"[ADS_SWEEP] {cid} no authorized account had access: {last_err}")
             continue
         pct = round(cost / cap * 100)
         try:
@@ -4986,6 +5027,8 @@ def lambda_handler(event, context):
             result = ads_config_save(body)
         elif action == 'ads_auth_status':
             result = ads_auth_status(body)
+        elif action == 'ads_auth_revoke':
+            result = ads_auth_revoke(body)
         elif action == 'ads_test_webhook':
             result = ads_test_webhook(body)
         elif action == 'ads_budget_sweep':
