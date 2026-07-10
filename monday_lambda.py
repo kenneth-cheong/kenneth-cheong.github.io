@@ -513,6 +513,167 @@ def google_refresh_token(body):
     except Exception as e:
         return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
 
+# ══════════════════════════════════════════════════════════════════════
+# Ads Access & Budget Monitor — offline auth + scheduled budget sweep.
+#   • ads_offline_authorize: one-time; exchanges an auth code for an MCC
+#     refresh token, stored in Mongo (db.google_ads_auth) so the sweep runs
+#     headless (no signed-in browser).
+#   • ads_budget_sweep: EventBridge {"action":"ads_budget_sweep"} (and
+#     on-demand). Reads the team-wide monitor config from the
+#     clientContextEngine blob (config.adsBudgetMonitor), pulls MTD spend per
+#     enabled account, and posts a Google Chat alert once per threshold-crossing.
+#   • ads_test_webhook: sends a "hello" to a webhook so users can verify it.
+# ══════════════════════════════════════════════════════════════════════
+CCE_CONFIG_URL = 'https://vy6llwyf9j.execute-api.ap-southeast-1.amazonaws.com/prod/clientContextEngine'
+_ADS_TOKEN_CACHE = {"token": None, "exp": 0}
+
+def _cce_get_config():
+    try:
+        r = requests.post(CCE_CONFIG_URL, json={"action": "get_config"}, timeout=15)
+        return (r.json() or {}).get("config", {}) or {}
+    except Exception as e:
+        print(f"[ADS_SWEEP] CCE get_config failed: {e}")
+        return {}
+
+def ads_offline_authorize(body):
+    code = body.get('code')
+    client_id = body.get('client_id') or os.environ.get('GOOGLE_CLIENT_ID')
+    redirect_uri = body.get('redirect_uri', 'postmessage')
+    client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
+    if not code:
+        return {"statusCode": 400, "body": json.dumps({"error": "Missing authorization code"})}
+    if not client_secret or not client_id:
+        return {"statusCode": 500, "body": json.dumps({"error": "GOOGLE_CLIENT_SECRET / GOOGLE_CLIENT_ID not configured"})}
+    try:
+        r = requests.post('https://oauth2.googleapis.com/token', data={
+            'code': code, 'client_id': client_id, 'client_secret': client_secret,
+            'redirect_uri': redirect_uri, 'grant_type': 'authorization_code'
+        }, timeout=15)
+        tok = r.json()
+        refresh = tok.get('refresh_token')
+        if not refresh:
+            return {"statusCode": 400, "body": json.dumps({"error": "Google did not return a refresh token. Revoke this app at myaccount.google.com/permissions, then authorize again to force offline consent."})}
+        db = get_db()
+        if db is not None:
+            db.google_ads_auth.update_one(
+                {"_id": "mcc"},
+                {"$set": {"refresh_token": refresh, "client_id": client_id,
+                          "authorized_by": body.get('authorized_by', ''),
+                          "authorized_at": datetime.now(timezone.utc).isoformat()}},
+                upsert=True)
+        _ADS_TOKEN_CACHE["token"] = None
+        return {"statusCode": 200, "body": json.dumps({"ok": True})}
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+
+def _ads_service_token():
+    """Mint a Google Ads access token from the stored MCC refresh token (cached)."""
+    now = datetime.now(timezone.utc).timestamp()
+    if _ADS_TOKEN_CACHE["token"] and _ADS_TOKEN_CACHE["exp"] - 60 > now:
+        return _ADS_TOKEN_CACHE["token"]
+    db = get_db()
+    doc = db.google_ads_auth.find_one({"_id": "mcc"}) if db is not None else None
+    if not doc or not doc.get("refresh_token"):
+        return None
+    client_secret = os.environ.get('GOOGLE_CLIENT_SECRET')
+    client_id = doc.get("client_id") or os.environ.get('GOOGLE_CLIENT_ID')
+    if not client_secret or not client_id:
+        return None
+    try:
+        r = requests.post('https://oauth2.googleapis.com/token', data={
+            'refresh_token': doc["refresh_token"], 'client_id': client_id,
+            'client_secret': client_secret, 'grant_type': 'refresh_token'
+        }, timeout=15)
+        tok = r.json()
+    except Exception as e:
+        print(f"[ADS_SWEEP] token refresh failed: {e}")
+        return None
+    at = tok.get('access_token')
+    if at:
+        _ADS_TOKEN_CACHE["token"] = at
+        _ADS_TOKEN_CACHE["exp"] = now + int(tok.get('expires_in', 3600))
+    return at
+
+def _post_gchat(webhook_url, text):
+    if not webhook_url:
+        return False
+    try:
+        requests.post(webhook_url, json={"text": text}, timeout=10)
+        return True
+    except Exception as e:
+        print(f"[ADS_SWEEP] gchat post failed: {e}")
+        return False
+
+def ads_test_webhook(body):
+    url = (body.get('webhook_url') or '').strip()
+    if not url.startswith('https://chat.googleapis.com/'):
+        return {"statusCode": 400, "body": json.dumps({"error": "Not a Google Chat webhook URL"})}
+    ok = _post_gchat(url, "✅ *Ads Budget Monitor* test — this space will receive budget-spend alerts.")
+    return {"statusCode": 200 if ok else 502, "body": json.dumps({"ok": ok})}
+
+def _ads_month_cost(customer_id, token):
+    q = "SELECT metrics.cost_micros FROM customer WHERE segments.date DURING THIS_MONTH"
+    res = run_google_ads_report(customer_id, q, token)
+    if isinstance(res, dict) and res.get('error'):
+        raise RuntimeError(res.get('error'))
+    micros = 0
+    batches = res if isinstance(res, list) else [res]
+    for b in batches:
+        for row in (b or {}).get('results', []) or []:
+            micros += int((row.get('metrics') or {}).get('costMicros') or 0)
+    return micros / 1_000_000.0
+
+def ads_budget_sweep(body, event):
+    token = _ads_service_token()
+    if not token:
+        return {"statusCode": 200, "body": json.dumps({"skipped": "no offline authorization stored"})}
+    cfg = _cce_get_config().get('adsBudgetMonitor', {}) or {}
+    webhook = (cfg.get('webhookUrl') or '').strip()
+    accounts = cfg.get('accounts', []) or []
+    month = datetime.now(timezone.utc).strftime('%Y-%m')
+    db = get_db()
+    alerts, checked = [], 0
+    for a in accounts:
+        if a.get('enabled') is False:
+            continue
+        cid = str(a.get('customerId') or '').replace('-', '').strip()
+        try:
+            cap = float(a.get('monthlyCap') or 0)
+        except (TypeError, ValueError):
+            cap = 0
+        if not cid or cap <= 0:
+            continue
+        checked += 1
+        try:
+            cost = _ads_month_cost(cid, token)
+        except Exception as e:
+            print(f"[ADS_SWEEP] {cid} cost error: {e}")
+            continue
+        pct = round(cost / cap * 100)
+        try:
+            alert_at = float(a.get('alertPct') or 80)
+        except (TypeError, ValueError):
+            alert_at = 80.0
+        thresholds = sorted({alert_at, 100.0})
+        state = db.google_ads_alerts.find_one({"_id": cid}) if db is not None else None
+        alerted = set(state.get('alerted', [])) if state and state.get('month') == month else set()
+        newly = [t for t in thresholds if pct >= t and t not in alerted]
+        if newly:
+            label = a.get('label') or cid
+            cur = a.get('currency') or 'SGD'
+            alerts.append(f"• *{label}* ({cid}): {pct}% of cap — {cur} {cost:,.0f} / {cur} {cap:,.0f}")
+            alerted.update(newly)
+            if db is not None:
+                db.google_ads_alerts.update_one(
+                    {"_id": cid},
+                    {"$set": {"month": month, "alerted": sorted(alerted), "pct": pct,
+                              "updated": datetime.now(timezone.utc).isoformat()}}, upsert=True)
+    posted = False
+    if alerts and webhook:
+        header = f"⚠️ *Google Ads budget alert* — {len(alerts)} account(s) over threshold ({month})"
+        posted = _post_gchat(webhook, header + "\n" + "\n".join(alerts))
+    return {"statusCode": 200, "body": json.dumps({"checked": checked, "alerts": len(alerts), "posted": posted})}
+
 def tiktok_auth(body):
     auth_code = body.get('auth_code')
     if not auth_code:
@@ -4792,6 +4953,12 @@ def lambda_handler(event, context):
             result = google_token_exchange(body)
         elif action == 'google_refresh_token':
             result = google_refresh_token(body)
+        elif action == 'ads_offline_authorize':
+            result = ads_offline_authorize(body)
+        elif action == 'ads_test_webhook':
+            result = ads_test_webhook(body)
+        elif action == 'ads_budget_sweep':
+            result = ads_budget_sweep(body, event)
         elif action == 'linkedin_get_ad_accounts':
             result = linkedin_get_ad_accounts(body)
         elif action == 'tiktok_auth':
