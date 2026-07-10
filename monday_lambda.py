@@ -716,18 +716,27 @@ def ads_budget_sweep(body, event):
             print(f"[ADS_SWEEP] {cid} no authorized account had access: {last_err}")
             continue
         pct = round(cost / cap * 100)
-        try:
-            alert_at = float(a.get('alertPct') or 80)
-        except (TypeError, ValueError):
-            alert_at = 80.0
-        thresholds = sorted({alert_at, 100.0})
+        # Per-account list of alert thresholds (falls back to legacy single alertPct).
+        raw = a.get('alertPcts')
+        if raw is None:
+            raw = [a.get('alertPct') or 80]
+        thr = set()
+        for x in (raw if isinstance(raw, list) else [raw]):
+            try:
+                f = float(x)
+                if f > 0:
+                    thr.add(f)
+            except (TypeError, ValueError):
+                pass
+        thresholds = sorted(thr) or [80.0]
         state = db.google_ads_alerts.find_one({"_id": cid}) if db is not None else None
         alerted = set(state.get('alerted', [])) if state and state.get('month') == month else set()
         newly = [t for t in thresholds if pct >= t and t not in alerted]
         if newly:
             label = a.get('label') or cid
             cur = a.get('currency') or 'SGD'
-            alerts.append(f"• *{label}* ({cid}): {pct}% of cap — {cur} {cost:,.0f} / {cur} {cap:,.0f}")
+            crossed = max(newly)
+            alerts.append(f"• *{label}* ({cid}): {pct}% of cap (crossed {crossed:g}%) — {cur} {cost:,.0f} / {cur} {cap:,.0f}")
             alerted.update(newly)
             if db is not None:
                 db.google_ads_alerts.update_one(
