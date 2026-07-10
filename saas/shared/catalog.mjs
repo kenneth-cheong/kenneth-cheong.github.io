@@ -176,7 +176,7 @@ export const TOOLS = [
     desc: 'Platform-tuned captions for IG / LinkedIn / FB / TikTok.' },
   { id: 'content-writer', name: 'AI Content Optimiser', category: 'Content', minTier: 'starter',
     cost: 'ai_long', upstream: 'aiOptimiser', slow: true,
-    desc: 'Write or optimise content, then run the 18-agent QA suite over it.' },
+    desc: 'Write from a topic (outline → sections → polish) or rewrite existing copy to close content gaps, then run the 18-agent QA suite — with AI-Links, a suggested meta title/description and a readability score.' },
   { id: 'content-check', name: 'Content Checker', category: 'Content', minTier: 'starter',
     cost: 'ai_long', upstream: 'checkContent', slow: true,
     desc: 'Grammar, readability, keyword, compliance & brand-guide checks.' },
@@ -883,7 +883,8 @@ export const INPUTS = {
   ],
   // Full AI Content Optimiser — write/optimise + the 18-agent QA suite.
   'content-writer': [
-    { name: 'mode', label: 'Mode', type: 'select', options: ['Optimise existing content', 'Write a new draft'], default: 'Optimise existing content' },
+    { name: 'mode', label: 'Mode', type: 'select', options: ['Optimise existing content', 'Write a new draft'], default: 'Optimise existing content',
+      hint: 'Optimise runs a gap analysis and rewrites your copy to fill the gaps, then QAs the improved draft. Write turns a topic into a full article (outline → sections → polish).' },
     { name: 'input', label: 'Content (or topic if writing new)', type: 'textarea', placeholder: 'Paste content to optimise, or a topic to write about…', required: true },
     { name: 'keyword', label: 'Target keyword', type: 'text', placeholder: 'e.g. project management software' },
     { name: 'secondary', label: 'Secondary keywords', type: 'tags', placeholder: 'add a keyword and press Enter' },
