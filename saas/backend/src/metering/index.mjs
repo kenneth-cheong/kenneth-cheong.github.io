@@ -2726,6 +2726,201 @@ function aiContentSettings(body) {
   };
 }
 
+// ── Readability + meta hygiene, ported from index.html's optimiser ────────────
+function _cwSyllables(word) {
+  word = String(word).toLowerCase().replace(/[^a-z]/g, '');
+  if (!word) return 0;
+  if (word.length <= 3) return 1;
+  word = word.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, '').replace(/^y/, '');
+  const m = word.match(/[aeiouy]{1,2}/g);
+  return Math.max(1, m ? m.length : 1);
+}
+function calculateFlesch(text) {
+  if (!text || !text.trim()) return 0;
+  const sents = text.split(/[.!?]+/).filter((s) => s.trim().length > 3);
+  const words = text.split(/\s+/).filter((w) => w.trim().length > 0);
+  if (!sents.length || !words.length) return 0;
+  const sylls = words.reduce((sum, w) => sum + _cwSyllables(w), 0);
+  return Math.max(0, Math.min(100, Math.round(206.835 - 1.015 * (words.length / sents.length) - 84.6 * (sylls / words.length))));
+}
+function fleschLabel(s) {
+  if (s >= 90) return 'Very Easy';
+  if (s >= 70) return 'Easy';
+  if (s >= 60) return 'Standard';
+  if (s >= 50) return 'Fairly Difficult';
+  if (s >= 30) return 'Difficult';
+  return 'Very Difficult';
+}
+// Strip editorial scaffolding ("Word Count:", "Section X of Y", literal "H3:"
+// labels…) that must never reach the published draft — mirrors index.html's
+// stripEditorialMeta() (commit 6a20982).
+function stripEditorialMeta(md) {
+  if (!md || typeof md !== 'string') return md || '';
+  const META_RE = /^(word ?count|target word ?count|recommended word ?count|section \d+ of \d+|meta[- ]?description|meta[- ]?title|url slug|slug)\b\s*[:\-]/i;
+  return md.split('\n').map((line) => {
+    const hMatch = line.match(/^\s*#{0,6}\s*H([1-6])\s*[:\-]\s*(.+?)\s*$/i);
+    if (hMatch) return '#'.repeat(parseInt(hMatch[1], 10)) + ' ' + hMatch[2];
+    const stripped = line.replace(/^[\s>*_#`~-]+/, '');
+    if (META_RE.test(stripped)) return '';
+    if (/^section \d+ of \d+\**\s*[:.\-]?\s*$/i.test(stripped)) return '';
+    return line;
+  }).join('\n');
+}
+// Minimal, safe Markdown → HTML so the produced draft renders as a real article
+// (headings/lists/bold/links) instead of raw "##" text. Escapes first, then
+// promotes tokens — only our own tags reach the output. add_links output is
+// already HTML and bypasses this (sanitised separately).
+function mdToHtml(md) {
+  const inline = (t) => esc(t)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (m, txt, href) => `<a href="${href}" target="_blank" rel="noopener">${txt}</a>`)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  const out = [];
+  let list = null;
+  const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  for (const raw of String(md || '').split('\n')) {
+    const line = raw.replace(/\s+$/, '');
+    if (!line.trim()) { closeList(); continue; }
+    const h = line.match(/^(#{1,6})\s+(.+)$/);
+    if (h) { closeList(); const lv = Math.min(6, h[1].length); out.push(`<h${lv} style="margin:14px 0 6px;font-weight:700">${inline(h[2])}</h${lv}>`); continue; }
+    const ul = line.match(/^\s*[-*]\s+(.+)$/);
+    const ol = line.match(/^\s*\d+[.)]\s+(.+)$/);
+    if (ul) { if (list !== 'ul') { closeList(); out.push('<ul style="margin:6px 0;padding-left:20px">'); list = 'ul'; } out.push(`<li>${inline(ul[1])}</li>`); continue; }
+    if (ol) { if (list !== 'ol') { closeList(); out.push('<ol style="margin:6px 0;padding-left:20px">'); list = 'ol'; } out.push(`<li>${inline(ol[1])}</li>`); continue; }
+    closeList();
+    out.push(`<p style="margin:8px 0;line-height:1.6">${inline(line.trim())}</p>`);
+  }
+  closeList();
+  return out.join('\n');
+}
+// Defang untrusted AI-generated HTML (the add_links output) before it lands in
+// the report: drop script/style/iframe, on* handlers and javascript: URLs.
+function sanitizeDraftHtml(html) {
+  return String(html || '')
+    .replace(/<\s*(script|style|iframe|object|embed)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '')
+    .replace(/<\s*(script|style|iframe|object|embed)[^>]*\/?>/gi, '')
+    .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+    .replace(/\son\w+\s*=\s*'[^']*'/gi, '')
+    .replace(/\son\w+\s*=\s*[^\s>]+/gi, '')
+    .replace(/(href|src)\s*=\s*("|')\s*javascript:[^"']*\2/gi, '$1="#"');
+}
+
+// Parse an AI outline into H1/H2-delimited sections (port of index.html's
+// parseOutlineIntoSections). H3+ stay with their parent section.
+function parseOutlineSections(outline) {
+  const sections = [];
+  let cur = { header: '', content: [] };
+  for (const line of String(outline).split('\n')) {
+    if (!line.trim()) continue;
+    if (/^#{1,2}\s/.test(line.trim())) {
+      if (cur.header || cur.content.length) sections.push(cur);
+      cur = { header: line.trim(), content: [] };
+    } else cur.content.push(line);
+  }
+  if (cur.header || cur.content.length) sections.push(cur);
+  if (!sections.length && String(outline).trim()) sections.push({ header: 'Introduction', content: [outline] });
+  return sections.map((s) => ({ header: s.header, body: s.content.join('\n') }));
+}
+
+/** Single-call fallback article (the previous behaviour). */
+async function freeformDraft(url, { topic, keyword, secondaryArr, settings }) {
+  const raw = await postUpstream(url, {
+    action: 'content_freeform',
+    userPrompt: `Write a focused, SEO-friendly article about: "${topic}". Use clear H2/H3 headings, a short intro, scannable sections and a brief conclusion. Primary keyword: ${keyword || topic}.`,
+    personaContext: {}, selectedTopics: [], primary_keyword: keyword, secondary_keywords: secondaryArr,
+    compliance_guidelines: [], settings,
+  });
+  return stripEditorialMeta(aiText(raw));
+}
+
+/** Write flow: outline → sections (parallel) → polish. Sections are written
+ *  concurrently and the polish pass harmonises flow — keeps the one-shot run
+ *  inside the gateway budget. Falls back to a single freeform draft on failure. */
+async function writeArticle(url, { topic, keyword, secondaryArr, settings }) {
+  const secondary = secondaryArr.join(', ');
+  let outline = '';
+  try {
+    outline = aiText(await postUpstream(url, {
+      action: 'content_outline', topic, keyword, pageTypeContext: settings.pageType,
+      personaContext: {}, deepCompareContext: '', selectedTopics: [], targetWordCount: 0, locale: settings.locale,
+    }));
+  } catch { /* fall back to freeform */ }
+  if (!outline || !outline.trim()) return freeformDraft(url, { topic, keyword, secondaryArr, settings });
+
+  const sections = parseOutlineSections(outline).slice(0, 7); // cap for time budget
+  const written = await Promise.all(sections.map((sec, i) =>
+    postUpstream(url, {
+      action: 'content_section', topic, primaryKeyword: keyword, secondaryKeywords: secondary,
+      pageTypeContext: settings.pageType, personaInstruction: '', complianceInstruction: '',
+      deepCompareContext: '', outline, recentContent: '', sectionHeader: sec.header, sectionContext: sec.body,
+      refUrls: [], sectionTarget: 0, totalTarget: 0, sectionIndex: i, totalSections: sections.length,
+      locale: settings.locale, settings,
+    }).then((raw) => stripEditorialMeta(aiText(raw))).catch(() => '')
+  ));
+  let full = written.filter(Boolean).join('\n\n');
+  if (!full.trim()) return freeformDraft(url, { topic, keyword, secondaryArr, settings });
+
+  try {
+    const polished = stripEditorialMeta(aiText(await postUpstream(url, { action: 'content_polish', fullContent: full, settings })));
+    if (polished && polished.trim()) full = polished;
+  } catch { /* keep unpolished draft */ }
+  return full;
+}
+
+/** Optimise flow: gap analysis → rewrite applying the gaps. Returns the improved
+ *  draft (empty if the rewrite failed) plus the gap summary for display. */
+async function optimiseExisting(url, { content, keyword, settings }) {
+  let gap = '';
+  try {
+    gap = aiText(await postUpstream(url, {
+      action: 'content_gap', pageTypeContext: settings.pageType, personaContext: {},
+      deepCompareContext: '', selectedTopics: [], keyword, editorContent: content, settings,
+    }));
+  } catch { /* no gap analysis */ }
+  let rewrite = '';
+  if (gap && gap.trim()) {
+    try {
+      rewrite = aiText(await postUpstream(url, {
+        action: 'content_rewrite', personaContext: {}, selectedTopics: [], keyword,
+        suggestions: gap, originalContent: content, settings,
+      }));
+      rewrite = stripEditorialMeta((rewrite || '').replace(/```(?:markdown)?\s*/gi, '').replace(/```\s*$/g, '').trim());
+    } catch { /* keep original */ }
+  }
+  return { gap: gap || '', rewrite: rewrite || '' };
+}
+
+/** AI-Links: insert credible external citations. Feeds HTML in (add_links
+ *  preserves existing HTML) and returns sanitised HTML. */
+async function addAiLinks(url, { content, keyword, secondaryArr, settings }) {
+  try {
+    let out = aiText(await postUpstream(url, {
+      action: 'add_links', content: mdToHtml(content), settings,
+      primary_keyword: keyword, secondary_keywords: secondaryArr.join(', '),
+    }));
+    if (typeof out !== 'string' || !out.trim()) return '';
+    out = out.trim();
+    const fence = out.match(/```(?:html)?\s*([\s\S]*?)```/i);
+    out = fence ? fence[1].trim() : out.replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/i, '').trim();
+    return sanitizeDraftHtml(out);
+  } catch { return ''; }
+}
+
+/** Suggest an SEO meta title + description for the produced draft. */
+async function generateMeta(url, { content, keyword, settings }) {
+  try {
+    const t = aiText(await postUpstream(url, {
+      action: 'content_freeform',
+      userPrompt: `Based on the article below, write ONE SEO meta title (max 60 characters) and ONE meta description (max 155 characters) targeting the keyword "${keyword || ''}". Reply as exactly two lines and nothing else:\nTitle: <title>\nDescription: <description>\n\nARTICLE:\n${content.slice(0, 3500)}`,
+      personaContext: {}, selectedTopics: [], primary_keyword: keyword, secondary_keywords: [],
+      compliance_guidelines: [], settings,
+    }));
+    const title = ((t.match(/title\s*[:\-]\s*(.+)/i) || [])[1] || '').trim().replace(/^["']|["']$/g, '');
+    const desc = ((t.match(/description\s*[:\-]\s*(.+)/i) || [])[1] || '').trim().replace(/^["']|["']$/g, '');
+    return (title || desc) ? { title, desc } : null;
+  } catch { return null; }
+}
+
 async function contentOptimiserRun(body) {
   const url = UPSTREAMS.aiOptimiser;
   const settings = aiContentSettings(body);
@@ -2734,19 +2929,27 @@ async function contentOptimiserRun(body) {
   const writing = /write/i.test(body.mode || '');
 
   let content = (body.input || '').trim();
-  let draft = '';
+  let draft = '';        // the (improved) draft we produced, as markdown
+  let gapSummary = '';
   if (writing) {
-    const draftRaw = await postUpstream(url, {
-      action: 'content_freeform',
-      userPrompt: `Write a focused, SEO-friendly article about: "${content}". Use clear H2/H3 headings, a short intro, scannable sections and a brief conclusion. Primary keyword: ${keyword || content}.`,
-      personaContext: {}, selectedTopics: [],
-      primary_keyword: keyword, secondary_keywords: secondaryArr,
-      compliance_guidelines: [], settings,
-    });
-    draft = aiText(draftRaw);
+    draft = await writeArticle(url, { topic: content, keyword, secondaryArr, settings });
     if (draft) content = draft;
+  } else if (content) {
+    const opt = await optimiseExisting(url, { content, keyword, settings });
+    gapSummary = opt.gap;
+    if (opt.rewrite) { draft = opt.rewrite; content = opt.rewrite; }
   }
   if (!content) return { text: 'Add some content to optimise (or a topic to write about).' };
+
+  // Enrich the produced draft with AI-Links + suggested meta (parallel — no extra
+  // wall-clock). Only runs when we actually generated/rewrote content.
+  let linkedHtml = '', meta = null;
+  if (draft) {
+    [linkedHtml, meta] = await Promise.all([
+      addAiLinks(url, { content: draft, keyword, secondaryArr, settings }),
+      generateMeta(url, { content: draft, keyword, settings }),
+    ]);
+  }
 
   const grp = body.analysis || '';
   const agents = /^Full/i.test(grp) ? OPTIMISER_AGENTS
@@ -2754,11 +2957,13 @@ async function contentOptimiserRun(body) {
     : /^Structure/i.test(grp) ? OPTIMISER_AGENTS.filter((a) => a.group === 'structure')
     : OPTIMISER_AGENTS.filter((a) => a.group === 'verify');
 
+  const flesch = calculateFlesch(content);
+  const wordCount = content.split(/\s+/).filter(Boolean).length;
   const context = {
     flow: writing ? 'new' : 'optimise', keyword, secondary: secondaryArr.join(', '),
     topic: writing ? (body.input || '').trim() : '', location: 'Singapore', language: 'English',
     content, pageType: settings.pageType, compliance: '', personas: '', selectedTopics: '',
-    wordCount: content.split(/\s+/).filter(Boolean).length, flesch: null, fleschLabel: '',
+    wordCount, flesch, fleschLabel: fleschLabel(flesch),
     brandTone: settings.brandTone, jurisdictions: settings.jurisdictions, readingLevel: settings.readingLevel,
   };
 
@@ -2767,7 +2972,10 @@ async function contentOptimiserRun(body) {
       .then((raw) => ({ a, parsed: parseAgentResult(aiText(raw)) }))
       .catch((e) => ({ a, parsed: { error: e.message } }))
   ));
-  return { html: renderOptimiser(writing, draft, context.wordCount, results) };
+
+  const draftHtml = linkedHtml || (draft ? mdToHtml(draft) : '');
+  const linkCount = linkedHtml ? (linkedHtml.match(/<a\s+[^>]*href=/gi) || []).length : 0;
+  return { html: renderOptimiser({ writing, draftHtml, wordCount, flesch, meta, gapSummary, linkCount, results }) };
 }
 
 /** Replica of the agency's parseAgentStructuredResult(): JSON header + ---CONTENT---. */
@@ -2786,7 +2994,7 @@ function parseAgentResult(raw) {
   return { summary: obj?.summary, findings: obj?.findings, score: obj?.score, content };
 }
 
-function renderOptimiser(writing, draft, wordCount, results) {
+function renderOptimiser({ writing, draftHtml, wordCount, flesch, meta, gapSummary, linkCount, results }) {
   const card = (label, p) => {
     if (p.error) return `<div style="border:1px solid #fecaca;border-radius:10px;padding:12px;margin:8px 0;background:#fef2f2"><strong>${esc(label)}</strong> — <span style="color:#b91c1c">${esc(p.error)}</span></div>`;
     const score = p.score != null ? `<span style="background:#eef2ff;color:#4f46e5;border-radius:999px;padding:1px 8px;font-size:11px;margin-left:6px">score ${esc(p.score)}</span>` : '';
@@ -2798,10 +3006,35 @@ function renderOptimiser(writing, draft, wordCount, results) {
       <div><strong>${esc(label)}</strong>${score}</div>
       ${p.summary ? `<p style="color:#475569;margin:6px 0">${esc(p.summary)}</p>` : ''}${findings}${detail}</div>`;
   };
-  const draftBlock = writing && draft
-    ? `<h3 style="margin:0 0 6px;font-weight:700">Draft (${wordCount} words)</h3><div style="white-space:pre-wrap;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px">${esc(draft.slice(0, 4000))}</div>`
+
+  const chip = (txt, bg, fg) => `<span style="background:${bg};color:${fg};border-radius:999px;padding:2px 10px;font-size:12px;margin:0 6px 6px 0;display:inline-block">${esc(txt)}</span>`;
+  const scores = results.map((r) => r.parsed && r.parsed.score).filter((s) => s != null && !isNaN(Number(s)));
+  const avg = scores.length ? Math.round((scores.reduce((s, v) => s + Number(v), 0) / scores.length) * 10) / 10 : null;
+  const metaRow = [
+    chip(`${wordCount} words`, '#eef2ff', '#4f46e5'),
+    chip(`Readability ${flesch} · ${fleschLabel(flesch)}`, '#ecfeff', '#0e7490'),
+    avg != null ? chip(`QA score ${avg}/10`, avg >= 7 ? '#dcfce7' : avg >= 5 ? '#fef9c3' : '#fee2e2', avg >= 7 ? '#166534' : avg >= 5 ? '#854d0e' : '#991b1b') : '',
+    linkCount ? chip(`${linkCount} AI link${linkCount === 1 ? '' : 's'}`, '#f0fdf4', '#166534') : '',
+  ].join('');
+
+  const metaBlock = meta && (meta.title || meta.desc)
+    ? `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:0 0 12px;background:#f8fafc">
+        <div style="font-weight:700;margin-bottom:4px">Suggested meta</div>
+        ${meta.title ? `<div style="font-size:13px;margin:2px 0"><span style="color:#64748b">Title:</span> ${esc(meta.title)}</div>` : ''}
+        ${meta.desc ? `<div style="font-size:13px;margin:2px 0"><span style="color:#64748b">Description:</span> ${esc(meta.desc)}</div>` : ''}
+      </div>` : '';
+
+  const draftBlock = draftHtml
+    ? `<h3 style="margin:0 0 8px;font-weight:700">${writing ? 'Draft' : 'Optimised draft'}</h3>
+       <div>${metaRow}</div>${metaBlock}
+       <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:16px;font-size:14px;max-height:520px;overflow:auto">${draftHtml}</div>`
+    : `<div style="margin:0 0 12px">${metaRow}</div>`;
+
+  const gapBlock = gapSummary
+    ? `<details style="margin:0 0 16px"><summary style="cursor:pointer;font-weight:700">Content-gap analysis</summary><div style="white-space:pre-wrap;color:#334155;font-size:13px;margin-top:8px">${esc(gapSummary.slice(0, 3000))}</div></details>`
     : '';
-  return `${draftBlock}<h3 style="margin:0 0 6px;font-weight:700">QA agent findings <span style="font-weight:400;color:#64748b">— ${results.length} agents</span></h3>${results.map((r) => card(r.a.label, r.parsed)).join('')}`;
+
+  return `${draftBlock}${gapBlock}<h3 style="margin:0 0 6px;font-weight:700">QA agent findings <span style="font-weight:400;color:#64748b">— ${results.length} agents</span></h3>${results.map((r) => card(r.a.label, r.parsed)).join('')}`;
 }
 
 // ── Content Checker: parse brand guides + references → checkContent ───────────
