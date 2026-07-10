@@ -284,7 +284,7 @@ function TriggerRow({ t, index, total, open, onToggleOpen, onPatch, onRemove, on
                   className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-500 hover:border-brand-300 hover:text-brand-700">{tk.token}</button>
               ))}
             </div>
-            <p className="mt-1 text-[11px] text-slate-400">Add clickable chips with tokens like <code>[[go:/pricing|Upgrade]]</code>, <code>[[tool:keyword-analysis]]</code>, <code>[[action:ticket]]</code>.</p>
+            <p className="mt-1 text-[11px] text-slate-400">Add clickable chips with tokens like <code>[[go:/pricing|Upgrade]]</code>, <code>[[tool:keyword-analysis]]</code>, <code>[[action:ticket]]</code>, <code>[[ask:What do I put in each field?]]</code> (a quick-reply button that asks Monty that question).</p>
           </div>
 
           {/* AI phrasing */}

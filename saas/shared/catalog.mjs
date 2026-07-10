@@ -1223,6 +1223,8 @@ export const PROACTIVE_TOKENS = [
 ];
 // Message bodies may also contain the same clickable chip tokens the chat uses:
 //   [[tool:id]]  [[go:/path|Label]]  [[action:verb|arg]]
+//   [[ask:Label]] / [[ask:Label|text to send]] — a quick-reply button that sends
+//   that text to Monty as if the user typed it (great for offering next questions).
 
 const RUN_STATUSES = ['any', 'success', 'empty', 'error'];
 
@@ -1306,11 +1308,11 @@ export const DEFAULT_PROACTIVE = normalizeProactive({
     { id: 'welcome_back', label: 'Returning after a week', event: 'app_open', minDaysAway: 7, priority: 20, cooldownHours: 48,
       message: "Welcome back, {firstName}! Want a quick recap of what changed, or shall we pick up your plan? [[go:/projects|My projects]]" },
     { id: 'dashboard_idle', label: 'Idle on dashboard', event: 'idle', route: '/', idleSeconds: 30, priority: 5, cooldownHours: 24,
-      message: 'Not sure where to start? Tell me your goal and I’ll suggest the right tool.' },
+      message: 'Not sure where to start? Tell me your goal and I’ll suggest the right tool. [[ask:Which tool fits my goal?]] [[ask:How do I get more visitors?]]' },
     { id: 'tool_form_idle', label: 'Stuck on a tool form', event: 'idle', route: '/tool/*', idleSeconds: 25, priority: 10, cooldownHours: 12,
-      message: 'Need a hand with {toolName}? I can explain what it does or help you fill it in.' },
+      message: 'Need a hand with {toolName}? [[ask:What does this tool do?|What does {toolName} do?]] [[ask:What do I put in each field?]]' },
     { id: 'run_done', label: 'Run finished → next step', event: 'run_finished', runStatus: 'success', priority: 15, cooldownHours: 2,
-      message: 'Your {toolName} run is done ✅ Want me to explain the results in plain English or suggest what to do next?' },
+      message: 'Your {toolName} run is done ✅ [[ask:Explain the results]] [[ask:What should I do next?]]' },
     // Discovery tips — fire after a run, when results are on screen. Higher
     // priority than run_done but long cooldowns, so each takes its turn across
     // sessions (the global per-session cap keeps it from ever feeling naggy),
@@ -1322,9 +1324,9 @@ export const DEFAULT_PROACTIVE = normalizeProactive({
     { id: 'schedule_recurring', label: 'Discover Schedules', event: 'run_finished', runStatus: 'success', priority: 18, cooldownHours: 336, maxPerSession: 1,
       message: "Running {toolName} regularly? I can do it automatically on a schedule and flag what changed since last time. [[go:/schedules|Set up a schedule]]" },
     { id: 'results_tldr', label: 'Offer a plain-English TL;DR', event: 'run_finished', runStatus: 'success', priority: 17, cooldownHours: 168, maxPerSession: 1,
-      message: "Lots to read here — want the TL;DR? Just ask and I'll pull out the single most important thing to fix and skip the jargon." },
+      message: "Lots to read here — want the TL;DR? [[ask:Give me the TL;DR|Give me the TL;DR — the single most important thing to fix, no jargon.]]" },
     { id: 'tool_intro', label: 'Explain a tool on open', event: 'route_enter', route: '/tool/*', priority: 8, cooldownHours: 72,
-      message: "New to {toolName}? Ask me what it does — or what to put in each field — before you run it." },
+      message: "New to {toolName}? Here's what it does and what to put in each field. [[ask:What does it do?|What does {toolName} do?]] [[ask:What do I put in each field?]]" },
     { id: 'profile_bonus', label: 'Nudge profile completion for credits', event: 'app_open', profileIncomplete: true, priority: 22, cooldownHours: 96,
       message: "Quick win {firstName}: finish your profile and I'll drop 50 free credits into your account. [[go:/profile|Complete your profile]]" },
     { id: 'run_empty', label: 'Run returned nothing', event: 'run_finished', runStatus: 'empty', priority: 18, cooldownHours: 2,

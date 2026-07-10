@@ -5,7 +5,7 @@
 import { listProjects, listTracked, listRuns } from './dynamo.mjs';
 import { isStaff } from './admin.mjs';
 import { retrieveKb } from './kb.mjs';
-import { CREDIT_COSTS, PLANS, TOOLS } from '../../../shared/catalog.mjs';
+import { CREDIT_COSTS, PLANS, TOOLS, toolById, inputsFor, tabsFor, exampleFor } from '../../../shared/catalog.mjs';
 import { integrationSummary } from '../../../shared/connectors.mjs';
 
 export const TOOL_CATALOG = TOOLS
@@ -105,13 +105,82 @@ export async function buildUserContext(user) {
   return lines.join('\n');
 }
 
-/** Full system prompt for the chat (rules + tool catalog + retrieved help KB +
- *  this user's context). `query` is the latest user message, used to pull the
- *  most relevant knowledge-base entries to ground the answer. */
-export async function buildChatSystem(user, query = '') {
+// Friendly names for the non-tool routes, so the assistant knows where the user
+// is even when they're not on a tool page (drives context for vague questions).
+const PAGE_NAMES = {
+  '/': 'main dashboard', '/projects': 'Projects / campaigns', '/history': 'run history',
+  '/tracking': 'keyword rank Tracking', '/integrations': 'Integrations (connect Google)',
+  '/account': 'Account & billing', '/pricing': 'Pricing & plans', '/schedules': 'scheduled runs',
+  '/support': 'Support', '/profile': 'profile', '/audit': 'Site Health Check',
+};
+
+// A compact briefing on the tool the user currently has open: what it does plus
+// each input field (with whether it's required and an example / its options), so
+// vague questions like "what does this do" or "what do I put in each field" get
+// answered specifically about THIS tool instead of generically.
+export function buildToolGuide(toolId) {
+  const tool = toolById(toolId);
+  if (!tool) return '';
+  const cost = CREDIT_COSTS[tool.cost] ?? 0;
+  const example = exampleFor(tool.id) || {};
+  const eg = (v) => `e.g. ${String(v).replace(/^e\.g\.?\s*/i, '')}`; // avoid "e.g. e.g."
+  const lines = [`Tool: ${tool.name} (${cost ? `${cost} credit${cost === 1 ? '' : 's'} per run` : 'free'})`, `What it does: ${tool.desc}`];
+  const describe = (fields, indent = '') => {
+    for (const f of fields) {
+      const label = f.label || f.name;
+      if (!label) continue;
+      const bits = [];
+      if (f.required) bits.push('required');
+      if ((f.type === 'select' || f.type === 'segmented') && Array.isArray(f.options) && f.options.length) {
+        bits.push(`choose one of: ${f.options.slice(0, 8).join(', ')}${f.options.length > 8 ? '…' : ''}`);
+      } else if (f.placeholder) bits.push(eg(f.placeholder));
+      else if (example[f.name]) bits.push(eg(example[f.name]));
+      lines.push(`${indent}- ${label}${bits.length ? ` (${bits.join('; ')})` : ''}`);
+    }
+  };
+  const tabs = tabsFor(tool);
+  if (tabs) {
+    lines.push('This tool has several tabs:');
+    for (const t of tabs) { lines.push(`Tab "${t.label}":`); describe(t.fields, '  '); }
+  } else {
+    lines.push('Input fields:');
+    describe(inputsFor(tool));
+  }
+  return lines.join('\n');
+}
+
+// Turn the caller's {path, toolId} into a "where the user is" block for the
+// prompt. On a tool page it's the full field-level guide; elsewhere just a name.
+export function buildPageContext(pageContext) {
+  if (!pageContext || typeof pageContext !== 'object') return '';
+  const { path, toolId } = pageContext;
+  if (toolId) {
+    const guide = buildToolGuide(toolId);
+    if (guide) {
+      return 'WHERE THE USER IS: they have this tool open right now. If their message is vague ' +
+        '("what does it do", "what do I put in each field", "how do I fill this in", "help me with this", ' +
+        '"is this right"), assume it is about THIS tool and answer specifically using the fields below — ' +
+        'don\'t ask them which tool they mean:\n' + guide;
+    }
+  }
+  const nice = PAGE_NAMES[path];
+  if (nice) return `WHERE THE USER IS: on the ${nice} page. If their message is vague, assume it relates to this page.`;
+  return '';
+}
+
+/** Full system prompt for the chat (rules + where-the-user-is + tool catalog +
+ *  retrieved help KB + this user's context). `query` is the latest user message
+ *  (used to pull the most relevant KB entries) and `pageContext` is the caller's
+ *  {path, toolId} so the assistant knows what the user is currently looking at. */
+export async function buildChatSystem(user, query = '', pageContext = null) {
   const context = await buildUserContext(user);
-  const help = retrieveKb(query);
-  return `${CHAT_RULES}\n\nTools you can recommend (id — name [min tier, credits]: what it does):\n${TOOL_CATALOG}\n\n` +
+  const page = buildPageContext(pageContext);
+  // Fold the open tool's name into the KB query so its help entry surfaces.
+  const tool = pageContext?.toolId ? toolById(pageContext.toolId) : null;
+  const help = retrieveKb(`${query} ${tool?.name || ''}`.trim());
+  return `${CHAT_RULES}\n\n` +
+    (page ? `${page}\n\n` : '') +
+    `Tools you can recommend (id — name [min tier, credits]: what it does):\n${TOOL_CATALOG}\n\n` +
     `HELP / KNOWLEDGE BASE (authoritative — use these facts for how-to & policy questions; don't invent):\n${help}\n\n` +
     `Here is everything known about this user (their own data — safe to share with them):\n${context}`;
 }

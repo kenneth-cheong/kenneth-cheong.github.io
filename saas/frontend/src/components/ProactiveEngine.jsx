@@ -178,5 +178,5 @@ function toolNameFromPath(path) {
 // Drop [[chip]] tokens for the nudge preview — chips only make sense once the
 // message is rendered inside the chat thread.
 function stripChips(text) {
-  return String(text || '').replace(/\[\[(?:tool|action|go):[^\]]+\]\]/gi, '').replace(/\s{2,}/g, ' ').trim();
+  return String(text || '').replace(/\[\[(?:tool|action|go|ask):[^\]]+\]\]/gi, '').replace(/\s{2,}/g, ' ').trim();
 }

@@ -44,7 +44,10 @@ export const handler = aws.streamifyResponse(async (event, responseStream) => {
 
   const conversationId = body.conversationId || `${new Date().toISOString()}#${Math.random().toString(36).slice(2, 8)}`;
   const query = [...msgs].reverse().find((m) => m.role === 'user')?.content || '';
-  const system = await buildChatSystem(user, query);
+  const pageContext = body.context && typeof body.context === 'object'
+    ? { path: clamp(body.context.path, 120), toolId: clamp(body.context.toolId, 60) || null }
+    : null;
+  const system = await buildChatSystem(user, query, pageContext);
 
   // ── Stream ──
   const rs = aws.HttpResponseStream.from(responseStream, {

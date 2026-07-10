@@ -116,15 +116,15 @@ async function callBlob(path, { _retried = false } = {}) {
 // Streaming chat: POSTs to the streaming Function URL and calls onDelta(text)
 // as tokens arrive. Returns { conversationId, reply }. Refreshes the access
 // token once on 401/403; throws ApiError on non-2xx so the caller can fall back.
-export async function chatStream(messages, conversationId, onDelta, { signal } = {}, _retried = false) {
+export async function chatStream(messages, conversationId, onDelta, { signal, context } = {}, _retried = false) {
   const res = await fetch(CHAT_STREAM_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
-    body: JSON.stringify({ messages, conversationId }),
+    body: JSON.stringify({ messages, conversationId, context }),
     signal,
   });
   if ((res.status === 401 || res.status === 403) && !_retried && (await tryRefresh())) {
-    return chatStream(messages, conversationId, onDelta, { signal }, true);
+    return chatStream(messages, conversationId, onDelta, { signal, context }, true);
   }
   if (!res.ok || !res.body) {
     const payload = await res.json().catch(() => ({}));
@@ -200,7 +200,7 @@ export const api = {
   portal: () => call('/billing/portal', { method: 'POST' }),
   invoices: () => call('/billing/invoices'),
   // In-app features: assistant chat, run history, support, integrations.
-  chat: (messages, conversationId) => call('/chat', { method: 'POST', body: { messages, conversationId } }),
+  chat: (messages, conversationId, context) => call('/chat', { method: 'POST', body: { messages, conversationId, context } }),
   conversations: () => call('/chat/conversations'),
   conversation: (id) => call(`/chat/conversations/${encodeURIComponent(id)}`),
   deleteConversation: (id) => call('/chat/conversations/delete', { method: 'POST', body: { conversationId: id } }),

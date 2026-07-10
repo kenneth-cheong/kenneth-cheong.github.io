@@ -176,7 +176,10 @@ export const handler = async (event) => {
       // Bound the conversation we forward: last 50 turns, each capped at 8k chars.
       const messages = (Array.isArray(body.messages) ? body.messages : []).slice(-50)
         .map((m) => ({ ...m, content: clampStr(m?.content, 8000) }));
-      const reply = await assistantReply(user, messages);
+      const pageContext = body.context && typeof body.context === 'object'
+        ? { path: clampStr(body.context.path, 120), toolId: clampStr(body.context.toolId, 60) || null }
+        : null;
+      const reply = await assistantReply(user, messages, pageContext);
       const spent = await spendCredits({ userId: user.userId, cost, action: 'chat', tool: 'chatbot' });
       // Persist the thread (incl. this reply) so it shows in history. Best-effort
       // — a storage hiccup must not fail the chat the user already paid for.
@@ -823,9 +826,9 @@ async function notifyReply(ownerId, ticket, text, senderName) {
   return { recipients, delivered };
 }
 
-async function assistantReply(user, messages) {
+async function assistantReply(user, messages, pageContext = null) {
   const query = [...(messages || [])].reverse().find((m) => m.role === 'user')?.content || '';
-  const system = await buildChatSystem(user, query);
+  const system = await buildChatSystem(user, query, pageContext);
   const history = (messages || []).slice(-10).map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n');
   const userPrompt = `${system}\n\nConversation so far:\n${history}\n\nAssistant:`;
   const res = await fetch(UPSTREAMS.aiOptimiser, {

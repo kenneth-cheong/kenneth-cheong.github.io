@@ -11,11 +11,12 @@ import Mascot from './Mascot.jsx';
 import { proactiveMuted, setProactiveMuted } from '../lib/proactive.js';
 
 const COST = CREDIT_COSTS.ai_chat ?? 2;
-const GREETING = { role: 'assistant', content: "Hi! I'm Monty the Border Collie, your Digimetrics assistant. Ask me about any tool, how to get started, or your connected Search Console / GA4 / Ads numbers." };
+const GREETING = { role: 'assistant', content: "Hi! I'm Monty, your Digimetrics assistant. Ask me about any tool, how to get started, or your connected Search Console / GA4 / Ads numbers." };
 
 // Render an assistant message, turning [[tool:id]] / [[go:path|label]] /
-// [[action:verb|arg]] tokens into clickable chips (chipFor builds each one).
-const TOKEN_RE = /\[\[(tool|action|go):([^\]]+)\]\]/gi;
+// [[action:verb|arg]] / [[ask:label|text]] tokens into clickable chips
+// (chipFor builds each one).
+const TOKEN_RE = /\[\[(tool|action|go|ask):([^\]]+)\]\]/gi;
 function renderMessage(text, chipFor) {
   const out = [];
   let last = 0, m, k = 0;
@@ -67,7 +68,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
     catch (e) { toast(e.message, 'error'); }
   }
 
-  // Build a clickable chip for an assistant token (tool / go / action).
+  // Build a clickable chip for an assistant token (tool / go / action / ask).
   function chipFor(type, raw, key) {
     const chip = (label, onClick) => (
       <button key={`c${key}`} onClick={onClick}
@@ -75,8 +76,22 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
         {label} <ArrowRight size={12} aria-hidden />
       </button>
     );
+    // Quick-reply chip: clicking sends `text` to Monty (a follow-up question)
+    // rather than navigating. Outlined so it reads as "ask this", not "go there".
+    const replyChip = (label, text) => (
+      <button key={`c${key}`} onClick={() => submit(text)} disabled={busy}
+        className="mx-0.5 my-0.5 inline-flex items-center gap-1 rounded-full border border-brand-300 bg-brand-50 px-2.5 py-0.5 align-middle text-xs font-semibold text-brand-700 hover:border-brand-400 hover:bg-brand-100 disabled:opacity-50">
+        {label}
+      </button>
+    );
     if (type === 'tool') { const t = toolById(raw.trim()); return t ? chip(t.name, () => go(`/tool/${t.id}`)) : null; }
     if (type === 'go') { const [path, label] = raw.split('|'); return chip(label?.trim() || path.trim(), () => go(path.trim())); }
+    if (type === 'ask') {
+      // [[ask:Label]] sends "Label"; [[ask:Label|the text to send]] sends the text.
+      const [label, ...rest] = raw.split('|');
+      const text = (rest.join('|') || label).trim();
+      return label.trim() ? replyChip(label.trim(), text) : null;
+    }
     if (type === 'action') {
       const [verb, ...rest] = raw.split('|');
       const arg = rest.join('|').trim();
@@ -121,9 +136,18 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
 
   const OUT_OF_CREDITS = "You're out of credits — top up or upgrade to keep chatting.";
 
+  // Where the user is right now, so Monty can answer vague questions ("what does
+  // this do", "what goes in each field") about the tool/page they're looking at.
+  function pageContext() {
+    const path = location.pathname;
+    const m = /^\/tool\/([^/]+)/.exec(path);
+    return { path, toolId: m ? decodeURIComponent(m[1]) : null };
+  }
+
   async function submit(text) {
     text = String(text || '').trim();
     if (!text || busy) return;
+    const ctx = pageContext();
     const next = [...msgsRef.current, { role: 'user', content: text }];
     setMsgs(next);
     setDraft('');
@@ -139,7 +163,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
         const { conversationId: cid } = await chatStream(next, conversationId, (delta) => {
           acc += delta;
           setMsgs((m) => { const c = m.slice(); c[c.length - 1] = { role: 'assistant', content: acc }; return c; });
-        }, { signal: ac.signal });
+        }, { signal: ac.signal, context: ctx });
         if (cid) setConversationId(cid);
         setCredits(Math.max(0, (user?.credits || 0) - COST)); // stream can't return the balance; correct on next /me
         abortRef.current = null;
@@ -168,7 +192,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
 
     // ── Buffered fallback (also the path when streaming isn't configured) ──
     try {
-      const { reply, creditsRemaining, topupRemaining, conversationId: cid } = await api.chat(next, conversationId);
+      const { reply, creditsRemaining, topupRemaining, conversationId: cid } = await api.chat(next, conversationId, ctx);
       setMsgs((m) => [...m, { role: 'assistant', content: reply }]);
       if (cid) setConversationId(cid);
       if (typeof creditsRemaining === 'number') setCredits(creditsRemaining, topupRemaining);
