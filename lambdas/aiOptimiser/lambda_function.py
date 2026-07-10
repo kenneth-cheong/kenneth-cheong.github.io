@@ -612,7 +612,82 @@ def build_user_msg(action, content, prompt_override):
 _STRUCTURED_ACTIONS = {
     'news_classify', 'html_fragment', 'luxury_copy', 'caption_critic', 'serp_analysis',
     'content_outline', 'content_section', 'content_polish', 'strategy_url_research',
-    'smm_report', 'image_alt_rationale'
+    'smm_report', 'image_alt_rationale',
+    'topic_extract', 'topic_hierarchy',
+}
+
+# Forced-JSON schemas for the Topic Selection pipeline so the client's JSON.parse
+# can't choke on a prose preamble.
+_TOPIC_EXTRACT_SCHEMA = {
+    'type': 'object',
+    'properties': {
+        'candidates': {
+            'type': 'array',
+            'items': {
+                'type': 'object',
+                'properties': {
+                    'term':          {'type': 'string'},
+                    'intent':        {'type': 'string',
+                                      'enum': ['informational', 'commercial', 'transactional', 'navigational']},
+                    'funnel':        {'type': 'string',
+                                      'enum': ['awareness', 'consideration', 'decision']},
+                    'heading_level': {'type': 'string', 'enum': ['h1', 'h2', 'h3', 'body']},
+                    'entities':      {'type': 'array', 'items': {'type': 'string'}},
+                },
+                'required': ['term', 'intent', 'funnel'],
+                'additionalProperties': False,
+            },
+        },
+    },
+    'required': ['candidates'],
+    'additionalProperties': False,
+}
+
+_TOPIC_HIERARCHY_SCHEMA = {
+    'type': 'object',
+    'properties': {
+        'pillar': {
+            'type': 'object',
+            'properties': {
+                'title':          {'type': 'string'},
+                'central_entity': {'type': 'string'},
+            },
+            'required': ['title', 'central_entity'],
+            'additionalProperties': False,
+        },
+        'nodes': {
+            'type': 'array',
+            'items': {
+                'type': 'object',
+                'properties': {
+                    'id':           {'type': 'string'},
+                    'title':        {'type': 'string'},
+                    'parent_id':    {'type': ['string', 'null']},
+                    'intent':       {'type': 'string'},
+                    'bucket':       {'type': 'string'},
+                    'relevance':    {'type': ['number', 'null']},
+                    'why_belongs':  {'type': 'string'},
+                    'content_type': {'type': 'string', 'enum': ['pillar', 'cluster', 'section']},
+                },
+                'required': ['id', 'title', 'parent_id', 'why_belongs', 'content_type'],
+                'additionalProperties': False,
+            },
+        },
+        'rejected': {
+            'type': 'array',
+            'items': {
+                'type': 'object',
+                'properties': {
+                    'term':   {'type': 'string'},
+                    'reason': {'type': 'string'},
+                },
+                'required': ['term', 'reason'],
+                'additionalProperties': False,
+            },
+        },
+    },
+    'required': ['pillar', 'nodes'],
+    'additionalProperties': False,
 }
 
 
@@ -1641,6 +1716,89 @@ def build_structured_prompt(action, body):
         )
         return system, user
 
+    elif action == 'topic_extract':
+        # Stage 2 of the Topic Selection pipeline. From ONE competitor page (already
+        # scraped to text on the client), pull the subtopics a page legitimately ABOUT
+        # the central entity would cover — tagged with intent + funnel stage. The
+        # central-entity anchor is what keeps boilerplate/tangents out.
+        central_entity = (body.get('central_entity') or '').strip()
+        source_url     = (body.get('source_url') or '').strip()
+        page_content   = (body.get('content') or body.get('page_html') or '')
+        # Bound the page text so one long competitor page can't blow the window.
+        if len(page_content) > 18000:
+            page_content = page_content[:18000]
+        system = (
+            "You are a semantic SEO strategist extracting the topical building blocks of a page. "
+            "You work for a digital marketing agency building a topical map around a central entity."
+        )
+        user = (
+            f"CENTRAL ENTITY (the topic the target page will be about): \"{central_entity}\"\n"
+            f"SOURCE URL (a competitor ranking page): {source_url or 'n/a'}\n\n"
+            "COMPETITOR PAGE CONTENT (scraped text):\n"
+            f"\"\"\"\n{page_content}\n\"\"\"\n\n"
+            "Extract the distinct SUBTOPICS this page covers that a page genuinely about the "
+            "central entity could legitimately include. RULES:\n"
+            "- Only subtopics that ladder up to the central entity. If a block is unrelated to the "
+            "central entity, DROP it — do not include it just because it is on the page.\n"
+            "- IGNORE navigation, footer, cookie/consent text, author bios, boilerplate, CTAs, ads, "
+            "and pure brand/marketing fluff.\n"
+            "- Merge near-duplicates into one canonical term.\n"
+            "- For each subtopic tag its dominant search intent and funnel stage.\n"
+            "- Prefer 8-25 high-quality subtopics over an exhaustive dump.\n\n"
+            "Return a JSON object with a \"candidates\" array; each item:\n"
+            '  - "term": short canonical subtopic label (2-6 words)\n'
+            '  - "intent": one of "informational","commercial","transactional","navigational"\n'
+            '  - "funnel": one of "awareness","consideration","decision"\n'
+            '  - "heading_level": "h1"|"h2"|"h3"|"body" (best guess of where it sat)\n'
+            '  - "entities": array of 1-5 key entities/nouns the subtopic is about\n'
+        )
+        return system, user
+
+    elif action == 'topic_hierarchy':
+        # Stage 6. Given the FILTERED, anchored, scored topics, build the pillar>cluster>
+        # supporting tree. Hard contract: every node must justify why it belongs, or it
+        # goes to rejected[] — this is the anti-"rojak" lever.
+        central_entity = (body.get('central_entity') or '').strip()
+        source_context = (body.get('source_context') or '').strip()
+        topics         = body.get('topics') or []
+        if len(topics) > 120:
+            topics = topics[:120]
+        topic_lines = '\n'.join(
+            '- term："{t}" | intent:{i} | bucket:{b} | relevance:{r}'.format(
+                t=(tp.get('term') or ''),
+                i=(tp.get('intent') or 'informational'),
+                b=(tp.get('bucket') or 'table_stakes'),
+                r=(tp.get('relevance') if tp.get('relevance') is not None else '')
+            ) for tp in topics if isinstance(tp, dict)
+        )
+        system = (
+            "You are a semantic SEO architect turning a filtered set of subtopics into a coherent "
+            "topical map (content hierarchy) around a single central entity. Coherence matters more "
+            "than coverage: a tight, logical tree beats a large incoherent one."
+        )
+        user = (
+            f"CENTRAL ENTITY: \"{central_entity}\"\n"
+            f"SOURCE CONTEXT (who the site is / its angle): {source_context or 'n/a'}\n\n"
+            "CANDIDATE SUBTOPICS (already filtered for relevance; higher relevance = closer to the "
+            f"central entity):\n{topic_lines}\n\n"
+            "Build a topical hierarchy: ONE pillar (the central entity), then cluster nodes, then "
+            "supporting nodes under clusters. HARD RULES:\n"
+            "- Every node MUST have a non-empty \"why_belongs\" that justifies its link to its parent "
+            "and to the central entity. If you cannot justify a candidate's place, DO NOT force it "
+            "into the tree — put it in \"rejected\" with a reason instead.\n"
+            "- Do not invent subtopics that aren't supported by the candidates (you MAY merge/rename "
+            "for clarity).\n"
+            "- Keep intents coherent: don't graft a transactional node under an informational cluster "
+            "unless the relationship is real; note it in why_belongs if you do.\n"
+            "- Assign each node a content_type: \"pillar\"|\"cluster\"|\"section\".\n\n"
+            "Return a JSON object:\n"
+            '  - "pillar": { "title": string, "central_entity": string }\n'
+            '  - "nodes": array of { "id","title","parent_id"(null for pillar),"intent",'
+            '"bucket","relevance"(number|null),"why_belongs","content_type" }\n'
+            '  - "rejected": array of { "term","reason" }\n'
+        )
+        return system, user
+
     return None, None
 
 
@@ -1684,6 +1842,66 @@ def _parse_feed_date(date_str):
         except ValueError:
             pass
     return date_str[:10] if len(date_str) >= 10 else date_str
+
+
+def handle_topic_score(event):
+    """Stage 4 relevance scoring via a DeepSeek judge (no embeddings dependency).
+    Input: { anchor: str, items: [str,...] }. Returns { scores: [0..1,...] } aligned to
+    items — how topically relevant each item is to the anchor (central entity). Graceful:
+    on any failure returns scores:null + error so the client can fall back to the
+    model-provided relevance instead of hard-failing the pipeline."""
+    anchor = (event.get('anchor') or '').strip()
+    items  = event.get('items') or []
+    items  = [str(x or '').strip() for x in items][:256]  # bound the batch
+    if not anchor or not items:
+        return _resp(200, {'scores': None, 'error': 'anchor and items are required'})
+    api_key = os.environ.get('DEEPSEEK_API_KEY')
+    if not api_key:
+        return _resp(200, {'scores': None, 'error': 'DEEPSEEK_API_KEY not configured'})
+    numbered = '\n'.join(f'{i}. {t}' for i, t in enumerate(items))
+    system = (
+        "You are a semantic SEO relevance judge. Given a CENTRAL ENTITY and a numbered list of "
+        "candidate subtopics, rate how topically relevant each subtopic is to the central entity "
+        "on a 0.0-1.0 scale (1.0 = core subtopic of the entity; 0.0 = unrelated/boilerplate). "
+        "Be strict: generic boilerplate (contact, pricing page, about us) scores low even if common."
+    )
+    user = (
+        f"CENTRAL ENTITY: \"{anchor}\"\n\n"
+        f"CANDIDATE SUBTOPICS:\n{numbered}\n\n"
+        "Return ONLY a JSON object of the form {\"scores\":[{\"i\":0,\"score\":0.83}, ...]} with one "
+        "entry per index above, no other text."
+    )
+    try:
+        r = requests.post(
+            'https://api.deepseek.com/chat/completions',
+            headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+            json={
+                'model': 'deepseek-chat',
+                'temperature': 0,
+                'response_format': {'type': 'json_object'},
+                'messages': [{'role': 'system', 'content': system},
+                             {'role': 'user', 'content': user}],
+            },
+            timeout=120,
+        )
+        if r.status_code != 200:
+            raise RuntimeError(f'DeepSeek HTTP {r.status_code}: {r.text[:300]}')
+        txt = r.json()['choices'][0]['message']['content']
+        parsed = json.loads(txt)
+        raw = parsed.get('scores', parsed if isinstance(parsed, list) else [])
+        # Align back to item order; default any missing index to 0.
+        by_index = {}
+        for row in raw:
+            if isinstance(row, dict) and 'i' in row:
+                try:
+                    by_index[int(row['i'])] = float(row.get('score', 0))
+                except (ValueError, TypeError):
+                    pass
+        scores = [round(max(0.0, min(1.0, by_index.get(i, 0.0))), 4) for i in range(len(items))]
+        return _resp(200, {'scores': scores, 'model': 'deepseek-chat', 'count': len(scores)})
+    except Exception as e:
+        print(f"[aiOptimiser] topic_score failed: {e}")
+        return _resp(200, {'scores': None, 'error': str(e)})
 
 
 def fetch_seo_feeds_handler(event):
@@ -1991,6 +2209,11 @@ def lambda_handler(event, context):
         if action == 'fetch_seo_feeds':
             return fetch_seo_feeds_handler(event)
 
+        # Topic Selection stage 4: score each candidate topic's relevance to the anchor
+        # (central entity). DeepSeek judge — cheap, no embeddings dependency.
+        if action == 'topic_score':
+            return handle_topic_score(event)
+
         if action in ('learnings_list', 'learnings_upsert', 'learnings_delete'):
             return handle_learnings(action, event)
 
@@ -2108,6 +2331,16 @@ def lambda_handler(event, context):
                         {'type': 'web_search_20260209', 'name': 'web_search',
                          'allowed_callers': ['direct']},
                     ]
+
+            # Topic Selection actions: force a JSON object so the client parse is safe.
+            if action == 'topic_extract':
+                request_body['output_config'] = {
+                    'format': {'type': 'json_schema', 'schema': _TOPIC_EXTRACT_SCHEMA}
+                }
+            elif action == 'topic_hierarchy':
+                request_body['output_config'] = {
+                    'format': {'type': 'json_schema', 'schema': _TOPIC_HIERARCHY_SCHEMA}
+                }
 
             try:
                 resp_json   = _anthropic_request(api_key, request_body)
