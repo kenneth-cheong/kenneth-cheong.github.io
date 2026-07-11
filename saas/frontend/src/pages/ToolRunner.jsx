@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import UpgradeModal from '../components/UpgradeModal.jsx';
 import ResultSections from '../components/ResultSections.jsx';
+import ReportHtml from '../components/ReportHtml.jsx';
 import SchemaResult from '../components/SchemaResult.jsx';
 import SortableTable from '../components/SortableTable.jsx';
 import ShareResult from '../components/ShareResult.jsx';
@@ -489,7 +490,7 @@ function Result({ out, tool, project, user, onCredits }) {
               : <pre className="whitespace-pre-wrap text-sm text-body">{r.text}</pre>)}
             {r.preview && <pre className="whitespace-pre-wrap text-sm text-muted">{r.preview}</pre>}
             {preRowSections.length > 0 && <ResultSections sections={preRowSections} context={recContext} />}
-            {r.html && <div className="dm-report max-w-none text-sm text-body" dangerouslySetInnerHTML={{ __html: r.html }} />}
+            {r.html && <ReportHtml html={r.html} />}
           </>
         )}
 
@@ -1035,7 +1036,7 @@ function Segmented({ options, optionDesc = {}, value, onChange }) {
 function Field({ field, value, onChange, autoFocus, provider, values, invalid }) {
   const base = `field mt-1.5${invalid ? ' !border-amber-400 !ring-4 !ring-amber-400/20' : ''}`;
   return (
-    <label className={`block ${invalid ? '-ml-3 rounded-lg border-l-2 border-amber-400 bg-amber-50/50 pl-3' : ''}`} data-tour-field={field.name}>
+    <label className={`block ${invalid ? '-ml-3 rounded-lg border-l-2 border-amber-400 bg-amber-50/50 dark:bg-amber-500/10 pl-3' : ''}`} data-tour-field={field.name}>
       <span className="text-sm font-medium text-body">
         {field.label}{field.required && <span className={invalid ? 'font-bold text-amber-600 dark:text-amber-400' : 'text-amber-500'}> *</span>}
       </span>

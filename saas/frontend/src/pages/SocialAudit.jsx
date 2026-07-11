@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { api, ApiError } from '../lib/api.js';
 import ShareResult from '../components/ShareResult.jsx';
+import ReportHtml from '../components/ReportHtml.jsx';
 import { toast } from '../lib/ui.js';
 import { Loader2, Wand2, Plus, X, Microscope, ScanSearch, Compass, AlertTriangle } from 'lucide-react';
 import { renderSMAScorecard, renderSocialAudit, installSmaGlobals } from '../lib/smaRender.js';
@@ -772,8 +773,8 @@ export default function SocialAudit() {
             <ShareResult tool={SHARE_TOOL} out={socialShareOut(doneJob)} project={active} user={user} force snapshot label="Share result" className={SHARE_BTN} />
           </div>
         )}
-        {scorecardHtml && <div dangerouslySetInnerHTML={{ __html: scorecardHtml }} />}
-        {scaHtml && <div dangerouslySetInnerHTML={{ __html: scaHtml }} />}
+        {scorecardHtml && <ReportHtml html={scorecardHtml} className="" />}
+        {scaHtml && <ReportHtml html={scaHtml} className="" />}
       </div>
     </div>
   );

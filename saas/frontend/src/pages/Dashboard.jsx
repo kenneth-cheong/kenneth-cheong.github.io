@@ -140,7 +140,7 @@ export default function Dashboard() {
 
       {/* Onboarding checklist (until all done or dismissed) */}
       {showOnboard && !allDone && !searching && (
-        <div className="mt-6 rounded-xl border border-brand-200 dark:border-brand-500/30 bg-brand-50/60 p-5">
+        <div className="mt-6 rounded-xl border border-brand-200 dark:border-brand-500/30 bg-brand-50/60 dark:bg-brand-500/10 p-5">
           <div className="flex items-start justify-between">
             <h2 className="font-semibold text-brand-800 dark:text-brand-300">Get set up — {steps.filter((s) => s.done).length}/{steps.length} done</h2>
             <button onClick={dismissOnboard} className="text-sm text-faint hover:text-body">Dismiss</button>
@@ -198,7 +198,7 @@ export default function Dashboard() {
 
 function Step({ n, done, title, body, to, cta }) {
   return (
-    <li className={`rounded-lg border bg-surface p-3 ${done ? 'border-green-200 dark:border-green-500/30' : 'border-brand-100'}`}>
+    <li className={`rounded-lg border bg-surface p-3 ${done ? 'border-green-200 dark:border-green-500/30' : 'border-brand-100 dark:border-brand-500/25'}`}>
       <div className="flex items-center gap-2">
         <span className={`grid h-5 w-5 place-items-center rounded-full text-xs font-bold text-white ${done ? 'bg-green-500' : 'bg-brand-600'}`}>{done ? <Check size={12} aria-hidden /> : n}</span>
         <span className={`font-semibold ${done ? 'text-faint line-through' : 'text-strong'}`}>{title}</span>

@@ -183,7 +183,7 @@ function TriggerRow({ t, index, total, open, onToggleOpen, onPatch, onRemove, on
   const testInChat = () => window.dispatchEvent(new CustomEvent('dm:proactive-say', { detail: { text: interpolate(t.message, SAMPLE_CTX) } }));
 
   return (
-    <div className={`rounded-xl border ${open ? 'border-brand-300 dark:border-brand-500/40 bg-brand-50/20' : 'border-line'} `}>
+    <div className={`rounded-xl border ${open ? 'border-brand-300 dark:border-brand-500/40 bg-brand-50/20 dark:bg-brand-500/10' : 'border-line'} `}>
       {/* Summary */}
       <div className="flex items-center gap-3 p-3">
         <Toggle small checked={t.enabled} onChange={(v) => onPatch({ enabled: v })} title={t.enabled ? 'Enabled' : 'Disabled'} />
@@ -757,7 +757,7 @@ function AdminNotifications() {
           {CLAUSES.map(({ key, label, help }) => {
             const cl = clauses[key];
             return (
-              <div key={key} className={`rounded-lg border p-2.5 ${cl.enabled ? 'border-brand-200 dark:border-brand-500/30 bg-brand-50/40' : 'border-line'}`}>
+              <div key={key} className={`rounded-lg border p-2.5 ${cl.enabled ? 'border-brand-200 dark:border-brand-500/30 bg-brand-50/40 dark:bg-brand-500/10' : 'border-line'}`}>
                 <label className="flex items-center gap-2 text-sm font-medium text-body">
                   <input type="checkbox" checked={cl.enabled} onChange={(e) => setClause(key, { enabled: e.target.checked })} className="h-4 w-4" />
                   {label}

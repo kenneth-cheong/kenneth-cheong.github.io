@@ -133,7 +133,7 @@ export default function SortableTable({
             <tr
               key={rowKey ? rowKey(row, i) : i}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
-              className={`group border-t border-hair transition-colors hover:bg-brand-50/40 ${zebra && i % 2 ? 'bg-raised/50' : ''} ${onRowClick ? 'cursor-pointer' : ''}`}
+              className={`group border-t border-hair transition-colors hover:bg-brand-50/40 dark:hover:bg-brand-500/10 ${zebra && i % 2 ? 'bg-raised/50' : ''} ${onRowClick ? 'cursor-pointer' : ''}`}
             >
               {cols.map((c, ci) => (
                 <td

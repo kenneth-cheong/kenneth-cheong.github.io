@@ -233,7 +233,7 @@ export default function GoalPlanner({ initialGoal }) {
         {plan.steps.map((s, i) => {
           const isDone = isStepDone(s);
           return (
-            <li key={s.toolId} className={`card flex items-center gap-4 p-4 ${isDone ? 'border-green-200 dark:border-green-500/30 bg-green-50/40' : ''}`}>
+            <li key={s.toolId} className={`card flex items-center gap-4 p-4 ${isDone ? 'border-green-200 dark:border-green-500/30 bg-green-50/40 dark:bg-green-500/10' : ''}`}>
               <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-sm font-bold text-white ${isDone ? 'bg-green-500' : 'bg-brand-600'}`}>
                 {isDone ? <Check size={15} aria-hidden /> : i + 1}
               </span>

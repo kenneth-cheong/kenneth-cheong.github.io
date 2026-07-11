@@ -14,11 +14,11 @@ import { Check, X, Info, TrendingUp, TrendingDown } from 'lucide-react';
 // tone → colour treatments. `bg`/`border` tint stat & callout surfaces; `text`
 // colours headline numbers; `stroke` paints the gauge arc.
 const TONES = {
-  green:  { bg: 'bg-emerald-50/70', border: 'border-emerald-100', text: 'text-emerald-700 dark:text-emerald-300', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300', stroke: '#059669' },
-  amber:  { bg: 'bg-amber-50/70',   border: 'border-amber-100',   text: 'text-amber-700 dark:text-amber-300',   chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300',   stroke: '#d97706' },
-  red:    { bg: 'bg-red-50/70',     border: 'border-red-100',     text: 'text-red-700 dark:text-red-300',     chip: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300',       stroke: '#dc2626' },
-  blue:   { bg: 'bg-brand-50/70',   border: 'border-brand-100',   text: 'text-brand-700 dark:text-brand-300',   chip: 'bg-brand-100 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300',   stroke: '#2563eb' },
-  orange: { bg: 'bg-orange-50/70',  border: 'border-orange-100',  text: 'text-orange-700 dark:text-orange-300',  chip: 'bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300', stroke: '#ea580c' },
+  green:  { bg: 'bg-emerald-50/70 dark:bg-emerald-500/10', border: 'border-emerald-100 dark:border-emerald-500/25', text: 'text-emerald-700 dark:text-emerald-300', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300', stroke: '#059669' },
+  amber:  { bg: 'bg-amber-50/70 dark:bg-amber-500/10',   border: 'border-amber-100 dark:border-amber-500/25',   text: 'text-amber-700 dark:text-amber-300',   chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300',   stroke: '#d97706' },
+  red:    { bg: 'bg-red-50/70 dark:bg-red-500/10',     border: 'border-red-100 dark:border-red-500/25',     text: 'text-red-700 dark:text-red-300',     chip: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300',       stroke: '#dc2626' },
+  blue:   { bg: 'bg-brand-50/70 dark:bg-brand-500/10',   border: 'border-brand-100 dark:border-brand-500/25',   text: 'text-brand-700 dark:text-brand-300',   chip: 'bg-brand-100 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300',   stroke: '#2563eb' },
+  orange: { bg: 'bg-orange-50/70 dark:bg-orange-500/10',  border: 'border-orange-100 dark:border-orange-500/25',  text: 'text-orange-700 dark:text-orange-300',  chip: 'bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300', stroke: '#ea580c' },
   slate:  { bg: 'bg-raised',      border: 'border-line',   text: 'text-heading',   chip: 'bg-sunken text-dim',   stroke: '#64748b' },
 };
 const tone = (t) => TONES[t] || TONES.slate;
@@ -44,7 +44,7 @@ function Section({ s, context }) {
       return <h3 className="border-b border-hair pb-2 text-xl font-bold tracking-tight text-heading">{s.text}</h3>;
     case 'callout':
       return (
-        <div className="flex items-start gap-2.5 rounded-xl border border-brand-100 bg-brand-50/60 px-4 py-3 text-sm text-body">
+        <div className="flex items-start gap-2.5 rounded-xl border border-brand-100 dark:border-brand-500/25 bg-brand-50/60 dark:bg-brand-500/10 px-4 py-3 text-sm text-body">
           <Info size={16} className="mt-0.5 shrink-0 text-brand-500" aria-hidden />
           <span>{s.text}</span>
         </div>

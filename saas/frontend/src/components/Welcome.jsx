@@ -60,7 +60,7 @@ export default function Welcome({ onDone }) {
         <button
           onClick={() => finish(hero.goal, hero.to)}
           disabled={busy}
-          className="group mt-5 flex w-full items-center gap-4 rounded-xl border border-brand-300 dark:border-brand-500/40 bg-brand-50/70 p-4 text-left transition hover:border-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10 disabled:opacity-60"
+          className="group mt-5 flex w-full items-center gap-4 rounded-xl border border-brand-300 dark:border-brand-500/40 bg-brand-50/70 dark:bg-brand-500/10 p-4 text-left transition hover:border-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10 disabled:opacity-60"
         >
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-brand-600 text-white"><HeroIcon size={22} aria-hidden /></span>
           <span className="min-w-0 flex-1">

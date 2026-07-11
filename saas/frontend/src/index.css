@@ -34,9 +34,9 @@
   --c-heading: 248 250 252;  /* slate-50  — headings / strongest text  */
   --c-strong: 226 232 240;   /* slate-200 — strong text                */
   --c-body: 203 213 225;     /* slate-300 — default body text          */
-  --c-dim: 165 178 199;      /* muted slate — secondary text           */
-  --c-muted: 130 145 168;    /* dim slate — tertiary text              */
-  --c-faint: 100 116 139;    /* slate-500 — icons / placeholders       */
+  --c-dim: 190 200 216;      /* secondary text — brightened for contrast */
+  --c-muted: 159 172 192;    /* tertiary text — brightened for contrast  */
+  --c-faint: 133 147 169;    /* icons / placeholders — min ~4.5:1 on canvas */
   --c-line: 30 41 59;        /* slate-800 — default border             */
   --c-hair: 23 32 48;        /* deep slate — hairline divider          */
   --c-edge: 51 65 85;        /* slate-700 — input border (stronger)    */
@@ -326,28 +326,7 @@ select:focus-visible,
   color: rgb(var(--c-body));
 }
 
-/* ── Dark-mode remap for server-rendered report HTML with INLINE light styles ─
-   Tool outputs (AI Content Optimiser model-comparison, etc.) arrive as a
-   self-contained light-themed HTML document: white cards, light tints and
-   dark text baked into inline `style=""`. The `.dark .dm-report … :not([style])`
-   rules above deliberately skip inline-styled elements, so those stayed bright.
-   These attribute-selector rules re-map the report's FIXED inline palette to
-   dark equivalents (background + paired text + border together, or dark text on
-   a dark card would be unreadable) and beat inline styles via !important.
-   Saturated accents (#4f46e5 indigo, #0e7490 cyan) are intentionally left as-is
-   — they read fine on dark. Stored results are HTML, so this fixes old + new. */
-.dark .dm-report [style*="background:#fff"]    { background-color: #0f172a !important; }
-.dark .dm-report [style*="background:#f8fafc"] { background-color: #1e293b !important; }
-.dark .dm-report [style*="background:#eef2ff"] { background-color: rgba(99, 102, 241, 0.15) !important; }
-.dark .dm-report [style*="background:#ecfeff"] { background-color: rgba(34, 211, 238, 0.12) !important; }
-.dark .dm-report [style*="background:#f0fdf4"] { background-color: rgba(34, 197, 94, 0.13) !important; }
-.dark .dm-report [style*="background:#fef9c3"] { background-color: rgba(234, 179, 8, 0.14) !important; }
-.dark .dm-report [style*="color:#0f172a"] { color: #f1f5f9 !important; }
-.dark .dm-report [style*="color:#334155"] { color: #cbd5e1 !important; }
-.dark .dm-report [style*="color:#475569"] { color: #94a3b8 !important; }
-.dark .dm-report [style*="color:#64748b"] { color: #94a3b8 !important; }
-.dark .dm-report [style*="color:#4f46e5"] { color: #a5b4fc !important; }
-.dark .dm-report [style*="color:#0e7490"] { color: #67e8f9 !important; }
-.dark .dm-report [style*="color:#166534"] { color: #86efac !important; }
-.dark .dm-report [style*="color:#854d0e"] { color: #fcd34d !important; }
-.dark .dm-report [style*="#e2e8f0"] { border-color: #334155 !important; }
+/* NOTE: server-rendered report HTML (tool outputs) carries a light-themed
+   palette in inline style="". Rather than per-palette CSS overrides (every tool
+   differs), those inline colors are normalized for dark mode in JS by luminance
+   — see lib/reportTheme.js + components/ReportHtml.jsx. Nothing needed here. */

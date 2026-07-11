@@ -26,7 +26,7 @@ export default function PlanPanelCard() {
     return (
       <button
         onClick={() => navigate('/')}
-        className="flex w-full items-center gap-2 border-b border-brand-100 bg-brand-50 dark:bg-brand-500/10 px-4 py-2.5 text-left hover:bg-brand-100 dark:hover:bg-brand-500/15"
+        className="flex w-full items-center gap-2 border-b border-brand-100 dark:border-brand-500/25 bg-brand-50 dark:bg-brand-500/10 px-4 py-2.5 text-left hover:bg-brand-100 dark:hover:bg-brand-500/15"
       >
         <Target size={16} className="shrink-0 text-brand-600 dark:text-brand-400" aria-hidden />
         <span className="text-sm font-medium text-body">Set your goal for a step-by-step plan</span>
@@ -39,7 +39,7 @@ export default function PlanPanelCard() {
 
   if (complete) {
     return (
-      <div className="flex items-center gap-2 border-b border-green-100 bg-green-50 dark:bg-green-500/10 px-4 py-3">
+      <div className="flex items-center gap-2 border-b border-green-100 dark:border-green-500/25 bg-green-50 dark:bg-green-500/10 px-4 py-3">
         <PartyPopper size={16} className="shrink-0 text-green-600 dark:text-green-400" aria-hidden />
         <span className="text-sm font-semibold text-green-800 dark:text-green-300">Plan complete — nice work!</span>
         <button onClick={() => navigate('/')} className="ml-auto shrink-0 rounded-lg bg-green-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-green-700">Set a new goal</button>
@@ -48,7 +48,7 @@ export default function PlanPanelCard() {
   }
 
   return (
-    <div className="border-b border-brand-100 bg-brand-50 dark:bg-brand-500/10">
+    <div className="border-b border-brand-100 dark:border-brand-500/25 bg-brand-50 dark:bg-brand-500/10">
       <button onClick={toggle} className="flex w-full items-center gap-2 px-4 pb-2 pt-2.5 text-left" aria-expanded={expanded} title={expanded ? 'Collapse plan' : 'Expand plan'}>
         <Target size={16} className="shrink-0 text-brand-600 dark:text-brand-400" aria-hidden />
         <span className="text-sm font-semibold text-strong">Your plan</span>

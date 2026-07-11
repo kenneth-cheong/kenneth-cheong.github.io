@@ -31,7 +31,7 @@ function statusPill(status) {
 
 function AssistantNudge() {
   return (
-    <div className="mt-6 flex items-center gap-3 rounded-xl border border-brand-200 dark:border-brand-500/30 bg-brand-50/60 p-4">
+    <div className="mt-6 flex items-center gap-3 rounded-xl border border-brand-200 dark:border-brand-500/30 bg-brand-50/60 dark:bg-brand-500/10 p-4">
       <MessageCircle size={24} className="shrink-0 text-brand-600 dark:text-brand-400" aria-hidden />
       <div className="flex-1">
         <div className="font-semibold text-brand-800 dark:text-brand-300">Need a quick answer? Ask the assistant first.</div>
