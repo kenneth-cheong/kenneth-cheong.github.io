@@ -138,7 +138,7 @@ export default function ProactiveEngine({ paused = false, chatOpen = false }) {
         <div className="flex items-start gap-2.5 p-3">
           <Mascot size={36} className="mt-0.5 shrink-0" />
           <button onClick={acceptNudge} className="min-w-0 flex-1 text-left">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-brand-600">Monty</div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">Monty</div>
             <p className="mt-0.5 line-clamp-4 text-sm text-body">{stripChips(nudge.payload.message) || 'I have a tip for you.'}</p>
           </button>
           <button onClick={dismissNudge} className="shrink-0 rounded p-1 text-slate-300 hover:bg-sunken hover:text-dim" title="Dismiss" aria-label="Dismiss">
@@ -146,7 +146,7 @@ export default function ProactiveEngine({ paused = false, chatOpen = false }) {
           </button>
         </div>
         <div className="flex border-t border-hair">
-          <button onClick={acceptNudge} className="flex-1 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50">Open</button>
+          <button onClick={acceptNudge} className="flex-1 py-2 text-sm font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10">Open</button>
           <div className="w-px bg-sunken" />
           <button onClick={dismissNudge} className="flex-1 py-2 text-sm font-medium text-faint hover:bg-raised">Not now</button>
         </div>

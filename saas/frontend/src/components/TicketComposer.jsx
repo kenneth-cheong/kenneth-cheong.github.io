@@ -44,7 +44,7 @@ export function TicketComposer({ value, onChange, attachments, setAttachments, p
       />
       <Attachments items={attachments} onRemove={(i) => setAttachments((a) => a.filter((_, j) => j !== i))} />
       <div className="mt-1.5 flex items-center gap-3 text-xs text-muted">
-        <button type="button" onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1 font-medium text-brand-600 hover:text-brand-700"><Paperclip size={13} aria-hidden /> Attach files</button>
+        <button type="button" onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1 font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"><Paperclip size={13} aria-hidden /> Attach files</button>
         <span>paste or drag &amp; drop</span>
         {uploading && <span>uploading…</span>}
         <input ref={fileRef} type="file" multiple accept="image/*,.pdf,.txt,.doc,.docx" className="hidden" onChange={(e) => add(e.target.files)} />

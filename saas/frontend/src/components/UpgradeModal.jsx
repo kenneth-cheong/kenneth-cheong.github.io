@@ -37,7 +37,7 @@ export default function UpgradeModal({ reason, requiredTier, creditsRemaining, c
       <div className="card w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
         {outOfCredits ? (
           <>
-            <Zap size={32} className="text-brand-600" aria-hidden />
+            <Zap size={32} className="text-brand-600 dark:text-brand-400" aria-hidden />
             <h3 className="mt-2 text-xl font-bold">Out of credits</h3>
             <p className="mt-1 text-sm text-dim">
               {typeof creditsNeeded === 'number' && typeof creditsRemaining === 'number'
@@ -52,12 +52,12 @@ export default function UpgradeModal({ reason, requiredTier, creditsRemaining, c
                   onClick={() => buyTopup(pack.id)}
                   disabled={!!busy}
                   className={`rounded-lg border p-3 text-center transition hover:border-brand-400 disabled:opacity-50 ${
-                    pack.popular ? 'border-brand-400 bg-brand-50' : 'border-line'
+                    pack.popular ? 'border-brand-400 bg-brand-50 dark:bg-brand-500/10' : 'border-line'
                   }`}
                 >
                   <div className="text-base font-bold leading-none">{pack.credits.toLocaleString()}</div>
                   <div className="text-[11px] text-muted">credits</div>
-                  <div className="mt-1.5 text-xs font-semibold text-brand-700">
+                  <div className="mt-1.5 text-xs font-semibold text-brand-700 dark:text-brand-300">
                     {busy === pack.id ? '…' : `${CURRENCY.symbol}${pack.price}`}
                   </div>
                 </button>
@@ -78,13 +78,13 @@ export default function UpgradeModal({ reason, requiredTier, creditsRemaining, c
           </>
         ) : (
           <>
-            <Unlock size={32} className="text-brand-600" aria-hidden />
+            <Unlock size={32} className="text-brand-600 dark:text-brand-400" aria-hidden />
             <h3 className="mt-2 text-xl font-bold">Unlock with {plan.name}</h3>
             <p className="mt-1 text-sm text-dim">This tool is part of the {plan.name} plan.</p>
             <ul className="mt-4 space-y-1.5 text-sm">
               {plan.highlights.map((h) => (
                 <li key={h} className="flex items-center gap-2">
-                  <Check size={16} className="shrink-0 text-brand-600" aria-hidden />
+                  <Check size={16} className="shrink-0 text-brand-600 dark:text-brand-400" aria-hidden />
                   {h}
                 </li>
               ))}

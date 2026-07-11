@@ -218,11 +218,11 @@ export default function ToolRunner() {
       <Link to="/" className="text-sm text-muted hover:text-strong">← All tools</Link>
       <div className="mt-3 flex items-center gap-3">
         <h1 className="text-2xl font-bold">{tool.name}</h1>
-        {!unlocked && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold uppercase text-amber-700"><Lock size={12} aria-hidden /> {PLANS[tool.minTier].name}</span>}
+        {!unlocked && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-500/15 px-2.5 py-1 text-xs font-bold uppercase text-amber-700 dark:text-amber-300"><Lock size={12} aria-hidden /> {PLANS[tool.minTier].name}</span>}
         <button
           type="button"
           onClick={() => launchTour(shown)}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-dim hover:border-brand-300 hover:text-brand-600"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-dim hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400"
           title="Guided walkthrough with a real example"
         >
           <Compass size={14} aria-hidden /> Tour
@@ -231,7 +231,7 @@ export default function ToolRunner() {
       <p className="mt-1 text-dim">{tool.desc}</p>
 
       {!unlocked && tool.teaser && (
-        <div className="mt-4 flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 px-4 py-3 text-sm text-brand-800 dark:text-brand-300">
           <Sparkles size={16} className="shrink-0" aria-hidden /> <span>You get <strong>one free preview run</strong> on your own data. Full results unlock with {PLANS[tool.minTier].name}.</span>
         </div>
       )}
@@ -244,7 +244,7 @@ export default function ToolRunner() {
               key={t.key}
               type="button"
               onClick={() => selectTab(i)}
-              className={`-mb-px border-b-2 px-3.5 py-2 text-sm font-medium transition ${i === tab ? 'border-brand-600 text-brand-700' : 'border-transparent text-muted hover:text-strong'}`}
+              className={`-mb-px border-b-2 px-3.5 py-2 text-sm font-medium transition ${i === tab ? 'border-brand-600 text-brand-700 dark:text-brand-300' : 'border-transparent text-muted hover:text-strong'}`}
             >
               {t.label}
             </button>
@@ -260,7 +260,7 @@ export default function ToolRunner() {
           {advancedFields.length > 0 && (
             <div className="border-t border-hair pt-3">
               <button type="button" onClick={() => setShowAdv((s) => !s)}
-                className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700">
+                className="flex items-center gap-1.5 text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">
                 <ChevronRight size={15} className={`transition-transform ${showAdv ? 'rotate-90' : ''}`} aria-hidden />
                 {showAdv ? 'Hide' : 'Show'} advanced options
                 <span className="text-xs font-normal text-faint">({advancedFields.length} optional)</span>
@@ -278,12 +278,12 @@ export default function ToolRunner() {
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-xs text-faint" data-tour="tool-actions">
             <span>{cost === 0 ? 'Free to run' : `Costs ${cost} credit${cost > 1 ? 's' : ''}`}</span>
-            {example && <button type="button" onClick={fillExample} className="font-medium text-brand-600 hover:text-brand-700">Try an example</button>}
+            {example && <button type="button" onClick={fillExample} className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Try an example</button>}
             {shown.some((f) => f.required) && <span><span className="text-amber-500">*</span> Required</span>}
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
             {!ready && (
-              <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${nudge ? 'bg-amber-100 text-amber-800' : 'text-amber-600'}`}>
+              <span className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${nudge ? 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300' : 'text-amber-600 dark:text-amber-400'}`}>
                 <AlertTriangle size={13} aria-hidden />
                 {missing.length === 1 ? `“${missing[0].label}” is required` : `${missing.length} required fields left`}
               </span>
@@ -402,7 +402,7 @@ function PrintHeader({ tool, project, user }) {
 }
 
 function Result({ out, tool, project, user, onCredits }) {
-  if (out.error) return <p className="mt-6 flex items-center gap-1.5 text-red-600"><AlertTriangle size={16} aria-hidden /> {out.error}</p>;
+  if (out.error) return <p className="mt-6 flex items-center gap-1.5 text-red-600 dark:text-red-400"><AlertTriangle size={16} aria-hidden /> {out.error}</p>;
   const r = out.result || {};
 
   if (r.needsConnect) {
@@ -441,7 +441,7 @@ function Result({ out, tool, project, user, onCredits }) {
   return (
     <div className="mt-6" data-tour="tool-result">
       <div className="dm-no-print mb-2 flex items-center gap-2">
-        {r.source === 'live' && <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700"><span className="inline-block h-1.5 w-1.5 rounded-full bg-green-600" aria-hidden /> Live data</span>}
+        {r.source === 'live' && <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 dark:bg-green-500/15 px-2 py-0.5 text-xs font-semibold text-green-700 dark:text-green-300"><span className="inline-block h-1.5 w-1.5 rounded-full bg-green-600" aria-hidden /> Live data</span>}
         {typeof out.creditsUsed === 'number' && out.creditsUsed > 0 && (
           <span className="text-xs text-faint">used {out.creditsUsed} · {out.creditsRemaining} left</span>
         )}
@@ -470,12 +470,12 @@ function Result({ out, tool, project, user, onCredits }) {
       <div className="card p-5">
         <PrintHeader tool={tool} project={project} user={user} />
         {out.failed && (
-          <div className="dm-no-print mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+          <div className="dm-no-print mb-4 rounded-lg bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-800 dark:text-amber-300">
             This run didn’t complete — no credits were charged.
           </div>
         )}
         {out.teaser && (
-          <div className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
+          <div className="mb-4 rounded-lg bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-800 dark:text-amber-300">
             {r.teaserMessage || 'Preview only — upgrade to see everything.'}
           </div>
         )}
@@ -525,7 +525,7 @@ function Result({ out, tool, project, user, onCredits }) {
 }
 
 function ResultBtn({ children, onClick }) {
-  return <button onClick={onClick} className="rounded-md border border-line bg-surface px-2.5 py-1 text-xs font-medium text-dim hover:border-brand-300 hover:text-brand-600">{children}</button>;
+  return <button onClick={onClick} className="rounded-md border border-line bg-surface px-2.5 py-1 text-xs font-medium text-dim hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400">{children}</button>;
 }
 
 // Sortable table with per-column formatting + badges.
@@ -587,7 +587,7 @@ function KeywordAnalysisResult({ rows: initialRows, timeRank, tool, onCredits })
       render: (row) => row.timeToRank != null
         ? <span className="text-slate-300" aria-hidden>✓</span>
         : <input type="checkbox" checked={selected.has(row.keyword)} onChange={() => toggle(row.keyword)}
-            className="h-4 w-4 cursor-pointer rounded border-edge text-brand-600 focus:ring-brand-500" aria-label={`Select ${row.keyword}`} />,
+            className="h-4 w-4 cursor-pointer rounded border-edge text-brand-600 dark:text-brand-400 focus:ring-brand-500" aria-label={`Select ${row.keyword}`} />,
     },
     ...baseKeys.map((c) => ({ key: c, label: c.replace(/([a-z])([A-Z])/g, '$1 $2'), render: (row) => cell(c, row[c]) })),
     domain && {
@@ -632,7 +632,7 @@ function KeywordAnalysisResult({ rows: initialRows, timeRank, tool, onCredits })
     <div>
       {domain && (
         <div className="dm-no-print mb-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <button type="button" onClick={toggleAll} className="text-xs font-medium text-brand-600 hover:text-brand-700">
+          <button type="button" onClick={toggleAll} className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">
             {allSel ? 'Clear selection' : 'Select all'}
           </button>
           <button type="button" onClick={calculate} disabled={running || todo.length === 0}
@@ -650,7 +650,7 @@ function KeywordAnalysisResult({ rows: initialRows, timeRank, tool, onCredits })
   );
 }
 
-const TONE = { red: 'bg-red-100 text-red-700', amber: 'bg-amber-100 text-amber-700', green: 'bg-green-100 text-green-700', blue: 'bg-blue-100 text-blue-700', slate: 'bg-sunken text-dim' };
+const TONE = { red: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300', amber: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300', green: 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300', blue: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300', slate: 'bg-sunken text-dim' };
 function Badge({ t, tone }) { return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TONE[tone] || TONE.slate}`}>{t}</span>; }
 
 // Toggle-chip multi-select; value is a comma-joined string (backend splits it).
@@ -691,7 +691,7 @@ function MultiSelect({ field, options, value, onChange, values }) {
         return (
           <button type="button" key={o} disabled={disabled} onClick={() => toggle(o)}
             title={disabled ? 'Not available for the selected breakdown dimension' : undefined}
-            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${disabled ? 'cursor-not-allowed border-line bg-raised text-slate-300 line-through' : on ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-edge text-dim hover:border-brand-300'}`}>
+            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${disabled ? 'cursor-not-allowed border-line bg-raised text-slate-300 line-through' : on ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300' : 'border-edge text-dim hover:border-brand-300 dark:hover:border-brand-500/40'}`}>
             {o}
           </button>
         );
@@ -717,7 +717,7 @@ function CaptionCards({ text }) {
       {cards.map((c, i) => (
         <div key={i} className="flex flex-col rounded-xl border border-line bg-surface p-4 transition-shadow hover:shadow-sm">
           <div className="mb-2 flex items-center justify-between">
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-600">
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">
               <span className="h-1.5 w-1.5 rounded-full bg-brand-500" aria-hidden /> Variation {c.n}
             </span>
             <button
@@ -738,11 +738,11 @@ function CaptionCards({ text }) {
 // at a glance. Anything unrecognised (e.g. "N/A") stays neutral.
 function timeToRankClass(s) {
   const t = String(s).toLowerCase();
-  if (t.startsWith('0-3')) return 'bg-green-100 text-green-700';
-  if (t.startsWith('3-6')) return 'bg-lime-100 text-lime-700';
-  if (t.startsWith('6-9')) return 'bg-amber-100 text-amber-700';
-  if (t.startsWith('9-12')) return 'bg-orange-100 text-orange-700';
-  if (t.includes('more than 12')) return 'bg-red-100 text-red-700';
+  if (t.startsWith('0-3')) return 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300';
+  if (t.startsWith('3-6')) return 'bg-lime-100 dark:bg-lime-500/15 text-lime-700 dark:text-lime-300';
+  if (t.startsWith('6-9')) return 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300';
+  if (t.startsWith('9-12')) return 'bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300';
+  if (t.includes('more than 12')) return 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300';
   return 'bg-sunken text-muted';
 }
 
@@ -755,9 +755,9 @@ function cell(col, val) {
   if (c === 'severity') return <Badge t={s} tone={{ critical: 'red', high: 'red', medium: 'amber', low: 'green' }[s.toLowerCase()]} />;
   if (c === 'suitability') return <Badge t={s} tone={{ high: 'green', medium: 'amber', low: 'slate' }[s.toLowerCase()]} />;
   if (c === 'intent' || c === 'status' || c === 'type') return <Badge t={s} tone="slate" />;
-  if (c === 'difficulty') { const n = parseFloat(s); if (Number.isFinite(n)) return <span className={n < 30 ? 'font-medium text-green-600' : n < 60 ? 'font-medium text-amber-600' : 'font-medium text-red-600'}>{n}</span>; }
+  if (c === 'difficulty') { const n = parseFloat(s); if (Number.isFinite(n)) return <span className={n < 30 ? 'font-medium text-green-600 dark:text-green-400' : n < 60 ? 'font-medium text-amber-600 dark:text-amber-400' : 'font-medium text-red-600 dark:text-red-400'}>{n}</span>; }
   if (['volume', 'impressions', 'clicks', 'sessions', 'users', 'backlinks', 'traffic', 'conversions'].includes(c)) return <span className="tabular-nums">{fmtNum(s)}</span>;
-  if (c === 'url' && /^https?:\/\//i.test(s)) return <a href={s} target="_blank" rel="noreferrer" className="break-all text-brand-600 hover:underline">{s.replace(/^https?:\/\//i, '')}</a>;
+  if (c === 'url' && /^https?:\/\//i.test(s)) return <a href={s} target="_blank" rel="noreferrer" className="break-all text-brand-600 dark:text-brand-400 hover:underline">{s.replace(/^https?:\/\//i, '')}</a>;
   return s;
 }
 
@@ -802,9 +802,9 @@ function TagInput({ value, onChange, placeholder }) {
     <div className="mt-1.5">
       <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-edge p-2 transition focus-within:border-brand-600 focus-within:ring-4 focus-within:ring-brand-600/10">
         {tags.map((t) => (
-          <span key={t} className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
+          <span key={t} className="inline-flex items-center gap-1 rounded-md bg-brand-50 dark:bg-brand-500/10 px-2 py-0.5 text-xs font-medium text-brand-700 dark:text-brand-300">
             {t}
-            <button type="button" onClick={() => remove(t)} className="text-brand-400 hover:text-brand-700">×</button>
+            <button type="button" onClick={() => remove(t)} className="text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">×</button>
           </span>
         ))}
         {!bulk && (
@@ -835,7 +835,7 @@ function TagInput({ value, onChange, placeholder }) {
         </div>
       )}
 
-      <button type="button" onClick={() => { setDraft(''); setBulk((b) => !b); }} className="mt-1.5 text-xs font-medium text-brand-600 hover:text-brand-700">
+      <button type="button" onClick={() => { setDraft(''); setBulk((b) => !b); }} className="mt-1.5 text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">
         {bulk ? '← Back to quick add' : '+ Paste a list (one keyword per line)'}
       </button>
     </div>
@@ -879,7 +879,7 @@ function AccountField({ provider, value, onChange, placeholder }) {
       <>
         <input className="field mt-1.5" value={value || ''} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
         <span className="mt-1 block text-xs text-faint">
-          No connected accounts — <Link to="/integrations" className="font-medium text-brand-600 hover:text-brand-700">connect in Integrations</Link> or type an ID manually.
+          No connected accounts — <Link to="/integrations" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">connect in Integrations</Link> or type an ID manually.
         </span>
       </>
     );
@@ -905,7 +905,7 @@ function AccountField({ provider, value, onChange, placeholder }) {
           <div className="max-h-56 overflow-auto py-1">
             {filtered.length ? filtered.map((a) => (
               <button key={a.id} type="button" onClick={() => { onChange(a.id); setOpen(false); }}
-                className={`block w-full truncate px-3 py-1.5 text-left text-sm hover:bg-raised ${a.id === value ? 'font-semibold text-brand-700' : 'text-body'}`}>
+                className={`block w-full truncate px-3 py-1.5 text-left text-sm hover:bg-raised ${a.id === value ? 'font-semibold text-brand-700 dark:text-brand-300' : 'text-body'}`}>
                 {a.label}
               </button>
             )) : <div className="px-3 py-2 text-sm text-faint">No matches.</div>}
@@ -993,11 +993,11 @@ function SearchableSelect({ options, value, onChange, autoFocus }) {
                   type="button" data-active={i === active}
                   onMouseEnter={() => setActive(i)} onClick={() => pick(opt)}
                   className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-sm ${
-                    i === active ? 'bg-brand-50 text-brand-700' : 'text-body'
+                    i === active ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300' : 'text-body'
                   }`}
                 >
                   <span className="truncate">{opt}</span>
-                  {opt === value && <span className="text-brand-600">✓</span>}
+                  {opt === value && <span className="text-brand-600 dark:text-brand-400">✓</span>}
                 </button>
               </li>
             ))}
@@ -1021,9 +1021,9 @@ function Segmented({ options, optionDesc = {}, value, onChange }) {
             type="button"
             aria-pressed={on}
             onClick={() => onChange(o)}
-            className={`rounded-lg border p-3 text-left transition ${on ? 'border-brand-600 bg-brand-50 ring-4 ring-brand-600/10' : 'border-line bg-surface hover:border-brand-300'}`}
+            className={`rounded-lg border p-3 text-left transition ${on ? 'border-brand-600 bg-brand-50 dark:bg-brand-500/10 ring-4 ring-brand-600/10' : 'border-line bg-surface hover:border-brand-300 dark:hover:border-brand-500/40'}`}
           >
-            <span className={`block text-sm font-semibold ${on ? 'text-brand-700' : 'text-body'}`}>{o}</span>
+            <span className={`block text-sm font-semibold ${on ? 'text-brand-700 dark:text-brand-300' : 'text-body'}`}>{o}</span>
             {optionDesc[o] && <span className="mt-0.5 block text-xs text-muted">{optionDesc[o]}</span>}
           </button>
         );
@@ -1037,7 +1037,7 @@ function Field({ field, value, onChange, autoFocus, provider, values, invalid })
   return (
     <label className={`block ${invalid ? '-ml-3 rounded-lg border-l-2 border-amber-400 bg-amber-50/50 pl-3' : ''}`} data-tour-field={field.name}>
       <span className="text-sm font-medium text-body">
-        {field.label}{field.required && <span className={invalid ? 'font-bold text-amber-600' : 'text-amber-500'}> *</span>}
+        {field.label}{field.required && <span className={invalid ? 'font-bold text-amber-600 dark:text-amber-400' : 'text-amber-500'}> *</span>}
       </span>
       {field.type === 'account' ? (
         <AccountField provider={provider} value={value} onChange={onChange} placeholder={field.placeholder} />
@@ -1066,7 +1066,7 @@ function Field({ field, value, onChange, autoFocus, provider, values, invalid })
         <input autoFocus={autoFocus} type={field.type === 'number' ? 'number' : 'text'} inputMode={field.type === 'url' ? 'url' : undefined}
           value={value} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} className={base} />
       )}
-      {invalid && <span className="mt-1 block text-xs font-semibold text-amber-600">Please fill this in to continue.</span>}
+      {invalid && <span className="mt-1 block text-xs font-semibold text-amber-600 dark:text-amber-400">Please fill this in to continue.</span>}
       {field.hint && <span className="mt-1 block whitespace-pre-line text-xs text-faint">{field.hint}</span>}
     </label>
   );

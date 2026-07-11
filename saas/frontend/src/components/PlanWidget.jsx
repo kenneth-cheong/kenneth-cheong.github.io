@@ -55,7 +55,7 @@ export default function PlanWidget() {
       <button
         onClick={() => navigate('/')}
         title="Set your goal and get a step-by-step plan"
-        className="hidden items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1.5 text-sm font-semibold text-brand-700 hover:bg-brand-100 sm:inline-flex"
+        className="hidden items-center gap-1.5 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 px-2.5 py-1.5 text-sm font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-500/15 sm:inline-flex"
       >
         <Target size={16} aria-hidden /><span className="hidden lg:inline">Set a goal</span>
       </button>
@@ -77,8 +77,8 @@ export default function PlanWidget() {
           open
             ? 'border-brand-600 bg-brand-600 text-white'
             : complete
-              ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
-              : 'border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100'
+              ? 'border-green-200 dark:border-green-500/30 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-500/15'
+              : 'border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-500/15'
         }`}
       >
         <Ring pct={pct} done={done} total={total} complete={complete} active={open} />
@@ -100,7 +100,7 @@ export default function PlanWidget() {
           <div className="border-b border-hair px-4 py-3">
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-strong">Your plan</span>
-              <button onClick={() => { setOpen(false); navigate('/'); }} className="text-xs font-medium text-brand-600 hover:text-brand-700">Open →</button>
+              <button onClick={() => { setOpen(false); navigate('/'); }} className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Open →</button>
             </div>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-sunken">
               <div className="h-full rounded-full bg-brand-600 transition-[width] duration-500" style={{ width: `${pct}%` }} />

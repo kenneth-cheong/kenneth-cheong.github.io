@@ -36,7 +36,7 @@ function inlineMd(text, keyBase) {
     if (m[1]) out.push(<strong key={key} className="font-semibold">{inlineMd(m[2], key)}</strong>);
     else if (m[3]) out.push(<em key={key} className="italic">{inlineMd(m[4], key)}</em>);
     else if (m[5] != null) out.push(<code key={key} className="rounded bg-overlay/70 px-1 py-0.5 text-[0.85em]">{m[5]}</code>);
-    else if (m[6] != null) out.push(<a key={key} href={m[7]} target="_blank" rel="noreferrer" className="text-brand-700 underline">{m[6]}</a>);
+    else if (m[6] != null) out.push(<a key={key} href={m[7]} target="_blank" rel="noreferrer" className="text-brand-700 dark:text-brand-300 underline">{m[6]}</a>);
     last = m.index + m[0].length;
   }
   if (last < text.length) out.push(text.slice(last));
@@ -157,7 +157,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
     // rather than navigating. Outlined so it reads as "ask this", not "go there".
     const replyChip = (label, text) => (
       <button key={`c${key}`} onClick={() => submit(text)} disabled={busy}
-        className="mx-0.5 my-0.5 inline-flex items-center gap-1 rounded-full border border-brand-300 bg-brand-50 px-2.5 py-0.5 align-middle text-xs font-semibold text-brand-700 hover:border-brand-400 hover:bg-brand-100 disabled:opacity-50">
+        className="mx-0.5 my-0.5 inline-flex items-center gap-1 rounded-full border border-brand-300 dark:border-brand-500/40 bg-brand-50 dark:bg-brand-500/10 px-2.5 py-0.5 align-middle text-xs font-semibold text-brand-700 dark:text-brand-300 hover:border-brand-400 hover:bg-brand-100 dark:hover:bg-brand-500/15 disabled:opacity-50">
         {label}
       </button>
     );
@@ -506,14 +506,14 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
                 <li key={c.conversationId}>
                   <button
                     onClick={() => openConversation(c.conversationId)}
-                    className={`group flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left hover:bg-raised ${c.conversationId === conversationId ? 'bg-brand-50' : ''}`}
+                    className={`group flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left hover:bg-raised ${c.conversationId === conversationId ? 'bg-brand-50 dark:bg-brand-500/10' : ''}`}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium text-strong">{c.title || 'Conversation'}</div>
                       <div className="truncate text-xs text-faint">{c.preview || `${c.msgCount} messages`}</div>
                       <div className="mt-0.5 text-[11px] text-slate-300">{ago(c.updatedAt)}</div>
                     </div>
-                    <span onClick={(e) => removeConversation(e, c.conversationId)} className="shrink-0 rounded p-1 text-slate-300 opacity-0 hover:text-red-600 group-hover:opacity-100" title="Delete" role="button" aria-label="Delete conversation"><Trash2 size={15} aria-hidden /></span>
+                    <span onClick={(e) => removeConversation(e, c.conversationId)} className="shrink-0 rounded p-1 text-slate-300 opacity-0 hover:text-red-600 dark:hover:text-red-400 group-hover:opacity-100" title="Delete" role="button" aria-label="Delete conversation"><Trash2 size={15} aria-hidden /></span>
                   </button>
                 </li>
               ))}
@@ -532,7 +532,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
                     isUser
                       ? 'ml-auto rounded-br-sm bg-brand-600 text-white'
                       : m.error
-                        ? 'rounded-bl-sm border border-red-200 bg-red-50 text-red-700'
+                        ? 'rounded-bl-sm border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300'
                         : 'rounded-bl-sm bg-sunken text-strong'
                   }`}
                 >
@@ -559,7 +559,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
               <div className="flex flex-wrap gap-2 pt-1">
                 {suggestions.map((s) => (
                   <button key={s} onClick={() => submit(s)}
-                    className="rounded-full border border-line bg-surface px-3 py-1.5 text-left text-xs font-medium text-dim hover:border-brand-300 hover:text-brand-700">
+                    className="rounded-full border border-line bg-surface px-3 py-1.5 text-left text-xs font-medium text-dim hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-700 dark:hover:text-brand-300">
                     {s}
                   </button>
                 ))}
@@ -587,7 +587,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
             )}
           </form>
           <div className="px-3 pb-2 text-center text-[11px] text-faint">
-            Out of credits? <Link to="/account" className="text-brand-600">Top up</Link> or <Link to="/pricing" className="text-brand-600">upgrade</Link>
+            Out of credits? <Link to="/account" className="text-brand-600 dark:text-brand-400">Top up</Link> or <Link to="/pricing" className="text-brand-600 dark:text-brand-400">upgrade</Link>
           </div>
         </>
       )}

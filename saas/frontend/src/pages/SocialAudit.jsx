@@ -252,10 +252,10 @@ function SourceBadge({ source }) {
 function Status({ s }) {
   if (!s?.text) return null;
   const tones = {
-    info: 'bg-blue-50 text-blue-800',
-    ok: 'bg-amber-50 text-amber-800',
+    info: 'bg-blue-50 dark:bg-blue-500/10 text-blue-800 dark:text-blue-300',
+    ok: 'bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300',
     note: 'bg-sunken text-dim',
-    err: 'bg-red-50 text-red-700',
+    err: 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300',
   };
   return <div className={`mt-2 rounded-lg px-3 py-2 text-xs ${tones[s.tone] || tones.info}`}>{s.text}</div>;
 }
@@ -592,7 +592,7 @@ export default function SocialAudit() {
         <button
           type="button"
           onClick={launchTour}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-dim hover:border-brand-300 hover:text-brand-600"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-dim hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400"
           title="Guided walkthrough with a real example"
         >
           <Compass size={14} aria-hidden /> Tour
@@ -612,10 +612,10 @@ export default function SocialAudit() {
           <div>
             <label htmlFor="sma-brand-input" className="block text-sm font-medium text-body">Brand name <span className="text-amber-500">*</span></label>
             <input id="sma-brand-input" className={`field mt-1${nudge ? ' !border-amber-400 !ring-4 !ring-amber-400/20' : ''}`} value={brand} onChange={(e) => { setNudge(false); setBrand(e.target.value); }} placeholder="e.g. MediaOne" disabled={busy} />
-            {nudge && <p className="mt-1 text-xs font-semibold text-amber-600">Enter a brand name to run the audit.</p>}
+            {nudge && <p className="mt-1 text-xs font-semibold text-amber-600 dark:text-amber-400">Enter a brand name to run the audit.</p>}
           </div>
           <button type="button" onClick={autoFindDetails} disabled={busy || findingDetails}
-            data-tour="sma-autofind" className="btn-ghost text-xs text-brand-700">
+            data-tour="sma-autofind" className="btn-ghost text-xs text-brand-700 dark:text-brand-300">
             {findingDetails ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />} Auto-find details
           </button>
           <Status s={suggestStatus} />
@@ -644,7 +644,7 @@ export default function SocialAudit() {
       <div className="card mt-4 p-5" data-tour="sma-profiles">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-bold uppercase tracking-wide text-body">Profiles to audit</h2>
-          <button type="button" onClick={discoverProfiles} disabled={busy || findingProfiles} className="btn-ghost text-xs text-brand-700">
+          <button type="button" onClick={discoverProfiles} disabled={busy || findingProfiles} className="btn-ghost text-xs text-brand-700 dark:text-brand-300">
             {findingProfiles ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />} Auto-find profiles
           </button>
         </div>
@@ -667,7 +667,7 @@ export default function SocialAudit() {
       <div className="card mt-4 p-5" data-tour="sma-competitors">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-bold uppercase tracking-wide text-body">Competitors <span className="font-normal normal-case text-faint">(optional, up to 3)</span></h2>
-          <button type="button" onClick={discoverCompetitors} disabled={busy || findingComps} className="btn-ghost text-xs text-brand-700">
+          <button type="button" onClick={discoverCompetitors} disabled={busy || findingComps} className="btn-ghost text-xs text-brand-700 dark:text-brand-300">
             {findingComps ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />} Auto-find competitors
           </button>
         </div>
@@ -719,10 +719,10 @@ export default function SocialAudit() {
 
       {/* Mode toggle */}
       <div className="card mt-4 p-5" data-tour="sma-mode">
-        <div className="inline-flex overflow-hidden rounded-lg border border-brand-200">
+        <div className="inline-flex overflow-hidden rounded-lg border border-brand-200 dark:border-brand-500/30">
           {['starter', 'pro'].map((m) => (
             <button key={m} type="button" onClick={() => setMode(m)} disabled={busy}
-              className={`px-4 py-2 text-sm font-bold ${mode === m ? 'bg-brand-600 text-white' : 'bg-surface text-brand-700'}`}>
+              className={`px-4 py-2 text-sm font-bold ${mode === m ? 'bg-brand-600 text-white' : 'bg-surface text-brand-700 dark:text-brand-300'}`}>
               {m === 'starter' ? 'Starter' : 'Pro'}
             </button>
           ))}
@@ -756,14 +756,14 @@ export default function SocialAudit() {
           {busy ? 'Running…' : `Run Audit${mode === 'pro' ? ' (Pro)' : ''} · ${cost} cr`}
         </button>
         {!busy && !brand.trim() && (
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-600">
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
             <AlertTriangle size={13} aria-hidden /> Brand name is required
           </span>
         )}
         {busy && loadingText && <span className="text-sm text-muted"><Loader2 size={13} className="mr-1 inline animate-spin" />{loadingText}</span>}
       </div>
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-      {scaError && <p className="mt-2 text-sm text-red-600">{scaError}</p>}
+      {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {scaError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{scaError}</p>}
 
       {/* Results — bespoke HTML scorecards (Font Awesome styled, ported 1:1). */}
       <div ref={resultsRef} data-tour="sma-results" className="mt-6 space-y-4">
@@ -793,14 +793,14 @@ function FileField({ files, setFiles, disabled, accept, hint, compact }) {
   return (
     <div className={compact ? 'mt-1.5' : 'mt-2'}>
       <input type="file" multiple accept={accept} onChange={onPick} disabled={disabled}
-        className="block w-full text-xs text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-brand-700 hover:file:bg-brand-100" />
+        className="block w-full text-xs text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 dark:file:bg-brand-500/10 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-brand-700 dark:file:text-brand-300 hover:file:bg-brand-100 dark:hover:file:bg-brand-500/15" />
       {hint && <p className="mt-1 text-[11px] text-faint">{hint}</p>}
       {!!(files && files.length) && (
         <div className="mt-2 flex flex-wrap gap-2">
           {files.map((file, i) => (
-            <span key={i} className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-800">
+            <span key={i} className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 dark:bg-brand-500/10 px-2.5 py-1 text-xs font-semibold text-brand-800 dark:text-brand-300">
               {file.name}
-              <button type="button" className="text-brand-500 hover:text-brand-700" disabled={disabled}
+              <button type="button" className="text-brand-500 hover:text-brand-700 dark:hover:text-brand-300" disabled={disabled}
                 onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))} aria-label="Remove file"><X size={12} /></button>
             </span>
           ))}

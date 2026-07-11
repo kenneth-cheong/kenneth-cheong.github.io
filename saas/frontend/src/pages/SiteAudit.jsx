@@ -39,9 +39,9 @@ function summarize(result) {
   return JSON.stringify(result).slice(0, 2000);
 }
 
-const SCORE_TONE = (n) => (n >= 80 ? { ring: '#16a34a', text: 'text-green-600', label: 'Healthy' }
-  : n >= 50 ? { ring: '#f59e0b', text: 'text-amber-600', label: 'Needs work' }
-  : { ring: '#dc2626', text: 'text-red-600', label: 'Needs attention' });
+const SCORE_TONE = (n) => (n >= 80 ? { ring: '#16a34a', text: 'text-green-600 dark:text-green-400', label: 'Healthy' }
+  : n >= 50 ? { ring: '#f59e0b', text: 'text-amber-600 dark:text-amber-400', label: 'Needs work' }
+  : { ring: '#dc2626', text: 'text-red-600 dark:text-red-400', label: 'Needs attention' });
 
 export default function SiteAudit() {
   const { user, setCredits } = useAuth();
@@ -142,7 +142,7 @@ export default function SiteAudit() {
           </button>
         </div>
         {nudge
-          ? <p className="mt-2 text-xs font-semibold text-amber-600">Enter your website URL first to run the check.</p>
+          ? <p className="mt-2 text-xs font-semibold text-amber-600 dark:text-amber-400">Enter your website URL first to run the check.</p>
           : <p className="mt-2 text-xs text-faint">Runs: {runnable.map((a) => a.label).join(' · ')}. Takes ~1–3 minutes.</p>}
       </div>
 
@@ -181,7 +181,7 @@ function Report({ report }) {
   const tone = SCORE_TONE(score);
   const C = 2 * Math.PI * 52;
   const off = C * (1 - score / 100);
-  const pri = { high: 'bg-red-100 text-red-700', medium: 'bg-amber-100 text-amber-700', low: 'bg-sunken text-muted' };
+  const pri = { high: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300', medium: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300', low: 'bg-sunken text-muted' };
   const dot = { good: 'bg-green-500', fair: 'bg-amber-500', poor: 'bg-red-500' };
 
   return (

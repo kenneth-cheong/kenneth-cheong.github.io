@@ -102,8 +102,8 @@ export default function Integrations() {
         Connect your ad &amp; analytics accounts to pull your own performance data — free of credits, and queryable by the assistant.
       </p>
 
-      {justConnected && <div className="mt-4 flex items-center gap-2 rounded-lg bg-green-50 px-4 py-2 text-sm text-green-700"><Check size={15} aria-hidden /> {connectedLabel} connected. Pick an account for each source below.</div>}
-      {oauthError && <div className="mt-4 flex items-center gap-2 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700"><AlertTriangle size={15} aria-hidden /> Sign-in failed. Please try again.</div>}
+      {justConnected && <div className="mt-4 flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-500/10 px-4 py-2 text-sm text-green-700 dark:text-green-300"><Check size={15} aria-hidden /> {connectedLabel} connected. Pick an account for each source below.</div>}
+      {oauthError && <div className="mt-4 flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-500/10 px-4 py-2 text-sm text-red-700 dark:text-red-300"><AlertTriangle size={15} aria-hidden /> Sign-in failed. Please try again.</div>}
 
       <div className="mt-6 space-y-6">
         {families.map((fam) => {
@@ -124,9 +124,9 @@ export default function Integrations() {
                     <span className="inline-flex items-center gap-1 rounded-full bg-sunken px-2.5 py-1 text-xs font-semibold text-muted" title="This connector is awaiting platform approval — you can still enter an account ID manually inside the tool.">Coming soon</span>
                   ) : isConn ? (
                     <>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700"><Check size={13} aria-hidden /> Connected</span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-500/15 px-2.5 py-1 text-xs font-semibold text-green-700 dark:text-green-300"><Check size={13} aria-hidden /> Connected</span>
                       <button onClick={() => connectFamily(fam)} disabled={redirecting} className="btn-ghost px-3 py-1.5 text-sm">{redirecting ? '…' : 'Reconnect'}</button>
-                      <button onClick={() => disconnectFamily(fam)} disabled={redirecting} className="text-sm text-muted hover:text-red-600">Disconnect</button>
+                      <button onClick={() => disconnectFamily(fam)} disabled={redirecting} className="text-sm text-muted hover:text-red-600 dark:hover:text-red-400">Disconnect</button>
                     </>
                   ) : (
                     <button onClick={() => connectFamily(fam)} disabled={redirecting} className="btn-primary px-3 py-1.5 text-sm">{redirecting ? 'Redirecting…' : `Connect ${shortName(fam)}`}</button>
@@ -149,16 +149,16 @@ export default function Integrations() {
                           )}
                         </div>
                         {connected[p.id]?.account
-                          ? <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700"><Check size={12} aria-hidden /> Active</span>
-                          : <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Pick an account</span>}
+                          ? <span className="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-500/15 px-2 py-0.5 text-xs font-semibold text-green-700 dark:text-green-300"><Check size={12} aria-hidden /> Active</span>
+                          : <span className="rounded-full bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">Pick an account</span>}
                         <Link to={`/tool/${TOOL_FOR[p.id]}`} className="btn-ghost px-3 py-1.5 text-sm">Open tool</Link>
                         {/* Only families with >1 source (Google) benefit from a per-source login;
                             for single-source families the family Reconnect already covers it. */}
                         {fam.sources.length > 1 && (
-                          <button onClick={() => connectSource(p)} disabled={busy === p.id} className="text-sm text-muted hover:text-brand-600">{busy === p.id ? '…' : 'Different account'}</button>
+                          <button onClick={() => connectSource(p)} disabled={busy === p.id} className="text-sm text-muted hover:text-brand-600 dark:hover:text-brand-400">{busy === p.id ? '…' : 'Different account'}</button>
                         )}
                         {connected[p.id]?.account && (
-                          <button onClick={() => disconnectSource(fam, p)} disabled={busy === p.id} className="text-sm text-muted hover:text-red-600">Disconnect</button>
+                          <button onClick={() => disconnectSource(fam, p)} disabled={busy === p.id} className="text-sm text-muted hover:text-red-600 dark:hover:text-red-400">Disconnect</button>
                         )}
                       </div>
                       <PullHealth pull={lastPull[p.id]} />
@@ -191,8 +191,8 @@ function ago(iso) {
 function PullHealth({ pull }) {
   const m = {
     ok: { dot: 'bg-green-500', text: 'Data flowing', cls: 'text-muted' },
-    empty: { dot: 'bg-amber-500', text: 'Last pull returned no data', cls: 'text-amber-700' },
-    issue: { dot: 'bg-red-500', text: 'Last pull failed — try Reconnect', cls: 'text-red-600' },
+    empty: { dot: 'bg-amber-500', text: 'Last pull returned no data', cls: 'text-amber-700 dark:text-amber-300' },
+    issue: { dot: 'bg-red-500', text: 'Last pull failed — try Reconnect', cls: 'text-red-600 dark:text-red-400' },
   }[pull?.status];
   if (!m) return null;
   return (
@@ -236,7 +236,7 @@ function AccountPicker({ provider, current, onSaved }) {
       ) : (
         <span className="flex flex-wrap items-center gap-2 text-xs text-faint">
           {current || NO_ACCOUNTS[provider] || 'No accessible accounts found.'}
-          <button onClick={fetchAccounts} className="font-medium text-brand-600 hover:text-brand-700">Refresh</button>
+          <button onClick={fetchAccounts} className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Refresh</button>
         </span>
       )}
     </div>

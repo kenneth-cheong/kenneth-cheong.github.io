@@ -30,7 +30,7 @@ export default function Admin() {
           <button
             key={k}
             onClick={() => setTab(k)}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${tab === k ? 'border-brand-500 text-brand-700' : 'border-transparent text-muted hover:text-strong'}`}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${tab === k ? 'border-brand-500 text-brand-700 dark:text-brand-300' : 'border-transparent text-muted hover:text-strong'}`}
           >
             {label}
             {k === 'tickets' && unanswered > 0 && (
@@ -109,7 +109,7 @@ function AdminAssistant() {
   }
 
   if (!cfg && !error) return <p className="mt-6 text-sm text-muted">Loading…</p>;
-  if (!cfg) return <p className="mt-6 text-sm text-rose-600">{error}</p>;
+  if (!cfg) return <p className="mt-6 text-sm text-rose-600 dark:text-rose-400">{error}</p>;
 
   return (
     <div className="mt-4 space-y-4">
@@ -165,9 +165,9 @@ function AdminAssistant() {
       {/* Save bar */}
       <div className="sticky bottom-0 -mx-1 flex items-center gap-3 border-t border-line bg-surface/95 px-1 py-3 backdrop-blur">
         <button onClick={save} disabled={busy || !dirty} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">{busy ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}</button>
-        {dirty && <span className="text-xs text-amber-600">Unsaved changes</span>}
-        {msg && <span className="text-sm text-emerald-600">{msg}</span>}
-        {error && <span className="text-sm text-red-600">{error}</span>}
+        {dirty && <span className="text-xs text-amber-600 dark:text-amber-400">Unsaved changes</span>}
+        {msg && <span className="text-sm text-emerald-600 dark:text-emerald-400">{msg}</span>}
+        {error && <span className="text-sm text-red-600 dark:text-red-400">{error}</span>}
       </div>
     </div>
   );
@@ -183,7 +183,7 @@ function TriggerRow({ t, index, total, open, onToggleOpen, onPatch, onRemove, on
   const testInChat = () => window.dispatchEvent(new CustomEvent('dm:proactive-say', { detail: { text: interpolate(t.message, SAMPLE_CTX) } }));
 
   return (
-    <div className={`rounded-xl border ${open ? 'border-brand-300 bg-brand-50/20' : 'border-line'} `}>
+    <div className={`rounded-xl border ${open ? 'border-brand-300 dark:border-brand-500/40 bg-brand-50/20' : 'border-line'} `}>
       {/* Summary */}
       <div className="flex items-center gap-3 p-3">
         <Toggle small checked={t.enabled} onChange={(v) => onPatch({ enabled: v })} title={t.enabled ? 'Enabled' : 'Disabled'} />
@@ -191,14 +191,14 @@ function TriggerRow({ t, index, total, open, onToggleOpen, onPatch, onRemove, on
           <div className="flex items-center gap-2">
             <span className="truncate text-sm font-medium text-strong">{t.label || '(untitled)'}</span>
             <span className="shrink-0 rounded-full bg-sunken px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">{ev.label}</span>
-            {t.aiPhrase && <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-700">AI · costs credits</span>}
+            {t.aiPhrase && <span className="shrink-0 rounded-full bg-violet-100 dark:bg-violet-500/15 px-2 py-0.5 text-[10px] font-semibold text-violet-700 dark:text-violet-300">AI · costs credits</span>}
           </div>
           <div className="mt-0.5 truncate text-xs text-faint">{preview}</div>
         </button>
         <div className="flex shrink-0 items-center gap-0.5">
           <button onClick={() => onMove(-1)} disabled={index === 0} className="rounded p-1 text-faint hover:bg-sunken disabled:opacity-30" title="Move up" aria-label="Move up">↑</button>
           <button onClick={() => onMove(1)} disabled={index === total - 1} className="rounded p-1 text-faint hover:bg-sunken disabled:opacity-30" title="Move down" aria-label="Move down">↓</button>
-          <button onClick={onToggleOpen} className="rounded px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50">{open ? 'Close' : 'Edit'}</button>
+          <button onClick={onToggleOpen} className="rounded px-2 py-1 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10">{open ? 'Close' : 'Edit'}</button>
         </div>
       </div>
 
@@ -281,7 +281,7 @@ function TriggerRow({ t, index, total, open, onToggleOpen, onPatch, onRemove, on
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {PROACTIVE_TOKENS.map((tk) => (
                 <button key={tk.token} type="button" title={tk.help} onClick={() => onPatch({ message: `${t.message}${tk.token}` })}
-                  className="rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] font-medium text-muted hover:border-brand-300 hover:text-brand-700">{tk.token}</button>
+                  className="rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] font-medium text-muted hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-700 dark:hover:text-brand-300">{tk.token}</button>
               ))}
             </div>
             <p className="mt-1 text-[11px] text-faint">Add clickable chips with tokens like <code>[[go:/pricing|Upgrade]]</code>, <code>[[tool:keyword-analysis]]</code>, <code>[[action:ticket]]</code>, <code>[[ask:What do I put in each field?]]</code> (a quick-reply button that asks Monty that question).</p>
@@ -290,7 +290,7 @@ function TriggerRow({ t, index, total, open, onToggleOpen, onPatch, onRemove, on
           {/* AI phrasing */}
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" className="h-4 w-4" checked={t.aiPhrase} onChange={(e) => onPatch({ aiPhrase: e.target.checked })} />
-            Let Monty phrase this with AI <span className="text-xs text-violet-600">· costs the user credits each time it fires</span>
+            Let Monty phrase this with AI <span className="text-xs text-violet-600 dark:text-violet-400">· costs the user credits each time it fires</span>
           </label>
           {t.aiPhrase && (
             <label className="block">
@@ -322,7 +322,7 @@ function TriggerRow({ t, index, total, open, onToggleOpen, onPatch, onRemove, on
                 const on = t.tiers.includes(tier);
                 return (
                   <button key={tier} type="button" onClick={() => onPatch({ tiers: on ? t.tiers.filter((x) => x !== tier) : [...t.tiers, tier] })}
-                    className={`rounded-full border px-2.5 py-1 text-xs font-medium ${on ? 'border-brand-500 bg-brand-100 text-brand-700' : 'border-line text-muted hover:border-edge'}`}>{PLANS[tier].name}</button>
+                    className={`rounded-full border px-2.5 py-1 text-xs font-medium ${on ? 'border-brand-500 bg-brand-100 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300' : 'border-line text-muted hover:border-edge'}`}>{PLANS[tier].name}</button>
                 );
               })}
             </div>
@@ -336,7 +336,7 @@ function TriggerRow({ t, index, total, open, onToggleOpen, onPatch, onRemove, on
           </div>
           <div className="flex items-center justify-between">
             <button onClick={testInChat} className="btn-ghost px-3 py-1.5 text-xs" title="Drop this message into your own chat panel now">Preview in my chat</button>
-            <button onClick={onRemove} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50">Delete trigger</button>
+            <button onClick={onRemove} className="rounded-lg px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10">Delete trigger</button>
           </div>
         </div>
       )}
@@ -435,7 +435,7 @@ function AdminAgreements() {
           </button>
         </div>
       </div>
-      {error && <p className="mb-3 text-sm text-rose-600">{error}</p>}
+      {error && <p className="mb-3 text-sm text-rose-600 dark:text-rose-400">{error}</p>}
       {rows.length === 0 ? (
         <p className="rounded-xl border border-dashed border-line p-8 text-center text-sm text-faint">
           No agreements yet. They&rsquo;ll appear here as trial users accept.
@@ -470,7 +470,7 @@ function AdminAgreements() {
                     <button
                       onClick={() => download(r)}
                       disabled={downloading === r.userId}
-                      className="rounded-lg border border-edge px-2.5 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-50"
+                      className="rounded-lg border border-edge px-2.5 py-1 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10 disabled:opacity-50"
                     >
                       {downloading === r.userId ? 'Preparing…' : 'PDF'}
                     </button>
@@ -579,7 +579,7 @@ function AdminSettings() {
         </div>
         <p className="mt-3 text-sm font-medium">
           Status:{' '}
-          <span className={settings?.passwordAuthEnabled ? 'text-emerald-600' : 'text-muted'}>
+          <span className={settings?.passwordAuthEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted'}>
             {settings?.passwordAuthEnabled ? 'Enabled' : 'Disabled'}
           </span>
         </p>
@@ -620,7 +620,7 @@ function AdminSettings() {
         </div>
         {Number(tForm.ticketReminderDays) > 0 && Number(tForm.ticketAutoCloseDays) > 0
           && Number(tForm.ticketReminderDays) >= Number(tForm.ticketAutoCloseDays) && (
-          <p className="mt-3 text-sm text-amber-600">
+          <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
             Heads up: the reminder interval is longer than the auto-close window, so the ticket will close
             before any reminder is sent.
           </p>
@@ -630,8 +630,8 @@ function AdminSettings() {
         </button>
       </form>
 
-      {msg && <p className="mt-3 text-sm text-emerald-600">{msg}</p>}
-      {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+      {msg && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{msg}</p>}
+      {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
     </div>
   );
 }
@@ -757,7 +757,7 @@ function AdminNotifications() {
           {CLAUSES.map(({ key, label, help }) => {
             const cl = clauses[key];
             return (
-              <div key={key} className={`rounded-lg border p-2.5 ${cl.enabled ? 'border-brand-200 bg-brand-50/40' : 'border-line'}`}>
+              <div key={key} className={`rounded-lg border p-2.5 ${cl.enabled ? 'border-brand-200 dark:border-brand-500/30 bg-brand-50/40' : 'border-line'}`}>
                 <label className="flex items-center gap-2 text-sm font-medium text-body">
                   <input type="checkbox" checked={cl.enabled} onChange={(e) => setClause(key, { enabled: e.target.checked })} className="h-4 w-4" />
                   {label}
@@ -786,7 +786,7 @@ function AdminNotifications() {
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {TIER_ORDER.map((t) => (
                 <button key={t} type="button" onClick={() => toggleIn(tiers, setTiers, t)}
-                  className={`rounded-full border px-2.5 py-1 text-xs font-medium ${tiers.has(t) ? 'border-brand-500 bg-brand-100 text-brand-700' : 'border-line text-muted hover:border-edge'}`}>
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium ${tiers.has(t) ? 'border-brand-500 bg-brand-100 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300' : 'border-line text-muted hover:border-edge'}`}>
                   {PLANS[t].name}
                 </button>
               ))}
@@ -798,7 +798,7 @@ function AdminNotifications() {
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {BROADCAST_STATUSES.map((s) => (
                 <button key={s} type="button" onClick={() => toggleIn(statuses, setStatuses, s)}
-                  className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${statuses.has(s) ? 'border-brand-500 bg-brand-100 text-brand-700' : 'border-line text-muted hover:border-edge'}`}>
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${statuses.has(s) ? 'border-brand-500 bg-brand-100 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300' : 'border-line text-muted hover:border-edge'}`}>
                   {s}
                 </button>
               ))}
@@ -814,7 +814,7 @@ function AdminNotifications() {
           {preview && (
             <span className="text-sm font-semibold text-body">
               {preview.count.toLocaleString()} user{preview.count === 1 ? '' : 's'}
-              {preview.capped && <span className="ml-1 text-red-600">· exceeds cap of {preview.maxAudience}</span>}
+              {preview.capped && <span className="ml-1 text-red-600 dark:text-red-400">· exceeds cap of {preview.maxAudience}</span>}
             </span>
           )}
         </div>
@@ -879,8 +879,8 @@ function AdminNotifications() {
           </div>
         </div>
 
-        {msg && <div className="mt-4 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">{msg}</div>}
-        {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+        {msg && <div className="mt-4 rounded-lg bg-green-50 dark:bg-green-500/10 px-3 py-2 text-sm text-green-800 dark:text-green-300">{msg}</div>}
+        {error && <div className="mt-4 rounded-lg bg-red-50 dark:bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">{error}</div>}
 
         <div className="mt-4 flex items-center justify-between">
           <span className="text-xs text-faint">{preview ? `Will reach ${preview.count.toLocaleString()} user${preview.count === 1 ? '' : 's'}.` : 'Preview the audience first.'}</span>
@@ -1101,12 +1101,12 @@ function AdminUsers() {
         )}
       </div>
       {creating && <CreateUserDialog onClose={() => setCreating(false)} onCreated={(u) => { setCreating(false); flash(`Created ${u.email} (${u.role})`); load(); }} />}
-      {msg && <div className="mt-3 rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">{msg}</div>}
-      {error && <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {msg && <div className="mt-3 rounded-lg bg-green-50 dark:bg-green-500/10 px-3 py-2 text-sm text-green-800 dark:text-green-300">{msg}</div>}
+      {error && <div className="mt-3 rounded-lg bg-red-50 dark:bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">{error}</div>}
 
       {selected.size > 0 && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-3 py-2.5">
-          <span className="text-sm font-medium text-brand-800">{selected.size} selected</span>
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 px-3 py-2.5">
+          <span className="text-sm font-medium text-brand-800 dark:text-brand-300">{selected.size} selected</span>
           <button onClick={() => setSelected(new Set())} className="btn-ghost px-2 py-1 text-xs">Clear</button>
           <div className="mx-1 h-5 w-px bg-brand-200" />
           <select disabled={bulkBusy} defaultValue="" onChange={(e) => { const v = e.target.value; e.target.value = ''; if (v) bulkStatus(v); }}
@@ -1129,7 +1129,7 @@ function AdminUsers() {
           </select>
           <button disabled={bulkBusy} onClick={() => bulkAdjust('monthly')} className="btn-ghost px-2 py-1 text-xs">± Monthly credits</button>
           <button disabled={bulkBusy} onClick={() => bulkAdjust('topup')} className="btn-ghost px-2 py-1 text-xs">± Top-up credits</button>
-          {bulkBusy && <span className="text-xs text-brand-600">Applying…</span>}
+          {bulkBusy && <span className="text-xs text-brand-600 dark:text-brand-400">Applying…</span>}
         </div>
       )}
 
@@ -1153,15 +1153,15 @@ function AdminUsers() {
             { key: 'role', label: 'Role', accessor: (u) => u.role || 'client',
               render: (u) => (u.userId === me.userId
                 ? (u.role === 'staff'
-                    ? <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700">Staff (you)</span>
+                    ? <span className="rounded-full bg-brand-100 dark:bg-brand-500/15 px-2 py-0.5 text-xs font-semibold text-brand-700 dark:text-brand-300">Staff (you)</span>
                     : <span className="text-xs text-muted">Client (you)</span>)
                 : <RoleSelect u={u} canGrantStaff={!!me.isSuperAdmin} onChange={(r) => setRole(u, r)} />) },
             { key: 'status', label: 'Status', accessor: (u) => u.status || 'active',
               render: (u) => (
                 u.status === 'invited'
-                  ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Invited</span>
+                  ? <span className="rounded-full bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">Invited</span>
                   : u.role === 'staff'
-                    ? <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">Active</span>
+                    ? <span className="rounded-full bg-green-100 dark:bg-green-500/15 px-2 py-0.5 text-xs font-semibold text-green-700 dark:text-green-300">Active</span>
                     : <StatusSelect u={u} onChange={(s) => setStatus(u, s)} />) },
             { key: 'tier', label: 'Tier', accessor: (u) => TIER_ORDER.indexOf(u.tier),
               render: (u) => (
@@ -1169,7 +1169,7 @@ function AdminUsers() {
                   {TIER_ORDER.map((t) => <option key={t} value={t}>{PLANS[t].name}</option>)}
                 </select>) },
             { key: 'monthlyCredits', label: 'Monthly', align: 'right', numeric: true, render: (u) => (u.monthlyCredits ?? 0).toLocaleString() },
-            { key: 'topupCredits', label: 'Top-up', align: 'right', numeric: true, render: (u) => <span className="text-brand-600">{(u.topupCredits ?? 0).toLocaleString()}</span> },
+            { key: 'topupCredits', label: 'Top-up', align: 'right', numeric: true, render: (u) => <span className="text-brand-600 dark:text-brand-400">{(u.topupCredits ?? 0).toLocaleString()}</span> },
             { key: 'credits', label: 'Total', align: 'right', numeric: true, render: (u) => <span className="font-semibold">{(u.credits ?? 0).toLocaleString()}</span> },
             { key: 'creditsSpent', label: 'Used', align: 'right', numeric: true, tip: 'Lifetime credits this user has spent on tool runs.',
               render: (u) => <span className="text-muted tabular-nums">{(u.creditsSpent ?? 0).toLocaleString()}</span> },
@@ -1202,7 +1202,7 @@ function AdminUsers() {
 // server-side). Invited + staff rows render a plain pill instead (see above).
 function StatusSelect({ u, onChange }) {
   const status = u.status || 'active';
-  const tone = status === 'active' ? 'text-green-700' : status === 'paused' ? 'text-amber-700' : 'text-red-700';
+  const tone = status === 'active' ? 'text-green-700 dark:text-green-300' : status === 'paused' ? 'text-amber-700 dark:text-amber-300' : 'text-red-700 dark:text-red-300';
   return (
     <select
       value={status}
@@ -1225,7 +1225,7 @@ function RoleSelect({ u, canGrantStaff, onChange }) {
     <select
       value={role}
       onChange={(e) => onChange(e.target.value)}
-      className={`dm-select rounded border border-edge py-1 pl-2 pr-7 text-sm font-semibold ${role === 'staff' ? 'text-brand-700' : 'text-dim'}`}
+      className={`dm-select rounded border border-edge py-1 pl-2 pr-7 text-sm font-semibold ${role === 'staff' ? 'text-brand-700 dark:text-brand-300' : 'text-dim'}`}
     >
       <option value="client">Client</option>
       <option value="staff" disabled={role !== 'staff' && !canGrantStaff}>Staff{role !== 'staff' && !canGrantStaff ? ' (admin only)' : ''}</option>
@@ -1298,7 +1298,7 @@ function AdminUserActivity({ user, onClose }) {
         </div>
 
         <div className="overflow-y-auto p-4">
-          {err && <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
+          {err && <div className="mb-3 rounded-lg bg-red-50 dark:bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">{err}</div>}
 
           {/* Tool-usage counts — always visible (operational metadata, no content). */}
           {!openConvo && (
@@ -1339,23 +1339,23 @@ function AdminUserActivity({ user, onClose }) {
 
           {/* No active grant → request flow. */}
           {grants !== null && !active && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-4">
               <div className="flex items-start gap-2">
                 <span className="text-lg">🔒</span>
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-amber-900">Consent required for details</p>
-                  <p className="mt-1 text-sm text-amber-800">
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">Consent required for details</p>
+                  <p className="mt-1 text-sm text-amber-800 dark:text-amber-300">
                     Run details and conversation contents need the user’s permission. Send a request and they’ll
                     approve it under <span className="font-medium">Account → Data access</span>. Grants last 7 days.
                   </p>
                   {pending
-                    ? <p className="mt-3 rounded-lg bg-surface/70 px-3 py-2 text-sm text-amber-900">
+                    ? <p className="mt-3 rounded-lg bg-surface/70 px-3 py-2 text-sm text-amber-900 dark:text-amber-200">
                         ⏳ Request pending since {fmtWhen(pending.requestedAt)} — waiting for the user to allow it.
                       </p>
                     : (
                       <div className="mt-3">
                         <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (shown to the user, optional)"
-                          className="w-full rounded-lg border border-amber-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none" />
+                          className="w-full rounded-lg border border-amber-300 dark:border-amber-500/40 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none" />
                         <button onClick={request} disabled={busy} className="btn-primary mt-2 px-3 py-2 text-sm disabled:opacity-50">
                           {busy ? 'Sending…' : 'Request access'}
                         </button>
@@ -1369,7 +1369,7 @@ function AdminUserActivity({ user, onClose }) {
           {/* Active grant → show runs + conversations. */}
           {active && !openConvo && (
             <div className="space-y-5">
-              <p className="rounded-lg bg-green-50 px-3 py-2 text-xs text-green-800">
+              <p className="rounded-lg bg-green-50 dark:bg-green-500/10 px-3 py-2 text-xs text-green-800 dark:text-green-300">
                 ✓ Access granted{active.expiresAt ? ` until ${fmtWhen(active.expiresAt)}` : ''}. Every view is logged.
               </p>
 
@@ -1413,7 +1413,7 @@ function AdminUserActivity({ user, onClose }) {
             <div>
               <button onClick={() => setOpenConvo(null)} className="text-sm text-muted hover:text-strong">← Conversations</button>
               {openConvo.loading && <p className="mt-3 text-sm text-faint">Loading…</p>}
-              {openConvo.error && <p className="mt-3 text-sm text-red-600">Could not load this conversation.</p>}
+              {openConvo.error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">Could not load this conversation.</p>}
               {openConvo.conversation && (
                 <div className="mt-3 space-y-3">
                   {(openConvo.conversation.messages || []).map((m, i) => (
@@ -1436,7 +1436,7 @@ function AdminUserActivity({ user, onClose }) {
 
 // ── Support tickets ──────────────────────────────────────────────────────────
 function statusPill(status) {
-  const map = { open: 'bg-amber-100 text-amber-700', answered: 'bg-brand-100 text-brand-700', closed: 'bg-sunken text-muted' };
+  const map = { open: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300', answered: 'bg-brand-100 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300', closed: 'bg-sunken text-muted' };
   return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${map[status] || 'bg-sunken text-muted'}`}>{status || '—'}</span>;
 }
 
@@ -1478,7 +1478,7 @@ function countdownCell(c) {
   const due = c.label === 'Due';
   return (
     <span title={c.tip || undefined}
-      className={`whitespace-nowrap ${due ? 'font-semibold text-amber-700' : muted ? 'text-faint' : 'text-dim'}`}>
+      className={`whitespace-nowrap ${due ? 'font-semibold text-amber-700 dark:text-amber-300' : muted ? 'text-faint' : 'text-dim'}`}>
       {c.label}
     </span>
   );
@@ -1503,10 +1503,10 @@ function AdminTickets() {
   const open = (tickets || []).filter((t) => t.status !== 'closed').length;
   return (
     <div>
-      {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {error && <div className="mt-4 rounded-lg bg-red-50 dark:bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">{error}</div>}
       {tickets && (
         <p className="mt-4 text-sm text-muted">
-          {tickets.length} ticket{tickets.length === 1 ? '' : 's'} · <span className="font-semibold text-amber-700">{open} open</span>
+          {tickets.length} ticket{tickets.length === 1 ? '' : 's'} · <span className="font-semibold text-amber-700 dark:text-amber-300">{open} open</span>
           {settings && (
             <span className="text-faint">
               {' · '}reminders {Number(settings.ticketReminderDays) > 0 ? `every ${settings.ticketReminderDays}d` : 'off'}, auto-close {Number(settings.ticketAutoCloseDays) > 0 ? `after ${settings.ticketAutoCloseDays}d` : 'off'}
@@ -1521,7 +1521,7 @@ function AdminTickets() {
           emptyText={tickets === null ? 'Loading…' : 'No tickets yet.'}
           columns={[
             { key: 'id', label: 'Ticket', accessor: (t) => t.id,
-              render: (t) => <button className="font-mono text-xs font-semibold text-brand-600 hover:underline" onClick={() => setSel(t)}>{t.id}</button> },
+              render: (t) => <button className="font-mono text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline" onClick={() => setSel(t)}>{t.id}</button> },
             { key: 'userEmail', label: 'User', accessor: (t) => t.userEmail || t.userId, render: (t) => <span className="text-dim">{t.userEmail || t.userId}</span> },
             { key: 'subject', label: 'Subject', accessor: (t) => t.subject || '',
               render: (t) => <button className="max-w-xs truncate text-left font-medium text-strong hover:underline" onClick={() => setSel(t)}>{t.subject || '(no subject)'}</button> },
@@ -1602,7 +1602,7 @@ function AdminTicketDetail({ summary, onBack }) {
     try { await api.adminCloseTicket(summary.userId, summary.ticketId); setTicket((t) => ({ ...t, status: 'closed' })); } finally { setBusy(false); }
   }
 
-  if (ticket === false) return <div className="mt-5"><button onClick={onBack} className="text-sm text-muted hover:text-strong">← All tickets</button><p className="mt-4 text-red-600">Ticket not found.</p></div>;
+  if (ticket === false) return <div className="mt-5"><button onClick={onBack} className="text-sm text-muted hover:text-strong">← All tickets</button><p className="mt-4 text-red-600 dark:text-red-400">Ticket not found.</p></div>;
   if (!ticket) return <p className="mt-5 text-faint">Loading…</p>;
 
   return (
@@ -1657,10 +1657,10 @@ function AdminTicketDetail({ summary, onBack }) {
       </div>
 
       {warn && (
-        <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">
+        <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 px-3.5 py-2.5 text-sm text-amber-800 dark:text-amber-300">
           <span aria-hidden="true">⚠️</span>
           <span>{warn}</span>
-          <button onClick={() => setWarn('')} className="ml-auto text-amber-500 hover:text-amber-700" aria-label="Dismiss">✕</button>
+          <button onClick={() => setWarn('')} className="ml-auto text-amber-500 hover:text-amber-700 dark:hover:text-amber-300" aria-label="Dismiss">✕</button>
         </div>
       )}
 
@@ -1735,7 +1735,7 @@ function CreateUserDialog({ onClose, onCreated }) {
           <button type="button" onClick={onClose} className="text-faint hover:text-body" aria-label="Close">✕</button>
         </div>
         <p className="mt-1 text-sm text-muted">They sign in with Google using this email and link automatically.</p>
-        {err && <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
+        {err && <div className="mt-3 rounded-lg bg-red-50 dark:bg-red-500/10 px-3 py-2 text-sm text-red-700 dark:text-red-300">{err}</div>}
 
         <label className="mt-3 block text-sm font-medium text-body">Email <span className="text-red-500">*</span></label>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="person@company.com"
@@ -1850,14 +1850,14 @@ function AdminFinances() {
           <RefreshCw size={14} /> Refresh
         </button>
       </div>
-      <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700">
+      <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300">
         <Info size={13} className="mt-0.5 shrink-0" />
         <span>
           Each load runs one <b>AWS Cost Explorer</b> query (~US$0.01) plus a few read-only Stripe calls. Revenue and AWS spend are actual figures; the <b>AI &amp; data COGS</b> line is an estimate (see notes below).
         </span>
       </p>
 
-      {error && <div className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {error && <div className="mt-4 rounded-lg bg-red-50 dark:bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">{error}</div>}
       {data === null && <div className="mt-6 text-sm text-muted">Loading finances…</div>}
 
       {data && cost && (
@@ -1872,7 +1872,7 @@ function AdminFinances() {
           </div>
 
           {revErr && (
-            <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            <div className="mt-3 rounded-lg bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
               Revenue unavailable: {revErr}. Costs are still shown below.
             </div>
           )}
@@ -1992,7 +1992,7 @@ function AdminFinances() {
                   ))}
                 </tbody>
               </table>
-              {cost.cogs.truncated && <p className="mt-2 text-xs text-amber-600">Ledger scan truncated — COGS may be understated for very long windows.</p>}
+              {cost.cogs.truncated && <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">Ledger scan truncated — COGS may be understated for very long windows.</p>}
             </Panel>
           )}
 
@@ -2017,7 +2017,7 @@ function LedgerRow({ label, value, sub, strong, border, muted, tag }) {
     <tr className={border ? 'border-t border-line' : ''}>
       <td className={`py-1.5 ${strong ? 'font-semibold text-strong' : muted ? 'text-muted' : ''}`}>
         {label}
-        {tag && <span className="ml-1.5 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-semibold text-amber-700 align-middle">{tag}</span>}
+        {tag && <span className="ml-1.5 rounded bg-amber-100 dark:bg-amber-500/15 px-1 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300 align-middle">{tag}</span>}
         {sub && <div className="text-[11px] font-normal text-faint">{sub}</div>}
       </td>
       <td className={`py-1.5 text-right tabular-nums ${strong ? 'font-semibold text-heading' : muted ? 'text-muted' : 'text-body'}`}>{value}</td>
@@ -2081,7 +2081,7 @@ function AdminPlatform() {
           <RefreshCw size={14} /> Refresh
         </button>
       </div>
-      <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700">
+      <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300">
         <Info size={13} className="mt-0.5 shrink-0" />
         <span>
           Heads up on cost: each load or refresh runs one <b>AWS Cost Explorer</b> query (~US$0.01 per call), so changing the range or hitting Refresh costs about a cent. Traffic metrics, builds and the access-log detail are effectively free.
@@ -2093,7 +2093,7 @@ function AdminPlatform() {
         </p>
       )}
 
-      {error && <div className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {error && <div className="mt-4 rounded-lg bg-red-50 dark:bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">{error}</div>}
       {data === null && <div className="mt-6 text-sm text-muted">Loading Amplify usage…</div>}
 
       {data && t && (
@@ -2153,7 +2153,7 @@ function AdminPlatform() {
                     <ul className="mt-3 space-y-1 text-xs text-muted">
                       {data.builds.recent.map((j) => (
                         <li key={j.id} className="flex justify-between">
-                          <span className={j.status === 'FAILED' ? 'text-red-600' : j.status === 'SUCCEED' ? 'text-emerald-600' : ''}>{j.status}</span>
+                          <span className={j.status === 'FAILED' ? 'text-red-600 dark:text-red-400' : j.status === 'SUCCEED' ? 'text-emerald-600 dark:text-emerald-400' : ''}>{j.status}</span>
                           <span>{j.startTime ? fmtWhen(j.startTime) : '—'}</span>
                         </li>
                       ))}
@@ -2198,7 +2198,7 @@ function AccessLogPanel({ rangeArgs, rangeKey }) {
       )}
       {state === 'loading' && <div className="text-sm text-muted">Exporting &amp; parsing access log…</div>}
       {state === 'error' && (
-        <div className="text-sm text-red-700">{error} <button onClick={load} className="ml-2 underline">Retry</button></div>
+        <div className="text-sm text-red-700 dark:text-red-300">{error} <button onClick={load} className="ml-2 underline">Retry</button></div>
       )}
       {state === 'done' && logs && (
         <div>
@@ -2207,7 +2207,7 @@ function AccessLogPanel({ rangeArgs, rangeKey }) {
             <span>Cache hit ratio <b>{fmtPct(logs.cacheHitRatio)}</b></span>
             <span>{fmtBytes(logs.bytes)} served</span>
             <span className="text-faint">{logs.status['2xx']} · 2xx / {logs.status['4xx']} · 4xx / {logs.status['5xx']} · 5xx</span>
-            {logs.truncated && <span className="text-amber-600">sampled (window truncated)</span>}
+            {logs.truncated && <span className="text-amber-600 dark:text-amber-400">sampled (window truncated)</span>}
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <RankList title="Top pages" rows={logs.topPages} />
@@ -2232,7 +2232,7 @@ function RankList({ title, rows, empty = 'No data' }) {
         <ul className="space-y-1">
           {rows.map((r) => (
             <li key={r.name} className="relative flex items-center justify-between overflow-hidden rounded px-2 py-1 text-sm">
-              <span className="absolute inset-y-0 left-0 bg-brand-50" style={{ width: `${(r.count / max) * 100}%` }} aria-hidden />
+              <span className="absolute inset-y-0 left-0 bg-brand-50 dark:bg-brand-500/10" style={{ width: `${(r.count / max) * 100}%` }} aria-hidden />
               <span className="relative z-10 mr-2 truncate text-body" title={r.name}>{r.name}</span>
               <span className="relative z-10 shrink-0 tabular-nums text-muted">{fmtNum(r.count)}</span>
             </li>
@@ -2253,7 +2253,7 @@ function Panel({ title, children }) {
 }
 
 function Stat({ label, value, sub, tone }) {
-  const color = tone === 'warn' ? 'text-amber-600' : tone === 'ok' ? 'text-emerald-600' : 'text-heading';
+  const color = tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : tone === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : 'text-heading';
   return (
     <div className="rounded-xl border border-line bg-surface p-3">
       <div className="text-xs font-medium text-muted">{label}</div>
@@ -2264,7 +2264,7 @@ function Stat({ label, value, sub, tone }) {
 }
 
 function MiniStat({ label, value, tone }) {
-  const color = tone === 'warn' ? 'text-amber-600' : tone === 'ok' ? 'text-emerald-600' : 'text-strong';
+  const color = tone === 'warn' ? 'text-amber-600 dark:text-amber-400' : tone === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : 'text-strong';
   return (
     <div className="rounded-lg bg-raised py-2">
       <div className={`text-lg font-bold tabular-nums ${color}`}>{value}</div>

@@ -14,11 +14,11 @@ import { Check, X, Info, TrendingUp, TrendingDown } from 'lucide-react';
 // tone → colour treatments. `bg`/`border` tint stat & callout surfaces; `text`
 // colours headline numbers; `stroke` paints the gauge arc.
 const TONES = {
-  green:  { bg: 'bg-emerald-50/70', border: 'border-emerald-100', text: 'text-emerald-700', chip: 'bg-emerald-100 text-emerald-700', stroke: '#059669' },
-  amber:  { bg: 'bg-amber-50/70',   border: 'border-amber-100',   text: 'text-amber-700',   chip: 'bg-amber-100 text-amber-700',   stroke: '#d97706' },
-  red:    { bg: 'bg-red-50/70',     border: 'border-red-100',     text: 'text-red-700',     chip: 'bg-red-100 text-red-700',       stroke: '#dc2626' },
-  blue:   { bg: 'bg-brand-50/70',   border: 'border-brand-100',   text: 'text-brand-700',   chip: 'bg-brand-100 text-brand-700',   stroke: '#2563eb' },
-  orange: { bg: 'bg-orange-50/70',  border: 'border-orange-100',  text: 'text-orange-700',  chip: 'bg-orange-100 text-orange-700', stroke: '#ea580c' },
+  green:  { bg: 'bg-emerald-50/70', border: 'border-emerald-100', text: 'text-emerald-700 dark:text-emerald-300', chip: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300', stroke: '#059669' },
+  amber:  { bg: 'bg-amber-50/70',   border: 'border-amber-100',   text: 'text-amber-700 dark:text-amber-300',   chip: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300',   stroke: '#d97706' },
+  red:    { bg: 'bg-red-50/70',     border: 'border-red-100',     text: 'text-red-700 dark:text-red-300',     chip: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300',       stroke: '#dc2626' },
+  blue:   { bg: 'bg-brand-50/70',   border: 'border-brand-100',   text: 'text-brand-700 dark:text-brand-300',   chip: 'bg-brand-100 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300',   stroke: '#2563eb' },
+  orange: { bg: 'bg-orange-50/70',  border: 'border-orange-100',  text: 'text-orange-700 dark:text-orange-300',  chip: 'bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300', stroke: '#ea580c' },
   slate:  { bg: 'bg-raised',      border: 'border-line',   text: 'text-heading',   chip: 'bg-sunken text-dim',   stroke: '#64748b' },
 };
 const tone = (t) => TONES[t] || TONES.slate;
@@ -124,7 +124,7 @@ function StatCard({ it }) {
         ? <div className="mt-1 flex items-center gap-1 text-2xl font-bold leading-tight text-slate-300">—<InfoTip text="Not available — this metric couldn’t be measured for this site or page." size={14} /></div>
         : <div className={`mt-1 text-2xl font-bold leading-tight ${t.text}`}>{it.value}</div>}
       {it.delta && (
-        <div className={`mt-1.5 inline-flex items-center gap-1 text-xs font-semibold ${it.deltaTone === 'red' ? 'text-red-600' : it.deltaTone === 'green' ? 'text-emerald-600' : 'text-faint'}`}>
+        <div className={`mt-1.5 inline-flex items-center gap-1 text-xs font-semibold ${it.deltaTone === 'red' ? 'text-red-600 dark:text-red-400' : it.deltaTone === 'green' ? 'text-emerald-600 dark:text-emerald-400' : 'text-faint'}`}>
           {it.deltaTone === 'green' ? <TrendingUp size={13} aria-hidden /> : it.deltaTone === 'red' ? <TrendingDown size={13} aria-hidden /> : null}
           {it.delta}<span className="ml-0.5 font-normal text-faint">vs prev</span>
         </div>
@@ -178,7 +178,7 @@ function ListSection({ s }) {
             const ok = x.trim().startsWith('✓');
             return (
               <div key={i} className="flex items-start gap-2.5 text-sm text-body">
-                <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${ok ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${ok ? 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400'}`}>
                   {ok ? <Check size={13} strokeWidth={3} aria-hidden /> : <X size={13} strokeWidth={3} aria-hidden />}
                 </span>
                 <span>{x.replace(STATUS_RE, '')}</span>
@@ -200,7 +200,7 @@ function ListSection({ s }) {
     );
   }
 
-  const textColor = s.tone === 'green' ? 'text-emerald-700' : s.tone === 'red' ? 'text-red-700' : 'text-dim';
+  const textColor = s.tone === 'green' ? 'text-emerald-700 dark:text-emerald-300' : s.tone === 'red' ? 'text-red-700 dark:text-red-300' : 'text-dim';
   return (
     <Block title={s.title}>
       <ul className="space-y-1.5 text-sm">
@@ -217,8 +217,8 @@ function ListSection({ s }) {
 
 // ── Cards (e.g. ranked opportunities with a progress bar) ────────────────────
 const BADGE = {
-  red: 'bg-red-100 text-red-700', amber: 'bg-amber-100 text-amber-700', green: 'bg-emerald-100 text-emerald-700',
-  blue: 'bg-brand-100 text-brand-700', orange: 'bg-orange-100 text-orange-700', slate: 'bg-sunken text-dim',
+  red: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300', amber: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300', green: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+  blue: 'bg-brand-100 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300', orange: 'bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300', slate: 'bg-sunken text-dim',
 };
 function Card({ c }) {
   return (

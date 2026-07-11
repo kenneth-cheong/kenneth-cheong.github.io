@@ -112,7 +112,7 @@ export default function Tracking() {
     if (!h || h.length < 2) return null;
     const a = h[0].position, b = h[h.length - 1].position;
     if (!a || !b) return null;
-    return b < a ? { dir: '▲', cls: 'text-green-600', n: a - b } : b > a ? { dir: '▼', cls: 'text-red-600', n: b - a } : { dir: '–', cls: 'text-faint', n: 0 };
+    return b < a ? { dir: '▲', cls: 'text-green-600 dark:text-green-400', n: a - b } : b > a ? { dir: '▼', cls: 'text-red-600 dark:text-red-400', n: b - a } : { dir: '–', cls: 'text-faint', n: 0 };
   };
 
   // Aggregate summary — average position across all keywords per date, within the selected period.
@@ -190,7 +190,7 @@ export default function Tracking() {
           <form onSubmit={bulk ? addBulk : add} className="card mt-6 p-5">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-sm font-medium text-body">{bulk ? 'Keywords (one per line)' : 'Keyword'}<span className="text-amber-500"> *</span></span>
-              <button type="button" onClick={() => setBulk((b) => !b)} className="text-xs font-medium text-brand-600 hover:text-brand-700">
+              <button type="button" onClick={() => setBulk((b) => !b)} className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">
                 {bulk ? 'Single keyword' : '+ Add multiple'}
               </button>
             </div>
@@ -212,7 +212,7 @@ export default function Tracking() {
               </button>
             </div>
             {nudge
-              ? <p className="mt-2 text-xs font-semibold text-amber-600">Enter {bulk ? 'at least one keyword' : 'a keyword'} and a domain to start tracking.</p>
+              ? <p className="mt-2 text-xs font-semibold text-amber-600 dark:text-amber-400">Enter {bulk ? 'at least one keyword' : 'a keyword'} and a domain to start tracking.</p>
               : bulk && <p className="mt-2 text-xs text-faint">Up to {Math.max(0, limit - tracked.length)} more. Positions are checked right after adding.</p>}
           </form>
 
@@ -289,7 +289,7 @@ export default function Tracking() {
                       <div className="text-xs text-faint">{t.domain}</div>
                       {rankingUrl(t) && !unranked && (
                         <a href={rankingUrl(t)} target="_blank" rel="noopener noreferrer"
-                          className="mt-0.5 block max-w-xs truncate text-xs text-brand-600 hover:text-brand-700" title={rankingUrl(t)}>
+                          className="mt-0.5 block max-w-xs truncate text-xs text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300" title={rankingUrl(t)}>
                           {rankingUrl(t).replace(/^https?:\/\//, '')}
                         </a>
                       )}
@@ -299,7 +299,7 @@ export default function Tracking() {
                       {tr && tr.n > 0 && <div className={`text-xs font-medium ${tr.cls}`}>{tr.dir} {tr.n}</div>}
                       {noData && <div className="text-[11px] text-slate-300">checking…</div>}
                     </div>
-                    <button onClick={() => remove(t.trackId)} className="text-sm text-faint hover:text-red-600">Remove</button>
+                    <button onClick={() => remove(t.trackId)} className="text-sm text-faint hover:text-red-600 dark:hover:text-red-400">Remove</button>
                   </div>
                   {hasChart && <div className="mt-2"><LineChart data={hist} /></div>}
                 </div>
@@ -324,7 +324,7 @@ export default function Tracking() {
               </div>
               <div className="mt-1 flex items-center justify-between">
                 <span className="text-muted">Your balance</span>
-                <span className={(user.credits || 0) + (user.topupCredits || 0) < backfillCost ? 'font-semibold text-red-600' : 'font-semibold'}>
+                <span className={(user.credits || 0) + (user.topupCredits || 0) < backfillCost ? 'font-semibold text-red-600 dark:text-red-400' : 'font-semibold'}>
                   {(user.credits || 0) + (user.topupCredits || 0)} credits
                 </span>
               </div>

@@ -93,18 +93,18 @@ export default function ProfilePrompt() {
     return (
       <button
         onClick={expand}
-        className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full border border-brand-200 bg-surface px-4 py-2.5 text-sm font-semibold text-brand-800 shadow-lg hover:bg-brand-50"
+        className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full border border-brand-200 dark:border-brand-500/30 bg-surface px-4 py-2.5 text-sm font-semibold text-brand-800 dark:text-brand-300 shadow-lg hover:bg-brand-50 dark:hover:bg-brand-500/10"
       >
         <Sparkles size={16} aria-hidden /> Finish profile
-        <span className="tabular-nums text-brand-600">{done}/{total}</span>
+        <span className="tabular-nums text-brand-600 dark:text-brand-400">{done}/{total}</span>
       </button>
     );
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-40 w-[calc(100vw-2.5rem)] max-w-sm rounded-xl border border-brand-200 bg-surface p-5 shadow-2xl">
+    <div className="fixed bottom-5 right-5 z-40 w-[calc(100vw-2.5rem)] max-w-sm rounded-xl border border-brand-200 dark:border-brand-500/30 bg-surface p-5 shadow-2xl">
       <div className="flex items-start justify-between gap-3">
-        <h2 className="flex items-center gap-1.5 font-semibold text-brand-800">
+        <h2 className="flex items-center gap-1.5 font-semibold text-brand-800 dark:text-brand-300">
           <Sparkles size={16} aria-hidden /> Complete your profile &amp; earn {PROFILE_BONUS} tokens
         </h2>
         <div className="flex shrink-0 items-center gap-1">
@@ -123,7 +123,7 @@ export default function ProfilePrompt() {
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-sunken">
           <div className="h-full rounded-full bg-brand-600 transition-all" style={{ width: `${pct}%` }} />
         </div>
-        <span className="text-xs font-medium tabular-nums text-brand-700">{done}/{total}</span>
+        <span className="text-xs font-medium tabular-nums text-brand-700 dark:text-brand-300">{done}/{total}</span>
       </div>
 
       <div className="mt-4 space-y-3">
@@ -139,7 +139,7 @@ export default function ProfilePrompt() {
         <button onClick={onSave} disabled={busy} className="btn-primary">
           {busy ? 'Saving…' : 'Save & continue'}
         </button>
-        <Link to="/profile" className="text-sm font-medium text-brand-700 hover:text-brand-800">
+        <Link to="/profile" className="text-sm font-medium text-brand-700 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-300">
           Complete all &amp; get {PROFILE_BONUS} tokens →
         </Link>
       </div>

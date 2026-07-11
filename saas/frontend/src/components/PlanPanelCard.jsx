@@ -26,9 +26,9 @@ export default function PlanPanelCard() {
     return (
       <button
         onClick={() => navigate('/')}
-        className="flex w-full items-center gap-2 border-b border-brand-100 bg-brand-50 px-4 py-2.5 text-left hover:bg-brand-100"
+        className="flex w-full items-center gap-2 border-b border-brand-100 bg-brand-50 dark:bg-brand-500/10 px-4 py-2.5 text-left hover:bg-brand-100 dark:hover:bg-brand-500/15"
       >
-        <Target size={16} className="shrink-0 text-brand-600" aria-hidden />
+        <Target size={16} className="shrink-0 text-brand-600 dark:text-brand-400" aria-hidden />
         <span className="text-sm font-medium text-body">Set your goal for a step-by-step plan</span>
         <ArrowRight size={14} className="ml-auto shrink-0 text-brand-500" aria-hidden />
       </button>
@@ -39,25 +39,25 @@ export default function PlanPanelCard() {
 
   if (complete) {
     return (
-      <div className="flex items-center gap-2 border-b border-green-100 bg-green-50 px-4 py-3">
-        <PartyPopper size={16} className="shrink-0 text-green-600" aria-hidden />
-        <span className="text-sm font-semibold text-green-800">Plan complete — nice work!</span>
+      <div className="flex items-center gap-2 border-b border-green-100 bg-green-50 dark:bg-green-500/10 px-4 py-3">
+        <PartyPopper size={16} className="shrink-0 text-green-600 dark:text-green-400" aria-hidden />
+        <span className="text-sm font-semibold text-green-800 dark:text-green-300">Plan complete — nice work!</span>
         <button onClick={() => navigate('/')} className="ml-auto shrink-0 rounded-lg bg-green-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-green-700">Set a new goal</button>
       </div>
     );
   }
 
   return (
-    <div className="border-b border-brand-100 bg-brand-50">
+    <div className="border-b border-brand-100 bg-brand-50 dark:bg-brand-500/10">
       <button onClick={toggle} className="flex w-full items-center gap-2 px-4 pb-2 pt-2.5 text-left" aria-expanded={expanded} title={expanded ? 'Collapse plan' : 'Expand plan'}>
-        <Target size={16} className="shrink-0 text-brand-600" aria-hidden />
+        <Target size={16} className="shrink-0 text-brand-600 dark:text-brand-400" aria-hidden />
         <span className="text-sm font-semibold text-strong">Your plan</span>
-        <span className="ml-auto text-xs font-semibold tabular-nums text-brand-700">{done} / {total} done</span>
+        <span className="ml-auto text-xs font-semibold tabular-nums text-brand-700 dark:text-brand-300">{done} / {total} done</span>
         {expanded ? <ChevronUp size={16} className="shrink-0 text-faint" aria-hidden /> : <ChevronDown size={16} className="shrink-0 text-faint" aria-hidden />}
       </button>
 
       <div className="px-4 pb-1">
-        <div className="h-1.5 overflow-hidden rounded-full bg-brand-100">
+        <div className="h-1.5 overflow-hidden rounded-full bg-brand-100 dark:bg-brand-500/15">
           <div className="h-full rounded-full bg-brand-600 transition-[width] duration-500" style={{ width: `${pct}%` }} />
         </div>
       </div>

@@ -239,7 +239,7 @@ function Delta({ row }) {
   if (row.delta == null) return <span className="text-xs text-faint">first run</span>;
   if (row.delta === 0) return <span className="inline-flex items-center gap-1 text-xs text-faint"><Minus size={12} />no change</span>;
   const good = row.improved;
-  const cls = good == null ? 'text-muted' : good ? 'text-emerald-600' : 'text-rose-600';
+  const cls = good == null ? 'text-muted' : good ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400';
   const Icon = row.delta > 0 ? TrendingUp : TrendingDown;
   const pct = row.pct == null ? '' : ` (${row.pct > 0 ? '+' : ''}${fmtNum(row.pct)}%)`;
   return <span className={`inline-flex items-center gap-1 text-xs font-medium ${cls}`}><Icon size={12} />{row.delta > 0 ? '+' : ''}{fmtNum(row.delta)}{row.unit}{pct}</span>;
@@ -261,7 +261,7 @@ function ComparePanel({ scheduleId }) {
     try { const { run } = await api.run(runId); navigate(`/tool/${run.tool}`, { state: { values: run.inputs, result: run.result, runId } }); } catch { /* ignore */ }
   }
 
-  if (err) return <div className="border-t border-hair px-4 py-3 text-sm text-rose-600">{err}</div>;
+  if (err) return <div className="border-t border-hair px-4 py-3 text-sm text-rose-600 dark:text-rose-400">{err}</div>;
   if (!data) return <div className="border-t border-hair px-4 py-3 text-sm text-faint">Loading comparison…</div>;
 
   return (
@@ -298,7 +298,7 @@ function ComparePanel({ scheduleId }) {
           <div className="divide-y divide-hair">
             {data.runs.map((r) => (
               <button key={r.runId} onClick={() => openRun(r.runId)}
-                className="flex w-full items-center justify-between py-2 text-left text-sm hover:text-brand-700">
+                className="flex w-full items-center justify-between py-2 text-left text-sm hover:text-brand-700 dark:hover:text-brand-300">
                 <span className="text-dim">{fmtDate(r.ts)}</span>
                 <span className="truncate px-2 text-faint">{r.preview || r.target || ''}</span>
                 <span className="text-xs text-faint">{r.creditsUsed ? `${r.creditsUsed} cr` : ''}</span>
@@ -316,11 +316,11 @@ function StatusBadge({ s }) {
   if (!s.enabled) return <span className="rounded-full bg-sunken px-2 py-0.5 text-xs text-muted">Paused</span>;
   const st = s.lastStatus;
   const map = {
-    ok: ['bg-emerald-50 text-emerald-700', 'Last run OK'],
-    failed: ['bg-rose-50 text-rose-700', 'Last run failed'],
-    skipped_no_credits: ['bg-amber-50 text-amber-700', 'Skipped — no credits'],
+    ok: ['bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300', 'Last run OK'],
+    failed: ['bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300', 'Last run failed'],
+    skipped_no_credits: ['bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300', 'Skipped — no credits'],
   };
-  const [cls, label] = map[st] || ['bg-brand-50 text-brand-700', 'Active'];
+  const [cls, label] = map[st] || ['bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300', 'Active'];
   return <span className={`rounded-full px-2 py-0.5 text-xs ${cls}`}>{label}</span>;
 }
 
@@ -396,7 +396,7 @@ export default function Schedules() {
       )}
 
       {limits.enabled && atLimit && (
-        <div className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        <div className="mb-4 rounded-lg bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
           You’ve used all {limits.maxSchedules} schedules on your {user?.tier} plan. Delete one or upgrade to add more.
         </div>
       )}
@@ -428,7 +428,7 @@ export default function Schedules() {
                 <button className="btn-ghost !px-2 !py-1.5" title="Run now" disabled={busyId === s.scheduleId} onClick={() => runNow(s)}><Play size={15} /></button>
                 <button className="btn-ghost !px-2 !py-1.5" title={s.enabled ? 'Pause' : 'Resume'} disabled={busyId === s.scheduleId} onClick={() => toggle(s)}>{s.enabled ? <Pause size={15} /> : <Play size={15} />}</button>
                 <button className="btn-ghost !px-2 !py-1.5" title="Edit" onClick={() => setModal({ editing: s })}><Pencil size={15} /></button>
-                <button className="btn-ghost !px-2 !py-1.5 text-rose-600" title="Delete" disabled={busyId === s.scheduleId} onClick={() => remove(s)}><Trash2 size={15} /></button>
+                <button className="btn-ghost !px-2 !py-1.5 text-rose-600 dark:text-rose-400" title="Delete" disabled={busyId === s.scheduleId} onClick={() => remove(s)}><Trash2 size={15} /></button>
               </div>
             </div>
             {expanded === s.scheduleId && <ComparePanel scheduleId={s.scheduleId} />}

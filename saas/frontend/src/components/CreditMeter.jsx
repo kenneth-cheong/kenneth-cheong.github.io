@@ -21,7 +21,7 @@ export default function CreditMeter() {
       <Zap size={18} className="text-amber-500" aria-hidden />
       <div className="w-32">
         <div className="flex justify-between text-xs font-medium text-muted">
-          <span className={low ? 'text-amber-600' : ''}>{total.toLocaleString()}</span>
+          <span className={low ? 'text-amber-600 dark:text-amber-400' : ''}>{total.toLocaleString()}</span>
           <span>{max.toLocaleString()}</span>
         </div>
         <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-overlay">
@@ -41,7 +41,7 @@ export default function CreditMeter() {
         {topup > 0 && (
           <div className="flex justify-between py-0.5">
             <span className="text-muted">Top-up (rolls over)</span>
-            <span className="font-semibold text-brand-600">+{topup.toLocaleString()}</span>
+            <span className="font-semibold text-brand-600 dark:text-brand-400">+{topup.toLocaleString()}</span>
           </div>
         )}
         <div className="mt-1 flex justify-between border-t border-hair pt-1.5">
@@ -49,7 +49,7 @@ export default function CreditMeter() {
           <span className="font-bold text-heading">{total.toLocaleString()}</span>
         </div>
         {renews && <div className="mt-1.5 text-faint">Monthly credits renew {renews}</div>}
-        <div className="mt-1.5 font-medium text-brand-600">View usage →</div>
+        <div className="mt-1.5 font-medium text-brand-600 dark:text-brand-400">View usage →</div>
       </div>
     </Link>
   );

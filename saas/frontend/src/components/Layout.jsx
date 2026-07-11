@@ -135,7 +135,7 @@ export default function Layout({ children }) {
   const acctLinks = user.isAdmin ? [...menuNav, { to: '/admin', label: 'Admin' }] : menuNav;
   const allLinks = [...primaryNav, ...acctLinks]; // for the mobile sheet
   const linkCls = ({ isActive }) =>
-    `rounded-lg px-3 py-1.5 text-sm font-medium ${isActive ? 'bg-brand-50 text-brand-700' : 'text-dim hover:bg-sunken'}`;
+    `rounded-lg px-3 py-1.5 text-sm font-medium ${isActive ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300' : 'text-dim hover:bg-sunken'}`;
 
   return (
     <>
@@ -147,7 +147,7 @@ export default function Layout({ children }) {
             <button className="md:hidden" onClick={() => setMenuOpen((o) => !o)} aria-label="Menu">
               <Menu size={22} aria-hidden />
             </button>
-            <Link to="/" className="flex shrink-0 items-center gap-2 font-bold text-brand-700" onClick={() => setMenuOpen(false)}>
+            <Link to="/" className="flex shrink-0 items-center gap-2 font-bold text-brand-700 dark:text-brand-300" onClick={() => setMenuOpen(false)}>
               <span className="grid h-7 w-7 place-items-center rounded-md bg-brand-600 text-white">D</span>
               <span className="hidden sm:inline">Digimetrics</span>
             </Link>
@@ -202,7 +202,7 @@ export default function Layout({ children }) {
                       className="h-7 w-7 rounded-full object-cover"
                     />
                   ) : (
-                    <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
+                    <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-100 dark:bg-brand-500/15 text-sm font-semibold text-brand-700 dark:text-brand-300">
                       {(user.name || user.email || '?').trim().charAt(0).toUpperCase()}
                     </span>
                   )}
@@ -223,7 +223,7 @@ export default function Layout({ children }) {
                           key={n.to}
                           to={n.to}
                           onClick={() => setAcctOpen(false)}
-                          className={({ isActive }) => `block px-3 py-1.5 text-sm ${isActive ? 'font-medium text-brand-700' : 'text-dim hover:bg-raised'}`}
+                          className={({ isActive }) => `block px-3 py-1.5 text-sm ${isActive ? 'font-medium text-brand-700 dark:text-brand-300' : 'text-dim hover:bg-raised'}`}
                         >
                           {n.label}
                           {n.to === '/admin' && <TicketBadge count={unanswered} />}
@@ -246,7 +246,7 @@ export default function Layout({ children }) {
               <div className="mx-auto max-w-6xl px-4 py-2">
                 <Link
                   to={`/projects/${encodeURIComponent(fromProjectId)}`}
-                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-brand-600 hover:bg-brand-50"
+                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10"
                 >
                   <ChevronLeft size={14} aria-hidden />
                   Back to {fromProjectName || 'Project'}
@@ -273,10 +273,10 @@ export default function Layout({ children }) {
           )}
         </header>
         {user?.pastDue && (
-          <div className="border-b border-amber-200 bg-amber-50">
-            <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 py-2.5 text-sm text-amber-800">
+          <div className="border-b border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10">
+            <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 py-2.5 text-sm text-amber-800 dark:text-amber-300">
               <span>⚠️ Your last payment failed — update your card to keep your plan active.</span>
-              <Link to="/account" className="ml-auto font-semibold text-amber-900 underline">Update billing</Link>
+              <Link to="/account" className="ml-auto font-semibold text-amber-900 dark:text-amber-200 underline">Update billing</Link>
             </div>
           </div>
         )}

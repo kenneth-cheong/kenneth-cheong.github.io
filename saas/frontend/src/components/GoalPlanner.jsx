@@ -86,7 +86,7 @@ export default function GoalPlanner({ initialGoal }) {
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2.5">
             <h2 className="text-lg font-bold text-heading">{INTAKE.goalQuestion}</h2>
-            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${goals.length ? 'bg-brand-100 text-brand-700' : 'bg-amber-100 text-amber-700'}`}>
+            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${goals.length ? 'bg-brand-100 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300' : 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300'}`}>
               {goals.length ? `${goals.length} selected` : 'Pick at least 1'}
             </span>
           </div>
@@ -108,7 +108,7 @@ export default function GoalPlanner({ initialGoal }) {
                 aria-pressed={on}
                 className={`card group flex items-start gap-3 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-lift ${on ? 'border-brand-500 ring-2 ring-brand-200' : 'hover:border-brand-400'}`}
               >
-                <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ${on ? 'bg-brand-600 text-white' : 'bg-brand-50 text-brand-600'}`}>
+                <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ${on ? 'bg-brand-600 text-white' : 'bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400'}`}>
                   {on ? <Check size={20} aria-hidden /> : <Icon size={20} aria-hidden />}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -169,7 +169,7 @@ export default function GoalPlanner({ initialGoal }) {
             {hasPlan ? 'Update my plan' : 'Build my plan'} <ArrowRight size={16} aria-hidden />
           </button>
           {goals.length === 0 && (
-            <span className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${nudge ? 'bg-amber-100 text-amber-800' : 'text-amber-600'}`}>
+            <span className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${nudge ? 'bg-amber-100 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300' : 'text-amber-600 dark:text-amber-400'}`}>
               <ArrowUp size={15} aria-hidden /> Pick at least one goal above to continue.
             </span>
           )}
@@ -195,12 +195,12 @@ export default function GoalPlanner({ initialGoal }) {
             <button
               onClick={personalise}
               disabled={enriching}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-3 py-1.5 text-sm font-semibold text-brand-700 hover:bg-brand-100 disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 dark:bg-brand-500/10 px-3 py-1.5 text-sm font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-500/15 disabled:opacity-60"
             >
               <Wand2 size={15} aria-hidden /> {enriching ? 'Personalising…' : 'Personalise with AI · 2 credits'}
             </button>
           )}
-          <button onClick={startEdit} className="text-sm font-medium text-brand-600 hover:text-brand-700">Edit goals</button>
+          <button onClick={startEdit} className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Edit goals</button>
           <button onClick={reset} title="Start over" className="grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-sunken hover:text-dim">
             <RotateCcw size={15} aria-hidden />
           </button>
@@ -210,10 +210,10 @@ export default function GoalPlanner({ initialGoal }) {
       {/* Progress — the north-star bar */}
       <div className="mt-4 rounded-xl border border-line bg-surface p-4">
         {complete ? (
-          <div className="flex items-center gap-2 text-green-700">
+          <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
             <PartyPopper size={18} aria-hidden />
             <span className="font-semibold">Plan complete — nice work! </span>
-            <button onClick={reset} className="text-sm font-semibold text-brand-600 hover:text-brand-700">Set a new goal →</button>
+            <button onClick={reset} className="text-sm font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Set a new goal →</button>
           </div>
         ) : (
           <>
@@ -233,21 +233,21 @@ export default function GoalPlanner({ initialGoal }) {
         {plan.steps.map((s, i) => {
           const isDone = isStepDone(s);
           return (
-            <li key={s.toolId} className={`card flex items-center gap-4 p-4 ${isDone ? 'border-green-200 bg-green-50/40' : ''}`}>
+            <li key={s.toolId} className={`card flex items-center gap-4 p-4 ${isDone ? 'border-green-200 dark:border-green-500/30 bg-green-50/40' : ''}`}>
               <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-sm font-bold text-white ${isDone ? 'bg-green-500' : 'bg-brand-600'}`}>
                 {isDone ? <Check size={15} aria-hidden /> : i + 1}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={`font-semibold ${isDone ? 'text-muted' : 'text-heading'}`}>{stepLabel(s)}</span>
-                  {s.quickWin && !isDone && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-700">Start here</span>}
+                  {s.quickWin && !isDone && <span className="rounded-full bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">Start here</span>}
                   <span className="rounded-full bg-sunken px-2 py-0.5 text-[11px] font-semibold text-muted">{costLabel(s.toolId)}</span>
                 </div>
                 <p className="mt-0.5 text-sm text-muted">{s.why}</p>
               </div>
               <button
                 onClick={() => go(s)}
-                className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold ${isDone ? 'text-brand-600 hover:bg-brand-50' : 'bg-brand-600 text-white hover:bg-brand-700'}`}
+                className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold ${isDone ? 'text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10' : 'bg-brand-600 text-white hover:bg-brand-700'}`}
               >
                 {isDone ? 'Again' : 'Open'} <ArrowRight size={14} className="inline" aria-hidden />
               </button>
@@ -264,7 +264,7 @@ export default function GoalPlanner({ initialGoal }) {
             {plan.locked.map((s) => (
               <li key={s.toolId} className="flex items-center justify-between gap-3 text-sm">
                 <span className="text-dim"><span className="font-medium text-strong">{stepLabel(s)}</span> — {s.why}</span>
-                <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold uppercase text-amber-700">{PLANS[toolById(s.toolId).minTier].name}</span>
+                <span className="shrink-0 rounded-full bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold uppercase text-amber-700 dark:text-amber-300">{PLANS[toolById(s.toolId).minTier].name}</span>
               </li>
             ))}
           </ul>
@@ -283,14 +283,14 @@ export default function GoalPlanner({ initialGoal }) {
               const Icon = e.action ? Plug : Sparkles;
               return (
                 <div key={key} className="card flex items-start gap-3 p-4">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600"><Icon size={18} aria-hidden /></span>
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400"><Icon size={18} aria-hidden /></span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-strong">{stepLabel(e)}</span>
-                      {e.locked && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-700">{PLANS[toolById(e.toolId).minTier].name}</span>}
+                      {e.locked && <span className="rounded-full bg-amber-100 dark:bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-700 dark:text-amber-300">{PLANS[toolById(e.toolId).minTier].name}</span>}
                     </div>
                     <p className="mt-0.5 text-sm text-muted">{e.why}</p>
-                    <button onClick={() => go(e)} className="mt-2 text-sm font-semibold text-brand-600 hover:text-brand-700">
+                    <button onClick={() => go(e)} className="mt-2 text-sm font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">
                       {e.action ? 'Set up' : 'Open'} <ArrowRight size={13} className="inline" aria-hidden />
                     </button>
                   </div>

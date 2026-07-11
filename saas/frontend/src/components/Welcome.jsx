@@ -45,7 +45,7 @@ export default function Welcome({ onDone }) {
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center">
       <div className="my-8 w-full max-w-2xl rounded-2xl border border-line bg-surface p-6 shadow-2xl sm:p-8">
-        <div className="flex items-center gap-2 text-brand-600">
+        <div className="flex items-center gap-2 text-brand-600 dark:text-brand-400">
           <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand-600 text-lg font-bold text-white">D</span>
           <span className="text-sm font-semibold uppercase tracking-wide text-faint">Welcome to Digimetrics</span>
         </div>
@@ -60,7 +60,7 @@ export default function Welcome({ onDone }) {
         <button
           onClick={() => finish(hero.goal, hero.to)}
           disabled={busy}
-          className="group mt-5 flex w-full items-center gap-4 rounded-xl border border-brand-300 bg-brand-50/70 p-4 text-left transition hover:border-brand-400 hover:bg-brand-50 disabled:opacity-60"
+          className="group mt-5 flex w-full items-center gap-4 rounded-xl border border-brand-300 dark:border-brand-500/40 bg-brand-50/70 p-4 text-left transition hover:border-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10 disabled:opacity-60"
         >
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-brand-600 text-white"><HeroIcon size={22} aria-hidden /></span>
           <span className="min-w-0 flex-1">
@@ -87,7 +87,7 @@ export default function Welcome({ onDone }) {
                 disabled={busy}
                 className="group flex items-start gap-3 rounded-xl border border-line p-3 text-left transition hover:-translate-y-0.5 hover:border-brand-400 hover:shadow-lift disabled:opacity-60"
               >
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600"><Icon size={18} aria-hidden /></span>
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400"><Icon size={18} aria-hidden /></span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1 text-sm font-semibold text-strong">{g.label}</span>
                   <span className="mt-0.5 block text-xs text-muted">{g.desc}</span>

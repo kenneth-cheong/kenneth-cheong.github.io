@@ -83,12 +83,12 @@ export default function Profile() {
               {complete ? 'Profile complete' : `${done} of ${total} answered`}
             </p>
             {showReward && !complete && (
-              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-brand-700">
+              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-brand-700 dark:text-brand-300">
                 <Sparkles size={15} aria-hidden /> Complete everything to earn {PROFILE_BONUS} tokens.
               </p>
             )}
             {(complete || alreadyRewarded) && (
-              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-green-700">
+              <p className="mt-0.5 flex items-center gap-1.5 text-sm text-green-700 dark:text-green-300">
                 <CheckCircle2 size={15} aria-hidden />
                 {alreadyRewarded ? `Thanks! Your ${PROFILE_BONUS}-token bonus has been credited.` : 'All set — save to claim your bonus.'}
               </p>

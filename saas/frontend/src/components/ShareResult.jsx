@@ -17,7 +17,7 @@ export default function ShareResult({
   force = false,
   snapshot = false,
   label = 'Share',
-  className = 'inline-flex items-center gap-1 rounded-md border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700 hover:border-brand-400 hover:bg-brand-100',
+  className = 'inline-flex items-center gap-1 rounded-md border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 px-2.5 py-1 text-xs font-semibold text-brand-700 dark:text-brand-300 hover:border-brand-400 hover:bg-brand-100 dark:hover:bg-brand-500/15',
 }) {
   const [open, setOpen] = useState(false);
   if (!out || (!force && !isShareable(out))) return null;

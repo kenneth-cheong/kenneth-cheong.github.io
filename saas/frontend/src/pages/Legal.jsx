@@ -12,13 +12,13 @@ const CONTACT = 'support@mediaone.co';
 function Shell({ title, children }) {
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
-      <Link to="/" className="text-sm text-brand-600 hover:text-brand-700">← Back</Link>
+      <Link to="/" className="text-sm text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">← Back</Link>
       <h1 className="mt-4 text-3xl font-bold">{title}</h1>
       <p className="mt-1 text-sm text-faint">Last updated: {UPDATED} · v{TERMS_VERSION}</p>
       <div className="prose prose-slate mt-6 max-w-none text-sm leading-relaxed text-body [&_h2]:mt-6 [&_h2]:text-base [&_h2]:font-bold [&_p]:mt-2 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5">
         {children}
       </div>
-      <p className="mt-8 rounded-lg bg-amber-50 px-4 py-3 text-xs text-amber-700">
+      <p className="mt-8 rounded-lg bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-xs text-amber-700 dark:text-amber-300">
         This is a template for review and is not legal advice. Please have it reviewed by a qualified lawyer for your jurisdiction.
       </p>
     </div>
@@ -52,7 +52,7 @@ export function Terms() {
       <h2>11. Changes</h2>
       <p>We may update these Terms; material changes will be notified in-app or by email, and we may require you to re-accept them before continuing to use the Service. Continued use after changes means you accept them.</p>
       <h2>12. Contact</h2>
-      <p>Questions: <a className="text-brand-600" href={`mailto:${CONTACT}`}>{CONTACT}</a>. See also our <Link className="text-brand-600" to="/legal/privacy">Privacy Policy</Link>.</p>
+      <p>Questions: <a className="text-brand-600 dark:text-brand-400" href={`mailto:${CONTACT}`}>{CONTACT}</a>. See also our <Link className="text-brand-600 dark:text-brand-400" to="/legal/privacy">Privacy Policy</Link>.</p>
     </Shell>
   );
 }
@@ -76,13 +76,13 @@ export function Privacy() {
       <h2>4. Retention</h2>
       <p>We keep your data while your account is active. When you delete your account, your data is removed from our systems (some records, such as invoices, may be retained where law requires).</p>
       <h2>5. Your rights</h2>
-      <p>You can access, export, correct, or delete your data. Use <Link className="text-brand-600" to="/account">Account → Your data</Link> to export everything we hold or permanently delete your account, or contact us.</p>
+      <p>You can access, export, correct, or delete your data. Use <Link className="text-brand-600 dark:text-brand-400" to="/account">Account → Your data</Link> to export everything we hold or permanently delete your account, or contact us.</p>
       <h2>6. Security</h2>
       <p>We use encryption in transit and at rest, scoped access controls, and integration tokens encrypted at rest. No system is perfectly secure, but we work to protect your data.</p>
       <h2>7. International transfers</h2>
       <p>Data is processed in AWS (Asia Pacific) and by our processors, which may involve transfers across borders under appropriate safeguards.</p>
       <h2>8. Contact</h2>
-      <p>Privacy questions or requests: <a className="text-brand-600" href={`mailto:${CONTACT}`}>{CONTACT}</a>.</p>
+      <p>Privacy questions or requests: <a className="text-brand-600 dark:text-brand-400" href={`mailto:${CONTACT}`}>{CONTACT}</a>.</p>
     </Shell>
   );
 }

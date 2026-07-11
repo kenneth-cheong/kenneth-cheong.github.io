@@ -19,8 +19,8 @@ import { toast } from '../lib/ui.js';
 // recommendations / insights); barePct "opportunity" cards keep the plain look.
 
 const BADGE = {
-  red: 'bg-red-100 text-red-700', amber: 'bg-amber-100 text-amber-700', green: 'bg-emerald-100 text-emerald-700',
-  blue: 'bg-brand-100 text-brand-700', orange: 'bg-orange-100 text-orange-700', slate: 'bg-sunken text-dim',
+  red: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300', amber: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300', green: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+  blue: 'bg-brand-100 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300', orange: 'bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300', slate: 'bg-sunken text-dim',
 };
 
 function ask(text) {
@@ -85,7 +85,7 @@ export default function RecommendationCard({ card, sectionTitle, context }) {
         <button
           onClick={addToPlan}
           disabled={added}
-          className={`${btn} ${added ? 'cursor-default bg-emerald-100 text-emerald-700' : 'text-muted hover:bg-sunken'}`}
+          className={`${btn} ${added ? 'cursor-default bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'text-muted hover:bg-sunken'}`}
         >
           {added ? <><Check size={14} aria-hidden /> Added to plan</> : <><Target size={14} aria-hidden /> Add to plan</>}
         </button>

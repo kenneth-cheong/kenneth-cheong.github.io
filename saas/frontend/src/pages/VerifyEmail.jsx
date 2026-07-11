@@ -40,7 +40,7 @@ export default function VerifyEmail() {
           </div>
         ) : (
           <>
-            <p className="mt-6 text-sm text-red-600">{message}</p>
+            <p className="mt-6 text-sm text-red-600 dark:text-red-400">{message}</p>
             <Link to="/" className="btn-primary mt-5 inline-flex">Back to sign in</Link>
           </>
         )}

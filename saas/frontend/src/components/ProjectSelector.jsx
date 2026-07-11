@@ -7,7 +7,7 @@ export default function ProjectSelector() {
   const navigate = useNavigate();
   if (!projects.length) {
     return (
-      <button onClick={() => navigate('/projects')} data-tour="project-selector" className="hidden rounded-lg border border-dashed border-edge px-2.5 py-1.5 text-xs font-medium text-muted hover:border-brand-300 hover:text-brand-600 sm:inline">
+      <button onClick={() => navigate('/projects')} data-tour="project-selector" className="hidden rounded-lg border border-dashed border-edge px-2.5 py-1.5 text-xs font-medium text-muted hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400 sm:inline">
         + Project
       </button>
     );

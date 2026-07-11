@@ -31,7 +31,7 @@ export default class ErrorBoundary extends Component {
     return (
       <div className="grid min-h-screen place-items-center bg-raised px-4 text-center">
         <div className="max-w-md">
-          <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-red-100 text-2xl">⚠️</div>
+          <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-red-100 dark:bg-red-500/15 text-2xl">⚠️</div>
           <h1 className="mt-4 text-xl font-bold text-strong">Something went wrong</h1>
           <p className="mt-2 text-sm text-muted">An unexpected error broke this page. Reloading usually fixes it.</p>
           <div className="mt-5 flex justify-center gap-2">

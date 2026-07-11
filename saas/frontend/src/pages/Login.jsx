@@ -169,10 +169,10 @@ export default function Login() {
             )
           )}
 
-          {notice && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</p>}
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+          {notice && <p className="mt-3 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">{notice}</p>}
+          {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
           {unverified && (
-            <button onClick={onResend} disabled={busy} className="mt-2 text-sm font-medium text-brand-600 hover:text-brand-700">
+            <button onClick={onResend} disabled={busy} className="mt-2 text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">
               Resend confirmation email
             </button>
           )}
@@ -202,17 +202,17 @@ export default function Login() {
               {mode === 'signin' && (
                 <>
                   <p className="text-muted">
-                    <button onClick={() => switchMode('forgot')} className="font-medium text-brand-600 hover:text-brand-700">Forgot password?</button>
+                    <button onClick={() => switchMode('forgot')} className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Forgot password?</button>
                   </p>
                   <p className="text-muted">
                     New here?{' '}
-                    <button onClick={() => switchMode('signup')} className="font-medium text-brand-600 hover:text-brand-700">Create an account</button>
+                    <button onClick={() => switchMode('signup')} className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Create an account</button>
                   </p>
                 </>
               )}
               {mode !== 'signin' && (
                 <p className="text-muted">
-                  <button onClick={() => switchMode('signin')} className="font-medium text-brand-600 hover:text-brand-700">← Back to sign in</button>
+                  <button onClick={() => switchMode('signin')} className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">← Back to sign in</button>
                 </p>
               )}
             </div>
@@ -221,8 +221,8 @@ export default function Login() {
 
         <p className="mt-4 text-xs text-faint">
           By continuing you agree to our{' '}
-          <Link to="/legal/terms" className="text-brand-600 hover:text-brand-700">Terms</Link> and{' '}
-          <Link to="/legal/privacy" className="text-brand-600 hover:text-brand-700">Privacy Policy</Link>.
+          <Link to="/legal/terms" className="text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Terms</Link> and{' '}
+          <Link to="/legal/privacy" className="text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Privacy Policy</Link>.
         </p>
       </div>
     </div>

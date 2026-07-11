@@ -46,7 +46,7 @@ export default function NdaTermsModal({ onClose, showVersion = false }) {
 function Section({ n, title, children }) {
   return (
     <div>
-      <h3 className="mt-4 text-sm font-bold text-brand-700">{n}. {title}</h3>
+      <h3 className="mt-4 text-sm font-bold text-brand-700 dark:text-brand-300">{n}. {title}</h3>
       <div className="space-y-2">{children}</div>
     </div>
   );

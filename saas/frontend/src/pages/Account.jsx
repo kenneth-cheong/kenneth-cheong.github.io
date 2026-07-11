@@ -123,12 +123,12 @@ export default function Account() {
       <h1 className="text-2xl font-bold">Account</h1>
 
       {params.get('checkout') === 'success' && (
-        <div className="mt-4 flex items-center gap-2 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
+        <div className="mt-4 flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-500/10 px-4 py-3 text-sm text-green-800 dark:text-green-300">
           <PartyPopper size={16} aria-hidden /> You're on {plan.name}. Credits have been topped up.
         </div>
       )}
       {params.get('topup') === 'success' && (
-        <div className="mt-4 flex items-center gap-2 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
+        <div className="mt-4 flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-500/10 px-4 py-3 text-sm text-green-800 dark:text-green-300">
           <Zap size={16} aria-hidden /> Top-up successful — credits added to your balance.
         </div>
       )}
@@ -192,12 +192,12 @@ export default function Account() {
                   <div className="text-xs text-faint">{new Date(d.created * 1000).toLocaleDateString()}</div>
                 </div>
                 <span className="text-sm font-semibold tabular-nums">{money(d.amount, d.currency)}</span>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${d.status === 'paid' || d.status === 'succeeded' ? 'bg-green-100 text-green-700' : d.status === 'refunded' ? 'bg-sunken text-muted' : 'bg-amber-100 text-amber-700'}`}>{d.status}</span>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${d.status === 'paid' || d.status === 'succeeded' ? 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300' : d.status === 'refunded' ? 'bg-sunken text-muted' : 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300'}`}>{d.status}</span>
                 <div className="flex gap-2">
                   {/* Invoices have a PDF (the hosted page just duplicates it) → one link.
                       Receipts have no PDF, only a hosted receipt URL → fall back to that. */}
                   {d.pdf
-                    ? <a href={d.pdf} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand-600 hover:text-brand-700">Download</a>
+                    ? <a href={d.pdf} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Download</a>
                     : d.url && <a href={d.url} target="_blank" rel="noreferrer" className="text-sm font-medium text-muted hover:text-strong">{d.type === 'invoice' ? 'View' : 'Receipt'}</a>}
                 </div>
               </div>
@@ -214,7 +214,7 @@ export default function Account() {
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           {TOPUP_PACKS.map((pack) => (
-            <div key={pack.id} className={`rounded-lg border p-4 text-center ${pack.popular ? 'border-brand-400 bg-brand-50' : 'border-line'}`}>
+            <div key={pack.id} className={`rounded-lg border p-4 text-center ${pack.popular ? 'border-brand-400 bg-brand-50 dark:bg-brand-500/10' : 'border-line'}`}>
               {pack.popular && <span className="mb-1 inline-block rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-bold text-white">BEST VALUE</span>}
               <p className="text-lg font-bold">{pack.credits.toLocaleString()} credits</p>
               <p className="text-sm text-muted">{CURRENCY.symbol}{pack.price}</p>
@@ -245,11 +245,11 @@ export default function Account() {
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-strong">
                     {s.device || 'Unknown device'}
-                    {s.sid === currentSid && <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">This device</span>}
+                    {s.sid === currentSid && <span className="ml-2 rounded-full bg-green-100 dark:bg-green-500/15 px-2 py-0.5 text-[11px] font-semibold text-green-700 dark:text-green-300">This device</span>}
                   </div>
                   <div className="text-xs text-faint">{s.ip ? `${s.ip} · ` : ''}active {ago(s.lastSeenAt)}</div>
                 </div>
-                <button onClick={() => revokeDevice(s.sid)} className="text-sm text-faint hover:text-red-600">
+                <button onClick={() => revokeDevice(s.sid)} className="text-sm text-faint hover:text-red-600 dark:hover:text-red-400">
                   {s.sid === currentSid ? 'Sign out' : 'Revoke'}
                 </button>
               </li>
@@ -282,7 +282,7 @@ export default function Account() {
         {emailOptOut !== null && (
           <p className="mt-3 text-sm font-medium">
             Product-update emails:{' '}
-            <span className={emailOptOut === false ? 'text-emerald-600' : 'text-muted'}>{emailOptOut === false ? 'On' : 'Off'}</span>
+            <span className={emailOptOut === false ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted'}>{emailOptOut === false ? 'On' : 'Off'}</span>
           </p>
         )}
       </div>
@@ -309,7 +309,7 @@ export default function Account() {
                     <button onClick={() => answerAccess(g.id, 'deny')} className="btn-ghost px-3 py-1.5 text-sm">Deny</button>
                   </div>
                 ) : (
-                  <button onClick={() => answerAccess(g.id, 'revoke')} className="text-sm text-faint hover:text-red-600">Revoke access</button>
+                  <button onClick={() => answerAccess(g.id, 'revoke')} className="text-sm text-faint hover:text-red-600 dark:hover:text-red-400">Revoke access</button>
                 )}
               </li>
             ))}
@@ -322,13 +322,13 @@ export default function Account() {
         <h2 className="font-bold">Your data</h2>
         <p className="mt-1 text-sm text-muted">
           Download everything we hold about you, or permanently delete your account. See our{' '}
-          <Link to="/legal/privacy" className="text-brand-600 hover:text-brand-700">Privacy Policy</Link> and{' '}
-          <Link to="/legal/terms" className="text-brand-600 hover:text-brand-700">Terms</Link>.
+          <Link to="/legal/privacy" className="text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Privacy Policy</Link> and{' '}
+          <Link to="/legal/terms" className="text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Terms</Link>.
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <button onClick={exportData} disabled={exporting} className="btn-ghost">{exporting ? 'Preparing…' : 'Export my data'}</button>
           <button onClick={signOutEverywhere} disabled={revoking} className="btn-ghost">{revoking ? 'Signing out…' : 'Sign out everywhere'}</button>
-          <button onClick={() => { setDelText(''); setConfirmDel(true); }} className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">Delete account</button>
+          <button onClick={() => { setDelText(''); setConfirmDel(true); }} className="rounded-lg border border-red-200 dark:border-red-500/30 px-4 py-2 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10">Delete account</button>
         </div>
         <p className="mt-2 text-xs text-faint">“Sign out everywhere” ends sessions on all your other devices.</p>
       </div>
@@ -336,7 +336,7 @@ export default function Account() {
       {confirmDel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !deleting && setConfirmDel(false)}>
           <div className="w-full max-w-md rounded-xl bg-surface p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-red-600">Delete your account?</h2>
+            <h2 className="text-lg font-bold text-red-600 dark:text-red-400">Delete your account?</h2>
             <p className="mt-2 text-sm text-dim">
               This permanently deletes your profile, run history, projects, tracked keywords, conversations, support tickets and credit history.
               {user.hasSubscription && ' Your active subscription will be cancelled.'} This cannot be undone.

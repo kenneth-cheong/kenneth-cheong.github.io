@@ -174,7 +174,7 @@ export default function FaultReporter() {
 
               <Attachments items={attachments} onRemove={(i) => setAttachments((a) => a.filter((_, j) => j !== i))} />
               <div className="flex items-center gap-3 text-xs text-muted">
-                <button type="button" onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1 font-medium text-brand-600 hover:text-brand-700"><Paperclip size={13} aria-hidden /> Attach files</button>
+                <button type="button" onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1 font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"><Paperclip size={13} aria-hidden /> Attach files</button>
                 <span>or paste a screenshot</span>
                 {uploading && <span>uploading…</span>}
                 <input ref={fileRef} type="file" multiple accept="image/*,.pdf,.txt,.log,.json" className="hidden" onChange={(e) => addFiles(e.target.files)} />
@@ -183,12 +183,12 @@ export default function FaultReporter() {
               {/* Diagnostics — master toggle + reviewable breakdown */}
               <div className="rounded-xl border border-line bg-raised p-3">
                 <label className="flex items-center gap-2 text-sm font-medium text-body">
-                  <input type="checkbox" checked={includeTech} onChange={(e) => setIncludeTech(e.target.checked)} className="h-4 w-4 rounded border-edge text-brand-600" />
+                  <input type="checkbox" checked={includeTech} onChange={(e) => setIncludeTech(e.target.checked)} className="h-4 w-4 rounded border-edge text-brand-600 dark:text-brand-400" />
                   Include technical details
                 </label>
                 {includeTech && (
                   <>
-                    <button type="button" onClick={() => setDetailsOpen((o) => !o)} className="mt-2 flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">
+                    <button type="button" onClick={() => setDetailsOpen((o) => !o)} className="mt-2 flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">
                       {detailsOpen ? <ChevronDown size={13} aria-hidden /> : <ChevronRight size={13} aria-hidden />}
                       Review what's shared ({fields.length} field{fields.length === 1 ? '' : 's'}, {errs.length} error{errs.length === 1 ? '' : 's'}, {fails.length} failed call{fails.length === 1 ? '' : 's'})
                     </button>
@@ -198,7 +198,7 @@ export default function FaultReporter() {
                         <div className="flex flex-wrap gap-3 text-xs text-dim">
                           {[['includeFields', 'Form fields'], ['includeErrors', 'Errors'], ['includeFailedActions', 'Failed actions'], ['includeEnv', 'Browser/page']].map(([k, label]) => (
                             <label key={k} className="flex items-center gap-1.5">
-                              <input type="checkbox" checked={toggles[k]} onChange={(e) => setToggles((t) => ({ ...t, [k]: e.target.checked }))} className="h-3.5 w-3.5 rounded border-edge text-brand-600" />
+                              <input type="checkbox" checked={toggles[k]} onChange={(e) => setToggles((t) => ({ ...t, [k]: e.target.checked }))} className="h-3.5 w-3.5 rounded border-edge text-brand-600 dark:text-brand-400" />
                               {label}
                             </label>
                           ))}
@@ -211,7 +211,7 @@ export default function FaultReporter() {
                                 {fields.map((f) => (
                                   <li key={f.label} className="flex items-start gap-2 text-xs">
                                     <span className="min-w-0 flex-1"><span className="font-medium text-dim">{f.label}:</span> <span className="break-words text-muted">{f.value}</span></span>
-                                    <button type="button" onClick={() => setRemovedFields((s) => new Set(s).add(f.label))} className="shrink-0 rounded px-1 text-faint hover:text-red-600" aria-label={`Remove ${f.label}`}>×</button>
+                                    <button type="button" onClick={() => setRemovedFields((s) => new Set(s).add(f.label))} className="shrink-0 rounded px-1 text-faint hover:text-red-600 dark:hover:text-red-400" aria-label={`Remove ${f.label}`}>×</button>
                                   </li>
                                 ))}
                               </ul>

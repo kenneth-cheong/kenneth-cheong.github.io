@@ -127,11 +127,11 @@ export default function ExplainMenu() {
   return (
     <div className="dm-explain-menu fixed z-50 w-60 overflow-hidden rounded-xl border border-line bg-surface shadow-xl" style={{ left, top }}>
       <div className="border-b border-hair px-3 py-2">
-        {menu.isSelection && <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-600">Highlighted text</div>}
+        {menu.isSelection && <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">Highlighted text</div>}
         <div className="truncate text-xs text-faint">{menu.preview}</div>
       </div>
-      <button onClick={() => ask('explain')} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-raised"><Sparkles size={15} className="text-brand-600" aria-hidden /> {menu.isSelection ? 'Explain the highlighted text' : 'Explain this'}</button>
-      <button onClick={() => ask('action')} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-raised"><CheckCircle2 size={15} className="text-green-600" aria-hidden /> What should I do about this?</button>
+      <button onClick={() => ask('explain')} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-raised"><Sparkles size={15} className="text-brand-600 dark:text-brand-400" aria-hidden /> {menu.isSelection ? 'Explain the highlighted text' : 'Explain this'}</button>
+      <button onClick={() => ask('action')} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-raised"><CheckCircle2 size={15} className="text-green-600 dark:text-green-400" aria-hidden /> What should I do about this?</button>
     </div>
   );
 }

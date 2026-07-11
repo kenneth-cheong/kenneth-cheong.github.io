@@ -27,12 +27,12 @@ export default function SchemaResult({ json }) {
     <div>
       {/* meta row */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        {type && <span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">{type}</span>}
+        {type && <span className="rounded-full bg-brand-50 dark:bg-brand-500/10 px-2.5 py-1 text-xs font-semibold text-brand-700 dark:text-brand-300">{type}</span>}
         {valid
-          ? <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700"><Check size={13} aria-hidden /> Valid JSON-LD</span>
-          : <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700"><AlertTriangle size={13} aria-hidden /> Couldn’t parse</span>}
+          ? <span className="inline-flex items-center gap-1 rounded-full bg-green-50 dark:bg-green-500/10 px-2.5 py-1 text-xs font-semibold text-green-700 dark:text-green-300"><Check size={13} aria-hidden /> Valid JSON-LD</span>
+          : <span className="inline-flex items-center gap-1 rounded-full bg-red-50 dark:bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-700 dark:text-red-300"><AlertTriangle size={13} aria-hidden /> Couldn’t parse</span>}
         <a href="https://search.google.com/test/rich-results" target="_blank" rel="noreferrer"
-           className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700">Test in Google Rich Results <ExternalLink size={12} aria-hidden /></a>
+           className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Test in Google Rich Results <ExternalLink size={12} aria-hidden /></a>
       </div>
 
       {/* code card */}

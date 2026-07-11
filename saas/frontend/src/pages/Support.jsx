@@ -25,16 +25,16 @@ export default function Support() {
 }
 
 function statusPill(status) {
-  const map = { open: 'bg-amber-100 text-amber-700', answered: 'bg-green-100 text-green-700', closed: 'bg-overlay text-dim' };
+  const map = { open: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300', answered: 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300', closed: 'bg-overlay text-dim' };
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium uppercase ${map[status] || 'bg-sunken text-muted'}`}>{status}</span>;
 }
 
 function AssistantNudge() {
   return (
-    <div className="mt-6 flex items-center gap-3 rounded-xl border border-brand-200 bg-brand-50/60 p-4">
-      <MessageCircle size={24} className="shrink-0 text-brand-600" aria-hidden />
+    <div className="mt-6 flex items-center gap-3 rounded-xl border border-brand-200 dark:border-brand-500/30 bg-brand-50/60 p-4">
+      <MessageCircle size={24} className="shrink-0 text-brand-600 dark:text-brand-400" aria-hidden />
       <div className="flex-1">
-        <div className="font-semibold text-brand-800">Need a quick answer? Ask the assistant first.</div>
+        <div className="font-semibold text-brand-800 dark:text-brand-300">Need a quick answer? Ask the assistant first.</div>
         <div className="text-sm text-dim">It replies instantly, knows every tool, and can read your connected Search Console / GA4 / Ads data — most questions don't need a ticket.</div>
       </div>
       <button onClick={openAssistant} className="btn-primary whitespace-nowrap px-3 py-1.5 text-sm">Ask the assistant</button>
@@ -101,7 +101,7 @@ function TicketList() {
           <span className="mt-1 block text-xs text-faint">Updates always go to <strong>{user.email}</strong>. Add more here to CC them.</span>
         </label>
         <div className="flex items-center justify-between">
-          {note ? <span className={`text-sm ${note.err ? 'text-red-600' : 'text-green-600'}`}>{note.text}</span> : <span />}
+          {note ? <span className={`text-sm ${note.err ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>{note.text}</span> : <span />}
           <button className="btn-primary" disabled={busy}>{busy ? 'Submitting…' : 'Start ticket'}</button>
         </div>
       </form>
@@ -110,7 +110,7 @@ function TicketList() {
       <div className="mt-3 space-y-2">
         {tickets.length === 0 && <div className="card p-6 text-center text-faint">No tickets yet.</div>}
         {tickets.map((t) => (
-          <Link key={t.ticketId} to={`/support/${encodeURIComponent(t.ticketId)}`} className="card flex items-center gap-3 p-4 transition hover:border-brand-300">
+          <Link key={t.ticketId} to={`/support/${encodeURIComponent(t.ticketId)}`} className="card flex items-center gap-3 p-4 transition hover:border-brand-300 dark:hover:border-brand-500/40">
             <div className="min-w-0 flex-1">
               <div className="font-semibold">{t.subject}</div>
               <div className="text-xs text-faint">{t.id}{t.category ? ` · ${t.category}` : ''} · {new Date(t.lastActivityAt || t.ts).toLocaleString()}</div>
@@ -149,7 +149,7 @@ function TicketDetail({ ticketId }) {
     try { await api.closeTicket(ticketId); setTicket((t) => ({ ...t, status: 'closed' })); } finally { setBusy(false); }
   }
 
-  if (ticket === false) return <div className="mx-auto max-w-3xl"><Link to="/support" className="text-sm text-muted">← Support</Link><p className="mt-4 text-red-600">Ticket not found.</p></div>;
+  if (ticket === false) return <div className="mx-auto max-w-3xl"><Link to="/support" className="text-sm text-muted">← Support</Link><p className="mt-4 text-red-600 dark:text-red-400">Ticket not found.</p></div>;
   if (!ticket) return <p className="text-faint">Loading…</p>;
 
   return (
@@ -187,7 +187,7 @@ function TicketDetail({ ticketId }) {
         <Composer value={reply} onChange={setReply} attachments={attachments} setAttachments={setAttachments} onSubmit={send}
           placeholder={ticket.status === 'closed' ? 'Reply to reopen this ticket…' : 'Type a message…  (⌘/Ctrl + Enter to send)'} />
         <div className="mt-2 flex items-center justify-between">
-          <button onClick={openAssistant} className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700"><MessageCircle size={13} aria-hidden /> Ask the assistant instead</button>
+          <button onClick={openAssistant} className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300"><MessageCircle size={13} aria-hidden /> Ask the assistant instead</button>
           <button onClick={send} className="btn-primary" disabled={busy}>{busy ? 'Sending…' : 'Send'}</button>
         </div>
       </div>

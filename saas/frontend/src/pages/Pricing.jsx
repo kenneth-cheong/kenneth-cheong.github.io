@@ -32,9 +32,9 @@ export default function Pricing() {
             <button
               key={iv}
               onClick={() => setInterval(iv)}
-              className={`rounded-full px-4 py-1.5 capitalize ${interval === iv ? 'bg-surface shadow text-brand-700' : 'text-muted'}`}
+              className={`rounded-full px-4 py-1.5 capitalize ${interval === iv ? 'bg-surface shadow text-brand-700 dark:text-brand-300' : 'text-muted'}`}
             >
-              {iv} {iv === 'annual' && <span className="text-green-600">−20%</span>}
+              {iv} {iv === 'annual' && <span className="text-green-600 dark:text-green-400">−20%</span>}
             </button>
           ))}
         </div>
@@ -56,7 +56,7 @@ export default function Pricing() {
               </div>
               <ul className="mt-4 flex-1 space-y-2 text-sm">
                 {p.highlights.map((h) => (
-                  <li key={h} className="flex items-center gap-2"><Check size={15} className="shrink-0 text-brand-600" aria-hidden />{h}</li>
+                  <li key={h} className="flex items-center gap-2"><Check size={15} className="shrink-0 text-brand-600 dark:text-brand-400" aria-hidden />{h}</li>
                 ))}
               </ul>
               <button

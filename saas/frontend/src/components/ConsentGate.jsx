@@ -26,7 +26,7 @@ export default function ConsentGate() {
   return (
     <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm sm:items-center">
       <div className="my-8 w-full max-w-lg rounded-2xl border border-line bg-surface p-6 shadow-2xl sm:p-8">
-        <div className="flex items-center gap-2 text-brand-600">
+        <div className="flex items-center gap-2 text-brand-600 dark:text-brand-400">
           <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand-600 text-white"><ShieldCheck size={20} aria-hidden /></span>
           <span className="text-sm font-semibold uppercase tracking-wide text-faint">Before you continue</span>
         </div>
@@ -39,18 +39,18 @@ export default function ConsentGate() {
           covering your use of and reliance on those recommendations.
         </p>
 
-        <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 hover:border-brand-300">
+        <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3 hover:border-brand-300 dark:hover:border-brand-500/40">
           <input
             type="checkbox"
             checked={agreed}
             onChange={(e) => setAgreed(e.target.checked)}
-            className="mt-0.5 h-4 w-4 shrink-0 rounded border-edge text-brand-600 focus:ring-brand-500"
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-edge text-brand-600 dark:text-brand-400 focus:ring-brand-500"
           />
           <span className="text-sm text-body">
             I have read and agree to the{' '}
-            <Link to="/legal/terms" target="_blank" rel="noreferrer" className="font-medium text-brand-600 hover:text-brand-700">Terms of Service</Link>{' '}
+            <Link to="/legal/terms" target="_blank" rel="noreferrer" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Terms of Service</Link>{' '}
             (including the indemnity for generated recommendations) and the{' '}
-            <Link to="/legal/privacy" target="_blank" rel="noreferrer" className="font-medium text-brand-600 hover:text-brand-700">Privacy Policy</Link>.
+            <Link to="/legal/privacy" target="_blank" rel="noreferrer" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Privacy Policy</Link>.
           </span>
         </label>
 

@@ -26,7 +26,7 @@ export function Attachments({ items, onRemove, light }) {
           {/(png|jpe?g|gif|webp)$/i.test(a.url) || (a.contentType || '').startsWith('image/') ? (
             <a href={a.url} target="_blank" rel="noreferrer"><img src={a.url} alt={a.name} className="h-16 w-16 rounded-lg border border-line object-cover" /></a>
           ) : (
-            <a href={a.url} target="_blank" rel="noreferrer" className={`flex items-center gap-1 rounded-lg border px-3 py-2 text-xs ${light ? 'border-white/40 text-white' : 'border-line text-brand-600'}`}><Paperclip size={12} aria-hidden /> {a.name}</a>
+            <a href={a.url} target="_blank" rel="noreferrer" className={`flex items-center gap-1 rounded-lg border px-3 py-2 text-xs ${light ? 'border-white/40 text-white' : 'border-line text-brand-600 dark:text-brand-400'}`}><Paperclip size={12} aria-hidden /> {a.name}</a>
           )}
           {onRemove && <button type="button" onClick={() => onRemove(i)} className="absolute -right-1.5 -top-1.5 grid h-4 w-4 place-items-center rounded-full bg-slate-700 text-[10px] text-white">×</button>}
         </div>

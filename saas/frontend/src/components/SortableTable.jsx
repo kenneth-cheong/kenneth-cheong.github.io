@@ -103,7 +103,7 @@ export default function SortableTable({
             />
           )}
           {filterable && q && <span className="text-xs text-faint tabular-nums">{sorted.length.toLocaleString()} match{sorted.length === 1 ? '' : 'es'}</span>}
-          {exportName && <button onClick={exportCsv} className="ml-auto rounded-md border border-edge px-2.5 py-1 text-xs font-medium text-dim hover:border-brand-300 hover:text-brand-600">CSV</button>}
+          {exportName && <button onClick={exportCsv} className="ml-auto rounded-md border border-edge px-2.5 py-1 text-xs font-medium text-dim hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400">CSV</button>}
         </div>
       )}
       <div className="overflow-auto rounded-xl border border-line" style={{ maxHeight }}>
@@ -138,7 +138,7 @@ export default function SortableTable({
               {cols.map((c, ci) => (
                 <td
                   key={c.key}
-                  className={`px-3 py-2 ${c.align === 'right' ? 'text-right' : ''} ${stickyFirstCol && ci === 0 ? `sticky left-0 z-[1] transition-colors group-hover:bg-brand-50 ${zebra && i % 2 ? 'bg-raised' : 'bg-surface'}` : ''}`}
+                  className={`px-3 py-2 ${c.align === 'right' ? 'text-right' : ''} ${stickyFirstCol && ci === 0 ? `sticky left-0 z-[1] transition-colors group-hover:bg-brand-50 dark:group-hover:bg-brand-500/10 ${zebra && i % 2 ? 'bg-raised' : 'bg-surface'}` : ''}`}
                 >
                   {c.render ? c.render(row, i) : (accessorOf(c)(row) ?? '—')}
                 </td>

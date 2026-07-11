@@ -12,9 +12,9 @@ const TOOL_CATEGORIES = ['SEO', 'Content', 'AI Visibility', 'Strategy'];
 function statusOf(r) {
   const p = (r.preview || '').toLowerCase().trim();
   if (/couldn.?t|could not|unable|fail|error|reconnect|not connected|disconnect/.test(p))
-    return { label: 'Issue', cls: 'bg-amber-100 text-amber-700' };
+    return { label: 'Issue', cls: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300' };
   if (/^0 rows?\b|^0$/.test(p)) return { label: 'No data', cls: 'bg-sunken text-muted' };
-  return { label: 'OK', cls: 'bg-green-100 text-green-700' };
+  return { label: 'OK', cls: 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300' };
 }
 
 const fmtDate = (ts) => new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -41,7 +41,7 @@ export default function ProjectDetail() {
   if (!project) {
     return (
       <div className="mx-auto max-w-3xl">
-        <p className="text-muted">Project not found. <Link to="/projects" className="text-brand-600">Back to projects</Link></p>
+        <p className="text-muted">Project not found. <Link to="/projects" className="text-brand-600 dark:text-brand-400">Back to projects</Link></p>
       </div>
     );
   }
@@ -65,8 +65,8 @@ export default function ProjectDetail() {
     const diff = h[h.length - 2].position - h[h.length - 1].position; // negative = rank dropped (higher number)
     if (diff === 0) return null;
     return diff > 0
-      ? { label: `▲${Math.abs(diff)}`, cls: 'text-green-600' }
-      : { label: `▼${Math.abs(diff)}`, cls: 'text-red-600' };
+      ? { label: `▲${Math.abs(diff)}`, cls: 'text-green-600 dark:text-green-400' }
+      : { label: `▼${Math.abs(diff)}`, cls: 'text-red-600 dark:text-red-400' };
   };
 
   return (
@@ -82,7 +82,7 @@ export default function ProjectDetail() {
           <h1 className="mt-1 text-2xl font-bold">{project.name}</h1>
           {project.domain && (
             <a href={`https://${project.domain}`} target="_blank" rel="noreferrer"
-              className="mt-0.5 inline-flex items-center gap-1 text-sm text-muted hover:text-brand-600">
+              className="mt-0.5 inline-flex items-center gap-1 text-sm text-muted hover:text-brand-600 dark:hover:text-brand-400">
               {project.domain} <ExternalLink size={12} />
             </a>
           )}
@@ -90,7 +90,7 @@ export default function ProjectDetail() {
         {!isActive && (
           <button onClick={() => setActive(projectId)} className="btn-ghost text-sm">Set active</button>
         )}
-        {isActive && <span className="rounded-full bg-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-700">Active</span>}
+        {isActive && <span className="rounded-full bg-brand-100 dark:bg-brand-500/15 px-2.5 py-1 text-xs font-semibold text-brand-700 dark:text-brand-300">Active</span>}
       </div>
 
       {/* Quick links */}
@@ -101,7 +101,7 @@ export default function ProjectDetail() {
           { icon: History, label: 'All runs', sub: 'Past tool runs', path: '/history' },
         ].map(({ icon: Icon, label, sub, path }) => (
           <button key={path} onClick={() => goTo(path)}
-            className="card flex items-center gap-3 p-4 text-left transition-shadow hover:border-brand-300 hover:shadow-sm">
+            className="card flex items-center gap-3 p-4 text-left transition-shadow hover:border-brand-300 dark:hover:border-brand-500/40 hover:shadow-sm">
             <Icon size={18} className="shrink-0 text-brand-500" />
             <div>
               <div className="text-sm font-semibold">{label}</div>
@@ -119,7 +119,7 @@ export default function ProjectDetail() {
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-semibold">Recent runs</h2>
             {runs?.length > 0 && (
-              <button onClick={() => goTo('/history')} className="text-xs text-brand-600 hover:underline">View all</button>
+              <button onClick={() => goTo('/history')} className="text-xs text-brand-600 dark:text-brand-400 hover:underline">View all</button>
             )}
           </div>
           {runs === null ? (
@@ -153,7 +153,7 @@ export default function ProjectDetail() {
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-semibold">Tracked keywords</h2>
             {tracked?.length > 0 && (
-              <button onClick={() => goTo('/tracking')} className="text-xs text-brand-600 hover:underline">Manage</button>
+              <button onClick={() => goTo('/tracking')} className="text-xs text-brand-600 dark:text-brand-400 hover:underline">Manage</button>
             )}
           </div>
           {tracked === null ? (
@@ -161,7 +161,7 @@ export default function ProjectDetail() {
           ) : tracked.length === 0 ? (
             <p className="text-sm text-faint">
               No keywords tracked yet.{' '}
-              <button onClick={() => goTo('/tracking')} className="text-brand-600 hover:underline">Add one</button>
+              <button onClick={() => goTo('/tracking')} className="text-brand-600 dark:text-brand-400 hover:underline">Add one</button>
             </p>
           ) : (
             <div className="divide-y divide-hair">
@@ -204,7 +204,7 @@ export default function ProjectDetail() {
                         className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-colors ${
                           locked
                             ? 'cursor-not-allowed border-hair bg-raised opacity-50'
-                            : 'border-line bg-surface hover:border-brand-300 hover:bg-brand-50'
+                            : 'border-line bg-surface hover:border-brand-300 dark:hover:border-brand-500/40 hover:bg-brand-50 dark:hover:bg-brand-500/10'
                         }`}
                       >
                         <CategoryIcon category={cat} size={16} color={locked ? '#94a3b8' : color} />

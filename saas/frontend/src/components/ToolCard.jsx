@@ -20,19 +20,19 @@ export default function ToolCard({ tool, userTier }) {
           <CategoryIcon category={tool.category} size={12} />{tool.category}
         </span>
         {!unlocked && (
-          <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold uppercase text-amber-700">
+          <span className="flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold uppercase text-amber-700 dark:text-amber-300">
             <Lock size={11} aria-hidden /> {PLANS[tool.minTier].name}
           </span>
         )}
       </div>
-      <h3 className="mt-3 font-semibold text-heading group-hover:text-brand-700">{tool.name}</h3>
+      <h3 className="mt-3 font-semibold text-heading group-hover:text-brand-700 dark:group-hover:text-brand-300">{tool.name}</h3>
       <p className="mt-1 flex-1 text-sm text-muted">{tool.desc}</p>
       <div className="mt-3 flex items-center justify-between text-xs">
-        <span className={`rounded-full px-2 py-0.5 font-semibold ${cost === 0 ? 'bg-green-50 text-green-700' : 'bg-sunken text-dim'}`}>
+        <span className={`rounded-full px-2 py-0.5 font-semibold ${cost === 0 ? 'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-300' : 'bg-sunken text-dim'}`}>
           {cost === 0 ? 'Free' : `${cost} credit${cost > 1 ? 's' : ''}`}
         </span>
         {tool.slow && <span className="text-faint">~30–150s</span>}
-        {!unlocked && tool.teaser && <span className="font-medium text-brand-600">1 free preview →</span>}
+        {!unlocked && tool.teaser && <span className="font-medium text-brand-600 dark:text-brand-400">1 free preview →</span>}
       </div>
     </Link>
   );

@@ -11,13 +11,13 @@ function statusOf(r) {
   const p = (r.preview || '').toLowerCase().trim();
   // Error-ish text first (e.g. "couldn't pull live data — reconnect…").
   if (/couldn.?t|could not|unable|fail|error|reconnect|not connected|disconnect/.test(p)) {
-    return { label: 'Issue', cls: 'bg-amber-100 text-amber-700' };
+    return { label: 'Issue', cls: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300' };
   }
   // An explicit zero-row count is genuinely empty. (An empty preview just means
   // the result format — e.g. `sections` — isn't captured in the preview, so we
   // treat it as OK rather than mislabel a successful content run.)
   if (/^0 rows?\b|^0$/.test(p)) return { label: 'No data', cls: 'bg-sunken text-muted' };
-  return { label: 'OK', cls: 'bg-green-100 text-green-700' };
+  return { label: 'OK', cls: 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300' };
 }
 
 // Every tool run is saved server-side; clicking one re-opens it in the tool

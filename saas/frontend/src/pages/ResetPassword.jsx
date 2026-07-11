@@ -37,7 +37,7 @@ export default function ResetPassword() {
 
         <div className="card mt-8 p-6 text-left">
           {!token ? (
-            <p className="text-sm text-red-600">This reset link is missing its token.</p>
+            <p className="text-sm text-red-600 dark:text-red-400">This reset link is missing its token.</p>
           ) : (
             <form onSubmit={onSubmit} className="space-y-3">
               <label className="block">
@@ -61,9 +61,9 @@ export default function ResetPassword() {
               </button>
             </form>
           )}
-          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+          {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
           <p className="mt-5 text-center text-sm text-muted">
-            <Link to="/" className="font-medium text-brand-600 hover:text-brand-700">← Back to sign in</Link>
+            <Link to="/" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">← Back to sign in</Link>
           </p>
         </div>
       </div>

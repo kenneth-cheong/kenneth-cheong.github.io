@@ -120,7 +120,7 @@ export default function ShareModal({ open, onClose, tool, out, project, user, sn
         {/* Controls */}
         <div className="flex w-full shrink-0 flex-col gap-4 p-5 sm:w-72">
           <div className="flex items-center justify-between">
-            <h3 className="flex items-center gap-2 text-base font-bold text-heading"><ImageIcon size={18} className="text-brand-600" /> Share result</h3>
+            <h3 className="flex items-center gap-2 text-base font-bold text-heading"><ImageIcon size={18} className="text-brand-600 dark:text-brand-400" /> Share result</h3>
             <button onClick={onClose} className="rounded-md p-1 text-faint hover:bg-sunken hover:text-dim" aria-label="Close"><XIcon size={18} /></button>
           </div>
 
@@ -129,7 +129,7 @@ export default function ShareModal({ open, onClose, tool, out, project, user, sn
             <div className="grid grid-cols-1 gap-1.5">
               {Object.values(FORMATS).map((opt) => (
                 <button key={opt.id} onClick={() => setFormat(opt.id)}
-                  className={`rounded-lg border px-3 py-1.5 text-left text-sm font-medium ${format === opt.id ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-line text-dim hover:border-brand-300'}`}>
+                  className={`rounded-lg border px-3 py-1.5 text-left text-sm font-medium ${format === opt.id ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300' : 'border-line text-dim hover:border-brand-300 dark:hover:border-brand-500/40'}`}>
                   {opt.label}
                 </button>
               ))}
@@ -138,8 +138,8 @@ export default function ShareModal({ open, onClose, tool, out, project, user, sn
 
           <div className="grid grid-cols-2 gap-2">
             <button onClick={onDownload} className={`${btn} bg-brand-600 text-white hover:bg-brand-700`}><Download size={15} /> Download</button>
-            <button onClick={onCopyImage} className={`${btn} border border-line text-body hover:border-brand-300`}><Copy size={15} /> Copy image</button>
-            <button onClick={onShare} className={`${btn} col-span-2 border border-line text-body hover:border-brand-300`}><Share2 size={15} /> Share…</button>
+            <button onClick={onCopyImage} className={`${btn} border border-line text-body hover:border-brand-300 dark:hover:border-brand-500/40`}><Copy size={15} /> Copy image</button>
+            <button onClick={onShare} className={`${btn} col-span-2 border border-line text-body hover:border-brand-300 dark:hover:border-brand-500/40`}><Share2 size={15} /> Share…</button>
           </div>
 
           <div>
@@ -147,10 +147,10 @@ export default function ShareModal({ open, onClose, tool, out, project, user, sn
             <div className="grid grid-cols-4 gap-1.5">
               {[['X', 'x'], ['in', 'linkedin'], ['f', 'facebook'], ['WA', 'whatsapp']].map(([label, key]) => (
                 <button key={key} onClick={() => onSocial(key)} disabled={linking}
-                  className="rounded-lg border border-line py-2 text-sm font-bold text-dim hover:border-brand-300 hover:text-brand-600 disabled:opacity-50">{label}</button>
+                  className="rounded-lg border border-line py-2 text-sm font-bold text-dim hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400 disabled:opacity-50">{label}</button>
               ))}
             </div>
-            <button onClick={() => copyText(summary.caption)} className="mt-2 w-full rounded-lg border border-line py-1.5 text-xs font-medium text-muted hover:border-brand-300 hover:text-brand-600">
+            <button onClick={() => copyText(summary.caption)} className="mt-2 w-full rounded-lg border border-line py-1.5 text-xs font-medium text-muted hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400">
               Copy caption + hashtags
             </button>
           </div>
@@ -165,13 +165,13 @@ export default function ShareModal({ open, onClose, tool, out, project, user, sn
                 <>
                   <div className="mt-2 flex items-center gap-1.5">
                     <input readOnly value={shareUrl} className="min-w-0 flex-1 truncate rounded-md border border-line bg-surface px-2 py-1 text-xs text-dim" />
-                    <button onClick={() => copyText(shareUrl)} className="shrink-0 rounded-md border border-line p-1.5 text-muted hover:border-brand-300 hover:text-brand-600" title="Copy link"><Link2 size={14} /></button>
+                    <button onClick={() => copyText(shareUrl)} className="shrink-0 rounded-md border border-line p-1.5 text-muted hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400" title="Copy link"><Link2 size={14} /></button>
                   </div>
-                  <button onClick={onRevoke} disabled={linking} className="mt-2 text-[11px] font-medium text-red-500 hover:text-red-600 disabled:opacity-50">Revoke link</button>
+                  <button onClick={onRevoke} disabled={linking} className="mt-2 text-[11px] font-medium text-red-500 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50">Revoke link</button>
                 </>
               ) : (
                 <>
-                  <button onClick={onCreateLink} disabled={linking} className={`${btn} mt-2 w-full border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 disabled:opacity-60`}>
+                  <button onClick={onCreateLink} disabled={linking} className={`${btn} mt-2 w-full border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-500/15 disabled:opacity-60`}>
                     {linking ? <Loader2 size={15} className="animate-spin" /> : <Globe size={15} />} Create public link
                   </button>
                   <p className="mt-1.5 text-[11px] leading-relaxed text-faint">Shareable link that unfurls the card on social. Your domain is hidden on public cards.</p>

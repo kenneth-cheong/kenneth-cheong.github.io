@@ -91,10 +91,10 @@ export default function TrialNdaGate({ preview = false, onClose }) {
             <X size={18} />
           </button>
         )}
-        <div className="flex items-center gap-2 text-brand-600">
+        <div className="flex items-center gap-2 text-brand-600 dark:text-brand-400">
           <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand-600 text-white"><ShieldCheck size={20} aria-hidden /></span>
           <span className="text-xs font-semibold uppercase tracking-wide text-faint">Soft launch · Free trial</span>
-          {preview && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">Preview</span>}
+          {preview && <span className="rounded-full bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">Preview</span>}
         </div>
 
         <h1 className="mt-4 text-xl font-bold text-heading">Activate your free trial</h1>
@@ -116,33 +116,33 @@ export default function TrialNdaGate({ preview = false, onClose }) {
                 onChange={set(f.key)}
                 placeholder={f.placeholder}
                 autoComplete={f.autoComplete}
-                className={`w-full rounded-xl border bg-raised px-3 py-2.5 text-sm text-heading outline-none transition focus:border-brand-500 focus:bg-surface focus:ring-2 focus:ring-brand-500/20 ${errors[f.key] ? 'border-rose-400 bg-rose-50' : 'border-edge'}`}
+                className={`w-full rounded-xl border bg-raised px-3 py-2.5 text-sm text-heading outline-none transition focus:border-brand-500 focus:bg-surface focus:ring-2 focus:ring-brand-500/20 ${errors[f.key] ? 'border-rose-400 bg-rose-50 dark:bg-rose-500/10' : 'border-edge'}`}
               />
             </div>
           ))}
         </div>
 
-        <label className={`mt-5 flex cursor-pointer items-start gap-3 rounded-xl border p-3 hover:border-brand-300 ${errors.agreed ? 'border-rose-400 bg-rose-50' : 'border-line'}`}>
+        <label className={`mt-5 flex cursor-pointer items-start gap-3 rounded-xl border p-3 hover:border-brand-300 dark:hover:border-brand-500/40 ${errors.agreed ? 'border-rose-400 bg-rose-50 dark:bg-rose-500/10' : 'border-line'}`}>
           <input
             type="checkbox"
             checked={agreed}
             onChange={(e) => { setAgreed(e.target.checked); if (errors.agreed) setErrors((x) => ({ ...x, agreed: false })); }}
-            className="mt-0.5 h-4 w-4 shrink-0 rounded border-edge text-brand-600 focus:ring-brand-500"
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-edge text-brand-600 dark:text-brand-400 focus:ring-brand-500"
           />
           <span className="text-sm leading-relaxed text-body">
             By clicking &lsquo;Accept and Activate Free Trial&rsquo;, I confirm that I am authorised to accept these{' '}
-            <button type="button" onClick={() => setShowTerms(true)} className="font-semibold text-brand-600 underline hover:text-brand-700">
+            <button type="button" onClick={() => setShowTerms(true)} className="font-semibold text-brand-600 dark:text-brand-400 underline hover:text-brand-700 dark:hover:text-brand-300">
               Digimetrics Free Trial and NDA Terms
             </button>{' '}
             on behalf of myself and/or my organisation. I agree to keep Digimetrics&rsquo; non-public product
             information confidential, use the free trial only for evaluation purposes, and provide feedback where
             possible through the &lsquo;Report a problem&rsquo; feature or by emailing{' '}
-            <a href="mailto:tom@mediaone.co" className="font-medium text-brand-600 hover:text-brand-700">tom@mediaone.co</a>.
+            <a href="mailto:tom@mediaone.co" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">tom@mediaone.co</a>.
           </span>
         </label>
 
-        {serverErr && <p className="mt-3 text-sm text-rose-600">{serverErr}</p>}
-        {notice && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</p>}
+        {serverErr && <p className="mt-3 text-sm text-rose-600 dark:text-rose-400">{serverErr}</p>}
+        {notice && <p className="mt-3 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">{notice}</p>}
 
         <button
           onClick={submit}

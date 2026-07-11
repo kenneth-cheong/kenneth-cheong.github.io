@@ -108,7 +108,7 @@ export default function Performance() {
     const up = b > a;
     const pct = a !== 0 ? Math.abs((b - a) / a) * 100 : null;
     const good = m.dir === 'neutral' ? null : (m.dir === 'up' ? up : !up);
-    const cls = good == null ? 'text-muted' : good ? 'text-green-600' : 'text-red-600';
+    const cls = good == null ? 'text-muted' : good ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
     const label = pct != null ? `${pct >= 10 ? Math.round(pct) : Math.round(pct * 10) / 10}%` : `${Math.round(Math.abs(b - a) * 100) / 100}`;
     return { arrow: up ? '▲' : '▼', cls, label };
   };
