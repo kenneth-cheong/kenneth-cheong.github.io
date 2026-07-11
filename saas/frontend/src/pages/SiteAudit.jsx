@@ -117,8 +117,8 @@ export default function SiteAudit() {
       <div className="mx-auto max-w-2xl">
         <h1 className="text-2xl font-bold">Site Health Check</h1>
         <div className="card mt-6 p-6 text-center">
-          <p className="font-medium text-slate-800">The Site Health Check isn’t included in your {currentPlan} plan.</p>
-          <p className="mt-2 text-slate-600">It’s a one-click audit of your site’s SEO, page quality and AI-readiness — with a score and prioritised fixes. Upgrade to {neededPlan} or higher to run it.</p>
+          <p className="font-medium text-strong">The Site Health Check isn’t included in your {currentPlan} plan.</p>
+          <p className="mt-2 text-dim">It’s a one-click audit of your site’s SEO, page quality and AI-readiness — with a score and prioritised fixes. Upgrade to {neededPlan} or higher to run it.</p>
           <Link to="/pricing" className="btn-primary mt-4 inline-block">Upgrade to {neededPlan}</Link>
         </div>
       </div>
@@ -128,10 +128,10 @@ export default function SiteAudit() {
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="text-2xl font-bold">Site Health Check</h1>
-      <p className="mt-1 text-slate-600">One click runs {runnable.length} checks and gives you a single score with the top things to fix — in plain English.</p>
+      <p className="mt-1 text-dim">One click runs {runnable.length} checks and gives you a single score with the top things to fix — in plain English.</p>
 
       <div className="card mt-6 p-5">
-        <label htmlFor="audit-url" className="block text-sm font-medium text-slate-700">
+        <label htmlFor="audit-url" className="block text-sm font-medium text-body">
           Your website<span className="text-amber-500"> *</span>
         </label>
         <div className="mt-1.5 flex flex-wrap gap-3">
@@ -143,7 +143,7 @@ export default function SiteAudit() {
         </div>
         {nudge
           ? <p className="mt-2 text-xs font-semibold text-amber-600">Enter your website URL first to run the check.</p>
-          : <p className="mt-2 text-xs text-slate-400">Runs: {runnable.map((a) => a.label).join(' · ')}. Takes ~1–3 minutes.</p>}
+          : <p className="mt-2 text-xs text-faint">Runs: {runnable.map((a) => a.label).join(' · ')}. Takes ~1–3 minutes.</p>}
       </div>
 
       {/* Live progress */}
@@ -155,12 +155,12 @@ export default function SiteAudit() {
                 {s.status === 'running' && <Loader2 size={16} className="animate-spin text-brand-500" aria-hidden />}
                 {s.status === 'done' && <span className="grid h-4 w-4 place-items-center rounded-full bg-green-500 text-white"><Check size={11} aria-hidden /></span>}
                 {s.status === 'fail' && <AlertTriangle size={16} className="text-amber-500" aria-hidden />}
-                <span className={s.status === 'fail' ? 'text-slate-400' : 'text-slate-700'}>{s.label} <span className="text-slate-400">· {s.name}</span></span>
-                <span className="ml-auto text-xs text-slate-400">{s.status === 'running' ? 'checking…' : s.status === 'done' ? 'done' : 'skipped'}</span>
+                <span className={s.status === 'fail' ? 'text-faint' : 'text-body'}>{s.label} <span className="text-faint">· {s.name}</span></span>
+                <span className="ml-auto text-xs text-faint">{s.status === 'running' ? 'checking…' : s.status === 'done' ? 'done' : 'skipped'}</span>
               </li>
             ))}
           </ul>
-          {running && !report && <p className="mt-3 text-xs text-slate-400">Building your report…</p>}
+          {running && !report && <p className="mt-3 text-xs text-faint">Building your report…</p>}
         </div>
       )}
 
@@ -181,7 +181,7 @@ function Report({ report }) {
   const tone = SCORE_TONE(score);
   const C = 2 * Math.PI * 52;
   const off = C * (1 - score / 100);
-  const pri = { high: 'bg-red-100 text-red-700', medium: 'bg-amber-100 text-amber-700', low: 'bg-slate-100 text-slate-500' };
+  const pri = { high: 'bg-red-100 text-red-700', medium: 'bg-amber-100 text-amber-700', low: 'bg-sunken text-muted' };
   const dot = { good: 'bg-green-500', fair: 'bg-amber-500', poor: 'bg-red-500' };
 
   return (
@@ -197,7 +197,7 @@ function Report({ report }) {
         </svg>
         <div className="text-center sm:text-left">
           <div className={`text-sm font-bold uppercase tracking-wide ${tone.text}`}>{report.grade ? `Grade ${report.grade} · ` : ''}{tone.label}</div>
-          <p className="mt-1 text-slate-700">{report.summary}</p>
+          <p className="mt-1 text-body">{report.summary}</p>
         </div>
       </div>
 
@@ -207,13 +207,13 @@ function Report({ report }) {
           <h2 className="font-bold">How each area scored</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {report.areas.map((a, i) => (
-              <div key={i} className="rounded-lg border border-slate-200 p-3">
+              <div key={i} className="rounded-lg border border-line p-3">
                 <div className="flex items-center gap-2">
                   <span className={`h-2 w-2 rounded-full ${dot[a.status] || 'bg-slate-400'}`} aria-hidden />
-                  <span className="text-sm font-semibold text-slate-800">{a.name}</span>
-                  {typeof a.score !== 'undefined' && <span className="ml-auto text-sm font-bold text-slate-500">{a.score}</span>}
+                  <span className="text-sm font-semibold text-strong">{a.name}</span>
+                  {typeof a.score !== 'undefined' && <span className="ml-auto text-sm font-bold text-muted">{a.score}</span>}
                 </div>
-                {a.note && <p className="mt-1 text-xs text-slate-500">{a.note}</p>}
+                {a.note && <p className="mt-1 text-xs text-muted">{a.note}</p>}
               </div>
             ))}
           </div>
@@ -226,14 +226,14 @@ function Report({ report }) {
           <h2 className="font-bold">Do these next</h2>
           <ol className="mt-3 space-y-2.5">
             {report.fixes.map((f, i) => (
-              <li key={i} className="flex items-start gap-3 rounded-lg border border-slate-100 p-3">
-                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">{i + 1}</span>
+              <li key={i} className="flex items-start gap-3 rounded-lg border border-hair p-3">
+                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-sunken text-xs font-bold text-muted">{i + 1}</span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-800">{f.title}</span>
+                    <span className="text-sm font-semibold text-strong">{f.title}</span>
                     {f.priority && <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${pri[f.priority] || pri.low}`}>{f.priority}</span>}
                   </div>
-                  {f.why && <p className="mt-0.5 text-sm text-slate-500">{f.why}</p>}
+                  {f.why && <p className="mt-0.5 text-sm text-muted">{f.why}</p>}
                 </div>
               </li>
             ))}
@@ -241,7 +241,7 @@ function Report({ report }) {
         </div>
       )}
 
-      <p className="flex items-center gap-1 text-xs text-slate-400">
+      <p className="flex items-center gap-1 text-xs text-faint">
         <ChevronRight size={12} aria-hidden /> Want the full detail behind a fix? Open the matching tool from the dashboard.
       </p>
     </div>

@@ -19,7 +19,7 @@ const TONES = {
   red:    { bg: 'bg-red-50/70',     border: 'border-red-100',     text: 'text-red-700',     chip: 'bg-red-100 text-red-700',       stroke: '#dc2626' },
   blue:   { bg: 'bg-brand-50/70',   border: 'border-brand-100',   text: 'text-brand-700',   chip: 'bg-brand-100 text-brand-700',   stroke: '#2563eb' },
   orange: { bg: 'bg-orange-50/70',  border: 'border-orange-100',  text: 'text-orange-700',  chip: 'bg-orange-100 text-orange-700', stroke: '#ea580c' },
-  slate:  { bg: 'bg-slate-50',      border: 'border-slate-200',   text: 'text-slate-900',   chip: 'bg-slate-100 text-slate-600',   stroke: '#64748b' },
+  slate:  { bg: 'bg-raised',      border: 'border-line',   text: 'text-heading',   chip: 'bg-sunken text-dim',   stroke: '#64748b' },
 };
 const tone = (t) => TONES[t] || TONES.slate;
 
@@ -31,7 +31,7 @@ export default function ResultSections({ sections, context }) {
 function Title({ children }) {
   if (!children) return null;
   return (
-    <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-700">
+    <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-body">
       <span className="h-3.5 w-1 rounded-full bg-brand-500" aria-hidden /> {children}
     </h4>
   );
@@ -41,16 +41,16 @@ function Block({ title, children }) { return <div>{title && <Title>{title}</Titl
 function Section({ s, context }) {
   switch (s.type) {
     case 'heading':
-      return <h3 className="border-b border-slate-100 pb-2 text-xl font-bold tracking-tight text-slate-900">{s.text}</h3>;
+      return <h3 className="border-b border-hair pb-2 text-xl font-bold tracking-tight text-heading">{s.text}</h3>;
     case 'callout':
       return (
-        <div className="flex items-start gap-2.5 rounded-xl border border-brand-100 bg-brand-50/60 px-4 py-3 text-sm text-slate-700">
+        <div className="flex items-start gap-2.5 rounded-xl border border-brand-100 bg-brand-50/60 px-4 py-3 text-sm text-body">
           <Info size={16} className="mt-0.5 shrink-0 text-brand-500" aria-hidden />
           <span>{s.text}</span>
         </div>
       );
     case 'text':
-      return <p className="text-sm leading-relaxed text-slate-500">{s.text}</p>;
+      return <p className="text-sm leading-relaxed text-muted">{s.text}</p>;
     case 'stats':
       return (
         <Block title={s.title}>
@@ -69,7 +69,7 @@ function Section({ s, context }) {
       // body (ranked "opportunity" cards: lines + barPct + meta) stay plain.
       return (
         <Block title={s.title}>
-          {s.note && <p className="-mt-1 mb-3 text-sm text-slate-500">{s.note}</p>}
+          {s.note && <p className="-mt-1 mb-3 text-sm text-muted">{s.note}</p>}
           <div className="space-y-2.5">
             {s.items.map((c, i) => (c && c.body
               ? <RecommendationCard key={i} card={c} sectionTitle={s.title} context={context} />
@@ -114,7 +114,7 @@ function StatCard({ it }) {
   const isEmpty = it.value == null || ['', '—', '-', 'n/a', 'na'].includes(String(it.value).trim().toLowerCase());
   return (
     <div className={`rounded-xl border ${t.border} ${t.bg} p-3.5`}>
-      <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+      <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted">
         <span>{it.label}</span>
         {def && <InfoTip text={def} size={12} />}
       </div>
@@ -124,9 +124,9 @@ function StatCard({ it }) {
         ? <div className="mt-1 flex items-center gap-1 text-2xl font-bold leading-tight text-slate-300">—<InfoTip text="Not available — this metric couldn’t be measured for this site or page." size={14} /></div>
         : <div className={`mt-1 text-2xl font-bold leading-tight ${t.text}`}>{it.value}</div>}
       {it.delta && (
-        <div className={`mt-1.5 inline-flex items-center gap-1 text-xs font-semibold ${it.deltaTone === 'red' ? 'text-red-600' : it.deltaTone === 'green' ? 'text-emerald-600' : 'text-slate-400'}`}>
+        <div className={`mt-1.5 inline-flex items-center gap-1 text-xs font-semibold ${it.deltaTone === 'red' ? 'text-red-600' : it.deltaTone === 'green' ? 'text-emerald-600' : 'text-faint'}`}>
           {it.deltaTone === 'green' ? <TrendingUp size={13} aria-hidden /> : it.deltaTone === 'red' ? <TrendingDown size={13} aria-hidden /> : null}
-          {it.delta}<span className="ml-0.5 font-normal text-slate-400">vs prev</span>
+          {it.delta}<span className="ml-0.5 font-normal text-faint">vs prev</span>
         </div>
       )}
     </div>
@@ -158,11 +158,11 @@ function ListSection({ s }) {
         <div className="space-y-1.5">
           {kv.map((k, i) => (
             <div key={i} className="flex items-center gap-3 text-sm">
-              <span className="w-36 shrink-0 truncate text-slate-600" title={k.label}>{k.label}</span>
-              <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+              <span className="w-36 shrink-0 truncate text-dim" title={k.label}>{k.label}</span>
+              <div className="h-2 flex-1 overflow-hidden rounded-full bg-sunken">
                 <div className="h-full rounded-full bg-gradient-to-r from-brand-400 to-brand-600" style={{ width: `${Math.max(2, (k.value / max) * 100)}%` }} />
               </div>
-              <span className="w-16 shrink-0 text-right font-semibold tabular-nums text-slate-700">{k.raw}</span>
+              <span className="w-16 shrink-0 text-right font-semibold tabular-nums text-body">{k.raw}</span>
             </div>
           ))}
         </div>
@@ -177,7 +177,7 @@ function ListSection({ s }) {
           {items.map((x, i) => {
             const ok = x.trim().startsWith('✓');
             return (
-              <div key={i} className="flex items-start gap-2.5 text-sm text-slate-700">
+              <div key={i} className="flex items-start gap-2.5 text-sm text-body">
                 <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${ok ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
                   {ok ? <Check size={13} strokeWidth={3} aria-hidden /> : <X size={13} strokeWidth={3} aria-hidden />}
                 </span>
@@ -194,13 +194,13 @@ function ListSection({ s }) {
     return (
       <Block title={s.title}>
         <div className="flex flex-wrap gap-2">
-          {items.map((x, i) => <span key={i} className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-[13px] font-medium text-slate-700">{x}</span>)}
+          {items.map((x, i) => <span key={i} className="inline-flex items-center rounded-full bg-sunken px-3 py-1 text-[13px] font-medium text-body">{x}</span>)}
         </div>
       </Block>
     );
   }
 
-  const textColor = s.tone === 'green' ? 'text-emerald-700' : s.tone === 'red' ? 'text-red-700' : 'text-slate-600';
+  const textColor = s.tone === 'green' ? 'text-emerald-700' : s.tone === 'red' ? 'text-red-700' : 'text-dim';
   return (
     <Block title={s.title}>
       <ul className="space-y-1.5 text-sm">
@@ -218,23 +218,23 @@ function ListSection({ s }) {
 // ── Cards (e.g. ranked opportunities with a progress bar) ────────────────────
 const BADGE = {
   red: 'bg-red-100 text-red-700', amber: 'bg-amber-100 text-amber-700', green: 'bg-emerald-100 text-emerald-700',
-  blue: 'bg-brand-100 text-brand-700', orange: 'bg-orange-100 text-orange-700', slate: 'bg-slate-100 text-slate-600',
+  blue: 'bg-brand-100 text-brand-700', orange: 'bg-orange-100 text-orange-700', slate: 'bg-sunken text-dim',
 };
 function Card({ c }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3.5 transition-shadow hover:shadow-sm">
+    <div className="rounded-xl border border-line bg-surface p-3.5 transition-shadow hover:shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
-        <strong className="text-slate-800">{c.title}</strong>
+        <strong className="text-strong">{c.title}</strong>
         {c.badge && <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${BADGE[c.badgeTone] || BADGE.slate}`}>{c.badge}</span>}
-        {c.meta && <span className="ml-auto font-bold text-slate-900">{c.meta}</span>}
+        {c.meta && <span className="ml-auto font-bold text-heading">{c.meta}</span>}
       </div>
       {c.barPct != null && (
-        <div className="my-2.5 h-2 overflow-hidden rounded-full bg-slate-100">
+        <div className="my-2.5 h-2 overflow-hidden rounded-full bg-sunken">
           <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-600" style={{ width: `${Math.max(0, Math.min(100, c.barPct))}%` }} />
         </div>
       )}
-      {(c.lines || []).map((l, i) => <div key={i} className="text-[13px] text-slate-600">{l.label && <strong className="text-slate-700">{l.label}: </strong>}{l.value}</div>)}
-      {c.body && <p className="mt-1 text-sm leading-relaxed text-slate-600">{c.body}</p>}
+      {(c.lines || []).map((l, i) => <div key={i} className="text-[13px] text-dim">{l.label && <strong className="text-body">{l.label}: </strong>}{l.value}</div>)}
+      {c.body && <p className="mt-1 text-sm leading-relaxed text-dim">{c.body}</p>}
     </div>
   );
 }
@@ -259,7 +259,7 @@ function CodeBlock({ title, filename, content }) {
             <span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" />
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
           </span>
-          <span className="ml-1 font-mono text-xs text-slate-400">{filename || 'file.txt'}</span>
+          <span className="ml-1 font-mono text-xs text-faint">{filename || 'file.txt'}</span>
           <div className="ml-auto flex gap-1.5">
             <button onClick={() => copyText(content).then(() => toast('Copied to clipboard', 'success'))} className={btn}>Copy</button>
             <button onClick={download} className={btn}>Download</button>
@@ -280,11 +280,11 @@ function TableSection({ s }) {
     <div>
       <div className="mb-3 flex items-center gap-2">
         {s.title && (
-          <h4 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-slate-700">
+          <h4 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-body">
             <span className="h-3.5 w-1 rounded-full bg-brand-500" aria-hidden /> {s.title}
           </h4>
         )}
-        <span className="ml-auto shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium tabular-nums text-slate-500">
+        <span className="ml-auto shrink-0 rounded-full bg-sunken px-2 py-0.5 text-xs font-medium tabular-nums text-muted">
           {n.toLocaleString()} {n === 1 ? 'row' : 'rows'}
         </span>
       </div>

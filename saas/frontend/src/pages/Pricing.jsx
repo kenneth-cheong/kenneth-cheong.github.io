@@ -26,13 +26,13 @@ export default function Pricing() {
     <div>
       <div className="text-center">
         <h1 className="text-3xl font-bold">Plans that scale with you</h1>
-        <p className="mt-2 text-slate-600">Every plan includes the credit meter, projects and exports. Cancel anytime.</p>
-        <div className="mt-5 inline-flex rounded-full bg-slate-100 p-1 text-sm font-medium">
+        <p className="mt-2 text-dim">Every plan includes the credit meter, projects and exports. Cancel anytime.</p>
+        <div className="mt-5 inline-flex rounded-full bg-sunken p-1 text-sm font-medium">
           {['monthly', 'annual'].map((iv) => (
             <button
               key={iv}
               onClick={() => setInterval(iv)}
-              className={`rounded-full px-4 py-1.5 capitalize ${interval === iv ? 'bg-white shadow text-brand-700' : 'text-slate-500'}`}
+              className={`rounded-full px-4 py-1.5 capitalize ${interval === iv ? 'bg-surface shadow text-brand-700' : 'text-muted'}`}
             >
               {iv} {iv === 'annual' && <span className="text-green-600">−20%</span>}
             </button>
@@ -49,10 +49,10 @@ export default function Pricing() {
             <div key={id} className={`card flex flex-col p-5 ${p.popular ? 'ring-2 ring-brand-500' : ''}`}>
               {p.popular && <span className="mb-2 w-fit rounded-full bg-brand-600 px-2 py-0.5 text-xs font-bold text-white">MOST POPULAR</span>}
               <h3 className="text-lg font-bold">{p.name}</h3>
-              <p className="mt-1 text-sm text-slate-500">{p.blurb}</p>
+              <p className="mt-1 text-sm text-muted">{p.blurb}</p>
               <div className="mt-4">
                 <span className="text-3xl font-bold">{CURRENCY.symbol}{price}</span>
-                <span className="text-sm text-slate-500">/mo</span>
+                <span className="text-sm text-muted">/mo</span>
               </div>
               <ul className="mt-4 flex-1 space-y-2 text-sm">
                 {p.highlights.map((h) => (

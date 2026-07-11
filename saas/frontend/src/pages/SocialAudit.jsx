@@ -254,7 +254,7 @@ function Status({ s }) {
   const tones = {
     info: 'bg-blue-50 text-blue-800',
     ok: 'bg-amber-50 text-amber-800',
-    note: 'bg-slate-100 text-slate-600',
+    note: 'bg-sunken text-dim',
     err: 'bg-red-50 text-red-700',
   };
   return <div className={`mt-2 rounded-lg px-3 py-2 text-xs ${tones[s.tone] || tones.info}`}>{s.text}</div>;
@@ -578,7 +578,7 @@ export default function SocialAudit() {
       <div className="mx-auto max-w-2xl">
         <h1 className="text-2xl font-bold">Social Media Audit</h1>
         <div className="card mt-6 p-6 text-center">
-          <p className="text-slate-600">{TOOL?.desc}</p>
+          <p className="text-dim">{TOOL?.desc}</p>
           <Link to="/pricing" className="btn-primary mt-4 inline-block">Upgrade to run a Social Media Audit</Link>
         </div>
       </div>
@@ -592,13 +592,13 @@ export default function SocialAudit() {
         <button
           type="button"
           onClick={launchTour}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:border-brand-300 hover:text-brand-600"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-dim hover:border-brand-300 hover:text-brand-600"
           title="Guided walkthrough with a real example"
         >
           <Compass size={14} aria-hidden /> Tour
         </button>
       </div>
-      <p className="mt-1 text-slate-600">
+      <p className="mt-1 text-dim">
         Pulls live profile &amp; engagement data from Instagram, TikTok, Facebook, LinkedIn &amp; YouTube,
         then generates a strategic content-gap &amp; competitor audit in one pass. Auto-find the brand's
         profiles, fill in the campaign context, and hit Run Audit.
@@ -606,11 +606,11 @@ export default function SocialAudit() {
 
       {/* Brand & campaign */}
       <div className="card mt-6 p-5" data-tour="sma-brand">
-        <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Brand &amp; campaign</h2>
-        <p className="mt-1 text-xs text-slate-400">Only the brand name is required — leave the rest blank and AI will fill them in (you can edit before auditing).</p>
+        <h2 className="text-sm font-bold uppercase tracking-wide text-body">Brand &amp; campaign</h2>
+        <p className="mt-1 text-xs text-faint">Only the brand name is required — leave the rest blank and AI will fill them in (you can edit before auditing).</p>
         <div className="mt-3 space-y-3">
           <div>
-            <label htmlFor="sma-brand-input" className="block text-sm font-medium text-slate-700">Brand name <span className="text-amber-500">*</span></label>
+            <label htmlFor="sma-brand-input" className="block text-sm font-medium text-body">Brand name <span className="text-amber-500">*</span></label>
             <input id="sma-brand-input" className={`field mt-1${nudge ? ' !border-amber-400 !ring-4 !ring-amber-400/20' : ''}`} value={brand} onChange={(e) => { setNudge(false); setBrand(e.target.value); }} placeholder="e.g. MediaOne" disabled={busy} />
             {nudge && <p className="mt-1 text-xs font-semibold text-amber-600">Enter a brand name to run the audit.</p>}
           </div>
@@ -620,21 +620,21 @@ export default function SocialAudit() {
           </button>
           <Status s={suggestStatus} />
           <div>
-            <label className="block text-sm font-medium text-slate-700">Website</label>
+            <label className="block text-sm font-medium text-body">Website</label>
             <input className="field mt-1" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="https://brand.com" disabled={busy} />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-slate-700">Industry</label>
+              <label className="block text-sm font-medium text-body">Industry</label>
               <input className="field mt-1" value={industry} onChange={(e) => setIndustry(e.target.value)} placeholder="e.g. Dental clinic, B2B SaaS" disabled={busy} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700">Campaign goals</label>
+              <label className="block text-sm font-medium text-body">Campaign goals</label>
               <input className="field mt-1" value={goals} onChange={(e) => setGoals(e.target.value)} placeholder="e.g. Build awareness, generate leads" disabled={busy} />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700">Target audience</label>
+            <label className="block text-sm font-medium text-body">Target audience</label>
             <textarea className="field mt-1" rows={2} value={audience} onChange={(e) => setAudience(e.target.value)} placeholder="Describe the customers: age, location, intent, B2B/B2C…" disabled={busy} />
           </div>
         </div>
@@ -643,7 +643,7 @@ export default function SocialAudit() {
       {/* Profiles */}
       <div className="card mt-4 p-5" data-tour="sma-profiles">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Profiles to audit</h2>
+          <h2 className="text-sm font-bold uppercase tracking-wide text-body">Profiles to audit</h2>
           <button type="button" onClick={discoverProfiles} disabled={busy || findingProfiles} className="btn-ghost text-xs text-brand-700">
             {findingProfiles ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />} Auto-find profiles
           </button>
@@ -654,7 +654,7 @@ export default function SocialAudit() {
             <div key={p.key} className="flex items-center gap-3">
               <input type="checkbox" className="h-4 w-4 shrink-0" checked={plat[p.key].checked}
                 onChange={(e) => setPlatField(p.key, { checked: e.target.checked })} disabled={busy} />
-              <span className="w-24 shrink-0 text-sm font-semibold text-slate-600">{p.label}</span>
+              <span className="w-24 shrink-0 text-sm font-semibold text-dim">{p.label}</span>
               <input className="field" value={plat[p.key].handle} placeholder={p.ph}
                 onChange={(e) => setPlatField(p.key, { handle: e.target.value })} disabled={busy} />
               <SourceBadge source={plat[p.key].source} />
@@ -666,7 +666,7 @@ export default function SocialAudit() {
       {/* Competitors */}
       <div className="card mt-4 p-5" data-tour="sma-competitors">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Competitors <span className="font-normal normal-case text-slate-400">(optional, up to 3)</span></h2>
+          <h2 className="text-sm font-bold uppercase tracking-wide text-body">Competitors <span className="font-normal normal-case text-faint">(optional, up to 3)</span></h2>
           <button type="button" onClick={discoverCompetitors} disabled={busy || findingComps} className="btn-ghost text-xs text-brand-700">
             {findingComps ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />} Auto-find competitors
           </button>
@@ -684,7 +684,7 @@ export default function SocialAudit() {
               <input className="field w-32" value={c.name} placeholder="Name (optional)" disabled={busy}
                 onChange={(e) => setCompetitors((s) => s.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
               <SourceBadge source={c.source} />
-              <button type="button" className="text-slate-400 hover:text-red-500" disabled={busy}
+              <button type="button" className="text-faint hover:text-red-500" disabled={busy}
                 onClick={() => setCompetitors((s) => s.filter((_, j) => j !== i))} aria-label="Remove competitor"><X size={16} /></button>
             </div>
           ))}
@@ -699,19 +699,19 @@ export default function SocialAudit() {
 
       {/* Optional context */}
       <div className="card mt-4 p-5" data-tour="sma-context">
-        <h2 className="text-sm font-bold uppercase tracking-wide text-slate-700">Optional context</h2>
+        <h2 className="text-sm font-bold uppercase tracking-wide text-body">Optional context</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div>
-            <label className="block text-sm font-medium text-slate-700">Existing content calendar</label>
+            <label className="block text-sm font-medium text-body">Existing content calendar</label>
             <textarea className="field mt-1" rows={3} value={calendars} onChange={(e) => setCalendars(e.target.value)} placeholder="Paste or describe the current content plan/cadence, if any" disabled={busy} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700">RFQ / discussion notes</label>
+            <label className="block text-sm font-medium text-body">RFQ / discussion notes</label>
             <textarea className="field mt-1" rows={3} value={rfq} onChange={(e) => setRfq(e.target.value)} placeholder="Pain points, priorities, constraints the prospect mentioned…" disabled={busy} />
           </div>
         </div>
         <div className="mt-3">
-          <label className="block text-sm font-medium text-slate-700">Additional context <span className="font-normal text-slate-400">(optional — briefs, brand guidelines)</span></label>
+          <label className="block text-sm font-medium text-body">Additional context <span className="font-normal text-faint">(optional — briefs, brand guidelines)</span></label>
           <FileField files={smaFiles} setFiles={setSmaFiles} disabled={busy} accept=".pdf,.docx,.txt,.csv,.md"
             hint="PDF, DOCX, TXT, CSV or MD. Text is extracted in your browser and fed to the audit's analysis." />
         </div>
@@ -722,23 +722,23 @@ export default function SocialAudit() {
         <div className="inline-flex overflow-hidden rounded-lg border border-brand-200">
           {['starter', 'pro'].map((m) => (
             <button key={m} type="button" onClick={() => setMode(m)} disabled={busy}
-              className={`px-4 py-2 text-sm font-bold ${mode === m ? 'bg-brand-600 text-white' : 'bg-white text-brand-700'}`}>
+              className={`px-4 py-2 text-sm font-bold ${mode === m ? 'bg-brand-600 text-white' : 'bg-surface text-brand-700'}`}>
               {m === 'starter' ? 'Starter' : 'Pro'}
             </button>
           ))}
         </div>
-        <p className="mt-2 text-xs text-slate-500">
+        <p className="mt-2 text-xs text-muted">
           {mode === 'pro'
             ? 'Deeper audit using your exported analytics — adds content pillars, campaign angles, organic/paid integration, social SEO, blog-to-social repurposing and creative improvements.'
             : "Competitor & content-gap audit from first-call inputs — what the client does, what competitors do better, and what's missing."}
         </p>
 
         {mode === 'pro' && (
-          <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
-            <p className="text-xs font-semibold text-slate-500">Analytics &amp; content data — paste what you have or upload files; leave the rest blank.</p>
+          <div className="mt-4 space-y-3 border-t border-hair pt-4">
+            <p className="text-xs font-semibold text-muted">Analytics &amp; content data — paste what you have or upload files; leave the rest blank.</p>
             {PRO_FIELDS.map((f) => (
               <div key={f.id}>
-                <label className="block text-sm font-medium text-slate-700">{f.label}</label>
+                <label className="block text-sm font-medium text-body">{f.label}</label>
                 <textarea className="field mt-1" rows={2} value={proText[f.id]} disabled={busy}
                   onChange={(e) => setProText((s) => ({ ...s, [f.id]: e.target.value }))} placeholder={f.ph} />
                 <FileField files={proFiles[f.id]} setFiles={(updater) => setProFiles((s) => ({ ...s, [f.id]: typeof updater === 'function' ? updater(s[f.id]) : updater }))}
@@ -760,7 +760,7 @@ export default function SocialAudit() {
             <AlertTriangle size={13} aria-hidden /> Brand name is required
           </span>
         )}
-        {busy && loadingText && <span className="text-sm text-slate-500"><Loader2 size={13} className="mr-1 inline animate-spin" />{loadingText}</span>}
+        {busy && loadingText && <span className="text-sm text-muted"><Loader2 size={13} className="mr-1 inline animate-spin" />{loadingText}</span>}
       </div>
       {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
       {scaError && <p className="mt-2 text-sm text-red-600">{scaError}</p>}
@@ -793,8 +793,8 @@ function FileField({ files, setFiles, disabled, accept, hint, compact }) {
   return (
     <div className={compact ? 'mt-1.5' : 'mt-2'}>
       <input type="file" multiple accept={accept} onChange={onPick} disabled={disabled}
-        className="block w-full text-xs text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-brand-700 hover:file:bg-brand-100" />
-      {hint && <p className="mt-1 text-[11px] text-slate-400">{hint}</p>}
+        className="block w-full text-xs text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-brand-700 hover:file:bg-brand-100" />
+      {hint && <p className="mt-1 text-[11px] text-faint">{hint}</p>}
       {!!(files && files.length) && (
         <div className="mt-2 flex flex-wrap gap-2">
           {files.map((file, i) => (

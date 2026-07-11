@@ -14,8 +14,8 @@ function Shell({ title, children }) {
     <div className="mx-auto max-w-3xl px-4 py-10">
       <Link to="/" className="text-sm text-brand-600 hover:text-brand-700">← Back</Link>
       <h1 className="mt-4 text-3xl font-bold">{title}</h1>
-      <p className="mt-1 text-sm text-slate-400">Last updated: {UPDATED} · v{TERMS_VERSION}</p>
-      <div className="prose prose-slate mt-6 max-w-none text-sm leading-relaxed text-slate-700 [&_h2]:mt-6 [&_h2]:text-base [&_h2]:font-bold [&_p]:mt-2 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5">
+      <p className="mt-1 text-sm text-faint">Last updated: {UPDATED} · v{TERMS_VERSION}</p>
+      <div className="prose prose-slate mt-6 max-w-none text-sm leading-relaxed text-body [&_h2]:mt-6 [&_h2]:text-base [&_h2]:font-bold [&_p]:mt-2 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5">
         {children}
       </div>
       <p className="mt-8 rounded-lg bg-amber-50 px-4 py-3 text-xs text-amber-700">

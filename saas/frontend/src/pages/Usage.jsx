@@ -31,13 +31,13 @@ export default function Usage() {
           emptyText="No usage yet — run a tool to see it here."
           columns={[
             { key: 'when', label: 'When', accessor: (r) => r.at || String(r.ts || '').split('#')[0],
-              render: (r) => <span className="text-slate-500">{fmtWhen(r)}</span> },
+              render: (r) => <span className="text-muted">{fmtWhen(r)}</span> },
             { key: 'tool', label: 'Tool', accessor: (r) => toolById(r.tool)?.name || r.tool,
               render: (r) => toolById(r.tool)?.name || r.tool },
             { key: 'delta', label: 'Credits', align: 'right', numeric: true,
               render: (r) => <span className="font-medium text-red-500">{r.delta}</span> },
             { key: 'balanceAfter', label: 'Balance', align: 'right', numeric: true,
-              render: (r) => <span className="text-slate-500">{r.balanceAfter}</span> },
+              render: (r) => <span className="text-muted">{r.balanceAfter}</span> },
           ]}
         />
       </div>
@@ -56,7 +56,7 @@ function fmtWhen(r) {
 function Stat({ label, value, tip }) {
   return (
     <div className="card p-4">
-      <p className="flex items-center gap-1 text-sm text-slate-500">
+      <p className="flex items-center gap-1 text-sm text-muted">
         {label}
         {tip && <InfoTip text={tip} size={12} />}
       </p>

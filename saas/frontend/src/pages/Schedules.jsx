@@ -71,9 +71,9 @@ function SchedField({ field, value, onChange }) {
   }
   return (
     <label className="block">
-      <span className="text-sm font-medium text-slate-700">{field.label}{field.required && <span className="text-slate-400"> *</span>}</span>
+      <span className="text-sm font-medium text-body">{field.label}{field.required && <span className="text-faint"> *</span>}</span>
       {control}
-      {field.hint && <span className="mt-1 block whitespace-pre-line text-xs text-slate-400">{field.hint}</span>}
+      {field.hint && <span className="mt-1 block whitespace-pre-line text-xs text-faint">{field.hint}</span>}
     </label>
   );
 }
@@ -144,13 +144,13 @@ function ScheduleModal({ editing, prefill, limits, projects, onClose, onSaved })
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4" onClick={onClose}>
       <div className="card max-h-[90vh] w-full max-w-lg overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">{editing ? 'Edit schedule' : 'New schedule'}</h2>
-          <button className="text-slate-400 hover:text-slate-600" onClick={onClose} aria-label="Close"><X size={20} /></button>
+          <h2 className="text-lg font-semibold text-heading">{editing ? 'Edit schedule' : 'New schedule'}</h2>
+          <button className="text-faint hover:text-dim" onClick={onClose} aria-label="Close"><X size={20} /></button>
         </div>
 
         <div className="space-y-4">
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Tool</span>
+            <span className="text-sm font-medium text-body">Tool</span>
             <select className="field dm-select mt-1.5 pr-9" value={toolId} disabled={!!editing}
               onChange={(e) => setToolId(e.target.value)}>
               {CATEGORIES.map((cat) => {
@@ -162,7 +162,7 @@ function ScheduleModal({ editing, prefill, limits, projects, onClose, onSaved })
           </label>
 
           <label className="block">
-            <span className="text-sm font-medium text-slate-700">Name <span className="text-slate-400">(optional)</span></span>
+            <span className="text-sm font-medium text-body">Name <span className="text-faint">(optional)</span></span>
             <input className="field mt-1.5" placeholder={tool?.name} value={name} onChange={(e) => setName(e.target.value)} />
           </label>
 
@@ -172,7 +172,7 @@ function ScheduleModal({ editing, prefill, limits, projects, onClose, onSaved })
 
           {projects?.length > 0 && (
             <label className="block">
-              <span className="text-sm font-medium text-slate-700">Project <span className="text-slate-400">(optional — feeds Performance charts)</span></span>
+              <span className="text-sm font-medium text-body">Project <span className="text-faint">(optional — feeds Performance charts)</span></span>
               <select className="field dm-select mt-1.5 pr-9" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
                 <option value="">No project</option>
                 {projects.map((p) => <option key={p.projectId} value={p.projectId}>{p.name || p.domain}</option>)}
@@ -181,12 +181,12 @@ function ScheduleModal({ editing, prefill, limits, projects, onClose, onSaved })
           )}
 
           {/* Cadence */}
-          <div className="rounded-xl border border-slate-200 p-3">
-            <div className="mb-2 text-sm font-medium text-slate-700">How often</div>
+          <div className="rounded-xl border border-line p-3">
+            <div className="mb-2 text-sm font-medium text-body">How often</div>
             <div className="flex flex-wrap gap-2">
               {allowedFreqs.map((f) => (
                 <button key={f.id} type="button" onClick={() => setFrequency(f.id)}
-                  className={`rounded-lg px-3 py-1.5 text-sm ${frequency === f.id ? 'bg-brand-600 text-white' : 'border border-slate-200 bg-white text-slate-600'}`}>
+                  className={`rounded-lg px-3 py-1.5 text-sm ${frequency === f.id ? 'bg-brand-600 text-white' : 'border border-line bg-surface text-dim'}`}>
                   {f.label}
                 </button>
               ))}
@@ -194,7 +194,7 @@ function ScheduleModal({ editing, prefill, limits, projects, onClose, onSaved })
             <div className="mt-3 flex flex-wrap items-end gap-3">
               {frequency === 'weekly' && (
                 <label className="block">
-                  <span className="text-xs text-slate-500">Day</span>
+                  <span className="text-xs text-muted">Day</span>
                   <select className="field dm-select mt-1 pr-9" value={dayOfWeek} onChange={(e) => setDayOfWeek(e.target.value)}>
                     {WEEKDAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}
                   </select>
@@ -202,23 +202,23 @@ function ScheduleModal({ editing, prefill, limits, projects, onClose, onSaved })
               )}
               {frequency === 'monthly' && (
                 <label className="block">
-                  <span className="text-xs text-slate-500">Day of month</span>
+                  <span className="text-xs text-muted">Day of month</span>
                   <select className="field dm-select mt-1 pr-9" value={dayOfMonth} onChange={(e) => setDayOfMonth(e.target.value)}>
                     {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </label>
               )}
               <label className="block">
-                <span className="text-xs text-slate-500">Time</span>
+                <span className="text-xs text-muted">Time</span>
                 <select className="field dm-select mt-1 pr-9" value={hour} onChange={(e) => setHour(e.target.value)}>
                   {HOURS.map((h) => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
                 </select>
               </label>
-              <span className="pb-2 text-xs text-slate-400">{BROWSER_TZ}</span>
+              <span className="pb-2 text-xs text-faint">{BROWSER_TZ}</span>
             </div>
           </div>
 
-          <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          <div className="rounded-lg bg-raised px-3 py-2 text-sm text-dim">
             {perRun === 0
               ? <>Uses your connected account data — <strong>0 credits</strong> per run.</>
               : <>Est. <strong>{perRun} credit{perRun === 1 ? '' : 's'}</strong> per run · <strong>~{monthly}</strong>/month at this cadence.</>}
@@ -236,10 +236,10 @@ function ScheduleModal({ editing, prefill, limits, projects, onClose, onSaved })
 
 // ── Delta chip ───────────────────────────────────────────────────────────────
 function Delta({ row }) {
-  if (row.delta == null) return <span className="text-xs text-slate-400">first run</span>;
-  if (row.delta === 0) return <span className="inline-flex items-center gap-1 text-xs text-slate-400"><Minus size={12} />no change</span>;
+  if (row.delta == null) return <span className="text-xs text-faint">first run</span>;
+  if (row.delta === 0) return <span className="inline-flex items-center gap-1 text-xs text-faint"><Minus size={12} />no change</span>;
   const good = row.improved;
-  const cls = good == null ? 'text-slate-500' : good ? 'text-emerald-600' : 'text-rose-600';
+  const cls = good == null ? 'text-muted' : good ? 'text-emerald-600' : 'text-rose-600';
   const Icon = row.delta > 0 ? TrendingUp : TrendingDown;
   const pct = row.pct == null ? '' : ` (${row.pct > 0 ? '+' : ''}${fmtNum(row.pct)}%)`;
   return <span className={`inline-flex items-center gap-1 text-xs font-medium ${cls}`}><Icon size={12} />{row.delta > 0 ? '+' : ''}{fmtNum(row.delta)}{row.unit}{pct}</span>;
@@ -261,47 +261,47 @@ function ComparePanel({ scheduleId }) {
     try { const { run } = await api.run(runId); navigate(`/tool/${run.tool}`, { state: { values: run.inputs, result: run.result, runId } }); } catch { /* ignore */ }
   }
 
-  if (err) return <div className="border-t border-slate-100 px-4 py-3 text-sm text-rose-600">{err}</div>;
-  if (!data) return <div className="border-t border-slate-100 px-4 py-3 text-sm text-slate-400">Loading comparison…</div>;
+  if (err) return <div className="border-t border-hair px-4 py-3 text-sm text-rose-600">{err}</div>;
+  if (!data) return <div className="border-t border-hair px-4 py-3 text-sm text-faint">Loading comparison…</div>;
 
   return (
-    <div className="border-t border-slate-100 px-4 py-3">
+    <div className="border-t border-hair px-4 py-3">
       {data.comparison?.length > 0 ? (
         <>
-          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">
+          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-faint">
             This period vs previous {data.previous ? `· ${fmtDate(data.previous.ts)}` : ''}
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
             {data.comparison.map((row) => (
-              <div key={row.key} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+              <div key={row.key} className="flex items-center justify-between rounded-lg bg-raised px-3 py-2">
                 <div>
-                  <div className="text-sm font-medium text-slate-700">{row.label}</div>
-                  <div className="text-lg font-semibold text-slate-900">{fmtNum(row.current)}{row.unit}</div>
+                  <div className="text-sm font-medium text-body">{row.label}</div>
+                  <div className="text-lg font-semibold text-heading">{fmtNum(row.current)}{row.unit}</div>
                 </div>
                 <div className="text-right">
                   <Delta row={row} />
-                  {row.previous != null && <div className="mt-0.5 text-xs text-slate-400">was {fmtNum(row.previous)}{row.unit}</div>}
+                  {row.previous != null && <div className="mt-0.5 text-xs text-faint">was {fmtNum(row.previous)}{row.unit}</div>}
                 </div>
               </div>
             ))}
           </div>
         </>
       ) : (
-        <div className="text-sm text-slate-500">
+        <div className="text-sm text-muted">
           {data.runs?.length ? 'This tool has no trackable headline metric — open the runs below to compare.' : 'No runs yet. Fire one with “Run now”.'}
         </div>
       )}
 
       {data.runs?.length > 0 && (
         <div className="mt-3">
-          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">Run history</div>
-          <div className="divide-y divide-slate-100">
+          <div className="mb-1 text-xs font-medium uppercase tracking-wide text-faint">Run history</div>
+          <div className="divide-y divide-hair">
             {data.runs.map((r) => (
               <button key={r.runId} onClick={() => openRun(r.runId)}
                 className="flex w-full items-center justify-between py-2 text-left text-sm hover:text-brand-700">
-                <span className="text-slate-600">{fmtDate(r.ts)}</span>
-                <span className="truncate px-2 text-slate-400">{r.preview || r.target || ''}</span>
-                <span className="text-xs text-slate-400">{r.creditsUsed ? `${r.creditsUsed} cr` : ''}</span>
+                <span className="text-dim">{fmtDate(r.ts)}</span>
+                <span className="truncate px-2 text-faint">{r.preview || r.target || ''}</span>
+                <span className="text-xs text-faint">{r.creditsUsed ? `${r.creditsUsed} cr` : ''}</span>
               </button>
             ))}
           </div>
@@ -313,7 +313,7 @@ function ComparePanel({ scheduleId }) {
 
 // ── Status badge ─────────────────────────────────────────────────────────────
 function StatusBadge({ s }) {
-  if (!s.enabled) return <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">Paused</span>;
+  if (!s.enabled) return <span className="rounded-full bg-sunken px-2 py-0.5 text-xs text-muted">Paused</span>;
   const st = s.lastStatus;
   const map = {
     ok: ['bg-emerald-50 text-emerald-700', 'Last run OK'],
@@ -376,8 +376,8 @@ export default function Schedules() {
     <div className="mx-auto max-w-4xl px-4 py-6">
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Scheduled Runs</h1>
-          <p className="mt-1 text-sm text-slate-500">Run any tool automatically and compare each period to the last.</p>
+          <h1 className="text-xl font-semibold text-heading">Scheduled Runs</h1>
+          <p className="mt-1 text-sm text-muted">Run any tool automatically and compare each period to the last.</p>
         </div>
         {limits.enabled && (
           <button className="btn-primary inline-flex items-center gap-1.5" disabled={atLimit} onClick={() => setModal({})}>
@@ -389,8 +389,8 @@ export default function Schedules() {
       {!limits.enabled && (
         <div className="card p-8 text-center">
           <Clock className="mx-auto mb-3 text-brand-500" size={28} />
-          <h2 className="text-lg font-semibold text-slate-900">Automate your tool runs</h2>
-          <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">Scheduling isn’t available on the {user?.tier} plan. Upgrade to run tools on a daily, weekly or monthly cadence and track how the numbers move.</p>
+          <h2 className="text-lg font-semibold text-heading">Automate your tool runs</h2>
+          <p className="mx-auto mt-1 max-w-md text-sm text-muted">Scheduling isn’t available on the {user?.tier} plan. Upgrade to run tools on a daily, weekly or monthly cadence and track how the numbers move.</p>
           <a href="/pricing" className="btn-primary mt-4 inline-block">See plans</a>
         </div>
       )}
@@ -402,24 +402,24 @@ export default function Schedules() {
       )}
 
       {limits.enabled && schedules?.length === 0 && (
-        <div className="card p-8 text-center text-slate-400">No schedules yet — create one to run a tool on a cadence.</div>
+        <div className="card p-8 text-center text-faint">No schedules yet — create one to run a tool on a cadence.</div>
       )}
 
-      {limits.enabled && schedules === null && <p className="text-slate-400">Loading…</p>}
+      {limits.enabled && schedules === null && <p className="text-faint">Loading…</p>}
 
       <div className="space-y-3">
         {schedules?.map((s) => (
           <div key={s.scheduleId} className="card overflow-hidden">
             <div className="flex flex-wrap items-center gap-3 p-4">
-              <button className="text-slate-400 hover:text-slate-600" onClick={() => setExpanded(expanded === s.scheduleId ? null : s.scheduleId)} aria-label="Toggle details">
+              <button className="text-faint hover:text-dim" onClick={() => setExpanded(expanded === s.scheduleId ? null : s.scheduleId)} aria-label="Toggle details">
                 {expanded === s.scheduleId ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
               </button>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="truncate font-medium text-slate-900">{s.name}</span>
+                  <span className="truncate font-medium text-heading">{s.name}</span>
                   <StatusBadge s={s} />
                 </div>
-                <div className="mt-0.5 text-xs text-slate-500">
+                <div className="mt-0.5 text-xs text-muted">
                   {s.toolName} · {describeSchedule(s)} · next {fmtWhen(s.nextRunAt)}
                   {s.runCount ? ` · ${s.runCount} run${s.runCount === 1 ? '' : 's'}` : ''}
                 </div>

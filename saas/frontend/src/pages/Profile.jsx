@@ -71,7 +71,7 @@ export default function Profile() {
   return (
     <div className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-bold">Your profile</h1>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-muted">
         Tell us a bit about you and your business so we can tailor recommendations.
       </p>
 
@@ -98,7 +98,7 @@ export default function Profile() {
             <span className="text-2xl font-bold tabular-nums">{pct}%</span>
           </div>
         </div>
-        <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+        <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-sunken">
           <div className="h-full rounded-full bg-brand-600 transition-all" style={{ width: `${pct}%` }} />
         </div>
       </div>
@@ -110,9 +110,9 @@ export default function Profile() {
           <div className="mt-4 space-y-4">
             {section.fields.map((f) => (
               <div key={f.key}>
-                <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-slate-700">
+                <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-body">
                   {f.label}
-                  {!f.required && <span className="text-xs font-normal text-slate-400">(optional)</span>}
+                  {!f.required && <span className="text-xs font-normal text-faint">(optional)</span>}
                   {f.required && profileValueFilled(draft[f.key]) && (
                     <CheckCircle2 size={13} className="text-green-500" aria-hidden />
                   )}
@@ -124,8 +124,8 @@ export default function Profile() {
         </div>
       ))}
 
-      <div className="sticky bottom-4 mt-6 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur">
-        <Link to="/" className="text-sm font-medium text-slate-500 hover:text-slate-700">Back to dashboard</Link>
+      <div className="sticky bottom-4 mt-6 flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface/90 p-4 shadow-sm backdrop-blur">
+        <Link to="/" className="text-sm font-medium text-muted hover:text-body">Back to dashboard</Link>
         <button onClick={onSave} disabled={busy} className="btn-primary">
           {busy ? 'Saving…' : 'Save profile'}
         </button>

@@ -111,18 +111,18 @@ export default function Dashboard() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Welcome back, {user.name?.split(' ')[0] || 'there'}</h1>
-          <p className="mt-1 text-slate-600">
+          <p className="mt-1 text-dim">
             {simple ? 'What would you like to get done today?' : `${TOOLS.length} tools · ${lockedCount > 0 ? `${lockedCount} unlock at higher tiers` : 'all unlocked'}`}
           </p>
         </div>
         <div className="flex items-center gap-3">
           {/* Simple ↔ Advanced view toggle */}
           <div className="flex items-center gap-2">
-            <span className="hidden text-xs font-medium uppercase tracking-wide text-slate-400 sm:inline">View</span>
-            <div className={`flex rounded-lg bg-slate-100 p-0.5 text-sm font-medium ${switchSeen ? '' : 'dm-mode-attn'}`}>
+            <span className="hidden text-xs font-medium uppercase tracking-wide text-faint sm:inline">View</span>
+            <div className={`flex rounded-lg bg-sunken p-0.5 text-sm font-medium ${switchSeen ? '' : 'dm-mode-attn'}`}>
               {[['simple', 'Simple'], ['advanced', 'Advanced']].map(([m, label]) => (
                 <button key={m} onClick={() => setView(m)}
-                  className={`rounded-md px-3 py-1 transition-colors ${mode === m ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                  className={`rounded-md px-3 py-1 transition-colors ${mode === m ? 'bg-surface text-strong shadow-sm' : 'text-muted hover:text-body'}`}>
                   {label}
                 </button>
               ))}
@@ -133,7 +133,7 @@ export default function Dashboard() {
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search tools…"
             data-tour="search"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none sm:w-56"
+            className="w-full rounded-lg border border-edge px-3 py-2 text-sm focus:border-brand-500 focus:outline-none sm:w-56"
           />
         </div>
       </div>
@@ -143,7 +143,7 @@ export default function Dashboard() {
         <div className="mt-6 rounded-xl border border-brand-200 bg-brand-50/60 p-5">
           <div className="flex items-start justify-between">
             <h2 className="font-semibold text-brand-800">Get set up — {steps.filter((s) => s.done).length}/{steps.length} done</h2>
-            <button onClick={dismissOnboard} className="text-sm text-slate-400 hover:text-slate-700">Dismiss</button>
+            <button onClick={dismissOnboard} className="text-sm text-faint hover:text-body">Dismiss</button>
           </div>
           <ol className="dm-steps-grid mt-3">
             {steps.map((s, i) => <Step key={i} n={i + 1} {...s} />)}
@@ -168,7 +168,7 @@ export default function Dashboard() {
           <div className="mt-6 flex flex-wrap gap-2" data-tour="categories">
             {['All', ...CATEGORIES].map((c) => (
               <button key={c} onClick={() => setCat(c)}
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ${cat === c ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'}`}>
+                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ${cat === c ? 'bg-brand-600 text-white' : 'bg-surface text-dim ring-1 ring-line hover:bg-raised'}`}>
                 {c !== 'All' && <CategoryIcon category={c} size={14} />}{c}
               </button>
             ))}
@@ -186,7 +186,7 @@ export default function Dashboard() {
             })
           ) : (
             <div className="dm-card-grid mt-6">
-              {filtered.length === 0 && <p className="text-slate-400">No tools match “{q}”.</p>}
+              {filtered.length === 0 && <p className="text-faint">No tools match “{q}”.</p>}
               {filtered.map((t) => Card(t))}
             </div>
           )}
@@ -198,12 +198,12 @@ export default function Dashboard() {
 
 function Step({ n, done, title, body, to, cta }) {
   return (
-    <li className={`rounded-lg border bg-white p-3 ${done ? 'border-green-200' : 'border-brand-100'}`}>
+    <li className={`rounded-lg border bg-surface p-3 ${done ? 'border-green-200' : 'border-brand-100'}`}>
       <div className="flex items-center gap-2">
         <span className={`grid h-5 w-5 place-items-center rounded-full text-xs font-bold text-white ${done ? 'bg-green-500' : 'bg-brand-600'}`}>{done ? <Check size={12} aria-hidden /> : n}</span>
-        <span className={`font-semibold ${done ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{title}</span>
+        <span className={`font-semibold ${done ? 'text-faint line-through' : 'text-strong'}`}>{title}</span>
       </div>
-      {!done && <p className="mt-1 text-sm text-slate-500">{body}</p>}
+      {!done && <p className="mt-1 text-sm text-muted">{body}</p>}
       {!done && <Link to={to} className="mt-2 inline-block text-sm font-medium text-brand-600 hover:text-brand-700">{cta} →</Link>}
     </li>
   );
@@ -212,7 +212,7 @@ function Step({ n, done, title, body, to, cta }) {
 function Section({ title, icon, children }) {
   return (
     <section className="mt-8">
-      <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-500">{icon}{title}</h2>
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-muted">{icon}{title}</h2>
       <div className="dm-card-grid">{children}</div>
     </section>
   );

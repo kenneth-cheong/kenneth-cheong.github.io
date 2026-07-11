@@ -50,14 +50,14 @@ const SiteAudit = lazyWithReload(() => import('./pages/SiteAudit.jsx'));
 const SocialAudit = lazyWithReload(() => import('./pages/SocialAudit.jsx'));
 const Schedules = lazyWithReload(() => import('./pages/Schedules.jsx'));
 
-const Loading = () => <div className="grid min-h-[40vh] place-items-center text-slate-400">Loading…</div>;
+const Loading = () => <div className="grid min-h-[40vh] place-items-center text-faint">Loading…</div>;
 
 export default function App() {
   const { user, loading } = useAuth();
 
   if (loading) {
     return (
-      <div role="status" aria-label="Loading Digimetrics" className="grid min-h-screen place-items-center bg-gradient-to-b from-brand-50 to-white">
+      <div role="status" aria-label="Loading Digimetrics" className="grid min-h-screen place-items-center bg-gradient-to-b from-brand-50 to-white dark:from-canvas dark:to-surface">
         <div className="flex flex-col items-center gap-4">
           <div className="grid h-12 w-12 animate-pulse place-items-center rounded-2xl bg-brand-600 text-2xl font-bold text-white shadow-sm">D</div>
           <div className="flex items-center gap-1.5">

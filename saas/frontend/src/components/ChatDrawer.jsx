@@ -35,7 +35,7 @@ function inlineMd(text, keyBase) {
     const key = `${keyBase}i${i++}`;
     if (m[1]) out.push(<strong key={key} className="font-semibold">{inlineMd(m[2], key)}</strong>);
     else if (m[3]) out.push(<em key={key} className="italic">{inlineMd(m[4], key)}</em>);
-    else if (m[5] != null) out.push(<code key={key} className="rounded bg-slate-200/70 px-1 py-0.5 text-[0.85em]">{m[5]}</code>);
+    else if (m[5] != null) out.push(<code key={key} className="rounded bg-overlay/70 px-1 py-0.5 text-[0.85em]">{m[5]}</code>);
     else if (m[6] != null) out.push(<a key={key} href={m[7]} target="_blank" rel="noreferrer" className="text-brand-700 underline">{m[6]}</a>);
     last = m.index + m[0].length;
   }
@@ -386,7 +386,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
 
   return (
     <aside
-      className="fixed right-0 top-0 z-30 flex h-screen flex-col border-l border-slate-200 bg-white shadow-xl motion-safe:animate-slide-in-right"
+      className="fixed right-0 top-0 z-30 flex h-screen flex-col border-l border-line bg-surface shadow-xl motion-safe:animate-slide-in-right"
       style={{ width }}
     >
       {onResize && (
@@ -402,7 +402,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
           <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors group-hover:bg-brand-400" />
         </div>
       )}
-      <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-900 px-4 py-3 text-white">
+      <div className="flex items-center gap-2 border-b border-hair bg-slate-900 px-4 py-3 text-white">
         {mascot && <Mascot size={34} className="shrink-0" title="Monty, your assistant" />}
         <span className="font-semibold">Monty</span>
         {/* Hide the per-message credit cost when the panel is narrow — the longer
@@ -432,14 +432,14 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
       {view === 'settings' ? (
         <div className="flex-1 overflow-y-auto p-2">
           <div className="flex items-center gap-2 px-1 py-2">
-            <button onClick={() => setView('chat')} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800"><ArrowLeft size={15} aria-hidden /> Back</button>
-            <span className="ml-auto text-xs font-medium text-slate-400">Settings</span>
+            <button onClick={() => setView('chat')} className="flex items-center gap-1 text-sm text-muted hover:text-strong"><ArrowLeft size={15} aria-hidden /> Back</button>
+            <span className="ml-auto text-xs font-medium text-faint">Settings</span>
           </div>
           <div className="px-1 py-2">
-            <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 p-3">
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-line p-3">
               <div className="min-w-0">
-                <div className="text-sm font-medium text-slate-800">Open automatically</div>
-                <p className="mt-0.5 text-xs text-slate-500">Launch the assistant every time you load the app. Turn off to keep it closed until you open it.</p>
+                <div className="text-sm font-medium text-strong">Open automatically</div>
+                <p className="mt-0.5 text-xs text-muted">Launch the assistant every time you load the app. Turn off to keep it closed until you open it.</p>
               </div>
               <button
                 type="button"
@@ -447,17 +447,17 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
                 aria-checked={autoOpen}
                 onClick={toggleAutoOpen}
                 title="Open the assistant automatically on load"
-                className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${autoOpen ? 'bg-brand-600' : 'bg-slate-300'}`}
+                className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${autoOpen ? 'bg-brand-600' : 'bg-overlay'}`}
               >
                 <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${autoOpen ? 'translate-x-5' : 'translate-x-0.5'}`} />
               </button>
             </div>
           </div>
           <div className="px-1 pb-2">
-            <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 p-3">
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-line p-3">
               <div className="min-w-0">
-                <div className="flex items-center gap-2 text-sm font-medium text-slate-800"><Mascot size={20} /> Show Monty</div>
-                <p className="mt-0.5 text-xs text-slate-500">Show the friendly assistant character in the panel. Turn off for a plain, text-only look.</p>
+                <div className="flex items-center gap-2 text-sm font-medium text-strong"><Mascot size={20} /> Show Monty</div>
+                <p className="mt-0.5 text-xs text-muted">Show the friendly assistant character in the panel. Turn off for a plain, text-only look.</p>
               </div>
               <button
                 type="button"
@@ -465,17 +465,17 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
                 aria-checked={mascot}
                 onClick={toggleMascot}
                 title="Show the assistant mascot"
-                className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${mascot ? 'bg-brand-600' : 'bg-slate-300'}`}
+                className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${mascot ? 'bg-brand-600' : 'bg-overlay'}`}
               >
                 <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${mascot ? 'translate-x-5' : 'translate-x-0.5'}`} />
               </button>
             </div>
           </div>
           <div className="px-1 pb-2">
-            <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-200 p-3">
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-line p-3">
               <div className="min-w-0">
-                <div className="text-sm font-medium text-slate-800">Proactive tips</div>
-                <p className="mt-0.5 text-xs text-slate-500">Let Monty start a chat when it spots something useful — a finished run, low credits, a page you seem stuck on. Turn off to keep it reactive only.</p>
+                <div className="text-sm font-medium text-strong">Proactive tips</div>
+                <p className="mt-0.5 text-xs text-muted">Let Monty start a chat when it spots something useful — a finished run, low credits, a page you seem stuck on. Turn off to keep it reactive only.</p>
               </div>
               <button
                 type="button"
@@ -483,7 +483,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
                 aria-checked={proTips}
                 onClick={toggleProTips}
                 title="Let the assistant reach out proactively"
-                className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${proTips ? 'bg-brand-600' : 'bg-slate-300'}`}
+                className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${proTips ? 'bg-brand-600' : 'bg-overlay'}`}
               >
                 <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${proTips ? 'translate-x-5' : 'translate-x-0.5'}`} />
               </button>
@@ -493,24 +493,24 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
       ) : view === 'history' ? (
         <div className="flex-1 overflow-y-auto p-2">
           <div className="flex items-center gap-2 px-1 py-2">
-            <button onClick={() => setView('chat')} className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800"><ArrowLeft size={15} aria-hidden /> Back</button>
-            <span className="ml-auto text-xs text-slate-400">{convos.length} conversation{convos.length === 1 ? '' : 's'}</span>
+            <button onClick={() => setView('chat')} className="flex items-center gap-1 text-sm text-muted hover:text-strong"><ArrowLeft size={15} aria-hidden /> Back</button>
+            <span className="ml-auto text-xs text-faint">{convos.length} conversation{convos.length === 1 ? '' : 's'}</span>
           </div>
           {loadingConvos ? (
-            <div className="p-6 text-center text-sm text-slate-400">Loading…</div>
+            <div className="p-6 text-center text-sm text-faint">Loading…</div>
           ) : convos.length === 0 ? (
-            <div className="p-6 text-center text-sm text-slate-400">No past conversations yet.</div>
+            <div className="p-6 text-center text-sm text-faint">No past conversations yet.</div>
           ) : (
             <ul className="space-y-1">
               {convos.map((c) => (
                 <li key={c.conversationId}>
                   <button
                     onClick={() => openConversation(c.conversationId)}
-                    className={`group flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left hover:bg-slate-50 ${c.conversationId === conversationId ? 'bg-brand-50' : ''}`}
+                    className={`group flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left hover:bg-raised ${c.conversationId === conversationId ? 'bg-brand-50' : ''}`}
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-slate-800">{c.title || 'Conversation'}</div>
-                      <div className="truncate text-xs text-slate-400">{c.preview || `${c.msgCount} messages`}</div>
+                      <div className="truncate text-sm font-medium text-strong">{c.title || 'Conversation'}</div>
+                      <div className="truncate text-xs text-faint">{c.preview || `${c.msgCount} messages`}</div>
                       <div className="mt-0.5 text-[11px] text-slate-300">{ago(c.updatedAt)}</div>
                     </div>
                     <span onClick={(e) => removeConversation(e, c.conversationId)} className="shrink-0 rounded p-1 text-slate-300 opacity-0 hover:text-red-600 group-hover:opacity-100" title="Delete" role="button" aria-label="Delete conversation"><Trash2 size={15} aria-hidden /></span>
@@ -533,7 +533,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
                       ? 'ml-auto rounded-br-sm bg-brand-600 text-white'
                       : m.error
                         ? 'rounded-bl-sm border border-red-200 bg-red-50 text-red-700'
-                        : 'rounded-bl-sm bg-slate-100 text-slate-800'
+                        : 'rounded-bl-sm bg-sunken text-strong'
                   }`}
                 >
                   {m.role === 'assistant' ? (m.content ? renderMessage(m.content, chipFor) : <TypingDots />) : m.content}
@@ -552,14 +552,14 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
             {busy && msgs[msgs.length - 1]?.role === 'user' && (
               <div className="flex items-end gap-2">
                 {mascot && <Mascot size={40} className="mb-0.5 shrink-0" />}
-                <div className="w-fit rounded-2xl rounded-bl-sm bg-slate-100 px-3 py-2"><TypingDots /></div>
+                <div className="w-fit rounded-2xl rounded-bl-sm bg-sunken px-3 py-2"><TypingDots /></div>
               </div>
             )}
             {msgs.length <= 1 && !busy && (
               <div className="flex flex-wrap gap-2 pt-1">
                 {suggestions.map((s) => (
                   <button key={s} onClick={() => submit(s)}
-                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-left text-xs font-medium text-slate-600 hover:border-brand-300 hover:text-brand-700">
+                    className="rounded-full border border-line bg-surface px-3 py-1.5 text-left text-xs font-medium text-dim hover:border-brand-300 hover:text-brand-700">
                     {s}
                   </button>
                 ))}
@@ -567,17 +567,17 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
             )}
           </div>
 
-          <form onSubmit={send} className="flex items-center gap-2 border-t border-slate-100 p-2">
+          <form onSubmit={send} className="flex items-center gap-2 border-t border-hair p-2">
             <input
               ref={inputRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder="Ask anything…"
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
+              className="flex-1 rounded-lg border border-edge px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
             />
             {busy && chatStreamAvailable ? (
               <button type="button" onClick={() => abortRef.current?.abort()}
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                className="rounded-lg border border-edge px-3 py-2 text-sm font-semibold text-dim hover:bg-raised">
                 Stop
               </button>
             ) : (
@@ -586,7 +586,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
               </button>
             )}
           </form>
-          <div className="px-3 pb-2 text-center text-[11px] text-slate-400">
+          <div className="px-3 pb-2 text-center text-[11px] text-faint">
             Out of credits? <Link to="/account" className="text-brand-600">Top up</Link> or <Link to="/pricing" className="text-brand-600">upgrade</Link>
           </div>
         </>

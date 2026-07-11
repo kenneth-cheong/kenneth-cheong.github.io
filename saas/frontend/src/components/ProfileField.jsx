@@ -18,7 +18,7 @@ export default function ProfileField({ field, value, onChange }) {
               type="button"
               onClick={() => toggle(opt)}
               className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
-                on ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                on ? 'border-brand-600 bg-brand-600 text-white' : 'border-edge bg-surface text-body hover:bg-raised'
               }`}
             >
               {opt}

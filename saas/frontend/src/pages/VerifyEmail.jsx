@@ -30,12 +30,12 @@ export default function VerifyEmail() {
   }, [params, verifyEmail, navigate]);
 
   return (
-    <div className="grid min-h-screen place-items-center bg-gradient-to-b from-brand-50 to-white px-4">
+    <div className="grid min-h-screen place-items-center bg-gradient-to-b from-brand-50 to-white px-4 dark:from-canvas dark:to-surface">
       <div className="card w-full max-w-md p-8 text-center">
         <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand-600 text-2xl font-bold text-white">D</div>
         {status === 'working' ? (
-          <div className="mt-6 flex items-center justify-center gap-2 text-sm text-slate-500">
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-brand-600" />
+          <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted">
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-edge border-t-brand-600" />
             {message}
           </div>
         ) : (

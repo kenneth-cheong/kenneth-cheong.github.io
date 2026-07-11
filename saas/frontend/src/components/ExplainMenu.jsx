@@ -125,13 +125,13 @@ export default function ExplainMenu() {
   const left = Math.max(8, Math.min(menu.x, window.innerWidth - 248));
   const top = Math.max(8, Math.min(menu.y, window.innerHeight - 116));
   return (
-    <div className="dm-explain-menu fixed z-50 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl" style={{ left, top }}>
-      <div className="border-b border-slate-100 px-3 py-2">
+    <div className="dm-explain-menu fixed z-50 w-60 overflow-hidden rounded-xl border border-line bg-surface shadow-xl" style={{ left, top }}>
+      <div className="border-b border-hair px-3 py-2">
         {menu.isSelection && <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-600">Highlighted text</div>}
-        <div className="truncate text-xs text-slate-400">{menu.preview}</div>
+        <div className="truncate text-xs text-faint">{menu.preview}</div>
       </div>
-      <button onClick={() => ask('explain')} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50"><Sparkles size={15} className="text-brand-600" aria-hidden /> {menu.isSelection ? 'Explain the highlighted text' : 'Explain this'}</button>
-      <button onClick={() => ask('action')} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50"><CheckCircle2 size={15} className="text-green-600" aria-hidden /> What should I do about this?</button>
+      <button onClick={() => ask('explain')} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-raised"><Sparkles size={15} className="text-brand-600" aria-hidden /> {menu.isSelection ? 'Explain the highlighted text' : 'Explain this'}</button>
+      <button onClick={() => ask('action')} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-raised"><CheckCircle2 size={15} className="text-green-600" aria-hidden /> What should I do about this?</button>
     </div>
   );
 }

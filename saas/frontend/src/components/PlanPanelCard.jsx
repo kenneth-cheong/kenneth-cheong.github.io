@@ -29,7 +29,7 @@ export default function PlanPanelCard() {
         className="flex w-full items-center gap-2 border-b border-brand-100 bg-brand-50 px-4 py-2.5 text-left hover:bg-brand-100"
       >
         <Target size={16} className="shrink-0 text-brand-600" aria-hidden />
-        <span className="text-sm font-medium text-slate-700">Set your goal for a step-by-step plan</span>
+        <span className="text-sm font-medium text-body">Set your goal for a step-by-step plan</span>
         <ArrowRight size={14} className="ml-auto shrink-0 text-brand-500" aria-hidden />
       </button>
     );
@@ -51,9 +51,9 @@ export default function PlanPanelCard() {
     <div className="border-b border-brand-100 bg-brand-50">
       <button onClick={toggle} className="flex w-full items-center gap-2 px-4 pb-2 pt-2.5 text-left" aria-expanded={expanded} title={expanded ? 'Collapse plan' : 'Expand plan'}>
         <Target size={16} className="shrink-0 text-brand-600" aria-hidden />
-        <span className="text-sm font-semibold text-slate-800">Your plan</span>
+        <span className="text-sm font-semibold text-strong">Your plan</span>
         <span className="ml-auto text-xs font-semibold tabular-nums text-brand-700">{done} / {total} done</span>
-        {expanded ? <ChevronUp size={16} className="shrink-0 text-slate-400" aria-hidden /> : <ChevronDown size={16} className="shrink-0 text-slate-400" aria-hidden />}
+        {expanded ? <ChevronUp size={16} className="shrink-0 text-faint" aria-hidden /> : <ChevronDown size={16} className="shrink-0 text-faint" aria-hidden />}
       </button>
 
       <div className="px-4 pb-1">
@@ -71,7 +71,7 @@ export default function PlanPanelCard() {
               <li key={s.toolId}>
                 <button
                   onClick={() => goStep(s)}
-                  className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-white/70 ${isNext ? 'bg-white ring-1 ring-brand-200' : ''}`}
+                  className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-surface/70 ${isNext ? 'bg-surface ring-1 ring-brand-200' : ''}`}
                 >
                   {/* Manual (recommendation) steps can't be auto-detected, so the
                       circle is a real tick toggle; tool steps just show status. */}
@@ -84,7 +84,7 @@ export default function PlanPanelCard() {
                   >
                     {isDone ? <Check size={12} aria-hidden /> : i + 1}
                   </span>
-                  <span className={`flex-1 truncate text-xs ${isDone ? 'text-slate-400 line-through' : isNext ? 'font-semibold text-slate-800' : 'text-slate-600'}`}>{stepLabel(s)}</span>
+                  <span className={`flex-1 truncate text-xs ${isDone ? 'text-faint line-through' : isNext ? 'font-semibold text-strong' : 'text-dim'}`}>{stepLabel(s)}</span>
                   {!isDone && <ArrowRight size={13} className="shrink-0 text-slate-300" aria-hidden />}
                 </button>
               </li>
@@ -93,7 +93,7 @@ export default function PlanPanelCard() {
         </ul>
       ) : (
         <div className="flex items-center gap-2 px-4 pb-2.5 pt-1.5">
-          <span className="min-w-0 flex-1 truncate text-xs text-slate-600">Up next: <span className="font-semibold text-slate-800">{next ? stepLabel(next) : ''}</span></span>
+          <span className="min-w-0 flex-1 truncate text-xs text-dim">Up next: <span className="font-semibold text-strong">{next ? stepLabel(next) : ''}</span></span>
           {next && (
             <button onClick={() => goStep(next)} className="shrink-0 rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-brand-700">
               Start <ArrowRight size={12} className="inline align-[-1px]" aria-hidden />

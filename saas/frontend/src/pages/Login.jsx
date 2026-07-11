@@ -117,14 +117,14 @@ export default function Login() {
   const cta = mode === 'signup' ? 'Create account' : mode === 'forgot' ? 'Send reset link' : 'Sign in';
 
   return (
-    <div className="grid min-h-screen place-items-center bg-gradient-to-b from-brand-50 to-white px-4">
+    <div className="grid min-h-screen place-items-center bg-gradient-to-b from-brand-50 to-white px-4 dark:from-canvas dark:to-surface">
       <div className="w-full max-w-md text-center">
         <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand-600 text-2xl font-bold text-white">D</div>
         <h1 className="mt-6 text-3xl font-bold">Digimetrics</h1>
-        <p className="mt-2 text-slate-600">SEO, AI content & AI-visibility tools for solo marketers.</p>
+        <p className="mt-2 text-dim">SEO, AI content & AI-visibility tools for solo marketers.</p>
 
         <div className="card mt-8 p-6 text-left">
-          <p className="mb-4 text-center text-sm font-medium text-slate-700">
+          <p className="mb-4 text-center text-sm font-medium text-body">
             {!pwAuth
               ? 'Sign in to start with 30 free credits'
               : mode === 'signup'
@@ -137,14 +137,14 @@ export default function Login() {
           {/* Email/password form — only when enabled platform-wide. */}
           {pwAuth && (
             busy && mode === 'signin' && password === '' ? (
-              <div className="flex h-10 items-center justify-center gap-2 text-sm text-slate-500">
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-brand-600" />
+              <div className="flex h-10 items-center justify-center gap-2 text-sm text-muted">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-edge border-t-brand-600" />
                 Signing you in…
               </div>
             ) : (
               <form onSubmit={onSubmit} className="space-y-3">
                 <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-slate-600">Email</span>
+                  <span className="mb-1 block text-xs font-medium text-dim">Email</span>
                   <input
                     type="email" required autoComplete="email" value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -153,7 +153,7 @@ export default function Login() {
                 </label>
                 {mode !== 'forgot' && (
                   <label className="block">
-                    <span className="mb-1 block text-xs font-medium text-slate-600">Password</span>
+                    <span className="mb-1 block text-xs font-medium text-dim">Password</span>
                     <input
                       type="password" required minLength={mode === 'signup' ? 8 : undefined}
                       autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
@@ -182,13 +182,13 @@ export default function Login() {
           {mode === 'signin' && (
             <>
               {pwAuth && (
-                <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
-                  <span className="h-px flex-1 bg-slate-200" /> or <span className="h-px flex-1 bg-slate-200" />
+                <div className="my-4 flex items-center gap-3 text-xs text-faint">
+                  <span className="h-px flex-1 bg-overlay" /> or <span className="h-px flex-1 bg-overlay" />
                 </div>
               )}
               {!pwAuth && busy ? (
-                <div className="flex h-10 items-center justify-center gap-2 text-sm text-slate-500">
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-brand-600" />
+                <div className="flex h-10 items-center justify-center gap-2 text-sm text-muted">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-edge border-t-brand-600" />
                   Signing you in…
                 </div>
               ) : (
@@ -201,17 +201,17 @@ export default function Login() {
             <div className="mt-5 space-y-1 text-center text-sm">
               {mode === 'signin' && (
                 <>
-                  <p className="text-slate-500">
+                  <p className="text-muted">
                     <button onClick={() => switchMode('forgot')} className="font-medium text-brand-600 hover:text-brand-700">Forgot password?</button>
                   </p>
-                  <p className="text-slate-500">
+                  <p className="text-muted">
                     New here?{' '}
                     <button onClick={() => switchMode('signup')} className="font-medium text-brand-600 hover:text-brand-700">Create an account</button>
                   </p>
                 </>
               )}
               {mode !== 'signin' && (
-                <p className="text-slate-500">
+                <p className="text-muted">
                   <button onClick={() => switchMode('signin')} className="font-medium text-brand-600 hover:text-brand-700">← Back to sign in</button>
                 </p>
               )}
@@ -219,7 +219,7 @@ export default function Login() {
           )}
         </div>
 
-        <p className="mt-4 text-xs text-slate-400">
+        <p className="mt-4 text-xs text-faint">
           By continuing you agree to our{' '}
           <Link to="/legal/terms" className="text-brand-600 hover:text-brand-700">Terms</Link> and{' '}
           <Link to="/legal/privacy" className="text-brand-600 hover:text-brand-700">Privacy Policy</Link>.

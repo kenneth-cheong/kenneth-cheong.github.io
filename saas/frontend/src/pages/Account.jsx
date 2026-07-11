@@ -138,7 +138,7 @@ export default function Account() {
           {user.picture && <img src={user.picture} alt="" className="h-10 w-10 rounded-full" />}
           <div>
             <p className="font-semibold">{user.name}</p>
-            <p className="text-sm text-slate-500">{user.email}</p>
+            <p className="text-sm text-muted">{user.email}</p>
           </div>
         </div>
       </div>
@@ -146,13 +146,13 @@ export default function Account() {
       <div className="card mt-4 p-5">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-slate-500">Current plan</p>
+            <p className="text-sm text-muted">Current plan</p>
             <p className="text-xl font-bold">{plan.name}</p>
           </div>
           <div className="text-right">
-            <p className="text-sm text-slate-500">Credits left</p>
+            <p className="text-sm text-muted">Credits left</p>
             <p className="text-xl font-bold">{user.credits.toLocaleString()}</p>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-faint">
               {(user.monthlyCredits ?? user.credits).toLocaleString()} monthly
               {(user.topupCredits || 0) > 0 && <> · {user.topupCredits.toLocaleString()} top-up</>}
             </p>
@@ -167,7 +167,7 @@ export default function Account() {
           )}
         </div>
         {user.hasSubscription && (
-          <p className="mt-3 text-xs text-slate-400">
+          <p className="mt-3 text-xs text-faint">
             Manage billing opens the Stripe Customer Portal — update card, download invoices, or cancel.
           </p>
         )}
@@ -176,29 +176,29 @@ export default function Account() {
       {/* ── Invoices & receipts ───────────────────────────────────────── */}
       <div id="billing" className="card mt-4 scroll-mt-20 p-5">
         <h2 className="font-bold">Invoices &amp; receipts</h2>
-        <p className="mt-1 text-sm text-slate-500">Your subscription invoices and one-time top-up receipts.</p>
+        <p className="mt-1 text-sm text-muted">Your subscription invoices and one-time top-up receipts.</p>
         {docs && docs.length === 0 && (
-          <p className="mt-4 text-sm text-slate-400">No invoices or receipts yet — they'll appear here after your first payment.</p>
+          <p className="mt-4 text-sm text-faint">No invoices or receipts yet — they'll appear here after your first payment.</p>
         )}
         {docs && docs.length > 0 && (
-          <div className="mt-4 divide-y divide-slate-100">
+          <div className="mt-4 divide-y divide-hair">
             {docs.map((d) => (
               <div key={d.id} className="flex items-center gap-3 py-2.5">
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium text-slate-800">
+                  <div className="truncate text-sm font-medium text-strong">
                     {d.type === 'invoice' ? (d.number || 'Invoice') : 'Receipt'}
-                    <span className="font-normal text-slate-400"> · {d.description}</span>
+                    <span className="font-normal text-faint"> · {d.description}</span>
                   </div>
-                  <div className="text-xs text-slate-400">{new Date(d.created * 1000).toLocaleDateString()}</div>
+                  <div className="text-xs text-faint">{new Date(d.created * 1000).toLocaleDateString()}</div>
                 </div>
                 <span className="text-sm font-semibold tabular-nums">{money(d.amount, d.currency)}</span>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${d.status === 'paid' || d.status === 'succeeded' ? 'bg-green-100 text-green-700' : d.status === 'refunded' ? 'bg-slate-100 text-slate-500' : 'bg-amber-100 text-amber-700'}`}>{d.status}</span>
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${d.status === 'paid' || d.status === 'succeeded' ? 'bg-green-100 text-green-700' : d.status === 'refunded' ? 'bg-sunken text-muted' : 'bg-amber-100 text-amber-700'}`}>{d.status}</span>
                 <div className="flex gap-2">
                   {/* Invoices have a PDF (the hosted page just duplicates it) → one link.
                       Receipts have no PDF, only a hosted receipt URL → fall back to that. */}
                   {d.pdf
                     ? <a href={d.pdf} target="_blank" rel="noreferrer" className="text-sm font-medium text-brand-600 hover:text-brand-700">Download</a>
-                    : d.url && <a href={d.url} target="_blank" rel="noreferrer" className="text-sm font-medium text-slate-500 hover:text-slate-800">{d.type === 'invoice' ? 'View' : 'Receipt'}</a>}
+                    : d.url && <a href={d.url} target="_blank" rel="noreferrer" className="text-sm font-medium text-muted hover:text-strong">{d.type === 'invoice' ? 'View' : 'Receipt'}</a>}
                 </div>
               </div>
             ))}
@@ -209,15 +209,15 @@ export default function Account() {
       {/* ── Credit top-ups (overage) ──────────────────────────────────── */}
       <div className="card mt-4 p-5">
         <h2 className="font-bold">Need more credits?</h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-muted">
           One-time top-ups for when you run low mid-cycle. Top-up credits <strong>roll over</strong> — they don't expire at renewal.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           {TOPUP_PACKS.map((pack) => (
-            <div key={pack.id} className={`rounded-lg border p-4 text-center ${pack.popular ? 'border-brand-400 bg-brand-50' : 'border-slate-200'}`}>
+            <div key={pack.id} className={`rounded-lg border p-4 text-center ${pack.popular ? 'border-brand-400 bg-brand-50' : 'border-line'}`}>
               {pack.popular && <span className="mb-1 inline-block rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-bold text-white">BEST VALUE</span>}
               <p className="text-lg font-bold">{pack.credits.toLocaleString()} credits</p>
-              <p className="text-sm text-slate-500">{CURRENCY.symbol}{pack.price}</p>
+              <p className="text-sm text-muted">{CURRENCY.symbol}{pack.price}</p>
               <button
                 onClick={() => buyTopup(pack.id)}
                 disabled={topupBusy === pack.id}
@@ -233,23 +233,23 @@ export default function Account() {
       {/* ── Active devices (concurrent-session cap) ────────────────────── */}
       <div className="card mt-4 p-5">
         <h2 className="font-bold">Active devices</h2>
-        <p className="mt-1 text-sm text-slate-500">You can be signed in on up to 3 devices. Signing in on a 4th signs out the oldest.</p>
+        <p className="mt-1 text-sm text-muted">You can be signed in on up to 3 devices. Signing in on a 4th signs out the oldest.</p>
         {sessions === null ? (
-          <p className="mt-3 text-sm text-slate-400">Loading…</p>
+          <p className="mt-3 text-sm text-faint">Loading…</p>
         ) : sessions.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-400">No tracked sessions yet — sign in again to register this device.</p>
+          <p className="mt-3 text-sm text-faint">No tracked sessions yet — sign in again to register this device.</p>
         ) : (
-          <ul className="mt-3 divide-y divide-slate-100">
+          <ul className="mt-3 divide-y divide-hair">
             {sessions.map((s) => (
               <li key={s.sid} className="flex items-center gap-3 py-2.5">
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-slate-800">
+                  <div className="text-sm font-medium text-strong">
                     {s.device || 'Unknown device'}
                     {s.sid === currentSid && <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">This device</span>}
                   </div>
-                  <div className="text-xs text-slate-400">{s.ip ? `${s.ip} · ` : ''}active {ago(s.lastSeenAt)}</div>
+                  <div className="text-xs text-faint">{s.ip ? `${s.ip} · ` : ''}active {ago(s.lastSeenAt)}</div>
                 </div>
-                <button onClick={() => revokeDevice(s.sid)} className="text-sm text-slate-400 hover:text-red-600">
+                <button onClick={() => revokeDevice(s.sid)} className="text-sm text-faint hover:text-red-600">
                   {s.sid === currentSid ? 'Sign out' : 'Revoke'}
                 </button>
               </li>
@@ -263,7 +263,7 @@ export default function Account() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="font-bold">Email preferences</h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted">
               Product updates &amp; announcements. Account emails (sign-in, billing, and support
               replies) are always sent and aren't affected by this.
             </p>
@@ -274,7 +274,7 @@ export default function Account() {
             aria-checked={emailOptOut === false}
             disabled={emailBusy || emailOptOut === null}
             onClick={() => toggleEmailPref(!emailOptOut)}
-            className={`relative mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-50 ${emailOptOut === false ? 'bg-brand-600' : 'bg-slate-300'}`}
+            className={`relative mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-50 ${emailOptOut === false ? 'bg-brand-600' : 'bg-overlay'}`}
           >
             <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${emailOptOut === false ? 'translate-x-5' : 'translate-x-1'}`} />
           </button>
@@ -282,7 +282,7 @@ export default function Account() {
         {emailOptOut !== null && (
           <p className="mt-3 text-sm font-medium">
             Product-update emails:{' '}
-            <span className={emailOptOut === false ? 'text-emerald-600' : 'text-slate-500'}>{emailOptOut === false ? 'On' : 'Off'}</span>
+            <span className={emailOptOut === false ? 'text-emerald-600' : 'text-muted'}>{emailOptOut === false ? 'On' : 'Off'}</span>
           </p>
         )}
       </div>
@@ -291,15 +291,15 @@ export default function Account() {
       {liveGrants.length > 0 && (
         <div className="card mt-4 p-5">
           <h2 className="font-bold">Data access requests</h2>
-          <p className="mt-1 text-sm text-slate-500">Support can view your tool usage and chatbot conversations only if you allow it. Approvals last 7 days — you can revoke anytime.</p>
-          <ul className="mt-3 divide-y divide-slate-100">
+          <p className="mt-1 text-sm text-muted">Support can view your tool usage and chatbot conversations only if you allow it. Approvals last 7 days — you can revoke anytime.</p>
+          <ul className="mt-3 divide-y divide-hair">
             {liveGrants.map((g) => (
               <li key={g.id} className="flex flex-wrap items-center gap-3 py-2.5">
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-slate-800">
-                    {g.requestedBy || 'Support'}{g.reason ? <span className="font-normal text-slate-500"> — “{g.reason}”</span> : ''}
+                  <div className="text-sm font-medium text-strong">
+                    {g.requestedBy || 'Support'}{g.reason ? <span className="font-normal text-muted"> — “{g.reason}”</span> : ''}
                   </div>
-                  <div className="text-xs text-slate-400">
+                  <div className="text-xs text-faint">
                     {g.status === 'pending' ? `Requested ${ago(g.requestedAt)}` : `Allowed · expires ${new Date(g.expiresAt).toLocaleDateString()}`}
                   </div>
                 </div>
@@ -309,7 +309,7 @@ export default function Account() {
                     <button onClick={() => answerAccess(g.id, 'deny')} className="btn-ghost px-3 py-1.5 text-sm">Deny</button>
                   </div>
                 ) : (
-                  <button onClick={() => answerAccess(g.id, 'revoke')} className="text-sm text-slate-400 hover:text-red-600">Revoke access</button>
+                  <button onClick={() => answerAccess(g.id, 'revoke')} className="text-sm text-faint hover:text-red-600">Revoke access</button>
                 )}
               </li>
             ))}
@@ -320,7 +320,7 @@ export default function Account() {
       {/* ── Your data (export + delete) ────────────────────────────────── */}
       <div className="card mt-4 p-5">
         <h2 className="font-bold">Your data</h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-muted">
           Download everything we hold about you, or permanently delete your account. See our{' '}
           <Link to="/legal/privacy" className="text-brand-600 hover:text-brand-700">Privacy Policy</Link> and{' '}
           <Link to="/legal/terms" className="text-brand-600 hover:text-brand-700">Terms</Link>.
@@ -330,20 +330,20 @@ export default function Account() {
           <button onClick={signOutEverywhere} disabled={revoking} className="btn-ghost">{revoking ? 'Signing out…' : 'Sign out everywhere'}</button>
           <button onClick={() => { setDelText(''); setConfirmDel(true); }} className="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">Delete account</button>
         </div>
-        <p className="mt-2 text-xs text-slate-400">“Sign out everywhere” ends sessions on all your other devices.</p>
+        <p className="mt-2 text-xs text-faint">“Sign out everywhere” ends sessions on all your other devices.</p>
       </div>
 
       {confirmDel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !deleting && setConfirmDel(false)}>
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-md rounded-xl bg-surface p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-red-600">Delete your account?</h2>
-            <p className="mt-2 text-sm text-slate-600">
+            <p className="mt-2 text-sm text-dim">
               This permanently deletes your profile, run history, projects, tracked keywords, conversations, support tickets and credit history.
               {user.hasSubscription && ' Your active subscription will be cancelled.'} This cannot be undone.
             </p>
-            <p className="mt-3 text-sm text-slate-600">Type <strong>DELETE</strong> to confirm:</p>
+            <p className="mt-3 text-sm text-dim">Type <strong>DELETE</strong> to confirm:</p>
             <input value={delText} onChange={(e) => setDelText(e.target.value)} placeholder="DELETE"
-              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-red-400 focus:outline-none" />
+              className="mt-2 w-full rounded-lg border border-edge px-3 py-2 text-sm focus:border-red-400 focus:outline-none" />
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={() => setConfirmDel(false)} disabled={deleting} className="btn-ghost text-sm">Cancel</button>
               <button onClick={deleteAccount} disabled={deleting || delText !== 'DELETE'}

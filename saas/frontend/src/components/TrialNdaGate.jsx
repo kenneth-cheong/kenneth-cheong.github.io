@@ -85,20 +85,20 @@ export default function TrialNdaGate({ preview = false, onClose }) {
       className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm sm:items-center"
       onClick={preview ? (e) => { if (e.target === e.currentTarget) onClose?.(); } : undefined}
     >
-      <div className="relative my-8 w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl sm:p-8">
+      <div className="relative my-8 w-full max-w-lg rounded-2xl border border-line bg-surface p-6 shadow-2xl sm:p-8">
         {preview && (
-          <button onClick={() => onClose?.()} aria-label="Close preview" className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-200">
+          <button onClick={() => onClose?.()} aria-label="Close preview" className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-lg bg-sunken text-muted hover:bg-overlay">
             <X size={18} />
           </button>
         )}
         <div className="flex items-center gap-2 text-brand-600">
           <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand-600 text-white"><ShieldCheck size={20} aria-hidden /></span>
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Soft launch · Free trial</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-faint">Soft launch · Free trial</span>
           {preview && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">Preview</span>}
         </div>
 
-        <h1 className="mt-4 text-xl font-bold text-slate-900">Activate your free trial</h1>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">
+        <h1 className="mt-4 text-xl font-bold text-heading">Activate your free trial</h1>
+        <p className="mt-2 text-sm leading-relaxed text-dim">
           Please confirm your details and accept the Free Trial &amp; NDA Terms to activate
           your 180-day trial. You only need to do this once.
         </p>
@@ -106,7 +106,7 @@ export default function TrialNdaGate({ preview = false, onClose }) {
         <div className="mt-5 space-y-3">
           {FIELDS.map((f) => (
             <div key={f.key}>
-              <label htmlFor={`nda-${f.key}`} className="mb-1 block text-xs font-semibold text-slate-600">
+              <label htmlFor={`nda-${f.key}`} className="mb-1 block text-xs font-semibold text-dim">
                 {f.label} <span className="text-rose-500">*</span>
               </label>
               <input
@@ -116,20 +116,20 @@ export default function TrialNdaGate({ preview = false, onClose }) {
                 onChange={set(f.key)}
                 placeholder={f.placeholder}
                 autoComplete={f.autoComplete}
-                className={`w-full rounded-xl border bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/20 ${errors[f.key] ? 'border-rose-400 bg-rose-50' : 'border-slate-300'}`}
+                className={`w-full rounded-xl border bg-raised px-3 py-2.5 text-sm text-heading outline-none transition focus:border-brand-500 focus:bg-surface focus:ring-2 focus:ring-brand-500/20 ${errors[f.key] ? 'border-rose-400 bg-rose-50' : 'border-edge'}`}
               />
             </div>
           ))}
         </div>
 
-        <label className={`mt-5 flex cursor-pointer items-start gap-3 rounded-xl border p-3 hover:border-brand-300 ${errors.agreed ? 'border-rose-400 bg-rose-50' : 'border-slate-200'}`}>
+        <label className={`mt-5 flex cursor-pointer items-start gap-3 rounded-xl border p-3 hover:border-brand-300 ${errors.agreed ? 'border-rose-400 bg-rose-50' : 'border-line'}`}>
           <input
             type="checkbox"
             checked={agreed}
             onChange={(e) => { setAgreed(e.target.checked); if (errors.agreed) setErrors((x) => ({ ...x, agreed: false })); }}
-            className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-edge text-brand-600 focus:ring-brand-500"
           />
-          <span className="text-sm leading-relaxed text-slate-700">
+          <span className="text-sm leading-relaxed text-body">
             By clicking &lsquo;Accept and Activate Free Trial&rsquo;, I confirm that I am authorised to accept these{' '}
             <button type="button" onClick={() => setShowTerms(true)} className="font-semibold text-brand-600 underline hover:text-brand-700">
               Digimetrics Free Trial and NDA Terms
@@ -151,7 +151,7 @@ export default function TrialNdaGate({ preview = false, onClose }) {
         >
           {busy ? 'Activating…' : 'Accept and Activate Free Trial'}
         </button>
-        <p className="mt-3 text-center text-xs text-slate-400">
+        <p className="mt-3 text-center text-xs text-faint">
           MediaOne Business Group Pte Ltd — owner/operator of Digimetrics.
         </p>
       </div>

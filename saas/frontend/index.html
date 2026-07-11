@@ -20,6 +20,19 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <!-- Apply the saved theme BEFORE first paint so there's no light-mode flash
+         on load. Mirrors src/lib/theme.js: 'dm:theme' = light | dark | system
+         (default system). Kept inline + tiny so it runs synchronously in <head>. -->
+    <script>
+      (function () {
+        try {
+          var pref = localStorage.getItem('dm:theme') || 'system';
+          var dark = pref === 'dark' || (pref === 'system' &&
+            window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.toggle('dark', dark);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

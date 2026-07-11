@@ -16,7 +16,7 @@ export default function ToolCard({ tool, userTier }) {
     >
       <span className="absolute inset-y-0 left-0 w-1" style={{ background: meta.color }} aria-hidden />
       <div className="flex items-start justify-between">
-        <span className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        <span className="inline-flex items-center gap-1.5 rounded-md bg-sunken px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
           <CategoryIcon category={tool.category} size={12} />{tool.category}
         </span>
         {!unlocked && (
@@ -25,13 +25,13 @@ export default function ToolCard({ tool, userTier }) {
           </span>
         )}
       </div>
-      <h3 className="mt-3 font-semibold text-slate-900 group-hover:text-brand-700">{tool.name}</h3>
-      <p className="mt-1 flex-1 text-sm text-slate-500">{tool.desc}</p>
+      <h3 className="mt-3 font-semibold text-heading group-hover:text-brand-700">{tool.name}</h3>
+      <p className="mt-1 flex-1 text-sm text-muted">{tool.desc}</p>
       <div className="mt-3 flex items-center justify-between text-xs">
-        <span className={`rounded-full px-2 py-0.5 font-semibold ${cost === 0 ? 'bg-green-50 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
+        <span className={`rounded-full px-2 py-0.5 font-semibold ${cost === 0 ? 'bg-green-50 text-green-700' : 'bg-sunken text-dim'}`}>
           {cost === 0 ? 'Free' : `${cost} credit${cost > 1 ? 's' : ''}`}
         </span>
-        {tool.slow && <span className="text-slate-400">~30–150s</span>}
+        {tool.slow && <span className="text-faint">~30–150s</span>}
         {!unlocked && tool.teaser && <span className="font-medium text-brand-600">1 free preview →</span>}
       </div>
     </Link>

@@ -11,6 +11,7 @@ import Toaster from './Toaster.jsx';
 import ExplainMenu from './ExplainMenu.jsx';
 import ProactiveEngine from './ProactiveEngine.jsx';
 import ProjectSelector from './ProjectSelector.jsx';
+import ThemeToggle from './ThemeToggle.jsx';
 import Welcome from './Welcome.jsx';
 import ConsentGate from './ConsentGate.jsx';
 import TrialNdaGate from './TrialNdaGate.jsx';
@@ -134,14 +135,14 @@ export default function Layout({ children }) {
   const acctLinks = user.isAdmin ? [...menuNav, { to: '/admin', label: 'Admin' }] : menuNav;
   const allLinks = [...primaryNav, ...acctLinks]; // for the mobile sheet
   const linkCls = ({ isActive }) =>
-    `rounded-lg px-3 py-1.5 text-sm font-medium ${isActive ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-100'}`;
+    `rounded-lg px-3 py-1.5 text-sm font-medium ${isActive ? 'bg-brand-50 text-brand-700' : 'text-dim hover:bg-sunken'}`;
 
   return (
     <>
       {/* On desktop the page shifts left so chat sits beside content; on mobile
           the chat is a full-screen sheet, so no shift. */}
       <div className="min-h-screen transition-[margin] duration-200" style={{ marginRight: chatOpen && wide ? chatW : 0 }}>
-        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
+        <header className="sticky top-0 z-20 border-b border-line bg-surface/90 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
             <button className="md:hidden" onClick={() => setMenuOpen((o) => !o)} aria-label="Menu">
               <Menu size={22} aria-hidden />
@@ -163,7 +164,7 @@ export default function Layout({ children }) {
                 data-tour="assistant"
                 title={chatOpen ? 'Close Monty' : 'Open Monty'}
                 aria-label={chatOpen ? 'Close Monty the assistant' : 'Open Monty the assistant'}
-                className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm font-semibold ${chatOpen ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm font-semibold ${chatOpen ? 'bg-brand-600 text-white' : 'bg-sunken text-body hover:bg-overlay'}`}
               >
                 {/* Bare otter (no background circle). Sized to fit the fixed button
                     height so this matches the "Up next" pill in the header row. */}
@@ -176,17 +177,19 @@ export default function Layout({ children }) {
                 data-tour="help"
                 title="Take the platform tour"
                 aria-label="Take the platform tour"
-                className="hidden h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 sm:grid"
+                className="hidden h-8 w-8 shrink-0 place-items-center rounded-full bg-sunken text-dim hover:bg-overlay sm:grid"
               >
                 <HelpCircle size={18} aria-hidden />
               </button>
+
+              <ThemeToggle className="hidden sm:grid" />
 
               {/* Account dropdown (desktop) — holds Account/Usage/Pricing/Support/Admin + Sign out */}
               <div className="relative hidden md:block">
                 <button
                   onClick={() => setAcctOpen((o) => !o)}
                   data-tour="account-menu"
-                  className="flex items-center gap-1.5 rounded-lg py-1 pl-1 pr-1.5 hover:bg-slate-100"
+                  className="flex items-center gap-1.5 rounded-lg py-1 pl-1 pr-1.5 hover:bg-sunken"
                   title="Account, usage, billing & settings"
                   aria-label="Account menu"
                 >
@@ -203,15 +206,15 @@ export default function Layout({ children }) {
                       {(user.name || user.email || '?').trim().charAt(0).toUpperCase()}
                     </span>
                   )}
-                  <ChevronDown size={14} className="text-slate-400" aria-hidden />
+                  <ChevronDown size={14} className="text-faint" aria-hidden />
                 </button>
                 {acctOpen && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setAcctOpen(false)} />
-                    <div className="absolute right-0 z-20 mt-2 w-52 rounded-xl border border-slate-200 bg-white py-1.5 shadow-lg">
-                      <div className="border-b border-slate-100 px-3 pb-2 pt-1">
-                        <div className="truncate text-sm font-medium text-slate-700">{user.name || user.email}</div>
-                        <div className="mt-0.5 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    <div className="absolute right-0 z-20 mt-2 w-52 rounded-xl border border-line bg-surface py-1.5 shadow-lg">
+                      <div className="border-b border-hair px-3 pb-2 pt-1">
+                        <div className="truncate text-sm font-medium text-body">{user.name || user.email}</div>
+                        <div className="mt-0.5 inline-block rounded-full bg-sunken px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
                           {PLANS[user.tier].name} plan
                         </div>
                       </div>
@@ -220,13 +223,13 @@ export default function Layout({ children }) {
                           key={n.to}
                           to={n.to}
                           onClick={() => setAcctOpen(false)}
-                          className={({ isActive }) => `block px-3 py-1.5 text-sm ${isActive ? 'font-medium text-brand-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                          className={({ isActive }) => `block px-3 py-1.5 text-sm ${isActive ? 'font-medium text-brand-700' : 'text-dim hover:bg-raised'}`}
                         >
                           {n.label}
                           {n.to === '/admin' && <TicketBadge count={unanswered} />}
                         </NavLink>
                       ))}
-                      <button onClick={logout} className="mt-1 block w-full border-t border-slate-100 px-3 py-2 text-left text-sm text-slate-500 hover:bg-slate-50">
+                      <button onClick={logout} className="mt-1 block w-full border-t border-hair px-3 py-2 text-left text-sm text-muted hover:bg-raised">
                         Sign out
                       </button>
                     </div>
@@ -239,7 +242,7 @@ export default function Layout({ children }) {
           {/* Back-to-project strip — lives on its own row below the nav so it
               never gets clipped by the crowded top bar. */}
           {fromProjectId && (
-            <div className="border-t border-slate-100">
+            <div className="border-t border-hair">
               <div className="mx-auto max-w-6xl px-4 py-2">
                 <Link
                   to={`/projects/${encodeURIComponent(fromProjectId)}`}
@@ -254,14 +257,18 @@ export default function Layout({ children }) {
 
           {/* Mobile menu — all links + sign out */}
           {menuOpen && (
-            <nav className="flex flex-col border-t border-slate-100 px-4 py-2 md:hidden">
+            <nav className="flex flex-col border-t border-hair px-4 py-2 md:hidden">
               {allLinks.map((n) => (
                 <NavLink key={n.to} to={n.to} end={n.end} onClick={() => setMenuOpen(false)} className={linkCls}>
                   {n.label}
                   {n.to === '/admin' && <TicketBadge count={unanswered} />}
                 </NavLink>
               ))}
-              <button onClick={logout} className="mt-1 px-3 py-1.5 text-left text-sm text-slate-500">Sign out</button>
+              <div className="mt-1 flex items-center gap-2 px-3 py-1.5">
+                <ThemeToggle />
+                <span className="text-sm text-dim">Theme</span>
+              </div>
+              <button onClick={logout} className="mt-1 px-3 py-1.5 text-left text-sm text-muted">Sign out</button>
             </nav>
           )}
         </header>

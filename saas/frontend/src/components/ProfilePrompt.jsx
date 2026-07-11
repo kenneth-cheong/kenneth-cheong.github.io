@@ -93,7 +93,7 @@ export default function ProfilePrompt() {
     return (
       <button
         onClick={expand}
-        className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full border border-brand-200 bg-white px-4 py-2.5 text-sm font-semibold text-brand-800 shadow-lg hover:bg-brand-50"
+        className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full border border-brand-200 bg-surface px-4 py-2.5 text-sm font-semibold text-brand-800 shadow-lg hover:bg-brand-50"
       >
         <Sparkles size={16} aria-hidden /> Finish profile
         <span className="tabular-nums text-brand-600">{done}/{total}</span>
@@ -102,25 +102,25 @@ export default function ProfilePrompt() {
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-40 w-[calc(100vw-2.5rem)] max-w-sm rounded-xl border border-brand-200 bg-white p-5 shadow-2xl">
+    <div className="fixed bottom-5 right-5 z-40 w-[calc(100vw-2.5rem)] max-w-sm rounded-xl border border-brand-200 bg-surface p-5 shadow-2xl">
       <div className="flex items-start justify-between gap-3">
         <h2 className="flex items-center gap-1.5 font-semibold text-brand-800">
           <Sparkles size={16} aria-hidden /> Complete your profile &amp; earn {PROFILE_BONUS} tokens
         </h2>
         <div className="flex shrink-0 items-center gap-1">
           <button onClick={collapse} aria-label="Minimize" title="Minimize"
-            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+            className="rounded p-1 text-faint hover:bg-sunken hover:text-body">
             <Minus size={16} aria-hidden />
           </button>
           <button onClick={snooze} aria-label="Dismiss" title="Maybe later"
-            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+            className="rounded p-1 text-faint hover:bg-sunken hover:text-body">
             <X size={16} aria-hidden />
           </button>
         </div>
       </div>
 
       <div className="mt-2 flex items-center gap-3">
-        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-sunken">
           <div className="h-full rounded-full bg-brand-600 transition-all" style={{ width: `${pct}%` }} />
         </div>
         <span className="text-xs font-medium tabular-nums text-brand-700">{done}/{total}</span>
@@ -129,7 +129,7 @@ export default function ProfilePrompt() {
       <div className="mt-4 space-y-3">
         {nextFields.map((f) => (
           <div key={f.key}>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">{f.label}</label>
+            <label className="mb-1.5 block text-sm font-medium text-body">{f.label}</label>
             <ProfileField field={f} value={valueFor(f)} onChange={(val) => setField(f.key, val)} />
           </div>
         ))}

@@ -40,10 +40,10 @@ export function TicketComposer({ value, onChange, attachments, setAttachments, p
       {header}
       <textarea
         rows={rows} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} onPaste={onPaste} onKeyDown={onKey}
-        className="w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-brand-500 focus:outline-none"
+        className="w-full rounded-lg border border-edge p-2.5 text-sm focus:border-brand-500 focus:outline-none"
       />
       <Attachments items={attachments} onRemove={(i) => setAttachments((a) => a.filter((_, j) => j !== i))} />
-      <div className="mt-1.5 flex items-center gap-3 text-xs text-slate-500">
+      <div className="mt-1.5 flex items-center gap-3 text-xs text-muted">
         <button type="button" onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1 font-medium text-brand-600 hover:text-brand-700"><Paperclip size={13} aria-hidden /> Attach files</button>
         <span>paste or drag &amp; drop</span>
         {uploading && <span>uploading…</span>}

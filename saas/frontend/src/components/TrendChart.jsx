@@ -8,7 +8,7 @@ const shortDate = (d) => (typeof d === 'string' && d.length >= 10 ? d.slice(5) :
 
 export default function TrendChart({ series = [], height = 160 }) {
   const valid = (series || []).filter((s) => s.points && s.points.length);
-  if (!valid.length) return <div className="py-4 text-center text-sm text-slate-400">No trend data for this range.</div>;
+  if (!valid.length) return <div className="py-4 text-center text-sm text-faint">No trend data for this range.</div>;
 
   const W = 560, H = height, padX = 6, padY = 10;
   const len = Math.max(...valid.map((s) => s.points.length));
@@ -33,7 +33,7 @@ export default function TrendChart({ series = [], height = 160 }) {
       style={{ height: H, paddingTop: padY, paddingBottom: padY, color }}
     >
       <span>{fmt(r.max)}</span>
-      <span className="text-slate-400">{fmt((r.max + r.min) / 2)}</span>
+      <span className="text-faint">{fmt((r.max + r.min) / 2)}</span>
       <span>{fmt(r.min)}</span>
     </div>
   );
@@ -46,9 +46,9 @@ export default function TrendChart({ series = [], height = 160 }) {
     <div>
       <div className="mb-2 flex flex-wrap gap-x-4 gap-y-1">
         {valid.map((s) => (
-          <span key={s.label} className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+          <span key={s.label} className="inline-flex items-center gap-1.5 text-xs font-medium text-dim">
             <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color || '#2563eb' }} />
-            {s.label}<span className="text-slate-400">· {fmt(total(s))}</span>
+            {s.label}<span className="text-faint">· {fmt(total(s))}</span>
           </span>
         ))}
       </div>
@@ -75,7 +75,7 @@ export default function TrendChart({ series = [], height = 160 }) {
               );
             })}
           </svg>
-          <div className="mt-1 flex justify-between text-[10px] text-slate-400">
+          <div className="mt-1 flex justify-between text-[10px] text-faint">
             <span>{shortDate(dates[0])}</span>
             {dates.length > 2 && <span>{shortDate(dates[midIdx])}</span>}
             <span>{shortDate(dates[dates.length - 1])}</span>

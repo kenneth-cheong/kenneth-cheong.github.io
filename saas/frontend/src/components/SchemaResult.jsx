@@ -43,7 +43,7 @@ export default function SchemaResult({ json }) {
             <i className="h-2.5 w-2.5 rounded-full bg-amber-400/70" />
             <i className="h-2.5 w-2.5 rounded-full bg-green-400/70" />
           </span>
-          <span className="ml-1 font-mono text-xs text-slate-400">{withTag ? 'index.html · <head>' : `${(type || 'schema').toLowerCase()}.jsonld`}</span>
+          <span className="ml-1 font-mono text-xs text-faint">{withTag ? 'index.html · <head>' : `${(type || 'schema').toLowerCase()}.jsonld`}</span>
           <div className="ml-auto flex items-center gap-1.5">
             <CardBtn onClick={() => setWithTag((v) => !v)}>{withTag ? 'JSON only' : 'With <script>'}</CardBtn>
             <CardBtn onClick={() => copyText(snippet).then(() => toast('Copied to clipboard', 'success'))}>Copy</CardBtn>
@@ -53,8 +53,8 @@ export default function SchemaResult({ json }) {
         <pre className="overflow-x-auto px-4 py-3 font-mono text-[13px] leading-relaxed text-slate-200">{highlight(snippet)}</pre>
       </div>
 
-      <p className="mt-2 text-xs text-slate-400">
-        Paste this into your page’s <code className="rounded bg-slate-100 px-1 text-slate-600">&lt;head&gt;</code> — one block per page. It’s invisible to visitors and read by search engines.
+      <p className="mt-2 text-xs text-faint">
+        Paste this into your page’s <code className="rounded bg-sunken px-1 text-dim">&lt;head&gt;</code> — one block per page. It’s invisible to visitors and read by search engines.
       </p>
     </div>
   );
@@ -79,7 +79,7 @@ function highlight(code) {
   let last = 0, m;
   while ((m = re.exec(code))) {
     if (m.index > last) push(code.slice(last, m.index));
-    if (m[1]) push(m[0], 'text-slate-500');        // <script> wrapper
+    if (m[1]) push(m[0], 'text-muted');        // <script> wrapper
     else if (m[2]) push(m[0], 'text-sky-300');     // key:
     else if (m[3]) push(m[0], 'text-emerald-300'); // string value
     else if (m[4]) push(m[0], 'text-amber-300');   // number

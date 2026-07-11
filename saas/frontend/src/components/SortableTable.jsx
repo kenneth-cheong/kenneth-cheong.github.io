@@ -99,14 +99,14 @@ export default function SortableTable({
           {filterable && (
             <input
               value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter rows…"
-              className="w-full max-w-xs rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
+              className="w-full max-w-xs rounded-lg border border-edge px-2.5 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
             />
           )}
-          {filterable && q && <span className="text-xs text-slate-400 tabular-nums">{sorted.length.toLocaleString()} match{sorted.length === 1 ? '' : 'es'}</span>}
-          {exportName && <button onClick={exportCsv} className="ml-auto rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-brand-300 hover:text-brand-600">CSV</button>}
+          {filterable && q && <span className="text-xs text-faint tabular-nums">{sorted.length.toLocaleString()} match{sorted.length === 1 ? '' : 'es'}</span>}
+          {exportName && <button onClick={exportCsv} className="ml-auto rounded-md border border-edge px-2.5 py-1 text-xs font-medium text-dim hover:border-brand-300 hover:text-brand-600">CSV</button>}
         </div>
       )}
-      <div className="overflow-auto rounded-xl border border-slate-200" style={{ maxHeight }}>
+      <div className="overflow-auto rounded-xl border border-line" style={{ maxHeight }}>
       <table className={`${stickyFirstCol ? 'min-w-full' : 'w-full'} text-left text-sm ${className}`}>
         <thead>
           <tr>
@@ -114,7 +114,7 @@ export default function SortableTable({
               <th
                 key={c.key}
                 onClick={() => onSort(c)}
-                className={`sticky top-0 z-10 border-b border-slate-200 bg-slate-50 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500 ${c.align === 'right' ? 'text-right' : ''} ${c.sortable === false ? '' : 'cursor-pointer select-none hover:text-slate-700'} ${stickyFirstCol ? 'whitespace-nowrap' : ''} ${stickyFirstCol && ci === 0 ? 'sticky left-0 z-20' : ''}`}
+                className={`sticky top-0 z-10 border-b border-line bg-raised px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted ${c.align === 'right' ? 'text-right' : ''} ${c.sortable === false ? '' : 'cursor-pointer select-none hover:text-body'} ${stickyFirstCol ? 'whitespace-nowrap' : ''} ${stickyFirstCol && ci === 0 ? 'sticky left-0 z-20' : ''}`}
               >
                 <span className={`inline-flex items-center gap-1 ${c.align === 'right' ? 'flex-row-reverse' : ''}`}>
                   {c.label}
@@ -127,18 +127,18 @@ export default function SortableTable({
         </thead>
         <tbody>
           {rows.length === 0 && emptyText && (
-            <tr><td colSpan={cols.length} className="px-3 py-8 text-center text-slate-400">{emptyText}</td></tr>
+            <tr><td colSpan={cols.length} className="px-3 py-8 text-center text-faint">{emptyText}</td></tr>
           )}
           {sorted.map((row, i) => (
             <tr
               key={rowKey ? rowKey(row, i) : i}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
-              className={`group border-t border-slate-100 transition-colors hover:bg-brand-50/40 ${zebra && i % 2 ? 'bg-slate-50/50' : ''} ${onRowClick ? 'cursor-pointer' : ''}`}
+              className={`group border-t border-hair transition-colors hover:bg-brand-50/40 ${zebra && i % 2 ? 'bg-raised/50' : ''} ${onRowClick ? 'cursor-pointer' : ''}`}
             >
               {cols.map((c, ci) => (
                 <td
                   key={c.key}
-                  className={`px-3 py-2 ${c.align === 'right' ? 'text-right' : ''} ${stickyFirstCol && ci === 0 ? `sticky left-0 z-[1] transition-colors group-hover:bg-brand-50 ${zebra && i % 2 ? 'bg-slate-50' : 'bg-white'}` : ''}`}
+                  className={`px-3 py-2 ${c.align === 'right' ? 'text-right' : ''} ${stickyFirstCol && ci === 0 ? `sticky left-0 z-[1] transition-colors group-hover:bg-brand-50 ${zebra && i % 2 ? 'bg-raised' : 'bg-surface'}` : ''}`}
                 >
                   {c.render ? c.render(row, i) : (accessorOf(c)(row) ?? '—')}
                 </td>

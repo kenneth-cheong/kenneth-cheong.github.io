@@ -11,7 +11,7 @@ export default function LineChart({ data, accessor = (d) => d.position, invert =
 
   const allData = (data || []).map((d) => ({ date: d.date, v: accessor(d), url: d.url }));
   const pts = allData.filter((d) => d.v >= 1);
-  if (!pts.length) return <div className="py-4 text-center text-sm text-slate-400">No ranking data yet — refresh to fetch a position.</div>;
+  if (!pts.length) return <div className="py-4 text-center text-sm text-faint">No ranking data yet — refresh to fetch a position.</div>;
 
   const vs = pts.map((p) => p.v);
   const min = Math.min(...vs), max = Math.max(...vs);

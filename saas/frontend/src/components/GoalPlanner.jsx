@@ -85,14 +85,14 @@ export default function GoalPlanner({ initialGoal }) {
       <section className="mt-8" data-tour="pathway">
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2.5">
-            <h2 className="text-lg font-bold text-slate-900">{INTAKE.goalQuestion}</h2>
+            <h2 className="text-lg font-bold text-heading">{INTAKE.goalQuestion}</h2>
             <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${goals.length ? 'bg-brand-100 text-brand-700' : 'bg-amber-100 text-amber-700'}`}>
               {goals.length ? `${goals.length} selected` : 'Pick at least 1'}
             </span>
           </div>
-          {hasPlan && <button onClick={() => setEditing(false)} className="text-sm font-medium text-slate-500 hover:text-slate-700">Cancel</button>}
+          {hasPlan && <button onClick={() => setEditing(false)} className="text-sm font-medium text-muted hover:text-body">Cancel</button>}
         </div>
-        <p className="mt-1 text-sm text-slate-500">{INTAKE.goalHint}</p>
+        <p className="mt-1 text-sm text-muted">{INTAKE.goalHint}</p>
 
         <div
           id="goal-grid"
@@ -112,8 +112,8 @@ export default function GoalPlanner({ initialGoal }) {
                   {on ? <Check size={20} aria-hidden /> : <Icon size={20} aria-hidden />}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block font-semibold text-slate-800">{g.label}</span>
-                  <span className="mt-0.5 block text-sm text-slate-500">{g.desc}</span>
+                  <span className="block font-semibold text-strong">{g.label}</span>
+                  <span className="mt-0.5 block text-sm text-muted">{g.desc}</span>
                 </span>
               </button>
             );
@@ -121,7 +121,7 @@ export default function GoalPlanner({ initialGoal }) {
         </div>
 
         <div className="mt-6">
-          <h3 className="text-sm font-semibold text-slate-700">{INTAKE.context.question}</h3>
+          <h3 className="text-sm font-semibold text-body">{INTAKE.context.question}</h3>
           <div className="mt-2 flex flex-wrap gap-2">
             {INTAKE.context.options.map((o) => {
               const on = have.includes(o.id);
@@ -130,7 +130,7 @@ export default function GoalPlanner({ initialGoal }) {
                   key={o.id}
                   onClick={() => toggle(have, setHave, o.id)}
                   aria-pressed={on}
-                  className={`rounded-full px-3 py-1.5 text-sm font-medium ring-1 transition ${on ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'}`}
+                  className={`rounded-full px-3 py-1.5 text-sm font-medium ring-1 transition ${on ? 'bg-brand-600 text-white ring-brand-600' : 'bg-surface text-dim ring-line hover:bg-raised'}`}
                 >
                   {o.label}
                 </button>
@@ -140,8 +140,8 @@ export default function GoalPlanner({ initialGoal }) {
         </div>
 
         <div className="mt-6">
-          <label htmlFor="planner-goal" className="text-sm font-semibold text-slate-700">
-            Anything specific? <span className="font-normal text-slate-400">(optional)</span>
+          <label htmlFor="planner-goal" className="text-sm font-semibold text-body">
+            Anything specific? <span className="font-normal text-faint">(optional)</span>
           </label>
           <textarea
             id="planner-goal"
@@ -149,7 +149,7 @@ export default function GoalPlanner({ initialGoal }) {
             onChange={(e) => setFreeText(e.target.value)}
             rows={2}
             placeholder="e.g. “Launch my new bakery site in Singapore and get my first 100 visitors”"
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
+            className="mt-2 w-full rounded-lg border border-edge px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
           />
         </div>
 
@@ -185,8 +185,8 @@ export default function GoalPlanner({ initialGoal }) {
     <section className="mt-8" data-tour="pathway">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-lg font-bold text-slate-900">Your plan</h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <h2 className="text-lg font-bold text-heading">Your plan</h2>
+          <p className="mt-1 text-sm text-muted">
             {plan.aiRefined ? 'Personalised for what you told us. ' : ''}Your north star — keep chipping away.
           </p>
         </div>
@@ -201,14 +201,14 @@ export default function GoalPlanner({ initialGoal }) {
             </button>
           )}
           <button onClick={startEdit} className="text-sm font-medium text-brand-600 hover:text-brand-700">Edit goals</button>
-          <button onClick={reset} title="Start over" className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+          <button onClick={reset} title="Start over" className="grid h-8 w-8 place-items-center rounded-lg text-faint hover:bg-sunken hover:text-dim">
             <RotateCcw size={15} aria-hidden />
           </button>
         </div>
       </div>
 
       {/* Progress — the north-star bar */}
-      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
+      <div className="mt-4 rounded-xl border border-line bg-surface p-4">
         {complete ? (
           <div className="flex items-center gap-2 text-green-700">
             <PartyPopper size={18} aria-hidden />
@@ -218,10 +218,10 @@ export default function GoalPlanner({ initialGoal }) {
         ) : (
           <>
             <div className="flex items-center justify-between text-sm">
-              <span className="font-semibold text-slate-700">{done} of {total} done</span>
-              {next && <span className="truncate text-slate-500">Up next: <span className="font-medium text-slate-700">{stepLabel(next)}</span></span>}
+              <span className="font-semibold text-body">{done} of {total} done</span>
+              {next && <span className="truncate text-muted">Up next: <span className="font-medium text-body">{stepLabel(next)}</span></span>}
             </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-sunken">
               <div className="h-full rounded-full bg-brand-600 transition-[width] duration-500" style={{ width: `${pct}%` }} />
             </div>
           </>
@@ -239,11 +239,11 @@ export default function GoalPlanner({ initialGoal }) {
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={`font-semibold ${isDone ? 'text-slate-500' : 'text-slate-900'}`}>{stepLabel(s)}</span>
+                  <span className={`font-semibold ${isDone ? 'text-muted' : 'text-heading'}`}>{stepLabel(s)}</span>
                   {s.quickWin && !isDone && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-700">Start here</span>}
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">{costLabel(s.toolId)}</span>
+                  <span className="rounded-full bg-sunken px-2 py-0.5 text-[11px] font-semibold text-muted">{costLabel(s.toolId)}</span>
                 </div>
-                <p className="mt-0.5 text-sm text-slate-500">{s.why}</p>
+                <p className="mt-0.5 text-sm text-muted">{s.why}</p>
               </div>
               <button
                 onClick={() => go(s)}
@@ -258,12 +258,12 @@ export default function GoalPlanner({ initialGoal }) {
 
       {/* Tier-locked but relevant */}
       {plan.locked.length > 0 && (
-        <div className="mt-4 rounded-xl border border-dashed border-slate-200 p-4">
-          <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-600"><Lock size={14} aria-hidden /> Unlocks on a higher plan</h3>
+        <div className="mt-4 rounded-xl border border-dashed border-line p-4">
+          <h3 className="flex items-center gap-1.5 text-sm font-semibold text-dim"><Lock size={14} aria-hidden /> Unlocks on a higher plan</h3>
           <ul className="mt-2 space-y-1.5">
             {plan.locked.map((s) => (
               <li key={s.toolId} className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-slate-600"><span className="font-medium text-slate-800">{stepLabel(s)}</span> — {s.why}</span>
+                <span className="text-dim"><span className="font-medium text-strong">{stepLabel(s)}</span> — {s.why}</span>
                 <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold uppercase text-amber-700">{PLANS[toolById(s.toolId).minTier].name}</span>
               </li>
             ))}
@@ -274,7 +274,7 @@ export default function GoalPlanner({ initialGoal }) {
       {/* Agentic "beyond the ask" suggestions */}
       {plan.extras.length > 0 && (
         <section className="mt-6">
-          <h3 className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-slate-500">
+          <h3 className="flex items-center gap-1.5 text-sm font-bold uppercase tracking-wide text-muted">
             <Sparkles size={14} aria-hidden /> Also worth doing
           </h3>
           <div className="dm-card-grid mt-3">
@@ -286,10 +286,10 @@ export default function GoalPlanner({ initialGoal }) {
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600"><Icon size={18} aria-hidden /></span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold text-slate-800">{stepLabel(e)}</span>
+                      <span className="font-semibold text-strong">{stepLabel(e)}</span>
                       {e.locked && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-700">{PLANS[toolById(e.toolId).minTier].name}</span>}
                     </div>
-                    <p className="mt-0.5 text-sm text-slate-500">{e.why}</p>
+                    <p className="mt-0.5 text-sm text-muted">{e.why}</p>
                     <button onClick={() => go(e)} className="mt-2 text-sm font-semibold text-brand-600 hover:text-brand-700">
                       {e.action ? 'Set up' : 'Open'} <ArrowRight size={13} className="inline" aria-hidden />
                     </button>

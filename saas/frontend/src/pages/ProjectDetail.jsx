@@ -13,7 +13,7 @@ function statusOf(r) {
   const p = (r.preview || '').toLowerCase().trim();
   if (/couldn.?t|could not|unable|fail|error|reconnect|not connected|disconnect/.test(p))
     return { label: 'Issue', cls: 'bg-amber-100 text-amber-700' };
-  if (/^0 rows?\b|^0$/.test(p)) return { label: 'No data', cls: 'bg-slate-100 text-slate-500' };
+  if (/^0 rows?\b|^0$/.test(p)) return { label: 'No data', cls: 'bg-sunken text-muted' };
   return { label: 'OK', cls: 'bg-green-100 text-green-700' };
 }
 
@@ -41,7 +41,7 @@ export default function ProjectDetail() {
   if (!project) {
     return (
       <div className="mx-auto max-w-3xl">
-        <p className="text-slate-500">Project not found. <Link to="/projects" className="text-brand-600">Back to projects</Link></p>
+        <p className="text-muted">Project not found. <Link to="/projects" className="text-brand-600">Back to projects</Link></p>
       </div>
     );
   }
@@ -74,15 +74,15 @@ export default function ProjectDetail() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-sm text-slate-400">
-            <Link to="/projects" className="hover:text-slate-600">Projects</Link>
+          <div className="flex items-center gap-2 text-sm text-faint">
+            <Link to="/projects" className="hover:text-dim">Projects</Link>
             <span>/</span>
-            <span className="text-slate-600">{project.name}</span>
+            <span className="text-dim">{project.name}</span>
           </div>
           <h1 className="mt-1 text-2xl font-bold">{project.name}</h1>
           {project.domain && (
             <a href={`https://${project.domain}`} target="_blank" rel="noreferrer"
-              className="mt-0.5 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-brand-600">
+              className="mt-0.5 inline-flex items-center gap-1 text-sm text-muted hover:text-brand-600">
               {project.domain} <ExternalLink size={12} />
             </a>
           )}
@@ -105,7 +105,7 @@ export default function ProjectDetail() {
             <Icon size={18} className="shrink-0 text-brand-500" />
             <div>
               <div className="text-sm font-semibold">{label}</div>
-              <div className="text-xs text-slate-400">{sub}</div>
+              <div className="text-xs text-faint">{sub}</div>
             </div>
           </button>
         ))}
@@ -123,11 +123,11 @@ export default function ProjectDetail() {
             )}
           </div>
           {runs === null ? (
-            <p className="text-sm text-slate-400">Loading…</p>
+            <p className="text-sm text-faint">Loading…</p>
           ) : runs.length === 0 ? (
-            <p className="text-sm text-slate-400">No runs yet for this project.</p>
+            <p className="text-sm text-faint">No runs yet for this project.</p>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-hair">
               {runs.slice(0, 8).map((r) => {
                 const s = statusOf(r);
                 const toolName = toolById(r.tool)?.name || r.toolName || r.tool;
@@ -135,11 +135,11 @@ export default function ProjectDetail() {
                   <button key={r.runId} onClick={() => openRun(r.runId)}
                     className="flex w-full items-center gap-3 py-2.5 text-left hover:opacity-75">
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-slate-700">{toolName}</div>
-                      {r.target && <div className="truncate text-xs text-slate-400">{r.target}</div>}
+                      <div className="truncate text-sm font-medium text-body">{toolName}</div>
+                      {r.target && <div className="truncate text-xs text-faint">{r.target}</div>}
                     </div>
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${s.cls}`}>{s.label}</span>
-                    <span className="shrink-0 text-xs text-slate-400">{fmtDate(r.ts)}</span>
+                    <span className="shrink-0 text-xs text-faint">{fmtDate(r.ts)}</span>
                     <span className="shrink-0 text-xs text-brand-500">{opening === r.runId ? '…' : '→'}</span>
                   </button>
                 );
@@ -157,20 +157,20 @@ export default function ProjectDetail() {
             )}
           </div>
           {tracked === null ? (
-            <p className="text-sm text-slate-400">Loading…</p>
+            <p className="text-sm text-faint">Loading…</p>
           ) : tracked.length === 0 ? (
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-faint">
               No keywords tracked yet.{' '}
               <button onClick={() => goTo('/tracking')} className="text-brand-600 hover:underline">Add one</button>
             </p>
           ) : (
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-hair">
               {tracked.slice(0, 10).map((t) => {
                 const trend = posTrend(t);
                 return (
                   <div key={t.trackId} className="flex items-center gap-2 py-2">
-                    <div className="min-w-0 flex-1 truncate text-sm text-slate-700">{t.keyword}</div>
-                    <span className="shrink-0 text-sm font-semibold text-slate-800">{posLabel(t)}</span>
+                    <div className="min-w-0 flex-1 truncate text-sm text-body">{t.keyword}</div>
+                    <span className="shrink-0 text-sm font-semibold text-strong">{posLabel(t)}</span>
                     {trend && <span className={`shrink-0 text-xs font-medium ${trend.cls}`}>{trend.label}</span>}
                   </div>
                 );
@@ -182,7 +182,7 @@ export default function ProjectDetail() {
 
       {/* Tool launcher */}
       <div className="mt-8">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">Run a tool</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-faint">Run a tool</h2>
         <div className="mt-4 space-y-6">
           {TOOL_CATEGORIES.map((cat) => {
             const tools = TOOLS.filter((t) => t.category === cat);
@@ -192,7 +192,7 @@ export default function ProjectDetail() {
               <div key={cat}>
                 <div className="mb-2 flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full" style={{ background: color }} />
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{cat}</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted">{cat}</span>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {tools.map((t) => {
@@ -203,14 +203,14 @@ export default function ProjectDetail() {
                         disabled={locked}
                         className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-colors ${
                           locked
-                            ? 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-50'
-                            : 'border-slate-200 bg-white hover:border-brand-300 hover:bg-brand-50'
+                            ? 'cursor-not-allowed border-hair bg-raised opacity-50'
+                            : 'border-line bg-surface hover:border-brand-300 hover:bg-brand-50'
                         }`}
                       >
                         <CategoryIcon category={cat} size={16} color={locked ? '#94a3b8' : color} />
                         <div className="min-w-0">
-                          <div className="truncate text-sm font-medium text-slate-700">{t.name}</div>
-                          {locked && <div className="text-xs capitalize text-slate-400">{t.minTier}+ plan</div>}
+                          <div className="truncate text-sm font-medium text-body">{t.name}</div>
+                          {locked && <div className="text-xs capitalize text-faint">{t.minTier}+ plan</div>}
                         </div>
                       </button>
                     );

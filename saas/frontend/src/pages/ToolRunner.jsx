@@ -215,20 +215,20 @@ export default function ToolRunner() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <Link to="/" className="text-sm text-slate-500 hover:text-slate-800">← All tools</Link>
+      <Link to="/" className="text-sm text-muted hover:text-strong">← All tools</Link>
       <div className="mt-3 flex items-center gap-3">
         <h1 className="text-2xl font-bold">{tool.name}</h1>
         {!unlocked && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold uppercase text-amber-700"><Lock size={12} aria-hidden /> {PLANS[tool.minTier].name}</span>}
         <button
           type="button"
           onClick={() => launchTour(shown)}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:border-brand-300 hover:text-brand-600"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-dim hover:border-brand-300 hover:text-brand-600"
           title="Guided walkthrough with a real example"
         >
           <Compass size={14} aria-hidden /> Tour
         </button>
       </div>
-      <p className="mt-1 text-slate-600">{tool.desc}</p>
+      <p className="mt-1 text-dim">{tool.desc}</p>
 
       {!unlocked && tool.teaser && (
         <div className="mt-4 flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
@@ -238,13 +238,13 @@ export default function ToolRunner() {
 
       {/* GSC sub-tool tabs (URL Inspection / Sitemaps / Indexing), like index.html. */}
       {tabs && (
-        <div className="mt-5 flex flex-wrap gap-1 border-b border-slate-200">
+        <div className="mt-5 flex flex-wrap gap-1 border-b border-line">
           {tabs.map((t, i) => (
             <button
               key={t.key}
               type="button"
               onClick={() => selectTab(i)}
-              className={`-mb-px border-b-2 px-3.5 py-2 text-sm font-medium transition ${i === tab ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+              className={`-mb-px border-b-2 px-3.5 py-2 text-sm font-medium transition ${i === tab ? 'border-brand-600 text-brand-700' : 'border-transparent text-muted hover:text-strong'}`}
             >
               {t.label}
             </button>
@@ -258,12 +258,12 @@ export default function ToolRunner() {
             <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} autoFocus={i === 0} provider={tool.integration} values={values} invalid={isMissing(f)} />
           ))}
           {advancedFields.length > 0 && (
-            <div className="border-t border-slate-100 pt-3">
+            <div className="border-t border-hair pt-3">
               <button type="button" onClick={() => setShowAdv((s) => !s)}
                 className="flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700">
                 <ChevronRight size={15} className={`transition-transform ${showAdv ? 'rotate-90' : ''}`} aria-hidden />
                 {showAdv ? 'Hide' : 'Show'} advanced options
-                <span className="text-xs font-normal text-slate-400">({advancedFields.length} optional)</span>
+                <span className="text-xs font-normal text-faint">({advancedFields.length} optional)</span>
               </button>
               {showAdv && (
                 <div className="mt-4 space-y-4">
@@ -276,7 +276,7 @@ export default function ToolRunner() {
           )}
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3 text-xs text-slate-400" data-tour="tool-actions">
+          <div className="flex items-center gap-3 text-xs text-faint" data-tour="tool-actions">
             <span>{cost === 0 ? 'Free to run' : `Costs ${cost} credit${cost > 1 ? 's' : ''}`}</span>
             {example && <button type="button" onClick={fillExample} className="font-medium text-brand-600 hover:text-brand-700">Try an example</button>}
             {shown.some((f) => f.required) && <span><span className="text-amber-500">*</span> Required</span>}
@@ -335,11 +335,11 @@ function SlowProgress({ tool }) {
     <div className="card mt-6 p-6">
       <div className="flex items-center gap-3">
         <span className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-        <span className="font-medium text-slate-700">{steps[i]}</span>
-        <span className="ml-auto text-xs tabular-nums text-slate-400">{sec}s · ~30–150s for {tool.name}</span>
+        <span className="font-medium text-body">{steps[i]}</span>
+        <span className="ml-auto text-xs tabular-nums text-faint">{sec}s · ~30–150s for {tool.name}</span>
       </div>
       <div className="mt-4 space-y-2">
-        {[90, 75, 82, 60].map((w, k) => <div key={k} className="h-3 animate-pulse rounded bg-slate-100" style={{ width: `${w}%` }} />)}
+        {[90, 75, 82, 60].map((w, k) => <div key={k} className="h-3 animate-pulse rounded bg-sunken" style={{ width: `${w}%` }} />)}
       </div>
     </div>
   );
@@ -408,7 +408,7 @@ function Result({ out, tool, project, user, onCredits }) {
   if (r.needsConnect) {
     return (
       <div className="card mt-6 p-6 text-center">
-        <p className="text-slate-600">{r.text || 'Connect your account to use this tool.'}</p>
+        <p className="text-dim">{r.text || 'Connect your account to use this tool.'}</p>
         <Link to="/integrations" className="btn-primary mt-3 inline-block">Connect in Integrations →</Link>
       </div>
     );
@@ -443,7 +443,7 @@ function Result({ out, tool, project, user, onCredits }) {
       <div className="dm-no-print mb-2 flex items-center gap-2">
         {r.source === 'live' && <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700"><span className="inline-block h-1.5 w-1.5 rounded-full bg-green-600" aria-hidden /> Live data</span>}
         {typeof out.creditsUsed === 'number' && out.creditsUsed > 0 && (
-          <span className="text-xs text-slate-400">used {out.creditsUsed} · {out.creditsRemaining} left</span>
+          <span className="text-xs text-faint">used {out.creditsUsed} · {out.creditsRemaining} left</span>
         )}
         {hasContent && (
           <div className="ml-auto flex items-center gap-1.5">
@@ -486,10 +486,10 @@ function Result({ out, tool, project, user, onCredits }) {
           <>
             {r.text && (VARIATION_RE.test(r.text)
               ? <CaptionCards text={r.text} />
-              : <pre className="whitespace-pre-wrap text-sm text-slate-700">{r.text}</pre>)}
-            {r.preview && <pre className="whitespace-pre-wrap text-sm text-slate-500">{r.preview}</pre>}
+              : <pre className="whitespace-pre-wrap text-sm text-body">{r.text}</pre>)}
+            {r.preview && <pre className="whitespace-pre-wrap text-sm text-muted">{r.preview}</pre>}
             {preRowSections.length > 0 && <ResultSections sections={preRowSections} context={recContext} />}
-            {r.html && <div className="dm-report max-w-none text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: r.html }} />}
+            {r.html && <div className="dm-report max-w-none text-sm text-body" dangerouslySetInnerHTML={{ __html: r.html }} />}
           </>
         )}
 
@@ -502,7 +502,7 @@ function Result({ out, tool, project, user, onCredits }) {
           <div className="relative mt-1">
             <div className="blur-locked">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="flex gap-8 border-t border-slate-100 py-1.5 text-sm text-slate-400">
+                <div key={i} className="flex gap-8 border-t border-hair py-1.5 text-sm text-faint">
                   <span>locked keyword {i + 1}</span><span>4,200</span><span>34</span><span>S$2.40</span><span>Commercial</span>
                 </div>
               ))}
@@ -515,7 +515,7 @@ function Result({ out, tool, project, user, onCredits }) {
 
         {r.detailsLocked && (
           <div className="text-center">
-            <p className="text-sm text-slate-500">{r.teaserMessage}</p>
+            <p className="text-sm text-muted">{r.teaserMessage}</p>
             <Link to="/pricing" className="btn-primary mt-3">Unlock full report</Link>
           </div>
         )}
@@ -525,7 +525,7 @@ function Result({ out, tool, project, user, onCredits }) {
 }
 
 function ResultBtn({ children, onClick }) {
-  return <button onClick={onClick} className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:border-brand-300 hover:text-brand-600">{children}</button>;
+  return <button onClick={onClick} className="rounded-md border border-line bg-surface px-2.5 py-1 text-xs font-medium text-dim hover:border-brand-300 hover:text-brand-600">{children}</button>;
 }
 
 // Sortable table with per-column formatting + badges.
@@ -541,7 +541,7 @@ function ResultTable({ rows }) {
   return (
     <div>
       <div className="mb-1.5 flex justify-end">
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium tabular-nums text-slate-500">
+        <span className="rounded-full bg-sunken px-2 py-0.5 text-xs font-medium tabular-nums text-muted">
           {n.toLocaleString()} {n === 1 ? 'row' : 'rows'}
         </span>
       </div>
@@ -587,13 +587,13 @@ function KeywordAnalysisResult({ rows: initialRows, timeRank, tool, onCredits })
       render: (row) => row.timeToRank != null
         ? <span className="text-slate-300" aria-hidden>✓</span>
         : <input type="checkbox" checked={selected.has(row.keyword)} onChange={() => toggle(row.keyword)}
-            className="h-4 w-4 cursor-pointer rounded border-slate-300 text-brand-600 focus:ring-brand-500" aria-label={`Select ${row.keyword}`} />,
+            className="h-4 w-4 cursor-pointer rounded border-edge text-brand-600 focus:ring-brand-500" aria-label={`Select ${row.keyword}`} />,
     },
     ...baseKeys.map((c) => ({ key: c, label: c.replace(/([a-z])([A-Z])/g, '$1 $2'), render: (row) => cell(c, row[c]) })),
     domain && {
       key: 'timeToRank', label: 'Time to rank',
       render: (row) => pending.has(row.keyword)
-        ? <span className="inline-flex items-center gap-1 text-slate-400"><span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-brand-500" aria-hidden /> estimating…</span>
+        ? <span className="inline-flex items-center gap-1 text-faint"><span className="h-3 w-3 animate-spin rounded-full border-2 border-edge border-t-brand-500" aria-hidden /> estimating…</span>
         : row.timeToRank != null ? cell('timeToRank', row.timeToRank) : <span className="text-slate-300">—</span>,
     },
   ].filter(Boolean);
@@ -639,18 +639,18 @@ function KeywordAnalysisResult({ rows: initialRows, timeRank, tool, onCredits })
             className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-40">
             {running ? 'Calculating…' : `Calculate time to rank${todo.length ? ` (${todo.length})` : ''}`}
           </button>
-          {todo.length > 0 && <span className="text-xs text-slate-400">costs {todo.length} credit{todo.length > 1 ? 's' : ''} · estimated against {domain}</span>}
+          {todo.length > 0 && <span className="text-xs text-faint">costs {todo.length} credit{todo.length > 1 ? 's' : ''} · estimated against {domain}</span>}
         </div>
       )}
       <div className="mb-1.5 flex justify-end">
-        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium tabular-nums text-slate-500">{n.toLocaleString()} {n === 1 ? 'row' : 'rows'}</span>
+        <span className="rounded-full bg-sunken px-2 py-0.5 text-xs font-medium tabular-nums text-muted">{n.toLocaleString()} {n === 1 ? 'row' : 'rows'}</span>
       </div>
       <SortableTable columns={columns} rows={rows} rowKey={(r) => r.keyword} filterable={rows.length > 8} exportName={tool.id} />
     </div>
   );
 }
 
-const TONE = { red: 'bg-red-100 text-red-700', amber: 'bg-amber-100 text-amber-700', green: 'bg-green-100 text-green-700', blue: 'bg-blue-100 text-blue-700', slate: 'bg-slate-100 text-slate-600' };
+const TONE = { red: 'bg-red-100 text-red-700', amber: 'bg-amber-100 text-amber-700', green: 'bg-green-100 text-green-700', blue: 'bg-blue-100 text-blue-700', slate: 'bg-sunken text-dim' };
 function Badge({ t, tone }) { return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TONE[tone] || TONE.slate}`}>{t}</span>; }
 
 // Toggle-chip multi-select; value is a comma-joined string (backend splits it).
@@ -691,12 +691,12 @@ function MultiSelect({ field, options, value, onChange, values }) {
         return (
           <button type="button" key={o} disabled={disabled} onClick={() => toggle(o)}
             title={disabled ? 'Not available for the selected breakdown dimension' : undefined}
-            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${disabled ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-300 line-through' : on ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-300 text-slate-600 hover:border-brand-300'}`}>
+            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${disabled ? 'cursor-not-allowed border-line bg-raised text-slate-300 line-through' : on ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-edge text-dim hover:border-brand-300'}`}>
             {o}
           </button>
         );
       })}
-      {compat && allowed && <span className="w-full text-xs text-slate-400">Greyed-out metrics aren’t supported with the “{dim}” breakdown.</span>}
+      {compat && allowed && <span className="w-full text-xs text-faint">Greyed-out metrics aren’t supported with the “{dim}” breakdown.</span>}
     </div>
   );
 }
@@ -711,23 +711,23 @@ function CaptionCards({ text }) {
     const body = (parts[i + 1] || '').trim();
     if (body) cards.push({ n: parts[i], body });
   }
-  if (!cards.length) return <pre className="whitespace-pre-wrap text-sm text-slate-700">{text}</pre>;
+  if (!cards.length) return <pre className="whitespace-pre-wrap text-sm text-body">{text}</pre>;
   return (
     <div className="grid gap-3 sm:grid-cols-2">
       {cards.map((c, i) => (
-        <div key={i} className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 transition-shadow hover:shadow-sm">
+        <div key={i} className="flex flex-col rounded-xl border border-line bg-surface p-4 transition-shadow hover:shadow-sm">
           <div className="mb-2 flex items-center justify-between">
             <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-600">
               <span className="h-1.5 w-1.5 rounded-full bg-brand-500" aria-hidden /> Variation {c.n}
             </span>
             <button
               onClick={() => copyText(c.body).then(() => toast('Caption copied', 'success'))}
-              className="rounded-md border border-slate-200 px-2 py-0.5 text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+              className="rounded-md border border-line px-2 py-0.5 text-xs font-medium text-muted hover:bg-raised hover:text-body"
             >
               Copy
             </button>
           </div>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{c.body}</p>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-body">{c.body}</p>
         </div>
       ))}
     </div>
@@ -743,13 +743,13 @@ function timeToRankClass(s) {
   if (t.startsWith('6-9')) return 'bg-amber-100 text-amber-700';
   if (t.startsWith('9-12')) return 'bg-orange-100 text-orange-700';
   if (t.includes('more than 12')) return 'bg-red-100 text-red-700';
-  return 'bg-slate-100 text-slate-500';
+  return 'bg-sunken text-muted';
 }
 
 function cell(col, val) {
   const c = col.toLowerCase();
   const s = String(val ?? '');
-  if (!s || s === '—') return <span className="text-slate-400">—</span>;
+  if (!s || s === '—') return <span className="text-faint">—</span>;
   if (c === 'timetorank') return <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${timeToRankClass(s)}`}>{s}</span>;
   if (c === 'priority') return <Badge t={s} tone={{ critical: 'red', high: 'amber', medium: 'blue', keep: 'slate' }[s.toLowerCase()]} />;
   if (c === 'severity') return <Badge t={s} tone={{ critical: 'red', high: 'red', medium: 'amber', low: 'green' }[s.toLowerCase()]} />;
@@ -766,22 +766,22 @@ function cell(col, val) {
 function RepivotBar({ fields, values, busy, onChange }) {
   if (!fields.length) return null;
   return (
-    <div className="dm-no-print mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5">
-      <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">View</span>
+    <div className="dm-no-print mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-line bg-surface px-4 py-2.5">
+      <span className="text-[11px] font-semibold uppercase tracking-wide text-faint">View</span>
       {fields.map((f) => (
-        <label key={f.name} className="flex items-center gap-1.5 text-sm text-slate-600">
-          <span className="text-xs text-slate-500">{f.label}</span>
+        <label key={f.name} className="flex items-center gap-1.5 text-sm text-dim">
+          <span className="text-xs text-muted">{f.label}</span>
           <select
             value={values[f.name]}
             disabled={busy}
             onChange={(e) => onChange(f.name, e.target.value)}
-            className="dm-select rounded-lg border border-slate-300 bg-white py-1 pl-2 pr-7 text-sm transition focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/10 disabled:opacity-50"
+            className="dm-select rounded-lg border border-edge bg-surface py-1 pl-2 pr-7 text-sm transition focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/10 disabled:opacity-50"
           >
             {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
           </select>
         </label>
       ))}
-      {busy && <span className="flex items-center gap-1.5 text-xs text-slate-400"><span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />updating…</span>}
+      {busy && <span className="flex items-center gap-1.5 text-xs text-faint"><span className="h-3 w-3 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />updating…</span>}
     </div>
   );
 }
@@ -800,7 +800,7 @@ function TagInput({ value, onChange, placeholder }) {
 
   return (
     <div className="mt-1.5">
-      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-300 p-2 transition focus-within:border-brand-600 focus-within:ring-4 focus-within:ring-brand-600/10">
+      <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-edge p-2 transition focus-within:border-brand-600 focus-within:ring-4 focus-within:ring-brand-600/10">
         {tags.map((t) => (
           <span key={t} className="inline-flex items-center gap-1 rounded-md bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
             {t}
@@ -878,7 +878,7 @@ function AccountField({ provider, value, onChange, placeholder }) {
     return (
       <>
         <input className="field mt-1.5" value={value || ''} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
-        <span className="mt-1 block text-xs text-slate-400">
+        <span className="mt-1 block text-xs text-faint">
           No connected accounts — <Link to="/integrations" className="font-medium text-brand-600 hover:text-brand-700">connect in Integrations</Link> or type an ID manually.
         </span>
       </>
@@ -893,22 +893,22 @@ function AccountField({ provider, value, onChange, placeholder }) {
   return (
     <div className="relative mt-1.5" ref={boxRef}>
       <button type="button" onClick={() => { setOpen((o) => !o); setQ(''); }} className="field flex w-full items-center justify-between text-left">
-        <span className={`truncate ${label ? '' : 'text-slate-400'}`}>{accounts === null ? 'Loading accounts…' : (label || 'Select an account…')}</span>
-        <span className="ml-2 shrink-0 text-slate-400">▾</span>
+        <span className={`truncate ${label ? '' : 'text-faint'}`}>{accounts === null ? 'Loading accounts…' : (label || 'Select an account…')}</span>
+        <span className="ml-2 shrink-0 text-faint">▾</span>
       </button>
       {open && accounts && (
-        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
-          <div className="border-b border-slate-100 p-2">
+        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-line bg-surface shadow-lg">
+          <div className="border-b border-hair p-2">
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or ID…"
-              className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-sm focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/10" />
+              className="w-full rounded-md border border-line px-2 py-1.5 text-sm focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/10" />
           </div>
           <div className="max-h-56 overflow-auto py-1">
             {filtered.length ? filtered.map((a) => (
               <button key={a.id} type="button" onClick={() => { onChange(a.id); setOpen(false); }}
-                className={`block w-full truncate px-3 py-1.5 text-left text-sm hover:bg-slate-50 ${a.id === value ? 'font-semibold text-brand-700' : 'text-slate-700'}`}>
+                className={`block w-full truncate px-3 py-1.5 text-left text-sm hover:bg-raised ${a.id === value ? 'font-semibold text-brand-700' : 'text-body'}`}>
                 {a.label}
               </button>
-            )) : <div className="px-3 py-2 text-sm text-slate-400">No matches.</div>}
+            )) : <div className="px-3 py-2 text-sm text-faint">No matches.</div>}
           </div>
         </div>
       )}
@@ -974,26 +974,26 @@ function SearchableSelect({ options, value, onChange, autoFocus }) {
         <span className="truncate">{value || 'Select…'}</span>
       </button>
       {open && (
-        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lift">
-          <div className="border-b border-slate-100 p-1.5">
+        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-line bg-surface shadow-lift">
+          <div className="border-b border-hair p-1.5">
             <input
               ref={searchRef} type="text" value={query}
               onChange={(e) => { setQuery(e.target.value); setActive(0); }}
               onKeyDown={onKeyDown}
               placeholder="Search…"
-              className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/10"
+              className="w-full rounded-md border border-line bg-raised px-2.5 py-1.5 text-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/10"
             />
           </div>
           <ul ref={listRef} className="max-h-60 overflow-y-auto py-1" role="listbox">
             {filtered.length === 0 ? (
-              <li className="px-3 py-2 text-sm text-slate-400">No matches</li>
+              <li className="px-3 py-2 text-sm text-faint">No matches</li>
             ) : filtered.map((opt, i) => (
               <li key={opt}>
                 <button
                   type="button" data-active={i === active}
                   onMouseEnter={() => setActive(i)} onClick={() => pick(opt)}
                   className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-sm ${
-                    i === active ? 'bg-brand-50 text-brand-700' : 'text-slate-700'
+                    i === active ? 'bg-brand-50 text-brand-700' : 'text-body'
                   }`}
                 >
                   <span className="truncate">{opt}</span>
@@ -1021,10 +1021,10 @@ function Segmented({ options, optionDesc = {}, value, onChange }) {
             type="button"
             aria-pressed={on}
             onClick={() => onChange(o)}
-            className={`rounded-lg border p-3 text-left transition ${on ? 'border-brand-600 bg-brand-50 ring-4 ring-brand-600/10' : 'border-slate-200 bg-white hover:border-brand-300'}`}
+            className={`rounded-lg border p-3 text-left transition ${on ? 'border-brand-600 bg-brand-50 ring-4 ring-brand-600/10' : 'border-line bg-surface hover:border-brand-300'}`}
           >
-            <span className={`block text-sm font-semibold ${on ? 'text-brand-700' : 'text-slate-700'}`}>{o}</span>
-            {optionDesc[o] && <span className="mt-0.5 block text-xs text-slate-500">{optionDesc[o]}</span>}
+            <span className={`block text-sm font-semibold ${on ? 'text-brand-700' : 'text-body'}`}>{o}</span>
+            {optionDesc[o] && <span className="mt-0.5 block text-xs text-muted">{optionDesc[o]}</span>}
           </button>
         );
       })}
@@ -1036,7 +1036,7 @@ function Field({ field, value, onChange, autoFocus, provider, values, invalid })
   const base = `field mt-1.5${invalid ? ' !border-amber-400 !ring-4 !ring-amber-400/20' : ''}`;
   return (
     <label className={`block ${invalid ? '-ml-3 rounded-lg border-l-2 border-amber-400 bg-amber-50/50 pl-3' : ''}`} data-tour-field={field.name}>
-      <span className="text-sm font-medium text-slate-700">
+      <span className="text-sm font-medium text-body">
         {field.label}{field.required && <span className={invalid ? 'font-bold text-amber-600' : 'text-amber-500'}> *</span>}
       </span>
       {field.type === 'account' ? (
@@ -1044,7 +1044,7 @@ function Field({ field, value, onChange, autoFocus, provider, values, invalid })
       ) : field.type === 'tags' ? (
         <>
           <TagInput value={value} onChange={onChange} placeholder={field.placeholder} />
-          <span className="mt-1 block text-xs text-slate-400">Add several — press Enter or comma between keywords.</span>
+          <span className="mt-1 block text-xs text-faint">Add several — press Enter or comma between keywords.</span>
         </>
       ) : field.type === 'date' ? (
         <input autoFocus={autoFocus} type="date" value={value || ''} max={field.max || '9999-12-31'} onChange={(e) => onChange(e.target.value)} className={base} />
@@ -1067,7 +1067,7 @@ function Field({ field, value, onChange, autoFocus, provider, values, invalid })
           value={value} placeholder={field.placeholder} onChange={(e) => onChange(e.target.value)} className={base} />
       )}
       {invalid && <span className="mt-1 block text-xs font-semibold text-amber-600">Please fill this in to continue.</span>}
-      {field.hint && <span className="mt-1 block whitespace-pre-line text-xs text-slate-400">{field.hint}</span>}
+      {field.hint && <span className="mt-1 block whitespace-pre-line text-xs text-faint">{field.hint}</span>}
     </label>
   );
 }

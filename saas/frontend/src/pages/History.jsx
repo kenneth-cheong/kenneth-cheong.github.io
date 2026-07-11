@@ -16,7 +16,7 @@ function statusOf(r) {
   // An explicit zero-row count is genuinely empty. (An empty preview just means
   // the result format — e.g. `sections` — isn't captured in the preview, so we
   // treat it as OK rather than mislabel a successful content run.)
-  if (/^0 rows?\b|^0$/.test(p)) return { label: 'No data', cls: 'bg-slate-100 text-slate-500' };
+  if (/^0 rows?\b|^0$/.test(p)) return { label: 'No data', cls: 'bg-sunken text-muted' };
   return { label: 'OK', cls: 'bg-green-100 text-green-700' };
 }
 
@@ -71,15 +71,15 @@ export default function History({ embedded = false }) {
 
   const columns = [
     { key: 'tool', label: 'Tool', accessor: (r) => toolById(r.tool)?.name || r.toolName || r.tool,
-      render: (r) => <span className="font-medium text-slate-800">{toolById(r.tool)?.name || r.toolName || r.tool}</span> },
+      render: (r) => <span className="font-medium text-strong">{toolById(r.tool)?.name || r.toolName || r.tool}</span> },
     { key: 'target', label: 'Target', accessor: (r) => r.target || '',
-      render: (r) => (r.target ? <span className="text-slate-600">{r.target}</span> : <span className="text-slate-300">—</span>) },
+      render: (r) => (r.target ? <span className="text-dim">{r.target}</span> : <span className="text-slate-300">—</span>) },
     { key: 'status', label: 'Status', accessor: (r) => statusOf(r).label,
       render: (r) => { const s = statusOf(r); return <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${s.cls}`}>{s.label}</span>; } },
     { key: 'ts', label: 'When', accessor: (r) => r.ts,
-      render: (r) => <span className="whitespace-nowrap text-slate-500">{new Date(r.ts).toLocaleString()}</span> },
+      render: (r) => <span className="whitespace-nowrap text-muted">{new Date(r.ts).toLocaleString()}</span> },
     { key: 'project', label: 'Project', accessor: (r) => projName(r.projectId) || '',
-      render: (r) => (projName(r.projectId) ? <span className="text-slate-500">{projName(r.projectId)}</span> : <span className="text-slate-300">—</span>) },
+      render: (r) => (projName(r.projectId) ? <span className="text-muted">{projName(r.projectId)}</span> : <span className="text-slate-300">—</span>) },
     { key: 'creditsUsed', label: 'Credits', align: 'right', numeric: true,
       render: (r) => (r.creditsUsed > 0 ? r.creditsUsed : <span className="text-slate-300">—</span>) },
     { key: 'open', label: '', sortable: false, align: 'right',
@@ -99,33 +99,33 @@ export default function History({ embedded = false }) {
   return (
     <div className={embedded ? '' : 'mx-auto max-w-5xl'} id={embedded ? 'runs' : undefined}>
       <h1 className="text-2xl font-bold">Runs</h1>
-      <p className="mt-1 text-slate-600">Every tool run is saved here. Click a row to revisit the result and the exact inputs.</p>
+      <p className="mt-1 text-dim">Every tool run is saved here. Click a row to revisit the result and the exact inputs.</p>
 
       <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
         {active && (
           <div className="flex gap-2">
             {['all', 'project'].map((s) => (
               <button key={s} onClick={() => setScope(s)}
-                className={`rounded-full px-3 py-1.5 text-sm font-medium ${scope === s ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'}`}>
+                className={`rounded-full px-3 py-1.5 text-sm font-medium ${scope === s ? 'bg-brand-600 text-white' : 'bg-surface text-dim ring-1 ring-line hover:bg-raised'}`}>
                 {s === 'all' ? 'All runs' : active.name}
               </button>
             ))}
           </div>
         )}
         <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-500">Group by</span>
+          <span className="text-sm text-muted">Group by</span>
           {[['none', 'None'], ['tool', 'Tool'], ['target', 'Domain']].map(([v, label]) => (
             <button key={v} onClick={() => setGroupBy(v)}
-              className={`rounded-full px-3 py-1.5 text-sm font-medium ${groupBy === v ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'}`}>
+              className={`rounded-full px-3 py-1.5 text-sm font-medium ${groupBy === v ? 'bg-slate-800 text-white' : 'bg-surface text-dim ring-1 ring-line hover:bg-raised'}`}>
               {label}
             </button>
           ))}
         </div>
       </div>
 
-      {visible === null && <p className="mt-6 text-slate-400">Loading…</p>}
+      {visible === null && <p className="mt-6 text-faint">Loading…</p>}
       {visible?.length === 0 && (
-        <div className="card mt-6 p-8 text-center text-slate-400">No runs yet — run a tool and it'll appear here.</div>
+        <div className="card mt-6 p-8 text-center text-faint">No runs yet — run a tool and it'll appear here.</div>
       )}
 
       {/* Flat sortable table */}
@@ -139,9 +139,9 @@ export default function History({ embedded = false }) {
           {groups.map((g) => (
             <div key={g.key}>
               <div className="mb-2 flex items-center gap-2">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">{g.key}</h2>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">{g.runs.length} run{g.runs.length === 1 ? '' : 's'}</span>
-                {g.credits > 0 && <span className="text-xs text-slate-400">{g.credits} cr</span>}
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-body">{g.key}</h2>
+                <span className="rounded-full bg-sunken px-2 py-0.5 text-xs font-medium text-muted">{g.runs.length} run{g.runs.length === 1 ? '' : 's'}</span>
+                {g.credits > 0 && <span className="text-xs text-faint">{g.credits} cr</span>}
               </div>
               <Table rows={g.runs} />
             </div>

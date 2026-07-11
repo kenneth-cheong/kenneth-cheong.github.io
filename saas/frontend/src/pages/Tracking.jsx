@@ -112,7 +112,7 @@ export default function Tracking() {
     if (!h || h.length < 2) return null;
     const a = h[0].position, b = h[h.length - 1].position;
     if (!a || !b) return null;
-    return b < a ? { dir: '▲', cls: 'text-green-600', n: a - b } : b > a ? { dir: '▼', cls: 'text-red-600', n: b - a } : { dir: '–', cls: 'text-slate-400', n: 0 };
+    return b < a ? { dir: '▲', cls: 'text-green-600', n: a - b } : b > a ? { dir: '▼', cls: 'text-red-600', n: b - a } : { dir: '–', cls: 'text-faint', n: 0 };
   };
 
   // Aggregate summary — average position across all keywords per date, within the selected period.
@@ -160,7 +160,7 @@ export default function Tracking() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Keyword tracking</h1>
-          <p className="mt-1 text-slate-600">
+          <p className="mt-1 text-dim">
             {active ? <>Tracking ranks for <strong>{active.name}</strong>.</> : 'Pick a project to scope tracking.'} {tracked.length}/{limit} keywords.
           </p>
         </div>
@@ -176,12 +176,12 @@ export default function Tracking() {
 
       {limit === 0 ? (
         <div className="card mt-6 p-6 text-center">
-          <p className="text-slate-600">Keyword tracking is a paid feature.</p>
+          <p className="text-dim">Keyword tracking is a paid feature.</p>
           <Link to="/pricing" className="btn-primary mt-3 inline-block">Upgrade to track keywords</Link>
         </div>
       ) : !activeId ? (
         <div className="card mt-6 p-6 text-center">
-          <p className="text-slate-600">Keywords are tracked under a project. Create one to start tracking.</p>
+          <p className="text-dim">Keywords are tracked under a project. Create one to start tracking.</p>
           <Link to="/projects" className="btn-primary mt-3 inline-block">Create a project</Link>
         </div>
       ) : (
@@ -189,7 +189,7 @@ export default function Tracking() {
           {/* Add form — single keyword or a pasted bulk list. */}
           <form onSubmit={bulk ? addBulk : add} className="card mt-6 p-5">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-700">{bulk ? 'Keywords (one per line)' : 'Keyword'}<span className="text-amber-500"> *</span></span>
+              <span className="text-sm font-medium text-body">{bulk ? 'Keywords (one per line)' : 'Keyword'}<span className="text-amber-500"> *</span></span>
               <button type="button" onClick={() => setBulk((b) => !b)} className="text-xs font-medium text-brand-600 hover:text-brand-700">
                 {bulk ? 'Single keyword' : '+ Add multiple'}
               </button>
@@ -197,15 +197,15 @@ export default function Tracking() {
             <div className="flex flex-wrap items-end gap-3">
               {bulk ? (
                 <textarea value={bulkText} onChange={(e) => { setNudge(false); setBulkText(e.target.value); }} rows={4} placeholder={'self storage singapore\ncheap storage\nstorage units sg'}
-                  className={`block w-full flex-1 rounded-lg border p-2.5 text-sm focus:outline-none ${nudge && !bulkText.trim() ? 'border-amber-400 ring-4 ring-amber-400/20' : 'border-slate-300 focus:border-brand-500'}`} />
+                  className={`block w-full flex-1 rounded-lg border p-2.5 text-sm focus:outline-none ${nudge && !bulkText.trim() ? 'border-amber-400 ring-4 ring-amber-400/20' : 'border-edge focus:border-brand-500'}`} />
               ) : (
                 <input value={keyword} onChange={(e) => { setNudge(false); setKeyword(e.target.value); }} placeholder="self storage singapore"
-                  className={`block flex-1 rounded-lg border p-2.5 text-sm focus:outline-none ${nudge && !keyword.trim() ? 'border-amber-400 ring-4 ring-amber-400/20' : 'border-slate-300 focus:border-brand-500'}`} />
+                  className={`block flex-1 rounded-lg border p-2.5 text-sm focus:outline-none ${nudge && !keyword.trim() ? 'border-amber-400 ring-4 ring-amber-400/20' : 'border-edge focus:border-brand-500'}`} />
               )}
               <label className="block flex-1">
-                <span className="text-sm font-medium text-slate-700">Domain<span className="text-amber-500"> *</span></span>
+                <span className="text-sm font-medium text-body">Domain<span className="text-amber-500"> *</span></span>
                 <input value={domain} onChange={(e) => { setNudge(false); setDomain(e.target.value); }} placeholder="acme.sg"
-                  className={`mt-1.5 w-full rounded-lg border p-2.5 text-sm focus:outline-none ${nudge && !domain.trim() ? 'border-amber-400 ring-4 ring-amber-400/20' : 'border-slate-300 focus:border-brand-500'}`} />
+                  className={`mt-1.5 w-full rounded-lg border p-2.5 text-sm focus:outline-none ${nudge && !domain.trim() ? 'border-amber-400 ring-4 ring-amber-400/20' : 'border-edge focus:border-brand-500'}`} />
               </label>
               <button className="btn-primary" disabled={busy || (!bulk && tracked.length >= limit)}>
                 {busy ? 'Registering…' : bulk ? 'Track keywords' : (tracked.length >= limit ? 'Limit reached' : 'Track')}
@@ -213,26 +213,26 @@ export default function Tracking() {
             </div>
             {nudge
               ? <p className="mt-2 text-xs font-semibold text-amber-600">Enter {bulk ? 'at least one keyword' : 'a keyword'} and a domain to start tracking.</p>
-              : bulk && <p className="mt-2 text-xs text-slate-400">Up to {Math.max(0, limit - tracked.length)} more. Positions are checked right after adding.</p>}
+              : bulk && <p className="mt-2 text-xs text-faint">Up to {Math.max(0, limit - tracked.length)} more. Positions are checked right after adding.</p>}
           </form>
 
           {/* Period selector + custom date range. */}
           {tracked.length > 0 && (
             <div className="mt-5 flex flex-wrap items-center gap-2">
-              <span className="text-sm text-slate-500">Period</span>
+              <span className="text-sm text-muted">Period</span>
               {PERIODS.map(([v, label]) => (
                 <button key={v} onClick={() => setPeriod(v)}
-                  className={`rounded-full px-3 py-1 text-sm font-medium ${period === v ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'}`}>
+                  className={`rounded-full px-3 py-1 text-sm font-medium ${period === v ? 'bg-slate-800 text-white' : 'bg-surface text-dim ring-1 ring-line hover:bg-raised'}`}>
                   {label}
                 </button>
               ))}
               {period === 'custom' && (
                 <div className="flex items-center gap-2">
                   <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
-                    className="rounded-lg border border-slate-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none" />
-                  <span className="text-sm text-slate-400">to</span>
+                    className="rounded-lg border border-edge px-2 py-1 text-sm focus:border-brand-500 focus:outline-none" />
+                  <span className="text-sm text-faint">to</span>
                   <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
-                    className="rounded-lg border border-slate-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none" />
+                    className="rounded-lg border border-edge px-2 py-1 text-sm focus:border-brand-500 focus:outline-none" />
                 </div>
               )}
             </div>
@@ -241,29 +241,29 @@ export default function Tracking() {
           {/* Overall performance summary card. */}
           {tracked.length > 0 && (
             <div className="card mt-4 p-4">
-              <h2 className="mb-3 text-sm font-semibold text-slate-700">Overall performance</h2>
+              <h2 className="mb-3 text-sm font-semibold text-body">Overall performance</h2>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <div className="rounded-lg bg-slate-50 p-3 text-center">
-                  <div className="text-2xl font-bold text-slate-800">{tracked.length}</div>
-                  <div className="mt-0.5 text-xs text-slate-500">tracked</div>
+                <div className="rounded-lg bg-raised p-3 text-center">
+                  <div className="text-2xl font-bold text-strong">{tracked.length}</div>
+                  <div className="mt-0.5 text-xs text-muted">tracked</div>
                 </div>
-                <div className="rounded-lg bg-slate-50 p-3 text-center">
-                  <div className="text-2xl font-bold text-slate-800">{avgPosition ? `#${avgPosition}` : '—'}</div>
-                  <div className="mt-0.5 text-xs text-slate-500">avg position</div>
+                <div className="rounded-lg bg-raised p-3 text-center">
+                  <div className="text-2xl font-bold text-strong">{avgPosition ? `#${avgPosition}` : '—'}</div>
+                  <div className="mt-0.5 text-xs text-muted">avg position</div>
                 </div>
-                <div className="rounded-lg bg-slate-50 p-3 text-center">
-                  <div className="text-2xl font-bold text-slate-800">{top10Count}</div>
-                  <div className="mt-0.5 text-xs text-slate-500">in top 10</div>
+                <div className="rounded-lg bg-raised p-3 text-center">
+                  <div className="text-2xl font-bold text-strong">{top10Count}</div>
+                  <div className="mt-0.5 text-xs text-muted">in top 10</div>
                 </div>
-                <div className="rounded-lg bg-slate-50 p-3 text-center">
-                  <div className="text-2xl font-bold text-slate-800">{bestKeyword ? `#${bestKeyword.lastPosition}` : '—'}</div>
-                  <div className="mt-0.5 text-xs text-slate-500">best rank</div>
-                  {bestKeyword && <div className="mt-0.5 truncate text-xs text-slate-400" title={bestKeyword.keyword}>{bestKeyword.keyword}</div>}
+                <div className="rounded-lg bg-raised p-3 text-center">
+                  <div className="text-2xl font-bold text-strong">{bestKeyword ? `#${bestKeyword.lastPosition}` : '—'}</div>
+                  <div className="mt-0.5 text-xs text-muted">best rank</div>
+                  {bestKeyword && <div className="mt-0.5 truncate text-xs text-faint" title={bestKeyword.keyword}>{bestKeyword.keyword}</div>}
                 </div>
               </div>
               {summaryData.length >= 2 && (
                 <div className="mt-4">
-                  <div className="mb-1 text-xs text-slate-400">Average position over time (all keywords)</div>
+                  <div className="mb-1 text-xs text-faint">Average position over time (all keywords)</div>
                   <LineChart data={summaryData} />
                 </div>
               )}
@@ -271,7 +271,7 @@ export default function Tracking() {
           )}
 
           <div className="mt-4 space-y-3">
-            {tracked.length === 0 && <div className="card p-8 text-center text-slate-400">No tracked keywords yet — add one above.</div>}
+            {tracked.length === 0 && <div className="card p-8 text-center text-faint">No tracked keywords yet — add one above.</div>}
             {tracked.map((t) => {
               const hist = inPeriod(t.history);
               const tr = trend(hist);
@@ -286,7 +286,7 @@ export default function Tracking() {
                   <div className="flex items-center gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="font-semibold">{t.keyword}</div>
-                      <div className="text-xs text-slate-400">{t.domain}</div>
+                      <div className="text-xs text-faint">{t.domain}</div>
                       {rankingUrl(t) && !unranked && (
                         <a href={rankingUrl(t)} target="_blank" rel="noopener noreferrer"
                           className="mt-0.5 block max-w-xs truncate text-xs text-brand-600 hover:text-brand-700" title={rankingUrl(t)}>
@@ -295,11 +295,11 @@ export default function Tracking() {
                       )}
                     </div>
                     <div className="text-right">
-                      <div className={`text-lg font-bold ${unranked || noData ? 'text-slate-400' : ''}`}>{posLabel(t)}</div>
+                      <div className={`text-lg font-bold ${unranked || noData ? 'text-faint' : ''}`}>{posLabel(t)}</div>
                       {tr && tr.n > 0 && <div className={`text-xs font-medium ${tr.cls}`}>{tr.dir} {tr.n}</div>}
                       {noData && <div className="text-[11px] text-slate-300">checking…</div>}
                     </div>
-                    <button onClick={() => remove(t.trackId)} className="text-sm text-slate-400 hover:text-red-600">Remove</button>
+                    <button onClick={() => remove(t.trackId)} className="text-sm text-faint hover:text-red-600">Remove</button>
                   </div>
                   {hasChart && <div className="mt-2"><LineChart data={hist} /></div>}
                 </div>
@@ -312,24 +312,24 @@ export default function Tracking() {
       {/* Backfill confirmation — historical SERP lookups cost extra credits. */}
       {confirmBackfill && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setConfirmBackfill(false)}>
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full max-w-md rounded-xl bg-surface p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold">Backfill ranking history</h2>
-            <p className="mt-2 text-sm text-slate-600">
+            <p className="mt-2 text-sm text-dim">
               We'll pull past dated Google rankings for all <strong>{tracked.length}</strong> tracked keyword{tracked.length > 1 ? 's' : ''} and fill in the gaps in your charts.
             </p>
-            <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm">
+            <div className="mt-3 rounded-lg bg-raised p-3 text-sm">
               <div className="flex items-center justify-between">
-                <span className="text-slate-500">Cost</span>
+                <span className="text-muted">Cost</span>
                 <span className="font-semibold">{backfillCost} credits</span>
               </div>
               <div className="mt-1 flex items-center justify-between">
-                <span className="text-slate-500">Your balance</span>
+                <span className="text-muted">Your balance</span>
                 <span className={(user.credits || 0) + (user.topupCredits || 0) < backfillCost ? 'font-semibold text-red-600' : 'font-semibold'}>
                   {(user.credits || 0) + (user.topupCredits || 0)} credits
                 </span>
               </div>
             </div>
-            <p className="mt-2 text-xs text-slate-400">{CREDIT_COSTS.rank_backfill} credits per keyword. Existing checked dates are kept — only missing dates are filled.</p>
+            <p className="mt-2 text-xs text-faint">{CREDIT_COSTS.rank_backfill} credits per keyword. Existing checked dates are kept — only missing dates are filled.</p>
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={() => setConfirmBackfill(false)} className="btn-ghost text-sm">Cancel</button>
               <button onClick={runBackfill} disabled={(user.credits || 0) + (user.topupCredits || 0) < backfillCost}

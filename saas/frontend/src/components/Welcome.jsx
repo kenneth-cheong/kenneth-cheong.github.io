@@ -44,15 +44,15 @@ export default function Welcome({ onDone }) {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center">
-      <div className="my-8 w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl sm:p-8">
+      <div className="my-8 w-full max-w-2xl rounded-2xl border border-line bg-surface p-6 shadow-2xl sm:p-8">
         <div className="flex items-center gap-2 text-brand-600">
           <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand-600 text-lg font-bold text-white">D</span>
-          <span className="text-sm font-semibold uppercase tracking-wide text-slate-400">Welcome to Digimetrics</span>
+          <span className="text-sm font-semibold uppercase tracking-wide text-faint">Welcome to Digimetrics</span>
         </div>
 
-        <h1 className="mt-4 text-2xl font-bold text-slate-900">Hi {first} — let’s get you a quick win.</h1>
-        <p className="mt-1.5 text-slate-600">
-          You’ve got <span className="font-semibold text-slate-800">{credits} credits</span> to explore {TOOLS.length} SEO,
+        <h1 className="mt-4 text-2xl font-bold text-heading">Hi {first} — let’s get you a quick win.</h1>
+        <p className="mt-1.5 text-dim">
+          You’ve got <span className="font-semibold text-strong">{credits} credits</span> to explore {TOOLS.length} SEO,
           content &amp; AI-visibility tools. Pick a first move below — it takes a couple of minutes to see real results.
         </p>
 
@@ -64,17 +64,17 @@ export default function Welcome({ onDone }) {
         >
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-brand-600 text-white"><HeroIcon size={22} aria-hidden /></span>
           <span className="min-w-0 flex-1">
-            <span className="flex items-center gap-1.5 font-semibold text-slate-900">
+            <span className="flex items-center gap-1.5 font-semibold text-heading">
               {hero.title} <ChevronRight size={16} className="text-brand-400 transition group-hover:translate-x-0.5" aria-hidden />
             </span>
-            <span className="mt-0.5 block text-sm text-slate-500">{hero.body}</span>
+            <span className="mt-0.5 block text-sm text-muted">{hero.body}</span>
           </span>
         </button>
 
         <div className="mt-6 mb-3 flex items-center gap-3">
-          <span className="h-px flex-1 bg-slate-200" />
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Or pick what you want to do first</span>
-          <span className="h-px flex-1 bg-slate-200" />
+          <span className="h-px flex-1 bg-overlay" />
+          <span className="text-xs font-semibold uppercase tracking-wide text-faint">Or pick what you want to do first</span>
+          <span className="h-px flex-1 bg-overlay" />
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -85,12 +85,12 @@ export default function Welcome({ onDone }) {
                 key={g.id}
                 onClick={() => pickGoal(g)}
                 disabled={busy}
-                className="group flex items-start gap-3 rounded-xl border border-slate-200 p-3 text-left transition hover:-translate-y-0.5 hover:border-brand-400 hover:shadow-lift disabled:opacity-60"
+                className="group flex items-start gap-3 rounded-xl border border-line p-3 text-left transition hover:-translate-y-0.5 hover:border-brand-400 hover:shadow-lift disabled:opacity-60"
               >
                 <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600"><Icon size={18} aria-hidden /></span>
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1 text-sm font-semibold text-slate-800">{g.label}</span>
-                  <span className="mt-0.5 block text-xs text-slate-500">{g.desc}</span>
+                  <span className="flex items-center gap-1 text-sm font-semibold text-strong">{g.label}</span>
+                  <span className="mt-0.5 block text-xs text-muted">{g.desc}</span>
                 </span>
               </button>
             );
@@ -98,8 +98,8 @@ export default function Welcome({ onDone }) {
         </div>
 
         <div className="mt-6 flex items-center justify-between">
-          <span className="inline-flex items-center gap-1.5 text-xs text-slate-400"><Zap size={13} aria-hidden /> You can change everything later — nothing here is locked in.</span>
-          <button onClick={() => finish(null, '/')} disabled={busy} className="text-sm font-medium text-slate-500 hover:text-slate-800 disabled:opacity-60">
+          <span className="inline-flex items-center gap-1.5 text-xs text-faint"><Zap size={13} aria-hidden /> You can change everything later — nothing here is locked in.</span>
+          <button onClick={() => finish(null, '/')} disabled={busy} className="text-sm font-medium text-muted hover:text-strong disabled:opacity-60">
             Skip for now →
           </button>
         </div>

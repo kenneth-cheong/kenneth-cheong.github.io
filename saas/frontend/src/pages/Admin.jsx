@@ -25,12 +25,12 @@ export default function Admin() {
   return (
     <div>
       <h1 className="text-2xl font-bold">Admin</h1>
-      <div className="mt-3 flex gap-1 border-b border-slate-200">
+      <div className="mt-3 flex gap-1 border-b border-line">
         {[['users', 'Users'], ['agreements', 'Agreements'], ['notifications', 'Notifications'], ['assistant', 'Assistant'], ['tickets', 'Support tickets'], ['finances', 'Finances'], ['platform', 'Platform'], ['settings', 'Settings']].map(([k, label]) => (
           <button
             key={k}
             onClick={() => setTab(k)}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${tab === k ? 'border-brand-500 text-brand-700' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${tab === k ? 'border-brand-500 text-brand-700' : 'border-transparent text-muted hover:text-strong'}`}
           >
             {label}
             {k === 'tickets' && unanswered > 0 && (
@@ -108,7 +108,7 @@ function AdminAssistant() {
     } finally { setBusy(false); }
   }
 
-  if (!cfg && !error) return <p className="mt-6 text-sm text-slate-500">Loading…</p>;
+  if (!cfg && !error) return <p className="mt-6 text-sm text-muted">Loading…</p>;
   if (!cfg) return <p className="mt-6 text-sm text-rose-600">{error}</p>;
 
   return (
@@ -118,7 +118,7 @@ function AdminAssistant() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold">Proactive assistant</h2>
-            <p className="mt-1 text-sm text-slate-500">Master switch for Monty reaching out on its own. When off, Monty only responds when a user messages it. Users can also mute proactive tips for themselves.</p>
+            <p className="mt-1 text-sm text-muted">Master switch for Monty reaching out on its own. When off, Monty only responds when a user messages it. Users can also mute proactive tips for themselves.</p>
           </div>
           <Toggle checked={cfg.enabled} onChange={(v) => patch({ enabled: v })} title="Enable proactive messages" />
         </div>
@@ -127,20 +127,20 @@ function AdminAssistant() {
             <span className="text-sm font-medium">Max nudges per session</span>
             <input type="number" min="0" max="20" className="field mt-1 w-24" value={cfg.maxPerSession}
               onChange={(e) => patch({ maxPerSession: Number(e.target.value) })} />
-            <p className="mt-1 text-[11px] text-slate-400">Global cap across all triggers per app visit. 0 = no cap.</p>
+            <p className="mt-1 text-[11px] text-faint">Global cap across all triggers per app visit. 0 = no cap.</p>
           </label>
           <label className="block">
             <span className="text-sm font-medium">Default cooldown (hours)</span>
             <input type="number" min="0" max="8760" className="field mt-1 w-24" value={cfg.defaultCooldownHours}
               onChange={(e) => patch({ defaultCooldownHours: Number(e.target.value) })} />
-            <p className="mt-1 text-[11px] text-slate-400">Used when a trigger doesn't set its own.</p>
+            <p className="mt-1 text-[11px] text-faint">Used when a trigger doesn't set its own.</p>
           </label>
         </div>
       </div>
 
       {/* Trigger list */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-700">Triggers <span className="font-normal text-slate-400">· {cfg.triggers.length}</span></h3>
+        <h3 className="text-sm font-semibold text-body">Triggers <span className="font-normal text-faint">· {cfg.triggers.length}</span></h3>
         <div className="flex items-center gap-2">
           <button onClick={restoreDefaults} className="btn-ghost px-2.5 py-1.5 text-xs">Restore defaults</button>
           <button onClick={addTrigger} className="btn-primary px-3 py-1.5 text-sm">+ New trigger</button>
@@ -148,7 +148,7 @@ function AdminAssistant() {
       </div>
 
       {cfg.triggers.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-400">No triggers yet. Add one to let Monty reach out.</p>
+        <p className="rounded-xl border border-dashed border-line p-8 text-center text-sm text-faint">No triggers yet. Add one to let Monty reach out.</p>
       ) : (
         <div className="space-y-2">
           {cfg.triggers.map((t, i) => (
@@ -163,7 +163,7 @@ function AdminAssistant() {
       )}
 
       {/* Save bar */}
-      <div className="sticky bottom-0 -mx-1 flex items-center gap-3 border-t border-slate-200 bg-white/95 px-1 py-3 backdrop-blur">
+      <div className="sticky bottom-0 -mx-1 flex items-center gap-3 border-t border-line bg-surface/95 px-1 py-3 backdrop-blur">
         <button onClick={save} disabled={busy || !dirty} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">{busy ? 'Saving…' : dirty ? 'Save changes' : 'Saved'}</button>
         {dirty && <span className="text-xs text-amber-600">Unsaved changes</span>}
         {msg && <span className="text-sm text-emerald-600">{msg}</span>}
@@ -183,52 +183,52 @@ function TriggerRow({ t, index, total, open, onToggleOpen, onPatch, onRemove, on
   const testInChat = () => window.dispatchEvent(new CustomEvent('dm:proactive-say', { detail: { text: interpolate(t.message, SAMPLE_CTX) } }));
 
   return (
-    <div className={`rounded-xl border ${open ? 'border-brand-300 bg-brand-50/20' : 'border-slate-200'} `}>
+    <div className={`rounded-xl border ${open ? 'border-brand-300 bg-brand-50/20' : 'border-line'} `}>
       {/* Summary */}
       <div className="flex items-center gap-3 p-3">
         <Toggle small checked={t.enabled} onChange={(v) => onPatch({ enabled: v })} title={t.enabled ? 'Enabled' : 'Disabled'} />
         <button onClick={onToggleOpen} className="min-w-0 flex-1 text-left">
           <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-medium text-slate-800">{t.label || '(untitled)'}</span>
-            <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">{ev.label}</span>
+            <span className="truncate text-sm font-medium text-strong">{t.label || '(untitled)'}</span>
+            <span className="shrink-0 rounded-full bg-sunken px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">{ev.label}</span>
             {t.aiPhrase && <span className="shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-700">AI · costs credits</span>}
           </div>
-          <div className="mt-0.5 truncate text-xs text-slate-400">{preview}</div>
+          <div className="mt-0.5 truncate text-xs text-faint">{preview}</div>
         </button>
         <div className="flex shrink-0 items-center gap-0.5">
-          <button onClick={() => onMove(-1)} disabled={index === 0} className="rounded p-1 text-slate-400 hover:bg-slate-100 disabled:opacity-30" title="Move up" aria-label="Move up">↑</button>
-          <button onClick={() => onMove(1)} disabled={index === total - 1} className="rounded p-1 text-slate-400 hover:bg-slate-100 disabled:opacity-30" title="Move down" aria-label="Move down">↓</button>
+          <button onClick={() => onMove(-1)} disabled={index === 0} className="rounded p-1 text-faint hover:bg-sunken disabled:opacity-30" title="Move up" aria-label="Move up">↑</button>
+          <button onClick={() => onMove(1)} disabled={index === total - 1} className="rounded p-1 text-faint hover:bg-sunken disabled:opacity-30" title="Move down" aria-label="Move down">↓</button>
           <button onClick={onToggleOpen} className="rounded px-2 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50">{open ? 'Close' : 'Edit'}</button>
         </div>
       </div>
 
       {/* Editor */}
       {open && (
-        <div className="space-y-4 border-t border-slate-200 p-4">
+        <div className="space-y-4 border-t border-line p-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Label</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-faint">Label</span>
               <input className="field mt-1 w-full" value={t.label} onChange={(e) => onPatch({ label: e.target.value })} />
             </label>
             <label className="block">
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">When (event)</span>
-              <select className="dm-select mt-1 w-full rounded border border-slate-300 py-2 pl-2 pr-7 text-sm" value={t.event} onChange={(e) => onPatch({ event: e.target.value })}>
+              <span className="text-xs font-semibold uppercase tracking-wide text-faint">When (event)</span>
+              <select className="dm-select mt-1 w-full rounded border border-edge py-2 pl-2 pr-7 text-sm" value={t.event} onChange={(e) => onPatch({ event: e.target.value })}>
                 {PROACTIVE_EVENTS.map((e) => <option key={e.key} value={e.key}>{e.label}</option>)}
               </select>
-              <p className="mt-1 text-[11px] text-slate-400">{ev.help}</p>
+              <p className="mt-1 text-[11px] text-faint">{ev.help}</p>
             </label>
           </div>
 
           {/* Conditions — only those relevant to the chosen event */}
           {fields.size > 0 && (
-            <div className="rounded-lg border border-slate-200 bg-white p-3">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Conditions</div>
+            <div className="rounded-lg border border-line bg-surface p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-faint">Conditions</div>
               <div className="mt-2 grid gap-3 sm:grid-cols-2">
                 {fields.has('route') && (
                   <label className="block">
                     <span className="text-sm">Page path</span>
                     <input className="field mt-1 w-full" value={t.route} placeholder="/  ·  /tool/*  ·  /projects" onChange={(e) => onPatch({ route: e.target.value })} />
-                    <p className="mt-1 text-[11px] text-slate-400">Exact path, or end with * to match a prefix (e.g. /tool/*).</p>
+                    <p className="mt-1 text-[11px] text-faint">Exact path, or end with * to match a prefix (e.g. /tool/*).</p>
                   </label>
                 )}
                 {fields.has('idleSeconds') && (
@@ -240,7 +240,7 @@ function TriggerRow({ t, index, total, open, onToggleOpen, onPatch, onRemove, on
                 {fields.has('runStatus') && (
                   <label className="block">
                     <span className="text-sm">Run result</span>
-                    <select className="dm-select mt-1 w-full rounded border border-slate-300 py-2 pl-2 pr-7 text-sm" value={t.runStatus} onChange={(e) => onPatch({ runStatus: e.target.value })}>
+                    <select className="dm-select mt-1 w-full rounded border border-edge py-2 pl-2 pr-7 text-sm" value={t.runStatus} onChange={(e) => onPatch({ runStatus: e.target.value })}>
                       {RUN_STATUS_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                     </select>
                   </label>
@@ -255,7 +255,7 @@ function TriggerRow({ t, index, total, open, onToggleOpen, onPatch, onRemove, on
                   <label className="block">
                     <span className="text-sm">Away at least (days)</span>
                     <input type="number" min="0" max="365" className="field mt-1 w-28" value={t.minDaysAway} onChange={(e) => onPatch({ minDaysAway: Number(e.target.value) })} />
-                    <p className="mt-1 text-[11px] text-slate-400">0 = fires on any app open.</p>
+                    <p className="mt-1 text-[11px] text-faint">0 = fires on any app open.</p>
                   </label>
                 )}
                 {fields.has('emptyProjects') && (
@@ -276,15 +276,15 @@ function TriggerRow({ t, index, total, open, onToggleOpen, onPatch, onRemove, on
 
           {/* Message */}
           <div>
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Message</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-faint">Message</span>
             <textarea rows={3} className="field mt-1 w-full" value={t.message} placeholder="Hi {firstName}! …" onChange={(e) => onPatch({ message: e.target.value })} />
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {PROACTIVE_TOKENS.map((tk) => (
                 <button key={tk.token} type="button" title={tk.help} onClick={() => onPatch({ message: `${t.message}${tk.token}` })}
-                  className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-500 hover:border-brand-300 hover:text-brand-700">{tk.token}</button>
+                  className="rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] font-medium text-muted hover:border-brand-300 hover:text-brand-700">{tk.token}</button>
               ))}
             </div>
-            <p className="mt-1 text-[11px] text-slate-400">Add clickable chips with tokens like <code>[[go:/pricing|Upgrade]]</code>, <code>[[tool:keyword-analysis]]</code>, <code>[[action:ticket]]</code>, <code>[[ask:What do I put in each field?]]</code> (a quick-reply button that asks Monty that question).</p>
+            <p className="mt-1 text-[11px] text-faint">Add clickable chips with tokens like <code>[[go:/pricing|Upgrade]]</code>, <code>[[tool:keyword-analysis]]</code>, <code>[[action:ticket]]</code>, <code>[[ask:What do I put in each field?]]</code> (a quick-reply button that asks Monty that question).</p>
           </div>
 
           {/* AI phrasing */}
@@ -294,9 +294,9 @@ function TriggerRow({ t, index, total, open, onToggleOpen, onPatch, onRemove, on
           </label>
           {t.aiPhrase && (
             <label className="block">
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">AI instruction</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-faint">AI instruction</span>
               <textarea rows={2} className="field mt-1 w-full" value={t.aiPrompt} placeholder="e.g. Summarise the user's latest run and suggest one next step." onChange={(e) => onPatch({ aiPrompt: e.target.value })} />
-              <p className="mt-1 text-[11px] text-slate-400">Sent to the assistant as the user's message. Falls back to the message text above if blank.</p>
+              <p className="mt-1 text-[11px] text-faint">Sent to the assistant as the user's message. Falls back to the message text above if blank.</p>
             </label>
           )}
 
@@ -316,23 +316,23 @@ function TriggerRow({ t, index, total, open, onToggleOpen, onPatch, onRemove, on
             </label>
           </div>
           <div>
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Only for tiers <span className="font-normal normal-case text-slate-400">(none = all)</span></span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-faint">Only for tiers <span className="font-normal normal-case text-faint">(none = all)</span></span>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {TIER_ORDER.map((tier) => {
                 const on = t.tiers.includes(tier);
                 return (
                   <button key={tier} type="button" onClick={() => onPatch({ tiers: on ? t.tiers.filter((x) => x !== tier) : [...t.tiers, tier] })}
-                    className={`rounded-full border px-2.5 py-1 text-xs font-medium ${on ? 'border-brand-500 bg-brand-100 text-brand-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>{PLANS[tier].name}</button>
+                    className={`rounded-full border px-2.5 py-1 text-xs font-medium ${on ? 'border-brand-500 bg-brand-100 text-brand-700' : 'border-line text-muted hover:border-edge'}`}>{PLANS[tier].name}</button>
                 );
               })}
             </div>
           </div>
 
           {/* Preview + actions */}
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Preview</div>
-            <div className="mt-1.5 rounded-2xl rounded-bl-sm bg-slate-100 px-3 py-2 text-sm text-slate-800">{preview}</div>
-            <p className="mt-1 text-[11px] text-slate-400">Sample values: {SAMPLE_CTX.firstName} · {SAMPLE_CTX.domain} · {SAMPLE_CTX.credits} credits.</p>
+          <div className="rounded-lg border border-line bg-raised p-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-faint">Preview</div>
+            <div className="mt-1.5 rounded-2xl rounded-bl-sm bg-sunken px-3 py-2 text-sm text-strong">{preview}</div>
+            <p className="mt-1 text-[11px] text-faint">Sample values: {SAMPLE_CTX.firstName} · {SAMPLE_CTX.domain} · {SAMPLE_CTX.credits} credits.</p>
           </div>
           <div className="flex items-center justify-between">
             <button onClick={testInChat} className="btn-ghost px-3 py-1.5 text-xs" title="Drop this message into your own chat panel now">Preview in my chat</button>
@@ -350,7 +350,7 @@ function Toggle({ checked, onChange, title, small }) {
   const dot = small ? 'h-4 w-4' : 'h-5 w-5';
   return (
     <button type="button" role="switch" aria-checked={checked} title={title} onClick={() => onChange(!checked)}
-      className={`relative inline-flex ${w} shrink-0 items-center rounded-full transition-colors ${checked ? 'bg-brand-600' : 'bg-slate-300'}`}>
+      className={`relative inline-flex ${w} shrink-0 items-center rounded-full transition-colors ${checked ? 'bg-brand-600' : 'bg-overlay'}`}>
       <span className={`inline-block ${dot} transform rounded-full bg-white shadow transition-transform ${checked ? (small ? 'translate-x-4' : 'translate-x-5') : 'translate-x-0.5'}`} />
     </button>
   );
@@ -411,25 +411,25 @@ function AdminAgreements() {
     }
   };
 
-  if (rows === null) return <p className="mt-6 text-sm text-slate-400">Loading…</p>;
+  if (rows === null) return <p className="mt-6 text-sm text-faint">Loading…</p>;
 
   return (
     <div className="mt-6">
       <div className="mb-3 flex items-baseline justify-between gap-3">
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-muted">
           {rows.length} {rows.length === 1 ? 'trial user has' : 'trial users have'} accepted the Free Trial &amp; NDA.
         </p>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           <button
             onClick={() => setPreviewGate(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-edge px-2.5 py-1 text-xs font-semibold text-body hover:bg-raised"
           >
             <MonitorPlay size={14} aria-hidden /> Preview gate
           </button>
           <button
             onClick={openSample}
             disabled={sampling}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-edge px-2.5 py-1 text-xs font-semibold text-body hover:bg-raised disabled:opacity-50"
           >
             <FileText size={14} aria-hidden /> {sampling ? 'Preparing…' : 'Sample PDF'}
           </button>
@@ -437,40 +437,40 @@ function AdminAgreements() {
       </div>
       {error && <p className="mb-3 text-sm text-rose-600">{error}</p>}
       {rows.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-400">
+        <p className="rounded-xl border border-dashed border-line p-8 text-center text-sm text-faint">
           No agreements yet. They&rsquo;ll appear here as trial users accept.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200">
+        <div className="overflow-x-auto rounded-xl border border-line">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <thead className="bg-raised text-left text-xs uppercase tracking-wide text-muted">
               <tr>
                 {['Name', 'Organisation', 'UEN', 'Telephone', 'Email', 'Accepted', 'Ver.', 'IP', ''].map((h) => (
                   <th key={h} className="whitespace-nowrap px-3 py-2 font-semibold">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-hair">
               {rows.map((r) => (
-                <tr key={r.userId} className="align-top hover:bg-slate-50">
-                  <td className="whitespace-nowrap px-3 py-2 font-medium text-slate-900">{r.name || '—'}</td>
-                  <td className="px-3 py-2 text-slate-700">{r.organisation || '—'}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-slate-700">{r.uen || '—'}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-slate-700">{r.telephone || '—'}</td>
-                  <td className="px-3 py-2 text-slate-700">
+                <tr key={r.userId} className="align-top hover:bg-raised">
+                  <td className="whitespace-nowrap px-3 py-2 font-medium text-heading">{r.name || '—'}</td>
+                  <td className="px-3 py-2 text-body">{r.organisation || '—'}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-body">{r.uen || '—'}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-body">{r.telephone || '—'}</td>
+                  <td className="px-3 py-2 text-body">
                     {r.email || '—'}
                     {r.accountEmail && r.accountEmail !== r.email && (
-                      <span className="block text-xs text-slate-400">acct: {r.accountEmail}</span>
+                      <span className="block text-xs text-faint">acct: {r.accountEmail}</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-slate-600">{fmt(r.acceptedAt)}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-slate-500">{r.version || '—'}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-slate-500">{r.ip || '—'}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-dim">{fmt(r.acceptedAt)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-muted">{r.version || '—'}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-muted">{r.ip || '—'}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-right">
                     <button
                       onClick={() => download(r)}
                       disabled={downloading === r.userId}
-                      className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-50"
+                      className="rounded-lg border border-edge px-2.5 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-50"
                     >
                       {downloading === r.userId ? 'Preparing…' : 'PDF'}
                     </button>
@@ -553,7 +553,7 @@ function AdminSettings() {
     }
   }
 
-  if (settings === null && !error) return <p className="mt-6 text-sm text-slate-500">Loading…</p>;
+  if (settings === null && !error) return <p className="mt-6 text-sm text-muted">Loading…</p>;
 
   return (
     <div className="mt-4 max-w-2xl">
@@ -561,7 +561,7 @@ function AdminSettings() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-base font-semibold">Email &amp; password sign-in</h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted">
               When off, new sign-ups and existing email/password logins are blocked and the login page
               shows only “Sign in with Google”. Google sign-in is always available.
             </p>
@@ -572,14 +572,14 @@ function AdminSettings() {
             aria-checked={!!settings?.passwordAuthEnabled}
             disabled={busy || !settings}
             onClick={() => toggle('passwordAuthEnabled', !settings.passwordAuthEnabled)}
-            className={`relative mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-50 ${settings?.passwordAuthEnabled ? 'bg-brand-600' : 'bg-slate-300'}`}
+            className={`relative mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-50 ${settings?.passwordAuthEnabled ? 'bg-brand-600' : 'bg-overlay'}`}
           >
             <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${settings?.passwordAuthEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
           </button>
         </div>
         <p className="mt-3 text-sm font-medium">
           Status:{' '}
-          <span className={settings?.passwordAuthEnabled ? 'text-emerald-600' : 'text-slate-500'}>
+          <span className={settings?.passwordAuthEnabled ? 'text-emerald-600' : 'text-muted'}>
             {settings?.passwordAuthEnabled ? 'Enabled' : 'Disabled'}
           </span>
         </p>
@@ -587,7 +587,7 @@ function AdminSettings() {
 
       <form className="card mt-4 p-5" onSubmit={saveTickets}>
         <h2 className="text-base font-semibold">Support ticket reminders &amp; auto-close</h2>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-muted">
           When support has replied and is waiting on the client, send a reminder email every so many days,
           and automatically close the ticket if there&apos;s still no response. Applies to the daily
           maintenance job. Set a value to <span className="font-medium">0</span> to turn that behaviour off.
@@ -602,7 +602,7 @@ function AdminSettings() {
                 value={tForm.ticketReminderDays}
                 onChange={(e) => setTForm((f) => ({ ...f, ticketReminderDays: e.target.value }))}
               />
-              <span className="text-sm text-slate-500">days</span>
+              <span className="text-sm text-muted">days</span>
             </div>
           </label>
           <label className="block">
@@ -614,7 +614,7 @@ function AdminSettings() {
                 value={tForm.ticketAutoCloseDays}
                 onChange={(e) => setTForm((f) => ({ ...f, ticketAutoCloseDays: e.target.value }))}
               />
-              <span className="text-sm text-slate-500">days of no reply</span>
+              <span className="text-sm text-muted">days of no reply</span>
             </div>
           </label>
         </div>
@@ -746,33 +746,33 @@ function AdminNotifications() {
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold">Audience</h2>
           <select value={match} onChange={(e) => { setMatch(e.target.value); setPreview(null); }}
-            className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-xs">
+            className="dm-select rounded border border-edge py-1 pl-2 pr-7 text-xs">
             <option value="all">Match ALL date rules</option>
             <option value="any">Match ANY date rule</option>
           </select>
         </div>
-        <p className="mt-1 text-xs text-slate-500">Leave all date rules off to target everyone (after the tier/status narrowing below).</p>
+        <p className="mt-1 text-xs text-muted">Leave all date rules off to target everyone (after the tier/status narrowing below).</p>
 
         <div className="mt-3 space-y-2">
           {CLAUSES.map(({ key, label, help }) => {
             const cl = clauses[key];
             return (
-              <div key={key} className={`rounded-lg border p-2.5 ${cl.enabled ? 'border-brand-200 bg-brand-50/40' : 'border-slate-200'}`}>
-                <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <div key={key} className={`rounded-lg border p-2.5 ${cl.enabled ? 'border-brand-200 bg-brand-50/40' : 'border-line'}`}>
+                <label className="flex items-center gap-2 text-sm font-medium text-body">
                   <input type="checkbox" checked={cl.enabled} onChange={(e) => setClause(key, { enabled: e.target.checked })} className="h-4 w-4" />
                   {label}
-                  <span className="font-normal text-xs text-slate-400">· {help}</span>
+                  <span className="font-normal text-xs text-faint">· {help}</span>
                 </label>
                 {cl.enabled && (
                   <div className="mt-2 flex flex-wrap items-center gap-2 pl-6 text-sm">
                     <select value={cl.type} onChange={(e) => setClause(key, { type: e.target.value })}
-                      className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm">
+                      className="dm-select rounded border border-edge py-1 pl-2 pr-7 text-sm">
                       <option value="before">more than</option>
                       <option value="after">within the last</option>
                     </select>
                     <input type="number" min="0" value={cl.days} onChange={(e) => setClause(key, { days: e.target.value })}
-                      className="w-20 rounded border border-slate-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none" />
-                    <span className="text-slate-500">days ago</span>
+                      className="w-20 rounded border border-edge px-2 py-1 text-sm focus:border-brand-500 focus:outline-none" />
+                    <span className="text-muted">days ago</span>
                   </div>
                 )}
               </div>
@@ -782,28 +782,28 @@ function AdminNotifications() {
 
         <div className="mt-4 grid grid-cols-2 gap-4">
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Tiers</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-faint">Tiers</h3>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {TIER_ORDER.map((t) => (
                 <button key={t} type="button" onClick={() => toggleIn(tiers, setTiers, t)}
-                  className={`rounded-full border px-2.5 py-1 text-xs font-medium ${tiers.has(t) ? 'border-brand-500 bg-brand-100 text-brand-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium ${tiers.has(t) ? 'border-brand-500 bg-brand-100 text-brand-700' : 'border-line text-muted hover:border-edge'}`}>
                   {PLANS[t].name}
                 </button>
               ))}
             </div>
-            <p className="mt-1 text-[11px] text-slate-400">{tiers.size ? '' : 'All tiers'}</p>
+            <p className="mt-1 text-[11px] text-faint">{tiers.size ? '' : 'All tiers'}</p>
           </div>
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Status</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-faint">Status</h3>
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {BROADCAST_STATUSES.map((s) => (
                 <button key={s} type="button" onClick={() => toggleIn(statuses, setStatuses, s)}
-                  className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${statuses.has(s) ? 'border-brand-500 bg-brand-100 text-brand-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                  className={`rounded-full border px-2.5 py-1 text-xs font-medium capitalize ${statuses.has(s) ? 'border-brand-500 bg-brand-100 text-brand-700' : 'border-line text-muted hover:border-edge'}`}>
                   {s}
                 </button>
               ))}
             </div>
-            <p className="mt-1 text-[11px] text-slate-400">{statuses.size ? '' : 'Any status'}</p>
+            <p className="mt-1 text-[11px] text-faint">{statuses.size ? '' : 'Any status'}</p>
           </div>
         </div>
 
@@ -812,7 +812,7 @@ function AdminNotifications() {
             {previewing ? 'Previewing…' : 'Preview audience'}
           </button>
           {preview && (
-            <span className="text-sm font-semibold text-slate-700">
+            <span className="text-sm font-semibold text-body">
               {preview.count.toLocaleString()} user{preview.count === 1 ? '' : 's'}
               {preview.capped && <span className="ml-1 text-red-600">· exceeds cap of {preview.maxAudience}</span>}
             </span>
@@ -820,31 +820,31 @@ function AdminNotifications() {
         </div>
 
         {preview?.sample?.length > 0 && (
-          <div className="mt-3 max-h-44 overflow-y-auto rounded-lg border border-slate-100">
+          <div className="mt-3 max-h-44 overflow-y-auto rounded-lg border border-hair">
             <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-slate-50 text-left text-slate-400">
+              <thead className="sticky top-0 bg-raised text-left text-faint">
                 <tr><th className="px-2 py-1 font-medium">User</th><th className="px-2 py-1 font-medium">Tier</th><th className="px-2 py-1 font-medium">Last login</th><th className="px-2 py-1 font-medium">Last tool</th></tr>
               </thead>
               <tbody>
                 {preview.sample.map((u) => (
-                  <tr key={u.userId} className="border-t border-slate-50">
-                    <td className="px-2 py-1"><div className="font-medium text-slate-600">{u.email}</div></td>
-                    <td className="px-2 py-1 text-slate-500">{u.tier}</td>
-                    <td className="px-2 py-1 whitespace-nowrap text-slate-400">{u.lastLoginAt ? fmtWhen(u.lastLoginAt) : '—'}</td>
-                    <td className="px-2 py-1 whitespace-nowrap text-slate-400">{u.lastToolUseAt ? fmtWhen(u.lastToolUseAt) : '—'}</td>
+                  <tr key={u.userId} className="border-t border-hair">
+                    <td className="px-2 py-1"><div className="font-medium text-dim">{u.email}</div></td>
+                    <td className="px-2 py-1 text-muted">{u.tier}</td>
+                    <td className="px-2 py-1 whitespace-nowrap text-faint">{u.lastLoginAt ? fmtWhen(u.lastLoginAt) : '—'}</td>
+                    <td className="px-2 py-1 whitespace-nowrap text-faint">{u.lastToolUseAt ? fmtWhen(u.lastToolUseAt) : '—'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-        {preview && preview.count > preview.sample.length && <p className="mt-1.5 text-[11px] text-slate-400">Showing first {preview.sample.length} of {preview.count.toLocaleString()}.</p>}
+        {preview && preview.count > preview.sample.length && <p className="mt-1.5 text-[11px] text-faint">Showing first {preview.sample.length} of {preview.count.toLocaleString()}.</p>}
 
-        <div className="mt-4 border-t border-slate-100 pt-3">
-          <button onClick={doBackfill} disabled={backfilling} className="text-xs text-slate-500 underline hover:text-slate-700 disabled:opacity-50">
+        <div className="mt-4 border-t border-hair pt-3">
+          <button onClick={doBackfill} disabled={backfilling} className="text-xs text-muted underline hover:text-body disabled:opacity-50">
             {backfilling ? 'Backfilling…' : 'Backfill last-login / last-tool-use from history'}
           </button>
-          <p className="mt-1 text-[11px] text-slate-400">Run once so the date filters reflect activity from before this feature shipped.</p>
+          <p className="mt-1 text-[11px] text-faint">Run once so the date filters reflect activity from before this feature shipped.</p>
         </div>
       </div>
 
@@ -852,29 +852,29 @@ function AdminNotifications() {
       <div className="card flex flex-col p-5">
         <h2 className="text-base font-semibold">Message</h2>
 
-        <label className="mt-3 block text-sm font-medium text-slate-700">Title</label>
+        <label className="mt-3 block text-sm font-medium text-body">Title</label>
         <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} placeholder="What's new in Digimetrics"
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
+          className="mt-1 w-full rounded-lg border border-edge px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
 
-        <label className="mt-3 block text-sm font-medium text-slate-700">Message</label>
+        <label className="mt-3 block text-sm font-medium text-body">Message</label>
         <textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={2000} rows={5} placeholder="Write your update… (blank lines start a new paragraph in the email)"
-          className="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm focus:border-brand-500 focus:outline-none" />
+          className="mt-1 w-full rounded-lg border border-edge p-2.5 text-sm focus:border-brand-500 focus:outline-none" />
 
-        <label className="mt-3 block text-sm font-medium text-slate-700">In-app link <span className="font-normal text-slate-400">(optional)</span></label>
+        <label className="mt-3 block text-sm font-medium text-body">In-app link <span className="font-normal text-faint">(optional)</span></label>
         <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="/pricing"
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
-        <p className="mt-1 text-[11px] text-slate-400">A path inside the app (e.g. /pricing). Clicking the notification opens it.</p>
+          className="mt-1 w-full rounded-lg border border-edge px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
+        <p className="mt-1 text-[11px] text-faint">A path inside the app (e.g. /pricing). Clicking the notification opens it.</p>
 
         <div className="mt-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Channels</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-faint">Channels</h3>
           <div className="mt-2 space-y-2">
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex items-center gap-2 text-sm text-body">
               <input type="checkbox" checked={channels.inApp} onChange={(e) => setChannels((c) => ({ ...c, inApp: e.target.checked }))} className="h-4 w-4" />
-              In-app notification <span className="text-xs text-slate-400">· shows in the bell</span>
+              In-app notification <span className="text-xs text-faint">· shows in the bell</span>
             </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex items-center gap-2 text-sm text-body">
               <input type="checkbox" checked={channels.email} onChange={(e) => setChannels((c) => ({ ...c, email: e.target.checked }))} className="h-4 w-4" />
-              Email <span className="text-xs text-slate-400">· skips opted-out users; includes an unsubscribe link</span>
+              Email <span className="text-xs text-faint">· skips opted-out users; includes an unsubscribe link</span>
             </label>
           </div>
         </div>
@@ -883,7 +883,7 @@ function AdminNotifications() {
         {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
         <div className="mt-4 flex items-center justify-between">
-          <span className="text-xs text-slate-400">{preview ? `Will reach ${preview.count.toLocaleString()} user${preview.count === 1 ? '' : 's'}.` : 'Preview the audience first.'}</span>
+          <span className="text-xs text-faint">{preview ? `Will reach ${preview.count.toLocaleString()} user${preview.count === 1 ? '' : 's'}.` : 'Preview the audience first.'}</span>
           <button onClick={doSend} disabled={sending} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">{sending ? 'Sending…' : 'Send broadcast'}</button>
         </div>
       </div>
@@ -891,22 +891,22 @@ function AdminNotifications() {
       {/* ── History ── */}
       <div className="card p-5 lg:col-span-2">
         <h2 className="text-base font-semibold">Recent broadcasts</h2>
-        {history === null ? <p className="mt-3 text-sm text-slate-400">Loading…</p>
-          : history.length === 0 ? <p className="mt-3 text-sm text-slate-400">No broadcasts sent yet.</p>
+        {history === null ? <p className="mt-3 text-sm text-faint">Loading…</p>
+          : history.length === 0 ? <p className="mt-3 text-sm text-faint">No broadcasts sent yet.</p>
           : (
-            <div className="mt-3 divide-y divide-slate-100">
+            <div className="mt-3 divide-y divide-hair">
               {history.map((b) => (
                 <div key={b.broadcastId} className="flex items-start justify-between gap-4 py-2.5">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-slate-800">{b.title}</div>
-                    <div className="truncate text-xs text-slate-500">{b.body}</div>
-                    <div className="mt-0.5 text-[11px] text-slate-400">
+                    <div className="truncate text-sm font-medium text-strong">{b.title}</div>
+                    <div className="truncate text-xs text-muted">{b.body}</div>
+                    <div className="mt-0.5 text-[11px] text-faint">
                       by {b.sentBy} · {fmtWhen(b.ts)}
                       {b.channels?.inApp && ` · ${b.inAppSent || 0} in-app`}
                       {b.channels?.email && ` · ${b.emailSent || 0} email`}
                     </div>
                   </div>
-                  <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{(b.audienceCount || 0).toLocaleString()}</span>
+                  <span className="shrink-0 rounded-full bg-sunken px-2 py-0.5 text-xs font-semibold text-dim">{(b.audienceCount || 0).toLocaleString()}</span>
                 </div>
               ))}
             </div>
@@ -1049,24 +1049,24 @@ function AdminUsers() {
       <div className="mt-4 flex items-center justify-between gap-3">
         <button onClick={() => setCreating(true)} className="btn-primary px-3 py-2 text-sm">+ New user</button>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search email / name…"
-          className="w-64 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
+          className="w-64 rounded-lg border border-edge px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
       </div>
 
       {/* Filters: role / status pickers + a date range over a chosen activity field. */}
-      <div className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-3 py-2.5">
-        <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+      <div className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-line bg-raised/60 px-3 py-2.5">
+        <label className="flex flex-col gap-1 text-xs font-medium text-muted">
           Role
           <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}
-            className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm">
+            className="dm-select rounded border border-edge py-1 pl-2 pr-7 text-sm">
             <option value="all">All</option>
             <option value="client">Client</option>
             <option value="staff">Staff</option>
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+        <label className="flex flex-col gap-1 text-xs font-medium text-muted">
           Status
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-            className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm">
+            className="dm-select rounded border border-edge py-1 pl-2 pr-7 text-sm">
             <option value="all">All</option>
             <option value="active">Active</option>
             <option value="paused">Paused</option>
@@ -1074,28 +1074,28 @@ function AdminUsers() {
             <option value="invited">Invited</option>
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+        <label className="flex flex-col gap-1 text-xs font-medium text-muted">
           Date range on
           <select value={dateField} onChange={(e) => setDateField(e.target.value)}
-            className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm">
+            className="dm-select rounded border border-edge py-1 pl-2 pr-7 text-sm">
             {DATE_FIELDS.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+        <label className="flex flex-col gap-1 text-xs font-medium text-muted">
           From
           <input type="date" value={fromDate} max={toDate || undefined} onChange={(e) => setFromDate(e.target.value)}
-            className="rounded border border-slate-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none" />
+            className="rounded border border-edge px-2 py-1 text-sm focus:border-brand-500 focus:outline-none" />
         </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+        <label className="flex flex-col gap-1 text-xs font-medium text-muted">
           To
           <input type="date" value={toDate} min={fromDate || undefined} onChange={(e) => setToDate(e.target.value)}
-            className="rounded border border-slate-300 px-2 py-1 text-sm focus:border-brand-500 focus:outline-none" />
+            className="rounded border border-edge px-2 py-1 text-sm focus:border-brand-500 focus:outline-none" />
         </label>
         {filtersActive && (
           <button onClick={clearFilters} className="btn-ghost px-2.5 py-1.5 text-xs">Clear filters</button>
         )}
         {users && (
-          <span className="ml-auto self-center text-xs text-slate-400">
+          <span className="ml-auto self-center text-xs text-faint">
             {rows.length} of {users.length} user{users.length === 1 ? '' : 's'}
           </span>
         )}
@@ -1110,19 +1110,19 @@ function AdminUsers() {
           <button onClick={() => setSelected(new Set())} className="btn-ghost px-2 py-1 text-xs">Clear</button>
           <div className="mx-1 h-5 w-px bg-brand-200" />
           <select disabled={bulkBusy} defaultValue="" onChange={(e) => { const v = e.target.value; e.target.value = ''; if (v) bulkStatus(v); }}
-            className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm">
+            className="dm-select rounded border border-edge py-1 pl-2 pr-7 text-sm">
             <option value="" disabled>Set status…</option>
             <option value="active">Active</option>
             <option value="paused">Paused</option>
             <option value="inactive">Inactive</option>
           </select>
           <select disabled={bulkBusy} defaultValue="" onChange={(e) => { const v = e.target.value; e.target.value = ''; if (v) bulkTier(v); }}
-            className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm">
+            className="dm-select rounded border border-edge py-1 pl-2 pr-7 text-sm">
             <option value="" disabled>Set tier…</option>
             {TIER_ORDER.map((t) => <option key={t} value={t}>{PLANS[t].name}</option>)}
           </select>
           <select disabled={bulkBusy} defaultValue="" onChange={(e) => { const v = e.target.value; e.target.value = ''; if (v) bulkRole(v); }}
-            className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm">
+            className="dm-select rounded border border-edge py-1 pl-2 pr-7 text-sm">
             <option value="" disabled>Set role…</option>
             <option value="client">Client</option>
             <option value="staff" disabled={!me.isSuperAdmin}>Staff{!me.isSuperAdmin ? ' (admin only)' : ''}</option>
@@ -1149,12 +1149,12 @@ function AdminUsers() {
                   checked={selected.has(u.userId)} onChange={() => toggleOne(u.userId)} />
               ) },
             { key: 'user', label: 'User', accessor: (u) => u.name || u.email || '',
-              render: (u) => (<><div className="font-medium">{u.name || '—'}</div><div className="text-xs text-slate-400">{u.email}</div></>) },
+              render: (u) => (<><div className="font-medium">{u.name || '—'}</div><div className="text-xs text-faint">{u.email}</div></>) },
             { key: 'role', label: 'Role', accessor: (u) => u.role || 'client',
               render: (u) => (u.userId === me.userId
                 ? (u.role === 'staff'
                     ? <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-semibold text-brand-700">Staff (you)</span>
-                    : <span className="text-xs text-slate-500">Client (you)</span>)
+                    : <span className="text-xs text-muted">Client (you)</span>)
                 : <RoleSelect u={u} canGrantStaff={!!me.isSuperAdmin} onChange={(r) => setRole(u, r)} />) },
             { key: 'status', label: 'Status', accessor: (u) => u.status || 'active',
               render: (u) => (
@@ -1165,18 +1165,18 @@ function AdminUsers() {
                     : <StatusSelect u={u} onChange={(s) => setStatus(u, s)} />) },
             { key: 'tier', label: 'Tier', accessor: (u) => TIER_ORDER.indexOf(u.tier),
               render: (u) => (
-                <select value={u.tier} onChange={(e) => setTier(u, e.target.value)} className="dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm">
+                <select value={u.tier} onChange={(e) => setTier(u, e.target.value)} className="dm-select rounded border border-edge py-1 pl-2 pr-7 text-sm">
                   {TIER_ORDER.map((t) => <option key={t} value={t}>{PLANS[t].name}</option>)}
                 </select>) },
             { key: 'monthlyCredits', label: 'Monthly', align: 'right', numeric: true, render: (u) => (u.monthlyCredits ?? 0).toLocaleString() },
             { key: 'topupCredits', label: 'Top-up', align: 'right', numeric: true, render: (u) => <span className="text-brand-600">{(u.topupCredits ?? 0).toLocaleString()}</span> },
             { key: 'credits', label: 'Total', align: 'right', numeric: true, render: (u) => <span className="font-semibold">{(u.credits ?? 0).toLocaleString()}</span> },
             { key: 'creditsSpent', label: 'Used', align: 'right', numeric: true, tip: 'Lifetime credits this user has spent on tool runs.',
-              render: (u) => <span className="text-slate-500 tabular-nums">{(u.creditsSpent ?? 0).toLocaleString()}</span> },
+              render: (u) => <span className="text-muted tabular-nums">{(u.creditsSpent ?? 0).toLocaleString()}</span> },
             { key: 'lastLoginAt', label: 'Last login', numeric: false, accessor: (u) => u.lastLoginAt || '',
-              render: (u) => <span className="whitespace-nowrap text-xs text-slate-500">{u.lastLoginAt ? fmtWhen(u.lastLoginAt) : '—'}</span> },
+              render: (u) => <span className="whitespace-nowrap text-xs text-muted">{u.lastLoginAt ? fmtWhen(u.lastLoginAt) : '—'}</span> },
             { key: 'lastToolUseAt', label: 'Last tool use', numeric: false, accessor: (u) => u.lastToolUseAt || '',
-              render: (u) => <span className="whitespace-nowrap text-xs text-slate-500">{u.lastToolUseAt ? fmtWhen(u.lastToolUseAt) : '—'}</span> },
+              render: (u) => <span className="whitespace-nowrap text-xs text-muted">{u.lastToolUseAt ? fmtWhen(u.lastToolUseAt) : '—'}</span> },
             { key: 'adjust', label: 'Adjust credits', sortable: false, render: (u) => (
                 <div className="flex gap-1">
                   <button className="btn-ghost px-2 py-1 text-xs" onClick={() => adjust(u, 'monthly')}>± Monthly</button>
@@ -1189,7 +1189,7 @@ function AdminUsers() {
           ]}
         />
       </div>
-      <p className="mt-3 text-xs text-slate-400">
+      <p className="mt-3 text-xs text-faint">
         Tier changes reset the monthly allowance to that plan's amount; top-up credits are untouched. Setting a user to <strong>Paused</strong> or <strong>Inactive</strong> blocks sign-in and all app/tool access until you set them back to Active. Staff accounts can't be blocked. Any staff can revoke another staff member's access, but only an admin can grant it; you can't change your own role. All changes are written to the credit ledger. Check the boxes on the left to select multiple users and apply a status, tier, role, or credit change to all of them at once.
       </p>
       {activityUser && <AdminUserActivity user={activityUser} onClose={() => setActivityUser(null)} />}
@@ -1207,7 +1207,7 @@ function StatusSelect({ u, onChange }) {
     <select
       value={status}
       onChange={(e) => onChange(e.target.value)}
-      className={`dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm font-semibold ${tone}`}
+      className={`dm-select rounded border border-edge py-1 pl-2 pr-7 text-sm font-semibold ${tone}`}
     >
       <option value="active">Active</option>
       <option value="paused">Paused</option>
@@ -1225,7 +1225,7 @@ function RoleSelect({ u, canGrantStaff, onChange }) {
     <select
       value={role}
       onChange={(e) => onChange(e.target.value)}
-      className={`dm-select rounded border border-slate-300 py-1 pl-2 pr-7 text-sm font-semibold ${role === 'staff' ? 'text-brand-700' : 'text-slate-600'}`}
+      className={`dm-select rounded border border-edge py-1 pl-2 pr-7 text-sm font-semibold ${role === 'staff' ? 'text-brand-700' : 'text-dim'}`}
     >
       <option value="client">Client</option>
       <option value="staff" disabled={role !== 'staff' && !canGrantStaff}>Staff{role !== 'staff' && !canGrantStaff ? ' (admin only)' : ''}</option>
@@ -1288,13 +1288,13 @@ function AdminUserActivity({ user, onClose }) {
 
   return (
     <div onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div onClick={(e) => e.stopPropagation()} className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl border border-slate-200 bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-100 p-4">
+      <div onClick={(e) => e.stopPropagation()} className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl border border-line bg-surface shadow-xl">
+        <div className="flex items-center justify-between border-b border-hair p-4">
           <div>
             <h3 className="text-base font-bold">Activity · {user.name || user.email}</h3>
-            <p className="text-xs text-slate-400">{user.email}</p>
+            <p className="text-xs text-faint">{user.email}</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700" aria-label="Close">✕</button>
+          <button onClick={onClose} className="text-faint hover:text-body" aria-label="Close">✕</button>
         </div>
 
         <div className="overflow-y-auto p-4">
@@ -1304,15 +1304,15 @@ function AdminUserActivity({ user, onClose }) {
           {!openConvo && (
             <section className="mb-5">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold text-slate-700">Tool usage</h4>
-                {usage && <span className="text-xs text-slate-400">{(usage.totalRuns || 0).toLocaleString()} runs · {(usage.totalCreditsSpent || 0).toLocaleString()} credits</span>}
+                <h4 className="text-sm font-semibold text-body">Tool usage</h4>
+                {usage && <span className="text-xs text-faint">{(usage.totalRuns || 0).toLocaleString()} runs · {(usage.totalCreditsSpent || 0).toLocaleString()} credits</span>}
               </div>
-              {usage === null ? <p className="mt-2 text-sm text-slate-400">Loading…</p>
-                : usage.tools.length === 0 ? <p className="mt-2 text-sm text-slate-400">No tool runs yet.</p>
+              {usage === null ? <p className="mt-2 text-sm text-faint">Loading…</p>
+                : usage.tools.length === 0 ? <p className="mt-2 text-sm text-faint">No tool runs yet.</p>
                 : (
                   <table className="mt-2 w-full text-sm">
                     <thead>
-                      <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
+                      <tr className="border-b border-hair text-left text-xs text-faint">
                         <th className="pb-1 font-medium">Tool</th>
                         <th className="pb-1 text-right font-medium">Runs</th>
                         <th className="pb-1 text-right font-medium">Credits</th>
@@ -1321,21 +1321,21 @@ function AdminUserActivity({ user, onClose }) {
                     </thead>
                     <tbody>
                       {usage.tools.map((t) => (
-                        <tr key={t.tool} className="border-b border-slate-50">
-                          <td className="py-1.5 font-medium text-slate-700">{t.toolName || t.tool}</td>
+                        <tr key={t.tool} className="border-b border-hair">
+                          <td className="py-1.5 font-medium text-body">{t.toolName || t.tool}</td>
                           <td className="py-1.5 text-right font-semibold tabular-nums">{(t.count || 0).toLocaleString()}</td>
-                          <td className="py-1.5 text-right text-slate-500 tabular-nums">{(t.credits || 0).toLocaleString()}</td>
-                          <td className="py-1.5 text-right whitespace-nowrap text-xs text-slate-400">{t.lastUsed ? fmtWhen(t.lastUsed) : '—'}</td>
+                          <td className="py-1.5 text-right text-muted tabular-nums">{(t.credits || 0).toLocaleString()}</td>
+                          <td className="py-1.5 text-right whitespace-nowrap text-xs text-faint">{t.lastUsed ? fmtWhen(t.lastUsed) : '—'}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 )}
-              <p className="mt-2 text-[11px] text-slate-400">Usage counts are always visible. Opening run details or conversations below requires the user’s consent.</p>
+              <p className="mt-2 text-[11px] text-faint">Usage counts are always visible. Opening run details or conversations below requires the user’s consent.</p>
             </section>
           )}
 
-          {grants === null && <p className="text-sm text-slate-400">Loading…</p>}
+          {grants === null && <p className="text-sm text-faint">Loading…</p>}
 
           {/* No active grant → request flow. */}
           {grants !== null && !active && (
@@ -1349,7 +1349,7 @@ function AdminUserActivity({ user, onClose }) {
                     approve it under <span className="font-medium">Account → Data access</span>. Grants last 7 days.
                   </p>
                   {pending
-                    ? <p className="mt-3 rounded-lg bg-white/70 px-3 py-2 text-sm text-amber-900">
+                    ? <p className="mt-3 rounded-lg bg-surface/70 px-3 py-2 text-sm text-amber-900">
                         ⏳ Request pending since {fmtWhen(pending.requestedAt)} — waiting for the user to allow it.
                       </p>
                     : (
@@ -1374,15 +1374,15 @@ function AdminUserActivity({ user, onClose }) {
               </p>
 
               <section>
-                <h4 className="text-sm font-semibold text-slate-700">Recent tool runs</h4>
-                {runs === null ? <p className="mt-2 text-sm text-slate-400">Loading…</p>
-                  : runs.length === 0 ? <p className="mt-2 text-sm text-slate-400">No runs yet.</p>
+                <h4 className="text-sm font-semibold text-body">Recent tool runs</h4>
+                {runs === null ? <p className="mt-2 text-sm text-faint">Loading…</p>
+                  : runs.length === 0 ? <p className="mt-2 text-sm text-faint">No runs yet.</p>
                   : (
                     <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
                       {runs.map((r) => (
-                        <div key={r.runId} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-1.5 text-sm">
-                          <span className="font-medium text-slate-700">{r.toolName || r.tool}</span>
-                          <span className="whitespace-nowrap text-xs text-slate-400">{fmtWhen(r.ts)}</span>
+                        <div key={r.runId} className="flex items-center justify-between rounded-lg border border-hair px-3 py-1.5 text-sm">
+                          <span className="font-medium text-body">{r.toolName || r.tool}</span>
+                          <span className="whitespace-nowrap text-xs text-faint">{fmtWhen(r.ts)}</span>
                         </div>
                       ))}
                     </div>
@@ -1390,16 +1390,16 @@ function AdminUserActivity({ user, onClose }) {
               </section>
 
               <section>
-                <h4 className="text-sm font-semibold text-slate-700">Assistant conversations</h4>
-                {convos === null ? <p className="mt-2 text-sm text-slate-400">Loading…</p>
-                  : convos.length === 0 ? <p className="mt-2 text-sm text-slate-400">No conversations yet.</p>
+                <h4 className="text-sm font-semibold text-body">Assistant conversations</h4>
+                {convos === null ? <p className="mt-2 text-sm text-faint">Loading…</p>
+                  : convos.length === 0 ? <p className="mt-2 text-sm text-faint">No conversations yet.</p>
                   : (
                     <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
                       {convos.map((c) => (
                         <button key={c.conversationId} onClick={() => openConversation(c.conversationId)}
-                          className="flex w-full items-center justify-between rounded-lg border border-slate-100 px-3 py-1.5 text-left text-sm hover:bg-slate-50">
-                          <span className="truncate font-medium text-slate-700">{c.title || '(untitled)'}</span>
-                          <span className="ml-2 whitespace-nowrap text-xs text-slate-400">{fmtWhen(c.updatedAt || c.createdAt)}</span>
+                          className="flex w-full items-center justify-between rounded-lg border border-hair px-3 py-1.5 text-left text-sm hover:bg-raised">
+                          <span className="truncate font-medium text-body">{c.title || '(untitled)'}</span>
+                          <span className="ml-2 whitespace-nowrap text-xs text-faint">{fmtWhen(c.updatedAt || c.createdAt)}</span>
                         </button>
                       ))}
                     </div>
@@ -1411,15 +1411,15 @@ function AdminUserActivity({ user, onClose }) {
           {/* Conversation drill-down. */}
           {active && openConvo && (
             <div>
-              <button onClick={() => setOpenConvo(null)} className="text-sm text-slate-500 hover:text-slate-800">← Conversations</button>
-              {openConvo.loading && <p className="mt-3 text-sm text-slate-400">Loading…</p>}
+              <button onClick={() => setOpenConvo(null)} className="text-sm text-muted hover:text-strong">← Conversations</button>
+              {openConvo.loading && <p className="mt-3 text-sm text-faint">Loading…</p>}
               {openConvo.error && <p className="mt-3 text-sm text-red-600">Could not load this conversation.</p>}
               {openConvo.conversation && (
                 <div className="mt-3 space-y-3">
                   {(openConvo.conversation.messages || []).map((m, i) => (
                     <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm ${m.role === 'user' ? 'rounded-br-sm bg-brand-600 text-white' : 'rounded-bl-sm bg-slate-100 text-slate-800'}`}>
-                        <div className={`mb-0.5 text-[11px] ${m.role === 'user' ? 'text-white/70' : 'text-slate-400'}`}>{m.role === 'user' ? 'User' : 'Assistant'}</div>
+                      <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm ${m.role === 'user' ? 'rounded-br-sm bg-brand-600 text-white' : 'rounded-bl-sm bg-sunken text-strong'}`}>
+                        <div className={`mb-0.5 text-[11px] ${m.role === 'user' ? 'text-white/70' : 'text-faint'}`}>{m.role === 'user' ? 'User' : 'Assistant'}</div>
                         <div className="whitespace-pre-wrap">{typeof m.content === 'string' ? m.content : (m.content || []).map((b) => b.text || '').join('')}</div>
                       </div>
                     </div>
@@ -1436,8 +1436,8 @@ function AdminUserActivity({ user, onClose }) {
 
 // ── Support tickets ──────────────────────────────────────────────────────────
 function statusPill(status) {
-  const map = { open: 'bg-amber-100 text-amber-700', answered: 'bg-brand-100 text-brand-700', closed: 'bg-slate-100 text-slate-500' };
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${map[status] || 'bg-slate-100 text-slate-500'}`}>{status || '—'}</span>;
+  const map = { open: 'bg-amber-100 text-amber-700', answered: 'bg-brand-100 text-brand-700', closed: 'bg-sunken text-muted' };
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${map[status] || 'bg-sunken text-muted'}`}>{status || '—'}</span>;
 }
 
 const DAY_MS = 86_400_000;
@@ -1478,7 +1478,7 @@ function countdownCell(c) {
   const due = c.label === 'Due';
   return (
     <span title={c.tip || undefined}
-      className={`whitespace-nowrap ${due ? 'font-semibold text-amber-700' : muted ? 'text-slate-400' : 'text-slate-600'}`}>
+      className={`whitespace-nowrap ${due ? 'font-semibold text-amber-700' : muted ? 'text-faint' : 'text-dim'}`}>
       {c.label}
     </span>
   );
@@ -1505,10 +1505,10 @@ function AdminTickets() {
     <div>
       {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
       {tickets && (
-        <p className="mt-4 text-sm text-slate-500">
+        <p className="mt-4 text-sm text-muted">
           {tickets.length} ticket{tickets.length === 1 ? '' : 's'} · <span className="font-semibold text-amber-700">{open} open</span>
           {settings && (
-            <span className="text-slate-400">
+            <span className="text-faint">
               {' · '}reminders {Number(settings.ticketReminderDays) > 0 ? `every ${settings.ticketReminderDays}d` : 'off'}, auto-close {Number(settings.ticketAutoCloseDays) > 0 ? `after ${settings.ticketAutoCloseDays}d` : 'off'}
             </span>
           )}
@@ -1522,17 +1522,17 @@ function AdminTickets() {
           columns={[
             { key: 'id', label: 'Ticket', accessor: (t) => t.id,
               render: (t) => <button className="font-mono text-xs font-semibold text-brand-600 hover:underline" onClick={() => setSel(t)}>{t.id}</button> },
-            { key: 'userEmail', label: 'User', accessor: (t) => t.userEmail || t.userId, render: (t) => <span className="text-slate-600">{t.userEmail || t.userId}</span> },
+            { key: 'userEmail', label: 'User', accessor: (t) => t.userEmail || t.userId, render: (t) => <span className="text-dim">{t.userEmail || t.userId}</span> },
             { key: 'subject', label: 'Subject', accessor: (t) => t.subject || '',
-              render: (t) => <button className="max-w-xs truncate text-left font-medium text-slate-800 hover:underline" onClick={() => setSel(t)}>{t.subject || '(no subject)'}</button> },
-            { key: 'category', label: 'Category', render: (t) => <span className="text-slate-500">{t.category || '—'}</span> },
+              render: (t) => <button className="max-w-xs truncate text-left font-medium text-strong hover:underline" onClick={() => setSel(t)}>{t.subject || '(no subject)'}</button> },
+            { key: 'category', label: 'Category', render: (t) => <span className="text-muted">{t.category || '—'}</span> },
             { key: 'status', label: 'Status', accessor: (t) => t.status, render: (t) => statusPill(t.status) },
             { key: 'remind', label: 'Next reminder', numeric: true, tip: 'Days until the next “please reply” nudge is emailed to the customer (only while awaiting their reply).',
               accessor: (t) => ticketLifecycle(t, settings).remind.sort, render: (t) => countdownCell(ticketLifecycle(t, settings).remind) },
             { key: 'close', label: 'Auto-close', numeric: true, tip: 'Days until the ticket auto-closes from inactivity.',
               accessor: (t) => ticketLifecycle(t, settings).close.sort, render: (t) => countdownCell(ticketLifecycle(t, settings).close) },
             { key: 'lastActivityAt', label: 'Last activity', accessor: (t) => t.lastActivityAt || t.ts || '',
-              render: (t) => <span className="whitespace-nowrap text-slate-500">{fmtWhen(t.lastActivityAt || t.ts)}</span> },
+              render: (t) => <span className="whitespace-nowrap text-muted">{fmtWhen(t.lastActivityAt || t.ts)}</span> },
           ]}
         />
       </div>
@@ -1602,36 +1602,36 @@ function AdminTicketDetail({ summary, onBack }) {
     try { await api.adminCloseTicket(summary.userId, summary.ticketId); setTicket((t) => ({ ...t, status: 'closed' })); } finally { setBusy(false); }
   }
 
-  if (ticket === false) return <div className="mt-5"><button onClick={onBack} className="text-sm text-slate-500 hover:text-slate-800">← All tickets</button><p className="mt-4 text-red-600">Ticket not found.</p></div>;
-  if (!ticket) return <p className="mt-5 text-slate-400">Loading…</p>;
+  if (ticket === false) return <div className="mt-5"><button onClick={onBack} className="text-sm text-muted hover:text-strong">← All tickets</button><p className="mt-4 text-red-600">Ticket not found.</p></div>;
+  if (!ticket) return <p className="mt-5 text-faint">Loading…</p>;
 
   return (
     <div className="mt-4">
-      <button onClick={onBack} className="text-sm text-slate-500 hover:text-slate-800">← All tickets</button>
+      <button onClick={onBack} className="text-sm text-muted hover:text-strong">← All tickets</button>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-bold">{ticket.subject}</h2>
         {statusPill(ticket.status)}
-        {ticket.category && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{ticket.category}</span>}
-        <span className="font-mono text-xs text-slate-400">{ticket.id}</span>
+        {ticket.category && <span className="rounded-full bg-sunken px-2 py-0.5 text-xs text-muted">{ticket.category}</span>}
+        <span className="font-mono text-xs text-faint">{ticket.id}</span>
         {ticket.status !== 'closed' && (
-          <button onClick={close} disabled={busy} className="ml-auto rounded-lg border border-slate-200 px-2.5 py-1 text-sm font-medium text-slate-600 hover:bg-slate-50">Close ticket</button>
+          <button onClick={close} disabled={busy} className="ml-auto rounded-lg border border-line px-2.5 py-1 text-sm font-medium text-dim hover:bg-raised">Close ticket</button>
         )}
       </div>
-      <p className="mt-1 text-xs text-slate-400">
-        From <strong className="text-slate-500">{ticket.userEmail || summary.userId}</strong>
+      <p className="mt-1 text-xs text-faint">
+        From <strong className="text-muted">{ticket.userEmail || summary.userId}</strong>
         {ticket.additionalEmails?.length ? ` · CC ${ticket.additionalEmails.join(', ')}` : ''}
       </p>
 
       <DiagnosticsPanel diagnostics={ticket.diagnostics} />
 
       {/* Conversation — staff (agent) bubbles on the right, customer on the left. */}
-      <div ref={threadRef} className="mt-3 max-h-[55vh] space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <div ref={threadRef} className="mt-3 max-h-[55vh] space-y-3 overflow-y-auto rounded-xl border border-line bg-raised p-4">
         {(ticket.messages || []).map((m) => {
           const staff = m.author === 'agent';
           return (
             <div key={m.id} className={`flex ${staff ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 ${staff ? 'rounded-br-sm bg-brand-600 text-white' : 'rounded-bl-sm bg-white text-slate-800 shadow-sm ring-1 ring-slate-200'}`}>
-                <div className={`mb-0.5 text-[11px] ${staff ? 'text-white/70' : 'text-slate-400'}`}>
+              <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 ${staff ? 'rounded-br-sm bg-brand-600 text-white' : 'rounded-bl-sm bg-surface text-strong shadow-sm ring-1 ring-line'}`}>
+                <div className={`mb-0.5 text-[11px] ${staff ? 'text-white/70' : 'text-faint'}`}>
                   {staff
                     ? `${m.authorName || 'Support'}${m.agentEmail && m.agentEmail !== m.authorEmail ? ` · sent by ${m.agentEmail}` : ''}`
                     : (m.authorEmail || 'Customer')} · {new Date(m.ts).toLocaleString()}
@@ -1665,7 +1665,7 @@ function AdminTicketDetail({ summary, onBack }) {
       )}
 
       {/* Reply as the support agent. */}
-      <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+      <div className="mt-3 rounded-xl border border-line bg-surface p-3">
         <TicketComposer
           value={reply}
           onChange={setReply}
@@ -1676,24 +1676,24 @@ function AdminTicketDetail({ summary, onBack }) {
           header={(
             /* Choose the identity the customer sees on this reply. */
             <div className="mb-2 flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="text-slate-400">Reply as</span>
-              <div className="inline-flex rounded-lg border border-slate-200 p-0.5">
+              <span className="text-faint">Reply as</span>
+              <div className="inline-flex rounded-lg border border-line p-0.5">
                 <button
                   type="button"
                   onClick={() => setAsMonty(true)}
-                  className={`rounded-md px-2.5 py-1 font-medium ${asMonty ? 'bg-brand-600 text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                  className={`rounded-md px-2.5 py-1 font-medium ${asMonty ? 'bg-brand-600 text-white' : 'text-muted hover:text-body'}`}
                 >Monty</button>
                 <button
                   type="button"
                   onClick={() => setAsMonty(false)}
-                  className={`rounded-md px-2.5 py-1 font-medium ${!asMonty ? 'bg-brand-600 text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                  className={`rounded-md px-2.5 py-1 font-medium ${!asMonty ? 'bg-brand-600 text-white' : 'text-muted hover:text-body'}`}
                 >{myName}</button>
               </div>
             </div>
           )}
         />
         <div className="mt-2 flex items-center justify-between">
-          <span className="text-xs text-slate-400">Emails + notifies {ticket.userEmail || 'the customer'} as <strong className="text-slate-500">{asMonty ? 'Monty' : myName}</strong>.</span>
+          <span className="text-xs text-faint">Emails + notifies {ticket.userEmail || 'the customer'} as <strong className="text-muted">{asMonty ? 'Monty' : myName}</strong>.</span>
           <button onClick={send} disabled={busy || (!reply.trim() && !attachments.length)} className="btn-primary disabled:opacity-50">{busy ? 'Sending…' : 'Send reply'}</button>
         </div>
       </div>
@@ -1729,48 +1729,48 @@ function CreateUserDialog({ onClose, onCreated }) {
 
   return (
     <div onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <form onClick={(e) => e.stopPropagation()} onSubmit={submit} className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-xl">
+      <form onClick={(e) => e.stopPropagation()} onSubmit={submit} className="w-full max-w-md rounded-xl border border-line bg-surface p-5 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold">Create user</h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700" aria-label="Close">✕</button>
+          <button type="button" onClick={onClose} className="text-faint hover:text-body" aria-label="Close">✕</button>
         </div>
-        <p className="mt-1 text-sm text-slate-500">They sign in with Google using this email and link automatically.</p>
+        <p className="mt-1 text-sm text-muted">They sign in with Google using this email and link automatically.</p>
         {err && <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
 
-        <label className="mt-3 block text-sm font-medium text-slate-700">Email <span className="text-red-500">*</span></label>
+        <label className="mt-3 block text-sm font-medium text-body">Email <span className="text-red-500">*</span></label>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="person@company.com"
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
+          className="mt-1 w-full rounded-lg border border-edge px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
 
-        <label className="mt-3 block text-sm font-medium text-slate-700">Name</label>
+        <label className="mt-3 block text-sm font-medium text-body">Name</label>
         <input type="text" value={name} onChange={(e) => setName(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
+          className="mt-1 w-full rounded-lg border border-edge px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
 
-        <label className="mt-3 block text-sm font-medium text-slate-700">Role</label>
+        <label className="mt-3 block text-sm font-medium text-body">Role</label>
         <div className="mt-1 grid grid-cols-2 gap-2">
           {[['client', 'Client', 'Uses tools, billed by plan'], ['staff', 'Staff', 'Full admin + support']].map(([v, t, d]) => (
             <button type="button" key={v} onClick={() => setRole(v)}
-              className={`rounded-lg border p-2.5 text-left ${role === v ? 'border-brand-500 ring-1 ring-brand-500' : 'border-slate-200 hover:border-slate-300'}`}>
+              className={`rounded-lg border p-2.5 text-left ${role === v ? 'border-brand-500 ring-1 ring-brand-500' : 'border-line hover:border-edge'}`}>
               <div className="text-sm font-medium">{t}</div>
-              <div className="text-xs text-slate-500">{d}</div>
+              <div className="text-xs text-muted">{d}</div>
             </button>
           ))}
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-slate-700">Plan</label>
-            <select value={tier} onChange={(e) => setTier(e.target.value)} className="dm-select mt-1 w-full rounded-lg border border-slate-300 py-2 pl-2 pr-8 text-sm">
+            <label className="block text-sm font-medium text-body">Plan</label>
+            <select value={tier} onChange={(e) => setTier(e.target.value)} className="dm-select mt-1 w-full rounded-lg border border-edge py-2 pl-2 pr-8 text-sm">
               {TIER_ORDER.map((t) => <option key={t} value={t}>{PLANS[t].name} — {PLANS[t].monthlyCredits.toLocaleString()} cr</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700">Starting credits</label>
+            <label className="block text-sm font-medium text-body">Starting credits</label>
             <input type="number" value={credits} onChange={(e) => setCredits(e.target.value)} placeholder={String(PLANS[tier]?.monthlyCredits ?? 0)}
-              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
+              className="mt-1 w-full rounded-lg border border-edge px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
           </div>
         </div>
 
-        <label className="mt-4 flex items-center gap-2 text-sm text-slate-600">
+        <label className="mt-4 flex items-center gap-2 text-sm text-dim">
           <input type="checkbox" checked={sendInvite} onChange={(e) => setSendInvite(e.target.checked)} className="h-4 w-4" /> Send invite email
         </label>
 
@@ -1828,23 +1828,23 @@ function AdminFinances() {
     <div className="mt-4">
       {/* Range toolbar */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-lg border border-slate-300 p-0.5">
+        <div className="inline-flex rounded-lg border border-edge p-0.5">
           {RANGE_PRESETS.filter(([v]) => v !== '1').map(([v, label]) => (
             <button key={v}
               onClick={() => { setCustom({ from: '', to: '' }); setDays(v); }}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${!(custom.from && custom.to) && days === v ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${!(custom.from && custom.to) && days === v ? 'bg-brand-600 text-white' : 'text-dim hover:bg-sunken'}`}>
               {label}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1.5 text-sm text-slate-500">
+        <div className="flex items-center gap-1.5 text-sm text-muted">
           <input type="date" value={custom.from} max={custom.to || undefined}
             onChange={(e) => setCustom((c) => ({ ...c, from: e.target.value }))}
-            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
+            className="rounded-lg border border-edge px-2 py-1.5 text-sm" />
           <span>→</span>
           <input type="date" value={custom.to} min={custom.from || undefined}
             onChange={(e) => setCustom((c) => ({ ...c, to: e.target.value }))}
-            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
+            className="rounded-lg border border-edge px-2 py-1.5 text-sm" />
         </div>
         <button onClick={load} title="Refresh" className="btn-ghost ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm">
           <RefreshCw size={14} /> Refresh
@@ -1858,7 +1858,7 @@ function AdminFinances() {
       </p>
 
       {error && <div className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-      {data === null && <div className="mt-6 text-sm text-slate-500">Loading finances…</div>}
+      {data === null && <div className="mt-6 text-sm text-muted">Loading finances…</div>}
 
       {data && cost && (
         <>
@@ -1915,10 +1915,10 @@ function AdminFinances() {
           </div>
 
           {/* Bottom line */}
-          <section className="mt-4 rounded-xl border border-slate-200 bg-slate-900 p-4 text-white">
+          <section className="mt-4 rounded-xl border border-line bg-slate-900 p-4 text-white">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <div className="text-xs font-medium uppercase tracking-wide text-slate-400">Gross profit ({ccy})</div>
+                <div className="text-xs font-medium uppercase tracking-wide text-faint">Gross profit ({ccy})</div>
                 <div className={`mt-0.5 text-3xl font-bold tabular-nums ${profit?.grossProfitSgd >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                   {money(profit?.grossProfitSgd)}
                 </div>
@@ -1937,14 +1937,14 @@ function AdminFinances() {
             <Panel title="Run-rate MRR by plan">
               {data.mrr?.byPlan?.length ? (
                 <table className="w-full text-sm">
-                  <thead><tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                  <thead><tr className="text-left text-xs uppercase tracking-wide text-muted">
                     <th className="py-1.5 font-semibold">Plan</th>
                     <th className="py-1.5 text-right font-semibold">Subs</th>
                     <th className="py-1.5 text-right font-semibold">MRR</th>
                   </tr></thead>
                   <tbody>
                     {data.mrr.byPlan.map((p) => (
-                      <tr key={p.tier} className="border-b border-slate-100">
+                      <tr key={p.tier} className="border-b border-hair">
                         <td className="py-1.5">{p.name}</td>
                         <td className="py-1.5 text-right tabular-nums">{p.count}</td>
                         <td className="py-1.5 text-right tabular-nums">{money(p.mrr)}</td>
@@ -1965,7 +1965,7 @@ function AdminFinances() {
                 <table className="w-full text-sm">
                   <tbody>
                     {cost.aws.byService.slice(0, 12).map((r) => (
-                      <tr key={r.service} className="border-b border-slate-100">
+                      <tr key={r.service} className="border-b border-hair">
                         <td className="py-1.5">{r.service}</td>
                         <td className="py-1.5 text-right tabular-nums">{fmtMoney(r.usd, 'USD')}</td>
                       </tr>
@@ -1984,9 +1984,9 @@ function AdminFinances() {
               <table className="w-full text-sm">
                 <tbody>
                   {cost.cogs.byTool.slice(0, 15).map((r) => (
-                    <tr key={r.tool} className="border-b border-slate-100">
+                    <tr key={r.tool} className="border-b border-hair">
                       <td className="py-1.5 font-mono text-xs">{r.tool}</td>
-                      <td className="py-1.5 text-right tabular-nums text-slate-500">{fmtNum(r.credits)} credits</td>
+                      <td className="py-1.5 text-right tabular-nums text-muted">{fmtNum(r.credits)} credits</td>
                       <td className="py-1.5 text-right tabular-nums">{money(round2(r.credits * cost.cogs.usdPerCredit * (data.fx?.usdSgd || 1)))}</td>
                     </tr>
                   ))}
@@ -1997,8 +1997,8 @@ function AdminFinances() {
           )}
 
           {/* Method notes */}
-          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
-            <p className="font-semibold text-slate-600">How these numbers are built</p>
+          <div className="mt-4 rounded-xl border border-line bg-raised p-4 text-xs text-muted">
+            <p className="font-semibold text-dim">How these numbers are built</p>
             <ul className="mt-1.5 list-disc space-y-1 pl-4">
               <li><b>Revenue</b> — actual, from Stripe: paid invoices = subscriptions, one-time charges = top-ups. Fees &amp; refunds from Stripe balance transactions. Settled in {rev?.currency || 'SGD'}.</li>
               <li><b>AWS</b> — actual, from Cost Explorer (all services), converted USD→{ccy} at {data.fx?.usdSgd} ({data.fx?.source} rate){cost.aws?.estimated ? '; latest days are AWS estimates' : ''}.</li>
@@ -2014,13 +2014,13 @@ function AdminFinances() {
 
 function LedgerRow({ label, value, sub, strong, border, muted, tag }) {
   return (
-    <tr className={border ? 'border-t border-slate-200' : ''}>
-      <td className={`py-1.5 ${strong ? 'font-semibold text-slate-800' : muted ? 'text-slate-500' : ''}`}>
+    <tr className={border ? 'border-t border-line' : ''}>
+      <td className={`py-1.5 ${strong ? 'font-semibold text-strong' : muted ? 'text-muted' : ''}`}>
         {label}
         {tag && <span className="ml-1.5 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-semibold text-amber-700 align-middle">{tag}</span>}
-        {sub && <div className="text-[11px] font-normal text-slate-400">{sub}</div>}
+        {sub && <div className="text-[11px] font-normal text-faint">{sub}</div>}
       </td>
-      <td className={`py-1.5 text-right tabular-nums ${strong ? 'font-semibold text-slate-900' : muted ? 'text-slate-500' : 'text-slate-700'}`}>{value}</td>
+      <td className={`py-1.5 text-right tabular-nums ${strong ? 'font-semibold text-heading' : muted ? 'text-muted' : 'text-body'}`}>{value}</td>
     </tr>
   );
 }
@@ -2059,23 +2059,23 @@ function AdminPlatform() {
     <div className="mt-4">
       {/* Range toolbar */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-lg border border-slate-300 p-0.5">
+        <div className="inline-flex rounded-lg border border-edge p-0.5">
           {RANGE_PRESETS.map(([v, label]) => (
             <button key={v}
               onClick={() => { setCustom({ from: '', to: '' }); setDays(v); }}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium ${!(custom.from && custom.to) && days === v ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+              className={`rounded-md px-3 py-1.5 text-sm font-medium ${!(custom.from && custom.to) && days === v ? 'bg-brand-600 text-white' : 'text-dim hover:bg-sunken'}`}>
               {label}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1.5 text-sm text-slate-500">
+        <div className="flex items-center gap-1.5 text-sm text-muted">
           <input type="date" value={custom.from} max={custom.to || undefined}
             onChange={(e) => setCustom((c) => ({ ...c, from: e.target.value }))}
-            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
+            className="rounded-lg border border-edge px-2 py-1.5 text-sm" />
           <span>→</span>
           <input type="date" value={custom.to} min={custom.from || undefined}
             onChange={(e) => setCustom((c) => ({ ...c, to: e.target.value }))}
-            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
+            className="rounded-lg border border-edge px-2 py-1.5 text-sm" />
         </div>
         <button onClick={load} title="Refresh" className="btn-ghost ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm">
           <RefreshCw size={14} /> Refresh
@@ -2088,13 +2088,13 @@ function AdminPlatform() {
         </span>
       </p>
       {data?.app && (
-        <p className="mt-1 text-xs text-slate-400">
+        <p className="mt-1 text-xs text-faint">
           {data.app.domain} · branch {data.app.branch}
         </p>
       )}
 
       {error && <div className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
-      {data === null && <div className="mt-6 text-sm text-slate-500">Loading Amplify usage…</div>}
+      {data === null && <div className="mt-6 text-sm text-muted">Loading Amplify usage…</div>}
 
       {data && t && (
         <>
@@ -2110,7 +2110,7 @@ function AdminPlatform() {
           {/* Traffic chart */}
           <Panel title="Traffic">
             {chartSeries.length ? <TrendChart series={chartSeries} /> : <Empty>No traffic in this window.</Empty>}
-            <p className="mt-2 text-xs text-slate-400">Avg page weight {fmtBytes(d.avgPageWeight)} · uploaded {fmtBytes(t.bytesUploaded)}</p>
+            <p className="mt-2 text-xs text-faint">Avg page weight {fmtBytes(d.avgPageWeight)} · uploaded {fmtBytes(t.bytesUploaded)}</p>
           </Panel>
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -2126,7 +2126,7 @@ function AdminPlatform() {
                   </tr></thead>
                   <tbody>
                     {data.cost.byType.map((r) => (
-                      <tr key={r.usageType} className="border-b border-slate-100">
+                      <tr key={r.usageType} className="border-b border-hair">
                         <td className="px-2 py-1.5">{r.usageType}</td>
                         <td className="px-2 py-1.5 text-right tabular-nums">{r.quantity.toFixed(3)} {r.unit === 'GigaBytes' ? 'GB' : r.unit}</td>
                         <td className="px-2 py-1.5 text-right tabular-nums">${r.cost.toFixed(4)}</td>
@@ -2136,7 +2136,7 @@ function AdminPlatform() {
                   </tbody>
                 </table>
               ) : <Empty>No Amplify spend recorded for this window.</Empty>}
-              {data.cost?.granularity && <p className="mt-2 text-xs text-slate-400">{data.cost.granularity.toLowerCase()} granularity{data.cost.estimated ? ' · latest days estimated' : ''}</p>}
+              {data.cost?.granularity && <p className="mt-2 text-xs text-faint">{data.cost.granularity.toLowerCase()} granularity{data.cost.estimated ? ' · latest days estimated' : ''}</p>}
             </Panel>
 
             {/* Build / deploy activity */}
@@ -2150,7 +2150,7 @@ function AdminPlatform() {
                     <MiniStat label="Build min" value={fmtNum(data.builds?.buildMinutes || 0)} />
                   </div>
                   {data.builds?.recent?.length > 0 && (
-                    <ul className="mt-3 space-y-1 text-xs text-slate-500">
+                    <ul className="mt-3 space-y-1 text-xs text-muted">
                       {data.builds.recent.map((j) => (
                         <li key={j.id} className="flex justify-between">
                           <span className={j.status === 'FAILED' ? 'text-red-600' : j.status === 'SUCCEED' ? 'text-emerald-600' : ''}>{j.status}</span>
@@ -2191,22 +2191,22 @@ function AccessLogPanel({ rangeArgs, rangeKey }) {
   return (
     <Panel title="Traffic detail (access logs)">
       {state === 'idle' && (
-        <div className="text-sm text-slate-500">
+        <div className="text-sm text-muted">
           <p>Per-request breakdown — top pages, referrers, devices, edge geography and cache-hit ratio. This exports and parses the raw access log, so it takes a few seconds.</p>
           <button onClick={load} className="btn-primary mt-3 px-3 py-2 text-sm">Load traffic detail</button>
         </div>
       )}
-      {state === 'loading' && <div className="text-sm text-slate-500">Exporting &amp; parsing access log…</div>}
+      {state === 'loading' && <div className="text-sm text-muted">Exporting &amp; parsing access log…</div>}
       {state === 'error' && (
         <div className="text-sm text-red-700">{error} <button onClick={load} className="ml-2 underline">Retry</button></div>
       )}
       {state === 'done' && logs && (
         <div>
-          <div className="mb-3 flex flex-wrap gap-4 text-sm text-slate-600">
+          <div className="mb-3 flex flex-wrap gap-4 text-sm text-dim">
             <span><b>{fmtNum(logs.rows)}</b> requests parsed</span>
             <span>Cache hit ratio <b>{fmtPct(logs.cacheHitRatio)}</b></span>
             <span>{fmtBytes(logs.bytes)} served</span>
-            <span className="text-slate-400">{logs.status['2xx']} · 2xx / {logs.status['4xx']} · 4xx / {logs.status['5xx']} · 5xx</span>
+            <span className="text-faint">{logs.status['2xx']} · 2xx / {logs.status['4xx']} · 4xx / {logs.status['5xx']} · 5xx</span>
             {logs.truncated && <span className="text-amber-600">sampled (window truncated)</span>}
           </div>
           <div className="grid gap-4 md:grid-cols-2">
@@ -2227,53 +2227,53 @@ function RankList({ title, rows, empty = 'No data' }) {
   const max = Math.max(1, ...(rows || []).map((r) => r.count));
   return (
     <div>
-      <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h4>
+      <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">{title}</h4>
       {rows?.length ? (
         <ul className="space-y-1">
           {rows.map((r) => (
             <li key={r.name} className="relative flex items-center justify-between overflow-hidden rounded px-2 py-1 text-sm">
               <span className="absolute inset-y-0 left-0 bg-brand-50" style={{ width: `${(r.count / max) * 100}%` }} aria-hidden />
-              <span className="relative z-10 mr-2 truncate text-slate-700" title={r.name}>{r.name}</span>
-              <span className="relative z-10 shrink-0 tabular-nums text-slate-500">{fmtNum(r.count)}</span>
+              <span className="relative z-10 mr-2 truncate text-body" title={r.name}>{r.name}</span>
+              <span className="relative z-10 shrink-0 tabular-nums text-muted">{fmtNum(r.count)}</span>
             </li>
           ))}
         </ul>
-      ) : <p className="text-sm text-slate-400">{empty}</p>}
+      ) : <p className="text-sm text-faint">{empty}</p>}
     </div>
   );
 }
 
 function Panel({ title, children }) {
   return (
-    <section className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-      <h3 className="mb-3 text-sm font-semibold text-slate-800">{title}</h3>
+    <section className="mt-4 rounded-xl border border-line bg-surface p-4">
+      <h3 className="mb-3 text-sm font-semibold text-strong">{title}</h3>
       {children}
     </section>
   );
 }
 
 function Stat({ label, value, sub, tone }) {
-  const color = tone === 'warn' ? 'text-amber-600' : tone === 'ok' ? 'text-emerald-600' : 'text-slate-900';
+  const color = tone === 'warn' ? 'text-amber-600' : tone === 'ok' ? 'text-emerald-600' : 'text-heading';
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-3">
-      <div className="text-xs font-medium text-slate-500">{label}</div>
+    <div className="rounded-xl border border-line bg-surface p-3">
+      <div className="text-xs font-medium text-muted">{label}</div>
       <div className={`mt-1 text-xl font-bold tabular-nums ${color}`}>{value}</div>
-      {sub && <div className="mt-0.5 text-[11px] text-slate-400">{sub}</div>}
+      {sub && <div className="mt-0.5 text-[11px] text-faint">{sub}</div>}
     </div>
   );
 }
 
 function MiniStat({ label, value, tone }) {
-  const color = tone === 'warn' ? 'text-amber-600' : tone === 'ok' ? 'text-emerald-600' : 'text-slate-800';
+  const color = tone === 'warn' ? 'text-amber-600' : tone === 'ok' ? 'text-emerald-600' : 'text-strong';
   return (
-    <div className="rounded-lg bg-slate-50 py-2">
+    <div className="rounded-lg bg-raised py-2">
       <div className={`text-lg font-bold tabular-nums ${color}`}>{value}</div>
-      <div className="text-[11px] text-slate-500">{label}</div>
+      <div className="text-[11px] text-muted">{label}</div>
     </div>
   );
 }
 
-const Empty = ({ children }) => <p className="py-3 text-sm text-slate-400">{children}</p>;
+const Empty = ({ children }) => <p className="py-3 text-sm text-faint">{children}</p>;
 
 function fmtNum(n) {
   const v = Number(n) || 0;

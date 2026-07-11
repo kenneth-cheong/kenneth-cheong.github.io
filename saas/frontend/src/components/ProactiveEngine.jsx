@@ -134,21 +134,21 @@ export default function ProactiveEngine({ paused = false, chatOpen = false }) {
   // The nudge: a compact peek anchored under the header, near the Otter button.
   return (
     <div className="fixed right-4 top-16 z-40 w-72 motion-safe:animate-slide-in-right">
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+      <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-xl">
         <div className="flex items-start gap-2.5 p-3">
           <Mascot size={36} className="mt-0.5 shrink-0" />
           <button onClick={acceptNudge} className="min-w-0 flex-1 text-left">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-brand-600">Monty</div>
-            <p className="mt-0.5 line-clamp-4 text-sm text-slate-700">{stripChips(nudge.payload.message) || 'I have a tip for you.'}</p>
+            <p className="mt-0.5 line-clamp-4 text-sm text-body">{stripChips(nudge.payload.message) || 'I have a tip for you.'}</p>
           </button>
-          <button onClick={dismissNudge} className="shrink-0 rounded p-1 text-slate-300 hover:bg-slate-100 hover:text-slate-600" title="Dismiss" aria-label="Dismiss">
+          <button onClick={dismissNudge} className="shrink-0 rounded p-1 text-slate-300 hover:bg-sunken hover:text-dim" title="Dismiss" aria-label="Dismiss">
             <X size={16} aria-hidden />
           </button>
         </div>
-        <div className="flex border-t border-slate-100">
+        <div className="flex border-t border-hair">
           <button onClick={acceptNudge} className="flex-1 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50">Open</button>
-          <div className="w-px bg-slate-100" />
-          <button onClick={dismissNudge} className="flex-1 py-2 text-sm font-medium text-slate-400 hover:bg-slate-50">Not now</button>
+          <div className="w-px bg-sunken" />
+          <button onClick={dismissNudge} className="flex-1 py-2 text-sm font-medium text-faint hover:bg-raised">Not now</button>
         </div>
       </div>
     </div>

@@ -30,7 +30,7 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="grid min-h-screen place-items-center bg-gradient-to-b from-brand-50 to-white px-4">
+    <div className="grid min-h-screen place-items-center bg-gradient-to-b from-brand-50 to-white px-4 dark:from-canvas dark:to-surface">
       <div className="w-full max-w-md text-center">
         <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand-600 text-2xl font-bold text-white">D</div>
         <h1 className="mt-6 text-2xl font-bold">Choose a new password</h1>
@@ -41,7 +41,7 @@ export default function ResetPassword() {
           ) : (
             <form onSubmit={onSubmit} className="space-y-3">
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">New password</span>
+                <span className="mb-1 block text-xs font-medium text-dim">New password</span>
                 <input
                   type="password" required minLength={8} autoComplete="new-password"
                   value={password} onChange={(e) => setPassword(e.target.value)}
@@ -49,7 +49,7 @@ export default function ResetPassword() {
                 />
               </label>
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-slate-600">Confirm password</span>
+                <span className="mb-1 block text-xs font-medium text-dim">Confirm password</span>
                 <input
                   type="password" required minLength={8} autoComplete="new-password"
                   value={confirm} onChange={(e) => setConfirm(e.target.value)}
@@ -62,7 +62,7 @@ export default function ResetPassword() {
             </form>
           )}
           {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-          <p className="mt-5 text-center text-sm text-slate-500">
+          <p className="mt-5 text-center text-sm text-muted">
             <Link to="/" className="font-medium text-brand-600 hover:text-brand-700">← Back to sign in</Link>
           </p>
         </div>

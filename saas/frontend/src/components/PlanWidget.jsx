@@ -96,17 +96,17 @@ export default function PlanWidget() {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-40 mt-2 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
-          <div className="border-b border-slate-100 px-4 py-3">
+        <div className="absolute right-0 z-40 mt-2 w-80 overflow-hidden rounded-xl border border-line bg-surface shadow-xl">
+          <div className="border-b border-hair px-4 py-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-800">Your plan</span>
+              <span className="text-sm font-semibold text-strong">Your plan</span>
               <button onClick={() => { setOpen(false); navigate('/'); }} className="text-xs font-medium text-brand-600 hover:text-brand-700">Open →</button>
             </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-sunken">
               <div className="h-full rounded-full bg-brand-600 transition-[width] duration-500" style={{ width: `${pct}%` }} />
             </div>
-            <div className="mt-1.5 text-xs text-slate-500">
-              {complete ? '🎉 All done — set a new goal on the dashboard.' : next ? <>Up next: <span className="font-medium text-slate-700">{stepLabel(next)}</span></> : `${done} of ${total} done`}
+            <div className="mt-1.5 text-xs text-muted">
+              {complete ? '🎉 All done — set a new goal on the dashboard.' : next ? <>Up next: <span className="font-medium text-body">{stepLabel(next)}</span></> : `${done} of ${total} done`}
             </div>
           </div>
           <ul className="max-h-80 overflow-y-auto py-1">
@@ -114,11 +114,11 @@ export default function PlanWidget() {
               const isDone = isStepDone(s);
               return (
                 <li key={s.toolId}>
-                  <button onClick={() => go(s)} className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-slate-50">
+                  <button onClick={() => go(s)} className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-raised">
                     <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white ${isDone ? 'bg-green-500' : 'bg-brand-600'}`}>
                       {isDone ? <Check size={12} aria-hidden /> : i + 1}
                     </span>
-                    <span className={`flex-1 truncate text-sm ${isDone ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{stepLabel(s)}</span>
+                    <span className={`flex-1 truncate text-sm ${isDone ? 'text-faint line-through' : 'text-body'}`}>{stepLabel(s)}</span>
                     {!isDone && <ArrowRight size={13} className="shrink-0 text-slate-300" aria-hidden />}
                   </button>
                 </li>

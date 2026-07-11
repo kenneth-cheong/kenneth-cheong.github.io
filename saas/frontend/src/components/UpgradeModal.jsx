@@ -39,7 +39,7 @@ export default function UpgradeModal({ reason, requiredTier, creditsRemaining, c
           <>
             <Zap size={32} className="text-brand-600" aria-hidden />
             <h3 className="mt-2 text-xl font-bold">Out of credits</h3>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="mt-1 text-sm text-dim">
               {typeof creditsNeeded === 'number' && typeof creditsRemaining === 'number'
                 ? `This run needs ${creditsNeeded} credits — you have ${creditsRemaining}. Top up to keep going; top-up credits roll over.`
                 : `You've used this month's credits. Top up now — top-up credits roll over (they don't expire at renewal).`}
@@ -52,11 +52,11 @@ export default function UpgradeModal({ reason, requiredTier, creditsRemaining, c
                   onClick={() => buyTopup(pack.id)}
                   disabled={!!busy}
                   className={`rounded-lg border p-3 text-center transition hover:border-brand-400 disabled:opacity-50 ${
-                    pack.popular ? 'border-brand-400 bg-brand-50' : 'border-slate-200'
+                    pack.popular ? 'border-brand-400 bg-brand-50' : 'border-line'
                   }`}
                 >
                   <div className="text-base font-bold leading-none">{pack.credits.toLocaleString()}</div>
-                  <div className="text-[11px] text-slate-500">credits</div>
+                  <div className="text-[11px] text-muted">credits</div>
                   <div className="mt-1.5 text-xs font-semibold text-brand-700">
                     {busy === pack.id ? '…' : `${CURRENCY.symbol}${pack.price}`}
                   </div>
@@ -64,8 +64,8 @@ export default function UpgradeModal({ reason, requiredTier, creditsRemaining, c
               ))}
             </div>
 
-            <div className="mt-5 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
-              <p className="text-xs text-slate-500">
+            <div className="mt-5 flex items-center justify-between gap-3 border-t border-hair pt-4">
+              <p className="text-xs text-muted">
                 Need more every month? Upgrade to {plan.name} for {plan.monthlyCredits.toLocaleString()} credits/mo.
               </p>
               <div className="flex shrink-0 gap-2">
@@ -80,7 +80,7 @@ export default function UpgradeModal({ reason, requiredTier, creditsRemaining, c
           <>
             <Unlock size={32} className="text-brand-600" aria-hidden />
             <h3 className="mt-2 text-xl font-bold">Unlock with {plan.name}</h3>
-            <p className="mt-1 text-sm text-slate-600">This tool is part of the {plan.name} plan.</p>
+            <p className="mt-1 text-sm text-dim">This tool is part of the {plan.name} plan.</p>
             <ul className="mt-4 space-y-1.5 text-sm">
               {plan.highlights.map((h) => (
                 <li key={h} className="flex items-center gap-2">
@@ -92,7 +92,7 @@ export default function UpgradeModal({ reason, requiredTier, creditsRemaining, c
             <div className="mt-6 flex items-center justify-between">
               <div>
                 <span className="text-2xl font-bold">{CURRENCY.symbol}{plan.priceMonthly}</span>
-                <span className="text-sm text-slate-500">/mo</span>
+                <span className="text-sm text-muted">/mo</span>
               </div>
               <div className="flex gap-2">
                 <button className="btn-ghost" onClick={onClose}>Not now</button>

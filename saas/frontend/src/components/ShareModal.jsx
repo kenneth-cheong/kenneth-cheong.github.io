@@ -106,13 +106,13 @@ export default function ShareModal({ open, onClose, tool, out, project, user, sn
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4" onClick={onClose}>
-      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl sm:flex-row" onClick={(e) => e.stopPropagation()}>
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-surface shadow-xl sm:flex-row" onClick={(e) => e.stopPropagation()}>
         {/* Preview */}
-        <div className="flex flex-1 items-center justify-center bg-slate-100 p-5">
+        <div className="flex flex-1 items-center justify-center bg-sunken p-5">
           <img
             src={svgToDataUrl(svg)}
             alt="Share card preview"
-            className="max-h-[60vh] w-auto rounded-lg border border-slate-200 shadow-sm"
+            className="max-h-[60vh] w-auto rounded-lg border border-line shadow-sm"
             style={{ aspectRatio: `${f.w} / ${f.h}` }}
           />
         </div>
@@ -120,16 +120,16 @@ export default function ShareModal({ open, onClose, tool, out, project, user, sn
         {/* Controls */}
         <div className="flex w-full shrink-0 flex-col gap-4 p-5 sm:w-72">
           <div className="flex items-center justify-between">
-            <h3 className="flex items-center gap-2 text-base font-bold text-slate-900"><ImageIcon size={18} className="text-brand-600" /> Share result</h3>
-            <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600" aria-label="Close"><XIcon size={18} /></button>
+            <h3 className="flex items-center gap-2 text-base font-bold text-heading"><ImageIcon size={18} className="text-brand-600" /> Share result</h3>
+            <button onClick={onClose} className="rounded-md p-1 text-faint hover:bg-sunken hover:text-dim" aria-label="Close"><XIcon size={18} /></button>
           </div>
 
           <div>
-            <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Format</div>
+            <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Format</div>
             <div className="grid grid-cols-1 gap-1.5">
               {Object.values(FORMATS).map((opt) => (
                 <button key={opt.id} onClick={() => setFormat(opt.id)}
-                  className={`rounded-lg border px-3 py-1.5 text-left text-sm font-medium ${format === opt.id ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:border-brand-300'}`}>
+                  className={`rounded-lg border px-3 py-1.5 text-left text-sm font-medium ${format === opt.id ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-line text-dim hover:border-brand-300'}`}>
                   {opt.label}
                 </button>
               ))}
@@ -138,34 +138,34 @@ export default function ShareModal({ open, onClose, tool, out, project, user, sn
 
           <div className="grid grid-cols-2 gap-2">
             <button onClick={onDownload} className={`${btn} bg-brand-600 text-white hover:bg-brand-700`}><Download size={15} /> Download</button>
-            <button onClick={onCopyImage} className={`${btn} border border-slate-200 text-slate-700 hover:border-brand-300`}><Copy size={15} /> Copy image</button>
-            <button onClick={onShare} className={`${btn} col-span-2 border border-slate-200 text-slate-700 hover:border-brand-300`}><Share2 size={15} /> Share…</button>
+            <button onClick={onCopyImage} className={`${btn} border border-line text-body hover:border-brand-300`}><Copy size={15} /> Copy image</button>
+            <button onClick={onShare} className={`${btn} col-span-2 border border-line text-body hover:border-brand-300`}><Share2 size={15} /> Share…</button>
           </div>
 
           <div>
-            <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">Post to</div>
+            <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Post to</div>
             <div className="grid grid-cols-4 gap-1.5">
               {[['X', 'x'], ['in', 'linkedin'], ['f', 'facebook'], ['WA', 'whatsapp']].map(([label, key]) => (
                 <button key={key} onClick={() => onSocial(key)} disabled={linking}
-                  className="rounded-lg border border-slate-200 py-2 text-sm font-bold text-slate-600 hover:border-brand-300 hover:text-brand-600 disabled:opacity-50">{label}</button>
+                  className="rounded-lg border border-line py-2 text-sm font-bold text-dim hover:border-brand-300 hover:text-brand-600 disabled:opacity-50">{label}</button>
               ))}
             </div>
-            <button onClick={() => copyText(summary.caption)} className="mt-2 w-full rounded-lg border border-slate-200 py-1.5 text-xs font-medium text-slate-500 hover:border-brand-300 hover:text-brand-600">
+            <button onClick={() => copyText(summary.caption)} className="mt-2 w-full rounded-lg border border-line py-1.5 text-xs font-medium text-muted hover:border-brand-300 hover:text-brand-600">
               Copy caption + hashtags
             </button>
           </div>
 
           {/* Public link (opt-in, auto-redacted). Saved runs or dashboard snapshots. */}
           {publishable && (
-            <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
-              <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <div className="rounded-lg border border-line bg-raised/60 p-3">
+              <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
                 <Globe size={13} /> Public link
               </div>
               {shareUrl ? (
                 <>
                   <div className="mt-2 flex items-center gap-1.5">
-                    <input readOnly value={shareUrl} className="min-w-0 flex-1 truncate rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600" />
-                    <button onClick={() => copyText(shareUrl)} className="shrink-0 rounded-md border border-slate-200 p-1.5 text-slate-500 hover:border-brand-300 hover:text-brand-600" title="Copy link"><Link2 size={14} /></button>
+                    <input readOnly value={shareUrl} className="min-w-0 flex-1 truncate rounded-md border border-line bg-surface px-2 py-1 text-xs text-dim" />
+                    <button onClick={() => copyText(shareUrl)} className="shrink-0 rounded-md border border-line p-1.5 text-muted hover:border-brand-300 hover:text-brand-600" title="Copy link"><Link2 size={14} /></button>
                   </div>
                   <button onClick={onRevoke} disabled={linking} className="mt-2 text-[11px] font-medium text-red-500 hover:text-red-600 disabled:opacity-50">Revoke link</button>
                 </>
@@ -174,13 +174,13 @@ export default function ShareModal({ open, onClose, tool, out, project, user, sn
                   <button onClick={onCreateLink} disabled={linking} className={`${btn} mt-2 w-full border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 disabled:opacity-60`}>
                     {linking ? <Loader2 size={15} className="animate-spin" /> : <Globe size={15} />} Create public link
                   </button>
-                  <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">Shareable link that unfurls the card on social. Your domain is hidden on public cards.</p>
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-faint">Shareable link that unfurls the card on social. Your domain is hidden on public cards.</p>
                 </>
               )}
             </div>
           )}
 
-          <p className="text-[11px] leading-relaxed text-slate-400">
+          <p className="text-[11px] leading-relaxed text-faint">
             {publishable
               ? 'Posting to a platform creates a public link so the card image unfurls automatically, with your caption. On mobile, “Share…” attaches the image file directly.'
               : 'Social buttons open the composer with your caption — attach the downloaded image to finish the post.'}

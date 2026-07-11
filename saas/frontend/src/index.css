@@ -2,9 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Semantic theme tokens ────────────────────────────────────────────────
+   RGB triplets consumed by Tailwind's semantic colors (see tailwind.config.js)
+   AND by the raw-CSS blocks below via rgb(var(--c-*)). Light values equal the
+   exact slate/white shades they replaced, so the light theme is unchanged; the
+   .dark block supplies the dark palette. Toggle = a `.dark` class on <html>. */
+:root {
+  --c-canvas: 248 250 252;   /* slate-50  — page background            */
+  --c-surface: 255 255 255;  /* white     — cards / panels / inputs    */
+  --c-raised: 248 250 252;   /* slate-50  — subtle raised / soft hover */
+  --c-sunken: 241 245 249;   /* slate-100 — pills / button rest        */
+  --c-overlay: 226 232 240;  /* slate-200 — stronger hover             */
+  --c-heading: 15 23 42;     /* slate-900 — headings / strongest text  */
+  --c-strong: 30 41 59;      /* slate-800 — strong text                */
+  --c-body: 51 65 85;        /* slate-700 — default body text          */
+  --c-dim: 71 85 105;        /* slate-600 — secondary text             */
+  --c-muted: 100 116 139;    /* slate-500 — tertiary text              */
+  --c-faint: 148 163 184;    /* slate-400 — icons / placeholders       */
+  --c-line: 226 232 240;     /* slate-200 — default border             */
+  --c-hair: 241 245 249;     /* slate-100 — hairline divider           */
+  --c-edge: 203 213 225;     /* slate-300 — input border (stronger)    */
+}
+.dark {
+  --c-canvas: 8 12 24;       /* near-black navy — page background      */
+  --c-surface: 15 23 42;     /* slate-900 — cards / panels / inputs    */
+  --c-raised: 30 41 59;      /* slate-800 — subtle raised / soft hover */
+  --c-sunken: 30 41 59;      /* slate-800 — pills / button rest        */
+  --c-overlay: 51 65 85;     /* slate-700 — stronger hover             */
+  --c-heading: 248 250 252;  /* slate-50  — headings / strongest text  */
+  --c-strong: 226 232 240;   /* slate-200 — strong text                */
+  --c-body: 203 213 225;     /* slate-300 — default body text          */
+  --c-dim: 165 178 199;      /* muted slate — secondary text           */
+  --c-muted: 130 145 168;    /* dim slate — tertiary text              */
+  --c-faint: 100 116 139;    /* slate-500 — icons / placeholders       */
+  --c-line: 30 41 59;        /* slate-800 — default border             */
+  --c-hair: 23 32 48;        /* deep slate — hairline divider          */
+  --c-edge: 51 65 85;        /* slate-700 — input border (stronger)    */
+}
+
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply bg-canvas text-heading antialiased;
+  }
+  /* Smooth the flip so a theme switch doesn't hard-cut every surface at once. */
+  body, .card, .field, header, aside {
+    transition: background-color .2s ease, border-color .2s ease, color .2s ease;
   }
 }
 
@@ -17,19 +59,19 @@
     @apply btn bg-brand-600 text-white shadow-sm shadow-brand-600/20 hover:bg-brand-700 disabled:opacity-50 disabled:shadow-none;
   }
   .btn-ghost {
-    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+    @apply btn border border-edge bg-surface text-body hover:bg-raised;
   }
   /* index.html metric/cockpit card resting state: 1px slate border, soft
      radius, faint shadow. Hover-lift is opt-in via .card-hover (tiles/rows). */
   .card {
-    @apply rounded-2xl border border-slate-200 bg-white shadow-sm;
+    @apply rounded-2xl border border-line bg-surface shadow-sm;
   }
   .card-hover {
     @apply transition duration-300 hover:-translate-y-0.5 hover:border-brand-500 hover:shadow-lift;
   }
   /* Inputs/selects/textareas — index.html's blue focus ring. */
   .field {
-    @apply w-full rounded-lg border border-slate-300 bg-white p-2.5 text-sm transition focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/10;
+    @apply w-full rounded-lg border border-edge bg-surface text-body p-2.5 text-sm transition focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/10;
   }
   .blur-locked {
     @apply pointer-events-none select-none blur-sm opacity-60;
@@ -217,3 +259,53 @@ select:focus-visible,
   .dm-print-header .dm-ph-title { font-size: 13px; color: #334155; margin-top: 2px; }
   .dm-print-header .dm-ph-meta { font-size: 11px; color: #94a3b8; margin-top: 4px; }
 }
+
+/* ── Dark-mode overrides for the raw-CSS blocks above ─────────────────────
+   The tour popovers, server-rendered report HTML (.dm-report) and persona
+   cards are all hardcoded light above (preserved exactly for light mode). The
+   rules below only apply under `.dark`, re-skinning them for the dark theme.
+   Print styles are intentionally NOT overridden — output is for white paper. */
+
+/* Guided tours (driver.js) */
+.dark .driver-popover.dm-tour { background: #0f172a; box-shadow: 0 20px 45px rgba(0, 0, 0, 0.55); }
+.dark .driver-popover.dm-tour .driver-popover-title { color: #f1f5f9; }
+.dark .driver-popover.dm-tour .driver-popover-description { color: #cbd5e1; }
+.dark .driver-popover.dm-tour .driver-popover-progress-text { color: #64748b; }
+.dark .driver-popover.dm-tour .driver-popover-footer button { background: #1e293b; color: #cbd5e1; border-color: #334155; }
+.dark .driver-popover.dm-tour .driver-popover-footer button:hover { background: #334155; }
+/* driver.js draws the popover arrow with the tip's border-color matching the bg */
+.dark .driver-popover.dm-tour .driver-popover-arrow-side-left.driver-popover-arrow { border-left-color: #0f172a; }
+.dark .driver-popover.dm-tour .driver-popover-arrow-side-right.driver-popover-arrow { border-right-color: #0f172a; }
+.dark .driver-popover.dm-tour .driver-popover-arrow-side-top.driver-popover-arrow { border-top-color: #0f172a; }
+.dark .driver-popover.dm-tour .driver-popover-arrow-side-bottom.driver-popover-arrow { border-bottom-color: #0f172a; }
+.dark .dm-tour .dm-ex-lead { color: #e2e8f0; }
+.dark .dm-tour .dm-ex-note, .dark .dm-tour .dm-ex-muted { color: #64748b; }
+.dark .dm-tour .dm-ex-stat { border-color: #334155; }
+.dark .dm-tour .dm-ex-stat span { color: #64748b; }
+.dark .dm-tour .dm-ex-stat b { color: #f1f5f9; }
+.dark .dm-tour .dm-ex-tbl th { color: #64748b; }
+.dark .dm-tour .dm-ex-tbl td { border-top-color: #1e293b; color: #cbd5e1; }
+.dark .dm-tour .dm-ex-card { border-color: #334155; color: #cbd5e1; }
+.dark .dm-tour .dm-ex-card b { color: #f1f5f9; }
+.dark .dm-tour .dm-ex-list, .dark .dm-tour .dm-ex-list li { color: #cbd5e1; }
+
+/* Server-rendered report HTML (.dm-report) — only the bare (:not([style]))
+   elements were styled for light; mirror that scoping for dark. */
+.dark .dm-report { color: #cbd5e1; }
+.dark .dm-report h2:not([style]), .dark .dm-report h3:not([style]), .dark .dm-report h4:not([style]) { color: #f1f5f9; }
+.dark .dm-report strong:not([style]) { color: #f1f5f9; }
+.dark .dm-report a:not([style]) { color: #60a5fa; }
+.dark .dm-report table:not([style]) { border-color: #1e293b; }
+.dark .dm-report table:not([style]) th { background: #1e293b; color: #94a3b8; border-bottom-color: #334155; }
+.dark .dm-report table:not([style]) td { border-top-color: #172234; color: #cbd5e1; }
+.dark .dm-report table:not([style]) tbody tr:hover { background: #172234; }
+
+/* Persona Generator cards */
+.dark .dm-report .persona-card { border-color: #1e293b; background: #0f172a; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+.dark .dm-report .persona-header { background: linear-gradient(180deg,#1e293b,#0f172a); border-bottom-color: #1e293b; }
+.dark .dm-report .persona-header h3 { color: #f1f5f9; }
+.dark .dm-report .persona-age { background: #1e3a8a; color: #bfdbfe; }
+.dark .dm-report .persona-section > strong, .dark .dm-report .persona-rationale > strong { color: #94a3b8; }
+.dark .dm-report .persona-section p, .dark .dm-report .persona-rationale p,
+.dark .dm-report .persona-section li { color: #cbd5e1; }
+.dark .dm-report .persona-rationale { background: #0b1120; border-top-color: #1e293b; }

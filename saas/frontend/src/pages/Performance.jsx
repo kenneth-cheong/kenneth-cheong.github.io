@@ -104,11 +104,11 @@ export default function Performance() {
   const trend = (m, hist) => {
     if (!hist || hist.length < 2) return null;
     const a = hist[0].value, b = hist[hist.length - 1].value;
-    if (a === b) return { arrow: '–', cls: 'text-slate-400', label: 'no change' };
+    if (a === b) return { arrow: '–', cls: 'text-faint', label: 'no change' };
     const up = b > a;
     const pct = a !== 0 ? Math.abs((b - a) / a) * 100 : null;
     const good = m.dir === 'neutral' ? null : (m.dir === 'up' ? up : !up);
-    const cls = good == null ? 'text-slate-500' : good ? 'text-green-600' : 'text-red-600';
+    const cls = good == null ? 'text-muted' : good ? 'text-green-600' : 'text-red-600';
     const label = pct != null ? `${pct >= 10 ? Math.round(pct) : Math.round(pct * 10) / 10}%` : `${Math.round(Math.abs(b - a) * 100) / 100}`;
     return { arrow: up ? '▲' : '▼', cls, label };
   };
@@ -118,7 +118,7 @@ export default function Performance() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Performance</h1>
-          <p className="mt-1 text-slate-600">
+          <p className="mt-1 text-dim">
             {active ? <>Tool metrics over time for <strong>{active.name}</strong>.</> : 'Pick a project to see its performance.'}
           </p>
         </div>
@@ -132,15 +132,15 @@ export default function Performance() {
 
       {!activeId ? (
         <div className="card mt-6 p-6 text-center">
-          <p className="text-slate-600">Performance is tracked under a project. Create or select one to start.</p>
+          <p className="text-dim">Performance is tracked under a project. Create or select one to start.</p>
           <Link to="/projects" className="btn-primary mt-3 inline-block">Go to projects</Link>
         </div>
       ) : loading ? (
-        <div className="card mt-6 p-8 text-center text-slate-400">Loading…</div>
+        <div className="card mt-6 p-8 text-center text-faint">Loading…</div>
       ) : metrics.length === 0 ? (
         <div className="card mt-6 p-8 text-center">
-          <p className="text-slate-600">No performance history yet.</p>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="text-dim">No performance history yet.</p>
+          <p className="mt-1 text-sm text-muted">
             Run a tool under this project — Search Console, GA4, Ads, a site audit, Backlinks Explorer or AI Visibility — and
             its headline numbers get snapshotted here for comparison over time.
           </p>
@@ -149,10 +149,10 @@ export default function Performance() {
       ) : (
         <>
           <div className="mt-5 flex items-center gap-2">
-            <span className="text-sm text-slate-500">Period</span>
+            <span className="text-sm text-muted">Period</span>
             {PERIODS.map(([v, label]) => (
               <button key={v} onClick={() => setPeriod(v)}
-                className={`rounded-full px-3 py-1 text-sm font-medium ${period === v ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50'}`}>
+                className={`rounded-full px-3 py-1 text-sm font-medium ${period === v ? 'bg-slate-800 text-white' : 'bg-surface text-dim ring-1 ring-line hover:bg-raised'}`}>
                 {label}
               </button>
             ))}
@@ -164,14 +164,14 @@ export default function Performance() {
               <section key={group} className="mt-7">
                 <div className="mb-3 flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
-                  <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{group}</h2>
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">{group}</h2>
                 </div>
                 <div className="space-y-4">
                   {groups.get(group).map((t) => (
                     <div key={t.tool} className="card p-5">
                       <div className="mb-3 flex items-baseline justify-between gap-2">
                         <h3 className="font-semibold">{t.toolName}</h3>
-                        {t.target && <span className="truncate text-xs text-slate-400" title={t.target}>{t.target.replace(/^https?:\/\//, '')}</span>}
+                        {t.target && <span className="truncate text-xs text-faint" title={t.target}>{t.target.replace(/^https?:\/\//, '')}</span>}
                       </div>
                       <div className="grid gap-5 sm:grid-cols-2">
                         {t.items.map((m) => {
@@ -183,16 +183,16 @@ export default function Performance() {
                             ? new Date(latestPoint.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
                             : null;
                           return (
-                            <div key={m.metricId} className="rounded-lg border border-slate-100 p-3">
+                            <div key={m.metricId} className="rounded-lg border border-hair p-3">
                               <div className="flex items-baseline justify-between">
-                                <span className="flex items-center gap-1 text-xs font-medium text-slate-500">
+                                <span className="flex items-center gap-1 text-xs font-medium text-muted">
                                   {m.label}
                                   {glossaryFor(m.label) && <InfoTip text={glossaryFor(m.label)} size={12} />}
                                 </span>
                                 {tr && <span className={`text-xs font-semibold ${tr.cls}`}>{tr.arrow} {tr.label}</span>}
                               </div>
                               <div className="mt-0.5 text-xl font-bold">{fmtVal(latest, m.unit)}</div>
-                              {latestDate && <div className="text-xs text-slate-400">{latestDate}</div>}
+                              {latestDate && <div className="text-xs text-faint">{latestDate}</div>}
                               {hist.length >= 2
                                 ? <div className="mt-2"><MetricChart data={hist} color={color} /></div>
                                 : <div className="mt-2 text-xs text-slate-300">One data point so far — run again to build a trend.</div>}

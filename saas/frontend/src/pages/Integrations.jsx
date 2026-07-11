@@ -98,7 +98,7 @@ export default function Integrations() {
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="text-2xl font-bold">Integrations</h1>
-      <p className="mt-1 text-slate-600">
+      <p className="mt-1 text-dim">
         Connect your ad &amp; analytics accounts to pull your own performance data — free of credits, and queryable by the assistant.
       </p>
 
@@ -115,18 +115,18 @@ export default function Integrations() {
               {/* One connection per family */}
               <div className="card p-5">
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="grid h-10 w-10 place-items-center rounded-lg bg-slate-100 text-sm font-bold text-slate-500">{fam.meta.icon || '•'}</div>
+                  <div className="grid h-10 w-10 place-items-center rounded-lg bg-sunken text-sm font-bold text-muted">{fam.meta.icon || '•'}</div>
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold">{fam.meta.label || fam.id}</div>
-                    <div className="text-sm text-slate-500">{fam.meta.blurb}</div>
+                    <div className="text-sm text-muted">{fam.meta.blurb}</div>
                   </div>
                   {!isConfigured ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500" title="This connector is awaiting platform approval — you can still enter an account ID manually inside the tool.">Coming soon</span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-sunken px-2.5 py-1 text-xs font-semibold text-muted" title="This connector is awaiting platform approval — you can still enter an account ID manually inside the tool.">Coming soon</span>
                   ) : isConn ? (
                     <>
                       <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700"><Check size={13} aria-hidden /> Connected</span>
                       <button onClick={() => connectFamily(fam)} disabled={redirecting} className="btn-ghost px-3 py-1.5 text-sm">{redirecting ? '…' : 'Reconnect'}</button>
-                      <button onClick={() => disconnectFamily(fam)} disabled={redirecting} className="text-sm text-slate-500 hover:text-red-600">Disconnect</button>
+                      <button onClick={() => disconnectFamily(fam)} disabled={redirecting} className="text-sm text-muted hover:text-red-600">Disconnect</button>
                     </>
                   ) : (
                     <button onClick={() => connectFamily(fam)} disabled={redirecting} className="btn-primary px-3 py-1.5 text-sm">{redirecting ? 'Redirecting…' : `Connect ${shortName(fam)}`}</button>
@@ -140,12 +140,12 @@ export default function Integrations() {
                   {fam.sources.map((p) => (
                     <div key={p.id} className="card p-4">
                       <div className="flex flex-wrap items-center gap-3">
-                        <div className="grid h-8 w-8 place-items-center rounded-lg bg-slate-100 text-xs font-bold text-slate-500">{fam.meta.icon || '•'}</div>
+                        <div className="grid h-8 w-8 place-items-center rounded-lg bg-sunken text-xs font-bold text-muted">{fam.meta.icon || '•'}</div>
                         <div className="min-w-0 flex-1">
                           <div className="font-semibold">{p.name}</div>
-                          <div className="text-sm text-slate-500">{p.blurb}</div>
+                          <div className="text-sm text-muted">{p.blurb}</div>
                           {connected[p.id]?.email && (
-                            <div className="mt-0.5 truncate text-xs text-slate-400">Signed in as {connected[p.id].email}</div>
+                            <div className="mt-0.5 truncate text-xs text-faint">Signed in as {connected[p.id].email}</div>
                           )}
                         </div>
                         {connected[p.id]?.account
@@ -155,10 +155,10 @@ export default function Integrations() {
                         {/* Only families with >1 source (Google) benefit from a per-source login;
                             for single-source families the family Reconnect already covers it. */}
                         {fam.sources.length > 1 && (
-                          <button onClick={() => connectSource(p)} disabled={busy === p.id} className="text-sm text-slate-500 hover:text-brand-600">{busy === p.id ? '…' : 'Different account'}</button>
+                          <button onClick={() => connectSource(p)} disabled={busy === p.id} className="text-sm text-muted hover:text-brand-600">{busy === p.id ? '…' : 'Different account'}</button>
                         )}
                         {connected[p.id]?.account && (
-                          <button onClick={() => disconnectSource(fam, p)} disabled={busy === p.id} className="text-sm text-slate-500 hover:text-red-600">Disconnect</button>
+                          <button onClick={() => disconnectSource(fam, p)} disabled={busy === p.id} className="text-sm text-muted hover:text-red-600">Disconnect</button>
                         )}
                       </div>
                       <PullHealth pull={lastPull[p.id]} />
@@ -171,7 +171,7 @@ export default function Integrations() {
           );
         })}
         {!families.length && (
-          <p className="text-sm text-slate-400">No integrations are available on this deployment yet.</p>
+          <p className="text-sm text-faint">No integrations are available on this deployment yet.</p>
         )}
       </div>
     </div>
@@ -190,7 +190,7 @@ function ago(iso) {
 // "no data" / "failed" so a selected-but-broken source is obvious.
 function PullHealth({ pull }) {
   const m = {
-    ok: { dot: 'bg-green-500', text: 'Data flowing', cls: 'text-slate-500' },
+    ok: { dot: 'bg-green-500', text: 'Data flowing', cls: 'text-muted' },
     empty: { dot: 'bg-amber-500', text: 'Last pull returned no data', cls: 'text-amber-700' },
     issue: { dot: 'bg-red-500', text: 'Last pull failed — try Reconnect', cls: 'text-red-600' },
   }[pull?.status];
@@ -220,21 +220,21 @@ function AccountPicker({ provider, current, onSaved }) {
   }
 
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-      <span className="shrink-0 text-xs font-medium text-slate-500">{LABELS[provider] || 'Account'}:</span>
+    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-hair pt-3">
+      <span className="shrink-0 text-xs font-medium text-muted">{LABELS[provider] || 'Account'}:</span>
       {accounts === null ? (
-        <span className="text-xs text-slate-400">loading…</span>
+        <span className="text-xs text-faint">loading…</span>
       ) : accounts.length ? (
         <select
           value={current || ''} disabled={saving}
           onChange={(e) => choose(e.target.value)}
-          className="dm-select min-w-0 max-w-full flex-1 rounded-lg border border-slate-300 py-1.5 pl-2.5 pr-8 text-sm focus:border-brand-500 focus:outline-none"
+          className="dm-select min-w-0 max-w-full flex-1 rounded-lg border border-edge py-1.5 pl-2.5 pr-8 text-sm focus:border-brand-500 focus:outline-none"
         >
           <option value="" disabled>Select…</option>
           {accounts.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
         </select>
       ) : (
-        <span className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+        <span className="flex flex-wrap items-center gap-2 text-xs text-faint">
           {current || NO_ACCOUNTS[provider] || 'No accessible accounts found.'}
           <button onClick={fetchAccounts} className="font-medium text-brand-600 hover:text-brand-700">Refresh</button>
         </span>
