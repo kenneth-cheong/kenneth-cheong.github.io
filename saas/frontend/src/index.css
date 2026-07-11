@@ -8,6 +8,7 @@
    exact slate/white shades they replaced, so the light theme is unchanged; the
    .dark block supplies the dark palette. Toggle = a `.dark` class on <html>. */
 :root {
+  color-scheme: light;       /* native controls (date pickers, scrollbars) */
   --c-canvas: 248 250 252;   /* slate-50  — page background            */
   --c-surface: 255 255 255;  /* white     — cards / panels / inputs    */
   --c-raised: 248 250 252;   /* slate-50  — subtle raised / soft hover */
@@ -24,6 +25,7 @@
   --c-edge: 203 213 225;     /* slate-300 — input border (stronger)    */
 }
 .dark {
+  color-scheme: dark;        /* dark native date pickers / scrollbars  */
   --c-canvas: 8 12 24;       /* near-black navy — page background      */
   --c-surface: 15 23 42;     /* slate-900 — cards / panels / inputs    */
   --c-raised: 30 41 59;      /* slate-800 — subtle raised / soft hover */
@@ -311,3 +313,41 @@ select:focus-visible,
 .dark .dm-report .persona-section p, .dark .dm-report .persona-rationale p,
 .dark .dm-report .persona-section li { color: #cbd5e1; }
 .dark .dm-report .persona-rationale { background: #0b1120; border-top-color: #1e293b; }
+
+/* Bare form controls (textarea/select/text inputs) that don't opt into
+   .field/.dm-select fall back to the user-agent WHITE background — wrong in
+   dark. Force the themed surface. :where() keeps specificity at 0 so explicit
+   classes still win. Scoped to text-like controls so checkboxes/radios/range
+   keep their native rendering (color-scheme handles those). */
+.dark textarea,
+.dark select,
+.dark input:where([type="text"], [type="email"], [type="password"], [type="search"], [type="url"], [type="number"], [type="tel"], [type="date"], [type="datetime-local"], [type="month"], [type="time"], :not([type])) {
+  background-color: rgb(var(--c-surface));
+  color: rgb(var(--c-body));
+}
+
+/* ── Dark-mode remap for server-rendered report HTML with INLINE light styles ─
+   Tool outputs (AI Content Optimiser model-comparison, etc.) arrive as a
+   self-contained light-themed HTML document: white cards, light tints and
+   dark text baked into inline `style=""`. The `.dark .dm-report … :not([style])`
+   rules above deliberately skip inline-styled elements, so those stayed bright.
+   These attribute-selector rules re-map the report's FIXED inline palette to
+   dark equivalents (background + paired text + border together, or dark text on
+   a dark card would be unreadable) and beat inline styles via !important.
+   Saturated accents (#4f46e5 indigo, #0e7490 cyan) are intentionally left as-is
+   — they read fine on dark. Stored results are HTML, so this fixes old + new. */
+.dark .dm-report [style*="background:#fff"]    { background-color: #0f172a !important; }
+.dark .dm-report [style*="background:#f8fafc"] { background-color: #1e293b !important; }
+.dark .dm-report [style*="background:#eef2ff"] { background-color: rgba(99, 102, 241, 0.15) !important; }
+.dark .dm-report [style*="background:#ecfeff"] { background-color: rgba(34, 211, 238, 0.12) !important; }
+.dark .dm-report [style*="background:#f0fdf4"] { background-color: rgba(34, 197, 94, 0.13) !important; }
+.dark .dm-report [style*="background:#fef9c3"] { background-color: rgba(234, 179, 8, 0.14) !important; }
+.dark .dm-report [style*="color:#0f172a"] { color: #f1f5f9 !important; }
+.dark .dm-report [style*="color:#334155"] { color: #cbd5e1 !important; }
+.dark .dm-report [style*="color:#475569"] { color: #94a3b8 !important; }
+.dark .dm-report [style*="color:#64748b"] { color: #94a3b8 !important; }
+.dark .dm-report [style*="color:#4f46e5"] { color: #a5b4fc !important; }
+.dark .dm-report [style*="color:#0e7490"] { color: #67e8f9 !important; }
+.dark .dm-report [style*="color:#166534"] { color: #86efac !important; }
+.dark .dm-report [style*="color:#854d0e"] { color: #fcd34d !important; }
+.dark .dm-report [style*="#e2e8f0"] { border-color: #334155 !important; }
