@@ -127,11 +127,14 @@ URL output that slow tools route through (the `/run/{toolId}` API path has a 30s
 ### Subsequent updates — change-set (preserves params)
 
 For an existing stack, deploy via a change-set and pass **`UsePreviousValue=true`** for
-every parameter you aren't changing, so you don't clobber the live values. Pass **all
-ten** — `create-change-set` rejects `UsePreviousValue` for a key that isn't in the
-template, and omitting a key resets it to its default (see the `AlarmEmail` warning
-below). Secrets aren't parameters (they're in Secrets Manager), so they're never listed
-here:
+every parameter you aren't changing, so you don't clobber the live values. Pass **every
+parameter the template declares** (17 as of this writing) — `create-change-set` rejects
+`UsePreviousValue` for a key that isn't in the template, and omitting a key resets it to
+its default. **This bit us:** dropping `SmtpUser`/`SmtpFrom` from an earlier version of
+this list reset them to empty, which disables SMTP and silently falls all mail back to
+the SES sandbox (see the `AlarmEmail` warning below for the general failure mode). If you
+add a new `Parameters:` entry to `template.yaml`, add it here too. Secrets aren't
+parameters (they're in Secrets Manager), so they're never listed here:
 
 ```bash
 CS="deploy-$(git rev-parse --short HEAD)"
@@ -149,7 +152,14 @@ aws cloudformation create-change-set --stack-name digimetrics-saas \
     ParameterKey=SesFrom,UsePreviousValue=true \
     ParameterKey=SesSupport,UsePreviousValue=true \
     ParameterKey=AutoCloseDays,UsePreviousValue=true \
-    ParameterKey=AlarmEmail,UsePreviousValue=true
+    ParameterKey=AlarmEmail,UsePreviousValue=true \
+    ParameterKey=SmtpUser,UsePreviousValue=true \
+    ParameterKey=SmtpFrom,UsePreviousValue=true \
+    ParameterKey=SmtpHost,UsePreviousValue=true \
+    ParameterKey=SmtpPort,UsePreviousValue=true \
+    ParameterKey=AmplifyBranch,UsePreviousValue=true \
+    ParameterKey=AmplifyAppId,UsePreviousValue=true \
+    ParameterKey=AmplifyDomain,UsePreviousValue=true
 
 # Wait for the change-set to finish computing, then ALWAYS review before executing —
 # every Lambda shows "Modify" (shared/catalog.mjs is inlined into each bundle); check
