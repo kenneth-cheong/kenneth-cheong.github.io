@@ -2316,12 +2316,49 @@
             completionLabels: new Set(['Done', 'Completed', 'Signed Off', 'Launched', 'Live', 'Approved'])
         };
 
+        // ── Server sync (Roadmap Step 8 hardening) ──────────────────────────
+        // Pull the org-wide NPS responses + the first-class escalation registry
+        // from the monday Lambda into the same localStorage caches the render
+        // paths read, so every manager sees the same numbers (not just what was
+        // captured on this machine). Fire-and-forget; offline keeps the cache.
+        async function _cbServerSync() {
+            const unwrap = j => { if (j && typeof j.body === 'string') { try { return JSON.parse(j.body); } catch (_) { return j; } } return j; };
+            const post = async payload => unwrap(await (await fetch(LAMBDA, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            })).json());
+            let changed = false;
+            try {
+                const j = await post({ action: 'escalation_list' });
+                if (j && Array.isArray(j.escalations)) {
+                    const names = j.escalations.map(e => String(e.campaign || '').trim().toLowerCase()).filter(Boolean);
+                    localStorage.setItem('cbcEscalations', JSON.stringify({ at: Date.now(), names: names }));
+                    _cbEscState = null;
+                    changed = true;
+                }
+            } catch (_) {}
+            try {
+                const j = await post({ action: 'nps_list' });
+                if (j && Array.isArray(j.responses)) {
+                    let local = []; try { local = JSON.parse(localStorage.getItem('cockpitNpsResponses')) || []; } catch (_) {}
+                    const keyOf = x => x.id || ((x.client || '') + '|' + (x.date || '') + '|' + x.score);
+                    const byId = {};
+                    local.forEach(x => { if (x) byId[keyOf(x)] = x; });
+                    j.responses.forEach(x => { if (x) byId[keyOf(x)] = x; });
+                    localStorage.setItem('cockpitNpsResponses', JSON.stringify(Object.values(byId)));
+                    changed = true;
+                }
+            } catch (_) {}
+            // Re-render only if the crawl already populated the views.
+            if (changed) { try { if (state.stats && state.stats.totalItems > 0) updateFilteredUI(); } catch (_) {} }
+        }
+
         window.onload = () => {
             const hashView = location.hash.replace(/^#view=/, '');
             if (hashView && ['today','manager','consultant','auditor','timeliness','hygiene'].includes(hashView)) state.viewMode = hashView;
             state.mode = VIEW_MODE_GROUP[state.viewMode] || 'teamlead';
             state.modeLastView[state.mode] = state.viewMode;
             renderNav();
+            _cbServerSync();
             if (state.apiKey) { document.getElementById('api-key').value = state.apiKey; connectMonday(); }
         };
 
@@ -3482,7 +3519,16 @@
         }
 
         function _cbApprovalStatus(s) {
-            return /approval|review|waiting|pending|client|sign[\s-]?off|feedback|to approve|for approval/i.test(s || '');
+            const t = String(s || '');
+            if (!t) return false;
+            // Explicit approval-ish states always count…
+            if (/approv|sign[\s-]?off/i.test(t)) return true;
+            // …but bare "waiting" / "client" / "review" / "feedback" alone no longer
+            // do (they inflated the tile with unrelated statuses like "Client
+            // Onboarding" or "In Review" of internal work) — they need an
+            // approval-flavoured combination.
+            return /(pending|awaiting|waiting\s*(on|for)?)\s+(client|review|feedback|sign)/i.test(t)
+                || /client\s+(review|feedback|sign[\s-]?off)/i.test(t);
         }
 
         // Parse a Monday timeline string for a start/end and compute elapsed %.
@@ -3506,7 +3552,24 @@
         }
 
         // True when a campaign shows escalation / risk signals in its summary or CSM status.
+        // ── First-class escalations (Roadmap Step 8 hardening) ──────────────
+        // The cockpit's "Escalate to Google Chat" action stamps an escalation
+        // record on the monday Lambda (45-day TTL); _cbServerSync caches the
+        // active names here. Once a synced registry exists it is authoritative —
+        // the old regex inference only runs when the server has never been
+        // reached (offline / first load), so counts stop drifting on wording.
+        let _cbEscState = null;   // {synced:bool, set:Set<lowercased campaign name>}
+        function _cbEscalationState() {
+            if (_cbEscState) return _cbEscState;
+            try {
+                const j = JSON.parse(localStorage.getItem('cbcEscalations') || 'null');
+                _cbEscState = (j && Array.isArray(j.names)) ? { synced: true, set: new Set(j.names) } : { synced: false, set: new Set() };
+            } catch (_) { _cbEscState = { synced: false, set: new Set() }; }
+            return _cbEscState;
+        }
         function _campaignEscalated(camp) {
+            const st = _cbEscalationState();
+            if (st.synced) return st.set.has(String(camp.name || '').trim().toLowerCase());
             return camp.items.some(i =>
                 /blocked|urgent|critical|delayed|issue|problem|escalat|stall|behind/i.test(i.masterTechSummary || '') ||
                 /risk|delay|hold|stuck|behind|escalat/i.test(i.masterCsmStatus || i.csmCampaignStatus || ''));
@@ -3552,11 +3615,12 @@
         // 'cbcSeoPacing' on each fetch; both pages are same-origin so we read it here.
         // Matched by normalised campaign name. Returns the same shape as _keywordPace
         // (so callers/renderers are interchangeable) but flagged auto:true.
-        function _cbSeoPacing() { try { return (JSON.parse(localStorage.getItem('cbcSeoPacing') || '{}').map) || {}; } catch (_) { return {}; } }
-        function _cbAutoPace(name) {
-            const key = String(name || '').trim().toLowerCase();
-            if (!key) return null;
-            const e = _cbSeoPacing()[key];
+        function _cbSeoPacingRaw() { try { return JSON.parse(localStorage.getItem('cbcSeoPacing') || '{}') || {}; } catch (_) { return {}; } }
+        function _cbSeoPacing() { return _cbSeoPacingRaw().map || {}; }
+        function _cbNormName(s) { return String(s || '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').trim(); }
+        // Convert a cockpit pacing-map entry into the pace object the cards render.
+        // Carries asOf (when the cockpit last wrote the map) so staleness is visible.
+        function _cbPaceFromEntry(e) {
             if (!e || e.kpi == null || e.p1 == null) return null;
             let pkey, label, color;
             if (!e.isBehind)            { pkey = 'green';  label = 'On pace';           color = 'var(--success)'; }
@@ -3564,13 +3628,52 @@
             else                        { pkey = 'red';    label = 'Critically behind'; color = 'var(--danger)';  }
             return { target: e.kpi, current: e.p1, expected: e.expected, gap: Math.max(0, (e.expected || 0) - (e.p1 || 0)),
                      pctBehind: e.pctBehind, pctProgress: e.pctProgress, resultLabel: e.resultLabel || 'P1 KWs',
-                     key: pkey, label, color, auto: true };
+                     key: pkey, label, color, auto: true, asOf: _cbSeoPacingRaw().at || null, seRankingId: e.seRankingId || null };
         }
-        // Unified resolver: an explicit manual target wins (user override); otherwise
-        // fall back to the auto pace from the cockpit. Returns null when neither exists.
+        function _cbAutoPace(name) {
+            const key = String(name || '').trim().toLowerCase();
+            if (!key) return null;
+            const map = _cbSeoPacing();
+            if (map[key]) return _cbPaceFromEntry(map[key]);
+            // Normalised exact match absorbs punctuation / spacing / "&" drift…
+            const norm = _cbNormName(name);
+            if (!norm) return null;
+            const keys = Object.keys(map);
+            let hit = keys.filter(k => _cbNormName((map[k] && map[k].name) || k) === norm);
+            // …then a containment match, accepted only when unambiguous
+            // ("Acme" ↔ "Acme Pte Ltd — SEO"). Ambiguity falls through to manual.
+            if (!hit.length) hit = keys.filter(k => { const kn = _cbNormName((map[k] && map[k].name) || k); return kn && (kn.indexOf(norm) !== -1 || norm.indexOf(kn) !== -1); });
+            return hit.length === 1 ? _cbPaceFromEntry(map[hit[0]]) : null;
+        }
+        // Manual "link this board to a cockpit campaign" aliases — an exact join
+        // even when names drift, using the pacing-map key as the stable handle.
+        function _cbPaceAliases() { try { return JSON.parse(localStorage.getItem('cbcPaceAlias') || '{}') || {}; } catch (_) { return {}; } }
+        function _cbSavePaceAliases(o) { try { localStorage.setItem('cbcPaceAlias', JSON.stringify(o)); } catch (_) {} }
+        function cbLinkPace(bId) {
+            const sel = document.getElementById('kw-link-' + bId);
+            if (!sel || !sel.value) return;
+            const o = _cbPaceAliases(); o[bId] = sel.value; _cbSavePaceAliases(o);
+            state.kwEditing = null; renderConsultantView(getFilteredItems());
+        }
+        function cbUnlinkPace(bId) {
+            const o = _cbPaceAliases(); delete o[bId]; _cbSavePaceAliases(o);
+            state.kwEditing = null; renderConsultantView(getFilteredItems());
+        }
+        function _cbPaceLinkOptions(bId) {
+            const map = _cbSeoPacing();
+            const cur = _cbPaceAliases()[bId] || '';
+            const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+            const keys = Object.keys(map).sort((a, b) => String((map[a] && map[a].name) || a).localeCompare(String((map[b] && map[b].name) || b)));
+            return '<option value="">— pick cockpit campaign —</option>'
+                + keys.map(k => `<option value="${esc(k)}"${k === cur ? ' selected' : ''}>${esc((map[k] && map[k].name) || k)}</option>`).join('');
+        }
+        // Unified resolver: explicit manual target wins (user override) → pinned
+        // cockpit link (alias) → auto name-match. Returns null when none exists.
         function _cbPaceFor(bId, name) {
             const manual = _kwTargets()[bId];
             if (manual) { const p = _keywordPace(manual); if (p) { p.auto = false; return p; } }
+            const alias = _cbPaceAliases()[bId];
+            if (alias) { const p = _cbPaceFromEntry(_cbSeoPacing()[alias]); if (p) { p.linked = true; return p; } }
             return _cbAutoPace(name);
         }
         function _campaignKwBehind(bId, name) { const p = _cbPaceFor(bId, name); return p && (p.key === 'orange' || p.key === 'red'); }
@@ -3816,10 +3919,19 @@
                             <button onclick="cbCancelKwTarget()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:12px;">Cancel</button>
                             ${kwT ? `<button onclick="cbClearKwTarget('${c.id}')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:11px;margin-left:auto;">Remove</button>` : ''}
                         </div>
+                        <div style="display:flex;gap:8px;align-items:center;margin-top:9px;flex-wrap:wrap;border-top:1px dashed rgba(99,102,241,0.25);padding-top:8px;">
+                            <span style="font-size:11px;color:var(--muted);">…or link to a cockpit campaign for live auto-pacing:</span>
+                            <select id="kw-link-${c.id}" style="max-width:240px;font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);">${_cbPaceLinkOptions(c.id)}</select>
+                            <button onclick="cbLinkPace('${c.id}')" style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:12px;font-weight:700;">Link</button>
+                            ${_cbPaceAliases()[c.id] ? `<button onclick="cbUnlinkPace('${c.id}')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:11px;">Unlink</button>` : ''}
+                        </div>
                     </div>`;
                 } else if (pace) {
+                    const ageH = pace.asOf ? Math.round((Date.now() - pace.asOf) / 36e5) : null;
+                    const stale = ageH != null && ageH > 24;
+                    const ageTxt = ageH == null ? '' : ageH < 1 ? 'under an hour ago' : ageH < 48 ? ageH + 'h ago' : Math.round(ageH / 24) + 'd ago';
                     const autoTag = pace.auto
-                        ? `<span title="Live from the cockpit SEO Trajectory Tracker — no manual entry needed" style="font-size:9px;font-weight:700;color:var(--primary);background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);border-radius:8px;padding:1px 6px;margin-left:6px;">AUTO</span>`
+                        ? `<span title="${pace.linked ? 'Linked to this cockpit campaign' : 'Auto-matched from the cockpit SEO Trajectory Tracker'}${ageTxt ? ' · pacing data as of ' + ageTxt : ''}${stale ? ' — open the cockpit to refresh' : ''}" style="font-size:9px;font-weight:700;color:${stale ? '#b45309' : 'var(--primary)'};background:${stale ? 'rgba(234,179,8,0.14)' : 'rgba(99,102,241,0.12)'};border:1px solid ${stale ? 'rgba(234,179,8,0.4)' : 'rgba(99,102,241,0.3)'};border-radius:8px;padding:1px 6px;margin-left:6px;">${pace.linked ? 'LINKED' : 'AUTO'}${stale ? ' · ' + ageTxt : ''}</span>`
                         : '';
                     const detail = pace.auto
                         ? `${pace.current} of ${pace.target} ${pace.resultLabel} <span style="color:var(--muted);">(expected ~${pace.expected} at ${pace.pctProgress}% elapsed${pace.pctBehind > 0 ? `, ${pace.pctBehind}% behind` : ''})</span>`

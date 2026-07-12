@@ -5458,6 +5458,169 @@ def lambda_handler(event, context):
                         upsert=True)
                     imported += 1
                 result = {"statusCode": 200, "body": json.dumps({"success": True, "imported": imported, "skipped": skipped}, cls=JSONEncoder)}
+        # ── Roadmap Phase-2 hardening ────────────────────────────────────────
+        # Org-wide NPS (cockpit + Campaign Board Crawler read the same server
+        # store instead of one browser's localStorage), first-class escalation
+        # registry (stamped by the cockpit's "Escalate to Google Chat" action),
+        # and module feedback / usage telemetry for the roadmap's completion
+        # standard ("relevant users confirm the output is useful").
+        elif action == 'nps_save':
+            # Upsert one response ({response:{...}}) or many ({responses:[...]}).
+            # Idempotent by client-generated id so the frontend can re-push its
+            # full local cache without duplicating rows.
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                items = body.get('responses') or ([body.get('response')] if body.get('response') else [])
+                saved = 0
+                for r in items[:500]:
+                    if not isinstance(r, dict) or r.get('score') is None:
+                        continue
+                    try:
+                        score = max(0, min(10, int(float(r.get('score')))))
+                    except Exception:
+                        continue
+                    rid = str(r.get('id') or hashlib.sha1(
+                        f"{r.get('client','')}|{r.get('campaign','')}|{r.get('date','')}|{score}".encode('utf-8', 'ignore')
+                    ).hexdigest()[:12])[:64]
+                    db.nps_responses.update_one(
+                        {"orgId": "digimetrics", "id": rid},
+                        {"$set": {"orgId": "digimetrics", "id": rid,
+                                  "client": str(r.get('client') or '')[:200],
+                                  "campaign": str(r.get('campaign') or '')[:200],
+                                  "score": score,
+                                  "date": str(r.get('date') or '')[:10],
+                                  "note": str(r.get('note') or '')[:1000],
+                                  "by": str(r.get('by') or '')[:200],
+                                  "updatedAt": datetime.utcnow()}},
+                        upsert=True)
+                    saved += 1
+                result = {"statusCode": 200, "body": json.dumps({"success": True, "saved": saved})}
+        elif action == 'nps_list':
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                docs = list(db.nps_responses.find(
+                    {"orgId": "digimetrics"}, {"_id": 0, "orgId": 0, "updatedAt": 0}
+                ).sort("date", -1).limit(5000))
+                result = {"statusCode": 200, "body": json.dumps({"responses": docs}, cls=JSONEncoder)}
+        elif action == 'nps_delete':
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                rid = str(body.get('id') or '')
+                n = db.nps_responses.delete_one({"orgId": "digimetrics", "id": rid}).deleted_count if rid else 0
+                result = {"statusCode": 200, "body": json.dumps({"success": True, "deleted": n})}
+        elif action == 'escalation_save':
+            # First-class escalation record (replaces regex inference on the
+            # dashboards). Keyed by normalised campaign name; {resolve:true}
+            # marks it inactive instead of deleting so history is kept.
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                e = body.get('escalation') or {}
+                name = str(e.get('campaign') or '').strip()
+                if not name:
+                    result = {"statusCode": 400, "body": json.dumps({"error": "escalation.campaign required"})}
+                else:
+                    key = name.lower()[:300]
+                    db.escalations.update_one(
+                        {"orgId": "digimetrics", "key": key},
+                        {"$set": {"orgId": "digimetrics", "key": key,
+                                  "campaign": name[:300],
+                                  "boardId": str(e.get('boardId') or '')[:60],
+                                  "seRankingId": str(e.get('seRankingId') or '')[:60],
+                                  "by": str(e.get('by') or '')[:200],
+                                  "note": str(e.get('note') or '')[:500],
+                                  "active": not bool(body.get('resolve')),
+                                  "updatedAt": datetime.utcnow()},
+                         "$setOnInsert": {"createdAt": datetime.utcnow()}},
+                        upsert=True)
+                    result = {"statusCode": 200, "body": json.dumps(
+                        {"success": True, "campaign": name, "active": not bool(body.get('resolve'))})}
+        elif action == 'escalation_list':
+            # Active escalations stamped in the last 45 days (stale ones age out
+            # of the dashboard count rather than accumulating forever).
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                cutoff = datetime.utcnow() - timedelta(days=45)
+                docs = list(db.escalations.find(
+                    {"orgId": "digimetrics", "active": True, "updatedAt": {"$gte": cutoff}},
+                    {"_id": 0, "orgId": 0}
+                ).sort("updatedAt", -1).limit(500))
+                result = {"statusCode": 200, "body": json.dumps({"escalations": docs}, cls=JSONEncoder)}
+        elif action == 'tool_feedback':
+            # "Was this output useful?" — stored for the acceptance record and
+            # forwarded to the team Google Chat space (same webhook as error
+            # reports). skip_chat suppresses the post (used by smoke tests).
+            db = get_db()
+            verdict = 'up' if str(body.get('verdict')) == 'up' else 'down'
+            doc = {"orgId": "digimetrics",
+                   "tool": str(body.get('tool') or 'unknown')[:80],
+                   "mode": str(body.get('mode') or '')[:40],
+                   "verdict": verdict,
+                   "comment": str(body.get('comment') or '')[:2000],
+                   "context": str(body.get('context') or '')[:1000],
+                   "user": str(body.get('user') or 'anonymous')[:200],
+                   "url": str(body.get('url') or '')[:400],
+                   "at": datetime.utcnow()}
+            stored = False
+            if db is not None:
+                try:
+                    db.tool_feedback.insert_one(dict(doc))
+                    stored = True
+                except Exception as _fe:
+                    print(f"tool_feedback store error: {_fe}")
+            posted = False
+            if GCHAT_WEBHOOK_URL and not body.get('skip_chat'):
+                emoji = '👍' if verdict == 'up' else '👎'
+                text = (f"{emoji} *Module feedback — {doc['tool']}*\n"
+                        f"*Mode:* {doc['mode'] or '—'} · *Verdict:* {'Useful' if verdict == 'up' else 'Needs work'}\n"
+                        f"*User:* {doc['user']}\n")
+                if doc['context']: text += f"*Context:* {doc['context']}\n"
+                if doc['comment']: text += f"*Comment:* {doc['comment']}\n"
+                if doc['url']:     text += f"*Page:* {doc['url']}"
+                posted = _post_gchat(GCHAT_WEBHOOK_URL, text)
+            result = {"statusCode": 200, "body": json.dumps({"success": True, "stored": stored, "posted": bool(posted)})}
+        elif action == 'tool_usage':
+            # Silent per-(tool, mode, UTC-day) run counter — the Starter-vs-Pro
+            # adoption evidence the roadmap's pay-increment sign-off asks for.
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                day = datetime.utcnow().strftime('%Y-%m-%d')
+                db.tool_usage.update_one(
+                    {"orgId": "digimetrics",
+                     "tool": str(body.get('tool') or 'unknown')[:80],
+                     "mode": str(body.get('mode') or '')[:40],
+                     "day": day},
+                    {"$inc": {"count": 1}, "$set": {"updatedAt": datetime.utcnow()}},
+                    upsert=True)
+                result = {"statusCode": 200, "body": json.dumps({"success": True})}
+        elif action == 'tool_feedback_summary':
+            # Read model for a future admin view: usage counts per tool/mode
+            # (last 90 days) + the most recent feedback entries.
+            db = get_db()
+            if db is None:
+                result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
+            else:
+                since = (datetime.utcnow() - timedelta(days=90)).strftime('%Y-%m-%d')
+                usage = list(db.tool_usage.aggregate([
+                    {"$match": {"orgId": "digimetrics", "day": {"$gte": since}}},
+                    {"$group": {"_id": {"tool": "$tool", "mode": "$mode"}, "runs": {"$sum": "$count"}}},
+                    {"$project": {"_id": 0, "tool": "$_id.tool", "mode": "$_id.mode", "runs": 1}},
+                    {"$sort": {"runs": -1}}]))
+                fb = list(db.tool_feedback.find(
+                    {"orgId": "digimetrics"}, {"_id": 0, "orgId": 0}
+                ).sort("at", -1).limit(50))
+                result = {"statusCode": 200, "body": json.dumps({"usage": usage, "feedback": fb}, cls=JSONEncoder)}
         elif action == 'get_monday_data':
             params = body.get('data', body)
             query = params.get('query') or body.get('query')
