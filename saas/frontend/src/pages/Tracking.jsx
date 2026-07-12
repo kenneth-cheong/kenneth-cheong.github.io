@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Compass } from 'lucide-react';
 import { PLANS, CREDIT_COSTS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
@@ -7,6 +8,7 @@ import LineChart from '../components/LineChart.jsx';
 import ShareResult from '../components/ShareResult.jsx';
 import { api } from '../lib/api.js';
 import { toast, downloadCsv, markStepDone } from '../lib/ui.js';
+import { startTrackingTour, TRACKING_SAMPLE, hasSeen, markSeen } from '../lib/tours.js';
 
 const PERIODS = [['7', '7d'], ['28', '28d'], ['90', '90d'], ['all', 'All'], ['custom', 'Custom']];
 const SHARE_TOOL = { id: 'keyword-tracking', name: 'Keyword Tracking' };
@@ -33,8 +35,31 @@ export default function Tracking() {
   const limit = PLANS[user.tier]?.trackedKeywords ?? 0;
   const backfillCost = CREDIT_COSTS.rank_backfill * tracked.length;
 
-  const load = () => api.tracking(activeId).then((d) => setTracked(d.tracked || [])).catch(() => {});
+  // While a tour previews sample data, an in-flight load() must not clobber it.
+  const tourActiveRef = useRef(false);
+  const load = () => api.tracking(activeId).then((d) => { if (!tourActiveRef.current) setTracked(d.tracked || []); }).catch(() => {});
   useEffect(() => { setDomain(active?.domain || ''); load(); /* eslint-disable-next-line */ }, [activeId]);
+
+  // Guided tour: swap in the asana.com sample so the summary + keyword cards
+  // render, then re-load the real list on any exit.
+  function launchTour() {
+    startTrackingTour({ limit }, {
+      preview: () => { tourActiveRef.current = true; setTracked(TRACKING_SAMPLE); },
+      clear: () => { tourActiveRef.current = false; setTracked([]); load(); },
+    });
+  }
+
+  // First visit → auto-run the guided tour once (needs the feature unlocked + a project).
+  useEffect(() => {
+    if (!limit || !activeId || hasSeen('tool:tracking')) return;
+    const t = setTimeout(() => {
+      if (hasSeen('tool:tracking')) return;
+      markSeen('tool:tracking');
+      launchTour();
+    }, 700);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [limit, activeId]);
 
   async function add(e) {
     e.preventDefault();
@@ -164,14 +189,26 @@ export default function Tracking() {
             {active ? <>Tracking ranks for <strong>{active.name}</strong>.</> : 'Pick a project to scope tracking.'} {tracked.length}/{limit} keywords.
           </p>
         </div>
-        {tracked.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            <button onClick={exportCsv} className="btn-ghost text-sm">Export CSV</button>
-            <button onClick={() => setConfirmBackfill(true)} disabled={backfilling} className="btn-ghost text-sm">{backfilling ? 'Backfilling…' : 'Backfill history'}</button>
-            <button onClick={refreshAll} disabled={refreshing} className="btn-ghost text-sm">{refreshing ? 'Refreshing…' : 'Refresh positions'}</button>
-            <ShareResult tool={SHARE_TOOL} out={shareOut} project={active} user={user} force snapshot label="Share" className={SHARE_BTN} />
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2" data-tour="trk-actions">
+          {tracked.length > 0 && (
+            <>
+              <button onClick={exportCsv} className="btn-ghost text-sm">Export CSV</button>
+              <button onClick={() => setConfirmBackfill(true)} disabled={backfilling} className="btn-ghost text-sm">{backfilling ? 'Backfilling…' : 'Backfill history'}</button>
+              <button onClick={refreshAll} disabled={refreshing} className="btn-ghost text-sm">{refreshing ? 'Refreshing…' : 'Refresh positions'}</button>
+              <ShareResult tool={SHARE_TOOL} out={shareOut} project={active} user={user} force snapshot label="Share" className={SHARE_BTN} />
+            </>
+          )}
+          {limit > 0 && activeId && (
+            <button
+              type="button"
+              onClick={launchTour}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-dim hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400"
+              title="Guided walkthrough with a real example"
+            >
+              <Compass size={14} aria-hidden /> Tour
+            </button>
+          )}
+        </div>
       </div>
 
       {limit === 0 ? (
@@ -187,7 +224,7 @@ export default function Tracking() {
       ) : (
         <>
           {/* Add form — single keyword or a pasted bulk list. */}
-          <form onSubmit={bulk ? addBulk : add} className="card mt-6 p-5">
+          <form onSubmit={bulk ? addBulk : add} className="card mt-6 p-5" data-tour="trk-add">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-sm font-medium text-body">{bulk ? 'Keywords (one per line)' : 'Keyword'}<span className="text-amber-500"> *</span></span>
               <button type="button" onClick={() => setBulk((b) => !b)} className="text-xs font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">
@@ -218,7 +255,7 @@ export default function Tracking() {
 
           {/* Period selector + custom date range. */}
           {tracked.length > 0 && (
-            <div className="mt-5 flex flex-wrap items-center gap-2">
+            <div className="mt-5 flex flex-wrap items-center gap-2" data-tour="trk-period">
               <span className="text-sm text-muted">Period</span>
               {PERIODS.map(([v, label]) => (
                 <button key={v} onClick={() => setPeriod(v)}
@@ -240,7 +277,7 @@ export default function Tracking() {
 
           {/* Overall performance summary card. */}
           {tracked.length > 0 && (
-            <div className="card mt-4 p-4">
+            <div className="card mt-4 p-4" data-tour="trk-summary">
               <h2 className="mb-3 text-sm font-semibold text-body">Overall performance</h2>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div className="rounded-lg bg-raised p-3 text-center">
@@ -270,7 +307,7 @@ export default function Tracking() {
             </div>
           )}
 
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 space-y-3" data-tour="trk-list">
             {tracked.length === 0 && <div className="card p-8 text-center text-faint">No tracked keywords yet — add one above.</div>}
             {tracked.map((t) => {
               const hist = inPeriod(t.history);

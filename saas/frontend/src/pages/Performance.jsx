@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Compass } from 'lucide-react';
 import { METRIC_GROUPS } from '@shared/metrics.mjs';
 import { CATEGORY_META } from '@shared/catalog.mjs';
 import { useProjects } from '../context/ProjectContext.jsx';
@@ -8,6 +9,7 @@ import InfoTip, { glossaryFor } from '../components/InfoTip.jsx';
 import ShareResult from '../components/ShareResult.jsx';
 import { api } from '../lib/api.js';
 import { toast, downloadCsv } from '../lib/ui.js';
+import { startPerformanceTour, PERFORMANCE_SAMPLE, hasSeen, markSeen } from '../lib/tours.js';
 
 const PERIODS = [['7', '7d'], ['28', '28d'], ['90', '90d'], ['all', 'All']];
 const SHARE_TOOL = { id: 'performance', name: 'SEO Performance' };
@@ -40,11 +42,34 @@ export default function Performance() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('28');
 
+  // While a tour previews sample data, an in-flight load() must not clobber it.
+  const tourActiveRef = useRef(false);
   const load = () => {
     setLoading(true);
-    api.metrics(activeId).then((d) => setMetrics(d.metrics || [])).catch(() => {}).finally(() => setLoading(false));
+    api.metrics(activeId).then((d) => { if (!tourActiveRef.current) setMetrics(d.metrics || []); }).catch(() => {}).finally(() => setLoading(false));
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [activeId]);
+
+  // Guided tour: swap in the asana.com sample so the full grouped layout renders,
+  // then re-load the real data on any exit.
+  function launchTour() {
+    startPerformanceTour({
+      preview: () => { tourActiveRef.current = true; setLoading(false); setMetrics(PERFORMANCE_SAMPLE); },
+      clear: () => { tourActiveRef.current = false; setMetrics([]); load(); },
+    });
+  }
+
+  // First visit → auto-run the guided tour once (needs a project for the page to render).
+  useEffect(() => {
+    if (!activeId || hasSeen('tool:performance')) return;
+    const t = setTimeout(() => {
+      if (hasSeen('tool:performance')) return;
+      markSeen('tool:performance');
+      launchTour();
+    }, 700);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]);
 
   const cutoff = useMemo(() => {
     if (period === 'all') return null;
@@ -122,12 +147,24 @@ export default function Performance() {
             {active ? <>Tool metrics over time for <strong>{active.name}</strong>.</> : 'Pick a project to see its performance.'}
           </p>
         </div>
-        {metrics.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            <button onClick={exportCsv} className="btn-ghost text-sm">Export CSV</button>
-            <ShareResult tool={SHARE_TOOL} out={shareOut} project={active} user={null} force snapshot label="Share" className={SHARE_BTN} />
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2" data-tour="perf-actions">
+          {metrics.length > 0 && (
+            <>
+              <button onClick={exportCsv} className="btn-ghost text-sm">Export CSV</button>
+              <ShareResult tool={SHARE_TOOL} out={shareOut} project={active} user={null} force snapshot label="Share" className={SHARE_BTN} />
+            </>
+          )}
+          {activeId && (
+            <button
+              type="button"
+              onClick={launchTour}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-dim hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400"
+              title="Guided walkthrough with a real example"
+            >
+              <Compass size={14} aria-hidden /> Tour
+            </button>
+          )}
+        </div>
       </div>
 
       {!activeId ? (
@@ -148,7 +185,7 @@ export default function Performance() {
         </div>
       ) : (
         <>
-          <div className="mt-5 flex items-center gap-2">
+          <div className="mt-5 flex items-center gap-2" data-tour="perf-period">
             <span className="text-sm text-muted">Period</span>
             {PERIODS.map(([v, label]) => (
               <button key={v} onClick={() => setPeriod(v)}
@@ -158,10 +195,10 @@ export default function Performance() {
             ))}
           </div>
 
-          {orderedGroups.map((group) => {
+          {orderedGroups.map((group, gi) => {
             const color = GROUP_COLOR[group] || '#4f46e5';
             return (
-              <section key={group} className="mt-7">
+              <section key={group} className="mt-7" data-tour={gi === 0 ? 'perf-group' : undefined}>
                 <div className="mb-3 flex items-center gap-2">
                   <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
                   <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">{group}</h2>

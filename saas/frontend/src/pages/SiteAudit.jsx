@@ -6,7 +6,8 @@ import { useProjects } from '../context/ProjectContext.jsx';
 import { api, ApiError } from '../lib/api.js';
 import ShareResult from '../components/ShareResult.jsx';
 import { toast, markStepDone } from '../lib/ui.js';
-import { Check, Loader2, AlertTriangle, ChevronRight } from 'lucide-react';
+import { startSiteAuditTour, SITE_AUDIT_SAMPLE, hasSeen, markSeen } from '../lib/tours.js';
+import { Check, Loader2, AlertTriangle, ChevronRight, Compass } from 'lucide-react';
 
 const RUN_URL = import.meta.env.VITE_RUN_URL || '';
 const SHARE_TOOL = { id: 'site-audit', name: 'Site Health Check' };
@@ -58,8 +59,36 @@ export default function SiteAudit() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
+  const projectUrl = () => (active?.domain ? (/^https?:\/\//.test(active.domain) ? active.domain : `https://${active.domain.replace(/^https?:\/\//, '')}`) : '');
+
   // Which audit tools this tier can actually run; others are skipped.
   const runnable = AUDIT_TOOLS.filter((a) => { const t = toolById(a.id); return t && tierMeets(user.tier, t.minTier); });
+
+  // Guided tour: render the finished asana.com example through the real report
+  // components, then clear it (and restore the form) on any exit.
+  function launchTour() {
+    startSiteAuditTour({ cost, checks: runnable.length }, {
+      preview: () => {
+        setUrl(SITE_AUDIT_SAMPLE.url);
+        setSteps(runnable.map((a) => ({ id: a.id, label: a.label, name: toolById(a.id)?.name, status: 'done' })));
+        setReport(SITE_AUDIT_SAMPLE.report);
+      },
+      clear: () => { setUrl(projectUrl()); setSteps(null); setReport(null); },
+    });
+  }
+
+  // First visit → auto-run the guided tour once (skipped while the page is locked).
+  const canTour = runnable.length > 0;
+  useEffect(() => {
+    if (!canTour || running || hasSeen('tool:site-audit')) return;
+    const t = setTimeout(() => {
+      if (hasSeen('tool:site-audit')) return;
+      markSeen('tool:site-audit');
+      launchTour();
+    }, 700);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canTour]);
   const cost = runnable.reduce((sum, a) => sum + (CREDIT_COSTS[toolById(a.id)?.cost] ?? 0), 0) + (CREDIT_COSTS.ai_short ?? 1);
   const locked = runnable.length === 0;
   // Lowest plan that unlocks any of the audit checks — what the user must reach.
@@ -127,17 +156,27 @@ export default function SiteAudit() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="text-2xl font-bold">Site Health Check</h1>
+      <div className="flex items-center gap-3">
+        <h1 className="text-2xl font-bold">Site Health Check</h1>
+        <button
+          type="button"
+          onClick={launchTour}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-dim hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400"
+          title="Guided walkthrough with a real example"
+        >
+          <Compass size={14} aria-hidden /> Tour
+        </button>
+      </div>
       <p className="mt-1 text-dim">One click runs {runnable.length} checks and gives you a single score with the top things to fix — in plain English.</p>
 
-      <div className="card mt-6 p-5">
+      <div className="card mt-6 p-5" data-tour="sha-url">
         <label htmlFor="audit-url" className="block text-sm font-medium text-body">
           Your website<span className="text-amber-500"> *</span>
         </label>
         <div className="mt-1.5 flex flex-wrap gap-3">
           <input id="audit-url" value={url} onChange={(e) => { setNudge(false); setUrl(e.target.value); }} placeholder="https://yoursite.com" disabled={running}
             className={`field flex-1${nudge ? ' !border-amber-400 !ring-4 !ring-amber-400/20' : ''}`} />
-          <button onClick={run} disabled={running} aria-disabled={running || !url.trim()} className={`btn-primary ${url.trim() ? '' : 'opacity-60'}`}>
+          <button onClick={run} disabled={running} aria-disabled={running || !url.trim()} data-tour="sha-run" className={`btn-primary ${url.trim() ? '' : 'opacity-60'}`}>
             {running ? 'Running…' : `Run health check · ${cost} cr`}
           </button>
         </div>
@@ -148,7 +187,7 @@ export default function SiteAudit() {
 
       {/* Live progress */}
       {steps && (
-        <div className="card mt-4 p-5">
+        <div className="card mt-4 p-5" data-tour="sha-steps">
           <ul className="space-y-2.5">
             {steps.map((s) => (
               <li key={s.id} className="flex items-center gap-3 text-sm">
@@ -165,12 +204,12 @@ export default function SiteAudit() {
       )}
 
       {report && (
-        <>
+        <div data-tour="sha-report">
           <div className="mt-6 -mb-2 flex justify-end">
             <ShareResult tool={SHARE_TOOL} out={auditShareOut(report)} project={active} user={user} force snapshot label="Share result" className={SHARE_BTN} />
           </div>
           <Report report={report} />
-        </>
+        </div>
       )}
     </div>
   );

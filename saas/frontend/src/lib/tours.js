@@ -966,6 +966,254 @@ export function startSocialAuditTour(tool, hooks = {}) {
   }, 120);
 }
 
+// ── Dedicated-page tours (Site Health Check / Performance / Tracking) ────────
+// Same contract as the tool tours: `hooks.preview()` renders a curated worked
+// example through the page's real components, `hooks.clear()` removes it on any
+// exit. Sample data lives here so every tour's demo speaks with one voice
+// (asana.com, consistent with SAMPLE_RESULTS above).
+
+// A finished Site Health Check for asana.com — consistent with the
+// forensic-audit sample (health 82, DA 95, llms.txt missing).
+export const SITE_AUDIT_SAMPLE = {
+  url: 'https://asana.com',
+  report: {
+    score: 82,
+    grade: 'B+',
+    summary: 'asana.com is in good shape — strong authority and fast pages. The quickest wins: add the missing AI-readiness file (llms.txt) and write the six missing page descriptions.',
+    areas: [
+      { name: 'Technical health', status: 'good', score: 86, note: 'Fast pages; a few missing meta descriptions.' },
+      { name: 'Page quality', status: 'good', score: 78, note: 'Clear layout and calls-to-action; add social proof near the sign-up form.' },
+      { name: 'AI readiness', status: 'fair', score: 64, note: 'No llms.txt yet — AI assistants get no guide to the site.' },
+    ],
+    fixes: [
+      { title: 'Add an llms.txt file', priority: 'high', why: 'Tells ChatGPT & co. what your site is about — quick to add, immediate AI-visibility win.' },
+      { title: 'Write meta descriptions for 6 pages', priority: 'medium', why: 'These are your search-result snippets — missing ones cost clicks.' },
+      { title: 'Move the “Start free” button above the fold', priority: 'low', why: 'Visitors shouldn’t have to scroll before they can act.' },
+    ],
+  },
+};
+
+export function startSiteAuditTour({ cost, checks = 3 } = {}, hooks = {}) {
+  const steps = [
+    {
+      popover: {
+        title: 'Site Health Check',
+        description:
+          lead(`One click runs <b>${checks} specialist checks</b> on your site and turns them into a single plain-English report — a score out of 100 and what to fix first.`) +
+          `<p class="dm-ex-note">About ${cost ?? 'a few'} credits per run · ~1–3 minutes</p>` +
+          note('We’ve loaded a finished <b>asana.com</b> example below — nothing runs and <b>no credits are spent</b> while you look around.'),
+      },
+    },
+    {
+      element: '[data-tour="sha-url"]',
+      popover: {
+        title: 'Your website',
+        description: 'Paste the full address, including <code>https://</code>. If you’ve picked a project, we fill this in for you.',
+        side: 'bottom', align: 'start',
+      },
+    },
+    {
+      element: '[data-tour="sha-run"]',
+      popover: {
+        title: 'Run it',
+        description: 'One click starts every check at once. It takes ~1–3 minutes with live progress — and always asks before spending credits.',
+        side: 'bottom', align: 'end',
+      },
+    },
+    {
+      element: '[data-tour="sha-steps"]',
+      popover: {
+        title: 'The checks, live',
+        description: 'Each check ticks off as it finishes. If one can’t run it’s simply skipped — your report is built from everything that succeeded.',
+        side: 'top', align: 'start',
+      },
+    },
+    {
+      element: () => document.querySelector('[data-tour="sha-report"]'),
+      popover: {
+        title: 'Your report — live example',
+        description:
+          lead('The verdict in plain English: a <b>score out of 100</b>, how each area did, and a <b>“Do these next”</b> list sorted by priority.') +
+          note('This is the real report layout, exactly like your own run — which you can <b>Share</b> as a branded image with the button above it.'),
+        side: 'top', align: 'start',
+      },
+    },
+    {
+      popover: {
+        title: 'Confused by a result? Just ask',
+        description:
+          lead('<b>Right-click</b> any card or fix and Monty, the AI assistant, explains it in plain English — or tells you what to do about it.') +
+          note('Want one figure explained? <b>Highlight just that text first</b>, then right-click.'),
+      },
+    },
+    {
+      popover: {
+        title: 'That’s the tour — your turn',
+        description:
+          lead('We’ll clear the example now. Pop in your site and hit <b>Run health check</b> — it reads your site, it never changes it.') +
+          note('Replay this any time from the <b>Tour</b> button next to the title.'),
+      },
+    },
+  ];
+  hooks.preview?.();
+  setTimeout(() => {
+    run(steps, { onDone: () => { markSeen('tool:site-audit'); hooks.clear?.(); } });
+  }, 120);
+}
+
+// Performance history for asana.com — one metric per group so the page shows
+// its full grouped layout (labels chosen to match GLOSSARY so ⓘ tips appear).
+const perfHist = (vals) => vals.map((value, i) => ({ date: ['2026-05-01', '2026-05-08', '2026-05-15', '2026-05-22', '2026-05-29', '2026-06-05', '2026-06-12'][i], value }));
+export const PERFORMANCE_SAMPLE = [
+  { tool: 'gsc', toolName: 'Search Console', target: 'https://asana.com', metricId: 'demo#gsc#clicks', label: 'Clicks', unit: '', dir: 'up', lastValue: 34210, history: perfHist([27800, 28900, 29400, 30800, 31900, 33050, 34210]) },
+  { tool: 'gsc', toolName: 'Search Console', target: 'https://asana.com', metricId: 'demo#gsc#avgPosition', label: 'Avg position', unit: '', dir: 'down', lastValue: 6.8, history: perfHist([8.1, 7.9, 7.7, 7.4, 7.2, 7.0, 6.8]) },
+  { tool: 'backlinks', toolName: 'Backlinks Explorer', target: 'asana.com', metricId: 'demo#backlinks#refDomains', label: 'Ref. domains', unit: '', dir: 'up', lastValue: 116591, history: perfHist([112040, 112900, 113800, 114570, 115300, 116000, 116591]) },
+  { tool: 'ai-discovery', toolName: 'AI Discovery Audit', target: 'asana.com', metricId: 'demo#ai#mentions', label: 'Brand mentions', unit: '', dir: 'up', lastValue: 120056, history: perfHist([98400, 102300, 106900, 110200, 114800, 117600, 120056]) },
+];
+
+export function startPerformanceTour(hooks = {}) {
+  const steps = [
+    {
+      popover: {
+        title: 'Performance — your numbers over time',
+        description:
+          lead('Every tool you run under a project drops its headline numbers here, building charts over time — clicks, rankings, authority, AI visibility. Connected Google accounts refresh themselves daily.') +
+          note('We’ve loaded an <b>asana.com</b> example below — it’s a preview, <b>no credits are spent</b>, and it clears when you leave the tour.'),
+      },
+    },
+    {
+      element: '[data-tour="perf-period"]',
+      popover: {
+        title: 'Pick your window',
+        description: 'Zoom to the last 7, 28 or 90 days — every chart and trend arrow follows.',
+        side: 'bottom', align: 'start',
+      },
+    },
+    {
+      element: '[data-tour="perf-group"]',
+      popover: {
+        title: 'One tile per number',
+        description:
+          lead('Each tile shows the latest value, a trend arrow — <b>green means moving the right way</b> (for some, like Avg position, lower is better) — and a mini chart.') +
+          note('Not sure what a metric means? Hover the little <b>ⓘ</b> beside its name for a plain-English definition.'),
+        side: 'top', align: 'start',
+      },
+    },
+    {
+      element: '[data-tour="perf-actions"]',
+      popover: {
+        title: 'Take it with you',
+        description: '<b>Export CSV</b> downloads the full history for a spreadsheet; <b>Share</b> turns the headline numbers into a branded image.',
+        side: 'bottom', align: 'end',
+      },
+    },
+    {
+      popover: {
+        title: 'Confused by a number? Just ask',
+        description:
+          lead('<b>Right-click</b> any tile and Monty, the AI assistant, explains it in plain English — or tells you what to do about it.'),
+      },
+    },
+    {
+      popover: {
+        title: 'That’s the tour',
+        description:
+          lead('We’ll clear the example now. This page fills up by itself as you run tools — put your key tools on a <b>Schedule</b> and it stays fresh without you lifting a finger.') +
+          note('Replay this any time from the <b>Tour</b> button next to the title.'),
+      },
+    },
+  ];
+  hooks.preview?.();
+  setTimeout(() => {
+    run(steps, { onDone: () => { markSeen('tool:performance'); hooks.clear?.(); } });
+  }, 120);
+}
+
+// Tracked keywords for asana.com — mirrors the rank-checker sample (same
+// keywords/positions) so the whole product tells one story.
+const trkHist = (positions, url) => positions.map((position, i) => ({ date: ['2026-05-01', '2026-05-08', '2026-05-15', '2026-05-22', '2026-05-29', '2026-06-05', '2026-06-12'][i], position, url }));
+export const TRACKING_SAMPLE = [
+  { trackId: 'demo-1', keyword: 'strategic planning', domain: 'asana.com', lastPosition: 1, lastUrl: 'https://asana.com/uses/strategic-planning', history: trkHist([2, 1, 1, 1, 1, 1, 1], 'https://asana.com/uses/strategic-planning') },
+  { trackId: 'demo-2', keyword: 'team building activities', domain: 'asana.com', lastPosition: 3, lastUrl: 'https://asana.com/resources/team-building-games', history: trkHist([5, 5, 4, 4, 3, 3, 3], 'https://asana.com/resources/team-building-games') },
+  { trackId: 'demo-3', keyword: 'smart goals', domain: 'asana.com', lastPosition: 8, lastUrl: 'https://asana.com/resources/smart-goals', history: trkHist([16, 15, 13, 12, 11, 9, 8], 'https://asana.com/resources/smart-goals') },
+  { trackId: 'demo-4', keyword: 'project plan template', domain: 'asana.com', lastPosition: 20, lastUrl: 'https://asana.com/resources/project-plan-templates', history: trkHist([8, 10, 13, 15, 17, 19, 20], 'https://asana.com/resources/project-plan-templates') },
+];
+
+export function startTrackingTour({ limit } = {}, hooks = {}) {
+  const steps = [
+    {
+      popover: {
+        title: 'Keyword tracking',
+        description:
+          lead('Pick the searches you care about and we check where you rank in Google — <b>position 1 is the top result</b> — every day, automatically, and chart the movement.') +
+          `<p class="dm-ex-note">${limit ? `Your plan tracks up to ${limit} keywords.` : ''}</p>` +
+          note('We’ve loaded an <b>asana.com</b> example below — it’s a preview, <b>no credits are spent</b>, and it clears when you leave the tour.'),
+      },
+    },
+    {
+      element: '[data-tour="trk-add"]',
+      popover: {
+        title: 'Add a keyword',
+        description: 'Type one keyword — or <b>+ Add multiple</b> to paste a whole list. The domain comes from your project, and positions are checked the moment you add.',
+        side: 'bottom', align: 'start',
+      },
+    },
+    {
+      element: '[data-tour="trk-actions"]',
+      popover: {
+        title: 'Keep it fresh',
+        description: '<b>Refresh positions</b> re-checks right now. <b>Backfill history</b> pulls <i>past</i> rankings so your charts start full (it costs credits per keyword and always asks first). <b>Export CSV</b> and <b>Share</b> work like everywhere else.',
+        side: 'bottom', align: 'end',
+      },
+    },
+    {
+      element: '[data-tour="trk-period"]',
+      popover: {
+        title: 'Pick your window',
+        description: 'Zoom to the last 7, 28 or 90 days — or set an exact date range with <b>Custom</b>.',
+        side: 'bottom', align: 'start',
+      },
+    },
+    {
+      element: '[data-tour="trk-summary"]',
+      popover: {
+        title: 'The headline read',
+        description: 'How many keywords you track, your <b>average position</b>, how many sit in Google’s <b>top 10</b>, and your best rank — plus the combined trend over time.',
+        side: 'top', align: 'start',
+      },
+    },
+    {
+      element: () => document.querySelector('[data-tour="trk-list"]'),
+      popover: {
+        title: 'One card per keyword',
+        description:
+          lead('Current position, movement since the start of the window (<b>▲ green = climbed</b> — lower numbers are better), the exact page that ranks, and the history chart.') +
+          note('This is the real layout, exactly like your own tracking.'),
+        side: 'top', align: 'start',
+      },
+    },
+    {
+      popover: {
+        title: 'Confused by a chart? Just ask',
+        description:
+          lead('<b>Right-click</b> any card and Monty, the AI assistant, explains it in plain English — or tells you what to do about it.'),
+      },
+    },
+    {
+      popover: {
+        title: 'That’s the tour — your turn',
+        description:
+          lead('We’ll clear the example now. Add your first keyword above — from then on it checks itself daily, no re-running needed.') +
+          note('Replay this any time from the <b>Tour</b> button next to the title.'),
+      },
+    },
+  ];
+  hooks.preview?.();
+  setTimeout(() => {
+    run(steps, { onDone: () => { markSeen('tool:tracking'); hooks.clear?.(); } });
+  }, 120);
+}
+
 // ── Platform tour (runs on the dashboard) ────────────────────────────────────
 export function startPlatformTour() {
   const steps = [
