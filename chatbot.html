@@ -116,6 +116,12 @@
                 if (mq.addEventListener) mq.addEventListener('change', onChange);
                 else if (mq.addListener) mq.addListener(onChange);
             }
+            // Follow theme changes made in other tabs on this origin, so
+            // toggling on index.html instantly updates an open chatbot tab
+            // (and vice versa) without a reload.
+            window.addEventListener('storage', function (e) {
+                if (!e || !e.key || e.key === KEY) apply(pref());
+            });
             apply(pref());
             // Chart.js loads after this script and the toggle button after the
             // body parses — re-apply once the DOM is in so both pick up state.
