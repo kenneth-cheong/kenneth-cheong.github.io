@@ -647,71 +647,76 @@ export function sampleResultFor(toolId) {
 }
 
 // ── Per-tool one-line blurb for the live-result step ─────────────────────────
+// Written for beginners: plain words, and any metric named here is glossed
+// inline (fuller definitions live in the ⓘ tooltips the result itself shows).
 const OUTPUT_BLURB = {
-  'keyword-analysis': 'A sortable table — volume, ranking difficulty, CPC and intent for every keyword. Green difficulty = easiest wins.',
-  'rank-checker': 'Your live Google position for each keyword, with a position-history chart for the headline term.',
-  'time-to-rank': 'A realistic month-by-month forecast of how long each keyword takes to reach page one.',
-  'anchor-cleaner': 'Every internal anchor on the page, flagged where the text is over-optimised, generic or broken.',
-  'technical-seo': 'A multi-page crawl with every issue grouped by severity, newest-critical first.',
-  onpage: 'Element-by-element rewrites benchmarked against the pages currently outranking you.',
-  'page-analysis': 'A one-glance site snapshot — domain authority, backlinks, organic traffic and where the rankings sit.',
-  competitors: 'Who else ranks for your keywords, how big their keyword set is and how much traffic they pull.',
-  backlinks: 'A full link-profile audit — totals, authority, dofollow split and your top referring domains.',
-  schema: 'Valid, copy-paste JSON-LD with a one-click “Test in Google” link — built visually, no code.',
-  'strategy-engine': 'Prioritised keyword strategies (top pick highlighted) plus a ready-to-action SEO plan.',
-  caption: 'Platform-tuned caption variations, each in its own copyable card — hooks, emojis and hashtags included.',
-  'content-writer': 'A rewritten, SEO-tuned draft plus the findings from the 18-agent QA suite.',
-  'content-check': 'A scored proof-read — grammar, readability, keyword coverage and compliance.',
-  pillars: 'A content-pillar map — themes, subtopics and angles that keep your social cohesive.',
-  'ai-discovery': 'Whether AI assistants actually cite you when users ask buying questions in your category.',
-  'ai-mentions': 'How often your brand surfaces across AI chatbots, and your share of voice vs competitors.',
-  'llms-txt': 'A readiness check plus a spec-compliant llms.txt you can copy or download.',
-  'geo-onpage': 'Content rewrites engineered to get your page picked up and cited by AI answers.',
-  'forensic-audit': 'A deep SEO + GEO audit with a single health score and a prioritised fix list.',
-  persona: 'Research-backed audience personas — goals, pains, channels and buying triggers.',
-  'media-plan': 'A channel mix with budget allocation and estimated results.',
-  'landing-audit': 'A conversion read on the page — clarity, speed, trust and SEO — with concrete fixes.',
-  'sem-copy': 'Ready-to-ship ad copy — headlines, descriptions and sitelinks for your chosen format.',
-  'perf-marketing': 'A paid-media plan — channel mix, budget split and the biggest opportunities.',
-  gsc: 'Live Search Console data — clicks, impressions, CTR and position, with a trend chart. 0 credits — it’s your own data.',
-  ga4: 'Your GA4 traffic — sessions, users, engagement and conversions by channel. 0 credits.',
-  'google-ads': 'Your Google Ads performance — spend, clicks, conversions and CPA by campaign. 0 credits.',
-  'meta-ads': 'Your Facebook & Instagram ad performance — spend, conversions and CPA by campaign. 0 credits.',
-  'linkedin-ads': 'Your LinkedIn ad performance — spend, leads and cost-per-lead by campaign. 0 credits.',
+  'keyword-analysis': 'One row per search term — monthly searches (Volume), how hard page 1 is (Difficulty), what advertisers pay per click (CPC) and why people search it (Intent). Green difficulty = easiest wins.',
+  'rank-checker': 'Your live Google position for each keyword (1 = the top result), with a chart of how the headline term has moved over time.',
+  'time-to-rank': 'A months-range estimate per keyword — how long reaching Google’s first page will realistically take.',
+  'anchor-cleaner': 'Every link on the page, flagged where its clickable text is repetitive, vague or broken — each with a suggested fix.',
+  'technical-seo': 'Every issue the crawl found, grouped by how serious it is — start at the top.',
+  onpage: 'Element by element: what your page says now vs the suggested rewrite.',
+  'page-analysis': 'The site at a glance — its trust score, links from other sites, Google traffic and where its rankings sit.',
+  competitors: 'Who ranks for the same searches as you, how many keywords they own and their estimated monthly traffic.',
+  backlinks: 'Totals up top, then who links to the site — with each linking site’s strength (Domain rank, 100 = strongest).',
+  schema: 'Valid, copy-paste code with a one-click “Test in Google” link — built from a form, no coding.',
+  'strategy-engine': 'Prioritised strategies (top pick highlighted) plus a ready-to-action plan.',
+  caption: 'Caption options in copyable cards — hooks, emojis and hashtags included.',
+  'content-writer': 'The improved, search-tuned draft plus everything the QA agents found and fixed.',
+  'content-check': 'A scored proof-read — grammar, readability, keyword coverage and risky claims.',
+  pillars: 'Your content themes, each with subtopics and angles to post about.',
+  'ai-discovery': 'Engine by engine: does ChatGPT / Gemini / Perplexity actually mention you — and link your site — when buyers ask?',
+  'ai-mentions': 'Mentions per AI engine, plus your average position inside their answers.',
+  'llms-txt': 'A readiness check plus a ready-to-upload llms.txt you can copy or download.',
+  'geo-onpage': 'Concrete rewrites that make the page easy for AI answers to quote and cite.',
+  'forensic-audit': 'One health score for the whole site, then the fix list in priority order.',
+  persona: 'Customer profiles — goals, frustrations, favourite channels and what triggers them to buy.',
+  'media-plan': 'A channel-by-channel budget with the results to expect from each.',
+  'landing-audit': 'A conversion score for the page with the top fixes in priority order.',
+  'sem-copy': 'Ready-to-paste headlines, descriptions and sitelinks for your chosen ad platform.',
+  'perf-marketing': 'A paid-ads plan — channel mix, budget split and the biggest opportunities.',
+  gsc: 'Your live search stats — clicks, impressions (times you appeared), CTR (the % who clicked) and position — with a trend chart. 0 credits, it’s your own data.',
+  ga4: 'Your traffic by channel — visits, visitors, engagement and conversions (sign-ups or sales). 0 credits.',
+  'google-ads': 'Spend, clicks and conversions campaign by campaign, plus what each conversion cost you (CPA). 0 credits.',
+  'meta-ads': 'Your Facebook & Instagram results — spend, conversions and cost per result, by campaign. 0 credits.',
+  'linkedin-ads': 'Your LinkedIn results — spend, leads and cost per lead, by campaign. 0 credits.',
 };
 
 // ── Per-tool intros ("what & when to use it") ────────────────────────────────
+// Beginner-first: any term of art is defined inline the first time it appears,
+// using the same wording as the app-wide GLOSSARY so the product speaks with
+// one voice. Keep each to 1–2 short sentences.
 export const TOOL_INTRO = {
-  'keyword-analysis': 'Find out what people actually search for — volume, how hard it is to rank, and buying intent. Start here before writing anything.',
-  'rank-checker': 'Check exactly where you sit in Google for a keyword, in a specific location. Re-run weekly to watch positions move.',
-  'time-to-rank': 'Set realistic expectations: roughly how many months a keyword will take to hit page one given its difficulty.',
-  'anchor-cleaner': 'Audit a page’s internal links for over-optimised, generic or broken anchor text that can hurt rankings.',
-  'technical-seo': 'Crawl a site for the technical issues Google cares about — broken tags, missing metadata and performance.',
-  onpage: 'Get element-by-element rewrites (title, headings, meta, content) benchmarked against the pages outranking you.',
-  'page-analysis': 'A fast, all-in-one site snapshot — domain authority, backlinks, organic traffic, speed and technical signals in one view.',
-  competitors: 'Discover who shares your keywords and how you stack up — the starting map for any SEO strategy.',
-  backlinks: 'Audit any domain’s link profile — totals, authority, dofollow split and the sites linking to it.',
-  schema: 'Build valid JSON-LD structured data visually to win rich snippets. No data is fetched — it’s a builder.',
-  'strategy-engine': 'The flagship: feed it your business and it returns prioritised keyword strategies and an action plan.',
-  caption: 'Generate platform-tuned social captions in your brand voice. Free on every plan — a great first run.',
-  'content-writer': 'Write a new draft or optimise existing copy, then run an 18-agent QA suite over it for facts, tone and SEO.',
-  'content-check': 'Proof-read copy for grammar, readability, keyword use and compliance — with brand-guide and reference support.',
-  pillars: 'Generate a content-pillar framework — themes, subtopics and angles that keep your social cohesive.',
-  'ai-discovery': 'See whether ChatGPT, Gemini and Perplexity cite you when users ask buying questions in your category.',
-  'ai-mentions': 'Track how often your brand is mentioned across AI chatbots, and your share of voice vs competitors.',
-  'llms-txt': 'Check your site’s AI-readiness and generate a spec-compliant llms.txt so AI tools understand your content.',
-  'geo-onpage': 'Rewrite a page so AI answers pick it up and cite it — the on-page side of AI visibility.',
-  'forensic-audit': 'A deep, all-in-one SEO + GEO audit with a single health score and a prioritised fix list. The big one (50 credits).',
-  persona: 'Turn a single URL into up to 10 research-backed audience personas for targeting and messaging.',
-  'media-plan': 'Generate a full channel mix and budget allocation, with auto-personas and a funnel, from a brief.',
-  'landing-audit': 'Score a landing page on conversion potential — clarity, speed, trust and SEO — with concrete fixes.',
-  'sem-copy': 'Extract USPs from a URL and generate ready-to-ship ad copy for Google, Meta or LinkedIn.',
-  'perf-marketing': 'Get a paid-media plan: channel mix, budget split and the biggest opportunities for a campaign.',
-  gsc: 'Pull your own Google Search Console data — clicks, impressions, CTR and position. Tabs at the top switch between Search Insights, URL Inspection, Sitemaps and Indexing. Costs 0 credits.',
-  ga4: 'Pull your own GA4 analytics — sessions, users, engagement and conversions. Costs 0 credits.',
-  'google-ads': 'Pull your own Google Ads performance — spend, clicks, conversions and CPA. Costs 0 credits.',
-  'meta-ads': 'Pull your own Facebook & Instagram Ads performance — spend, conversions and CPA. Costs 0 credits.',
-  'linkedin-ads': 'Pull your own LinkedIn Ads performance — spend, leads and cost-per-lead. Costs 0 credits.',
+  'keyword-analysis': 'Keywords are the things people type into Google. See how many people search a term each month (volume), how hard page 1 is (difficulty) and whether searchers want to buy or just learn (intent). Start here before writing anything.',
+  'rank-checker': 'Check exactly where your site appears in Google for a keyword — 1 means the top result — in a specific country or city. Re-run weekly to watch positions move.',
+  'time-to-rank': 'Set realistic expectations: roughly how many months a keyword will take to reach Google’s first page, given how competitive it is.',
+  'anchor-cleaner': 'Anchor text is the clickable wording of a link. Audit a page for anchors that are repetitive, vague (“click here”) or broken — all of which can hurt rankings.',
+  'technical-seo': 'Crawls a site the way Google does and lists what’s broken or missing behind the scenes — titles, descriptions, speed — most serious first.',
+  onpage: 'Compares your page with the pages currently beating it in Google, then suggests exact rewrites — title, headings, description and content.',
+  'page-analysis': 'A fast health snapshot of any site: its 0–100 trust score (domain authority), links from other sites (backlinks), Google traffic and technical basics — in one view.',
+  competitors: 'See who you’re really up against in Google — the sites ranking for the same searches as you, and how much traffic they get. The starting map for any SEO plan.',
+  backlinks: 'Backlinks are links from other websites to yours — Google treats them as votes of confidence. See who links to any site, and how strong those votes are.',
+  schema: 'Structured data is extra code that helps Google show rich results for you (stars, FAQs, business info). Build it by filling in a form — no coding, and nothing is fetched.',
+  'strategy-engine': 'The flagship: describe your business and get prioritised keyword strategies plus a step-by-step action plan.',
+  caption: 'Generate ready-to-post social captions in your brand voice. Free on every plan — a great first run.',
+  'content-writer': 'Write a new draft or improve existing copy — then an 18-agent QA crew checks facts, tone, readability and SEO.',
+  'content-check': 'Paste any copy for a proof-read: grammar, spelling, readability, keyword use and risky claims — with fixes. Supports brand guides and reference files.',
+  pillars: 'Content pillars are the 3–4 themes all your posts hang off. Generate the framework — themes, subtopics, angles — so your feed feels planned, not random.',
+  'ai-discovery': 'When people ask ChatGPT, Gemini or Perplexity “what’s the best…?” in your category, do they mention you? Check whether AI assistants recommend and link to your site.',
+  'ai-mentions': 'Track how often AI chatbots mention your brand — and your share of voice, i.e. how often it’s you rather than a competitor.',
+  'llms-txt': 'llms.txt is a small file that tells AI tools what your site is about — like a menu for AI. Check your readiness and generate a ready-to-upload file.',
+  'geo-onpage': 'Rewrite a page so AI assistants can easily quote and cite it in their answers — the AI-era side of SEO.',
+  'forensic-audit': 'The deep, everything-at-once audit: classic Google SEO plus AI visibility, boiled down to one health score and a ranked fix list. The big one (50 credits).',
+  persona: 'Personas are profiles of your typical customers. Paste one URL and get up to 10 — their goals, frustrations, favourite channels and what makes them buy.',
+  'media-plan': 'Give it a budget and a goal; get a full advertising plan — which channels, how much on each, and the results to expect.',
+  'landing-audit': 'Scores a page on how well it turns visitors into customers — clarity, speed, trust and SEO — with concrete fixes.',
+  'sem-copy': 'Paste a URL and get ready-to-ship ad text for Google, Meta or LinkedIn — it pulls out your selling points first.',
+  'perf-marketing': 'A second opinion on your paid ads: the right channel mix, budget split and the biggest opportunities for a campaign.',
+  gsc: 'Your own Google Search Console data — how often Google shows you (impressions) and how many people click. Tabs at the top switch between Search Insights, URL Inspection, Sitemaps and Indexing. Costs 0 credits — it’s your data.',
+  ga4: 'Your own Google Analytics — visits, visitors, and how many turn into sign-ups or sales (conversions). Costs 0 credits.',
+  'google-ads': 'Your own Google Ads performance — spend, clicks, conversions and what each conversion cost (CPA). Costs 0 credits.',
+  'meta-ads': 'Your own Facebook & Instagram Ads — spend, conversions and cost per result. Costs 0 credits.',
+  'linkedin-ads': 'Your own LinkedIn Ads — spend, leads and cost per lead. Costs 0 credits.',
 };
 
 // ── Auto field hints (from the catalog schema) ───────────────────────────────
@@ -724,19 +729,28 @@ function fieldHint(field) {
       bits.push('Add several — press Enter or comma between entries. Paste a list with the link below.');
       break;
     case 'select':
-      bits.push(`Pick from the list — long lists (locations, languages) are now searchable, just start typing.`);
+      bits.push(`Pick from the list — long lists (locations, languages) are searchable, just start typing.`);
+      break;
+    case 'segmented':
+      bits.push('Pick a mode first — it decides which fields appear below (each option explains itself).');
+      break;
+    case 'multiselect':
+      bits.push('Tick as many as you like.');
+      break;
+    case 'date':
+      bits.push('Pick a date — these appear when you choose a “Custom” range.');
       break;
     case 'url':
-      bits.push('Paste a full URL, including <code>https://</code>.');
+      bits.push('Paste the page’s full web address, including <code>https://</code>.');
       break;
     case 'textarea':
-      bits.push('Free text — the more context you give, the sharper the result.');
+      bits.push('Free text — write it like you’d explain it to a colleague. The more context, the sharper the result.');
       break;
     case 'number':
       bits.push(field.default ? `Defaults to ${field.default}.` : 'A number.');
       break;
     case 'account':
-      bits.push('Pick a connected Google account — type to filter by name or ID. Connect more in Integrations.');
+      bits.push('Pick a connected account — type to filter by name or ID. Connect accounts in Integrations.');
       break;
     default:
       break;
@@ -759,7 +773,7 @@ export function startToolTour(tool, fields, hooks = {}) {
       description:
         `<p class="dm-ex-lead">${TOOL_INTRO[tool.id] || tool.desc}</p>` +
         `<p class="dm-ex-note">${tool.category} · ${cost === 0 ? 'free to run' : `${cost} credit${cost > 1 ? 's' : ''} per run`}${tool.slow ? ' · ~30–150s' : ''}</p>` +
-        note('We’ve filled this in with a real <b>asana.com</b> example and shown the result below, so you can see exactly what you get.'),
+        note('We’ve filled the form with a real <b>asana.com</b> example and shown its result below. Nothing is running and <b>no credits are spent</b> while you look around — leaving the tour clears it all.'),
     },
   });
 
@@ -776,8 +790,8 @@ export function startToolTour(tool, fields, hooks = {}) {
     popover: {
       title: 'Cost & one-click examples',
       description:
-        `${cost === 0 ? 'This tool is <b>free</b> to run.' : `Each run costs <b>${cost} credit${cost > 1 ? 's' : ''}</b>.`} ` +
-        'On your own data, click <b>“Try an example”</b> any time to auto-fill the form like we just did.',
+        `${cost === 0 ? 'This tool is <b>free</b> to run — it never touches your credits.' : `Each run costs <b>${cost} credit${cost > 1 ? 's' : ''}</b> from the monthly allowance in the top bar.`} ` +
+        'Not sure what to type? Click <b>“Try an example”</b> any time and the form fills itself with a working example.',
       side: 'top',
       align: 'start',
     },
@@ -805,7 +819,8 @@ export function startToolTour(tool, fields, hooks = {}) {
       title: 'What you get back — live',
       description:
         lead(OUTPUT_BLURB[tool.id] || 'A clean, formatted report.') +
-        note('This is the <b>real result</b>, rendered just like your own run. In the bar above it you can <b>Explain this</b> (plain-English breakdown), <b>Copy</b>, download <b>CSV</b>, <b>Print</b> to a white-label PDF, or <b>Share</b> it as a branded image for social media.'),
+        note('This is the <b>real result</b>, exactly as your own runs will look. Spot a term you don’t know? Hover the little <b>ⓘ</b> beside any metric for a plain-English meaning.') +
+        note('The bar above has <b>Explain this</b> (Monty breaks the whole thing down), <b>Copy</b>, <b>CSV</b>, <b>Print</b> (a white-label PDF) and <b>Share</b> (a branded image). Many tools finish with <b>recommendation cards</b> — “How do I do this?”, “Do it for me”, “Add to plan” — so a finding turns into an action.'),
       side: 'top',
       align: 'start',
     },
@@ -815,16 +830,16 @@ export function startToolTour(tool, fields, hooks = {}) {
     popover: {
       title: 'Confused by a result? Just ask',
       description:
-        lead('<b>Right-click</b> any result, card or row and the assistant will explain it in plain English — or tell you what to do about it.') +
+        lead('<b>Right-click</b> any result, card or row and Monty, the AI assistant, will explain it in plain English — or tell you what to do about it.') +
         note('Want only one number or phrase explained? <b>Highlight just that text first</b>, then right-click — it’ll focus on exactly what you selected.'),
     },
   });
 
   steps.push({
     popover: {
-      title: 'That’s the tour',
+      title: 'That’s the tour — your turn',
       description:
-        lead('We’ll clear this example now so the form is yours to fill in.') +
+        lead('We’ll clear the example now. Pop in your own site and hit <b>Run</b> — experiment freely, anything that could change something live always asks you first.') +
         note('Replay this walkthrough any time from the <b>Tour</b> button next to the tool name.'),
     },
   });
@@ -850,9 +865,9 @@ export function startSocialAuditTour(tool, hooks = {}) {
       popover: {
         title: 'Social Media Audit',
         description:
-          lead('Pulls live profile &amp; engagement data from Instagram, TikTok, Facebook, LinkedIn &amp; YouTube, then generates a strategic content-gap &amp; competitor audit in one pass.') +
+          lead('Pulls live numbers from Instagram, TikTok, Facebook, LinkedIn &amp; YouTube — followers, engagement (how much people actually interact), posting habits — then builds the strategy: what to post, where, and what competitors do better.') +
           `<p class="dm-ex-note">${tool.category} · ${cost} credits per run · ~30–150s (two phases)</p>` +
-          note('We’ve filled this in with a real <b>asana.com</b> example and rendered the result below, so you can see exactly what you get.'),
+          note('We’ve filled this in with a real <b>asana.com</b> example and rendered the result below — nothing runs and <b>no credits are spent</b> while you look around.'),
       },
     },
     {
@@ -860,7 +875,7 @@ export function startSocialAuditTour(tool, hooks = {}) {
       popover: {
         title: 'Brand & campaign',
         description:
-          lead('Only the <b>brand name</b> is required.') +
+          lead('Only the <b>brand name</b> is required — everything else is optional.') +
           note('Leave industry, goals and audience blank and AI fills them in before the audit — we’ve pre-filled them here so you can see the shape.'),
         side: 'bottom', align: 'start',
       },
@@ -878,7 +893,7 @@ export function startSocialAuditTour(tool, hooks = {}) {
       popover: {
         title: 'Profiles to audit',
         description:
-          lead('The handles whose live data gets scraped in Phase 1.') +
+          lead('The social accounts whose live numbers get pulled in Phase 1.') +
           note('<b>Auto-find profiles</b> guesses them from the brand + website (badged <i>from site</i> / <i>from search</i>). Untick or edit any that look wrong before running.'),
         side: 'top', align: 'start',
       },
@@ -887,7 +902,7 @@ export function startSocialAuditTour(tool, hooks = {}) {
       element: '[data-tour="sma-competitors"]',
       popover: {
         title: 'Competitors (optional)',
-        description: 'Add up to 3 rivals — they’re benchmarked side-by-side and mined for content gaps and tactics to copy. Auto-find suggests them, or add your own.',
+        description: 'Add up to 3 rivals — they’re compared side-by-side to show what they do better and what’s worth copying. Auto-find suggests them, or add your own.',
         side: 'top', align: 'start',
       },
     },
@@ -895,7 +910,7 @@ export function startSocialAuditTour(tool, hooks = {}) {
       element: '[data-tour="sma-context"]',
       popover: {
         title: 'Optional context',
-        description: 'Paste a content calendar or RFQ notes, or attach briefs / brand guidelines (PDF, DOCX, TXT…). Text is extracted in your browser and fed to the analysis — the more context, the sharper the audit.',
+        description: 'Paste notes or a content calendar, or attach briefs / brand guidelines (PDF, DOCX, TXT…). The text is read right in your browser and fed into the analysis — the more context, the sharper the audit.',
         side: 'top', align: 'start',
       },
     },
@@ -904,8 +919,8 @@ export function startSocialAuditTour(tool, hooks = {}) {
       popover: {
         title: 'Starter vs Pro',
         description:
-          lead('<b>Starter</b> — competitor &amp; content-gap audit from first-call inputs.') +
-          note('<b>Pro</b> reveals extra fields for your exported analytics and adds content pillars, campaign angles, organic/paid integration, social SEO, blog-to-social repurposing and creative fixes.'),
+          lead('<b>Starter</b> — the essentials: how the brand compares to competitors and what’s missing from its content.') +
+          note('<b>Pro</b> adds fields for your exported analytics and goes deeper — content themes, campaign ideas, social SEO and creative fixes.'),
         side: 'top', align: 'start',
       },
     },
@@ -913,7 +928,7 @@ export function startSocialAuditTour(tool, hooks = {}) {
       element: '[data-tour="sma-run"]',
       popover: {
         title: 'Run it (give it a moment)',
-        description: `On your own data you’d hit run here — it costs <b>${cost} credits</b> and runs two phases (live scrape → strategy), so it takes ~30–150s with live progress. It keeps running even if you close the tab, and notifies you when it’s done. We’ve pre-run the example so you can see the output ↓`,
+        description: `On your own data you’d hit run here — it costs <b>${cost} credits</b> and works in two phases (pull the live numbers → build the strategy), so it takes ~30–150s with live progress. It keeps going even if you close the tab, and sends a notification when it’s done. We’ve pre-run the example so you can see the output ↓`,
         side: 'top', align: 'start',
       },
     },
@@ -922,8 +937,8 @@ export function startSocialAuditTour(tool, hooks = {}) {
       popover: {
         title: 'What you get back — live',
         description:
-          lead('A visual <b>scorecard</b> (Phase 1: live followers, engagement, posting cadence, recent posts, competitor benchmark) followed by the <b>strategy audit</b> (Phase 2: content pillars, gaps, recommended platforms and a prioritised action plan).') +
-          note('This is the <b>real rendered result</b>, exactly like your own run.'),
+          lead('First a visual <b>scorecard</b> — live follower counts, engagement, posting habits and a side-by-side with competitors. Then the <b>strategy</b>: what to post, where, and the action plan in priority order.') +
+          note('This is the <b>real rendered result</b>, exactly like your own run. Hover the little <b>ⓘ</b> beside any metric for a plain-English meaning — and <b>Share</b> your own runs as a branded image.'),
         side: 'top', align: 'start',
       },
     },
@@ -931,15 +946,15 @@ export function startSocialAuditTour(tool, hooks = {}) {
       popover: {
         title: 'Confused by a result? Just ask',
         description:
-          lead('<b>Right-click</b> any card or row and the assistant explains it in plain English — or tells you what to do about it.') +
+          lead('<b>Right-click</b> any card or row and Monty, the AI assistant, explains it in plain English — or tells you what to do about it.') +
           note('Want one figure explained? <b>Highlight just that text first</b>, then right-click.'),
       },
     },
     {
       popover: {
-        title: 'That’s the tour',
+        title: 'That’s the tour — your turn',
         description:
-          lead('We’ll clear this example now so the form is yours to fill in.') +
+          lead('We’ll clear the example now. Type your brand name, hit <b>Auto-find</b>, confirm the profiles and run it — nothing changes on your accounts, it only reads.') +
           note('Replay this any time from the <b>Tour</b> button next to the title.'),
       },
     },
@@ -958,45 +973,48 @@ export function startPlatformTour() {
       popover: {
         title: 'Welcome to Digimetrics',
         description:
-          lead(`${TOOLS.length} marketing tools across SEO, Content, AI Visibility, Strategy and your own Google data — in one workspace.`) +
-          note('This 60-second tour shows you around. You can replay it any time from the <b>?</b> in the top bar.'),
+          lead(`${TOOLS.length} marketing tools in one workspace — SEO (getting found on Google), content writing, AI visibility (getting recommended by ChatGPT & co.) and your own Google data.`) +
+          note('This tour takes about a minute — exit any time with <b>Esc</b>, replay it from the <b>?</b> in the top bar. Looking around never changes anything or spends credits.'),
       },
     },
-    { element: '[data-tour="search"]', popover: { title: 'Find any tool', description: 'Search by name or what it does — e.g. “backlinks”, “captions”, “ai”. New here? Switch to <b>Simple mode</b> (the toggle just left of this box) and pick a goal instead.', side: 'bottom', align: 'start' } },
-    { element: '[data-tour="pathway"]', popover: { title: 'Not sure where to start? Follow a plan', description: 'In <b>Simple mode</b> you tell us your goal — get more visitors, check your site’s health, show up in AI answers — and we build a step-by-step plan: the exact tools to run, in order, with a progress bar as you go. Add a sentence about your business and hit <b>Personalise with AI</b> to tailor it. Prefer to explore everything yourself? Flip to <b>Advanced</b> (top right).', side: 'top', align: 'start' } },
-    { element: '[data-tour="categories"]', popover: { title: 'Browse by category', description: 'Filter the grid by SEO, Content, AI Visibility, Strategy or Integrations.', side: 'bottom', align: 'start' } },
+    { element: '[data-tour="search"]', popover: { title: 'Find any tool', description: 'Know what you need? Search by name or by job — “backlinks”, “captions”, “ai”. New to all this? Switch to <b>Simple mode</b> (the toggle just left of this box) for plain-English names and a goal-based plan instead.', side: 'bottom', align: 'start' } },
+    { element: '[data-tour="pathway"]', popover: { title: 'Not sure where to start? Follow a plan', description: 'Pick a goal — more visitors, a healthier site, showing up in AI answers — and we turn it into a step-by-step plan: the exact tools to run, in order, ticking off as you go. Add one sentence about your business and hit <b>Personalise with AI</b> to tailor it. Prefer to explore on your own? Flip to <b>Advanced</b> (top right).', side: 'top', align: 'start' } },
+    { element: '[data-tour="plan-widget"]', popover: { title: 'Your plan follows you', description: 'Once you set a goal, this pill tracks it from every page — the ring shows progress and the label shows what to do next. Click it to jump straight back in.', side: 'bottom', align: 'end' } },
+    { element: '[data-tour="categories"]', popover: { title: 'Browse by what you’re trying to do', description: '<b>SEO</b> = rank on Google · <b>Content</b> = write things · <b>AI Visibility</b> = get mentioned by ChatGPT & co. · <b>Strategy</b> = plans & audits · <b>Integrations</b> = your own Google data.', side: 'bottom', align: 'start' } },
     {
       element: 'main a[href^="/tool/"]',
       popover: {
         title: 'Every tool is a card',
         description:
-          'The badge shows its credit cost (green = free). A lock pill means it unlocks on a higher plan — and many locked tools still give you one real preview run, so you can see what you’d get. Open any tool and hit <b>Tour</b> to see a real worked example.',
+          'The badge is the price per run — <b>green means free</b>. A lock means it needs a higher plan, but most locked tools still give you <b>one real preview run</b> so you can see what you’d get. Open any tool and hit <b>Tour</b> for a guided, worked example.',
         side: 'right',
         align: 'start',
       },
     },
-    { element: '[data-tour="project-selector"]', popover: { title: 'Projects', description: 'Group every run + data source under one site. Switch the active project here — runs are saved to it, and tools auto-fill its domain for you.', side: 'bottom', align: 'end' } },
-    { element: '[data-tour="credits"]', popover: { title: 'Your credits', description: `Most tools spend credits per run. Your plan refills monthly (${PLANS.starter.monthlyCredits.toLocaleString()} on Starter, ${PLANS.pro.monthlyCredits.toLocaleString()} on Pro). Click to see usage.`, side: 'bottom', align: 'end' } },
-    { popover: { title: 'Rank tracking', description: 'Add keywords and we’ll track their Google positions over time — charted, no need to re-run by hand. Open it from a project or the “Track a keyword” starter step.' } },
-    { element: '[data-tour="account-menu"]', popover: { title: 'Connect your Google data', description: 'Open this menu and pick <b>Integrations</b> — one click connects Search Console, GA4 and Google Ads. Those tools then cost 0 credits (it’s your data) and show a live freshness indicator.', side: 'bottom', align: 'end' } },
-    { element: '[data-tour="nav-/projects"]', popover: { title: 'Projects & your runs', description: 'Open <b>Projects</b> to manage your sites — and scroll down for <b>Runs</b>, where every tool run is saved. Re-open any past result, or re-run it with one click — no need to retype the inputs.', side: 'bottom', align: 'start' } },
-    { element: '[data-tour="nav-/schedules"]', popover: { title: 'Put tools on autopilot', description: 'Under <b>Schedules</b> you can set almost any tool to run by itself — daily, weekly or monthly — with the inputs saved. Each run lands in your history and shows what changed vs last time, so you spot movement without lifting a finger. (You can also start one from the <b>Schedule</b> button on a tool.)', side: 'bottom', align: 'start' } },
-    { element: '[data-tour="assistant"]', popover: { title: 'AI assistant', description: 'Ask it anything — it streams answers, knows your account context and the product, can explain a result and even recommend + open the right tool. Reopen past chats from the history list.', side: 'bottom', align: 'end' } },
+    { element: '[data-tour="project-selector"]', popover: { title: 'Projects', description: 'A project is simply one website. Pick the active one here and every result is filed under it — and tools auto-fill its address so you type less.', side: 'bottom', align: 'end' } },
+    { element: '[data-tour="credits"]', popover: { title: 'Your credits', description: `Credits are the app’s currency: most runs cost a few, free tools cost none. Your plan refills them every month (${PLANS.starter.monthlyCredits.toLocaleString()} on Starter, ${PLANS.pro.monthlyCredits.toLocaleString()} on Pro). Click to see where yours go.`, side: 'bottom', align: 'end' } },
+    { element: '[data-tour="notifications"]', popover: { title: 'Notifications', description: 'Long runs (like the Social Media Audit) keep going server-side even if you close the tab — the ✅ lands here when the result is ready, along with scheduled-run and product updates.', side: 'bottom', align: 'end' } },
+    { popover: { title: 'Rank tracking', description: 'Tell us which searches you care about and we’ll check your Google position for them automatically and chart it over time — no re-running by hand. Find it inside any project, or via the “Track a keyword” starter step.' } },
+    { element: '[data-tour="account-menu"]', popover: { title: 'Connect your Google data', description: 'Open this menu and pick <b>Integrations</b> — one click connects Search Console, Analytics and Google Ads. Those tools then cost <b>0 credits</b>: it’s your own data, pulled live.', side: 'bottom', align: 'end' } },
+    { element: '[data-tour="nav-/projects"]', popover: { title: 'Projects & your runs', description: 'Everything you run is saved. Open <b>Projects</b> to manage your sites — and scroll down for <b>Runs</b>, where any past result can be re-opened or re-run with one click, no retyping.', side: 'bottom', align: 'start' } },
+    { element: '[data-tour="nav-/schedules"]', popover: { title: 'Put tools on autopilot', description: 'Under <b>Schedules</b>, set almost any tool to re-run itself daily, weekly or monthly with your inputs saved. Each run lands in your history and shows <b>what changed</b> since last time. (The <b>Schedule</b> button on a tool does the same.)', side: 'bottom', align: 'start' } },
+    { element: '[data-tour="assistant"]', popover: { title: 'Meet Monty, your AI assistant', description: 'Ask Monty anything — “what’s a backlink?”, “why did my traffic drop?”. He knows your account and the product, explains results, and can recommend and open the right tool for you. He’ll also pop up with timely tips as you work (you can turn that off in the chat panel).', side: 'bottom', align: 'end' } },
     {
       popover: {
         title: 'Ask about anything on screen',
         description:
-          lead('<b>Right-click</b> any result, card or table row to ask the assistant to explain it — or what to do about it.') +
+          lead('<b>Right-click</b> any result, card or table row to ask Monty to explain it — or what to do about it.') +
           note('Only want one figure or phrase explained? <b>Highlight that text first</b>, then right-click, and it’ll explain just your selection.'),
       },
     },
+    { element: '[data-tour="theme"]', popover: { title: 'Light or dark — your call', description: 'Cycle between light, dark and follow-your-system here. Every tool and report is styled for both.', side: 'bottom', align: 'end' } },
     { element: '[data-tour="account-menu"]', popover: { title: 'Account, billing & support', description: 'Your plan, usage, pricing and support tickets live in here.', side: 'bottom', align: 'end' } },
     {
       popover: {
-        title: 'You’re set',
+        title: 'You’re set — start free',
         description:
-          lead('Open any tool and click <b>“Tour”</b> next to its name for a guided, field-by-field walkthrough — ending on a real, live example of what it returns.') +
-          note('Tip: <b>Caption Generator</b> and <b>Keyword Analysis</b> are free — great first runs. Or run the one-click <b>Site Health Check</b> for a scored audit.'),
+          lead('Great first runs: <b>Caption Generator</b> and <b>Keyword Analysis</b> cost nothing, and the one-click <b>Site Health Check</b> scores your whole site.') +
+          note('Every tool has a <b>Tour</b> button beside its name with a worked example. And whenever you’re unsure, ask Monty — no question is too basic.'),
       },
     },
   ];

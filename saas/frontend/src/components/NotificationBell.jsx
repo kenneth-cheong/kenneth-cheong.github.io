@@ -43,7 +43,7 @@ export default function NotificationBell() {
 
   return (
     <div ref={ref} className="relative">
-      <button onClick={toggle} className="relative text-muted hover:text-strong" title="Notifications" aria-label="Notifications">
+      <button onClick={toggle} data-tour="notifications" className="relative text-muted hover:text-strong" title="Notifications" aria-label="Notifications">
         <Bell size={20} aria-hidden />
         {unread > 0 && (
           <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">

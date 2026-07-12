@@ -36,10 +36,10 @@ export default function Welcome({ onDone }) {
   const hero = canAudit
     ? { icon: Stethoscope, goal: 'health', to: '/audit',
         title: 'Run a Site Health Check',
-        body: 'One click → a scored report and a prioritised fix list for your site.' }
+        body: 'One click checks your whole site — you get a score and a fix list, most important first.' }
     : { icon: Search, goal: 'visitors', to: '/tool/keyword-analysis',
-        title: 'Find keywords worth targeting',
-        body: 'See search volume, difficulty and intent for any keyword — runs on your Free plan.' };
+        title: 'Find searches worth targeting',
+        body: 'See how many people search a term, how hard it is to rank for, and what they’re after — free on your plan.' };
   const HeroIcon = hero.icon;
 
   return (
@@ -52,8 +52,9 @@ export default function Welcome({ onDone }) {
 
         <h1 className="mt-4 text-2xl font-bold text-heading">Hi {first} — let’s get you a quick win.</h1>
         <p className="mt-1.5 text-dim">
-          You’ve got <span className="font-semibold text-strong">{credits} credits</span> to explore {TOOLS.length} SEO,
-          content &amp; AI-visibility tools. Pick a first move below — it takes a couple of minutes to see real results.
+          You’ve got <span className="font-semibold text-strong">{credits} credits</span> — the app’s currency for
+          running its {TOOLS.length} tools: SEO (getting found on Google), content writing, and getting recommended
+          by AI like ChatGPT. Pick a first move below — real results in a couple of minutes.
         </p>
 
         {/* Promoted first action — the strongest "aha" the user's tier can run. */}

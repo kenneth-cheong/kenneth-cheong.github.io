@@ -54,6 +54,7 @@ export default function PlanWidget() {
     return (
       <button
         onClick={() => navigate('/')}
+        data-tour="plan-widget"
         title="Set your goal and get a step-by-step plan"
         className="hidden items-center gap-1.5 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 px-2.5 py-1.5 text-sm font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-500/15 sm:inline-flex"
       >
@@ -72,6 +73,7 @@ export default function PlanWidget() {
           that blends into the neighbouring credit/notification chips. */}
       <button
         onClick={() => setOpen((o) => !o)}
+        data-tour="plan-widget"
         title={complete ? 'Your plan — all done' : next ? `Up next: ${stepLabel(next)}` : 'Your plan'}
         className={`inline-flex items-center gap-2 rounded-lg border px-2 py-1 text-sm font-semibold transition-colors ${
           open

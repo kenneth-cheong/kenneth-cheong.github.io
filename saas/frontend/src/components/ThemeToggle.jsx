@@ -7,7 +7,7 @@ import { getPreference, cyclePreference, subscribe } from '../lib/theme.js';
 const NEXT = { light: 'dark', dark: 'system', system: 'light' };
 const LABEL = { light: 'Light', dark: 'Dark', system: 'System' };
 
-export default function ThemeToggle({ className = '' }) {
+export default function ThemeToggle({ className = '', tourId }) {
   const [pref, setPref] = useState(getPreference);
   useEffect(() => subscribe(setPref), []);
 
@@ -15,6 +15,7 @@ export default function ThemeToggle({ className = '' }) {
   return (
     <button
       onClick={() => setPref(cyclePreference())}
+      data-tour={tourId}
       title={`Theme: ${LABEL[pref]} — switch to ${LABEL[NEXT[pref]]}`}
       aria-label={`Theme: ${LABEL[pref]}. Switch to ${LABEL[NEXT[pref]]}.`}
       className={`grid h-8 w-8 shrink-0 place-items-center rounded-full bg-sunken text-dim hover:bg-overlay ${className}`}

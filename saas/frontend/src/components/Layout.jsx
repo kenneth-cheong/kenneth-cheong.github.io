@@ -182,7 +182,7 @@ export default function Layout({ children }) {
                 <HelpCircle size={18} aria-hidden />
               </button>
 
-              <ThemeToggle className="hidden sm:grid" />
+              <ThemeToggle className="hidden sm:grid" tourId="theme" />
 
               {/* Account dropdown (desktop) — holds Account/Usage/Pricing/Support/Admin + Sign out */}
               <div className="relative hidden md:block">
