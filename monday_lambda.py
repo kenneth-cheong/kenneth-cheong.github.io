@@ -472,6 +472,63 @@ def download_file(body):
     except Exception as e:
         return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
 
+# ── Gamma Generate API (chatbot slide decks → real Gamma presentations) ──────
+# Dormant until the GAMMA_API_KEY env var is set (Gamma Pro+ plan required).
+# The frontend deck card calls gamma_generate then polls gamma_generation_status.
+GAMMA_API_BASE = "https://public-api.gamma.app/v1.0"
+
+def gamma_generate(body):
+    api_key = os.environ.get('GAMMA_API_KEY', '').strip()
+    if not api_key:
+        return {"statusCode": 501, "body": json.dumps({"error": "Gamma API not configured", "notConfigured": True})}
+    params = body.get('data', body)
+    input_text = str(params.get('inputText') or '').strip()
+    if not input_text:
+        return {"statusCode": 400, "body": json.dumps({"error": "inputText required"})}
+    payload = {
+        "inputText": input_text[:400000],
+        "textMode": params.get('textMode') or "preserve",
+        "format": "presentation",
+    }
+    if params.get('cardSplit') in ('inputTextBreaks', 'auto'):
+        payload["cardSplit"] = params['cardSplit']
+    if params.get('title'):
+        payload["title"] = str(params['title'])[:500]
+    try:
+        num_cards = int(params.get('numCards') or 0)
+        if num_cards > 0:
+            payload["numCards"] = min(num_cards, 60)
+    except (TypeError, ValueError):
+        pass
+    if params.get('exportAs') in ('pptx', 'pdf'):
+        payload["exportAs"] = params['exportAs']
+    if params.get('themeId'):
+        payload["themeId"] = str(params['themeId'])[:100]
+    if params.get('additionalInstructions'):
+        payload["additionalInstructions"] = str(params['additionalInstructions'])[:5000]
+    try:
+        r = requests.post(f"{GAMMA_API_BASE}/generations",
+                          headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
+                          json=payload, timeout=30)
+        return {"statusCode": r.status_code, "body": r.text}
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+
+def gamma_generation_status(body):
+    api_key = os.environ.get('GAMMA_API_KEY', '').strip()
+    if not api_key:
+        return {"statusCode": 501, "body": json.dumps({"error": "Gamma API not configured", "notConfigured": True})}
+    params = body.get('data', body)
+    gen_id = str(params.get('generationId') or '').strip()
+    if not gen_id or not re.match(r'^[A-Za-z0-9_-]{1,128}$', gen_id):
+        return {"statusCode": 400, "body": json.dumps({"error": "generationId required"})}
+    try:
+        r = requests.get(f"{GAMMA_API_BASE}/generations/{gen_id}",
+                         headers={"X-API-KEY": api_key}, timeout=30)
+        return {"statusCode": r.status_code, "body": r.text}
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+
 def google_token_exchange(body):
     params = body.get('data', body)
     code = params.get('code') or body.get('code')
@@ -5065,6 +5122,10 @@ def lambda_handler(event, context):
             result = openai_proxy(body)
         elif action == 'openai_upload':
             result = openai_upload(body)
+        elif action == 'gamma_generate':
+            result = gamma_generate(body)
+        elif action == 'gamma_generation_status':
+            result = gamma_generation_status(body)
         elif action == 'download_file':
             result = download_file(body)
         elif action == 'google_token_exchange':

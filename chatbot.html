@@ -26,7 +26,7 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+    <script src="deck-tools.js"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <!-- Document Extraction Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
@@ -11352,7 +11352,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             • Data charts (bar, line, pie, doughnut) → use a \`\`\`chartjs code block containing valid Chart.js v4 JSON config
             When the user asks for a chart, diagram, or visual representation of data, ALWAYS generate one.
 
-            SLIDE DECKS / PRESENTATIONS — STRICTLY OPT-IN. Only output a \`\`\`slides block when the user EXPLICITLY asks for a deck using words like "slides", "a deck", "a presentation", a "pitch", a "report deck", or "turn this into slides". NEVER volunteer a deck proactively, and NEVER use slides as the default format for a report, summary, analysis, or answer — those always stay as Markdown text, tables, and (when asked) charts. Being proactive does NOT mean offering slides; if you think a deck would help, you may mention it in one short line, but do not generate one unless asked. When the user does explicitly ask, output a single \`\`\`slides code block containing valid JSON in the schema below. The client renders it as a card with two actions: "Download .pptx" (a real editable PowerPoint generated in-browser) and "Copy Gamma prompt" (a ready-to-paste prompt for Gamma's AI slide generator). Output ONLY the JSON in the block — no commentary inside it.
+            SLIDE DECKS / PRESENTATIONS — STRICTLY OPT-IN. Only output a \`\`\`slides block when the user EXPLICITLY asks for a deck using words like "slides", "a deck", "a presentation", a "pitch", a "report deck", or "turn this into slides". NEVER volunteer a deck proactively, and NEVER use slides as the default format for a report, summary, analysis, or answer — those always stay as Markdown text, tables, and (when asked) charts. Being proactive does NOT mean offering slides; if you think a deck would help, you may mention it in one short line, but do not generate one unless asked. When the user does explicitly ask, output a single \`\`\`slides code block containing valid JSON in the schema below. The client renders it as an interactive card: live slide thumbnails, a fullscreen Present mode, inline editing (reorder/retitle/delete), "Download .pptx" (a real editable PowerPoint with native charts and speaker notes), "Google Slides" (creates an editable deck in the user's Drive), and Gamma export. Output ONLY the JSON in the block — no commentary inside it.
             Schema:
             {
               "title": "Deck title",
@@ -11360,26 +11360,32 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
               "theme": "mediaone",          // ALWAYS "mediaone" — every deck is rendered in the locked MediaOne brand theme (navy #1e3a8a + orange #f97316, white backgrounds, Barlow font, MEDIAONE wordmark on each slide). Do not use any other theme.
               "slides": [
                 {"type":"title","title":"Big opening title","subtitle":"optional subtitle"},
+                {"type":"agenda","title":"Agenda","items":["Topic one","Topic two","Topic three"]},
                 {"type":"section","title":"Section divider text"},
                 {"type":"bullets","title":"Slide title","bullets":["Point one","Point two","Point three"]},
                 {"type":"metrics","title":"Key results","metrics":[{"label":"Revenue","value":"$1.2M","change":"+12%"},{"label":"Leads","value":"340","change":"+8%"}]},
                 {"type":"stats","title":"Track record","stats":[{"num":"01","value":"10+","label":"Years Experience","desc":"International performance marketing"},{"num":"02","value":"3,000+","label":"Clients Served","desc":"Across diverse industries"}]},
                 {"type":"pillars","title":"SEO Strategy Pillars","pillars":[{"num":"01","title":"Technical SEO","desc":"Fix crawlability, Core Web Vitals, and site architecture"},{"num":"02","title":"Content Strategy","desc":"Keyword-mapped content targeting buyer intent"}]},
                 {"type":"twocol","title":"Current Status vs Strategy","twocol":{"left":{"title":"Current Status","items":["Low organic visibility","Thin content pages"]},"right":{"title":"MediaOne Strategy","items":["Comprehensive SEO audit","Pillar + cluster content model"]}}},
+                {"type":"table","title":"Keyword opportunities","columns":["Keyword","Volume","Position"],"rows":[["storage singapore","12,000","7"],["self storage price","4,400","11"]]},
+                {"type":"quote","title":"","quote":"Short powerful client or industry quote.","attribution":"Name, Role"},
+                {"type":"timeline","title":"Roadmap","milestones":[{"date":"Q1 2026","title":"Audit","desc":"Technical + content"},{"date":"Q2 2026","title":"Build","desc":"Pillar pages live"}]},
                 {"type":"chart","title":"Slide title","chart":{ /* a full Chart.js v4 config, same format as a chartjs block */ }},
                 {"type":"closing","title":"Thank you / CTA","subtitle":"optional contact line"}
               ]
             }
+            Any slide may also carry an optional "notes" field — 1–2 sentences of speaker notes. They export into the .pptx notes pane and show in Present mode; add them wherever a presenter would need context.
             Rules:
-            - Keep each bullets slide to 3–6 short bullets (one idea each). Prefer many focused slides over few dense ones.
-            - Use "metrics" slides for headline KPIs (2–4 metrics), "stats" for track-record proof points with num+value+label+desc (up to 4), "pillars" for numbered strategy steps (up to 5), "twocol" for current-state vs strategy comparisons (up to 6 items per side).
-            - Use "chart" slides to visualize trends/comparisons (reuse the same Chart.js styling rules above, including GEO/WorkDuo styles when relevant).
+            - Aim for 8–15 focused slides (hard cap 30). Keep each bullets slide to 3–6 short bullets (one idea each). Prefer many focused slides over few dense ones.
+            - Use "metrics" for headline KPIs (2–4), "stats" for track-record proof points (up to 4), "pillars" for numbered strategy steps (up to 5), "twocol" for current-vs-strategy comparisons (up to 6 per side), "table" for real data grids (max 6 columns, 10 rows), "timeline" for roadmaps/phases (up to 6 milestones), "quote" for testimonials, "agenda" for the opening contents slide.
+            - Use "chart" slides to visualize trends/comparisons (reuse the same Chart.js styling rules above, including GEO/WorkDuo styles when relevant); bar, line, area, pie, doughnut, radar and scatter all export as native PowerPoint charts.
             - Always start with a "title" slide and end with a "closing" slide. Use "change" only when you have a real delta; omit it otherwise.
             - BRAND LOCK: always set "theme":"mediaone" — never any other value. The deck is rendered in the fixed MediaOne brand styling (navy + orange, white bg, Barlow, MEDIAONE wordmark) no matter what, so do not attempt to restyle or pick a different palette.
-            - Favour the MediaOne layout vocabulary: open with a "title" slide, use "stats" for proof points / track record, "pillars" for strategy steps, "twocol" for current-state vs proposed-strategy, "section" dividers between major parts, and a "closing" slide to wrap. Base every fact on real data from tools/context — never fabricate numbers for a deck.
+            - Favour the MediaOne layout vocabulary: open with a "title" slide (then usually an "agenda"), use "stats" for proof points / track record, "pillars" for strategy steps, "twocol" for current-state vs proposed-strategy, "section" dividers between major parts, and a "closing" slide to wrap. Base every fact on real data from tools/context — never fabricate numbers for a deck.
+            - REVISIONS: when the user asks you to change, add, remove or reorder anything in a deck you produced earlier in this conversation, re-emit the ENTIRE updated deck as a single \`\`\`slides block (never a fragment or a diff) so the card re-renders completely.
             Example:
             \`\`\`slides
-            {"title":"Q2 Performance Review","subtitle":"Acme Corp · Apr–Jun 2026","theme":"mediaone","slides":[{"type":"title","title":"Q2 Performance Review","subtitle":"Acme Corp · Apr–Jun 2026"},{"type":"stats","title":"Our Track Record","stats":[{"num":"01","value":"10+","label":"Years Experience","desc":"International performance marketing"},{"num":"02","value":"3,000+","label":"Clients Served","desc":"Across diverse industries"},{"num":"03","value":"$50M+","label":"Revenue Generated","desc":"For our clients"},{"num":"04","value":"12+","label":"Industry Awards","desc":"International recognition"}]},{"type":"metrics","title":"Headline results","metrics":[{"label":"Sessions","value":"48.2K","change":"+18%"},{"label":"Conversions","value":"1,120","change":"+9%"},{"label":"CPA","value":"$24.10","change":"-7%"}]},{"type":"pillars","title":"SEO Strategy","pillars":[{"num":"01","title":"Technical Foundation","desc":"Site speed, crawlability, Core Web Vitals"},{"num":"02","title":"Content Strategy","desc":"Keyword-mapped pillar + cluster model"},{"num":"03","title":"Authority Building","desc":"Targeted link acquisition and PR"}]},{"type":"bullets","title":"What worked","bullets":["Branded search up 22% after the homepage refresh","Meta retargeting drove 31% of conversions","Email reactivation recovered 180 dormant accounts"]},{"type":"closing","title":"Thank you","subtitle":"Questions? hello@mediaone.co"}]}
+            {"title":"Q2 Performance Review","subtitle":"Acme Corp · Apr–Jun 2026","theme":"mediaone","slides":[{"type":"title","title":"Q2 Performance Review","subtitle":"Acme Corp · Apr–Jun 2026"},{"type":"agenda","title":"Agenda","items":["Track record","Headline results","Strategy","Next steps"]},{"type":"stats","title":"Our Track Record","stats":[{"num":"01","value":"10+","label":"Years Experience","desc":"International performance marketing"},{"num":"02","value":"3,000+","label":"Clients Served","desc":"Across diverse industries"},{"num":"03","value":"$50M+","label":"Revenue Generated","desc":"For our clients"},{"num":"04","value":"12+","label":"Industry Awards","desc":"International recognition"}]},{"type":"metrics","title":"Headline results","metrics":[{"label":"Sessions","value":"48.2K","change":"+18%"},{"label":"Conversions","value":"1,120","change":"+9%"},{"label":"CPA","value":"$24.10","change":"-7%"}],"notes":"CPA fell 7% after negative-keyword pruning in May."},{"type":"pillars","title":"SEO Strategy","pillars":[{"num":"01","title":"Technical Foundation","desc":"Site speed, crawlability, Core Web Vitals"},{"num":"02","title":"Content Strategy","desc":"Keyword-mapped pillar + cluster model"},{"num":"03","title":"Authority Building","desc":"Targeted link acquisition and PR"}]},{"type":"timeline","title":"Next 90 days","milestones":[{"date":"Jul","title":"Technical fixes","desc":"CWV + crawl"},{"date":"Aug","title":"Content sprint","desc":"8 pillar pages"},{"date":"Sep","title":"Authority push","desc":"Digital PR"}]},{"type":"closing","title":"Thank you","subtitle":"Questions? hello@mediaone.co"}]}
             \`\`\`
 
             GEO / WORKDUO VISIBILITY CHARTS — MANDATORY STYLE (use whenever showing AI visibility, SOV, citation counts or any WorkDuo metric):
@@ -12497,6 +12503,71 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             });
         }
 
+        // ── Shared slide-deck module glue (deck-tools.js) ─────────────────────
+        // Google Slides token (presentations scope) — separate consent from Drive.
+        let _slidesToken = null, _slidesTokenExpires = 0, _slidesTokenClient = null;
+        function cbGetSlidesToken() {
+            return new Promise((resolve, reject) => {
+                if (_slidesToken && Date.now() < _slidesTokenExpires - 60000) { resolve(_slidesToken); return; }
+                if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
+                    reject(new Error('Google Identity Services not loaded')); return;
+                }
+                const clientId = _googleClientId
+                    || (document.getElementById('googleClientId') && document.getElementById('googleClientId').value.trim())
+                    || '1080212071394-drtg41ou6bjm412teq626rf7dn8b41q6.apps.googleusercontent.com';
+                if (!_slidesTokenClient) {
+                    _slidesTokenClient = google.accounts.oauth2.initTokenClient({
+                        client_id: clientId,
+                        scope: 'https://www.googleapis.com/auth/presentations',
+                        callback: () => {} // replaced per-request below
+                    });
+                }
+                _slidesTokenClient.callback = (resp) => {
+                    if (resp && resp.access_token) {
+                        _slidesToken = resp.access_token;
+                        _slidesTokenExpires = Date.now() + ((resp.expires_in || 3600) * 1000);
+                        resolve(_slidesToken);
+                    } else {
+                        reject(new Error((resp && resp.error) || 'Authorization failed'));
+                    }
+                };
+                _slidesTokenClient.requestAccessToken({ prompt: _slidesToken ? '' : 'consent' });
+            });
+        }
+        if (window.DeckTools) {
+            DeckTools.init({
+                onEditWithAI: (deck) => {
+                    const input = document.getElementById('userInput');
+                    if (!input) return;
+                    input.value = 'Revise the deck "' + (deck.title || 'Presentation') + '": ';
+                    input.style.height = 'auto'; input.style.height = input.scrollHeight + 'px';
+                    input.focus();
+                },
+                backendCall: async (action, data) => {
+                    const res = await fetch(MONDAY_LAMBDA_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(Object.assign({ action: action }, data || {}))
+                    });
+                    let raw = null; try { raw = await res.json(); } catch (e) { }
+                    // The monday Lambda replies HTTP 200 with a {statusCode, body:"<json>"} envelope.
+                    let status = res.status, json = raw;
+                    if (raw && typeof raw.statusCode === 'number' && typeof raw.body === 'string') {
+                        status = raw.statusCode;
+                        try { json = JSON.parse(raw.body); } catch (e) { json = { raw: raw.body }; }
+                    }
+                    return { ok: status >= 200 && status < 300, status: status, json: json };
+                },
+                getGoogleToken: cbGetSlidesToken,
+                // The full slide editor lives on the cockpit page — hand the deck
+                // over via localStorage and let index.html's #tender-deck hook load it.
+                openInEditor: (deck) => {
+                    try { localStorage.setItem('dk_pending_tender_deck', JSON.stringify(deck)); } catch (e) { }
+                    window.open('index.html#tender-deck', '_blank');
+                }
+            });
+        }
+
         async function cbExportTableToGoogleSheet(table, btn) {
             if (typeof XLSX === 'undefined') { showToast('Export library is still loading — try again in a moment.', 'error'); return; }
             try {
@@ -12658,415 +12729,13 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 }
             });
 
-            // Slide decks — helper so we can call it for multiple selectors
-            const tryRenderSlideDeck = (code) => {
-                try {
-                    const parsed = JSON.parse(code.textContent.trim());
-                    if (!parsed || !Array.isArray(parsed.slides) || !parsed.slides.length) return false;
-                    const deck = normalizeDeck(parsed);
-                    const deckId = 'deck-' + (++_chartCounter) + '-' + Date.now();
-                    _deckStore[deckId] = deck;
-
-                    const kindLabel = { title:'Title', section:'Section', bullets:'Content', metrics:'Metrics', stats:'Stats', pillars:'Pillars', twocol:'Compare', chart:'Chart', closing:'Closing' };
-                    const rows = deck.slides.map((s, i) => `
-                        <li>
-                            <span class="deck-num">${i + 1}</span>
-                            <span>${escapeHtml(s.title || (s.type === 'section' ? '(section)' : 'Untitled'))}</span>
-                            <span class="deck-kind">${kindLabel[s.type] || 'Slide'}</span>
-                        </li>`).join('');
-
-                    const card = document.createElement('div');
-                    card.className = 'deck-card';
-                    card.innerHTML = `
-                        <div class="deck-card-head">
-                            <i class="fas fa-display deck-icon"></i>
-                            <div class="deck-titles">
-                                <div class="deck-title">${escapeHtml(deck.title || 'Presentation')}</div>
-                                <div class="deck-sub">${escapeHtml(deck.subtitle || (deck.slides.length + ' slides'))}</div>
-                            </div>
-                        </div>
-                        <div class="deck-card-body">
-                            <ul class="deck-slide-list">${rows}</ul>
-                        </div>
-                        <div class="deck-card-actions">
-                            <button class="deck-btn deck-btn-primary" onclick="downloadDeckPptx('${deckId}', this)" title="Download this presentation as a .pptx file"><i class="fas fa-download"></i> Download .pptx</button>
-                            <button class="deck-btn deck-btn-ghost" onclick="copyGammaPrompt('${deckId}', this)" title="Copy a prompt to recreate this deck in Gamma"><i class="fas fa-wand-magic-sparkles"></i> Copy Gamma prompt</button>
-                        </div>`;
-                    code.closest('pre')?.replaceWith(card);
-                    return true;
-                } catch (e) {
-                    return false;
-                }
-            };
-
-            // Primary: explicit ```slides fence
-            el.querySelectorAll('code.language-slides').forEach((code) => {
-                if (tryRenderSlideDeck(code)) hasVisual = true;
-                else console.warn('[Slides] Parse error on language-slides block');
-            });
-
-            // Fallback: ```json or no-language code blocks whose content is slides JSON
-            el.querySelectorAll('code.language-json, pre > code:not([class])').forEach((code) => {
-                if (code.closest('.deck-card')) return; // already replaced
-                const txt = code.textContent.trim();
-                if (!txt.startsWith('{') || !txt.includes('"slides"')) return;
-                if (tryRenderSlideDeck(code)) hasVisual = true;
-            });
+            // Slide decks — rendered by the shared deck-tools.js module
+            // (thumbnail preview, Present mode, editing, PPTX / Google Slides / Gamma export).
+            if (window.DeckTools && DeckTools.scanAndRender(el) > 0) hasVisual = true;
 
             if (hasVisual && msgEl) msgEl.classList.add('has-visual');
         }
 
-        // ── Slide deck pathways: PPTX export + Gamma prompt ───────────────────
-        const _deckStore = {};
-
-        // Theme palettes — { primary, accent, text, muted, bg, band }
-        const DECK_THEMES = {
-            mediaone:{ primary:'1E3A8A', accent:'F97316', text:'1E293B', muted:'64748B', bg:'FFFFFF', band:'EFF4FF' },
-            indigo:  { primary:'6366F1', accent:'8B5CF6', text:'1E293B', muted:'64748B', bg:'FFFFFF', band:'EEF2FF' },
-            blue:    { primary:'2563EB', accent:'3B82F6', text:'0F172A', muted:'64748B', bg:'FFFFFF', band:'EFF6FF' },
-            slate:   { primary:'334155', accent:'64748B', text:'0F172A', muted:'64748B', bg:'FFFFFF', band:'F1F5F9' },
-            emerald: { primary:'059669', accent:'10B981', text:'064E3B', muted:'4B5563', bg:'FFFFFF', band:'ECFDF5' },
-            amber:   { primary:'D97706', accent:'F59E0B', text:'1E293B', muted:'64748B', bg:'FFFFFF', band:'FFFBEB' },
-        };
-
-        // The only slide types the renderer understands.
-        const DECK_SLIDE_TYPES = new Set(['title','section','bullets','metrics','stats','pillars','twocol','chart','closing']);
-        // Hard caps so a verbose model can't overflow a fixed-size slide.
-        const DECK_LIMITS = { stats:4, metrics:4, pillars:5, bullets:6, twocol:6 };
-        // Common synonyms the model reaches for, mapped to the layout we actually render.
-        // Keys are alpha-only (the lookup strips non-letters), so "two-column" -> "twocolumn".
-        const DECK_TYPE_ALIASES = {
-            cover:'title', hero:'title', intro:'title', opening:'title', titleslide:'title',
-            thanks:'closing', thankyou:'closing', cta:'closing', end:'closing', outro:'closing', contact:'closing', conclusion:'closing',
-            divider:'section', agenda:'section', sectionheader:'section', chapter:'section', header:'section',
-            list:'bullets', points:'bullets', content:'bullets', text:'bullets', bullet:'bullets', paragraph:'bullets', summary:'bullets', overview:'bullets',
-            kpi:'metrics', kpis:'metrics', numbers:'metrics', results:'metrics', metric:'metrics',
-            stat:'stats', statistics:'stats', proofpoints:'stats', trackrecord:'stats', achievements:'stats',
-            comparison:'twocol', compare:'twocol', versus:'twocol', vs:'twocol', twocolumn:'twocol', columns:'twocol', sidebyside:'twocol',
-            steps:'pillars', process:'pillars', roadmap:'pillars', strategy:'pillars', phases:'pillars', pillar:'pillars', approach:'pillars',
-            graph:'chart', data:'chart', diagram:'chart',
-        };
-
-        // Flatten an unrecognised (or data-less) slide into a bullets slide so NOTHING is lost:
-        // keep its title and harvest any text we can find from its content fields.
-        function coerceSlideToBullets(s) {
-            let bullets = [];
-            for (const key of ['bullets','items','points','lines','content','list']) {
-                if (Array.isArray(s[key])) {
-                    bullets = s[key].map(x => typeof x === 'string' ? x : (x && (x.text || x.label || x.title || x.value)) || '').filter(Boolean);
-                    if (bullets.length) break;
-                }
-            }
-            if (!bullets.length) {
-                bullets = Object.keys(s)
-                    .filter(k => k !== 'type' && k !== 'title' && typeof s[k] === 'string' && s[k].trim())
-                    .map(k => s[k].trim());
-            }
-            return { type: 'bullets', title: typeof s.title === 'string' ? s.title : '', bullets: bullets.slice(0, DECK_LIMITS.bullets) };
-        }
-
-        // Coerce ANY model-emitted deck object into the locked MediaOne shape.
-        // This is the strict-enforcement choke point: the model only supplies CONTENT;
-        // brand, structure and bounds are decided here, in code, not by the model.
-        function normalizeDeck(input) {
-            const d = (input && typeof input === 'object') ? input : {};
-            const title = typeof d.title === 'string' && d.title.trim() ? d.title.trim() : 'Presentation';
-            const subtitle = typeof d.subtitle === 'string' ? d.subtitle.trim() : '';
-
-            let slides = (Array.isArray(d.slides) ? d.slides : [])
-                .filter(s => s && typeof s === 'object')
-                .map(s => {
-                    // Strip any per-slide styling the model tried to inject — styling is owned
-                    // by the renderer. Keep only content fields.
-                    ['color','background','bg','theme','accent','style','font','fontFace','css'].forEach(k => delete s[k]);
-
-                    // 1. Resolve a canonical, known type: direct match, then alias map.
-                    let type = DECK_SLIDE_TYPES.has(s.type)
-                        ? s.type
-                        : DECK_TYPE_ALIASES[String(s.type || '').toLowerCase().replace(/[^a-z]/g, '')];
-
-                    // 2. A content layout is only valid if its data field is actually present;
-                    //    otherwise — and for anything still unrecognised — fall back to bullets,
-                    //    preserving whatever content the slide carried (alternative to dropping).
-                    const hasData = {
-                        bullets: Array.isArray(s.bullets),
-                        metrics: Array.isArray(s.metrics),
-                        stats:   Array.isArray(s.stats),
-                        pillars: Array.isArray(s.pillars),
-                        twocol:  s.twocol && typeof s.twocol === 'object',
-                        chart:   s.chart && typeof s.chart === 'object',
-                    };
-                    if (!type || (type in hasData && !hasData[type])) {
-                        return coerceSlideToBullets(s);
-                    }
-
-                    // 3. Known type with valid data — keep it and clamp its collection.
-                    s.type = type;
-                    if (type === 'stats')   s.stats   = s.stats.slice(0, DECK_LIMITS.stats);
-                    if (type === 'metrics') s.metrics = s.metrics.slice(0, DECK_LIMITS.metrics);
-                    if (type === 'pillars') s.pillars = s.pillars.slice(0, DECK_LIMITS.pillars);
-                    if (type === 'bullets') s.bullets = s.bullets.slice(0, DECK_LIMITS.bullets);
-                    if (type === 'twocol') {
-                        ['left','right'].forEach(side => {
-                            if (s.twocol[side] && Array.isArray(s.twocol[side].items)) {
-                                s.twocol[side].items = s.twocol[side].items.slice(0, DECK_LIMITS.twocol);
-                            }
-                        });
-                    }
-                    return s;
-                });
-
-            // Guarantee a title slide first and a closing slide last.
-            if (!slides.length || slides[0].type !== 'title') {
-                slides.unshift({ type: 'title', title, subtitle });
-            }
-            if (slides[slides.length - 1].type !== 'closing') {
-                slides.push({ type: 'closing', title: 'Thank you', subtitle: '' });
-            }
-
-            // theme is hard-locked — downstream code ignores it anyway, but keep it honest.
-            return { title, subtitle, theme: 'mediaone', slides };
-        }
-
-        function downloadDeckPptx(deckId, btn) {
-            const deck = _deckStore[deckId];
-            if (!deck) return;
-            if (typeof PptxGenJS === 'undefined') { alert('Presentation library not loaded yet — please retry in a moment.'); return; }
-            // Enforce the MediaOne brand theme on every generated deck regardless of
-            // what the model emitted as deck.theme — guarantees navy/orange + Barlow output.
-            const t = DECK_THEMES.mediaone;
-            const FF = 'Barlow';
-            const pptx = new PptxGenJS();
-            pptx.defineLayout({ name: 'WIDE', width: 13.333, height: 7.5 });
-            pptx.layout = 'WIDE';
-            const W = 13.333, H = 7.5, MX = 0.9;
-
-            // Footer accent on every content slide
-            const addFooter = (slide, idx) => {
-                slide.addShape(pptx.ShapeType.rect, { x: 0, y: H - 0.18, w: W, h: 0.18, fill: { color: t.primary } });
-                if (idx != null) slide.addText(String(idx), { x: W - 0.9, y: H - 0.62, w: 0.6, h: 0.35, align: 'right', fontSize: 9, color: t.muted, fontFace: FF });
-                slide.addText('CONFIDENTIAL & PROPRIETARY  |  MEDIAONE', { x: MX, y: H - 0.62, w: W - 2, h: 0.35, fontSize: 8, color: t.muted, fontFace: FF });
-                // Brand mark — top right
-                slide.addText('MEDIAONE', { x: W - 2.5, y: 0.2, w: 1.8, h: 0.45, align: 'right', fontSize: 11, bold: true, color: t.primary, fontFace: FF });
-            };
-
-            deck.slides.forEach((s, i) => {
-                const slide = pptx.addSlide();
-                slide.background = { color: t.bg };
-                const num = i + 1;
-
-                if (s.type === 'title') {
-                    slide.background = { color: t.primary };
-                    slide.addText('MEDIAONE', { x: MX, y: 0.35, w: 3.5, h: 0.5, fontSize: 16, bold: true, color: 'FFFFFF', fontFace: FF });
-                    slide.addShape(pptx.ShapeType.rect, { x: MX, y: 3.0, w: 1.4, h: 0.12, fill: { color: 'FFFFFF' } });
-                    slide.addText(s.title || deck.title || 'Presentation', { x: MX, y: 3.3, w: W - 2 * MX, h: 1.6, fontSize: 44, bold: true, color: 'FFFFFF', align: 'left', fontFace: FF });
-                    if (s.subtitle || deck.subtitle) slide.addText(s.subtitle || deck.subtitle, { x: MX, y: 4.9, w: W - 2 * MX, h: 0.8, fontSize: 18, color: 'FFFFFF', align: 'left', fontFace: FF });
-                    slide.addShape(pptx.ShapeType.rect, { x: 0, y: H - 0.18, w: W, h: 0.18, fill: { color: 'FFFFFF', transparency: 20 } });
-                    return;
-                }
-
-                if (s.type === 'section') {
-                    slide.background = { color: t.band };
-                    slide.addShape(pptx.ShapeType.rect, { x: 0, y: H / 2 - 0.9, w: 0.35, h: 1.8, fill: { color: t.primary } });
-                    slide.addText(s.title || '', { x: MX, y: H / 2 - 1.0, w: W - 2 * MX, h: 2.0, fontSize: 34, bold: true, color: t.text, valign: 'middle', fontFace: FF });
-                    return;
-                }
-
-                if (s.type === 'closing') {
-                    slide.background = { color: t.primary };
-                    slide.addText('MEDIAONE', { x: MX, y: 0.35, w: 3.5, h: 0.5, fontSize: 16, bold: true, color: 'FFFFFF', fontFace: FF });
-                    slide.addText(s.title || 'Thank you', { x: MX, y: H / 2 - 1.0, w: W - 2 * MX, h: 1.4, fontSize: 40, bold: true, color: 'FFFFFF', align: 'center', valign: 'middle', fontFace: FF });
-                    if (s.subtitle) slide.addText(s.subtitle, { x: MX, y: H / 2 + 0.3, w: W - 2 * MX, h: 0.8, fontSize: 18, color: 'FFFFFF', align: 'center', fontFace: FF });
-                    return;
-                }
-
-                // Content slides get a heading + accent underline + footer
-                slide.addText(s.title || '', { x: MX, y: 0.55, w: W - 2 * MX - 2.0, h: 0.8, fontSize: 26, bold: true, color: t.text, fontFace: FF });
-                slide.addShape(pptx.ShapeType.rect, { x: MX, y: 1.35, w: 1.1, h: 0.07, fill: { color: t.accent } });
-                addFooter(slide, num);
-
-                if (s.type === 'metrics' && Array.isArray(s.metrics)) {
-                    const cards = s.metrics.slice(0, 4);
-                    const gap = 0.4, totalW = W - 2 * MX;
-                    const cw = (totalW - gap * (cards.length - 1)) / cards.length;
-                    cards.forEach((m, j) => {
-                        const x = MX + j * (cw + gap);
-                        slide.addShape(pptx.ShapeType.roundRect, { x, y: 2.4, w: cw, h: 2.4, rectRadius: 0.12, fill: { color: t.band }, line: { color: t.band } });
-                        slide.addText(String(m.value ?? ''), { x, y: 2.7, w: cw, h: 1.0, align: 'center', fontSize: 34, bold: true, color: t.primary, fontFace: FF });
-                        slide.addText(String(m.label ?? ''), { x, y: 3.75, w: cw, h: 0.5, align: 'center', fontSize: 14, color: t.text, fontFace: FF });
-                        if (m.change) {
-                            const up = !String(m.change).trim().startsWith('-');
-                            slide.addText(String(m.change), { x, y: 4.25, w: cw, h: 0.4, align: 'center', fontSize: 13, bold: true, color: up ? '10B981' : 'EF4444', fontFace: FF });
-                        }
-                    });
-                    return;
-                }
-
-                if (s.type === 'chart' && s.chart) {
-                    try {
-                        const built = chartToPptx(pptx, s.chart, t);
-                        slide.addChart(built.type, built.data, built.opts);
-                    } catch (e) {
-                        slide.addText('[chart could not be rendered]', { x: MX, y: 3, w: W - 2 * MX, h: 0.5, fontSize: 14, color: t.muted });
-                    }
-                    return;
-                }
-
-                if (s.type === 'stats' && Array.isArray(s.stats)) {
-                    const cards = s.stats.slice(0, 4);
-                    const gap = 0.4, totalW = W - 2 * MX;
-                    const cw = (totalW - gap * (cards.length - 1)) / cards.length;
-                    cards.forEach((m, j) => {
-                        const x = MX + j * (cw + gap);
-                        slide.addShape(pptx.ShapeType.roundRect, { x, y: 2.0, w: cw, h: 3.0, rectRadius: 0.12, fill: { color: t.band }, line: { color: t.band } });
-                        slide.addShape(pptx.ShapeType.rect, { x, y: 2.0, w: cw, h: 0.1, fill: { color: t.accent } });
-                        if (m.num) slide.addText(String(m.num), { x, y: 2.12, w: cw, h: 0.3, align: 'center', fontSize: 11, bold: true, color: t.accent, fontFace: FF });
-                        slide.addText(String(m.value ?? ''), { x, y: 2.45, w: cw, h: 0.9, align: 'center', fontSize: 30, bold: true, color: t.primary, fontFace: FF });
-                        if (m.label) slide.addText(String(m.label), { x, y: 3.4, w: cw, h: 0.5, align: 'center', fontSize: 13, bold: true, color: t.text, fontFace: FF });
-                        if (m.desc) slide.addText(String(m.desc), { x, y: 3.9, w: cw, h: 0.65, align: 'center', fontSize: 11, color: t.muted, fontFace: FF });
-                    });
-                    return;
-                }
-
-                if (s.type === 'pillars' && Array.isArray(s.pillars)) {
-                    s.pillars.slice(0, 5).forEach((p, j) => {
-                        const y = 1.9 + j * 0.95;
-                        slide.addShape(pptx.ShapeType.rect, { x: MX, y, w: 0.7, h: 0.8, fill: { color: 'FFF7ED' }, line: { color: 'FFF7ED' } });
-                        slide.addText(String(p.num ?? j + 1), { x: MX, y, w: 0.7, h: 0.8, align: 'center', valign: 'middle', fontSize: 18, bold: true, color: t.accent, fontFace: FF });
-                        slide.addText(String(p.title ?? ''), { x: MX + 0.85, y: y + 0.05, w: W - 2 * MX - 0.85, h: 0.35, fontSize: 14, bold: true, color: t.primary, fontFace: FF });
-                        if (p.desc) slide.addText(String(p.desc), { x: MX + 0.85, y: y + 0.4, w: W - 2 * MX - 0.85, h: 0.42, fontSize: 11, color: t.text, fontFace: FF });
-                    });
-                    return;
-                }
-
-                if (s.type === 'twocol' && s.twocol) {
-                    const tw = s.twocol;
-                    const colW = (W - 2 * MX - 0.3) / 2;
-                    const lx = MX, rx = lx + colW + 0.3;
-                    slide.addShape(pptx.ShapeType.rect, { x: lx, y: 1.8, w: colW, h: 0.45, fill: { color: 'F1F5F9' }, line: { color: 'F1F5F9' } });
-                    slide.addText(String(tw.left?.title || 'Current Status'), { x: lx + 0.12, y: 1.8, w: colW - 0.2, h: 0.45, fontSize: 12, bold: true, color: '64748B', valign: 'middle', fontFace: FF });
-                    const lItems = (tw.left?.items || []).slice(0, 6);
-                    if (lItems.length) slide.addText(lItems.map(b => ({ text: String(b), options: { bullet: { code: '2022', indent: 14 }, color: t.text, fontSize: 13, paraSpaceAfter: 8, fontFace: FF } })), { x: lx, y: 2.35, w: colW, h: H - 3.1, valign: 'top' });
-                    slide.addShape(pptx.ShapeType.rect, { x: rx, y: 1.8, w: colW, h: 0.45, fill: { color: t.primary }, line: { color: t.primary } });
-                    slide.addShape(pptx.ShapeType.rect, { x: rx, y: 1.8, w: 0.06, h: 0.45, fill: { color: t.accent }, line: { color: t.accent } });
-                    slide.addText(String(tw.right?.title || 'MediaOne Strategy'), { x: rx + 0.15, y: 1.8, w: colW - 0.2, h: 0.45, fontSize: 12, bold: true, color: 'FFFFFF', valign: 'middle', fontFace: FF });
-                    const rItems = (tw.right?.items || []).slice(0, 6);
-                    if (rItems.length) slide.addText(rItems.map(b => ({ text: String(b), options: { bullet: { code: '2022', indent: 14 }, color: t.text, fontSize: 13, paraSpaceAfter: 8, fontFace: FF } })), { x: rx, y: 2.35, w: colW, h: H - 3.1, valign: 'top' });
-                    return;
-                }
-
-                // Default: bullets
-                const bullets = Array.isArray(s.bullets) ? s.bullets : (s.title ? [] : []);
-                if (bullets.length) {
-                    slide.addText(
-                        bullets.map(b => ({ text: String(b), options: { bullet: { code: '2022', indent: 18 }, color: t.text, fontSize: 18, paraSpaceAfter: 12, fontFace: FF } })),
-                        { x: MX, y: 1.9, w: W - 2 * MX, h: H - 2.8, valign: 'top' }
-                    );
-                }
-            });
-
-            const safe = (deck.title || 'presentation').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'presentation';
-            pptx.writeFile({ fileName: safe + '.pptx' });
-            if (btn) { const o = btn.innerHTML; btn.innerHTML = '<i class="fas fa-check"></i> Downloaded'; btn.classList.add('copied'); setTimeout(() => { btn.innerHTML = o; btn.classList.remove('copied'); }, 1800); }
-        }
-
-        // Convert a Chart.js config into PptxGenJS addChart(type, data, opts) args
-        function chartToPptx(pptx, cfg, t) {
-            const W = 13.333, MX = 0.9;
-            const typeMap = { bar: pptx.ChartType.bar, line: pptx.ChartType.line, pie: pptx.ChartType.pie, doughnut: pptx.ChartType.doughnut };
-            const ctype = typeMap[cfg.type] || pptx.ChartType.bar;
-            const labels = cfg.data?.labels || [];
-            const datasets = cfg.data?.datasets || [];
-            let data;
-            if (cfg.type === 'pie' || cfg.type === 'doughnut') {
-                data = [{ name: datasets[0]?.label || 'Series', labels, values: (datasets[0]?.data || []).map(Number) }];
-            } else {
-                data = datasets.map(ds => ({ name: ds.label || 'Series', labels, values: (ds.data || []).map(Number) }));
-            }
-            const palette = [t.primary, t.accent, '93C5FD', 'FCA5A5', '6EE7B7', 'FCD34D'];
-            const opts = {
-                x: MX, y: 1.9, w: W - 2 * MX, h: 4.8,
-                chartColors: palette,
-                showLegend: datasets.length > 1 || cfg.type === 'pie' || cfg.type === 'doughnut',
-                legendPos: 'b', legendColor: t.muted,
-                showTitle: false,
-                catAxisLabelColor: t.muted, valAxisLabelColor: t.muted,
-                catAxisLabelFontSize: 10, valAxisLabelFontSize: 10,
-            };
-            if (cfg.type === 'doughnut') opts.holeSize = 55;
-            if (cfg.type === 'line') { opts.lineSize = 2; opts.lineSmooth = true; }
-            return { type: ctype, data, opts };
-        }
-
-        // Serialize a deck into a ready-to-paste prompt for Gamma's AI generator
-        function gammaPromptFromDeck(deck) {
-            const lines = [];
-            lines.push('Create a polished, professional slide presentation.');
-            lines.push('');
-            if (deck.title) lines.push('Title: ' + deck.title);
-            if (deck.subtitle) lines.push('Subtitle: ' + deck.subtitle);
-            lines.push('Design: clean and modern on white backgrounds, generous whitespace, one idea per slide. Brand palette: deep navy (#1e3a8a) as the primary with a vivid orange (#f97316) accent. Typography: Barlow throughout. Add a small "MEDIAONE" wordmark to each slide. Use icons and simple visuals where helpful.');
-            lines.push('');
-            lines.push('Use this exact outline, one slide per "#" heading:');
-            lines.push('');
-            (deck.slides || []).forEach((s) => {
-                if (s.type === 'title' || s.type === 'closing') {
-                    lines.push('# ' + (s.title || ''));
-                    if (s.subtitle) lines.push(s.subtitle);
-                } else if (s.type === 'section') {
-                    lines.push('# ' + (s.title || '') + '  (section divider — large, minimal)');
-                } else if (s.type === 'metrics') {
-                    lines.push('# ' + (s.title || 'Key metrics'));
-                    (s.metrics || []).forEach(m => {
-                        lines.push('- ' + [m.label, m.value, m.change ? '(' + m.change + ')' : ''].filter(Boolean).join(': ').replace(': (', ' ('));
-                    });
-                    lines.push('Render these as large KPI stat cards.');
-                } else if (s.type === 'stats') {
-                    lines.push('# ' + (s.title || 'Track Record'));
-                    (s.stats || []).forEach(m => {
-                        lines.push('- ' + [m.num, m.value, m.label, m.desc].filter(Boolean).join(' — '));
-                    });
-                    lines.push('Render as a track-record stat card grid (number + big value + label + description).');
-                } else if (s.type === 'pillars') {
-                    lines.push('# ' + (s.title || 'Strategy Pillars'));
-                    (s.pillars || []).forEach(p => {
-                        lines.push('- ' + [p.num, p.title, p.desc].filter(Boolean).join(': '));
-                    });
-                    lines.push('Render as numbered strategy pillars.');
-                } else if (s.type === 'twocol' && s.twocol) {
-                    lines.push('# ' + (s.title || 'Current Status vs Strategy'));
-                    lines.push('**' + (s.twocol.left?.title || 'Current Status') + '**');
-                    (s.twocol.left?.items || []).forEach(b => lines.push('- ' + b));
-                    lines.push('**' + (s.twocol.right?.title || 'MediaOne Strategy') + '**');
-                    (s.twocol.right?.items || []).forEach(b => lines.push('- ' + b));
-                    lines.push('Render as a two-column comparison (left: current state, right: proposed strategy).');
-                } else if (s.type === 'chart' && s.chart) {
-                    const c = s.chart;
-                    const labels = c.data?.labels || [];
-                    const series = (c.data?.datasets || []).map(ds => (ds.label ? ds.label + ': ' : '') + (ds.data || []).join(', '));
-                    lines.push('# ' + (s.title || 'Chart'));
-                    lines.push('[Render a ' + (c.type || 'bar') + ' chart. Categories: ' + labels.join(', ') + '. ' + series.map(x => 'Series — ' + x).join('; ') + '.]');
-                } else {
-                    lines.push('# ' + (s.title || ''));
-                    (s.bullets || []).forEach(b => lines.push('- ' + b));
-                }
-                lines.push('');
-            });
-            return lines.join('\n').trim();
-        }
-
-        function copyGammaPrompt(deckId, btn) {
-            const deck = _deckStore[deckId];
-            if (!deck) return;
-            const prompt = gammaPromptFromDeck(deck);
-            const done = () => { if (btn) { const o = btn.innerHTML; btn.innerHTML = '<i class="fas fa-check"></i> Copied — paste into Gamma'; btn.classList.add('copied'); setTimeout(() => { btn.innerHTML = o; btn.classList.remove('copied'); }, 2200); } };
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(prompt).then(done).catch(() => { window.prompt('Copy this prompt and paste it into Gamma:', prompt); });
-            } else {
-                window.prompt('Copy this prompt and paste it into Gamma:', prompt);
-            }
-        }
-        // ─────────────────────────────────────────────────────────────────────
 
         function escapeHtml(s) {
             return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
