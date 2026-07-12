@@ -38,3 +38,10 @@ customHeaders:
     headers:
       - key: 'Cache-Control'
         value: 'public, max-age=31536000, immutable'
+  # CSS is deliberately NOT content-hashed (see vite.config.js) so Microsoft
+  # Clarity session replays keep resolving stylesheets after later deploys.
+  # Same-URL content changes on deploy, so it must revalidate, not pin.
+  - pattern: '/assets/css/**'
+    headers:
+      - key: 'Cache-Control'
+        value: 'no-cache'
