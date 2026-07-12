@@ -148,6 +148,30 @@ def handle_learnings(action, event):
 # was previously cutting long classification calls short and surfacing as 502s.
 _ANTHROPIC_TIMEOUT = (10, 120)
 
+# Invocation deadline (epoch secs), set at handler entry from the Lambda context.
+# Upstream HTTP calls clamp their read timeout to this so a slow provider call
+# can never outlive the invocation — without it, 120s-read × 3 retries (+backoff)
+# exceeds the 180s function timeout and the client sees an opaque gateway
+# timeout instead of a JSON error it can retry. Module-global is safe: a Lambda
+# sandbox processes one event at a time.
+_INVOKE_DEADLINE = None
+
+
+def _secs_left():
+    """Seconds until the invocation is killed (large sentinel outside Lambda)."""
+    if not _INVOKE_DEADLINE:
+        return 9999.0
+    return _INVOKE_DEADLINE - time.time()
+
+
+def _adaptive_timeout(base=_ANTHROPIC_TIMEOUT):
+    """(connect, read) timeout with the read component clamped to finish ~8s
+    before the invocation deadline, leaving room to serialise a real error
+    response. Floors at 15s so a nearly-expired invocation still gets one
+    honest (if brief) attempt rather than an instant failure."""
+    read = max(15.0, min(float(base[1]), _secs_left() - 8.0))
+    return (base[0], read)
+
 # Circuit breaker. Lambda keeps module globals alive across warm invocations, so
 # this state persists between calls: after a run of consecutive failures (e.g.
 # the API is timing out) we "open" the breaker and fail fast for a short
@@ -198,10 +222,15 @@ def _anthropic_request(api_key, request_body, max_retries=3,
         resp_json = None
         last_err  = None
         for attempt in range(max_retries):
+            # Don't start a retry the invocation can't survive — better to hand
+            # the caller a retryable JSON error than die at the gateway.
+            if attempt and _secs_left() < 30:
+                last_err = f"{last_err} (skipped retry: invocation deadline)"
+                break
             try:
                 resp = requests.post(
                     'https://api.anthropic.com/v1/messages',
-                    headers=headers, json=body, timeout=timeout,
+                    headers=headers, json=body, timeout=_adaptive_timeout(timeout),
                 )
                 if resp.status_code in (429, 500, 502, 503, 504, 529):
                     last_err = f"HTTP {resp.status_code}: {resp.text[:200]}"
@@ -234,6 +263,68 @@ def _anthropic_request(api_key, request_body, max_retries=3,
             body['messages'] = msgs
             continue
         return resp_json
+
+
+# ── DeepSeek: a drop-in TEXT provider for A/B model comparison ────────────────
+# The SaaS AI Content Optimiser lets staff run the same pipeline through Haiku or
+# DeepSeek (or both, side by side) to compare quality. DeepSeek's chat/completions
+# API is OpenAI-shaped, so we only route PLAIN system+user text actions here — no
+# server tools, image blocks or forced-JSON schema (those actions stay on Anthropic).
+_DEEPSEEK_MODEL      = 'deepseek-chat'
+_DEEPSEEK_MAX_TOKENS = 8192            # deepseek-chat hard output cap
+
+
+def _deepseek_request(api_key, system_str, user_text, max_tokens=8096,
+                      temperature=None, max_retries=3, timeout=_ANTHROPIC_TIMEOUT):
+    """POST to the DeepSeek chat/completions API with the same exponential-backoff
+    retry policy as the Anthropic path. Returns the parsed response JSON (dict).
+    Raises on unrecoverable failure."""
+    body = {
+        'model':      _DEEPSEEK_MODEL,
+        'max_tokens': min(_safe_int(max_tokens, 8096) or 8096, _DEEPSEEK_MAX_TOKENS),
+        'messages':   [
+            {'role': 'system', 'content': system_str or ''},
+            {'role': 'user',   'content': user_text or ''},
+        ],
+    }
+    if temperature is not None:
+        body['temperature'] = temperature
+    headers  = {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
+    last_err = None
+    for attempt in range(max_retries):
+        if attempt and _secs_left() < 30:
+            last_err = f"{last_err} (skipped retry: invocation deadline)"
+            break
+        try:
+            resp = requests.post('https://api.deepseek.com/chat/completions',
+                                 headers=headers, json=body, timeout=_adaptive_timeout(timeout))
+            if resp.status_code in (429, 500, 502, 503, 504):
+                last_err = f"HTTP {resp.status_code}: {resp.text[:200]}"
+                time.sleep(_anthropic_backoff(attempt))
+                continue
+            if resp.status_code != 200:
+                raise RuntimeError(f"DeepSeek HTTP {resp.status_code}: {resp.text[:300]}")
+            return resp.json()
+        except requests.exceptions.RequestException as e:
+            last_err = str(e)
+            time.sleep(_anthropic_backoff(attempt))
+    raise RuntimeError(f"DeepSeek request failed after {max_retries} retries: {last_err}")
+
+
+def _deepseek_text(resp_json):
+    """Extract the assistant text from a DeepSeek (OpenAI-shaped) response."""
+    try:
+        return (resp_json['choices'][0]['message']['content'] or '').strip()
+    except (KeyError, IndexError, TypeError):
+        return ''
+
+
+def _deepseek_usage(resp_json):
+    """Normalise DeepSeek's prompt/completion token counts to the Anthropic-style
+    input/output shape the gateway + editor expect."""
+    u = (resp_json or {}).get('usage') or {}
+    return {'input_tokens':  u.get('prompt_tokens', 0),
+            'output_tokens': u.get('completion_tokens', 0)}
 
 
 _DATAFORSEO_CRAWLER_URL = (
@@ -481,6 +572,26 @@ Never include the following regardless of content type:
 - Content that reads like it was written to fill word count 
   rather than answer a real reader question
 """
+
+
+def _system_param(system_str):
+    """System prompt as content blocks with prompt-cache breakpoints.
+
+    The constitution prefix is byte-identical across every generate-path call,
+    so fan-out callers (8–18 QA agents per optimiser run, gap→rewrite chains)
+    pay its input tokens once per 5-minute cache window instead of on every
+    call. A second breakpoint after the dynamic brief additionally caches the
+    full prefix within a run (same settings ⇒ same brief). Prompts below the
+    model's minimum cacheable length simply ignore the marker — no error."""
+    if isinstance(system_str, str) and system_str.startswith(SYSTEM_MSG_CONSTITUTION):
+        rest = system_str[len(SYSTEM_MSG_CONSTITUTION):].lstrip('\n')
+        blocks = [{'type': 'text', 'text': SYSTEM_MSG_CONSTITUTION,
+                   'cache_control': {'type': 'ephemeral'}}]
+        if rest.strip():
+            blocks.append({'type': 'text', 'text': rest,
+                           'cache_control': {'type': 'ephemeral'}})
+        return blocks
+    return system_str
 
 
 def build_dynamic_system_msg(
@@ -2180,7 +2291,13 @@ def _agent_prompt_base(key, c):
                 'TASK - generate a prioritised TOPIC / SUBTOPIC list that (a) covers what competitors rank for and (b) demonstrates E-E-A-T (Experience, Expertise, Authoritativeness, Trust).\n'
                 'For each topic give: the angle, which E-E-A-T signal it strengthens, and why it matters for this keyword. Flag topics that need first-hand experience or author/expert credentials. Return a ranked Markdown list.')
     if key == 'factGatherer':
-        return (f'Act as a research librarian.{ctx}\n'
+        grounded = (
+            '\nYou have LIVE WEB SEARCH available - use it (up to 4 searches) to find CURRENT statistics and '
+            'authoritative sources instead of relying on memory. Cite the actual source URL next to every '
+            'statistic and reference you provide, and prefer primary sources published in the last 2 years. '
+            'Do ALL searching first; only then produce the required output, with nothing before PART 1.'
+        ) if c.get('webSearch') else ''
+        return (f'Act as a research librarian.{ctx}{grounded}\n'
                 'TASK - gather facts to support this content:\n'
                 '1. Key statistics, data points and claims worth citing (and the type of source that would back each).\n'
                 '2. Authoritative REFERENCES / sources to cite (government, standards bodies, primary research, reputable industry).\n'
@@ -2208,6 +2325,14 @@ def _agent_prompt_base(key, c):
         return (f'Act as a compliance reviewer for jurisdiction "{juris}".{ctx}\n'
                 'TASK - review for LEGAL and COMPLIANCE risk against the compliance requirements above and general advertising / consumer-protection norms: unsubstantiated claims, missing disclaimers, guarantees, absolute superlatives, regulated-industry rules. For each issue give severity, the phrase, and the required change. Return Markdown.')
     if key == 'factCheck':
+        if c.get('webSearch'):
+            return (f'Act as a fact-checker with LIVE WEB SEARCH.{ctx}\n'
+                    'TASK - extract every checkable factual claim in the draft, then use web search (up to 4 searches, '
+                    'spent on the most consequential claims) to VERIFY them against current authoritative sources. '
+                    'Base verdicts on what you actually found, not memory: Verified / Contradicted / Needs Verification '
+                    '(could not confirm online). Scrutinise dates, numbers, names and superlatives. Do ALL searching '
+                    'first; only then produce the required output, with nothing before PART 1. '
+                    'Return a Markdown table with columns Claim | Verdict | Source (URL) | Note.')
         return (f'Act as a fact-checker.{ctx}\n'
                 'TASK - extract every checkable factual claim in the draft and rate each: Likely Accurate / Needs Verification / Likely Inaccurate, with reasoning and the source that would confirm it. Scrutinise dates, numbers, names and superlatives. Return a Markdown table with columns Claim | Verdict | Note.')
     if key == 'language':
@@ -2268,12 +2393,32 @@ def _agent_prompt(key, c):
     return (base + _AGENT_JSON_SUFFIX) if base else None
 
 
+# Agents allowed to ground themselves with live web search when the client opts
+# in (`webSearch: true` on the request). Server-side allowlist — searches cost
+# real money and add latency, so only the agents whose whole job is factual
+# accuracy get the tool, no matter what the client asks for.
+_WEB_GROUNDED_AGENTS = {'factCheck', 'factGatherer'}
+
+
+def _wants_web_grounding(event):
+    """True when this optimiser_agent call should run with the web_search tool."""
+    if str(event.get('agentKey', '')) not in _WEB_GROUNDED_AGENTS:
+        return False
+    ws = event.get('webSearch')
+    if ws is None:
+        ws = (event.get('context') or {}).get('webSearch')
+    return bool(ws)
+
+
 def build_optimiser_prompt(action, body):
     """Build the raw prompt string for a migrated optimiser action.
     Returns the prompt string, or None if it cannot be built."""
 
     if action == 'optimiser_agent':
-        return _agent_prompt(body.get('agentKey', ''), body.get('context', {}))
+        ctx = dict(body.get('context') or {})
+        if _wants_web_grounding(body):
+            ctx['webSearch'] = True   # the fact agents' prompts switch to grounded mode
+        return _agent_prompt(body.get('agentKey', ''), ctx)
 
     if action == 'content_gap':
         page_type    = body.get('pageTypeContext', 'Any')
@@ -2358,9 +2503,21 @@ def build_optimiser_prompt(action, body):
 
 
 def lambda_handler(event, context):
+    global _INVOKE_DEADLINE
+    try:  # noqa: SIM105 — context is None in unit tests / local invokes
+        _INVOKE_DEADLINE = time.time() + context.get_remaining_time_in_millis() / 1000.0
+    except Exception:
+        _INVOKE_DEADLINE = None
     try:
         # ── Input parsing ──────────────────────────────────────────────────
         action             = event.get('action', 'optimize')
+        source_action      = action  # pre-remap identity (OPTIMISER actions become 'generate')
+        # Model provider for text generation. 'deepseek' routes plain system+user
+        # text actions through DeepSeek instead of Anthropic Haiku (staff A/B model
+        # comparison in the SaaS Content Optimiser). Defaults to Anthropic.
+        provider           = str(event.get('provider') or 'anthropic').strip().lower()
+        if provider not in ('anthropic', 'deepseek'):
+            provider = 'anthropic'
 
         # ── Non-AI actions ─────────────────────────────────────────────────
         if action == 'fetch_seo_feeds':
@@ -2507,15 +2664,37 @@ def lambda_handler(event, context):
                     'format': {'type': 'json_schema', 'schema': _AUTHOR_EXTRACT_SCHEMA}
                 }
 
+            # DeepSeek can only serve plain system+user text — actions that force a
+            # JSON schema, attach images or use server tools stay on Anthropic.
+            use_deepseek = (
+                provider == 'deepseek'
+                and isinstance(user_content, str)
+                and 'output_config' not in request_body
+                and 'tools' not in request_body
+            )
             try:
-                resp_json   = _anthropic_request(api_key, request_body)
-                result_text = _extract_text(resp_json)
+                if use_deepseek:
+                    ds_key = os.environ.get('DEEPSEEK_API_KEY')
+                    if not ds_key:
+                        return _resp(500, {'error': 'DEEPSEEK_API_KEY not configured'})
+                    resp_json   = _deepseek_request(ds_key, system_str, user_content,
+                                                    max_tokens=max_tokens_s,
+                                                    temperature=temperature_s)
+                    result_text = _deepseek_text(resp_json)
+                    usage_out   = _deepseek_usage(resp_json)
+                else:
+                    resp_json   = _anthropic_request(api_key, request_body)
+                    result_text = _extract_text(resp_json)
+                    _u          = resp_json.get('usage') or {}
+                    usage_out   = {'input_tokens':  _u.get('input_tokens', 0),
+                                   'output_tokens': _u.get('output_tokens', 0)}
                 # Empty completion → surface as an error (same as the main path)
                 # so the client can retry, instead of a 200 with '' that then
                 # breaks a downstream JSON.parse or renders nothing.
                 if not result_text:
-                    print(f"[aiOptimiser] empty result for '{action}'. resp: "
-                          f"{json.dumps(resp_json)[:1000]}")
+                    print(f"[aiOptimiser] empty result for '{action}' "
+                          f"(provider={'deepseek' if use_deepseek else 'anthropic'}). "
+                          f"resp: {json.dumps(resp_json)[:1000]}")
                     stop = resp_json.get('stop_reason')
                     raise RuntimeError(
                         f"AI returned no content (stop_reason={stop}). "
@@ -2524,14 +2703,7 @@ def lambda_handler(event, context):
             except Exception as e:
                 print(f"Structured action '{action}' failed: {e}")
                 return _resp(502, {'error': f"AI request failed: {e}"})
-            _usage_s = resp_json.get('usage') or {}
-            return _resp(200, {
-                'result': result_text,
-                'usage': {
-                    'input_tokens':  _usage_s.get('input_tokens', 0),
-                    'output_tokens': _usage_s.get('output_tokens', 0),
-                },
-            })
+            return _resp(200, {'result': result_text, 'usage': usage_out})
 
         content            = event.get('content', '')
         prompt_override    = event.get('prompt', '')
@@ -2604,31 +2776,96 @@ def lambda_handler(event, context):
         # swallow an Anthropic error (no 'content' key) into result_text = ""
         # and return HTTP 200 {"result": ""}, which the UI silently ignored —
         # so an overloaded/rate-limited API looked like "the button does nothing".
-        resp_json = _anthropic_request(api_key, {
-            "model":      "claude-haiku-4-5-20251001",
-            "max_tokens": 8096,
-            "system":     system_str,
-            "messages":   [{"role": "user", "content": user_msg}]
-        })
+        # Opt-in live web verification for the fact agents. Grounded calls always
+        # run on Anthropic (DeepSeek's chat API has no server-side tools), even
+        # in a staff DeepSeek comparison run.
+        web_grounded = source_action == 'optimiser_agent' and _wants_web_grounding(event)
 
-        # Concatenate every text block (the model may split its reply).
-        result_text = "".join(
-            block.get("text", "")
-            for block in resp_json.get("content", [])
-            if isinstance(block, dict) and block.get("type") == "text"
-        ).strip()
-
-        # Empty completion → surface it as an error so the caller can retry,
-        # rather than returning an empty 200 that overwrites nothing silently.
-        if not result_text:
-            stop = resp_json.get("stop_reason")
-            err  = resp_json.get("error", {})
-            detail = err.get("message") if isinstance(err, dict) else str(err)
-            raise RuntimeError(
-                detail or
-                f"Anthropic returned no content (stop_reason={stop}). "
-                f"The service may be busy — please retry."
+        if provider == 'deepseek' and not web_grounded:
+            ds_key = os.environ.get('DEEPSEEK_API_KEY')
+            if not ds_key:
+                return _resp(500, {'error': 'DEEPSEEK_API_KEY not configured'})
+            ds = _deepseek_request(
+                ds_key, system_str,
+                user_msg if isinstance(user_msg, str) else str(user_msg),
             )
+            result_text = _deepseek_text(ds)
+            # Normalise usage to the input/output shape the shared response uses.
+            resp_json = {'usage': _deepseek_usage(ds)}
+            if not result_text:
+                raise RuntimeError(
+                    "DeepSeek returned no content. "
+                    "The service may be busy — please retry."
+                )
+        else:
+            gen_body = {
+                "model":      "claude-haiku-4-5-20251001",
+                "max_tokens": 8096,
+                "system":     _system_param(system_str),
+                "messages":   [{"role": "user", "content": user_msg}]
+            }
+            if web_grounded:
+                # Hard cap on searches per call — this is the entire marginal
+                # cost of grounded mode. allowed_callers=['direct'] matches the
+                # strategy_url_research usage (Haiku 4.5 constraint).
+                gen_body['tools'] = [{'type': 'web_search_20260209', 'name': 'web_search',
+                                      'allowed_callers': ['direct'], 'max_uses': 4}]
+            resp_json = _anthropic_request(api_key, gen_body)
+
+            # Concatenate every text block (the model may split its reply).
+            result_text = "".join(
+                block.get("text", "")
+                for block in resp_json.get("content", [])
+                if isinstance(block, dict) and block.get("type") == "text"
+            ).strip()
+
+            # Empty completion → surface it as an error so the caller can retry,
+            # rather than returning an empty 200 that overwrites nothing silently.
+            if not result_text:
+                stop = resp_json.get("stop_reason")
+                err  = resp_json.get("error", {})
+                detail = err.get("message") if isinstance(err, dict) else str(err)
+                raise RuntimeError(
+                    detail or
+                    f"Anthropic returned no content (stop_reason={stop}). "
+                    f"The service may be busy — please retry."
+                )
+
+            # One bounded continuation when the reply hit the max_tokens ceiling,
+            # so a long article arrives whole instead of amputated mid-sentence.
+            # discovery_prompts is excluded: its contract is a bare JSON array and
+            # a resumed reply can't be trusted to splice a truncated string.
+            if (resp_json.get("stop_reason") == "max_tokens"
+                    and source_action != 'discovery_prompts'
+                    and _secs_left() > 45):
+                try:
+                    cont = _anthropic_request(api_key, {
+                        "model":      "claude-haiku-4-5-20251001",
+                        "max_tokens": 8096,
+                        "system":     _system_param(system_str),
+                        "messages":   [
+                            {"role": "user", "content": user_msg},
+                            {"role": "assistant", "content": result_text},
+                            {"role": "user", "content":
+                             "Continue exactly where you stopped — same voice, "
+                             "same format. Do not repeat anything already "
+                             "written and do not add any preamble."},
+                        ],
+                    }, max_retries=1)
+                    more = "".join(
+                        b.get("text", "") for b in cont.get("content", [])
+                        if isinstance(b, dict) and b.get("type") == "text"
+                    )
+                    if more.strip():
+                        u1, u2 = resp_json.get('usage') or {}, cont.get('usage') or {}
+                        result_text = result_text + more
+                        resp_json = dict(resp_json)
+                        resp_json['usage'] = {
+                            'input_tokens':  u1.get('input_tokens', 0) + u2.get('input_tokens', 0),
+                            'output_tokens': u1.get('output_tokens', 0) + u2.get('output_tokens', 0),
+                        }
+                except Exception as ce:
+                    print(f"[aiOptimiser] max_tokens continuation skipped: {ce}")
 
         # The model sometimes wraps the HTML in a markdown code fence and
         # appends commentary after it (e.g. ```html … ``` \n **Note:** …).
