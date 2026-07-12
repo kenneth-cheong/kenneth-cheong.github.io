@@ -1,6 +1,7 @@
 import LineChart from './LineChart.jsx';
 import TrendChart from './TrendChart.jsx';
 import SortableTable from './SortableTable.jsx';
+import ReportHtml from './ReportHtml.jsx';
 import { copyText, toast } from '../lib/ui.js';
 import InfoTip, { glossaryFor } from './InfoTip.jsx';
 import RecommendationCard from './RecommendationCard.jsx';
@@ -81,6 +82,23 @@ function Section({ s, context }) {
       return <TableSection s={s} />;
     case 'code':
       return <CodeBlock title={s.title} filename={s.filename} content={s.content} />;
+    case 'html':
+      // Server-rendered rich content (e.g. the Content Optimiser's draft) —
+      // themed for dark mode by ReportHtml, scrolls inside its own frame.
+      return (
+        <Block title={s.title}>
+          <div className="flex justify-end -mb-1">
+            <button
+              type="button"
+              onClick={() => { const d = document.createElement('div'); d.innerHTML = s.html || ''; copyText(d.innerText).then(() => toast('Copied to clipboard', 'success')); }}
+              className="dm-no-print rounded-md border border-line bg-surface px-2 py-0.5 text-xs font-medium text-dim hover:text-brand-600 dark:hover:text-brand-400"
+            >Copy text</button>
+          </div>
+          <div className="mt-1 max-h-[560px] overflow-auto rounded-xl border border-line bg-surface p-4">
+            <ReportHtml html={s.html} />
+          </div>
+        </Block>
+      );
     default:
       return null;
   }

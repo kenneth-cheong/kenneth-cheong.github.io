@@ -699,7 +699,7 @@ export const TOOL_INTRO = {
   schema: 'Structured data is extra code that helps Google show rich results for you (stars, FAQs, business info). Build it by filling in a form — no coding, and nothing is fetched.',
   'strategy-engine': 'The flagship: describe your business and get prioritised keyword strategies plus a step-by-step action plan.',
   caption: 'Generate ready-to-post social captions in your brand voice. Free on every plan — a great first run.',
-  'content-writer': 'Write a new draft or improve existing copy — then an 18-agent QA crew checks facts, tone, readability and SEO.',
+  'content-writer': 'Write a new draft or improve existing copy — then a QA crew of up to 18 agents (you pick the depth) checks facts, tone, readability and SEO.',
   'content-check': 'Paste any copy for a proof-read: grammar, spelling, readability, keyword use and risky claims — with fixes. Supports brand guides and reference files.',
   pillars: 'Content pillars are the 3–4 themes all your posts hang off. Generate the framework — themes, subtopics, angles — so your feed feels planned, not random.',
   'ai-discovery': 'When people ask ChatGPT, Gemini or Perplexity “what’s the best…?” in your category, do they mention you? Check whether AI assistants recommend and link to your site.',

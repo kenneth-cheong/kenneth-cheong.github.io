@@ -76,6 +76,7 @@ export default function ToolRunner() {
   };
   const [values, setValues] = useState(seedValues);
   const [busy, setBusy] = useState(false);
+  const [job, setJob] = useState(null); // live server-side progress for async-job tools
   const [nudge, setNudge] = useState(false); // highlight missing required fields after an incomplete run attempt
   const [out, setOut] = useState(location.state?.result ? { result: location.state.result, runId: location.state.runId } : null);
   const [modal, setModal] = useState(null);
@@ -194,8 +195,20 @@ export default function ToolRunner() {
     if (unlocked && cost >= CONFIRM_AT && !window.confirm(`This run costs ${cost} credits. Continue?`)) return;
     setBusy(true);
     setOut(null);
+    setJob(null);
     try {
-      const res = await api.runTool(tool.id, { ...vals, gscOp: activeTab?.op, url: vals.url || vals.input, projectId: activeId || undefined }, tool.slow);
+      let res = await api.runTool(tool.id, { ...vals, gscOp: activeTab?.op, url: vals.url || vals.input, projectId: activeId || undefined }, tool.slow);
+      // Async job tools (content-writer): the first response is just a job id —
+      // the run continues server-side (finishing even if this tab closes). Poll
+      // for REAL stage/agent progress, then adopt the finished payload.
+      if (res?.result?.jobId && res?.result?.status && !res.result.sections && !res.result.html) {
+        setJob({ status: res.result.status });
+        const done = await pollJob(tool.id, res.result.jobId, setJob);
+        res = {
+          result: done.result || {}, runId: done.runId || null,
+          creditsUsed: done.creditsUsed, creditsRemaining: done.creditsRemaining, topupRemaining: done.topupRemaining,
+        };
+      }
       setOut(res);
       if (typeof res.creditsRemaining === 'number') setCredits(res.creditsRemaining, res.topupRemaining);
       if (res.creditsUsed > 0) toast(`−${res.creditsUsed} credit${res.creditsUsed > 1 ? 's' : ''} · ${res.creditsRemaining} left`, 'info');
@@ -217,6 +230,7 @@ export default function ToolRunner() {
       }
     } finally {
       setBusy(false);
+      setJob(null);
     }
   }
 
@@ -321,7 +335,7 @@ export default function ToolRunner() {
         />
       )}
 
-      {busy && tool.slow && <SlowProgress tool={tool} />}
+      {busy && tool.slow && <SlowProgress tool={tool} job={job} />}
       {out && !busy && <Result out={out} tool={tool} project={active} user={user} onCredits={setCredits} />}
 
       {modal && <UpgradeModal reason={modal.reason} requiredTier={modal.requiredTier} creditsRemaining={modal.creditsRemaining} creditsNeeded={modal.creditsNeeded} onClose={() => setModal(null)} />}
@@ -329,12 +343,31 @@ export default function ToolRunner() {
   );
 }
 
-// Staged checklist for long runs. We have no server-side progress feed for the
-// generic runner, so steps advance on a schedule scaled to the tool's typical
-// duration (not a fixed 6s — which raced to "almost there" and then sat still,
-// reading as stuck). Past the typical window we say so honestly instead of
-// looping the same message. Matches the live-checklist look of SiteAudit.
-function SlowProgress({ tool }) {
+// Poll a background job until it finishes. Transient poll failures are ignored
+// (the job keeps running server-side); a hard cap stops a zombie poll loop —
+// the run itself still completes, lands in History and fires a notification.
+async function pollJob(toolId, jobId, onTick) {
+  const deadline = Date.now() + 12 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 3500));
+    let s = null;
+    try { s = (await api.runTool(toolId, { cwAction: 'status', jobId }, true))?.result; }
+    catch { continue; }
+    if (!s) continue;
+    if (s.status === 'done') return s;
+    if (s.status === 'error') throw new Error(s.error || 'The run failed. No credits were charged.');
+    if (s.status === 'unknown') throw new Error('We lost track of this run — check History in a minute; it may still have finished.');
+    onTick?.(s);
+  }
+  throw new Error('This is taking unusually long. The run continues in the background — you’ll get a notification, and the result will be in History.');
+}
+
+// Staged checklist for long runs. Tools with a background job report REAL
+// progress (stage + agents done/total); everything else advances on a schedule
+// scaled to the tool's typical duration (not a fixed 6s — which raced to
+// "almost there" and then sat still, reading as stuck). Past the typical window
+// we say so honestly instead of looping the same message.
+function SlowProgress({ tool, job }) {
   const steps = ['Sending your request', 'Reaching the data sources', 'Crunching the numbers', 'Compiling the results'];
   const TYPICAL = 90; // seconds — middle of the ~30–150s band for slow tools
   const [sec, setSec] = useState(0);
@@ -342,8 +375,35 @@ function SlowProgress({ tool }) {
     const a = setInterval(() => setSec((s) => s + 1), 1000);
     return () => clearInterval(a);
   }, []);
-  const i = Math.min(Math.floor((sec / TYPICAL) * steps.length), steps.length - 1);
   const overdue = sec > 150;
+
+  // Live server-side progress (async-job tools like the Content Optimiser).
+  if (job) {
+    const p = job.progress;
+    const pct = p && p.total ? Math.round((p.done / p.total) * 100) : null;
+    return (
+      <div className="card mt-6 p-6">
+        <div className="flex items-center gap-3">
+          <span className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+          <span className="font-medium text-body">{job.stage || 'Starting'}…</span>
+          <span className="ml-auto text-xs tabular-nums text-faint">{sec}s</span>
+        </div>
+        {pct != null && (
+          <div className="mt-4">
+            <div className="h-2 overflow-hidden rounded-full bg-sunken">
+              <div className="h-full rounded-full bg-gradient-to-r from-brand-400 to-brand-600 transition-all" style={{ width: `${Math.max(3, pct)}%` }} />
+            </div>
+            <div className="mt-1.5 text-xs tabular-nums text-muted">{p.done}/{p.total} QA agents finished</div>
+          </div>
+        )}
+        <p className="mt-4 text-sm text-dim">
+          This run finishes on our servers even if you close the tab — you’ll get a notification, and the result lands in History.
+        </p>
+      </div>
+    );
+  }
+
+  const i = Math.min(Math.floor((sec / TYPICAL) * steps.length), steps.length - 1);
   return (
     <div className="card mt-6 p-6">
       <div className="flex items-center gap-3">
@@ -405,6 +465,12 @@ function sectionsToText(sections) {
       case 'code':
         out.push(s.content || '');
         break;
+      case 'html': {
+        const d = document.createElement('div');
+        d.innerHTML = s.html || '';
+        out.push(d.innerText);
+        break;
+      }
       default: break;
     }
     out.push('');

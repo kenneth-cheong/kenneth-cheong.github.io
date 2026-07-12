@@ -50,8 +50,10 @@ export const handler = async (event, context) => {
   // Social Audit independently of any browser tab. Not an HTTP event, so it must
   // branch BEFORE any CORS/auth/rate-limit handling.
   if (event && event.__bgFinalize) {
-    try { await socialAuditFinalize(event, context); }
-    catch (e) { console.error('social_finalize_failed', event.jobId, e?.message); }
+    try {
+      if (event.kind === 'content-writer') await contentWriterFinalize(event, context);
+      else await socialAuditFinalize(event, context);
+    } catch (e) { console.error('bg_finalize_failed', event.kind || 'social', event.jobId, e?.message); }
     return { ok: true };
   }
 
@@ -500,7 +502,7 @@ async function callUpstreamRaw(tool, body) {
   // Backlinks Explorer fans out across summary + referring domains + anchors.
   if (tool.id === 'backlinks') return backlinksRun(body);
   // AI Content Optimiser: optional draft → run the multi-agent QA suite.
-  if (tool.id === 'content-writer') return contentOptimiserRun(body);
+  if (tool.id === 'content-writer') return contentWriterGateway(body);
   // Content Checker: parse brand guides + references → checkContent.
   if (tool.id === 'content-check') return contentCheckRun(body);
   // Time to Rank: keyword metrics + SERP + LLM time-to-rank per keyword.
@@ -2751,11 +2753,16 @@ const OPTIMISER_AGENTS = [
 ];
 
 function aiContentSettings(body) {
+  const location = (body.location || 'Singapore').trim();
+  const language = (body.language || 'English').trim();
   return {
     audience: (body.audience || 'Working professionals').trim(),
     brandTone: (body.brandTone || 'Professional').trim(),
     searchIntent: 'Informational', industry: 'General', riskLevel: 'Low',
-    jurisdictions: 'Singapore', locale: 'en-SG',
+    // Follow the user's chosen market: the legal agent reviews against this
+    // jurisdiction and the writer actions are told the locale in plain words.
+    jurisdictions: location,
+    locale: `${language} (${location})`,
     readingLevel: (body.readingLevel || 'Grade 6-8 (Easy)').trim(),
     doUseWords: '', doNotUseWords: (body.doNotUseWords || '').trim(),
     focusProducts: '', schemaType: 'Article', pageType: (body.pageType || 'Any').trim(),
@@ -2860,46 +2867,64 @@ function parseOutlineSections(outline) {
   return sections.map((s) => ({ header: s.header, body: s.content.join('\n') }));
 }
 
+/** postUpstream + fold the aiOptimiser call's real token usage into `acc`
+ *  ({in, out, calls}) so the run can be metered on actual work, not a flat fee. */
+async function postOptimiser(url, payload, acc) {
+  const raw = await postUpstream(url, payload);
+  if (acc) {
+    const d = deepBody(raw);
+    const u = (d && typeof d === 'object' && d.usage) || {};
+    acc.in += Number(u.input_tokens) || 0;
+    acc.out += Number(u.output_tokens) || 0;
+    acc.calls += 1;
+  }
+  return raw;
+}
+
 /** Single-call fallback article (the previous behaviour). */
-async function freeformDraft(url, { topic, keyword, secondaryArr, settings, provider }) {
-  const raw = await postUpstream(url, {
+async function freeformDraft(url, { topic, keyword, secondaryArr, settings, provider, usage }) {
+  const raw = await postOptimiser(url, {
     action: 'content_freeform', provider,
     userPrompt: `Write a focused, SEO-friendly article about: "${topic}". Use clear H2/H3 headings, a short intro, scannable sections and a brief conclusion. Primary keyword: ${keyword || topic}.`,
     personaContext: {}, selectedTopics: [], primary_keyword: keyword, secondary_keywords: secondaryArr,
     compliance_guidelines: [], settings,
-  });
+  }, usage);
   return stripEditorialMeta(aiText(raw));
 }
 
 /** Write flow: outline → sections (parallel) → polish. Sections are written
  *  concurrently and the polish pass harmonises flow — keeps the one-shot run
  *  inside the gateway budget. Falls back to a single freeform draft on failure. */
-async function writeArticle(url, { topic, keyword, secondaryArr, settings, provider }) {
+async function writeArticle(url, { topic, keyword, secondaryArr, settings, provider, usage, wordTarget }) {
   const secondary = secondaryArr.join(', ');
+  const target = Math.max(0, Number(wordTarget) || 0);
   let outline = '';
   try {
-    outline = aiText(await postUpstream(url, {
+    outline = aiText(await postOptimiser(url, {
       action: 'content_outline', provider, topic, keyword, pageTypeContext: settings.pageType,
-      personaContext: {}, deepCompareContext: '', selectedTopics: [], targetWordCount: 0, locale: settings.locale,
-    }));
+      personaContext: {}, deepCompareContext: '', selectedTopics: [], targetWordCount: target, locale: settings.locale,
+    }, usage));
   } catch { /* fall back to freeform */ }
-  if (!outline || !outline.trim()) return freeformDraft(url, { topic, keyword, secondaryArr, settings, provider });
+  if (!outline || !outline.trim()) return freeformDraft(url, { topic, keyword, secondaryArr, settings, provider, usage });
 
   const sections = parseOutlineSections(outline).slice(0, 7); // cap for time budget
+  // A real word target re-enables the Lambda's per-section hard minimum (it was
+  // always 0 before, silently disabling the whole length-control machinery).
+  const perSection = target > 0 ? Math.round(target / sections.length) : 0;
   const written = await Promise.all(sections.map((sec, i) =>
-    postUpstream(url, {
+    postOptimiser(url, {
       action: 'content_section', provider, topic, primaryKeyword: keyword, secondaryKeywords: secondary,
       pageTypeContext: settings.pageType, personaInstruction: '', complianceInstruction: '',
       deepCompareContext: '', outline, recentContent: '', sectionHeader: sec.header, sectionContext: sec.body,
-      refUrls: [], sectionTarget: 0, totalTarget: 0, sectionIndex: i, totalSections: sections.length,
+      refUrls: [], sectionTarget: perSection, totalTarget: target, sectionIndex: i, totalSections: sections.length,
       locale: settings.locale, settings,
-    }).then((raw) => stripEditorialMeta(aiText(raw))).catch(() => '')
+    }, usage).then((raw) => stripEditorialMeta(aiText(raw))).catch(() => '')
   ));
   let full = written.filter(Boolean).join('\n\n');
-  if (!full.trim()) return freeformDraft(url, { topic, keyword, secondaryArr, settings, provider });
+  if (!full.trim()) return freeformDraft(url, { topic, keyword, secondaryArr, settings, provider, usage });
 
   try {
-    const polished = stripEditorialMeta(aiText(await postUpstream(url, { action: 'content_polish', provider, fullContent: full, settings })));
+    const polished = stripEditorialMeta(aiText(await postOptimiser(url, { action: 'content_polish', provider, fullContent: full, settings }, usage)));
     if (polished && polished.trim()) full = polished;
   } catch { /* keep unpolished draft */ }
   return full;
@@ -2907,21 +2932,21 @@ async function writeArticle(url, { topic, keyword, secondaryArr, settings, provi
 
 /** Optimise flow: gap analysis → rewrite applying the gaps. Returns the improved
  *  draft (empty if the rewrite failed) plus the gap summary for display. */
-async function optimiseExisting(url, { content, keyword, settings, provider }) {
+async function optimiseExisting(url, { content, keyword, settings, provider, usage }) {
   let gap = '';
   try {
-    gap = aiText(await postUpstream(url, {
+    gap = aiText(await postOptimiser(url, {
       action: 'content_gap', provider, pageTypeContext: settings.pageType, personaContext: {},
       deepCompareContext: '', selectedTopics: [], keyword, editorContent: content, settings,
-    }));
+    }, usage));
   } catch { /* no gap analysis */ }
   let rewrite = '';
   if (gap && gap.trim()) {
     try {
-      rewrite = aiText(await postUpstream(url, {
+      rewrite = aiText(await postOptimiser(url, {
         action: 'content_rewrite', provider, personaContext: {}, selectedTopics: [], keyword,
         suggestions: gap, originalContent: content, settings,
-      }));
+      }, usage));
       rewrite = stripEditorialMeta((rewrite || '').replace(/```(?:markdown)?\s*/gi, '').replace(/```\s*$/g, '').trim());
     } catch { /* keep original */ }
   }
@@ -2930,12 +2955,12 @@ async function optimiseExisting(url, { content, keyword, settings, provider }) {
 
 /** AI-Links: insert credible external citations. Feeds HTML in (add_links
  *  preserves existing HTML) and returns sanitised HTML. */
-async function addAiLinks(url, { content, keyword, secondaryArr, settings, provider }) {
+async function addAiLinks(url, { content, keyword, secondaryArr, settings, provider, usage }) {
   try {
-    let out = aiText(await postUpstream(url, {
+    let out = aiText(await postOptimiser(url, {
       action: 'add_links', provider, content: mdToHtml(content), settings,
       primary_keyword: keyword, secondary_keywords: secondaryArr.join(', '),
-    }));
+    }, usage));
     if (typeof out !== 'string' || !out.trim()) return '';
     out = out.trim();
     const fence = out.match(/```(?:html)?\s*([\s\S]*?)```/i);
@@ -2945,14 +2970,14 @@ async function addAiLinks(url, { content, keyword, secondaryArr, settings, provi
 }
 
 /** Suggest an SEO meta title + description for the produced draft. */
-async function generateMeta(url, { content, keyword, settings, provider }) {
+async function generateMeta(url, { content, keyword, settings, provider, usage }) {
   try {
-    const t = aiText(await postUpstream(url, {
+    const t = aiText(await postOptimiser(url, {
       action: 'content_freeform', provider,
       userPrompt: `Based on the article below, write ONE SEO meta title (max 60 characters) and ONE meta description (max 155 characters) targeting the keyword "${keyword || ''}". Reply as exactly two lines and nothing else:\nTitle: <title>\nDescription: <description>\n\nARTICLE:\n${content.slice(0, 3500)}`,
       personaContext: {}, selectedTopics: [], primary_keyword: keyword, secondary_keywords: [],
       compliance_guidelines: [], settings,
-    }));
+    }, usage));
     const title = ((t.match(/title\s*[:\-]\s*(.+)/i) || [])[1] || '').trim().replace(/^["']|["']$/g, '');
     const desc = ((t.match(/description\s*[:\-]\s*(.+)/i) || [])[1] || '').trim().replace(/^["']|["']$/g, '');
     return (title || desc) ? { title, desc } : null;
@@ -2977,9 +3002,144 @@ function selectedOptimiserModels(body) {
   return keys.length ? keys : ['haiku'];
 }
 
+// ── content-writer async job (mirrors the Social Audit pattern) ───────────────
+// The pipeline runs 10–30 LLM calls over 1–5 minutes, which used to be one long
+// buffered HTTP request with cosmetic client-side progress: a dropped connection
+// lost the (still-charged, still-saved) result. Now `start` persists a job and
+// self-invokes a background finalizer; the browser polls `status` for REAL
+// stage/agent progress; only the finalizer's `finalize` call is charged, through
+// the normal handler path (billing, history, notification all standard).
+const cwJobKey = (jobId) => `cw_job:${jobId}`;
+const CW_JOB_TTL = 2 * 60 * 60; // 2h — re-openable from History / the notification
+
+async function cwStage(jobId, patch) {
+  if (!jobId) return;
+  const job = await getCache(cwJobKey(jobId)).catch(() => null);
+  if (job && job.status !== 'done' && job.status !== 'error') {
+    await putCache(cwJobKey(jobId), { ...job, status: 'running', ...patch }, CW_JOB_TTL).catch(() => {});
+  }
+}
+
+async function contentWriterGateway(body) {
+  const action = String(body.cwAction || '').trim();
+
+  // Poll job progress (browser live-progress; never charged).
+  if (action === 'status') {
+    const job = await getCache(cwJobKey(body.jobId)).catch(() => null);
+    if (!job) return { _noCharge: true, status: 'unknown' };
+    const { inputs, ...pub } = job; // don't ship the (potentially large) inputs back
+    return { _noCharge: true, ...pub };
+  }
+
+  // The charged pipeline run — invoked by the background finalizer via a
+  // synthetic authenticated gateway event (never directly by the browser).
+  // The original inputs are flattened into the body (underscore markers are
+  // stripped by publicInputs) so the History row shows the real form values.
+  if (body._cwFinalize) {
+    const inputs = { ...body };
+    delete inputs._cwFinalize; delete inputs._cwJobId;
+    return contentOptimiserRun({ ...inputs, _jobId: body._cwJobId });
+  }
+
+  // Default: start a background job and return its id immediately.
+  // Validate the one hard requirement up front — don't spin up a job that can
+  // only fail (the finalizer re-checks, this is just the fast path).
+  const writingStart = /write/i.test(body.mode || '');
+  if (!(body.input || '').trim() && !(!writingStart && (body.url || '').trim())) {
+    return {
+      _failed: true,
+      text: writingStart
+        ? 'Add a topic to write about — no credits were charged.'
+        : 'Paste some content to optimise (or give us the page URL) — no credits were charged.',
+    };
+  }
+  const jobId = `cw_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const inputs = { ...body };
+  delete inputs._email; delete inputs._integrations; delete inputs._userId; delete inputs._tier; delete inputs._isStaff;
+  await putCache(cwJobKey(jobId), {
+    jobId, status: 'starting', stage: 'Queued',
+    userId: body._userId || body._email, email: body._email, tier: body._tier,
+    projectId: body.projectId || null,
+    inputs, createdAt: new Date().toISOString(),
+  }, CW_JOB_TTL);
+  await selfInvokeFinalize(jobId, 'content-writer');
+  return { _noCharge: true, jobId, status: 'starting' };
+}
+
+// Background worker: run the (charged) pipeline by re-entering the gateway
+// handler — billing, history and the "run complete" notification all flow
+// through the one canonical path — then store the finished result for the
+// browser (or a returning user) to pick up.
+async function contentWriterFinalize(event, context) {
+  const jobId = event.jobId;
+  const job = await getCache(cwJobKey(jobId)).catch(() => null);
+  if (!job) { console.error('cw_finalize_missing_job', jobId); return; }
+
+  try {
+    await putCache(cwJobKey(jobId), { ...job, status: 'running', stage: 'Starting the pipeline' }, CW_JOB_TTL).catch(() => {});
+    const synthetic = {
+      rawPath: '/run/content-writer',
+      requestContext: { http: { method: 'POST' }, authorizer: { lambda: { userId: job.userId, email: job.email, tier: job.tier } } },
+      headers: {},
+      body: JSON.stringify({ ...job.inputs, _cwFinalize: true, _cwJobId: jobId, projectId: job.projectId || undefined }),
+    };
+    const resp = await handler(synthetic, context);
+    const parsed = JSON.parse(resp?.body || '{}');
+    const status = resp?.statusCode || 200;
+    if (status === 402) throw new Error('You ran out of credits before this run. Top up and try again — nothing was charged.');
+    if (status >= 300) throw new Error(parsed.error || 'The run failed. No credits were charged.');
+    if (parsed.failed || parsed.result?._failed) throw new Error(parsed.result?.text || 'The run failed. No credits were charged.');
+
+    await putCache(cwJobKey(jobId), {
+      jobId, status: 'done',
+      result: parsed.result || {},
+      runId: parsed.runId || null,
+      creditsUsed: parsed.creditsUsed,
+      creditsRemaining: parsed.creditsRemaining,
+      topupRemaining: parsed.topupRemaining,
+      finishedAt: new Date().toISOString(),
+    }, CW_JOB_TTL);
+    // The "✅ finished" notification already fired inside handler's saveRun path.
+  } catch (e) {
+    await putCache(cwJobKey(jobId), {
+      jobId, status: 'error', error: e?.message || 'The run failed. No credits were charged.',
+      finishedAt: new Date().toISOString(),
+    }, CW_JOB_TTL).catch(() => {});
+    try {
+      await addNotification({
+        userId: job.userId,
+        title: '⚠️ AI Content Optimiser run could not finish',
+        body: (e?.message || 'Please try running it again.').slice(0, 140),
+        link: '/tool/content-writer',
+      });
+    } catch { /* best-effort */ }
+  }
+}
+
 async function contentOptimiserRun(body) {
   const url = UPSTREAMS.aiOptimiser;
   const models = selectedOptimiserModels(body);
+
+  // Optimise mode can take a page URL instead of pasted text — fetch the page
+  // content server-side (same dataforseoCrawler pull the agency editor uses)
+  // so nobody has to copy-paste their own website into a textarea.
+  const writing = /write/i.test(body.mode || '');
+  if (!writing && !(body.input || '').trim() && (body.url || '').trim()) {
+    try {
+      const raw = await postUpstream(UPSTREAMS.dataforseoCrawler, { action: 'pull_content', url: String(body.url).trim() });
+      const d = deepBody(raw);
+      const text = d && (d.html ? faStripHtml(String(d.html)) : (d.text || ''));
+      if (text && text.trim()) body = { ...body, input: text.trim().slice(0, 30000) };
+      else return { _failed: true, text: `We couldn't read any content from ${body.url} — the page may be blocked or empty. Paste the content instead. No credits were charged.` };
+    } catch {
+      return { _failed: true, text: `We couldn't fetch ${body.url} — check the address or paste the content instead. No credits were charged.` };
+    }
+  }
+  if (!(body.input || '').trim()) {
+    return { _failed: true, text: writing
+      ? 'Add a topic to write about — no credits were charged.'
+      : 'Paste some content to optimise (or give us the page URL) — no credits were charged.' };
+  }
 
   // Each selected model runs the full pipeline. Distinct providers hit distinct
   // vendor rate limits, so running both in parallel adds little wall-clock.
@@ -2988,11 +3148,80 @@ async function contentOptimiserRun(body) {
     view: await runOptimiserPipeline(url, body, OPTIMISER_MODELS[key].provider),
   })));
 
+  // Meter on the real token spend across every call in every pipeline
+  // (reconcileCost picks this up; the flat ai_long cost is the floor).
+  const totalUsage = runs.reduce((t, r) => ({
+    input_tokens: t.input_tokens + (r.view.usage?.in || 0),
+    output_tokens: t.output_tokens + (r.view.usage?.out || 0),
+  }), { input_tokens: 0, output_tokens: 0 });
+
   if (runs.length === 1) {
-    if (runs[0].view.empty) return { text: 'Add some content to optimise (or a topic to write about).' };
-    return { html: renderOptimiser(runs[0].view) };
+    const view = runs[0].view;
+    if (view.empty) return { _failed: true, text: 'Nothing usable came back from this run — no credits were charged. Please try again.' };
+    // A run where the pipeline produced nothing AND every QA agent errored is a
+    // failure, not a result — never charge for it.
+    const agentsAllFailed = view.results.length > 0 && view.results.every((r) => r.parsed && r.parsed.error);
+    if (!view.draftHtml && agentsAllFailed) {
+      return { _failed: true, text: 'The AI backend had trouble with this run (no draft and all quality checks failed). No credits were charged — please try again in a moment.' };
+    }
+    return { sections: sectionsOptimiser(view), usage: totalUsage };
   }
-  return { html: renderOptimiserComparison(runs) };
+  return { html: renderOptimiserComparison(runs), usage: totalUsage };
+}
+
+/** Structured `sections` for the single-model run — the same renderer every
+ *  other content tool uses (stats, callouts, cards, themed HTML), replacing the
+ *  old self-rendered HTML blob that had no theming, filtering or plan hooks.
+ *  renderOptimiser stays for the staff model-comparison + old history rows. */
+function sectionsOptimiser(view) {
+  const { writing, draftHtml, wordCount, flesch, meta, gapSummary, linkCount, results } = view;
+  const scores = results.map((r) => r.parsed && r.parsed.score).filter((s) => s != null && !isNaN(Number(s)));
+  const avg = scores.length ? Math.round((scores.reduce((s, v) => s + Number(v), 0) / scores.length) * 10) / 10 : null;
+  const failed = results.filter((r) => r.parsed && r.parsed.error).length;
+
+  const sections = [{
+    type: 'stats', title: writing ? 'Draft · at a glance' : 'Optimised draft · at a glance',
+    items: [
+      { label: 'Words', value: wordCount },
+      { label: 'Readability', value: `${flesch} · ${fleschLabel(flesch)}`, tone: flesch >= 60 ? 'green' : flesch >= 50 ? 'amber' : 'red' },
+      avg != null ? { label: 'QA score', value: `${avg}/10`, tone: avg >= 7 ? 'green' : avg >= 5 ? 'amber' : 'red' } : null,
+      linkCount ? { label: 'AI links', value: linkCount, tone: 'blue' } : null,
+      { label: 'Checks run', value: results.length, tone: failed ? 'amber' : 'slate' },
+    ].filter(Boolean),
+  }];
+  if (failed) sections.push({ type: 'callout', text: `${failed} of ${results.length} QA agents didn't finish — their cards below show the error. The rest of the run is unaffected.` });
+  if (meta && (meta.title || meta.desc)) {
+    sections.push({
+      type: 'list', title: 'Suggested meta',
+      items: [meta.title ? `Title: ${meta.title}` : '', meta.desc ? `Description: ${meta.desc}` : ''].filter(Boolean),
+    });
+  }
+  if (draftHtml) sections.push({ type: 'html', title: writing ? 'Your draft' : 'Optimised draft', html: draftHtml });
+  if (gapSummary) sections.push({ type: 'html', title: 'Content-gap analysis', html: mdToHtml(gapSummary.slice(0, 3000)) });
+
+  const cards = results.map(({ a, parsed: p }) => {
+    if (p.error) return { title: a.label, badge: 'failed', badgeTone: 'red', lines: [{ value: p.error }] };
+    const lines = (Array.isArray(p.findings) ? p.findings : []).slice(0, 6).map((f) => ({
+      label: typeof f === 'string' ? '' : (String(f.severity || '').toLowerCase() || ''),
+      value: typeof f === 'string' ? f : [f.issue || f.title || '', f.fix ? `→ ${f.fix}` : ''].filter(Boolean).join(' '),
+    }));
+    return {
+      title: a.label,
+      badge: p.score != null ? `${p.score}/10` : (lines.length ? `${lines.length} finding${lines.length === 1 ? '' : 's'}` : 'ok'),
+      badgeTone: p.score != null ? (Number(p.score) >= 7 ? 'green' : Number(p.score) >= 5 ? 'amber' : 'red') : 'blue',
+      lines: lines.length ? lines : (p.summary ? [{ value: p.summary }] : []),
+    };
+  });
+  sections.push({ type: 'cards', title: `QA agent findings — ${results.length} agents`, items: cards });
+
+  // Deliverable-style agent output (FAQs, ToC/TL;DR, schema recommendations)
+  // renders as its own readable block instead of dying inside a card.
+  for (const { a, parsed: p } of results) {
+    if (a.group === 'structure' && p && !p.error && p.content && String(p.content).trim().length > 80) {
+      sections.push({ type: 'html', title: a.label, html: mdToHtml(String(p.content).slice(0, 6000)) });
+    }
+  }
+  return sections;
 }
 
 /** Run the whole optimise/write + QA pipeline once, through a single provider. */
@@ -3001,15 +3230,21 @@ async function runOptimiserPipeline(url, body, provider) {
   const keyword = (body.keyword || '').trim();
   const secondaryArr = splitItems(body.secondary);
   const writing = /write/i.test(body.mode || '');
+  const location = (body.location || 'Singapore').trim();
+  const language = (body.language || 'English').trim();
+  const wordTarget = Math.max(0, Math.min(6000, Number(body.wordCount) || 0));
+  const usage = { in: 0, out: 0, calls: 0 }; // real token spend across every call
 
   let content = (body.input || '').trim();
   let draft = '';        // the (improved) draft we produced, as markdown
   let gapSummary = '';
   if (writing) {
-    draft = await writeArticle(url, { topic: content, keyword, secondaryArr, settings, provider });
+    await cwStage(body._jobId, { stage: 'Writing the draft (outline → sections → polish)' });
+    draft = await writeArticle(url, { topic: content, keyword, secondaryArr, settings, provider, usage, wordTarget });
     if (draft) content = draft;
   } else if (content) {
-    const opt = await optimiseExisting(url, { content, keyword, settings, provider });
+    await cwStage(body._jobId, { stage: 'Analysing content gaps & rewriting' });
+    const opt = await optimiseExisting(url, { content, keyword, settings, provider, usage });
     gapSummary = opt.gap;
     if (opt.rewrite) { draft = opt.rewrite; content = opt.rewrite; }
   }
@@ -3019,9 +3254,10 @@ async function runOptimiserPipeline(url, body, provider) {
   // wall-clock). Only runs when we actually generated/rewrote content.
   let linkedHtml = '', meta = null;
   if (draft) {
+    await cwStage(body._jobId, { stage: 'Adding AI links & suggested meta' });
     [linkedHtml, meta] = await Promise.all([
-      addAiLinks(url, { content: draft, keyword, secondaryArr, settings, provider }),
-      generateMeta(url, { content: draft, keyword, settings, provider }),
+      addAiLinks(url, { content: draft, keyword, secondaryArr, settings, provider, usage }),
+      generateMeta(url, { content: draft, keyword, settings, provider, usage }),
     ]);
   }
 
@@ -3035,21 +3271,39 @@ async function runOptimiserPipeline(url, body, provider) {
   const wordCount = content.split(/\s+/).filter(Boolean).length;
   const context = {
     flow: writing ? 'new' : 'optimise', keyword, secondary: secondaryArr.join(', '),
-    topic: writing ? (body.input || '').trim() : '', location: 'Singapore', language: 'English',
+    topic: writing ? (body.input || '').trim() : '', location, language,
     content, pageType: settings.pageType, compliance: '', personas: '', selectedTopics: '',
     wordCount, flesch, fleschLabel: fleschLabel(flesch),
     brandTone: settings.brandTone, jurisdictions: settings.jurisdictions, readingLevel: settings.readingLevel,
   };
 
-  const results = await Promise.all(agents.map((a) =>
-    postUpstream(url, { action: 'optimiser_agent', provider, agentKey: a.key, context, settings })
+  await cwStage(body._jobId, { stage: `Running ${agents.length} QA agents`, progress: { done: 0, total: agents.length } });
+  let agentsDone = 0;
+  const runAgent = (a) =>
+    postOptimiser(url, { action: 'optimiser_agent', provider, agentKey: a.key, context, settings }, usage)
       .then((raw) => ({ a, parsed: parseAgentResult(aiText(raw)) }))
       .catch((e) => ({ a, parsed: { error: e.message } }))
-  ));
+      .then((r) => {
+        agentsDone += 1;
+        // Fire-and-forget progress write — the browser's status poll reads it.
+        cwStage(body._jobId, { stage: `Running ${agents.length} QA agents`, progress: { done: agentsDone, total: agents.length } }).catch(() => {});
+        return r;
+      });
+
+  // Run ONE agent first to warm the Anthropic prompt cache (the agents share a
+  // large constitution system block), then fan the rest out in parallel — the
+  // wave then reads the cached prefix instead of 17 full-price copies.
+  let results;
+  if (agents.length >= 6) {
+    const first = await runAgent(agents[0]);
+    results = [first, ...(await Promise.all(agents.slice(1).map(runAgent)))];
+  } else {
+    results = await Promise.all(agents.map(runAgent));
+  }
 
   const draftHtml = linkedHtml || (draft ? mdToHtml(draft) : '');
   const linkCount = linkedHtml ? (linkedHtml.match(/<a\s+[^>]*href=/gi) || []).length : 0;
-  return { writing, draftHtml, wordCount, flesch, meta, gapSummary, linkCount, results };
+  return { writing, draftHtml, wordCount, flesch, meta, gapSummary, linkCount, results, usage };
 }
 
 /** Render two (or more) model runs side by side for staff quality comparison. */
@@ -3693,13 +3947,13 @@ async function socialAuditRun(body) {
 // SDK client is imported lazily (it's provided by the nodejs runtime, not the
 // local node_modules) and memoised across warm invocations.
 let _lambdaClient = null;
-async function selfInvokeFinalize(jobId) {
+async function selfInvokeFinalize(jobId, kind) {
   const { LambdaClient, InvokeCommand } = await import('@aws-sdk/client-lambda');
   _lambdaClient ||= new LambdaClient({});
   await _lambdaClient.send(new InvokeCommand({
     FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
     InvocationType: 'Event',
-    Payload: Buffer.from(JSON.stringify({ __bgFinalize: true, jobId })),
+    Payload: Buffer.from(JSON.stringify({ __bgFinalize: true, jobId, ...(kind ? { kind } : {}) })),
   }));
 }
 
@@ -3820,19 +4074,28 @@ function deepBody(raw) {
 
 // Exposed for unit tests (orchestration is otherwise unreachable without a full
 // authed event). Not used by the handler path.
-export const __test = { callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks };
+export const __test = { callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks };
 
 /**
  * AI endpoints return token usage; convert to actual credits so a tiny caption
  * doesn't cost the same as a 2,000-word article. Falls back to the flat cost.
+ *
+ * Per-tool rate: content-writer legitimately fans out 10–30 LLM calls per run
+ * (multi-stage writer + QA agents), so it meters at a tenth of the single-call
+ * rate — a default 8-agent run lands on the advertised flat 5, while a Full
+ * 18-agent audit reconciles to roughly 2–3× that instead of 60+. Keeps the
+ * "500 credits ≈ 100 AI articles" plan promise true for normal runs while
+ * finally making deeper runs cost more than shallow ones.
  */
+const TOKENS_PER_CREDIT = { 'content-writer': 10000 };
+
 function reconcileCost(tool, result, flatCost) {
   const u = result?.usage || result?.token_usage;
   if (tool.cost?.startsWith('ai_') && u) {
     const inTok = u.input_tokens || u.prompt_tokens || 0;
     const outTok = u.output_tokens || u.completion_tokens || 0;
-    // ~1 credit per 1k tokens, but never less than the advertised minimum.
-    const tokenCredits = Math.ceil((inTok + outTok) / 1000);
+    const perCredit = TOKENS_PER_CREDIT[tool.id] || 1000;
+    const tokenCredits = Math.ceil((inTok + outTok) / perCredit);
     return Math.max(flatCost, tokenCredits);
   }
   return flatCost;
