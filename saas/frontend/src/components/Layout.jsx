@@ -24,19 +24,27 @@ import { startPlatformTour, hasSeen, markSeen } from '../lib/tours.js';
 import { Menu, HelpCircle, ChevronDown, ChevronLeft } from 'lucide-react';
 
 // Core workflow links stay in the top bar; account/meta links live in the
-// right-side account dropdown so the row never overflows.
+// right-side account dropdown so the row never overflows. Labels are jobs, not
+// system nouns ("Connect your data", not "Integrations").
 const primaryNav = [
-  { to: '/', label: 'Tools', end: true },
+  { to: '/', label: 'Home', end: true },
   { to: '/projects', label: 'Projects' },
   { to: '/schedules', label: 'Schedules' },
 ];
+// The recurring "check on my site" surfaces — previously reachable only via
+// deep links from the dashboard/projects, i.e. invisible to anyone who didn't
+// remember the path. Grouped under one labelled Monitor menu in the top bar.
+const monitorNav = [
+  { to: '/audit', label: 'Site Health Check' },
+  { to: '/tracking', label: 'Rank Tracking' },
+  { to: '/performance', label: 'Performance' },
+];
 const menuNav = [
-  { to: '/account', label: 'Account' },
-  { to: '/integrations', label: 'Integrations' },
+  { to: '/account', label: 'Account & billing' },
+  { to: '/integrations', label: 'Connect your data' },
   { to: '/profile', label: 'Profile' },
-  { to: '/account#billing', label: 'Billing' },
-  { to: '/usage', label: 'Usage' },
-  { to: '/pricing', label: 'Pricing' },
+  { to: '/usage', label: 'Credits & usage' },
+  { to: '/pricing', label: 'Plans & pricing' },
   { to: '/support', label: 'Support' },
 ];
 
@@ -91,18 +99,26 @@ export default function Layout({ children }) {
   const needsNda = !!user && !needsConsent && !hasAcceptedNda(user);
   const showWelcome = !needsConsent && !needsNda && (forceWelcome || needsWelcome(user));
 
-  // After the welcome flow is done → auto-run the platform tour once the
-  // dashboard has painted. Chained behind the welcome so the two never stack;
-  // `seenPlatformTour` is also tracked server-side so it survives a new device.
+  // After the welcome flow is done → OFFER the platform tour instead of
+  // auto-running it. Fourteen steps force-firing on top of a just-dismissed
+  // welcome (plus the auto-opened chat) was overload; a small invitation the
+  // user can accept or wave away respects their pace. Either choice marks the
+  // tour seen (server-side too) so it never nags again — it stays replayable
+  // from the "?" help menu.
+  const [tourOffer, setTourOffer] = useState(false);
   useEffect(() => {
     if (needsConsent || needsNda || showWelcome) return;      // wait until consent + NDA + welcome are done
     if (hasSeen('platform') || user?.onboarding?.seenPlatformTour) return;
     if (window.location.pathname !== '/') return;
-    const t = setTimeout(() => {
-      if (!hasSeen('platform')) { markSeen('platform'); setOnboarding({ seenPlatformTour: true }); startPlatformTour(); }
-    }, 900);
+    const t = setTimeout(() => { if (!hasSeen('platform')) setTourOffer(true); }, 900);
     return () => clearTimeout(t);
   }, [showWelcome, needsConsent, needsNda]); // eslint-disable-line react-hooks/exhaustive-deps
+  const settleTourOffer = (take) => {
+    markSeen('platform');
+    setOnboarding({ seenPlatformTour: true });
+    setTourOffer(false);
+    if (take) startPlatformTour();
+  };
 
   // Launch the assistant on entry: open it (with its slide-in animation) once
   // per app load, after the consent/NDA/welcome overlays clear so it never
@@ -133,9 +149,11 @@ export default function Layout({ children }) {
   }, []);
 
   const acctLinks = user.isAdmin ? [...menuNav, { to: '/admin', label: 'Admin' }] : menuNav;
-  const allLinks = [...primaryNav, ...acctLinks]; // for the mobile sheet
   const linkCls = ({ isActive }) =>
     `rounded-lg px-3 py-1.5 text-sm font-medium ${isActive ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300' : 'text-dim hover:bg-sunken'}`;
+  const [monitorOpen, setMonitorOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const onMonitorPage = monitorNav.some((n) => location.pathname.startsWith(n.to));
 
   return (
     <>
@@ -151,8 +169,33 @@ export default function Layout({ children }) {
               <span className="grid h-7 w-7 place-items-center rounded-md bg-brand-600 text-white">D</span>
               <span className="hidden sm:inline">Digimetrics</span>
             </Link>
-            <nav className="hidden min-w-0 gap-1 md:flex">
-              {primaryNav.map((n) => <NavLink key={n.to} to={n.to} end={n.end} data-tour={`nav-${n.to}`} className={linkCls}>{n.label}</NavLink>)}
+            <nav className="hidden min-w-0 items-center gap-1 md:flex">
+              <NavLink to="/" end data-tour="nav-/" className={linkCls}>Home</NavLink>
+              {/* Monitor menu — the recurring "how is my site doing?" surfaces. */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setMonitorOpen((o) => !o)}
+                  data-tour="nav-monitor"
+                  className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium ${onMonitorPage ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300' : 'text-dim hover:bg-sunken'}`}
+                >
+                  Monitor <ChevronDown size={13} className="text-faint" aria-hidden />
+                </button>
+                {monitorOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setMonitorOpen(false)} />
+                    <div className="absolute left-0 z-20 mt-2 w-48 rounded-xl border border-line bg-surface py-1.5 shadow-lg">
+                      {monitorNav.map((n) => (
+                        <NavLink key={n.to} to={n.to} onClick={() => setMonitorOpen(false)}
+                          className={({ isActive }) => `block px-3 py-1.5 text-sm ${isActive ? 'font-medium text-brand-700 dark:text-brand-300' : 'text-dim hover:bg-raised'}`}>
+                          {n.label}
+                        </NavLink>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+              {primaryNav.slice(1).map((n) => <NavLink key={n.to} to={n.to} end={n.end} data-tour={`nav-${n.to}`} className={linkCls}>{n.label}</NavLink>)}
             </nav>
             <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
               <ProjectSelector />
@@ -172,15 +215,39 @@ export default function Layout({ children }) {
                 <span className="hidden text-[13px] font-semibold lg:inline">Monty</span>
               </button>
 
-              <button
-                onClick={startPlatformTour}
-                data-tour="help"
-                title="Take the platform tour"
-                aria-label="Take the platform tour"
-                className="hidden h-8 w-8 shrink-0 place-items-center rounded-full bg-sunken text-dim hover:bg-overlay sm:grid"
-              >
-                <HelpCircle size={18} aria-hidden />
-              </button>
+              {/* Help menu — visible on every screen size (the tour used to hide
+                  behind an unlabelled desktop-only icon). One place for "show me
+                  around", the assistant, and human support. */}
+              <div className="relative shrink-0">
+                <button
+                  onClick={() => setHelpOpen((o) => !o)}
+                  data-tour="help"
+                  title="Help — tour, assistant & support"
+                  aria-label="Help menu"
+                  className="grid h-8 w-8 place-items-center rounded-full bg-sunken text-dim hover:bg-overlay"
+                >
+                  <HelpCircle size={18} aria-hidden />
+                </button>
+                {helpOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setHelpOpen(false)} />
+                    <div className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-line bg-surface py-1.5 shadow-lg">
+                      <button type="button" onClick={() => { setHelpOpen(false); startPlatformTour(); }}
+                        className="block w-full px-3 py-1.5 text-left text-sm text-dim hover:bg-raised">
+                        Show me around (2-min tour)
+                      </button>
+                      <button type="button" onClick={() => { setHelpOpen(false); setChatOpen(true); }}
+                        className="block w-full px-3 py-1.5 text-left text-sm text-dim hover:bg-raised">
+                        Ask Monty a question
+                      </button>
+                      <Link to="/support" onClick={() => setHelpOpen(false)}
+                        className="block px-3 py-1.5 text-sm text-dim hover:bg-raised">
+                        Contact support
+                      </Link>
+                    </div>
+                  </>
+                )}
+              </div>
 
               <ThemeToggle className="hidden sm:grid" tourId="theme" />
 
@@ -255,15 +322,34 @@ export default function Layout({ children }) {
             </div>
           )}
 
-          {/* Mobile menu — all links + sign out */}
+          {/* Mobile menu — grouped by job (was one flat 11-row list) + sign out */}
           {menuOpen && (
             <nav className="flex flex-col border-t border-hair px-4 py-2 md:hidden">
-              {allLinks.map((n) => (
+              {primaryNav.map((n) => (
                 <NavLink key={n.to} to={n.to} end={n.end} onClick={() => setMenuOpen(false)} className={linkCls}>
+                  {n.label}
+                </NavLink>
+              ))}
+              <div className="mt-2 px-3 text-[11px] font-semibold uppercase tracking-wide text-faint">Monitor</div>
+              {monitorNav.map((n) => (
+                <NavLink key={n.to} to={n.to} onClick={() => setMenuOpen(false)} className={linkCls}>
+                  {n.label}
+                </NavLink>
+              ))}
+              <div className="mt-2 px-3 text-[11px] font-semibold uppercase tracking-wide text-faint">Account</div>
+              {acctLinks.map((n) => (
+                <NavLink key={n.to} to={n.to} onClick={() => setMenuOpen(false)} className={linkCls}>
                   {n.label}
                   {n.to === '/admin' && <TicketBadge count={unanswered} />}
                 </NavLink>
               ))}
+              <button
+                type="button"
+                onClick={() => { setMenuOpen(false); startPlatformTour(); }}
+                className="mt-1 rounded-lg px-3 py-1.5 text-left text-sm font-medium text-dim hover:bg-sunken"
+              >
+                Show me around (2-min tour)
+              </button>
               <div className="mt-1 flex items-center gap-2 px-3 py-1.5">
                 <ThemeToggle />
                 <span className="text-sm text-dim">Theme</span>
@@ -300,6 +386,23 @@ export default function Layout({ children }) {
       {needsConsent && <ConsentGate />}
       {needsNda && <TrialNdaGate />}
       {showWelcome && <Welcome onDone={() => setForceWelcome(false)} />}
+
+      {/* Friendly one-time tour invitation (replaces the old auto-fired tour). */}
+      {tourOffer && (
+        <div className="fixed bottom-4 left-1/2 z-40 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl border border-line bg-surface p-4 shadow-xl">
+          <div className="flex items-start gap-3">
+            <Mascot bare size={40} className="shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-heading">New here? Want a quick look around?</p>
+              <p className="mt-0.5 text-xs text-dim">A 2-minute tour of the essentials — you can replay it anytime from the “?” button up top.</p>
+              <div className="mt-2.5 flex gap-2">
+                <button type="button" onClick={() => settleTourOffer(true)} className="btn-primary px-3 py-1.5 text-xs">Show me around</button>
+                <button type="button" onClick={() => settleTourOffer(false)} className="btn-ghost px-3 py-1.5 text-xs">Maybe later</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

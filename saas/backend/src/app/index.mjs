@@ -168,6 +168,19 @@ export const handler = async (event) => {
       const conv = await getConversation(user.userId, seg(path, '/chat/conversations/'));
       return conv ? ok({ conversation: conv }) : badRequest('Conversation not found');
     }
+    // Free plain-English explainer for a tool result. No credit charge: this is
+    // the beginner on-ramp ("what does this mean / what do I do"), and charging
+    // for it deterred exactly the users who need it. Bounded by the app rate
+    // limiter + input clamps; the prompt is fixed server-side so the endpoint
+    // can't be used as a free general-purpose chat.
+    if (method === 'POST' && path.endsWith('/chat/explain')) {
+      const toolName = clampStr(body.toolName, 120).trim();
+      const resultText = clampStr(body.resultText, 6000).trim();
+      if (!resultText) return badRequest('Nothing to explain.');
+      const summary = await explainResult(toolName || 'a tool', resultText);
+      return ok({ summary });
+    }
+
     if (method === 'POST' && path.endsWith('/chat')) {
       const cost = CREDIT_COSTS.ai_chat ?? 2;
       if (totalCredits(user) < cost) {
@@ -848,6 +861,30 @@ async function emailReply(ticket, text, senderName) {
       })
     : null;
   return { recipients, delivered };
+}
+
+// One-shot, tool-less plain-English summary of a tool result — powers the free
+// "What this means" panel shown on every run. Fixed prompt, no user context, no
+// conversation: cheaper and safer than the full assistant path.
+async function explainResult(toolName, resultText) {
+  const userPrompt =
+    `You are a friendly marketing guide for a small-business owner with no SEO or marketing background. ` +
+    `They just ran the "${toolName}" tool. In plain, simple English (spell out any jargon the first time you use it), write:\n` +
+    `1. One or two sentences on what these results say overall.\n` +
+    `2. "Looking good:" the single best thing in the results (one sentence).\n` +
+    `3. "Needs attention:" the single biggest problem, if any (one sentence).\n` +
+    `4. "Do this next:" the top 1-3 concrete actions, as a short numbered list.\n` +
+    `Keep the whole thing under 150 words. No preamble, no headings other than the labels above.\n\n` +
+    `Results:\n${resultText}`;
+  const res = await fetch(UPSTREAMS.aiOptimiser, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'content_freeform', userPrompt }),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error('The explainer is unavailable right now.');
+  let raw; try { raw = JSON.parse(text); } catch { raw = text; }
+  if (raw && typeof raw === 'object' && raw.body !== undefined) raw = typeof raw.body === 'string' ? JSON.parse(raw.body) : raw.body;
+  return (typeof raw === 'string' ? raw : (raw.result || raw.text || raw.content || '')) || '';
 }
 
 async function assistantReply(user, messages, pageContext = null) {

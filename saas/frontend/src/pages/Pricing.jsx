@@ -26,7 +26,9 @@ export default function Pricing() {
     <div>
       <div className="text-center">
         <h1 className="text-3xl font-bold">Plans that scale with you</h1>
-        <p className="mt-2 text-dim">Every plan includes the credit meter, projects and exports. Cancel anytime.</p>
+        <p className="mt-2 text-dim">
+          Credits are the app’s currency — most tool runs cost 1–5. Your plan refills them monthly; top-ups never expire. Cancel anytime.
+        </p>
         <div className="mt-5 inline-flex rounded-full bg-sunken p-1 text-sm font-medium">
           {['monthly', 'annual'].map((iv) => (
             <button

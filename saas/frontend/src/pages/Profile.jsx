@@ -57,7 +57,7 @@ export default function Profile() {
     try {
       const res = await saveProfile(patch);
       if (res?.bonusGranted) {
-        toast(`Profile complete — ${res.bonusAmount || PROFILE_BONUS} tokens added 🎉`, 'success');
+        toast(`Profile complete — ${res.bonusAmount || PROFILE_BONUS} credits added 🎉`, 'success');
       } else {
         toast('Profile saved.', 'success');
       }
@@ -84,13 +84,13 @@ export default function Profile() {
             </p>
             {showReward && !complete && (
               <p className="mt-0.5 flex items-center gap-1.5 text-sm text-brand-700 dark:text-brand-300">
-                <Sparkles size={15} aria-hidden /> Complete everything to earn {PROFILE_BONUS} tokens.
+                <Sparkles size={15} aria-hidden /> Complete everything to earn {PROFILE_BONUS} credits.
               </p>
             )}
             {(complete || alreadyRewarded) && (
               <p className="mt-0.5 flex items-center gap-1.5 text-sm text-green-700 dark:text-green-300">
                 <CheckCircle2 size={15} aria-hidden />
-                {alreadyRewarded ? `Thanks! Your ${PROFILE_BONUS}-token bonus has been credited.` : 'All set — save to claim your bonus.'}
+                {alreadyRewarded ? `Thanks! Your ${PROFILE_BONUS}-credit bonus has been credited.` : 'All set — save to claim your bonus.'}
               </p>
             )}
           </div>

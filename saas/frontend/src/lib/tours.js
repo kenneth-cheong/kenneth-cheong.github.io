@@ -321,12 +321,12 @@ const SAMPLE_RESULTS = {
   'content-writer': {
     result: {
       sections: [
-        stats('Optimised draft · QA suite', [
+        stats('Optimised draft · quality checks', [
           { label: 'Readability', value: 'Grade 7', tone: 'green' }, { label: 'Keyword use', value: 'Good', tone: 'green' },
-          { label: 'Issues fixed', value: '6', tone: 'amber' }, { label: 'QA agents', value: '8' },
+          { label: 'Issues fixed', value: '6', tone: 'amber' }, { label: 'Checks run', value: '8' },
         ]),
         callout('Rewritten opening: “Asana is a leading project management software that helps teams plan, track and manage work in one place — from a single to-do list to a company-wide initiative.”'),
-        list('What the QA agents flagged & fixed', [
+        list('What the quality checks flagged & fixed', [
           'Fact-check — softened “the #1 project management tool” to “a leading project management software” (unverifiable superlative).',
           'Tone — 2 sentences made less formal to match the brand voice.',
           'SEO — added the target keyword to the first paragraph and an internal link to /templates.',
@@ -662,7 +662,7 @@ const OUTPUT_BLURB = {
   schema: 'Valid, copy-paste code with a one-click “Test in Google” link — built from a form, no coding.',
   'strategy-engine': 'Prioritised strategies (top pick highlighted) plus a ready-to-action plan.',
   caption: 'Caption options in copyable cards — hooks, emojis and hashtags included.',
-  'content-writer': 'The improved, search-tuned draft plus everything the QA agents found and fixed.',
+  'content-writer': 'The improved, search-tuned draft plus everything the quality checks found and fixed.',
   'content-check': 'A scored proof-read — grammar, readability, keyword coverage and risky claims.',
   pillars: 'Your content themes, each with subtopics and angles to post about.',
   'ai-discovery': 'Engine by engine: does ChatGPT / Gemini / Perplexity actually mention you — and link your site — when buyers ask?',
@@ -750,7 +750,7 @@ function fieldHint(field) {
       bits.push(field.default ? `Defaults to ${field.default}.` : 'A number.');
       break;
     case 'account':
-      bits.push('Pick a connected account — type to filter by name or ID. Connect accounts in Integrations.');
+      bits.push('Pick a connected account — type to filter by name or ID. Connect accounts under Connect your data (account menu).');
       break;
     default:
       break;
@@ -1243,7 +1243,7 @@ export function startPlatformTour() {
     { element: '[data-tour="credits"]', popover: { title: 'Your credits', description: `Credits are the app’s currency: most runs cost a few, free tools cost none. Your plan refills them every month (${PLANS.starter.monthlyCredits.toLocaleString()} on Starter, ${PLANS.pro.monthlyCredits.toLocaleString()} on Pro). Click to see where yours go.`, side: 'bottom', align: 'end' } },
     { element: '[data-tour="notifications"]', popover: { title: 'Notifications', description: 'Long runs (like the Social Media Audit) keep going server-side even if you close the tab — the ✅ lands here when the result is ready, along with scheduled-run and product updates.', side: 'bottom', align: 'end' } },
     { popover: { title: 'Rank tracking', description: 'Tell us which searches you care about and we’ll check your Google position for them automatically and chart it over time — no re-running by hand. Find it inside any project, or via the “Track a keyword” starter step.' } },
-    { element: '[data-tour="account-menu"]', popover: { title: 'Connect your Google data', description: 'Open this menu and pick <b>Integrations</b> — one click connects Search Console, Analytics and Google Ads. Those tools then cost <b>0 credits</b>: it’s your own data, pulled live.', side: 'bottom', align: 'end' } },
+    { element: '[data-tour="account-menu"]', popover: { title: 'Connect your Google data', description: 'Open this menu and pick <b>Connect your data</b> — one click connects Search Console, Analytics and Google Ads. Those tools then cost <b>0 credits</b>: it’s your own data, pulled live.', side: 'bottom', align: 'end' } },
     { element: '[data-tour="nav-/projects"]', popover: { title: 'Projects & your runs', description: 'Everything you run is saved. Open <b>Projects</b> to manage your sites — and scroll down for <b>Runs</b>, where any past result can be re-opened or re-run with one click, no retyping.', side: 'bottom', align: 'start' } },
     { element: '[data-tour="nav-/schedules"]', popover: { title: 'Put tools on autopilot', description: 'Under <b>Schedules</b>, set almost any tool to re-run itself daily, weekly or monthly with your inputs saved. Each run lands in your history and shows <b>what changed</b> since last time. (The <b>Schedule</b> button on a tool does the same.)', side: 'bottom', align: 'start' } },
     { element: '[data-tour="assistant"]', popover: { title: 'Meet Monty, your AI assistant', description: 'Ask Monty anything — “what’s a backlink?”, “why did my traffic drop?”. He knows your account and the product, explains results, and can recommend and open the right tool for you. He’ll also pop up with timely tips as you work (you can turn that off in the chat panel).', side: 'bottom', align: 'end' } },

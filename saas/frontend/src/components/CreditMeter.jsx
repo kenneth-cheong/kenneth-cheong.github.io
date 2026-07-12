@@ -17,12 +17,21 @@ export default function CreditMeter() {
     : null;
 
   return (
-    <Link to="/usage" data-tour="credits" className="group relative flex items-center gap-3">
-      <Zap size={18} className="text-amber-500" aria-hidden />
-      <div className="w-32">
+    <Link to="/usage" data-tour="credits" className="group relative flex items-center gap-2 sm:gap-3" aria-label={`${total.toLocaleString()} credits left of ${max.toLocaleString()}`}>
+      <Zap size={18} className="shrink-0 text-amber-500" aria-hidden />
+
+      {/* Compact pill on phones — the header can't fit the labelled bar there. */}
+      <span className={`text-xs font-semibold tabular-nums sm:hidden ${low ? 'text-amber-600 dark:text-amber-400' : 'text-body'}`}>
+        {total.toLocaleString()} <span className="font-medium text-muted">credits</span>
+      </span>
+
+      {/* Full labelled meter — say the word "credits" up front, not on hover. */}
+      <div className="hidden w-36 sm:block">
         <div className="flex justify-between text-xs font-medium text-muted">
-          <span className={low ? 'text-amber-600 dark:text-amber-400' : ''}>{total.toLocaleString()}</span>
-          <span>{max.toLocaleString()}</span>
+          <span className={low ? 'text-amber-600 dark:text-amber-400' : ''}>
+            {total.toLocaleString()} <span className="font-normal">credits</span>
+          </span>
+          <span>of {max.toLocaleString()}</span>
         </div>
         <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-overlay">
           <div
@@ -33,7 +42,8 @@ export default function CreditMeter() {
       </div>
 
       {/* Hover breakdown — explains the monthly vs top-up split at a glance. */}
-      <div className="pointer-events-none absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-line bg-surface p-3 text-left text-xs opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
+      <div className="pointer-events-none absolute right-0 top-full z-50 mt-2 w-60 rounded-xl border border-line bg-surface p-3 text-left text-xs opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
+        <div className="pb-1.5 text-muted">Credits are what tool runs cost — most runs cost 1–5.</div>
         <div className="flex justify-between py-0.5">
           <span className="text-muted">Monthly left</span>
           <span className="font-semibold text-strong">{monthly.toLocaleString()} / {max.toLocaleString()}</span>

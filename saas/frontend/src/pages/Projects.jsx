@@ -39,6 +39,18 @@ function ProjectsSection() {
     finally { setBusy(false); }
   }
 
+  // Zero-setup on-ramp: a ready-made project around the sample brand every
+  // guided tour already uses, so a new user can see real results before
+  // committing their own site. Created active, like any project.
+  async function addExample() {
+    setBusy(true);
+    try {
+      await create('Example: Extra Space Asia', 'extraspaceasia.com.sg');
+      toast('Example project created — tools will auto-fill its address', 'success');
+    } catch (err) { toast(err.message, 'error'); }
+    finally { setBusy(false); }
+  }
+
   return (
     <section>
       <h1 className="text-2xl font-bold">Projects</h1>
@@ -62,7 +74,17 @@ function ProjectsSection() {
       )}
 
       <div className="mt-6 space-y-2">
-        {projects.length === 0 && <div className="card p-8 text-center text-faint">No projects yet — add one above to start grouping your work.</div>}
+        {projects.length === 0 && (
+          <div className="card p-8 text-center">
+            <p className="font-semibold text-heading">No projects yet</p>
+            <p className="mx-auto mt-1.5 max-w-md text-sm text-dim">
+              A project is simply one website — it keeps everything you run for that site together, and tools auto-fill its address so you type less. Add yours above, or look around with a ready-made example first.
+            </p>
+            <button type="button" onClick={addExample} disabled={busy || atLimit} className="btn-ghost mt-4 text-sm">
+              Try the example project (extraspaceasia.com.sg)
+            </button>
+          </div>
+        )}
         {projects.map((p) => (
           <div key={p.projectId} className={`card flex items-center gap-3 p-4 ${p.projectId === activeId ? 'ring-2 ring-brand-400' : ''}`}>
             <div className="min-w-0 flex-1">

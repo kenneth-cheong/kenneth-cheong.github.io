@@ -402,7 +402,15 @@ export default function Schedules() {
       )}
 
       {limits.enabled && schedules?.length === 0 && (
-        <div className="card p-8 text-center text-faint">No schedules yet — create one to run a tool on a cadence.</div>
+        <div className="card p-8 text-center">
+          <p className="font-semibold text-heading">Nothing on autopilot yet</p>
+          <p className="mx-auto mt-1.5 max-w-md text-sm text-dim">
+            A schedule re-runs a tool for you — daily, weekly or monthly — and shows what changed since last time. Great for rank checks and health checks.
+          </p>
+          <button type="button" className="btn-primary mt-4 inline-flex items-center gap-1.5 text-sm" onClick={() => setModal({})}>
+            <Plus size={15} />Create your first schedule
+          </button>
+        </div>
       )}
 
       {limits.enabled && schedules === null && <p className="text-faint">Loading…</p>}

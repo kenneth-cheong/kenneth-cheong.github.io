@@ -10,9 +10,10 @@ import ReportHtml from '../components/ReportHtml.jsx';
 import SchemaResult from '../components/SchemaResult.jsx';
 import SortableTable from '../components/SortableTable.jsx';
 import ShareResult from '../components/ShareResult.jsx';
+import InfoTip, { glossaryFor } from '../components/InfoTip.jsx';
 import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
 import { startToolTour, sampleResultFor, hasSeen, markSeen } from '../lib/tours.js';
-import { Lock, Compass, Sparkles, AlertTriangle, Clock, ChevronRight } from 'lucide-react';
+import { Lock, Compass, Sparkles, AlertTriangle, Clock, ChevronRight, Check, MessageCircleQuestion } from 'lucide-react';
 
 const CONFIRM_AT = 25; // credits — confirm before running pricey tools
 
@@ -149,9 +150,14 @@ export default function ToolRunner() {
 
   // Long forms overwhelm beginners: keep required fields + the first couple of
   // optional ones visible, and tuck the rest behind an "Advanced options" toggle.
+  // Fields flagged `advanced` in the catalog (raw GAQL, expert knobs) collapse
+  // even on short forms — they should never sit in a beginner's first view.
   const optionalShown = shown.filter((f) => !f.required);
   const collapseForm = shown.length >= 8 && optionalShown.length >= 5;
-  const advSet = collapseForm ? new Set(optionalShown.slice(2)) : new Set();
+  const advSet = new Set([
+    ...(collapseForm ? optionalShown.slice(2) : []),
+    ...optionalShown.filter((f) => f.advanced),
+  ]);
   const primaryFields = shown.filter((f) => !advSet.has(f));
   const advancedFields = shown.filter((f) => advSet.has(f));
   const example = exampleFor(tool.id);
@@ -323,25 +329,45 @@ export default function ToolRunner() {
   );
 }
 
+// Staged checklist for long runs. We have no server-side progress feed for the
+// generic runner, so steps advance on a schedule scaled to the tool's typical
+// duration (not a fixed 6s — which raced to "almost there" and then sat still,
+// reading as stuck). Past the typical window we say so honestly instead of
+// looping the same message. Matches the live-checklist look of SiteAudit.
 function SlowProgress({ tool }) {
-  const steps = ['Sending your request…', 'Reaching the data sources…', 'Crunching the numbers…', 'Compiling the results…', 'Almost there…'];
+  const steps = ['Sending your request', 'Reaching the data sources', 'Crunching the numbers', 'Compiling the results'];
+  const TYPICAL = 90; // seconds — middle of the ~30–150s band for slow tools
   const [sec, setSec] = useState(0);
-  const [i, setI] = useState(0);
   useEffect(() => {
     const a = setInterval(() => setSec((s) => s + 1), 1000);
-    const b = setInterval(() => setI((x) => Math.min(x + 1, steps.length - 1)), 6000);
-    return () => { clearInterval(a); clearInterval(b); };
+    return () => clearInterval(a);
   }, []);
+  const i = Math.min(Math.floor((sec / TYPICAL) * steps.length), steps.length - 1);
+  const overdue = sec > 150;
   return (
     <div className="card mt-6 p-6">
       <div className="flex items-center gap-3">
-        <span className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-        <span className="font-medium text-body">{steps[i]}</span>
-        <span className="ml-auto text-xs tabular-nums text-faint">{sec}s · ~30–150s for {tool.name}</span>
+        <span className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+        <span className="font-medium text-body">{steps[i]}…</span>
+        <span className="ml-auto text-xs tabular-nums text-faint">{sec}s · usually 30–150s</span>
       </div>
-      <div className="mt-4 space-y-2">
-        {[90, 75, 82, 60].map((w, k) => <div key={k} className="h-3 animate-pulse rounded bg-sunken" style={{ width: `${w}%` }} />)}
-      </div>
+      <ul className="mt-4 space-y-2">
+        {steps.map((s, k) => (
+          <li key={s} className={`flex items-center gap-2 text-sm ${k < i ? 'text-muted' : k === i ? 'font-medium text-body' : 'text-faint'}`}>
+            {k < i
+              ? <Check size={15} className="shrink-0 text-green-600 dark:text-green-400" aria-hidden />
+              : k === i
+              ? <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-brand-400 border-t-transparent" aria-hidden />
+              : <span className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-line" aria-hidden />}
+            {s}
+          </li>
+        ))}
+      </ul>
+      {overdue && (
+        <p className="mt-4 text-sm text-dim">
+          Still working — big sites and busy data sources can take a few minutes. You can leave this page open; the result will appear here.
+        </p>
+      )}
     </div>
   );
 }
@@ -402,15 +428,116 @@ function PrintHeader({ tool, project, user }) {
   );
 }
 
+// Free plain-English summary, auto-fetched for every real run (runId present —
+// the guided tour's sample results skip it). Cached per run so re-renders and
+// remounts never refetch. Fails silently: the raw result is still on screen.
+const tldrCache = new Map();
+function TldrPanel({ tool, r, runId }) {
+  const [state, setState] = useState(() => tldrCache.get(runId) || { loading: true, text: '' });
+  useEffect(() => {
+    let alive = true;
+    const hit = tldrCache.get(runId);
+    if (hit) { setState(hit); return undefined; }
+    setState({ loading: true, text: '' });
+    api.explainResult(tool.name, copyableOf(r).slice(0, 5000))
+      .then((d) => { const s = { loading: false, text: String(d.summary || '').trim() }; tldrCache.set(runId, s); if (alive) setState(s); })
+      .catch(() => { const s = { loading: false, text: '' }; tldrCache.set(runId, s); if (alive) setState(s); });
+    return () => { alive = false; };
+    // eslint-disable-next-line
+  }, [runId]);
+  if (!state.loading && !state.text) return null;
+  return (
+    <div className="dm-no-print mb-4 rounded-xl border border-brand-200 dark:border-brand-500/30 bg-brand-50/60 dark:bg-brand-500/10 p-4">
+      <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-brand-700 dark:text-brand-300">
+        <Sparkles size={13} aria-hidden /> What this means — in plain English
+      </div>
+      {state.loading ? (
+        <div className="mt-2.5 space-y-1.5" aria-label="Writing your summary…">
+          {[92, 78, 60].map((w) => <div key={w} className="h-3 animate-pulse rounded bg-brand-100 dark:bg-brand-500/20" style={{ width: `${w}%` }} />)}
+        </div>
+      ) : (
+        <TldrText text={state.text} />
+      )}
+    </div>
+  );
+}
+
+// Light renderer for the explainer reply: paragraphs + the fixed labels bolded.
+// (The upstream returns plain text / light markdown; we don't ship a full
+// markdown renderer for a 150-word summary.)
+function TldrText({ text }) {
+  const lines = String(text).replace(/\*\*/g, '').split('\n').map((l) => l.trim()).filter(Boolean);
+  return (
+    <div className="mt-2 space-y-1 text-sm leading-relaxed text-body">
+      {lines.map((l, i) => {
+        const m = l.match(/^(Looking good|Needs attention|Do this next)\s*:?\s*(.*)$/i);
+        if (m) return <p key={i}><strong className="font-semibold text-heading">{m[1]}:</strong> {m[2]}</p>;
+        return <p key={i}>{l}</p>;
+      })}
+    </div>
+  );
+}
+
+// Backend/exception strings are not layman copy ("fetch failed", "502"). Show a
+// calm card with likely causes and ways forward instead of red raw text.
+function FriendlyError({ message, tool }) {
+  const askMonty = () => {
+    window.dispatchEvent(new CustomEvent('dm:ask', {
+      detail: { text: `I ran the "${tool.name}" tool and got this error: "${message}". In plain English, what does it mean and what should I try?` },
+    }));
+  };
+  return (
+    <div className="card mt-6 p-6">
+      <div className="flex items-center gap-2 font-semibold text-heading">
+        <AlertTriangle size={18} className="text-amber-500" aria-hidden /> That run didn’t work
+      </div>
+      <p className="mt-2 text-sm text-dim">
+        No credits were wasted on failed runs. This usually comes down to one of these:
+      </p>
+      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-dim">
+        <li>A typo in the website address — check it loads in a new tab.</li>
+        <li>The data source being briefly busy — trying again in a minute often fixes it.</li>
+        <li>A very new or very small site with no data yet.</li>
+      </ul>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <button type="button" onClick={askMonty} className="btn-ghost inline-flex items-center gap-1.5 text-sm">
+          <MessageCircleQuestion size={15} aria-hidden /> Ask Monty for help
+        </button>
+        <span className="text-xs text-faint">Technical detail: {message}</span>
+      </div>
+    </div>
+  );
+}
+
+// A run that finished but returned nothing used to render a blank card — this
+// panel always explains and points at the usual fix (input format).
+function EmptyResult({ tool }) {
+  return (
+    <div className="card mt-6 p-6 text-center">
+      <p className="font-semibold text-heading">No data came back</p>
+      <p className="mx-auto mt-1.5 max-w-md text-sm text-dim">
+        The run finished, but there was nothing to show. That’s usually the website address or keyword format — try the bare domain (like <span className="font-medium">example.com</span>), or broader keywords.
+      </p>
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new CustomEvent('dm:ask', { detail: { text: `I ran the "${tool.name}" tool and it returned no data. What input should I try instead?` } }))}
+        className="btn-ghost mt-4 inline-flex items-center gap-1.5 text-sm"
+      >
+        <MessageCircleQuestion size={15} aria-hidden /> Ask Monty what to try
+      </button>
+    </div>
+  );
+}
+
 function Result({ out, tool, project, user, onCredits }) {
-  if (out.error) return <p className="mt-6 flex items-center gap-1.5 text-red-600 dark:text-red-400"><AlertTriangle size={16} aria-hidden /> {out.error}</p>;
+  if (out.error) return <FriendlyError message={out.error} tool={tool} />;
   const r = out.result || {};
 
   if (r.needsConnect) {
     return (
       <div className="card mt-6 p-6 text-center">
         <p className="text-dim">{r.text || 'Connect your account to use this tool.'}</p>
-        <Link to="/integrations" className="btn-primary mt-3 inline-block">Connect in Integrations →</Link>
+        <Link to="/integrations" className="btn-primary mt-3 inline-block">Connect your account →</Link>
       </div>
     );
   }
@@ -418,6 +545,9 @@ function Result({ out, tool, project, user, onCredits }) {
   const isSchema = tool.id === 'schema' && r.text;
   const hasContent = r.text || r.preview || r.html || (r.rows && r.rows.length) || (r.sections && r.sections.length);
   const sectionTable = r.sections && firstTable(r.sections);
+
+  // Finished but nothing to show → explain it, don't render a blank card.
+  if (!hasContent && !r.blurredCount && !r.detailsLocked && !out.failed) return <EmptyResult tool={tool} />;
 
   // Recommendation cards are appended after the findings (see withRecs in the
   // gateway). When a result also has a top-level data table, that table should
@@ -448,9 +578,9 @@ function Result({ out, tool, project, user, onCredits }) {
         )}
         {hasContent && (
           <div className="ml-auto flex items-center gap-1.5">
-            <button onClick={explain} title={`Ask the assistant to explain this in plain English (${CREDIT_COSTS.ai_chat ?? 2} credits)`}
+            <button onClick={explain} title={`Discuss these results with Monty — ask follow-up questions (${CREDIT_COSTS.ai_chat ?? 2} credits per message)`}
               className="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700">
-              <Sparkles size={13} aria-hidden /> Explain this
+              <Sparkles size={13} aria-hidden /> Ask Monty
             </button>
             {/* One canonical CSV: prefer the top-level rows, else the first table
                 section (previously both could render → two identical "CSV" buttons).
@@ -480,6 +610,8 @@ function Result({ out, tool, project, user, onCredits }) {
             {r.teaserMessage || 'Preview only — upgrade to see everything.'}
           </div>
         )}
+
+        {out.runId && hasContent && !out.teaser && <TldrPanel tool={tool} r={r} runId={out.runId} />}
 
         {isSchema ? (
           <SchemaResult json={r.text} />
@@ -880,7 +1012,7 @@ function AccountField({ provider, value, onChange, placeholder }) {
       <>
         <input className="field mt-1.5" value={value || ''} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
         <span className="mt-1 block text-xs text-faint">
-          No connected accounts — <Link to="/integrations" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">connect in Integrations</Link> or type an ID manually.
+          No connected accounts — <Link to="/integrations" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">connect your account</Link> or type an ID manually.
         </span>
       </>
     );
@@ -928,10 +1060,12 @@ function SearchableSelect({ options, value, onChange, autoFocus }) {
   const searchRef = useRef(null);
   const listRef = useRef(null);
 
+  // Accept plain strings or {value,label} pairs (labels searched, values stored).
+  const norm = useMemo(() => options.map((o) => (typeof o === 'string' ? { value: o, label: o } : o)), [options]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return q ? options.filter((o) => o.toLowerCase().includes(q)) : options;
-  }, [options, query]);
+    return q ? norm.filter((o) => o.label.toLowerCase().includes(q)) : norm;
+  }, [norm, query]);
 
   // Close on outside click.
   useEffect(() => {
@@ -945,10 +1079,10 @@ function SearchableSelect({ options, value, onChange, autoFocus }) {
   useEffect(() => {
     if (!open) return;
     setQuery('');
-    const i = options.indexOf(value);
+    const i = norm.findIndex((o) => o.value === value);
     setActive(i >= 0 ? i : 0);
     requestAnimationFrame(() => searchRef.current?.focus());
-  }, [open, options, value]);
+  }, [open, norm, value]);
 
   // Keep the active option scrolled into view.
   useEffect(() => {
@@ -956,7 +1090,8 @@ function SearchableSelect({ options, value, onChange, autoFocus }) {
     listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [active, open]);
 
-  const pick = (opt) => { onChange(opt); setOpen(false); };
+  const pick = (opt) => { onChange(opt.value); setOpen(false); };
+  const selectedLabel = norm.find((o) => o.value === value)?.label || value;
 
   const onKeyDown = (e) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(a + 1, filtered.length - 1)); }
@@ -972,7 +1107,7 @@ function SearchableSelect({ options, value, onChange, autoFocus }) {
         onClick={() => setOpen((o) => !o)}
         className="field dm-select flex w-full items-center pr-9 text-left"
       >
-        <span className="truncate">{value || 'Select…'}</span>
+        <span className="truncate">{selectedLabel || 'Select…'}</span>
       </button>
       {open && (
         <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-line bg-surface shadow-lift">
@@ -989,7 +1124,7 @@ function SearchableSelect({ options, value, onChange, autoFocus }) {
             {filtered.length === 0 ? (
               <li className="px-3 py-2 text-sm text-faint">No matches</li>
             ) : filtered.map((opt, i) => (
-              <li key={opt}>
+              <li key={opt.value}>
                 <button
                   type="button" data-active={i === active}
                   onMouseEnter={() => setActive(i)} onClick={() => pick(opt)}
@@ -997,8 +1132,8 @@ function SearchableSelect({ options, value, onChange, autoFocus }) {
                     i === active ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300' : 'text-body'
                   }`}
                 >
-                  <span className="truncate">{opt}</span>
-                  {opt === value && <span className="text-brand-600 dark:text-brand-400">✓</span>}
+                  <span className="truncate">{opt.label}</span>
+                  {opt.value === value && <span className="text-brand-600 dark:text-brand-400">✓</span>}
                 </button>
               </li>
             ))}
@@ -1035,10 +1170,14 @@ function Segmented({ options, optionDesc = {}, value, onChange }) {
 
 function Field({ field, value, onChange, autoFocus, provider, values, invalid }) {
   const base = `field mt-1.5${invalid ? ' !border-amber-400 !ring-4 !ring-amber-400/20' : ''}`;
+  // Plain-English help on the label itself: an explicit `help` string from the
+  // catalog wins, else fall back to the glossary (same matching as result tips).
+  const tip = field.help || glossaryFor(field.label);
   return (
     <label className={`block ${invalid ? '-ml-3 rounded-lg border-l-2 border-amber-400 bg-amber-50/50 dark:bg-amber-500/10 pl-3' : ''}`} data-tour-field={field.name}>
       <span className="text-sm font-medium text-body">
         {field.label}{field.required && <span className={invalid ? 'font-bold text-amber-600 dark:text-amber-400' : 'text-amber-500'}> *</span>}
+        {tip && <InfoTip text={tip} className="ml-1" />}
       </span>
       {field.type === 'account' ? (
         <AccountField provider={provider} value={value} onChange={onChange} placeholder={field.placeholder} />
@@ -1060,7 +1199,13 @@ function Field({ field, value, onChange, autoFocus, provider, values, invalid })
           <SearchableSelect options={field.options} value={value} onChange={onChange} autoFocus={autoFocus} />
         ) : (
           <select autoFocus={autoFocus} value={value} onChange={(e) => onChange(e.target.value)} className={`${base} dm-select pr-9`}>
-            {field.options.map((o) => <option key={o} value={o}>{o}</option>)}
+            {field.options.map((o) => {
+              // Options are plain strings, or {value,label} where the stored
+              // value is a code the user shouldn't have to know (country codes).
+              const v = typeof o === 'string' ? o : o.value;
+              const l = typeof o === 'string' ? o : o.label;
+              return <option key={v} value={v}>{l}</option>;
+            })}
           </select>
         )
       ) : (

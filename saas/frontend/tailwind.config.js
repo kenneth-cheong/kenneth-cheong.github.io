@@ -8,7 +8,9 @@
 const token = (name) => `rgb(var(${name}) / <alpha-value>)`;
 
 export default {
-  content: ['./index.html', './src/**/*.{js,jsx}'],
+  // `relative: true` resolves these globs against THIS file, not the process
+  // CWD — required when Vite runs from the repo root (dev-preview tooling).
+  content: { relative: true, files: ['./index.html', './src/**/*.{js,jsx}'] },
   // Dark mode is opt-in via a `.dark` class on <html> (toggled by the theme
   // switcher, persisted to localStorage, applied pre-paint in index.html).
   darkMode: 'class',

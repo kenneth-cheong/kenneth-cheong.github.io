@@ -52,7 +52,7 @@ export const PLANS = {
     maxSchedules: 0,
     scheduleFreqs: [],
     blurb: 'Kick the tyres. Real tools, capped results.',
-    highlights: ['30 AI credits / month', '1 project', 'Caption generator', 'Capped keyword + rank results'],
+    highlights: ['30 credits / month (≈ 30 caption or keyword runs)', '1 project', 'Caption generator', 'Capped keyword + rank results'],
   },
   starter: {
     id: 'starter',
@@ -64,7 +64,7 @@ export const PLANS = {
     maxSchedules: 3,
     scheduleFreqs: ['weekly', 'monthly'], // no daily — protects the monthly credit budget
     blurb: 'For solo marketers shipping content + SEO.',
-    highlights: ['500 credits / month', '3 projects', 'Full SEO Toolkit', 'Full AI Content Studio', '25 tracked keywords', '3 scheduled runs'],
+    highlights: ['500 credits / month (≈ 100 AI articles or 500 keyword checks)', '3 projects', 'Full SEO Toolkit', 'Full AI Content Studio', '25 tracked keywords', '3 scheduled runs'],
   },
   pro: {
     id: 'pro',
@@ -77,7 +77,7 @@ export const PLANS = {
     scheduleFreqs: ['daily', 'weekly', 'monthly'],
     popular: true,
     blurb: 'The serious operator plan. AI Visibility + ad integrations.',
-    highlights: ['2,000 credits / month', '10 projects', 'AI Visibility (GEO) suite', 'Google / Meta / GA4 integrations', '250 tracked keywords', '15 scheduled runs (daily)', 'Advanced AI model'],
+    highlights: ['2,000 credits / month (≈ 400 AI articles or 40 deep site audits)', '10 projects', 'AI Visibility (GEO) suite', 'Google / Meta / GA4 integrations', '250 tracked keywords', '15 scheduled runs (daily)', 'Advanced AI model'],
   },
   expert: {
     id: 'expert',
@@ -89,7 +89,7 @@ export const PLANS = {
     maxSchedules: 50,
     scheduleFreqs: ['daily', 'weekly', 'monthly'],
     blurb: 'Agencies-of-one and power users.',
-    highlights: ['6,000 credits / month', '25 projects', 'White-label PDF export', 'API access', '1,000 tracked keywords', '50 scheduled runs (daily)', 'Priority AI queue'],
+    highlights: ['6,000 credits / month (≈ 1,200 AI articles or 120 deep site audits)', '25 projects', 'White-label PDF export', 'API access', '1,000 tracked keywords', '50 scheduled runs (daily)', 'Priority AI queue'],
   },
 };
 
@@ -617,6 +617,11 @@ export const GLOSSARY = {
   URL: 'The web address of a specific page.',
   Domain: 'A website’s core address, like example.com.',
   Competitors: 'Other sites competing with you for the same searches.',
+  GAQL: 'Google Ads Query Language — a code-like way to ask Google Ads for exactly the data you want.',
+  'JSON-LD': 'A snippet of code on your page that tells Google exactly what the page is about.',
+  USP: 'Unique selling point — the one thing that makes you the better choice.',
+  Persona: 'A fictional profile of a typical customer, used to sharpen your marketing.',
+  'Content pillar': 'A recurring theme your content keeps coming back to, so your brand stands for something.',
 };
 
 /** One-click sample inputs per tool ("Try an example").
@@ -635,7 +640,7 @@ export const EXAMPLES = {
   backlinks: { input: 'asana.com', mode: 'domain' },
   schema: { type: 'Organization', name: 'Asana', url: 'https://asana.com', telephone: '+1 415 525 3888', address: '633 Folsom St, San Francisco, CA' },
   caption: { input: 'New Asana feature: AI-powered project summaries that catch your team up in seconds', brand: 'Asana', platform: 'Instagram', tone: 'Friendly', language: 'English' },
-  'content-writer': { mode: 'Optimise existing content', input: 'Project management is useful. Asana has tools for teams. Contact us to learn more.', keyword: 'project management software', analysis: 'Verify & QA (8 agents)' },
+  'content-writer': { mode: 'Optimise existing content', input: 'Project management is useful. Asana has tools for teams. Contact us to learn more.', keyword: 'project management software', analysis: 'Verify & QA' },
   'content-check': { input: "Asana is the best way to organise you're team's work. We offer alot of templates and the guaranteed cheapest plans.", keyword: 'project management software' },
   pillars: { input: 'Asana — work management platform for teams', businessModel: 'B2B', objectives: 'Brand authority', audienceType: 'Businesses' },
   'ai-discovery': { input: 'Asana', url: 'https://asana.com', location: 'United States' },
@@ -769,6 +774,24 @@ const COUNTRIES = [
   'Vatican City', 'Venezuela', 'Vietnam', 'Yemen', 'Zambia', 'Zimbabwe',
 ];
 
+// Country picker for GSC filters — GSC wants a lowercase ISO-3166 alpha-3 code,
+// which no layman should have to know. Labels are searched; codes are stored.
+// '' = no filter (all countries), which the backend treats as "skip the filter".
+const GSC_COUNTRY_OPTIONS = [
+  { value: '', label: 'All countries' },
+  { value: 'sgp', label: 'Singapore' }, { value: 'mys', label: 'Malaysia' }, { value: 'idn', label: 'Indonesia' },
+  { value: 'tha', label: 'Thailand' }, { value: 'vnm', label: 'Vietnam' }, { value: 'phl', label: 'Philippines' },
+  { value: 'hkg', label: 'Hong Kong' }, { value: 'twn', label: 'Taiwan' }, { value: 'jpn', label: 'Japan' },
+  { value: 'kor', label: 'South Korea' }, { value: 'chn', label: 'China' }, { value: 'ind', label: 'India' },
+  { value: 'aus', label: 'Australia' }, { value: 'nzl', label: 'New Zealand' },
+  { value: 'usa', label: 'United States' }, { value: 'can', label: 'Canada' },
+  { value: 'gbr', label: 'United Kingdom' }, { value: 'irl', label: 'Ireland' },
+  { value: 'deu', label: 'Germany' }, { value: 'fra', label: 'France' }, { value: 'esp', label: 'Spain' },
+  { value: 'ita', label: 'Italy' }, { value: 'nld', label: 'Netherlands' }, { value: 'che', label: 'Switzerland' },
+  { value: 'are', label: 'United Arab Emirates' }, { value: 'sau', label: 'Saudi Arabia' },
+  { value: 'bra', label: 'Brazil' }, { value: 'mex', label: 'Mexico' }, { value: 'zaf', label: 'South Africa' },
+];
+
 export const INPUTS = {
   'keyword-analysis': [
     { name: 'mode', label: 'What do you want to do?', type: 'segmented',
@@ -784,7 +807,8 @@ export const INPUTS = {
       showWhen: { field: 'mode', in: ['Keyword metrics', 'Similar keywords (from seed)'] } },
     { name: 'target', label: 'Domain or page URL', type: 'url', placeholder: 'https://example.com', required: true,
       showWhen: { field: 'mode', in: ['Ranking keywords (for a domain)', 'Keywords from a webpage'] } },
-    { name: 'domain', label: 'Your domain (optional — lets you estimate time-to-rank for chosen keywords)', type: 'url', placeholder: 'https://yoursite.com',
+    { name: 'domain', label: 'Your website (optional)', type: 'url', placeholder: 'https://yoursite.com',
+      help: 'Adds a “time to rank” estimate — roughly how long it could take your site to reach Google page 1 for each keyword.',
       showWhen: { field: 'mode', in: ['Keyword metrics', 'Similar keywords (from seed)'] } },
     { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
     { name: 'language', label: 'Language', type: 'select', options: LANGUAGES, default: 'English' },
@@ -797,8 +821,10 @@ export const INPUTS = {
   ],
   'technical-seo': [
     { name: 'input', label: 'Website URL', type: 'url', placeholder: 'https://example.com', required: true },
-    { name: 'maxPages', label: 'Max pages to crawl', type: 'number', default: '10' },
-    { name: 'maxDepth', label: 'Max crawl depth', type: 'number', default: '4' },
+    { name: 'maxPages', label: 'Max pages to check', type: 'number', default: '10',
+      help: 'How many pages of your site to check. More pages = a fuller picture and a slightly higher credit cost (2 credits per 10 pages).' },
+    { name: 'maxDepth', label: 'Max crawl depth', type: 'number', default: '4',
+      help: 'How many clicks away from your homepage to look. 4 is right for most sites.' },
   ],
   'time-to-rank': [
     { name: 'domain', label: 'Your domain', type: 'url', placeholder: 'https://example.com', required: true },
@@ -826,7 +852,8 @@ export const INPUTS = {
   ],
   backlinks: [
     { name: 'input', label: 'Domain', type: 'text', placeholder: 'example.com', required: true },
-    { name: 'mode', label: 'Analysis scope', type: 'select', options: ['domain', 'host', 'url'], default: 'domain' },
+    { name: 'mode', label: 'What to analyse', type: 'select', options: ['domain', 'host', 'url'], default: 'domain',
+      help: 'Domain = the whole site including subdomains. Host = one subdomain only. URL = just this single page.' },
   ],
   // Visual JSON-LD builder — fields surface by the chosen schema type (showWhen).
   schema: [
@@ -890,7 +917,17 @@ export const INPUTS = {
     { name: 'input', label: 'Content (or topic if writing new)', type: 'textarea', placeholder: 'Paste content to optimise, or a topic to write about…', required: true },
     { name: 'keyword', label: 'Target keyword', type: 'text', placeholder: 'e.g. project management software' },
     { name: 'secondary', label: 'Secondary keywords', type: 'tags', placeholder: 'add a keyword and press Enter' },
-    { name: 'analysis', label: 'QA agents to run', type: 'select', options: ['Verify & QA (8 agents)', 'Research & Discovery (7 agents)', 'Structure & Enrichment (3 agents)', 'Full audit (all 18 agents)'], default: 'Verify & QA (8 agents)' },
+    // Values are matched by prefix in the backend (Full/Research/Structure,
+    // anything else = verify) — keep those leading words if relabelling.
+    { name: 'analysis', label: 'How thoroughly should we check the draft?', type: 'segmented',
+      options: ['Verify & QA', 'Research deeper', 'Structure & polish', 'Full audit'],
+      optionDesc: {
+        'Verify & QA': 'Quick fact-check and quality pass — right for most runs.',
+        'Research deeper': 'Adds topic research and source discovery.',
+        'Structure & polish': 'Focuses on layout, headings and formatting.',
+        'Full audit': 'Every check we have — the most thorough, and the slowest.',
+      },
+      default: 'Verify & QA' },
     { name: 'pageType', label: 'Page type', type: 'select', options: ['Any', 'Blog', 'Product', 'Service', 'Landing page', 'Category', 'Home'], default: 'Any' },
     { name: 'brandTone', label: 'Brand tone', type: 'select', options: ['Professional', 'Conversational', 'Authoritative', 'Friendly', 'Bold', 'Luxury'], default: 'Professional' },
     { name: 'audience', label: 'Audience', type: 'text', placeholder: 'e.g. startup founders, small business owners', default: 'Working professionals' },
@@ -914,10 +951,13 @@ export const INPUTS = {
     { name: 'businessModel', label: 'Business model', type: 'select', options: ['B2B', 'B2C', 'B2G', 'Hybrid'], default: 'B2C' },
     { name: 'objectives', label: 'Primary objective', type: 'select', options: ['Lead generation', 'Direct sales', 'Brand authority', 'Trust & credibility', 'Retention / repeat purchase', 'Recruitment / employer branding'], default: 'Brand authority' },
     { name: 'audienceType', label: 'Primary audience', type: 'select', options: ['Individual consumers', 'SME decision-makers', 'Enterprise / senior stakeholders', 'Mixed audiences'], default: 'Individual consumers' },
-    { name: 'complexity', label: 'Decision complexity', type: 'select', options: ['Low (impulse / low consideration)', 'Medium (comparison-based)', 'High (trust-heavy / multi-touch)'], default: 'Medium (comparison-based)' },
+    { name: 'complexity', label: 'Decision complexity', type: 'select', options: ['Low (impulse / low consideration)', 'Medium (comparison-based)', 'High (trust-heavy / multi-touch)'], default: 'Medium (comparison-based)',
+      help: 'How much thought a customer puts into buying from you — a snack is low, enterprise software is high.' },
     { name: 'platforms', label: 'Primary platform', type: 'select', options: ['LinkedIn', 'Instagram', 'TikTok', 'Facebook', 'YouTube / Shorts'], default: 'Instagram' },
-    { name: 'sensitivity', label: 'Brand risk sensitivity', type: 'select', options: ['Low (playful, trend-led)', 'Medium (balanced)', 'High (regulated, reputation-heavy)'], default: 'Medium (balanced)' },
-    { name: 'promoTolerance', label: 'Promotional tolerance', type: 'select', options: ['Low (soft sell only)', 'Medium (occasional CTA)', 'High (offer-led, sales-focused)'], default: 'Medium (occasional CTA)' },
+    { name: 'sensitivity', label: 'Brand risk sensitivity', type: 'select', options: ['Low (playful, trend-led)', 'Medium (balanced)', 'High (regulated, reputation-heavy)'], default: 'Medium (balanced)',
+      help: 'How careful your brand needs to be with tone — regulated or reputation-heavy industries are high.' },
+    { name: 'promoTolerance', label: 'Promotional tolerance', type: 'select', options: ['Low (soft sell only)', 'Medium (occasional CTA)', 'High (offer-led, sales-focused)'], default: 'Medium (occasional CTA)',
+      help: 'How salesy your content is allowed to be.' },
     { name: 'website', label: 'Website URLs', type: 'textarea', placeholder: 'one or more URLs' },
     { name: 'brandGuide', label: 'Brand guidelines URL', type: 'url', placeholder: 'https://example.com/brand' },
     { name: 'competitors', label: 'Key competitors', type: 'textarea', placeholder: 'competitor names or URLs' },
@@ -936,7 +976,9 @@ export const INPUTS = {
   'llms-txt': [
     { name: 'input', label: 'Website URL', type: 'url', placeholder: 'https://example.com', required: true },
     { name: 'summary', label: 'Summary / blockquote (optional)', type: 'textarea', placeholder: 'Leave blank to auto-write it from the site' },
-    { name: 'geoPrompts', label: 'Target prompts for GEO (optional, one per line)', type: 'textarea', placeholder: 'What makes Acme the best choice?\nHow does Acme help teams stay productive?' },
+    { name: 'geoPrompts', label: 'Questions AI should answer with your site (optional, one per line)', type: 'textarea',
+      placeholder: 'What makes Acme the best choice?\nHow does Acme help teams stay productive?',
+      help: 'AI assistants like ChatGPT answer questions — list the questions you want your site to be the answer to.' },
     { name: 'highlights', label: 'Extra highlights (optional)', type: 'textarea', placeholder: 'Anything else to surface in the file' },
   ],
   'geo-onpage': [
@@ -1022,8 +1064,10 @@ export const INPUTS = {
     { name: 'compare', label: 'Compare to', type: 'select', options: ['None', 'Previous period', 'Previous year'], default: 'None' },
     { name: 'searchType', label: 'Search type', type: 'select', options: ['Web', 'Image', 'Video', 'News', 'Discover'], default: 'Web' },
     { name: 'device', label: 'Device', type: 'select', options: ['All', 'Mobile', 'Desktop', 'Tablet'], default: 'All' },
-    { name: 'country', label: 'Country (3-letter code, optional)', type: 'text', placeholder: 'e.g. sgp' },
-    { name: 'brand', label: 'Brand terms for branded/non-branded split (optional)', type: 'text', placeholder: 'e.g. mediaone, media one' },
+    { name: 'country', label: 'Country (optional)', type: 'select', options: GSC_COUNTRY_OPTIONS, default: '',
+      help: 'Only count searches made in one country. Leave as “All countries” to see everything.' },
+    { name: 'brand', label: 'Your brand names (optional)', type: 'text', placeholder: 'e.g. mediaone, media one',
+      help: 'Splits searches for your brand by name from everything else, so you can see how many people already know you.' },
   ],
   ga4: [
     { name: 'input', label: 'Property', type: 'account', placeholder: 'e.g. 123456789', required: true },
@@ -1041,7 +1085,9 @@ export const INPUTS = {
     { name: 'startDate', label: 'Start date', type: 'date', required: true, showWhen: { field: 'range', in: ['Custom'] } },
     { name: 'endDate', label: 'End date', type: 'date', required: true, showWhen: { field: 'range', in: ['Custom'] } },
     { name: 'compare', label: 'Compare to', type: 'select', options: ['None', 'Previous period', 'Previous year'], default: 'None' },
-    { name: 'gaql', label: 'Advanced: custom GAQL query (optional — overrides the above)', type: 'textarea', placeholder: "SELECT campaign.name, metrics.clicks FROM campaign WHERE segments.date DURING LAST_30_DAYS" },
+    { name: 'gaql', label: 'Custom GAQL query (optional)', type: 'textarea', advanced: true,
+      placeholder: "SELECT campaign.name, metrics.clicks FROM campaign WHERE segments.date DURING LAST_30_DAYS",
+      help: 'For power users only. GAQL is Google Ads Query Language — a query here replaces all the settings above. Leave blank if unsure.' },
   ],
   'meta-ads': [
     { name: 'input', label: 'Ad account', type: 'account', placeholder: 'e.g. act_1234567890', required: true },

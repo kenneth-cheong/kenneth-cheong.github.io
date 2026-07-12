@@ -64,7 +64,7 @@ export default function ProfilePrompt() {
     try {
       const res = await saveProfile(patch);
       setPending({});
-      if (res?.bonusGranted) toast(`Profile complete — ${res.bonusAmount || PROFILE_BONUS} tokens added 🎉`, 'success');
+      if (res?.bonusGranted) toast(`Profile complete — ${res.bonusAmount || PROFILE_BONUS} credits added 🎉`, 'success');
       else toast('Thanks! Saved.', 'success');
     } catch (e) {
       toast(e.message || 'Could not save.', 'error');
@@ -105,7 +105,7 @@ export default function ProfilePrompt() {
     <div className="fixed bottom-5 right-5 z-40 w-[calc(100vw-2.5rem)] max-w-sm rounded-xl border border-brand-200 dark:border-brand-500/30 bg-surface p-5 shadow-2xl">
       <div className="flex items-start justify-between gap-3">
         <h2 className="flex items-center gap-1.5 font-semibold text-brand-800 dark:text-brand-300">
-          <Sparkles size={16} aria-hidden /> Complete your profile &amp; earn {PROFILE_BONUS} tokens
+          <Sparkles size={16} aria-hidden /> Complete your profile &amp; earn {PROFILE_BONUS} credits
         </h2>
         <div className="flex shrink-0 items-center gap-1">
           <button onClick={collapse} aria-label="Minimize" title="Minimize"
@@ -140,7 +140,7 @@ export default function ProfilePrompt() {
           {busy ? 'Saving…' : 'Save & continue'}
         </button>
         <Link to="/profile" className="text-sm font-medium text-brand-700 dark:text-brand-300 hover:text-brand-800 dark:hover:text-brand-300">
-          Complete all &amp; get {PROFILE_BONUS} tokens →
+          Complete all &amp; get {PROFILE_BONUS} credits →
         </Link>
       </div>
     </div>

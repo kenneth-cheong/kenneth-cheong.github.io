@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { toolById } from '@shared/catalog.mjs';
 import { api } from '../lib/api.js';
 import { useProjects } from '../context/ProjectContext.jsx';
@@ -125,7 +125,11 @@ export default function History({ embedded = false }) {
 
       {visible === null && <p className="mt-6 text-faint">Loading…</p>}
       {visible?.length === 0 && (
-        <div className="card mt-6 p-8 text-center text-faint">No runs yet — run a tool and it'll appear here.</div>
+        <div className="card mt-6 p-8 text-center">
+          <p className="font-semibold text-heading">No runs yet</p>
+          <p className="mt-1.5 text-sm text-dim">Everything you run is saved here, so you can re-open or re-run any result later.</p>
+          <Link to="/" className="btn-primary mt-4 inline-block text-sm">Run your first tool →</Link>
+        </div>
       )}
 
       {/* Flat sortable table */}

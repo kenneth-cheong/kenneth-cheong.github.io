@@ -201,6 +201,8 @@ export const api = {
   invoices: () => call('/billing/invoices'),
   // In-app features: assistant chat, run history, support, integrations.
   chat: (messages, conversationId, context) => call('/chat', { method: 'POST', body: { messages, conversationId, context } }),
+  // Free plain-English summary of a tool result (the "What this means" panel).
+  explainResult: (toolName, resultText) => call('/chat/explain', { method: 'POST', body: { toolName, resultText } }),
   conversations: () => call('/chat/conversations'),
   conversation: (id) => call(`/chat/conversations/${encodeURIComponent(id)}`),
   deleteConversation: (id) => call('/chat/conversations/delete', { method: 'POST', body: { conversationId: id } }),

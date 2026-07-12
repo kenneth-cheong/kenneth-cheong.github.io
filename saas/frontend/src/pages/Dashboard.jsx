@@ -66,6 +66,11 @@ export default function Dashboard() {
 
   const [showOnboard, setShowOnboard] = useState(() => !user.onboarding?.dismissedChecklist && localStorage.getItem('dm_onboard_done') !== '1');
   const dismissOnboard = () => { setShowOnboard(false); localStorage.setItem('dm_onboard_done', '1'); setOnboarding({ dismissedChecklist: true }); };
+  // Sequence the nudges: a brand-new Simple-mode user used to face the setup
+  // checklist + GoalPlanner + profile prompt all at once. Now the goal planner
+  // leads alone; the checklist and profile prompt wait until there's been a
+  // first run (or the user opts into Advanced mode, where the planner is gone).
+  const everRan = getRecent().length > 0;
   useEffect(() => { api.integrations().then((d) => setGoogleConnected(Object.values(d.connected || {}).some((c) => c?.connected))).catch(() => {}); }, []);
 
   const match = (t) => q === '' || (t.name + t.desc + (SIMPLE_NAMES[t.id]?.name || '')).toLowerCase().includes(q.toLowerCase());
@@ -138,8 +143,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Onboarding checklist (until all done or dismissed) */}
-      {showOnboard && !allDone && !searching && (
+      {/* Onboarding checklist (until all done or dismissed; deferred until a
+          first run so it never stacks on the goal planner for a new user) */}
+      {showOnboard && !allDone && !searching && (everRan || !simple) && (
         <div className="mt-6 rounded-xl border border-brand-200 dark:border-brand-500/30 bg-brand-50/60 dark:bg-brand-500/10 p-5">
           <div className="flex items-start justify-between">
             <h2 className="font-semibold text-brand-800 dark:text-brand-300">Get set up — {steps.filter((s) => s.done).length}/{steps.length} done</h2>
@@ -151,8 +157,9 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Progressive-profiling nudge — self-hides when complete/rewarded/snoozed */}
-      {!searching && <ProfilePrompt />}
+      {/* Progressive-profiling nudge — self-hides when complete/rewarded/snoozed.
+          Held back until the user has run something: earn value before asking. */}
+      {!searching && everRan && <ProfilePrompt />}
 
       {/* ───────── Simple mode: goal intake → agentic pathway ───────── */}
       {simple && !searching ? (

@@ -97,7 +97,7 @@ export default function Integrations() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="text-2xl font-bold">Integrations</h1>
+      <h1 className="text-2xl font-bold">Connect your data</h1>
       <p className="mt-1 text-dim">
         Connect your ad &amp; analytics accounts to pull your own performance data — free of credits, and queryable by the assistant.
       </p>
@@ -171,7 +171,19 @@ export default function Integrations() {
           );
         })}
         {!families.length && (
-          <p className="text-sm text-faint">No integrations are available on this deployment yet.</p>
+          <div className="card p-8 text-center">
+            <p className="font-semibold text-heading">Nothing to connect here yet</p>
+            <p className="mx-auto mt-1.5 max-w-md text-sm text-dim">
+              Connections to Google and social accounts aren’t switched on for this workspace. If you expected to see them, we can help.
+            </p>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('dm:ask', { detail: { text: 'The Connect your data page says nothing is available to connect. What does that mean and what should I do?' } }))}
+              className="btn-ghost mt-4 text-sm"
+            >
+              Ask Monty
+            </button>
+          </div>
         )}
       </div>
     </div>
