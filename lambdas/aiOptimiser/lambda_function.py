@@ -2330,9 +2330,13 @@ def _agent_prompt_base(key, c):
                     'TASK - extract every checkable factual claim in the draft, then use web search (up to 4 searches, '
                     'spent on the most consequential claims) to VERIFY them against current authoritative sources. '
                     'Base verdicts on what you actually found, not memory: Verified / Contradicted / Needs Verification '
-                    '(could not confirm online). Scrutinise dates, numbers, names and superlatives. Do ALL searching '
-                    'first; only then produce the required output, with nothing before PART 1. '
-                    'Return a Markdown table with columns Claim | Verdict | Source (URL) | Note.')
+                    '(could not confirm online). When a claim is contradicted, state the correct value per the source. '
+                    'Scrutinise dates, numbers, names and superlatives. Do ALL searching first; only then produce the '
+                    'required output, with nothing before PART 1.\n'
+                    'Your PART 2 deliverable is ONLY the audit — a Markdown table with columns '
+                    'Claim | Verdict | Source | Note, where Source is the exact page URL (https://...) you verified '
+                    'against, followed by a short "Verification notes" list. Do NOT write an article, a guide or any '
+                    'rewritten/expanded content: you are auditing the draft, not replacing it.')
         return (f'Act as a fact-checker.{ctx}\n'
                 'TASK - extract every checkable factual claim in the draft and rate each: Likely Accurate / Needs Verification / Likely Inaccurate, with reasoning and the source that would confirm it. Scrutinise dates, numbers, names and superlatives. Return a Markdown table with columns Claim | Verdict | Note.')
     if key == 'language':
