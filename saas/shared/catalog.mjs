@@ -928,6 +928,14 @@ export const INPUTS = {
     { name: 'wordCount', label: 'Target word count (optional)', type: 'number', advanced: true,
       help: 'Leave blank to let the AI decide. Setting a target makes each section meet a hard minimum length.',
       showWhen: { field: 'mode', in: ['Write a new draft'] } },
+    { name: 'webVerify', label: 'Verify facts against the live web', type: 'segmented', advanced: true,
+      options: ['Off', 'On'],
+      optionDesc: {
+        Off: 'Fact checks run from the AI’s built-in knowledge.',
+        On: 'The fact agents search real, current sources and cite URLs — a little slower.',
+      },
+      default: 'Off',
+      help: 'When on, the Fact Checking and Fact Gatherer agents run live web searches (up to 4 each) so verdicts and statistics come from real sources instead of memory.' },
     // Values are matched by prefix in the backend (Full/Research/Structure,
     // anything else = verify) — keep those leading words if relabelling.
     { name: 'analysis', label: 'How thoroughly should we check the draft?', type: 'segmented',

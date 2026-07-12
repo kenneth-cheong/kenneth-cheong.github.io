@@ -3278,9 +3278,16 @@ async function runOptimiserPipeline(url, body, provider) {
   };
 
   await cwStage(body._jobId, { stage: `Running ${agents.length} QA agents`, progress: { done: 0, total: agents.length } });
+  // Opt-in live web verification: the Lambda only honours this for the fact
+  // agents (factCheck / factGatherer) and always runs them on Anthropic. The
+  // extra search-result tokens flow into `usage`, so cost self-adjusts.
+  const webVerify = /^on/i.test(String(body.webVerify || ''));
   let agentsDone = 0;
   const runAgent = (a) =>
-    postOptimiser(url, { action: 'optimiser_agent', provider, agentKey: a.key, context, settings }, usage)
+    postOptimiser(url, {
+      action: 'optimiser_agent', provider, agentKey: a.key, context, settings,
+      webSearch: webVerify && (a.key === 'factCheck' || a.key === 'factGatherer'),
+    }, usage)
       .then((raw) => ({ a, parsed: parseAgentResult(aiText(raw)) }))
       .catch((e) => ({ a, parsed: { error: e.message } }))
       .then((r) => {
