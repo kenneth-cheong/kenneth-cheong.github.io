@@ -103,6 +103,49 @@ export async function claimProfileBonus({ userId, amount }) {
   return true;
 }
 
+// One-time Explorer breadth-checklist reward, per milestone ('core' | 'full').
+// Same claim-then-grant shape as claimProfileBonus: a conditional write stamps
+// the milestone's grant time only if absent, so the tokens are paid AT MOST once
+// per account even under concurrent claims. Returns true when THIS call granted.
+export async function claimExplorerReward({ userId, milestone, amount }) {
+  const stampKey = milestone === 'full' ? 'explorerFullGrantedAt' : 'explorerCoreGrantedAt';
+  const now = new Date().toISOString();
+  try {
+    await ddb.send(new UpdateCommand({
+      TableName: TABLES.users,
+      Key: { userId },
+      // stampKey is a fixed internal string (not user input) — safe to interpolate.
+      UpdateExpression: `SET ${stampKey} = :now, updatedAt = :now`,
+      ConditionExpression: `attribute_not_exists(${stampKey})`,
+      ExpressionAttributeValues: { ':now': now },
+    }));
+  } catch (err) {
+    if (err.name === 'ConditionalCheckFailedException') return false; // already claimed
+    throw err;
+  }
+  await grantTopupCredits({ userId, amount, action: 'explorer_bonus', meta: { milestone } });
+  return true;
+}
+
+// Persist a survey response (NPS questionnaire / exit micro-survey) onto the user
+// record under a `surveys` map keyed by kind (latest wins). Read-modify-write so
+// sibling kinds aren't clobbered. The CALLER whitelists/clamps the answers. Kept
+// off `onboarding` (which is shipped to the client on every /me) so raw answers
+// stay server-side; a small `surveyDone` flag in onboarding gates re-prompting.
+export async function saveSurvey(userId, kind, answers = {}) {
+  const now = new Date().toISOString();
+  const user = await getUser(userId);
+  if (!user) return null;
+  const surveys = { ...(user.surveys || {}), [kind]: { ...answers, at: now } };
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.users,
+    Key: { userId },
+    UpdateExpression: 'SET surveys = :s, updatedAt = :u',
+    ExpressionAttributeValues: { ':s': surveys, ':u': now },
+  }));
+  return surveys[kind];
+}
+
 export async function getUserByStripeCustomer(customerId) {
   const { Items } = await ddb.send(
     new QueryCommand({
@@ -677,6 +720,22 @@ export async function saveRun({ userId, tool, toolName, inputs, result, creditsU
     }));
   } catch (e) { if (e.name !== 'ConditionalCheckFailedException') console.error('touch_last_tool_use', userId, e.message); }
   return { runId, ts };
+}
+
+// Attach the user's thumbs-up/down (+ optional note) to a saved run. Stored on
+// the run itself so it shows in Admin activity alongside what was rated — no
+// separate table. Idempotent: re-rating overwrites. The condition guards against
+// creating a phantom row if the runId doesn't resolve to a real run.
+export async function saveRunFeedback(userId, runId, { rating, note = '' }) {
+  const now = new Date().toISOString();
+  await ddb.send(new UpdateCommand({
+    TableName: TABLES.runs,
+    Key: { userId, runId },
+    UpdateExpression: 'SET feedback = :f',
+    ConditionExpression: 'attribute_exists(runId)',
+    ExpressionAttributeValues: { ':f': { rating, note: note || '', at: now } },
+  }));
+  return true;
 }
 
 export async function listRuns(userId, limit = 100) {

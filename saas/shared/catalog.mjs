@@ -137,7 +137,7 @@ export const TOOLS = [
     cost: 'keyword_lookup', upstream: 'mangoolsKeywords', slow: true,
     // slow: a domain-scoped run adds a time-to-rank estimate per keyword and can
     // take 30–60s — must route via the Function URL or it 503s on the 30s gateway.
-    desc: 'Search volume, difficulty and intent for any keyword list.',
+    desc: 'Search volume & CPC for any keyword list — plus difficulty (ranking mode) and intent (from a webpage).',
     freeCap: 5 /* free tier: 5 real rows, rest blurred */ },
   { id: 'rank-checker', name: 'Rank Checker', category: 'SEO', minTier: 'free',
     cost: 'rank_check', upstream: 'rankChecker', fanout: 'input',
@@ -325,6 +325,80 @@ export const AUDIT_TOOLS = [
   { id: 'landing-audit', label: 'Page quality', input: (url) => ({ input: url }) },
   { id: 'llms-txt', label: 'AI readiness', input: (url) => ({ input: url }) },
 ];
+
+// ── Explorer: the "cover the breadth" checklist ──────────────────────────────
+// Distinct from the goal plan (which is the user's chosen north-star): this is a
+// fixed guided tour that steers trial users across every discipline, so their
+// feedback covers the whole platform — not just the one tool they happened to
+// open. Completing the required `core` set pays a one-time credit reward; the
+// optional `explore` set pays a second, larger one. Each task either maps to a
+// real `toolId` (auto-ticks once that tool has been run) or routes to a page via
+// `to` (project setup / connecting Google are detected from live account state).
+// Kept here as the single source of truth so the frontend card and the backend
+// reward-verification read identical definitions.
+export const EXPLORER_REWARD = { core: 50, full: 100 }; // rollover credits, granted once each
+
+export const EXPLORER_TASKS = [
+  // core — the required breadth, one representative tool per discipline
+  { id: 'exp-project', to: '/projects', group: 'core',
+    label: 'Set up your first project', why: 'Everything — runs, tracking and reports — organises under a project.' },
+  { id: 'keyword-analysis', toolId: 'keyword-analysis', group: 'core',
+    label: 'Research your keywords', why: 'Find the searches worth targeting: volume, difficulty and intent.' },
+  { id: 'content-writer', toolId: 'content-writer', group: 'core',
+    label: 'Create a piece of content', why: 'Draft or optimise a page, then auto-run the quality checks.' },
+  { id: 'competitors', toolId: 'competitors', group: 'core',
+    label: 'Size up a competitor', why: 'See who shares your keywords and how you stack up.' },
+  { id: 'ai-discovery', toolId: 'ai-discovery', group: 'core',
+    label: 'Check your AI visibility', why: 'See if ChatGPT, Gemini & Perplexity cite you — our edge.' },
+  // explore — the wider sweep, for a rounder view (and the bigger reward)
+  { id: 'page-analysis', toolId: 'page-analysis', group: 'explore',
+    label: 'Snapshot your site health', why: 'Authority, backlinks, speed & technical signals in one view.' },
+  { id: 'pillars', toolId: 'pillars', group: 'explore',
+    label: 'Plan your content', why: 'A pillar + subtopic map so your posts hang together.' },
+  { id: 'social-audit', toolId: 'social-audit', group: 'explore',
+    label: 'Audit your social', why: 'Live profile scrape + AI content-gap across platforms.' },
+  { id: 'perf-marketing', toolId: 'perf-marketing', group: 'explore',
+    label: 'Review paid performance', why: 'Channel mix, budget split & opportunities for paid media.' },
+  { id: 'exp-google', to: '/integrations', group: 'explore',
+    label: 'Connect your Google data', why: 'Bring Search Console, GA4 & Ads into one place.' },
+];
+
+/** Is a single explorer task complete, given live signals + a persisted done map? */
+export function explorerTaskDone(task, { ranTools = [], hasProject = false, hasGoogle = false, done = {} } = {}) {
+  if (done[task.id]) return true;                         // persisted / manual tick
+  if (task.to === '/projects') return !!hasProject;
+  if (task.to === '/integrations') return !!hasGoogle;
+  if (task.toolId) return ranTools.includes(task.toolId); // ran the mapped tool
+  return false;
+}
+
+/**
+ * Compute breadth-checklist progress. Tier-aware: tasks whose tool the user's
+ * plan can't run are split into `locked` (shown as aspirational, never required
+ * for a reward) so the checklist is always completable at the current tier.
+ * Pure + shared, so the dashboard card and the reward endpoint agree exactly.
+ */
+export function explorerProgress({ tier = 'free', ranTools = [], hasProject = false, hasGoogle = false, done = {} } = {}) {
+  const available = [], locked = [];
+  for (const t of EXPLORER_TASKS) {
+    const runnable = !t.toolId || tierMeets(tier, toolById(t.toolId)?.minTier || 'free');
+    (runnable ? available : locked).push(t);
+  }
+  const tasks = available.map((t) => ({ ...t, done: explorerTaskDone(t, { ranTools, hasProject, hasGoogle, done }) }));
+  const core = tasks.filter((t) => t.group === 'core');
+  const coreDone = core.filter((t) => t.done).length;
+  const fullDone = tasks.filter((t) => t.done).length;
+  const coreComplete = core.length > 0 && coreDone === core.length;
+  const fullComplete = tasks.length > 0 && fullDone === tasks.length;
+  return {
+    tasks, locked,
+    core: { done: coreDone, total: core.length },
+    full: { done: fullDone, total: tasks.length },
+    coreComplete,
+    // "full" implies core; guard against a tier where every task is core.
+    fullComplete: fullComplete && coreComplete,
+  };
+}
 
 /** Plain-English name/description shown in Simple mode (overrides the pro label). */
 export const SIMPLE_NAMES = {

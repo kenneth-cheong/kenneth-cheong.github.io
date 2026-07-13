@@ -166,6 +166,13 @@ export const api = {
   acceptNda: (payload) => call('/me/nda', { method: 'POST', body: payload }),
   // Progressive-profiling answers; completing the whole profile pays a one-time bonus.
   saveProfile: (patch) => call('/me/profile', { method: 'POST', body: { patch } }),
+  // Explorer breadth checklist: claim a completion reward ('core' | 'full'). The
+  // server re-verifies completion and grants the credits at most once.
+  claimExplorer: (milestone) => call('/me/explorer/claim', { method: 'POST', body: { milestone } }),
+  // Per-tool thumbs up/down (+ optional note) on a result, attached to the run.
+  runFeedback: (runId, rating, note) => call(`/me/runs/${encodeURIComponent(runId)}/feedback`, { method: 'POST', body: { rating, note } }),
+  // Feedback surveys: post-usage NPS questionnaire ('nps') + exit micro-survey ('exit').
+  submitSurvey: (kind, answers) => call('/me/survey', { method: 'POST', body: { kind, answers } }),
   // GDPR: export everything we hold, or permanently delete the account.
   exportData: () => call('/me/export'),
   deleteAccount: () => call('/me/delete', { method: 'POST' }),

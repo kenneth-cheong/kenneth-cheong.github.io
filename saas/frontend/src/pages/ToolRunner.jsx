@@ -13,7 +13,7 @@ import ShareResult from '../components/ShareResult.jsx';
 import InfoTip, { glossaryFor } from '../components/InfoTip.jsx';
 import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
 import { startToolTour, sampleResultFor, hasSeen, markSeen } from '../lib/tours.js';
-import { Lock, Compass, Sparkles, AlertTriangle, Clock, ChevronRight, Check, MessageCircleQuestion } from 'lucide-react';
+import { Lock, Compass, Sparkles, AlertTriangle, Clock, ChevronRight, Check, MessageCircleQuestion, ThumbsUp, ThumbsDown } from 'lucide-react';
 
 const CONFIRM_AT = 25; // credits — confirm before running pricey tools
 
@@ -697,6 +697,17 @@ function Result({ out, tool, project, user, onCredits }) {
           : <ResultTable rows={r.rows} />)}
         {postRowSections.length > 0 && <ResultSections sections={postRowSections} context={recContext} />}
 
+        {/* Summary-only teaser reveal ({ summary, detailsLocked }): surface the
+            free-preview sample above the paywall. Previously `summary` matched no
+            render branch, so the advertised "1 free preview" showed only the upsell. */}
+        {r.summary != null && !hasContent && (
+          typeof r.summary === 'string'
+            ? <pre className="whitespace-pre-wrap text-sm text-body">{r.summary}</pre>
+            : typeof r.summary === 'number'
+            ? <p className="text-sm text-body">Score: <span className="font-semibold">{r.summary}</span></p>
+            : null
+        )}
+
         {r.blurredCount > 0 && (
           <div className="relative mt-1">
             <div className="blur-locked">
@@ -718,7 +729,85 @@ function Result({ out, tool, project, user, onCredits }) {
             <Link to="/pricing" className="btn-primary mt-3">Unlock full report</Link>
           </div>
         )}
+
+        {/* Per-tool micro-feedback — a one-tap reaction anchored to a fresh result.
+            Only for real, non-teaser runs (a saved runId to attach it to). */}
+        {out.runId && hasContent && !out.teaser && <RunFeedback runId={out.runId} toolName={tool.name} />}
       </div>
+    </div>
+  );
+}
+
+// "Was this useful?" 👍/👎 with an optional one-line note. Posts to the run so the
+// signal is anchored to exactly what was rated. A thumbs-down opens the note box
+// (that's where the useful "why" lives); thumbs-up is a quiet one-tap. State is
+// per-runId, so it resets for the next run and won't re-ask after a rating.
+function RunFeedback({ runId, toolName }) {
+  const [rating, setRating] = useState(null);
+  const [note, setNote] = useState('');
+  const [showNote, setShowNote] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  // Reset whenever a new run replaces this panel.
+  useEffect(() => { setRating(null); setNote(''); setShowNote(false); setSent(false); }, [runId]);
+
+  const send = (r, withNote = '') => {
+    setRating(r);
+    api.runFeedback(runId, r, withNote).catch(() => { /* best-effort — never block on feedback */ });
+  };
+  const pick = (r) => {
+    if (sent) return;
+    if (r === 'down') { setRating('down'); setShowNote(true); return; } // gather the "why" first
+    send('up');
+    setSent(true);
+  };
+  const submitNote = () => { send('down', note.trim()); setSent(true); setShowNote(false); };
+
+  if (sent) {
+    return (
+      <div className="dm-no-print mt-5 border-t border-hair pt-3 text-sm text-muted">
+        Thanks for the feedback — it helps us make {toolName} better.
+      </div>
+    );
+  }
+
+  return (
+    <div className="dm-no-print mt-5 border-t border-hair pt-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-dim">Was this useful?</span>
+        <button
+          onClick={() => pick('up')}
+          aria-pressed={rating === 'up'}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-sm font-medium transition ${rating === 'up' ? 'border-green-300 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-300' : 'border-line text-muted hover:border-green-300 hover:text-green-600 dark:hover:text-green-400'}`}
+        >
+          <ThumbsUp size={14} aria-hidden /> Yes
+        </button>
+        <button
+          onClick={() => pick('down')}
+          aria-pressed={rating === 'down'}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-sm font-medium transition ${rating === 'down' ? 'border-amber-300 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300' : 'border-line text-muted hover:border-amber-300 hover:text-amber-600 dark:hover:text-amber-400'}`}
+        >
+          <ThumbsDown size={14} aria-hidden /> No
+        </button>
+      </div>
+      {showNote && (
+        <div className="mt-2.5 flex flex-wrap items-end gap-2">
+          <div className="min-w-0 flex-1">
+            <label htmlFor={`fb-${runId}`} className="text-xs font-medium text-muted">What was missing or off? <span className="font-normal text-faint">(optional)</span></label>
+            <input
+              id={`fb-${runId}`}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') submitNote(); }}
+              maxLength={500}
+              autoFocus
+              placeholder="e.g. the data looked out of date"
+              className="mt-1 w-full rounded-lg border border-edge px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
+            />
+          </div>
+          <button onClick={submitNote} className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700">Send</button>
+        </div>
+      )}
     </div>
   );
 }

@@ -14,11 +14,11 @@ import {
   createSchedule, listSchedules, getSchedule, updateSchedule, deleteSchedule, listScheduleRuns,
   exportAllUserData, deleteAllUserData, bumpTokenVersion, revokeSession,
   listAccessGrants, respondAccess, updateOnboarding, setEmailOptOut,
-  updateProfile, claimProfileBonus,
+  updateProfile, claimProfileBonus, claimExplorerReward, saveRunFeedback, saveSurvey,
 } from '../lib/dynamo.mjs';
 import { rankPosition, rankHistory } from '../lib/rank.mjs';
 import { UPSTREAMS } from '../metering/upstreams.mjs';
-import { CREDIT_COSTS, INTEGRATIONS, PLANS, PROFILE_FIELDS, PROFILE_BONUS, isProfileComplete, TOOLS, tierMeets, scheduleLimits, isSchedulable } from '../../../shared/catalog.mjs';
+import { CREDIT_COSTS, INTEGRATIONS, PLANS, PROFILE_FIELDS, PROFILE_BONUS, isProfileComplete, TOOLS, tierMeets, scheduleLimits, isSchedulable, EXPLORER_REWARD, explorerProgress } from '../../../shared/catalog.mjs';
 import { normaliseSchedule, nextRunAt } from '../../../shared/schedule.mjs';
 import { compareRuns } from '../../../shared/metrics.mjs';
 import { buildChatSystem } from '../lib/assistant.mjs';
@@ -117,6 +117,21 @@ function sanitizePlan(raw) {
     done,
     updatedAt: new Date().toISOString(),
   };
+}
+
+// Bound the Explorer breadth-checklist state before persisting it under
+// onboarding.explorer. Only two small maps of booleans (which tasks are ticked,
+// which milestone rewards are claimed) — clamp key counts + lengths so a client
+// can't write an arbitrary/oversized blob. The reward GRANT is never trusted from
+// here; it's re-verified and stamped server-side in /me/explorer/claim.
+function sanitizeExplorer(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const boolMap = (obj, n) => {
+    const out = {};
+    if (obj && typeof obj === 'object') for (const k of Object.keys(obj).slice(0, n)) if (obj[k]) out[clampStr(k, 40)] = true;
+    return out;
+  };
+  return { done: boolMap(raw.done, 40), claimed: boolMap(raw.claimed, 4), updatedAt: new Date().toISOString() };
 }
 
 // Coarse health of an integration pull, derived from the saved run preview
@@ -225,6 +240,9 @@ export const handler = async (event) => {
       // here so it follows the user across devices. `null` clears it.
       if (body.plan === null) patch.plan = null;
       else if (body.plan && typeof body.plan === 'object') { const p = sanitizePlan(body.plan); if (p) patch.plan = p; }
+      // Explorer breadth-checklist progress (ticked tasks + claimed milestones),
+      // synced so it follows the user across devices.
+      if (body.explorer && typeof body.explorer === 'object') { const e = sanitizeExplorer(body.explorer); if (e) patch.explorer = e; }
       if (!Object.keys(patch).length) return badRequest('Nothing to update.');
       return ok({ onboarding: await updateOnboarding(user.userId, patch) });
     }
@@ -363,6 +381,82 @@ export const handler = async (event) => {
       return ok({ profile, complete, bonusGranted, bonusAmount: bonusGranted ? PROFILE_BONUS : 0, credits: totalCredits(fresh) });
     }
 
+    // ── Explorer breadth checklist: claim a one-time completion reward ─────────
+    // The client asks to claim 'core' or 'full'. We RE-VERIFY completion here from
+    // authoritative state (saved runs, projects, connected integrations) using the
+    // same shared engine the UI uses — never trusting the client's word — then
+    // grant the tokens exactly once via a conditional stamp. Recording the claim in
+    // onboarding.explorer.claimed lets other devices reflect it without a re-grant.
+    if (method === 'POST' && path.endsWith('/me/explorer/claim')) {
+      const milestone = body.milestone === 'full' ? 'full' : 'core';
+      const runs = await listRuns(user.userId, 100);
+      const ranTools = [...new Set(runs.map((r) => r.tool).filter(Boolean))];
+      const hasProject = (await listProjects(user.userId)).length > 0;
+      const hasGoogle = Object.values(redactIntegrations(user.integrations || {})).some((c) => c?.connected);
+      const done = user.onboarding?.explorer?.done || {};
+      const prog = explorerProgress({ tier: user.tier, ranTools, hasProject, hasGoogle, done });
+      const met = milestone === 'full' ? prog.fullComplete : prog.coreComplete;
+      if (!met) return badRequest('That checklist isn’t complete yet.');
+      const amount = EXPLORER_REWARD[milestone] || 0;
+      const granted = await claimExplorerReward({ userId: user.userId, milestone, amount });
+      // Mirror the claim into onboarding (cross-device), regardless of who won the
+      // race — if it was already granted, the flag simply stays set.
+      const prevExp = user.onboarding?.explorer || {};
+      const onboarding = await updateOnboarding(user.userId, {
+        explorer: { done: prevExp.done || {}, claimed: { ...(prevExp.claimed || {}), [milestone]: true } },
+      });
+      const afterUser = await getUser(user.userId);
+      return ok({ granted, amount: granted ? amount : 0, milestone, credits: totalCredits(afterUser), onboarding });
+    }
+
+    // ── Feedback surveys: post-usage NPS questionnaire + exit micro-survey ────
+    // Store the answers server-side (off `onboarding`, so raw responses aren't
+    // shipped to every client) and stamp a small `surveyDone.<kind>` flag so we
+    // never re-prompt. Best-effort email to the team gives immediate visibility
+    // without an admin screen — these are exactly the trial signals we want.
+    if (method === 'POST' && path.endsWith('/me/survey')) {
+      const kind = body.kind === 'exit' ? 'exit' : body.kind === 'nps' ? 'nps' : null;
+      if (!kind) return badRequest('Unknown survey.');
+      const a = body.answers && typeof body.answers === 'object' ? body.answers : {};
+      const clampInt = (v, lo, hi) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : null; };
+      let answers;
+      if (kind === 'nps') {
+        const score = clampInt(a.score, 0, 10);
+        if (score === null) return badRequest('A recommendation score (0–10) is required.');
+        answers = {
+          score,
+          ease: clampInt(a.ease, 1, 5),
+          trust: clampInt(a.trust, 1, 5),
+          mostUseful: clampStr(a.mostUseful, 60),
+          comment: clampStr(a.comment, 1000).trim(),
+        };
+      } else {
+        answers = { reason: clampStr(a.reason, 80), comment: clampStr(a.comment, 1000).trim() };
+        if (!answers.reason && !answers.comment) return badRequest('Nothing to submit.');
+      }
+      await saveSurvey(user.userId, kind, answers);
+      const prevDone = user.onboarding?.surveyDone || {};
+      const onboarding = await updateOnboarding(user.userId, { surveyDone: { ...prevDone, [kind]: true } });
+
+      // Notify the team (best-effort — the response is already saved).
+      try {
+        const who = `${user.name || '—'} <${user.email || '—'}> · ${user.tier}`;
+        const lines = kind === 'nps'
+          ? [`NPS: ${answers.score}/10`, `Ease: ${answers.ease ?? '—'}/5`, `Trust: ${answers.trust ?? '—'}/5`,
+             `Most useful: ${answers.mostUseful || '—'}`, `Comment: ${answers.comment || '—'}`]
+          : [`Reason: ${answers.reason || '—'}`, `Comment: ${answers.comment || '—'}`];
+        await sendNotice({
+          to: ['tom@mediaone.co', 'kenneth@mediaone.co'],
+          replyTo: user.email || undefined,
+          from: noticeFrom('Digimetrics Feedback'),
+          subject: kind === 'nps' ? `NPS ${answers.score}/10 — ${user.email || 'trial user'}` : `Exit survey — ${user.email || 'trial user'}`,
+          text: [`New ${kind === 'nps' ? 'post-usage NPS' : 'exit'} survey response.`, '', `From: ${who}`, '', ...lines].join('\n'),
+        });
+      } catch (e) { console.warn('survey_notify_failed', e.message); }
+
+      return ok({ ok: true, onboarding });
+    }
+
     // ── Email preferences: opt in/out of product-update broadcast emails ──────
     // (Transactional mail — verification, password reset, ticket replies — is
     // always sent and unaffected by this flag.)
@@ -447,6 +541,21 @@ export const handler = async (event) => {
     if (method === 'GET' && path.includes('/me/runs/')) {
       const run = await getRun(user.userId, seg(path, '/me/runs/'));
       return run ? ok({ run }) : badRequest('Run not found');
+    }
+    // Thumbs up/down (+ optional note) on a result — the per-tool feedback signal.
+    // Attached to the run row; overwrites on re-rate. No credit charge.
+    if (method === 'POST' && path.includes('/me/runs/') && path.endsWith('/feedback')) {
+      const runId = seg(path, '/me/runs/');
+      const rating = body.rating === 'up' || body.rating === 'down' ? body.rating : null;
+      if (!runId || !rating) return badRequest('rating (up|down) required.');
+      const note = clampStr(body.note, 500).trim();
+      try {
+        await saveRunFeedback(user.userId, runId, { rating, note });
+      } catch (e) {
+        if (e.name === 'ConditionalCheckFailedException') return badRequest('Run not found.');
+        throw e;
+      }
+      return ok({ ok: true });
     }
 
     // ── Scheduled tool runs ───────────────────────────────────────────────────

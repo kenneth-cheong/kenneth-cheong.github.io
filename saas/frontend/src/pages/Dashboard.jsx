@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Clock, Check } from 'lucide-react';
-import { TOOLS, CATEGORIES, GOALS, SIMPLE_NAMES, toolById, tierMeets } from '@shared/catalog.mjs';
+import { TOOLS, CATEGORIES, GOALS, SIMPLE_NAMES, toolById, tierMeets, explorerProgress } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { api } from '../lib/api.js';
 import ToolCard from '../components/ToolCard.jsx';
 import ProfilePrompt from '../components/ProfilePrompt.jsx';
 import GoalPlanner from '../components/GoalPlanner.jsx';
+import ExplorerCard from '../components/ExplorerCard.jsx';
+import PostUsageSurvey from '../components/PostUsageSurvey.jsx';
+import ExitMicroSurvey from '../components/ExitMicroSurvey.jsx';
 import { CategoryIcon } from '../lib/icons.jsx';
 import { getRecent, isStepDone } from '../lib/ui.js';
 
@@ -72,6 +75,16 @@ export default function Dashboard() {
   // first run (or the user opts into Advanced mode, where the planner is gone).
   const everRan = getRecent().length > 0;
   useEffect(() => { api.integrations().then((d) => setGoogleConnected(Object.values(d.connected || {}).some((c) => c?.connected))).catch(() => {}); }, []);
+
+  // Has the user finished the Explorer "essentials"? Gates the post-usage NPS
+  // survey (an "earned an opinion" moment). Same shared engine the card uses.
+  const explorerCoreComplete = explorerProgress({
+    tier: user.tier,
+    ranTools: getRecent(),
+    hasProject: projects.length > 0,
+    hasGoogle: googleConnected,
+    done: user.onboarding?.explorer?.done || {},
+  }).coreComplete;
 
   const match = (t) => q === '' || (t.name + t.desc + (SIMPLE_NAMES[t.id]?.name || '')).toLowerCase().includes(q.toLowerCase());
   const filtered = TOOLS.filter((t) => (cat === 'All' || t.category === cat) && match(t));
@@ -160,6 +173,16 @@ export default function Dashboard() {
       {/* Progressive-profiling nudge — self-hides when complete/rewarded/snoozed.
           Held back until the user has run something: earn value before asking. */}
       {!searching && everRan && <ProfilePrompt />}
+
+      {/* Breadth checklist — steers trial users across every discipline (and pays
+          bonus credits). Self-hides once fully claimed or dismissed. */}
+      {!searching && <ExplorerCard googleConnected={googleConnected} projects={projects} />}
+
+      {/* Post-usage NPS questionnaire — shown once the user has earned an opinion. */}
+      {!searching && <PostUsageSurvey coreComplete={explorerCoreComplete} />}
+
+      {/* Exit micro-survey — self-gating idle nudge for stalled, low-engagement users. */}
+      <ExitMicroSurvey />
 
       {/* ───────── Simple mode: goal intake → agentic pathway ───────── */}
       {simple && !searching ? (
