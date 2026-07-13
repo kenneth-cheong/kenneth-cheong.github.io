@@ -398,15 +398,17 @@ export default function SocialAudit() {
       const d = res.result || {};
       if (d.error) throw new Error(d.error);
       const found = d.handles || {};
+      // Compute the newly-found handles + count synchronously so the status
+      // banner below reflects reality. (Reading a counter mutated inside the
+      // deferred setPlat updater always saw 0 → "couldn't find" while handles
+      // still populated.)
+      const hits = {};
       let n = 0;
-      setPlat((s) => {
-        const next = { ...s };
-        for (const p of SMA_PLATFORMS) {
-          const hit = found[p.key];
-          if (hit && hit.handle) { next[p.key] = { checked: true, handle: hit.handle, source: hit.source === 'website' ? 'website' : 'search' }; n++; }
-        }
-        return next;
-      });
+      for (const p of SMA_PLATFORMS) {
+        const hit = found[p.key];
+        if (hit && hit.handle) { hits[p.key] = { checked: true, handle: hit.handle, source: hit.source === 'website' ? 'website' : 'search' }; n++; }
+      }
+      setPlat((s) => ({ ...s, ...hits }));
       setDiscoverStatus(n
         ? { tone: 'ok', text: `Found ${n} profile(s). Confirm each is the correct account (edit or untick any that are wrong), then Run Audit.` }
         : { tone: 'err', text: "Couldn't find profiles automatically. Enter the handles manually." });

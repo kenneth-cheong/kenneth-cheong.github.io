@@ -298,7 +298,7 @@ export default function ToolRunner() {
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-xs text-faint" data-tour="tool-actions">
-            <span>{cost === 0 ? 'Free to run' : `Costs ${cost} credit${cost > 1 ? 's' : ''}`}</span>
+            <span title={tool.costVaries ? 'Base cost — longer content and deeper QA (up to 18 agents) can cost more.' : undefined}>{cost === 0 ? 'Free to run' : `Costs ${cost}${tool.costVaries ? '+' : ''} credit${(cost > 1 || tool.costVaries) ? 's' : ''}`}</span>
             {example && <button type="button" onClick={fillExample} className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Try an example</button>}
             {shown.some((f) => f.required) && <span><span className="text-amber-500">*</span> Required</span>}
           </div>

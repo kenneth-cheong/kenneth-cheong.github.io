@@ -983,6 +983,7 @@ async function explainResult(toolName, resultText) {
     `2. "Looking good:" the single best thing in the results (one sentence).\n` +
     `3. "Needs attention:" the single biggest problem, if any (one sentence).\n` +
     `4. "Do this next:" the top 1-3 concrete actions, as a short numbered list.\n` +
+    `Summarise ONLY what is in the Results below. You already have everything you need — never ask the reader questions, request clarification, or comment on what a "brief" does or doesn't specify. If the Results are a set of items (e.g. audience personas), summarise the set as a whole. Never describe your own reasoning or process.\n` +
     `Keep the whole thing under 150 words. No preamble, no headings other than the labels above.\n\n` +
     `Results:\n${resultText}`;
   const res = await fetch(UPSTREAMS.aiOptimiser, {
