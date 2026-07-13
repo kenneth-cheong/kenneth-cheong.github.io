@@ -763,6 +763,11 @@ export default function SocialAudit() {
         )}
         {busy && loadingText && <span className="text-sm text-muted"><Loader2 size={13} className="mr-1 inline animate-spin" />{loadingText}</span>}
       </div>
+      {busy && (
+        <p className="mt-3 text-sm text-dim">
+          This keeps running on our servers even if you close the tab — you’ll get a notification and it lands in History. Stay on this page and the result appears below.
+        </p>
+      )}
       {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {scaError && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{scaError}</p>}
 

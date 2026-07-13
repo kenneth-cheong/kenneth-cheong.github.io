@@ -423,9 +423,12 @@ function SlowProgress({ tool, job }) {
           </li>
         ))}
       </ul>
+      <p className="mt-4 text-sm text-dim">
+        This keeps running on our servers even if you close the tab — you’ll get a notification and it lands in History. Stay on this page and the result appears below.
+      </p>
       {overdue && (
-        <p className="mt-4 text-sm text-dim">
-          Still working — big sites and busy data sources can take a few minutes. You can leave this page open; the result will appear here.
+        <p className="mt-2 text-sm text-dim">
+          Still working — big sites and busy data sources can take a few minutes.
         </p>
       )}
     </div>
