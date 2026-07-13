@@ -358,6 +358,41 @@ Resources:
             AllowedOrigins: ['*']
             AllowedHeaders: ['*']
 
+  # Broadcast images (admin-uploaded hero images / GIFs for notification emails).
+  # PUBLIC-read: an email client fetches the <img> by URL long after any presigned
+  # TTL would expire, so objects must be world-readable. Nothing sensitive goes
+  # here — only admin-chosen marketing images (see lib/s3.mjs putBroadcastImage).
+  BroadcastImagesBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      OwnershipControls:
+        Rules: [{ ObjectOwnership: BucketOwnerEnforced }]
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: false
+        RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods: [GET]
+            AllowedOrigins: ['*']
+            AllowedHeaders: ['*']
+
+  # World-readable GET, scoped to this bucket only (private ticket attachments live
+  # in a different, fully-blocked bucket and are unaffected).
+  BroadcastImagesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref BroadcastImagesBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub '${BroadcastImagesBucket.Arn}/*'
+
   # ── Secrets ──────────────────────────────────────────────────────────────
   # Backend secrets live in Secrets Manager (digimetrics-saas/<name>), referenced
   # by the function env vars via {{resolve:secretsmanager:...}} dynamic references
@@ -875,6 +910,8 @@ Resources:
           SMTP_PORT: !Ref SmtpPort
           SMTP_PASS: '{{resolve:secretsmanager:digimetrics-saas/smtp-pass:SecretString}}'
           BROADCASTS_TABLE: !Ref BroadcastsTable
+          # Public bucket for admin-uploaded broadcast images/GIFs.
+          BROADCAST_IMAGES_BUCKET: !Ref BroadcastImagesBucket
           AMPLIFY_APP_ID: !Ref AmplifyAppId
           AMPLIFY_DOMAIN: !Ref AmplifyDomain
           AMPLIFY_BRANCH: !Ref AmplifyBranch
@@ -889,6 +926,8 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref NotificationsTable }
         # Broadcast audit log (audience filter, channels, send counts).
         - DynamoDBCrudPolicy: { TableName: !Ref BroadcastsTable }
+        # Write admin-uploaded broadcast images to the public bucket.
+        - S3WritePolicy: { BucketName: !Ref BroadcastImagesBucket }
         - Statement:
             - Effect: Allow
               Action: [ses:SendEmail, ses:SendRawEmail]
@@ -923,6 +962,7 @@ Resources:
         BroadcastHistory: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/history, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         BroadcastPreview: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/preview, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         BroadcastSend: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/send, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        BroadcastUpload: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/upload, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         BroadcastBackfill: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/backfill, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         PlatformUsage: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/platform/usage, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         PlatformAccessLogs: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/platform/access-logs, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }

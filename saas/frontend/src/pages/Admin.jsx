@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { FileText, MonitorPlay, RefreshCw, Info, Search } from 'lucide-react';
+import { FileText, MonitorPlay, RefreshCw, Info, Search, ImagePlus, X } from 'lucide-react';
 import TrendChart from '../components/TrendChart.jsx';
 import { PLANS, TIER_ORDER, PROACTIVE_EVENTS, PROACTIVE_TOKENS, DEFAULT_PROACTIVE } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -669,6 +669,8 @@ function AdminNotifications() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [link, setLink] = useState('');
+  const [image, setImage] = useState(''); // public URL of an uploaded broadcast image/GIF
+  const [imgUploading, setImgUploading] = useState(false);
   const [channels, setChannels] = useState({ inApp: true, email: false });
 
   // Async + result state.
@@ -737,6 +739,20 @@ function AdminNotifications() {
   }
   function clearSelection() { setSelectedIds(new Set()); setPreview(null); }
 
+  async function uploadImage(file) {
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { setError('Choose an image or GIF file.'); return; }
+    setImgUploading(true); setError('');
+    try {
+      const data = await new Promise((res, rej) => {
+        const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('read failed')); r.readAsDataURL(file);
+      });
+      const { image: img } = await api.adminBroadcastUpload({ name: file.name, contentType: file.type, data });
+      setImage(img.url);
+    } catch (e) { setError(e?.payload?.error || 'Could not upload the image.'); }
+    finally { setImgUploading(false); }
+  }
+
   async function doPreview() {
     if (mode === 'pick' && selectedIds.size === 0) { setError('Select at least one user.'); return; }
     setPreviewing(true); setError(''); setMsg('');
@@ -760,12 +776,12 @@ function AdminNotifications() {
     try {
       const { broadcast } = await api.adminBroadcastSend({
         filter: buildFilter(), title: title.trim(), body: body.trim(),
-        link: link.trim() || undefined, channels,
+        link: link.trim() || undefined, channels, image: image || undefined,
       });
       const parts = [`${broadcast.inAppSent || 0} in-app`];
       if (channels.email) parts.push(`${broadcast.emailSent || 0} email${broadcast.emailSkippedOptOut ? `, ${broadcast.emailSkippedOptOut} opted out` : ''}`);
       setMsg(`Sent to ${broadcast.audienceCount} user${broadcast.audienceCount === 1 ? '' : 's'} (${parts.join(' · ')}).`);
-      setTitle(''); setBody(''); setLink(''); setPreview(null);
+      setTitle(''); setBody(''); setLink(''); setImage(''); setPreview(null);
       loadHistory();
     } catch (e) { setError(e?.payload?.error || 'Could not send the broadcast.'); }
     finally { setSending(false); }
@@ -956,6 +972,27 @@ function AdminNotifications() {
         <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="/pricing"
           className="mt-1 w-full rounded-lg border border-edge px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
         <p className="mt-1 text-[11px] text-faint">A path inside the app (e.g. /pricing). Clicking the notification opens it.</p>
+
+        <label className="mt-3 block text-sm font-medium text-body">Image / GIF <span className="font-normal text-faint">(optional)</span></label>
+        {image ? (
+          <div className="relative mt-1.5 inline-block">
+            <img src={image} alt="" className="max-h-40 rounded-lg border border-hair" />
+            <button type="button" onClick={() => setImage('')} aria-label="Remove image"
+              className="absolute -right-2 -top-2 rounded-full border border-edge bg-raised p-1 text-muted hover:text-body">
+              <X size={14} aria-hidden />
+            </button>
+          </div>
+        ) : (
+          <div className="mt-1.5">
+            <label className={`btn-ghost inline-flex items-center gap-1.5 px-3 py-1.5 text-xs ${imgUploading ? 'opacity-50' : 'cursor-pointer'}`}>
+              <ImagePlus size={14} aria-hidden />
+              {imgUploading ? 'Uploading…' : 'Add image / GIF'}
+              <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="hidden" disabled={imgUploading}
+                onChange={(e) => { uploadImage(e.target.files?.[0]); e.target.value = ''; }} />
+            </label>
+            <p className="mt-1 text-[11px] text-faint">Shows at the top of the email. PNG, JPEG, GIF, or WebP, up to 8MB.</p>
+          </div>
+        )}
 
         <div className="mt-4">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-faint">Channels</h3>

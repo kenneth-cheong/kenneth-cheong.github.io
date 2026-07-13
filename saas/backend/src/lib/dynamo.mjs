@@ -1127,11 +1127,11 @@ export async function scanOpenTickets() {
 // ── In-platform notifications ────────────────────────────────────────────────
 // `link` is an optional in-app path (e.g. "/pricing") the bell navigates to on
 // click — used by broadcast notifications that aren't tied to a support ticket.
-export async function addNotification({ userId, title, body, ticketId, link }) {
+export async function addNotification({ userId, title, body, ticketId, link, image }) {
   const ts = new Date().toISOString();
   await ddb.send(new PutCommand({
     TableName: TABLES.notifications,
-    Item: { userId, notifId: `${ts}#${rid()}`, title, body: body || '', ticketId: ticketId || null, link: link || null, read: false, ts },
+    Item: { userId, notifId: `${ts}#${rid()}`, title, body: body || '', ticketId: ticketId || null, link: link || null, image: image || null, read: false, ts },
   }));
 }
 

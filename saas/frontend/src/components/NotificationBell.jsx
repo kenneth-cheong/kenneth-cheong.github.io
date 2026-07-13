@@ -64,6 +64,7 @@ export default function NotificationBell() {
               >
                 <div className="text-sm text-strong">{n.title}</div>
                 {n.body && <div className="truncate text-xs text-muted">{n.body}</div>}
+                {n.image && <img src={n.image} alt="" className="mt-1.5 max-h-28 w-full rounded-lg border border-hair object-cover" />}
                 <div className="mt-0.5 text-[11px] text-faint">{new Date(n.ts).toLocaleString()}</div>
               </button>
             ))}

@@ -9,8 +9,14 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const s3 = new S3Client({});
 const BUCKET = process.env.ATTACHMENTS_BUCKET;
+const BROADCAST_BUCKET = process.env.BROADCAST_IMAGES_BUCKET;
 const MAX_BYTES = 8 * 1024 * 1024; // 8MB cap
 const URL_TTL = 600; // presigned GET validity (seconds)
+
+// Broadcast images are world-readable (an email client fetches the <img> by URL
+// long after the presigned TTL would expire), so they live in a separate PUBLIC
+// bucket and only these image types are accepted — nothing sensitive belongs here.
+const IMG_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' };
 
 const EXT = {
   'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp',
@@ -47,6 +53,32 @@ export async function putAttachment({ userId, name, contentType, dataBase64 }) {
     contentType: ct,
     size: buf.length,
   };
+}
+
+/**
+ * Store a broadcast image (admin-uploaded) in the PUBLIC broadcast-images bucket
+ * and return a durable public URL — usable directly as an email `<img>` src and
+ * in the in-app bell. Images only; the bucket is world-readable. `dataBase64`
+ * may be a raw base64 string or a data URL.
+ */
+export async function putBroadcastImage({ name, contentType, dataBase64 }) {
+  if (!BROADCAST_BUCKET) throw new Error('Broadcast images are not configured on this deployment.');
+  let b64 = dataBase64 || '';
+  const m = b64.match(/^data:([^;]+);base64,(.*)$/s);
+  if (m) { contentType = contentType || m[1]; b64 = m[2]; }
+  const ct = String(contentType || '').toLowerCase();
+  const ext = IMG_EXT[ct];
+  if (!ext) throw new Error('Only PNG, JPEG, GIF, or WebP images are allowed.');
+  const buf = Buffer.from(b64, 'base64');
+  if (!buf.length) throw new Error('Empty image.');
+  if (buf.length > MAX_BYTES) throw new Error('Image exceeds 8MB.');
+  const key = `broadcasts/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  await s3.send(new PutObjectCommand({
+    Bucket: BROADCAST_BUCKET, Key: key, Body: buf, ContentType: ct,
+    CacheControl: 'public, max-age=31536000, immutable',
+  }));
+  const region = process.env.AWS_REGION || 'ap-southeast-1';
+  return { key, url: `https://${BROADCAST_BUCKET}.s3.${region}.amazonaws.com/${key}`, contentType: ct, size: buf.length };
 }
 
 /** Delete every attachment a user owns (account erasure). Best-effort. */
