@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { FileText, MonitorPlay, RefreshCw, Info, Search, ImagePlus, X } from 'lucide-react';
 import TrendChart from '../components/TrendChart.jsx';
@@ -1015,6 +1015,39 @@ function AdminNotifications() {
           <span className="text-xs text-faint">{preview ? `Will reach ${preview.count.toLocaleString()} user${preview.count === 1 ? '' : 's'}.` : 'Preview the audience first.'}</span>
           <button onClick={doSend} disabled={sending} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">{sending ? 'Sending…' : 'Send broadcast'}</button>
         </div>
+      </div>
+
+      {/* ── Live email preview ── */}
+      <div className="card p-5 lg:col-span-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold">Preview</h2>
+          <span className="text-[11px] text-faint">How the email looks to recipients · updates as you type</span>
+        </div>
+        <div className="mt-3 flex justify-center rounded-xl" style={{ background: '#f1f5f9', padding: 24 }}>
+          <div style={{ width: '100%', maxWidth: 560, background: '#fff', borderRadius: 14, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+            <div style={{ background: '#4f46e5', padding: '18px 28px' }}>
+              <span style={{ color: '#fff', fontSize: 18, fontWeight: 700 }}>Digimetrics</span>
+            </div>
+            {image && <img src={image} alt="" style={{ display: 'block', width: '100%', maxWidth: 560, height: 'auto', border: 0 }} />}
+            <div style={{ padding: 28 }}>
+              <h1 style={{ margin: '0 0 14px', color: '#0f172a', fontSize: 20, fontWeight: 700 }}>{title.trim() || 'Your title appears here'}</h1>
+              {(body.trim() ? body : 'Your message appears here. Blank lines start a new paragraph in the email.').split(/\n{2,}/).map((p, i) => (
+                <p key={i} style={{ margin: '0 0 14px', color: '#334155', fontSize: 15, lineHeight: 1.6 }}>
+                  {p.split('\n').map((line, j) => <Fragment key={j}>{j > 0 && <br />}{line}</Fragment>)}
+                </p>
+              ))}
+              <p style={{ margin: '22px 0 4px' }}>
+                <span style={{ display: 'inline-block', background: '#4f46e5', color: '#fff', fontWeight: 600, fontSize: 15, padding: '11px 20px', borderRadius: 9 }}>Open Digimetrics</span>
+              </p>
+            </div>
+            <div style={{ padding: '18px 28px', borderTop: '1px solid #f1f5f9' }}>
+              <p style={{ margin: 0, color: '#94a3b8', fontSize: 12, lineHeight: 1.5 }}>
+                You're receiving this because you have a Digimetrics account. <span style={{ color: '#64748b' }}>Unsubscribe from product updates</span>.
+              </p>
+            </div>
+          </div>
+        </div>
+        <p className="mt-2 text-[11px] text-faint">The in-app version shows the title, message{image ? ', and image' : ''} in the notification bell — without the email header, button, or footer.</p>
       </div>
 
       {/* ── History ── */}
