@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { toolById, inputsFor, tabsFor, exampleFor, CREDIT_COSTS, PLANS, tierMeets, isSchedulable, scheduleLimits } from '@shared/catalog.mjs';
 import { api, ApiError } from '../lib/api.js';
+import { setActiveTool, clearActiveTool } from '../lib/toolContext.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import UpgradeModal from '../components/UpgradeModal.jsx';
@@ -133,6 +134,20 @@ export default function ToolRunner() {
   const isVisible = (f) => (!f.staffOnly || user.isAdmin) && (!f.showWhen || (f.showWhen.in || []).includes(values[f.showWhen.field]));
   const shown = fields.filter(isVisible);
   shownRef.current = shown;
+
+  // Publish the live form to Monty so "help me DO this" / "is this right" can read
+  // what the user has actually entered — not just which tool is open. Only the
+  // visible, non-empty fields; cleared when the tool page unmounts.
+  useEffect(() => {
+    const filled = {};
+    for (const f of shown) {
+      const v = String(values[f.name] ?? '').trim();
+      if (v) filled[f.label || f.name] = v;
+    }
+    setActiveTool({ toolId, tabLabel: activeTab?.label || null, values: filled });
+    return () => clearActiveTool(toolId);
+  }, [toolId, activeTab?.label, values, shown.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const missing = shown.filter((f) => f.required && !String(values[f.name] || '').trim());
   const ready = missing.length === 0;
   const isMissing = (f) => nudge && missing.includes(f);
