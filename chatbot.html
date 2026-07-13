@@ -2859,6 +2859,11 @@ html[data-theme="dark"] [data-tooltip]::before{background:#1a1f3c}
             color: var(--dm-i-4f46e5);
         }
         .model-switch-btn i { font-size: 0.8rem; }
+        .model-switch-btn.gchat-on {
+            background: var(--dm-s-dcfce7, #dcfce7);
+            border-color: var(--dm-r-86efac, #86efac);
+            color: var(--dm-i-15803d, #15803d);
+        }
 
         /* Voice chat (hands-free) button */
         .voice-mode-btn {
@@ -3828,7 +3833,7 @@ html[data-theme="dark"] [data-tooltip]::before{background:#1a1f3c}
         </div>
 
         <header>
-            <h1><svg class="otter-mascot" viewBox="0 0 48 48" fill="none" width="30" height="30" style="flex-shrink:0" role="img" aria-label="Monty"><clipPath id="otterHeadClip"><circle cx="24" cy="24" r="24"/></clipPath><g clip-path="url(#otterHeadClip)"><circle cx="24" cy="24" r="24" fill="#e8f0ff"/><image href="assets/monty.jpg" x="-12.52" y="-11.48" width="73.04" height="73.04"/><path d="M8.4 20 Q24 -1 39.6 20" stroke="#2563eb" stroke-width="2.6" fill="none" stroke-linecap="round"/><ellipse cx="8.4" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><ellipse cx="39.6" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><path d="M8.4 24 Q5.5 31 16 32.2" stroke="#2563eb" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="16.3" cy="32.2" r="1.5" fill="#2563eb"/></g></svg> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2755</span></h1>
+            <h1><svg class="otter-mascot" viewBox="0 0 48 48" fill="none" width="30" height="30" style="flex-shrink:0" role="img" aria-label="Monty"><clipPath id="otterHeadClip"><circle cx="24" cy="24" r="24"/></clipPath><g clip-path="url(#otterHeadClip)"><circle cx="24" cy="24" r="24" fill="#e8f0ff"/><image href="assets/monty.jpg" x="-12.52" y="-11.48" width="73.04" height="73.04"/><path d="M8.4 20 Q24 -1 39.6 20" stroke="#2563eb" stroke-width="2.6" fill="none" stroke-linecap="round"/><ellipse cx="8.4" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><ellipse cx="39.6" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><path d="M8.4 24 Q5.5 31 16 32.2" stroke="#2563eb" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="16.3" cy="32.2" r="1.5" fill="#2563eb"/></g></svg> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2756</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -4807,6 +4812,10 @@ html[data-theme="dark"] [data-tooltip]::before{background:#1a1f3c}
                 <button class="prompts-btn" onclick="openPromptsModal()" title="Browse and insert quick prompt templates" data-tooltip="Quick Prompts Templates">
                     <i class="fas fa-wand-magic-sparkles"></i>
                 </button>
+                <button class="model-switch-btn" id="gchatToggleBtn" onclick="toggleGchat()"
+                    title="Include Google Chat — OFF by default. When on, the assistant may read Google Chat spaces you name. While off it never reads Chat and will ask you to turn this on and pick a space.">
+                    <i class="fas fa-comments"></i><span id="gchatToggleLabel">Chat: Off</span>
+                </button>
                 <textarea id="userInput" placeholder="Type your message..." rows="1"></textarea>
                 <button class="icon-btn" id="sendBtn" onclick="handleSendMessage()" title="Send message">
                     <i class="fas fa-paper-plane"></i>
@@ -4890,6 +4899,26 @@ html[data-theme="dark"] [data-tooltip]::before{background:#1a1f3c}
                 showToast(next === 'deepseek'
                     ? 'Switched to DeepSeek — same tools & data connectors'
                     : 'Switched to Claude', 'info');
+            }
+        }
+        // ── Google Chat opt-in toggle (default OFF) ─────────────────────────
+        // Chat spaces are private and often belong to different clients, so the
+        // assistant never reads Chat unless the user explicitly opts in here.
+        function renderGchatToggle() {
+            const on = localStorage.getItem('cbGchatEnabled') === '1';
+            const btn = document.getElementById('gchatToggleBtn');
+            const label = document.getElementById('gchatToggleLabel');
+            if (label) label.textContent = on ? 'Chat: On' : 'Chat: Off';
+            if (btn) btn.classList.toggle('gchat-on', on);
+        }
+        function toggleGchat() {
+            const next = localStorage.getItem('cbGchatEnabled') === '1' ? '0' : '1';
+            localStorage.setItem('cbGchatEnabled', next);
+            renderGchatToggle();
+            if (typeof showToast === 'function') {
+                showToast(next === '1'
+                    ? 'Google Chat ON — tell me which space(s) to read'
+                    : 'Google Chat OFF — I won’t read any Chat spaces', 'info');
             }
         }
         window.lastSyncedInternalState = { boards: [], items: [], staff: [] };
@@ -5896,6 +5925,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
 
             // Reflect the saved LLM provider on the switcher button
             renderModelSwitch();
+            renderGchatToggle();
 
             // Start background fetches for filters
             fetchSERankingSites();
@@ -12041,6 +12071,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                         app_source: 'chatbot.html',
                         max_tokens: 4096,
                         monday_api_key: localStorage.getItem('mondayApiKey'),
+                        gchat_enabled: (localStorage.getItem('cbGchatEnabled') === '1'),
                         google_access_token: localStorage.getItem('googleToken_Workspace'),
                         google_tokens: {
                             workspace: localStorage.getItem('googleToken_Workspace'),
@@ -13784,6 +13815,9 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             <div class="prompts-modal-header">
                 <h2><i class="fas fa-wand-magic-sparkles"></i> Quick Prompts</h2>
                 <div style="display:flex; gap:10px; align-items:center;">
+                    <button class="btn" onclick="removeDuplicatePrompts()" title="Find and remove exact duplicate prompts" style="padding:6px 14px; font-size:0.8rem; border-radius:10px; background:var(--dm-s-f1f5f9); color:var(--dm-i-64748b);">
+                        <i class="fas fa-clone"></i> Remove Duplicates
+                    </button>
                     <button class="btn btn-primary" onclick="openAddPromptForm()" title="Create a new prompt template" style="padding:6px 14px; font-size:0.8rem; border-radius:10px;">
                         <i class="fas fa-plus"></i> Add Prompt
                     </button>
@@ -15003,16 +15037,62 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             }
         ];
 
-        // Cloud sync
-        async function pushPromptsToCloud() {
+        // Cloud sync.
+        // NOTE: the backend merges by id (save_insights unions new ids and updates
+        // existing ones in place) — it does NOT replace the whole array. So a) built-in
+        // prompts must use STABLE ids (see builtInPromptId) or every fresh browser
+        // re-appends them, and b) deletions must be pushed via deleted_ids or they
+        // resurrect on the next pull.
+        async function pushPromptsToCloud(deletedIds) {
             const email = "global_chatbot_prompts";
             try {
+                const payload = { action: 'save_insights', email, insights: customPrompts };
+                if (Array.isArray(deletedIds) && deletedIds.length) payload.deleted_ids = deletedIds;
                 await fetch(PERSISTENCE_API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'save_insights', email, insights: customPrompts })
+                    body: JSON.stringify(payload)
                 });
             } catch (e) { console.error('[PROMPTS] Cloud sync failed', e); }
+        }
+
+        // Stable, deterministic id for a built-in prompt so re-seeding updates the
+        // same record instead of appending a fresh Date.now() duplicate.
+        function builtInPromptId(category, title) {
+            return 'seed_' + `${category}|${title}`.toLowerCase()
+                .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        }
+
+        // Collapse exact duplicate prompts (same normalised title + text), keeping the
+        // first occurrence. Returns the ids that were removed so the caller can tombstone
+        // them in the cloud (the union-by-id backend would otherwise resurrect them).
+        function _promptDedupeKey(p) {
+            const norm = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+            return norm(p.title) + '␟' + norm(p.text);
+        }
+        function dedupePrompts() {
+            const seen = new Set();
+            const removedIds = [];
+            const kept = [];
+            customPrompts.forEach(p => {
+                const k = _promptDedupeKey(p);
+                if (seen.has(k)) { removedIds.push(p.id); }
+                else { seen.add(k); kept.push(p); }
+            });
+            if (removedIds.length) {
+                customPrompts = kept;
+                localStorage.setItem('chatbot_custom_prompts', JSON.stringify(customPrompts));
+            }
+            return removedIds;
+        }
+
+        // Manual "Remove Duplicates" button — collapses dups and tombstones them in cloud.
+        function removeDuplicatePrompts() {
+            const removed = dedupePrompts();
+            if (!removed.length) { showToast('No duplicate prompts found', 'info'); return; }
+            pushPromptsToCloud(removed);
+            renderPromptsModal();
+            showToast(`Removed ${removed.length} duplicate prompt${removed.length !== 1 ? 's' : ''}`, 'success');
         }
 
         async function pullPromptsFromCloud() {
@@ -15028,9 +15108,15 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 if (body.insights && Array.isArray(body.insights)) {
                     customPrompts = body.insights;
                     localStorage.setItem('chatbot_custom_prompts', JSON.stringify(customPrompts));
-                    // Cloud copy may predate tagging — backfill (and re-push) so the
-                    // tag filter chips appear instead of an empty filter row.
+                    // Self-heal: the historical seed bug appended the built-ins on every
+                    // fresh browser (Date.now() ids). Collapse exact duplicates and
+                    // tombstone the extras so they can't come back via the union backend.
+                    const removed = dedupePrompts();
+                    // Cloud copy may predate tagging — backfill (pushes its own changes)
+                    // so the tag filter chips appear instead of an empty filter row.
                     backfillPromptTags();
+                    // Tombstone the collapsed duplicates so the union backend drops them.
+                    if (removed.length) pushPromptsToCloud(removed);
                 }
             } catch (e) { console.error('[PROMPTS] Cloud pull failed', e); }
         }
@@ -15194,11 +15280,10 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
 
         function seedPromptsFromBuiltIns() {
             if (customPrompts.length > 0) return; // already seeded
-            let id = Date.now();
             promptTemplates.forEach(cat => {
                 cat.prompts.forEach(p => {
                     customPrompts.push({
-                        id: id++,
+                        id: builtInPromptId(cat.category, p.title),
                         title: p.title,
                         description: p.description || '',
                         text: p.text,
@@ -15242,12 +15327,11 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
         function backfillNewTemplates() {
             const existingTitles = new Set(customPrompts.map(p => p.title));
             let changed = false;
-            let id = Date.now();
             promptTemplates.forEach(cat => {
                 cat.prompts.forEach(p => {
                     if (!existingTitles.has(p.title)) {
                         customPrompts.push({
-                            id: id++,
+                            id: builtInPromptId(cat.category, p.title),
                             title: p.title,
                             description: p.description || '',
                             text: p.text,
@@ -15399,6 +15483,37 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             formSelectedTags = new Set();
         }
 
+        // ── Duplicate / high-similarity detection ──────────────────────────────
+        // Tokenise a prompt for overlap scoring: lowercase, drop [placeholders]
+        // and punctuation so wording differences (not formatting) drive the score.
+        function _promptSimTokens(s) {
+            return new Set(String(s || '').toLowerCase()
+                .replace(/\[[^\]]*\]/g, ' ')
+                .replace(/[^a-z0-9\s]/g, ' ')
+                .split(/\s+/).filter(Boolean));
+        }
+        function _promptJaccard(a, b) {
+            const A = _promptSimTokens(a), B = _promptSimTokens(b);
+            if (!A.size || !B.size) return 0;
+            let inter = 0;
+            for (const x of A) if (B.has(x)) inter++;
+            return inter / (A.size + B.size - inter);
+        }
+        // Closest existing prompt if it looks like a duplicate, else null.
+        // An exact (case-insensitive) title match counts as a near-certain dup.
+        function findSimilarPrompt(title, text, excludeId) {
+            const t = (title || '').trim().toLowerCase();
+            let best = null, bestScore = 0;
+            customPrompts.forEach(p => {
+                if (excludeId && String(p.id) === String(excludeId)) return;
+                const titleDup = t.length > 0 && (p.title || '').trim().toLowerCase() === t;
+                const sim = _promptJaccard(text, p.text);
+                const score = titleDup ? Math.max(sim, 0.99) : sim;
+                if (score > bestScore) { bestScore = score; best = p; }
+            });
+            return (best && bestScore >= 0.6) ? { prompt: best, score: bestScore } : null;
+        }
+
         function savePromptForm() {
             const title = document.getElementById('pf-title').value.trim();
             const text = document.getElementById('pf-text').value.trim();
@@ -15409,6 +15524,15 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             if (newTagInput) formSelectedTags.add(newTagInput);
             const tags = [...formSelectedTags];
             const editingId = document.getElementById('pf-editing-id').value;
+
+            // Warn before creating a near-duplicate (skip the prompt being edited)
+            const dup = findSimilarPrompt(title, text, editingId);
+            if (dup) {
+                const pct = Math.round(dup.score * 100);
+                const label = dup.score >= 0.9 ? 'looks like a duplicate of' : 'is very similar to';
+                const inCat = dup.prompt.category ? ` — ${dup.prompt.category}` : '';
+                if (!confirm(`This prompt ${label} an existing one:\n\n“${dup.prompt.title}”${inCat} (${pct}% match)\n\nSave anyway?`)) return;
+            }
 
             if (editingId) {
                 const idx = customPrompts.findIndex(x => String(x.id) === editingId);
@@ -15430,7 +15554,8 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             if (!confirm('Delete this prompt?')) return;
             customPrompts = customPrompts.filter(x => String(x.id) !== String(id));
             localStorage.setItem('chatbot_custom_prompts', JSON.stringify(customPrompts));
-            pushPromptsToCloud();
+            // Tombstone the id — the union backend would otherwise resurrect it on next pull.
+            pushPromptsToCloud([id]);
             renderPromptsModal();
             showToast('Prompt deleted', 'info');
         }
