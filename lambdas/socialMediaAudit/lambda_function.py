@@ -351,7 +351,14 @@ def handle_start(body):
         if entry:
             comp_runs.append({'platform': p, 'handle': handle, 'name': name, **entry})
 
-    if not runs and not comp_runs:
+    # Optional: tie this audit to a connected Monthly-Social-Reports client so
+    # finalize can overlay that client's first-party API metrics (reach,
+    # impressions, engagements, follower growth, audience demographics). When a
+    # connected client is supplied the job is valid even with no scraped handles.
+    native_pid   = (body.get('projectId') or '').strip()
+    native_month = (body.get('native_month') or '').strip()
+
+    if not runs and not comp_runs and not native_pid:
         raise RuntimeError('No valid platform handles were provided.')
 
     job_id = uuid.uuid4().hex
@@ -364,12 +371,15 @@ def handle_start(body):
         'listening': _ddb_clean(body.get('social_listening') or {}),
         'runs': _ddb_clean(runs),
         'comp_runs': _ddb_clean(comp_runs),
+        'native_project': native_pid,
+        'native_month': native_month,
         'created': _now_iso(),
         'ttl': int(time.time()) + JOB_TTL_SECS,
     })
 
     return {'jobId': job_id, 'platforms': list(runs.keys()),
-            'competitors': len(comp_runs), 'cached': cached_n}
+            'competitors': len(comp_runs), 'cached': cached_n,
+            'native_project': native_pid}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -818,6 +828,34 @@ def handle_finalize(body):
             m = _add_growth(brand, p, m)
             client_metrics[p] = m
 
+        # ── First-party enrichment ───────────────────────────────────────────
+        # If this audit was tied to a connected Monthly-Social-Reports client,
+        # overlay that client's private API metrics onto the scraped cards.
+        # Platforms without a live connection keep their public Apify data; a
+        # platform connected but never scraped gets a card built from native data.
+        native_sources, native_errors, native_month = [], {}, ''
+        native_pid = item.get('native_project') or ''
+        if native_pid:
+            try:
+                proj = _rprojects().get_item(Key={'projectId': native_pid}).get('Item')
+                if proj:
+                    proj = _dec(proj)
+                    native_month = (item.get('native_month') or '').strip() or _current_month()
+                    native_cards, native_errors = _native_cards_for_month(proj, native_month)
+                    for nc in native_cards:
+                        np = nc.get('platform')
+                        if not np:
+                            continue
+                        had_apify = bool((client_metrics.get(np) or {}).get('found'))
+                        base = client_metrics.get(np) or {'handle': (proj.get('handles') or {}).get(np)}
+                        _overlay_native(base, nc, had_apify)
+                        base['found'] = True
+                        base['data_source'] = 'connected'
+                        client_metrics[np] = base
+                        native_sources.append(np)
+            except Exception as e:
+                native_errors['_'] = str(e)[:200]
+
         competitor_metrics = []
         comp_creative_jobs = []   # (entry, name, platform, full_metrics) for creative eval
         for c in comp_runs:
@@ -883,7 +921,11 @@ def handle_finalize(body):
             'creative': creative,
             'benchmark': benchmark,
             'competitors': [c for c in competitor_metrics if c.get('followers') is not None],
+            'native_sources': native_sources,
+            'native_month': native_month if native_pid else '',
         })
+        if native_errors:
+            scorecard['native_errors'] = native_errors
         _jobs().update_item(Key={'jobId': job_id},
                             UpdateExpression='SET scorecard = :s',
                             ExpressionAttributeValues={':s': _serialize_scorecard(scorecard)})
@@ -1669,8 +1711,39 @@ def fetch_social_listening(brand, domain, location='Singapore', language='Englis
 # ──────────────────────────────────────────────────────────────────────────────
 # Scorecard assembly
 # ──────────────────────────────────────────────────────────────────────────────
+# First-party (connected-account) metrics Apify scraping can't produce. When an
+# audit is tied to a Monthly-Social-Reports client, _overlay_native copies these
+# onto the scraped metrics dict and _platform_card passes them through.
+_NATIVE_AUTH_KEYS = (   # native-only truth — always wins over the (absent) scraped value
+    'followers', 'reach', 'impressions', 'engagements', 'engagement_rate_impr',
+    'likes', 'comments', 'shares', 'saves', 'net_new_followers',
+    'reactions_by_type', 'breakdowns', 'breakdowns_asof',
+)
+_NATIVE_FILL_KEYS = (   # post-derived — only fill in when the public scrape came up empty
+    'engagement_rate', 'avg_likes', 'avg_comments', 'avg_video_views',
+    'posts_per_week', 'days_since_last_post', 'content_mix', 'top_hashtags',
+    'hashtag_count', 'top_posts', 'top_vs_median', 'posts', 'captions', 'image_urls',
+)
+
+
+def _overlay_native(m, nc, had_apify):
+    """Overlay a first-party (native API) card onto a scraped metrics dict `m`.
+    Authoritative first-party metrics always win; the post-derived fields are
+    only borrowed when the public scrape found nothing for this platform, so a
+    good Apify scrape keeps its richer post grid / creative samples."""
+    for k in _NATIVE_AUTH_KEYS:
+        v = nc.get(k)
+        if v is not None:
+            m[k] = v
+    if not had_apify:
+        for k in _NATIVE_FILL_KEYS:
+            v = nc.get(k)
+            if v is not None:
+                m[k] = v
+
+
 def _platform_card(platform, m):
-    return {
+    card = {
         'platform': platform, 'handle': m.get('handle'), 'found': m.get('found', False),
         'followers': m.get('followers'), 'following': m.get('following'),
         'follower_ratio': m.get('follower_ratio'),
@@ -1686,6 +1759,14 @@ def _platform_card(platform, m):
         'profile_completeness': m.get('profile_completeness'),
         'posts': m.get('posts') or [],
     }
+    # First-party metrics — only present when the audit was enriched from a
+    # connected client, so public-only audits keep their exact card shape.
+    for k in ('reach', 'impressions', 'engagements', 'engagement_rate_impr',
+              'saves', 'shares', 'net_new_followers', 'reactions_by_type',
+              'breakdowns', 'breakdowns_asof', 'data_source'):
+        if m.get(k) is not None:
+            card[k] = m[k]
+    return card
 
 
 # ──────────────────────────────────────────────────────────────────────────────
