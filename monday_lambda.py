@@ -1538,10 +1538,21 @@ def search_google_chat_messages_standard(access_token, query, order_by="CREATE_T
             if not next_page_token:
                 break
         
-        # Fuzzy match: strip hyphens, spaces, case-insensitive
+        # Fuzzy match: strip hyphens, spaces, case-insensitive.
+        # Only DISTINCTIVE words count. Generic/domain words ("the", "centre",
+        # "seo", "sem"…) are dropped so that a query for one client cannot match
+        # a *different* client's space purely on shared boilerplate. This is the
+        # exact bug that once matched "The OBGYN Centre" to the
+        # "…-the-aesthetics-centre-…" space on the words "the" + "centre".
+        _GENERIC = {
+            "the", "and", "for", "with", "seo", "sem", "smm", "sma", "social",
+            "media", "marketing", "group", "pte", "ltd", "llc", "inc", "centre",
+            "center", "clinic", "singapore", "project", "board", "campaign",
+            "package", "geo", "ads", "budget", "sma",
+        }
         q_clean = query.lower().replace("-", " ").replace("_", " ")
-        q_words = [w for w in q_clean.split() if len(w) > 2]  # skip short words
-        
+        q_words = [w for w in q_clean.split() if len(w) > 2 and w not in _GENERIC]
+
         best_space = None
         best_score = 0
         for space in all_spaces:
@@ -1583,6 +1594,12 @@ def search_google_chat_messages_standard(access_token, query, order_by="CREATE_T
         
         result = msg_res.json()
         result["_matched_space"] = best_space.get("displayName") or space_id
+        result["_match_note"] = (
+            "This space was FUZZY-matched to your query, not exact. Before using "
+            "these messages, confirm the space name above actually refers to the "
+            "client/subject you are researching. Do NOT attribute this content to a "
+            "different client, and never claim two clients are 'also known as' each other."
+        )
         return result
         
     except Exception as e:
@@ -1916,7 +1933,10 @@ def run_google_ads_change_history(customer_id, token, days=30,
     elif isinstance(raw, dict):
         results.extend(raw.get("results", []))
 
-    needle = (agency_email_contains or "").lower().strip()
+    # Accept a comma/space-separated list of substrings so operators on other
+    # domains (freelancers, or team logins like '@mm.com.sg') can count as agency
+    # too — a single 'mediaone.co' needle silently mislabels those as non-agency.
+    needles = [n.strip().lower() for n in re.split(r"[,\s]+", str(agency_email_contains or "")) if n.strip()]
     now = datetime.utcnow()
 
     def _days_since(dt_str):
@@ -1933,6 +1953,13 @@ def run_google_ads_change_history(customer_id, token, days=30,
     all_campaigns = set()
     agency_event_count = 0
     last_agency_change = None
+    # Non-agency activity, tracked so a busy account is never silently reported as
+    # idle just because the changes were automated or made by an unlisted operator.
+    system_event_count = 0      # empty user_email == automated/system change
+    other_human_count = 0       # a real user whose email matched no needle
+    other_user_emails = set()   # surfaced so unlisted operators (e.g. @mm.com.sg) are visible
+    last_any_change = None      # most recent change of ANY kind
+    last_human_change = None    # most recent change by any human (agency or other)
 
     for row in results:
         ce = row.get("changeEvent", {}) or {}
@@ -1942,22 +1969,37 @@ def run_google_ads_change_history(customer_id, token, days=30,
         if campaign_contains and campaign_contains.lower() not in str(camp).lower():
             continue
         all_campaigns.add(camp)
-        is_agency = bool(needle) and needle in email.lower()
+        elow = email.lower()
+        is_system = (email == "")
+        is_agency = bool(needles) and any(n in elow for n in needles)
         events.append({
             "when": when,
             "user_email": email,
             "is_agency": is_agency,
+            "is_system": is_system,
             "campaign": camp,
             "resource_type": ce.get("changeResourceType"),
             "operation": ce.get("resourceChangeOperation"),
             "changed_fields": ce.get("changedFields"),
         })
+        if when and (last_any_change is None or when > last_any_change):
+            last_any_change = when
         if is_agency:
             agency_event_count += 1
             if when and (last_agency_change is None or when > last_agency_change):
                 last_agency_change = when
+            if when and (last_human_change is None or when > last_human_change):
+                last_human_change = when
             if not campaign_last_agency.get(camp) or when > campaign_last_agency[camp]:
                 campaign_last_agency[camp] = when
+        elif is_system:
+            system_event_count += 1
+        else:
+            other_human_count += 1
+            if email:
+                other_user_emails.add(email)
+            if when and (last_human_change is None or when > last_human_change):
+                last_human_change = when
 
     campaign_flags = []
     for camp in sorted(all_campaigns):
@@ -1979,16 +2021,27 @@ def run_google_ads_change_history(customer_id, token, days=30,
         "flag_after_days": flag_after_days,
         "total_events": len(events),
         "agency_events": agency_event_count,
+        "system_events": system_event_count,
+        "other_human_events": other_human_count,
+        "other_user_emails": sorted(other_user_emails),
         "last_agency_change": last_agency_change,
         "days_since_last_agency_change": days_since_last_agency,
+        "last_any_change": last_any_change,
+        "days_since_any_change": _days_since(last_any_change),
+        "last_human_change": last_human_change,
+        # True when SOMEONE (a system job or an unlisted operator) touched the account
+        # in-window even though no listed agency user did — the tell-tale of a false flag.
+        "touched_by_non_agency": bool(system_event_count or other_human_count),
         "account_unoptimised": (last_agency_change is None) or (days_since_last_agency is not None and days_since_last_agency > flag_after_days),
         "unoptimised_campaigns": [c for c in campaign_flags if c["unoptimised"]],
         "campaign_optimisation": campaign_flags,
         "events": events[:MAX_EVENTS],
         "events_truncated": len(events) > MAX_EVENTS,
         "note": ("change_event is only available for the last 30 days. 'unoptimised' = no change by a "
-                 f"user whose email contains '{agency_email_contains}' within {flag_after_days} days. "
-                 "Account-level changes are grouped under '(account-level)'."),
+                 f"user whose email contains one of {needles or ['mediaone.co']} within {flag_after_days} days. "
+                 "Automated/system changes (empty user_email) and changes by other users are counted "
+                 "separately (system_events / other_human_events) so an account touched by non-agency "
+                 "activity is not mistaken for idle. Account-level changes are grouped under '(account-level)'."),
     }
 
 
@@ -2109,6 +2162,13 @@ def run_google_ads_mcc_change_sweep(token, manager_id=None, days=30,
                     "last_agency_change": res.get("last_agency_change"),
                     "days_since_agency_change": res.get("days_since_last_agency_change"),
                     "agency_events": res.get("agency_events"),
+                    # Non-agency activity — present when the flag is likely a false positive.
+                    "touched_by_non_agency": res.get("touched_by_non_agency"),
+                    "system_events": res.get("system_events"),
+                    "other_human_events": res.get("other_human_events"),
+                    "other_user_emails": res.get("other_user_emails", [])[:10],
+                    "last_any_change": res.get("last_any_change"),
+                    "days_since_any_change": res.get("days_since_any_change"),
                     "unoptimised_campaigns": [c.get("campaign") for c in res.get("unoptimised_campaigns", [])][:20],
                 })
 
@@ -2127,6 +2187,24 @@ def run_google_ads_mcc_change_sweep(token, manager_id=None, days=30,
                 kept.append(acct)
         unoptimised = kept
 
+    # A near-total flag rate almost always means the agency-email filter is too
+    # narrow, not that the whole portfolio was idle. Surface that explicitly rather
+    # than letting the caller read "161/161 unoptimised" as a real work stoppage.
+    flagged_frac = (len(unoptimised) / scanned_ok) if scanned_ok else 0.0
+    touched_elsewhere = sum(1 for a in unoptimised if a.get("touched_by_non_agency"))
+    detector_warning = None
+    if scanned_ok >= 5 and flagged_frac >= 0.9:
+        detector_warning = (
+            f"{len(unoptimised)}/{scanned_ok} scanned accounts flagged unoptimised "
+            f"({round(flagged_frac * 100)}%). A near-total flag rate usually means the agency-email "
+            f"filter ('{agency_email_contains}') is too narrow — change_event.user_email is EMPTY for "
+            f"automated/system changes and unmatched for operators on other domains — not that every "
+            f"account was idle. "
+            + (f"{touched_elsewhere} flagged account(s) DID have system/other-user changes in-window; "
+               f"pass a wider agency_email_contains (comma-separated, e.g. 'mediaone.co,mm.com.sg') to "
+               f"include them." if touched_elsewhere
+               else "Verify with a raw change_event pull before concluding no optimisation happened."))
+
     next_offset = offset + len(batch)
     more = next_offset < total
     return {
@@ -2140,6 +2218,9 @@ def run_google_ads_mcc_change_sweep(token, manager_id=None, days=30,
         "campaign_contains": campaign_contains,
         "unoptimised_accounts": unoptimised,
         "unoptimised_count": len(unoptimised),
+        "flagged_fraction": round(flagged_frac, 3),
+        "flagged_with_non_agency_activity": touched_elsewhere,
+        "detector_warning": detector_warning,
         "errored_accounts": errored[:20],
         "more_accounts_remaining": more,
         "next_offset": next_offset if more else None,
@@ -2683,16 +2764,41 @@ def claude_chat_with_tools(body):
         + " (Asia/Singapore, UTC+8). Treat this as 'today' for ALL date math and "
         "relative dates ('today', 'tomorrow', 'this week', 'next Monday')."
     )
+    # Google Chat governance. Chat spaces are private and frequently belong to
+    # DIFFERENT clients; a fuzzy space match once attributed one client's space
+    # to another and the model fabricated an "also known as" alias. Chat is
+    # OFF unless the user flips the composer toggle on (gchat_enabled below).
+    _gchat_policy = (
+        "GOOGLE CHAT POLICY: Google Chat spaces are private and often belong to "
+        "DIFFERENT clients. Do NOT pull Google Chat data as part of a Monday/board "
+        "crawl or any client research unless the user has explicitly turned on the "
+        "'Include Google Chat' toggle AND named the space(s) to read. If Chat could "
+        "help and it is off, ask the user to switch on the 'Include Google Chat' "
+        "toggle in the message box and tell you which space(s) — do not call any "
+        "Chat tool first. Never attribute a Chat space's contents to a client unless "
+        "the space name clearly contains that client's own distinctive name, and "
+        "never invent aliases such as one client being 'also known as' another."
+    )
+    _preamble = _date_line + "\n\n" + _gchat_policy
     if isinstance(system, list):
-        system = [{"type": "text", "text": _date_line}] + system
+        system = [{"type": "text", "text": _preamble}] + system
     elif system:
-        system = _date_line + "\n\n" + system
+        system = _preamble + "\n\n" + system
     else:
-        system = _date_line
+        system = _preamble
 
     messages   = list(body.get('messages', []))   # mutable copy for the loop
     max_tokens = int(body.get('max_tokens', 4096))
     thinking   = body.get('thinking')  # e.g. {"type": "enabled", "budget_tokens": 8000}
+
+    # Composer "Include Google Chat" toggle (default OFF). When off, every Google
+    # Chat tool call is short-circuited below so no Chat data is ever read without
+    # the user's explicit opt-in.
+    gchat_enabled = bool(body.get('gchat_enabled'))
+    GCHAT_TOOLS = {
+        "search_conversations", "list_messages", "search_messages", "send_message",
+        "list_my_spaces", "list_messages_standard", "search_messages_standard",
+    }
 
     if not messages:
         return {"statusCode": 400, "body": json.dumps({"error": "No messages provided"})}
@@ -2934,7 +3040,7 @@ def claude_chat_with_tools(body):
                 "properties": {
                     "customerId": {"type": "string", "description": "The Google Ads Customer ID."},
                     "days": {"type": "integer", "description": "How many days of change history to pull (1-30; default 30). Google retains at most 30 days."},
-                    "agency_email_contains": {"type": "string", "description": "Substring identifying agency users in the change log. Default 'mediaone.co'. A change counts as an 'optimisation' only if made by a user whose email contains this."},
+                    "agency_email_contains": {"type": "string", "description": "Substring(s) identifying agency users in the change log. Default 'mediaone.co'. Accepts a comma-separated list (e.g. 'mediaone.co,mm.com.sg') to include operators on other domains. A change counts as an 'optimisation' only if made by a user whose email contains one of these; automated/system and other-user changes are reported separately."},
                     "flag_after_days": {"type": "integer", "description": "Flag a campaign/account as unoptimised if it has had no agency change within this many days. Default 14."},
                     "campaign_contains": {"type": "string", "description": "Optional case-insensitive campaign-name filter to scope the audit to specific campaigns."}
                 },
@@ -2962,7 +3068,7 @@ def claude_chat_with_tools(body):
                 "properties": {
                     "managerCustomerId": {"type": "string", "description": "The MCC/manager Customer ID to sweep. Defaults to the MediaOne MCC 4695999392 if omitted."},
                     "days": {"type": "integer", "description": "Days of change history to inspect per account (1-30; default 30)."},
-                    "agency_email_contains": {"type": "string", "description": "Substring identifying agency users. Default 'mediaone.co'."},
+                    "agency_email_contains": {"type": "string", "description": "Substring(s) identifying agency users. Default 'mediaone.co'. Accepts a comma-separated list (e.g. 'mediaone.co,mm.com.sg'). If a near-total share of accounts comes back unoptimised, widen this — see detector_warning in the result."},
                     "flag_after_days": {"type": "integer", "description": "Flag an account with no agency change within this many days. Default 14."},
                     "campaign_contains": {"type": "string", "description": "Optional: only flag accounts that have an ENABLED campaign whose name contains this (e.g. 'MO')."},
                     "max_accounts": {"type": "integer", "description": "How many child accounts to scan in this call (default 50, max 120). Use with offset to page a large MCC."},
@@ -3631,6 +3737,30 @@ def claude_chat_with_tools(body):
                     _tool_label = TOOL_LABELS.get(tool_name, tool_name.replace('_', ' ').title())
                     tool_events.append({"name": tool_name, "label": _tool_label})
                     _report_progress(_tool_label)
+
+                    # ── Google Chat opt-in gate ─────────────────────────────
+                    # When the composer toggle is OFF, never touch Chat. Return
+                    # a sentinel that stops the model and makes it ask the user
+                    # to enable the toggle and name the space(s).
+                    if tool_name in GCHAT_TOOLS and not gchat_enabled:
+                        tool_call_log.append("▸ Google Chat: blocked (toggle off)")
+                        tool_results.append({
+                            "type":        "tool_result",
+                            "tool_use_id": tool_id,
+                            "content":     json.dumps({
+                                "error": "google_chat_disabled",
+                                "message": (
+                                    "Google Chat is OFF for this conversation, so NO Chat data "
+                                    "was read. Do not call any Google Chat tool again this turn. "
+                                    "Tell the user that if they want Google Chat included, they "
+                                    "should switch on the 'Include Google Chat' toggle in the "
+                                    "message box and tell you which space(s) to check. Do not "
+                                    "guess a space, do not attribute any Chat content to this "
+                                    "client, and never claim one client is 'also known as' another."
+                                ),
+                            }),
+                        })
+                        continue
 
                     if tool_name == "monday_graphql":
                         gql_query = tool_input.get("query", "")
