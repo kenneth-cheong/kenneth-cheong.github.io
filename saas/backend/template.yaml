@@ -866,6 +866,14 @@ Resources:
         Variables:
           ADMIN_EMAILS: !Ref AdminEmails
           SES_FROM: !Ref SesFrom
+          # Broadcast + invite emails prefer authenticated SMTP so they send from a
+          # real @mediaone.co mailbox and pass DMARC — same path as AppFn/CloseFn.
+          # Empty SMTP_USER falls back to SES.
+          SMTP_USER: !Ref SmtpUser
+          SMTP_FROM: !Ref SmtpFrom
+          SMTP_HOST: !Ref SmtpHost
+          SMTP_PORT: !Ref SmtpPort
+          SMTP_PASS: '{{resolve:secretsmanager:digimetrics-saas/smtp-pass:SecretString}}'
           BROADCASTS_TABLE: !Ref BroadcastsTable
           AMPLIFY_APP_ID: !Ref AmplifyAppId
           AMPLIFY_DOMAIN: !Ref AmplifyDomain

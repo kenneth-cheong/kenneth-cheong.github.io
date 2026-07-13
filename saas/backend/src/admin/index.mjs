@@ -38,7 +38,7 @@ import { PLANS, NDA_VERSION } from '../../../shared/catalog.mjs';
 import { isAdmin, isStaff, ACCOUNT_STATUSES } from '../lib/admin.mjs';
 import { amplifyUsage, amplifyAccessLogs } from '../lib/platform-usage.mjs';
 import { financeReport } from '../lib/finances.mjs';
-import { sendEmail } from '../lib/email.mjs';
+import { sendNotice } from '../lib/email.mjs';
 import { buildAcceptancePdf } from '../lib/pdf.mjs';
 import { signUnsubToken } from '../lib/jwt.mjs';
 import { ok, badRequest, unauthorized, serverError, json, parseBody, claims, isEmail, clampStr } from '../lib/http.mjs';
@@ -306,7 +306,7 @@ export const handler = async (event) => {
     const credits = Number.isFinite(Number(body.credits)) ? Math.max(0, Number(body.credits)) : PLANS[tier].monthlyCredits;
     const provision = await createProvision({ email, name: (body.name || '').trim(), role, tier, credits, invitedBy: c.email });
     if (body.sendInvite) {
-      await sendEmail({
+      await sendNotice({
         to: email,
         subject: 'You’ve been invited to Digimetrics',
         text: `You've been added to Digimetrics${role === 'staff' ? ' as a staff member' : ''}.\n\n`
@@ -496,7 +496,7 @@ async function deliverBroadcast({ recipients, title, body, link, wantInApp, want
       const unsubUrl = `${APP_ORIGIN}/unsubscribe?token=${encodeURIComponent(signUnsubToken(u.userId))}`;
       const html = broadcastEmailHtml({ title, body, ctaUrl, unsubUrl });
       const text = `${title}\n\n${body}\n\n${ctaUrl}\n\nUnsubscribe: ${unsubUrl}`;
-      const sent = await sendEmail({ to: u.email, subject: title, text, html });
+      const sent = await sendNotice({ to: u.email, subject: title, text, html });
       if (sent) emailSent++;
     });
   }
