@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { FileText, MonitorPlay, RefreshCw, Info } from 'lucide-react';
+import { FileText, MonitorPlay, RefreshCw, Info, Search } from 'lucide-react';
 import TrendChart from '../components/TrendChart.jsx';
 import { PLANS, TIER_ORDER, PROACTIVE_EVENTS, PROACTIVE_TOKENS, DEFAULT_PROACTIVE } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -658,6 +658,13 @@ function AdminNotifications() {
   const [tiers, setTiers] = useState(new Set());
   const [statuses, setStatuses] = useState(new Set(['active']));
 
+  // Audience mode: 'filter' (date/tier/status rules) or 'pick' (hand-select users).
+  const [mode, setMode] = useState('filter');
+  const [allUsers, setAllUsers] = useState(null); // lazily loaded for the picker
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+
   // Composer state.
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -687,6 +694,8 @@ function AdminNotifications() {
   }
 
   function buildFilter() {
+    // Explicit pick overrides the rule builder: send to exactly the checked users.
+    if (mode === 'pick') return { userIds: [...selectedIds] };
     const f = { match };
     for (const { key } of CLAUSES) {
       const cl = clauses[key];
@@ -697,7 +706,39 @@ function AdminNotifications() {
     return f;
   }
 
+  function switchMode(next) {
+    if (next === mode) return;
+    setMode(next); setPreview(null); setError('');
+    // Lazily pull the user list the first time the picker opens. Invited/pending
+    // accounts can't receive a broadcast, so they're left out of the pickable set.
+    if (next === 'pick' && allUsers === null && !usersLoading) {
+      setUsersLoading(true);
+      api.adminUsers()
+        .then((d) => setAllUsers((d.users || []).filter((u) => u.status !== 'invited')))
+        .catch(() => setAllUsers([]))
+        .finally(() => setUsersLoading(false));
+    }
+  }
+
+  const filteredUsers = (() => {
+    if (!allUsers) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return allUsers;
+    return allUsers.filter((u) => `${u.email} ${u.name || ''}`.toLowerCase().includes(q));
+  })();
+
+  function toggleUser(id) {
+    setSelectedIds((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setPreview(null);
+  }
+  function selectAllFiltered() {
+    setSelectedIds((s) => { const n = new Set(s); filteredUsers.forEach((u) => n.add(u.userId)); return n; });
+    setPreview(null);
+  }
+  function clearSelection() { setSelectedIds(new Set()); setPreview(null); }
+
   async function doPreview() {
+    if (mode === 'pick' && selectedIds.size === 0) { setError('Select at least one user.'); return; }
     setPreviewing(true); setError(''); setMsg('');
     try { setPreview(await api.adminBroadcastPreview(buildFilter())); }
     catch (e) { setError(e?.payload?.error || 'Could not preview the audience.'); }
@@ -710,6 +751,7 @@ function AdminNotifications() {
     if (!body.trim()) { setError('Add a message.'); return; }
     if (!channels.inApp && !channels.email) { setError('Pick at least one channel.'); return; }
     if (link && !link.startsWith('/')) { setError('Link must be an in-app path starting with “/”.'); return; }
+    if (mode === 'pick' && selectedIds.size === 0) { setError('Select at least one user.'); return; }
     const count = preview?.count;
     const who = count != null ? `${count} user${count === 1 ? '' : 's'}` : 'the matching users';
     const via = [channels.inApp && 'in-app', channels.email && 'email'].filter(Boolean).join(' + ');
@@ -743,15 +785,28 @@ function AdminNotifications() {
     <div className="mt-4 grid gap-4 lg:grid-cols-2">
       {/* ── Audience builder ── */}
       <div className="card p-5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <h2 className="text-base font-semibold">Audience</h2>
-          <select value={match} onChange={(e) => { setMatch(e.target.value); setPreview(null); }}
-            className="dm-select rounded border border-edge py-1 pl-2 pr-7 text-xs">
-            <option value="all">Match ALL date rules</option>
-            <option value="any">Match ANY date rule</option>
-          </select>
+          {mode === 'filter' && (
+            <select value={match} onChange={(e) => { setMatch(e.target.value); setPreview(null); }}
+              className="dm-select rounded border border-edge py-1 pl-2 pr-7 text-xs">
+              <option value="all">Match ALL date rules</option>
+              <option value="any">Match ANY date rule</option>
+            </select>
+          )}
         </div>
-        <p className="mt-1 text-xs text-muted">Leave all date rules off to target everyone (after the tier/status narrowing below).</p>
+
+        <div className="mt-3 inline-flex rounded-lg border border-line p-0.5 text-xs font-medium">
+          {[['filter', 'By filter'], ['pick', 'Pick users']].map(([k, label]) => (
+            <button key={k} type="button" onClick={() => switchMode(k)}
+              className={`rounded-md px-3 py-1 ${mode === k ? 'bg-brand-100 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300' : 'text-muted hover:text-body'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {mode === 'filter' && (<>
+        <p className="mt-3 text-xs text-muted">Leave all date rules off to target everyone (after the tier/status narrowing below).</p>
 
         <div className="mt-3 space-y-2">
           {CLAUSES.map(({ key, label, help }) => {
@@ -806,6 +861,43 @@ function AdminNotifications() {
             <p className="mt-1 text-[11px] text-faint">{statuses.size ? '' : 'Any status'}</p>
           </div>
         </div>
+        </>)}
+
+        {mode === 'pick' && (
+          <div className="mt-3">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search size={14} aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or email"
+                  className="w-full rounded-lg border border-edge py-1.5 pl-8 pr-3 text-sm focus:border-brand-500 focus:outline-none" />
+              </div>
+              <span className="shrink-0 text-xs font-semibold text-body">{selectedIds.size} selected</span>
+            </div>
+
+            <div className="mt-2 flex items-center gap-3 text-xs">
+              <button type="button" onClick={selectAllFiltered} disabled={!filteredUsers.length} className="text-brand-600 dark:text-brand-400 hover:underline disabled:opacity-40">
+                Select all{search.trim() ? ` ${filteredUsers.length} matching` : ''}
+              </button>
+              <button type="button" onClick={clearSelection} disabled={!selectedIds.size} className="text-muted hover:text-body disabled:opacity-40">Clear</button>
+            </div>
+
+            <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-hair">
+              {usersLoading ? <p className="px-3 py-4 text-sm text-faint">Loading users…</p>
+                : !filteredUsers.length ? <p className="px-3 py-4 text-sm text-faint">{allUsers?.length ? 'No users match your search.' : 'No users to show.'}</p>
+                : filteredUsers.map((u) => (
+                  <label key={u.userId} className="flex cursor-pointer items-center gap-2.5 border-t border-hair px-3 py-2 first:border-t-0 hover:bg-sunken">
+                    <input type="checkbox" checked={selectedIds.has(u.userId)} onChange={() => toggleUser(u.userId)} className="h-4 w-4" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-dim">{u.email}</div>
+                      {u.name && <div className="truncate text-[11px] text-faint">{u.name}</div>}
+                    </div>
+                    <span className="shrink-0 rounded-full bg-sunken px-2 py-0.5 text-[11px] font-medium text-muted capitalize">{u.tier}</span>
+                  </label>
+                ))}
+            </div>
+            <p className="mt-1.5 text-[11px] text-faint">Only active accounts are listed — invited users can't receive a broadcast yet.</p>
+          </div>
+        )}
 
         <div className="mt-4 flex items-center gap-3">
           <button onClick={doPreview} disabled={previewing} className="btn-ghost px-3 py-2 text-sm disabled:opacity-50">

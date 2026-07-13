@@ -259,7 +259,11 @@ export const handler = async (event) => {
     const record = await recordBroadcast({
       sentBy: c.email,
       title, body: messageBody, link: link || null,
-      filter: body.filter || {},
+      // Keep the audit record small: for an explicit pick, store just the count
+      // instead of the (potentially thousands-long) id list.
+      filter: Array.isArray(body.filter?.userIds)
+        ? { mode: 'explicit', selectedCount: body.filter.userIds.length }
+        : (body.filter || {}),
       channels: { inApp: wantInApp, email: wantEmail },
       audienceCount: matched.length,
       ...result,
@@ -429,6 +433,15 @@ function matchesAudience(u, filter = {}, now) {
 async function resolveAudience(filter) {
   const now = Date.now();
   const users = await audienceCandidates();
+  // Explicit selection: when the caller passes a `userIds` array, the audience is
+  // exactly those users (intersected with real, non-provisional candidates) and
+  // the date/tier/status filter is ignored. Presence of the array — even when
+  // empty — forces this mode, so an empty pick reaches nobody rather than
+  // silently falling back to "everyone".
+  if (Array.isArray(filter?.userIds)) {
+    const set = new Set(filter.userIds.filter(Boolean));
+    return { matched: users.filter((u) => set.has(u.userId)) };
+  }
   const matched = users.filter((u) => matchesAudience(u, filter || {}, now));
   return { matched };
 }
