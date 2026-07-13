@@ -3267,6 +3267,10 @@ html[data-theme="dark"] [data-tooltip]::before{background:#1a1f3c}
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.04em;
+            /* Colours come from custom props set inline (see renderPromptsModal) so the
+               dark-mode inline normalizer can't half-theme them into invisibility. */
+            background: var(--ptag-bg, #eef2ff);
+            color: var(--ptag-fg, #334155);
         }
         .prompt-card-actions {
             position: absolute;
@@ -3833,7 +3837,7 @@ html[data-theme="dark"] [data-tooltip]::before{background:#1a1f3c}
         </div>
 
         <header>
-            <h1><svg class="otter-mascot" viewBox="0 0 48 48" fill="none" width="30" height="30" style="flex-shrink:0" role="img" aria-label="Monty"><clipPath id="otterHeadClip"><circle cx="24" cy="24" r="24"/></clipPath><g clip-path="url(#otterHeadClip)"><circle cx="24" cy="24" r="24" fill="#e8f0ff"/><image href="assets/monty.jpg" x="-12.52" y="-11.48" width="73.04" height="73.04"/><path d="M8.4 20 Q24 -1 39.6 20" stroke="#2563eb" stroke-width="2.6" fill="none" stroke-linecap="round"/><ellipse cx="8.4" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><ellipse cx="39.6" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><path d="M8.4 24 Q5.5 31 16 32.2" stroke="#2563eb" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="16.3" cy="32.2" r="1.5" fill="#2563eb"/></g></svg> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2758</span></h1>
+            <h1><svg class="otter-mascot" viewBox="0 0 48 48" fill="none" width="30" height="30" style="flex-shrink:0" role="img" aria-label="Monty"><clipPath id="otterHeadClip"><circle cx="24" cy="24" r="24"/></clipPath><g clip-path="url(#otterHeadClip)"><circle cx="24" cy="24" r="24" fill="#e8f0ff"/><image href="assets/monty.jpg" x="-12.52" y="-11.48" width="73.04" height="73.04"/><path d="M8.4 20 Q24 -1 39.6 20" stroke="#2563eb" stroke-width="2.6" fill="none" stroke-linecap="round"/><ellipse cx="8.4" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><ellipse cx="39.6" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><path d="M8.4 24 Q5.5 31 16 32.2" stroke="#2563eb" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="16.3" cy="32.2" r="1.5" fill="#2563eb"/></g></svg> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2759</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -15253,7 +15257,12 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     item.className = 'prompt-item';
                     const tagsHtml = (p.tags || []).map(t => {
                         const [bg, fg] = promptTagColor(t);
-                        return `<span class="prompt-tag" style="background:${bg};color:${fg};">${escapeHtml(t)}</span>`;
+                        // Pass the palette via CSS custom props, applied by the .prompt-tag
+                        // rule. The dark-mode inline normalizer only rewrites background-color/
+                        // color longhands, never custom props — so both colours stay literal
+                        // and legible in dark mode. (Inline hex here got half-themed: the bg
+                        // had a --dm token, the ink didn't, so e.g. "SEM" went invisible.)
+                        return `<span class="prompt-tag" style="--ptag-bg:${bg};--ptag-fg:${fg};">${escapeHtml(t)}</span>`;
                     }).join('');
                     item.innerHTML = `
                         <div class="prompt-icon"><i class="fas ${p.icon || 'fa-wand-magic-sparkles'}"></i></div>
