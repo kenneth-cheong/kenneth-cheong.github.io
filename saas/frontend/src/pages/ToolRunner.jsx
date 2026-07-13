@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { toolById, inputsFor, tabsFor, exampleFor, CREDIT_COSTS, PLANS, tierMeets, isSchedulable, scheduleLimits } from '@shared/catalog.mjs';
 import { api, ApiError } from '../lib/api.js';
+import { setActiveTool, clearActiveTool } from '../lib/toolContext.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import UpgradeModal from '../components/UpgradeModal.jsx';
@@ -133,6 +134,20 @@ export default function ToolRunner() {
   const isVisible = (f) => (!f.staffOnly || user.isAdmin) && (!f.showWhen || (f.showWhen.in || []).includes(values[f.showWhen.field]));
   const shown = fields.filter(isVisible);
   shownRef.current = shown;
+
+  // Publish the live form to Monty so "help me DO this" / "is this right" can read
+  // what the user has actually entered — not just which tool is open. Only the
+  // visible, non-empty fields; cleared when the tool page unmounts.
+  useEffect(() => {
+    const filled = {};
+    for (const f of shown) {
+      const v = String(values[f.name] ?? '').trim();
+      if (v) filled[f.label || f.name] = v;
+    }
+    setActiveTool({ toolId, tabLabel: activeTab?.label || null, values: filled });
+    return () => clearActiveTool(toolId);
+  }, [toolId, activeTab?.label, values, shown.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const missing = shown.filter((f) => f.required && !String(values[f.name] || '').trim());
   const ready = missing.length === 0;
   const isMissing = (f) => nudge && missing.includes(f);
@@ -298,7 +313,7 @@ export default function ToolRunner() {
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-xs text-faint" data-tour="tool-actions">
-            <span>{cost === 0 ? 'Free to run' : `Costs ${cost} credit${cost > 1 ? 's' : ''}`}</span>
+            <span title={tool.costVaries ? 'Base cost — longer content and deeper QA (up to 18 agents) can cost more.' : undefined}>{cost === 0 ? 'Free to run' : `Costs ${cost}${tool.costVaries ? '+' : ''} credit${(cost > 1 || tool.costVaries) ? 's' : ''}`}</span>
             {example && <button type="button" onClick={fillExample} className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Try an example</button>}
             {shown.some((f) => f.required) && <span><span className="text-amber-500">*</span> Required</span>}
           </div>

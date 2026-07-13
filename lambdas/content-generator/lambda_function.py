@@ -217,24 +217,23 @@ def lambda_handler(event, context):
             "Write the caption as flowing, natural copy only."
         )
 
-    # API Call — DeepSeek if requested (OpenAI-compatible), else OpenAI (default).
-    # Default preserves the original OpenAI behaviour, so flipping DeepSeek off
-    # returns this tool to its normal engine.
+    # API Call — DeepSeek is now the DEFAULT engine (OpenAI-compatible API). Pass
+    # provider='openai' to fall back to the original OpenAI/gpt-4o-mini path.
     provider = (event.get('provider') or '').lower()
-    if provider == 'deepseek':
-        api_key = os.environ.get('DEEPSEEK_API_KEY')
-        if not api_key:
-            print("Error: DEEPSEEK_API_KEY not configured")
-            return "Error: AI provider is not configured."
-        url = "https://api.deepseek.com/chat/completions"
-        model_id = 'deepseek-chat'
-    else:
+    if provider == 'openai':
         api_key = os.environ.get('OPENAI_API_KEY')
         if not api_key:
             print("Error: OPENAI_API_KEY not configured")
             return "Error: AI provider is not configured."
         url = "https://api.openai.com/v1/chat/completions"
         model_id = os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')
+    else:
+        api_key = os.environ.get('DEEPSEEK_API_KEY')
+        if not api_key:
+            print("Error: DEEPSEEK_API_KEY not configured")
+            return "Error: AI provider is not configured."
+        url = "https://api.deepseek.com/chat/completions"
+        model_id = 'deepseek-chat'
 
     json_data = {
         "model": model_id,

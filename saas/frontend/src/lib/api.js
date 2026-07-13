@@ -302,8 +302,10 @@ export const api = {
   // Broadcast notifications — preview an audience, send, view history, and the
   // one-time activity backfill (seeds last-login / last-tool-use from history).
   adminBroadcastPreview: (filter) => call('/admin/notifications/preview', { method: 'POST', body: { filter } }),
-  adminBroadcastSend: ({ filter, title, body, link, channels }) =>
-    call('/admin/notifications/send', { method: 'POST', body: { filter, title, body, link, channels } }),
+  adminBroadcastSend: ({ filter, title, body, link, channels, image }) =>
+    call('/admin/notifications/send', { method: 'POST', body: { filter, title, body, link, channels, image } }),
+  adminBroadcastUpload: ({ name, contentType, data }) =>
+    call('/admin/notifications/upload', { method: 'POST', body: { name, contentType, data } }),
   adminBroadcastHistory: () => call('/admin/notifications/history'),
   adminBackfillActivity: () => call('/admin/notifications/backfill', { method: 'POST' }),
   // Platform (Amplify Hosting) usage over a date range: fast traffic/cost/build

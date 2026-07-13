@@ -176,6 +176,9 @@ export const TOOLS = [
     desc: 'Platform-tuned captions for IG / LinkedIn / FB / TikTok.' },
   { id: 'content-writer', name: 'AI Content Optimiser', category: 'Content', minTier: 'starter',
     cost: 'ai_long', upstream: 'aiOptimiser', slow: true,
+    // Token-metered: the 5-credit floor reconciles up with length + QA depth
+    // (a Full 18-agent run ~= 12 credits). Surface that instead of a flat "5".
+    costVaries: true,
     desc: 'Write from a topic (outline → sections → polish) or rewrite existing copy to close content gaps, then run up to 18 QA agents (you pick the depth) — with AI-Links, a suggested meta title/description and a readability score.' },
   { id: 'content-check', name: 'Content Checker', category: 'Content', minTier: 'starter',
     cost: 'ai_long', upstream: 'checkContent', slow: true,
@@ -871,7 +874,7 @@ export const INPUTS = {
     { name: 'mode', label: 'What do you want to do?', type: 'segmented',
       options: ['Keyword metrics', 'Similar keywords (from seed)', 'Ranking keywords (for a domain)', 'Keywords from a webpage'],
       optionDesc: {
-        'Keyword metrics': 'Search volume, difficulty & intent for a keyword list.',
+        'Keyword metrics': 'Search volume & CPC for a keyword list.',
         'Similar keywords (from seed)': 'Expand seed keywords into related keyword ideas.',
         'Ranking keywords (for a domain)': 'See what keywords a domain already ranks for.',
         'Keywords from a webpage': 'Extract target keywords from a page’s content.',

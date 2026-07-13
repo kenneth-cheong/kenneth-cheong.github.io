@@ -9,6 +9,7 @@ import { X, Plus, History, Trash2, ArrowLeft, ArrowRight, Settings, Bell, BellOf
 import PlanPanelCard from './PlanPanelCard.jsx';
 import Mascot from './Mascot.jsx';
 import { proactiveMuted, setProactiveMuted } from '../lib/proactive.js';
+import { getActiveTool } from '../lib/toolContext.js';
 
 const COST = CREDIT_COSTS.ai_chat ?? 2;
 const GREETING = { role: 'assistant', content: "Hi! I'm Monty, your Digimetrics assistant. Ask me about any tool, how to get started, or your connected Search Console / GA4 / Ads numbers." };
@@ -218,7 +219,17 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
   function pageContext() {
     const path = location.pathname;
     const m = /^\/tool\/([^/]+)/.exec(path);
-    return { path, toolId: m ? decodeURIComponent(m[1]) : null };
+    const toolId = m ? decodeURIComponent(m[1]) : null;
+    const ctx = { path, toolId };
+    // Attach what the user has typed into the tool's form, so Monty can act on it
+    // ("do this for me", "is this right") instead of asking for it again. Only
+    // trust the snapshot if it belongs to the tool the user is actually on.
+    const live = getActiveTool();
+    if (toolId && live?.toolId === toolId) {
+      if (live.tabLabel) ctx.tabLabel = live.tabLabel;
+      if (live.values && Object.keys(live.values).length) ctx.fieldValues = live.values;
+    }
+    return ctx;
   }
 
   async function submit(text) {

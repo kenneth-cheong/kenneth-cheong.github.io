@@ -38,7 +38,8 @@ import { PLANS, NDA_VERSION } from '../../../shared/catalog.mjs';
 import { isAdmin, isStaff, ACCOUNT_STATUSES } from '../lib/admin.mjs';
 import { amplifyUsage, amplifyAccessLogs } from '../lib/platform-usage.mjs';
 import { financeReport } from '../lib/finances.mjs';
-import { sendEmail } from '../lib/email.mjs';
+import { sendNotice } from '../lib/email.mjs';
+import { putBroadcastImage } from '../lib/s3.mjs';
 import { buildAcceptancePdf } from '../lib/pdf.mjs';
 import { signUnsubToken } from '../lib/jwt.mjs';
 import { ok, badRequest, unauthorized, serverError, json, parseBody, claims, isEmail, clampStr } from '../lib/http.mjs';
@@ -237,11 +238,22 @@ export const handler = async (event) => {
     });
   }
 
+  // Upload a broadcast image/GIF to the public bucket; returns a durable URL the
+  // composer embeds in the email + in-app notification.
+  if (method === 'POST' && path.endsWith('/admin/notifications/upload')) {
+    try {
+      const image = await putBroadcastImage({ name: body.name, contentType: body.contentType, dataBase64: body.data });
+      return ok({ image });
+    } catch (e) { return badRequest(e.message || 'Could not upload the image.'); }
+  }
+
   // Send a broadcast to the filtered audience over the chosen channels.
   if (method === 'POST' && path.endsWith('/admin/notifications/send')) {
     const title = clampStr(body.title, 120).trim();
     const messageBody = clampStr(body.body, 2000).trim();
     const link = body.link ? clampStr(body.link, 300).trim() : '';
+    // Admin-supplied image URL (from our upload route). Only accept an https URL.
+    const image = typeof body.image === 'string' && body.image.startsWith('https://') ? clampStr(body.image, 600).trim() : '';
     const channels = body.channels || {};
     const wantInApp = channels.inApp !== false; // default on
     const wantEmail = channels.email === true;
@@ -255,11 +267,15 @@ export const handler = async (event) => {
     if (!matched.length) return badRequest('That filter matches no users. Adjust it and preview again.');
     if (matched.length > MAX_AUDIENCE) return badRequest(`Audience too large (${matched.length} > ${MAX_AUDIENCE}). Narrow the filter.`);
 
-    const result = await deliverBroadcast({ recipients: matched, title, body: messageBody, link, wantInApp, wantEmail });
+    const result = await deliverBroadcast({ recipients: matched, title, body: messageBody, link, image, wantInApp, wantEmail });
     const record = await recordBroadcast({
       sentBy: c.email,
-      title, body: messageBody, link: link || null,
-      filter: body.filter || {},
+      title, body: messageBody, link: link || null, image: image || null,
+      // Keep the audit record small: for an explicit pick, store just the count
+      // instead of the (potentially thousands-long) id list.
+      filter: Array.isArray(body.filter?.userIds)
+        ? { mode: 'explicit', selectedCount: body.filter.userIds.length }
+        : (body.filter || {}),
       channels: { inApp: wantInApp, email: wantEmail },
       audienceCount: matched.length,
       ...result,
@@ -306,7 +322,7 @@ export const handler = async (event) => {
     const credits = Number.isFinite(Number(body.credits)) ? Math.max(0, Number(body.credits)) : PLANS[tier].monthlyCredits;
     const provision = await createProvision({ email, name: (body.name || '').trim(), role, tier, credits, invitedBy: c.email });
     if (body.sendInvite) {
-      await sendEmail({
+      await sendNotice({
         to: email,
         subject: 'You’ve been invited to Digimetrics',
         text: `You've been added to Digimetrics${role === 'staff' ? ' as a staff member' : ''}.\n\n`
@@ -429,6 +445,15 @@ function matchesAudience(u, filter = {}, now) {
 async function resolveAudience(filter) {
   const now = Date.now();
   const users = await audienceCandidates();
+  // Explicit selection: when the caller passes a `userIds` array, the audience is
+  // exactly those users (intersected with real, non-provisional candidates) and
+  // the date/tier/status filter is ignored. Presence of the array — even when
+  // empty — forces this mode, so an empty pick reaches nobody rather than
+  // silently falling back to "everyone".
+  if (Array.isArray(filter?.userIds)) {
+    const set = new Set(filter.userIds.filter(Boolean));
+    return { matched: users.filter((u) => set.has(u.userId)) };
+  }
   const matched = users.filter((u) => matchesAudience(u, filter || {}, now));
   return { matched };
 }
@@ -457,12 +482,14 @@ async function mapLimit(items, limit, fn) {
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 
 // Minimal, inline-styled HTML email. CTA + unsubscribe footer (CAN-SPAM/PECR).
-function broadcastEmailHtml({ title, body, ctaUrl, unsubUrl }) {
+function broadcastEmailHtml({ title, body, ctaUrl, unsubUrl, image }) {
   const paras = String(body).split(/\n{2,}/).map((p) => `<p style="margin:0 0 14px;color:#334155;font-size:15px;line-height:1.6">${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+  const hero = image ? `<tr><td><img src="${esc(image)}" alt="" width="560" style="display:block;width:100%;max-width:560px;height:auto;border:0" /></td></tr>` : '';
   return `<!doctype html><html><body style="margin:0;background:#f1f5f9;padding:24px">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
     <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:14px;overflow:hidden;border:1px solid #e2e8f0">
       <tr><td style="background:#4f46e5;padding:18px 28px"><span style="color:#fff;font-size:18px;font-weight:700">Digimetrics</span></td></tr>
+      ${hero}
       <tr><td style="padding:28px">
         <h1 style="margin:0 0 14px;color:#0f172a;font-size:20px;font-weight:700">${esc(title)}</h1>
         ${paras}
@@ -478,12 +505,12 @@ function broadcastEmailHtml({ title, body, ctaUrl, unsubUrl }) {
 
 // Fan a broadcast out across the requested channels. In-app first (cheap, never
 // opted out of); email only to recipients with an address who haven't opted out.
-async function deliverBroadcast({ recipients, title, body, link, wantInApp, wantEmail }) {
+async function deliverBroadcast({ recipients, title, body, link, image, wantInApp, wantEmail }) {
   let inAppSent = 0, emailSent = 0, emailSkippedOptOut = 0, emailNoAddress = 0;
 
   if (wantInApp) {
     await mapLimit(recipients, 20, async (u) => {
-      try { await addNotification({ userId: u.userId, title, body, link: link || null }); inAppSent++; }
+      try { await addNotification({ userId: u.userId, title, body, link: link || null, image: image || null }); inAppSent++; }
       catch (e) { console.error('broadcast_inapp_failed', u.userId, e.message); }
     });
   }
@@ -494,9 +521,9 @@ async function deliverBroadcast({ recipients, title, body, link, wantInApp, want
       if (u.notifyEmailOptOut) { emailSkippedOptOut++; return; }
       if (!u.email) { emailNoAddress++; return; }
       const unsubUrl = `${APP_ORIGIN}/unsubscribe?token=${encodeURIComponent(signUnsubToken(u.userId))}`;
-      const html = broadcastEmailHtml({ title, body, ctaUrl, unsubUrl });
+      const html = broadcastEmailHtml({ title, body, ctaUrl, unsubUrl, image });
       const text = `${title}\n\n${body}\n\n${ctaUrl}\n\nUnsubscribe: ${unsubUrl}`;
-      const sent = await sendEmail({ to: u.email, subject: title, text, html });
+      const sent = await sendNotice({ to: u.email, subject: title, text, html });
       if (sent) emailSent++;
     });
   }

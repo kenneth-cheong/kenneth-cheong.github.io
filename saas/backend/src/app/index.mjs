@@ -21,7 +21,7 @@ import { UPSTREAMS } from '../metering/upstreams.mjs';
 import { CREDIT_COSTS, INTEGRATIONS, PLANS, PROFILE_FIELDS, PROFILE_BONUS, isProfileComplete, TOOLS, tierMeets, scheduleLimits, isSchedulable, EXPLORER_REWARD, explorerProgress } from '../../../shared/catalog.mjs';
 import { normaliseSchedule, nextRunAt } from '../../../shared/schedule.mjs';
 import { compareRuns } from '../../../shared/metrics.mjs';
-import { buildChatSystem } from '../lib/assistant.mjs';
+import { buildChatSystem, sanitizePageContext } from '../lib/assistant.mjs';
 import { integrationSummary } from '../../../shared/connectors.mjs';
 import { connectorConfigured, providersInFamilyOf, familyOf, authorizeUrl, exchangeCodeFor, listAccountsFor, detectAccountFor, detectEmailFor, ga4CompatibleMetrics } from '../lib/integrations.mjs';
 import { signOAuthState, verifyOAuthState } from '../lib/jwt.mjs';
@@ -204,9 +204,7 @@ export const handler = async (event) => {
       // Bound the conversation we forward: last 50 turns, each capped at 8k chars.
       const messages = (Array.isArray(body.messages) ? body.messages : []).slice(-50)
         .map((m) => ({ ...m, content: clampStr(m?.content, 8000) }));
-      const pageContext = body.context && typeof body.context === 'object'
-        ? { path: clampStr(body.context.path, 120), toolId: clampStr(body.context.toolId, 60) || null }
-        : null;
+      const pageContext = sanitizePageContext(body.context, clampStr);
       const reply = await assistantReply(user, messages, pageContext);
       const spent = await spendCredits({ userId: user.userId, cost, action: 'chat', tool: 'chatbot' });
       // Persist the thread (incl. this reply) so it shows in history. Best-effort
@@ -983,6 +981,7 @@ async function explainResult(toolName, resultText) {
     `2. "Looking good:" the single best thing in the results (one sentence).\n` +
     `3. "Needs attention:" the single biggest problem, if any (one sentence).\n` +
     `4. "Do this next:" the top 1-3 concrete actions, as a short numbered list.\n` +
+    `Summarise ONLY what is in the Results below. You already have everything you need — never ask the reader questions, request clarification, or comment on what a "brief" does or doesn't specify. If the Results are a set of items (e.g. audience personas), summarise the set as a whole. Never describe your own reasoning or process.\n` +
     `Keep the whole thing under 150 words. No preamble, no headings other than the labels above.\n\n` +
     `Results:\n${resultText}`;
   const res = await fetch(UPSTREAMS.aiOptimiser, {

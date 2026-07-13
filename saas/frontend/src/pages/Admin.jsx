@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { FileText, MonitorPlay, RefreshCw, Info } from 'lucide-react';
+import { FileText, MonitorPlay, RefreshCw, Info, Search, ImagePlus, X } from 'lucide-react';
 import TrendChart from '../components/TrendChart.jsx';
 import { PLANS, TIER_ORDER, PROACTIVE_EVENTS, PROACTIVE_TOKENS, DEFAULT_PROACTIVE } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -658,10 +658,19 @@ function AdminNotifications() {
   const [tiers, setTiers] = useState(new Set());
   const [statuses, setStatuses] = useState(new Set(['active']));
 
+  // Audience mode: 'filter' (date/tier/status rules) or 'pick' (hand-select users).
+  const [mode, setMode] = useState('filter');
+  const [allUsers, setAllUsers] = useState(null); // lazily loaded for the picker
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [search, setSearch] = useState('');
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+
   // Composer state.
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [link, setLink] = useState('');
+  const [image, setImage] = useState(''); // public URL of an uploaded broadcast image/GIF
+  const [imgUploading, setImgUploading] = useState(false);
   const [channels, setChannels] = useState({ inApp: true, email: false });
 
   // Async + result state.
@@ -687,6 +696,8 @@ function AdminNotifications() {
   }
 
   function buildFilter() {
+    // Explicit pick overrides the rule builder: send to exactly the checked users.
+    if (mode === 'pick') return { userIds: [...selectedIds] };
     const f = { match };
     for (const { key } of CLAUSES) {
       const cl = clauses[key];
@@ -697,7 +708,53 @@ function AdminNotifications() {
     return f;
   }
 
+  function switchMode(next) {
+    if (next === mode) return;
+    setMode(next); setPreview(null); setError('');
+    // Lazily pull the user list the first time the picker opens. Invited/pending
+    // accounts can't receive a broadcast, so they're left out of the pickable set.
+    if (next === 'pick' && allUsers === null && !usersLoading) {
+      setUsersLoading(true);
+      api.adminUsers()
+        .then((d) => setAllUsers((d.users || []).filter((u) => u.status !== 'invited')))
+        .catch(() => setAllUsers([]))
+        .finally(() => setUsersLoading(false));
+    }
+  }
+
+  const filteredUsers = (() => {
+    if (!allUsers) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return allUsers;
+    return allUsers.filter((u) => `${u.email} ${u.name || ''}`.toLowerCase().includes(q));
+  })();
+
+  function toggleUser(id) {
+    setSelectedIds((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setPreview(null);
+  }
+  function selectAllFiltered() {
+    setSelectedIds((s) => { const n = new Set(s); filteredUsers.forEach((u) => n.add(u.userId)); return n; });
+    setPreview(null);
+  }
+  function clearSelection() { setSelectedIds(new Set()); setPreview(null); }
+
+  async function uploadImage(file) {
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { setError('Choose an image or GIF file.'); return; }
+    setImgUploading(true); setError('');
+    try {
+      const data = await new Promise((res, rej) => {
+        const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('read failed')); r.readAsDataURL(file);
+      });
+      const { image: img } = await api.adminBroadcastUpload({ name: file.name, contentType: file.type, data });
+      setImage(img.url);
+    } catch (e) { setError(e?.payload?.error || 'Could not upload the image.'); }
+    finally { setImgUploading(false); }
+  }
+
   async function doPreview() {
+    if (mode === 'pick' && selectedIds.size === 0) { setError('Select at least one user.'); return; }
     setPreviewing(true); setError(''); setMsg('');
     try { setPreview(await api.adminBroadcastPreview(buildFilter())); }
     catch (e) { setError(e?.payload?.error || 'Could not preview the audience.'); }
@@ -710,6 +767,7 @@ function AdminNotifications() {
     if (!body.trim()) { setError('Add a message.'); return; }
     if (!channels.inApp && !channels.email) { setError('Pick at least one channel.'); return; }
     if (link && !link.startsWith('/')) { setError('Link must be an in-app path starting with “/”.'); return; }
+    if (mode === 'pick' && selectedIds.size === 0) { setError('Select at least one user.'); return; }
     const count = preview?.count;
     const who = count != null ? `${count} user${count === 1 ? '' : 's'}` : 'the matching users';
     const via = [channels.inApp && 'in-app', channels.email && 'email'].filter(Boolean).join(' + ');
@@ -718,12 +776,12 @@ function AdminNotifications() {
     try {
       const { broadcast } = await api.adminBroadcastSend({
         filter: buildFilter(), title: title.trim(), body: body.trim(),
-        link: link.trim() || undefined, channels,
+        link: link.trim() || undefined, channels, image: image || undefined,
       });
       const parts = [`${broadcast.inAppSent || 0} in-app`];
       if (channels.email) parts.push(`${broadcast.emailSent || 0} email${broadcast.emailSkippedOptOut ? `, ${broadcast.emailSkippedOptOut} opted out` : ''}`);
       setMsg(`Sent to ${broadcast.audienceCount} user${broadcast.audienceCount === 1 ? '' : 's'} (${parts.join(' · ')}).`);
-      setTitle(''); setBody(''); setLink(''); setPreview(null);
+      setTitle(''); setBody(''); setLink(''); setImage(''); setPreview(null);
       loadHistory();
     } catch (e) { setError(e?.payload?.error || 'Could not send the broadcast.'); }
     finally { setSending(false); }
@@ -743,15 +801,28 @@ function AdminNotifications() {
     <div className="mt-4 grid gap-4 lg:grid-cols-2">
       {/* ── Audience builder ── */}
       <div className="card p-5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <h2 className="text-base font-semibold">Audience</h2>
-          <select value={match} onChange={(e) => { setMatch(e.target.value); setPreview(null); }}
-            className="dm-select rounded border border-edge py-1 pl-2 pr-7 text-xs">
-            <option value="all">Match ALL date rules</option>
-            <option value="any">Match ANY date rule</option>
-          </select>
+          {mode === 'filter' && (
+            <select value={match} onChange={(e) => { setMatch(e.target.value); setPreview(null); }}
+              className="dm-select rounded border border-edge py-1 pl-2 pr-7 text-xs">
+              <option value="all">Match ALL date rules</option>
+              <option value="any">Match ANY date rule</option>
+            </select>
+          )}
         </div>
-        <p className="mt-1 text-xs text-muted">Leave all date rules off to target everyone (after the tier/status narrowing below).</p>
+
+        <div className="mt-3 inline-flex rounded-lg border border-line p-0.5 text-xs font-medium">
+          {[['filter', 'By filter'], ['pick', 'Pick users']].map(([k, label]) => (
+            <button key={k} type="button" onClick={() => switchMode(k)}
+              className={`rounded-md px-3 py-1 ${mode === k ? 'bg-brand-100 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300' : 'text-muted hover:text-body'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {mode === 'filter' && (<>
+        <p className="mt-3 text-xs text-muted">Leave all date rules off to target everyone (after the tier/status narrowing below).</p>
 
         <div className="mt-3 space-y-2">
           {CLAUSES.map(({ key, label, help }) => {
@@ -806,6 +877,43 @@ function AdminNotifications() {
             <p className="mt-1 text-[11px] text-faint">{statuses.size ? '' : 'Any status'}</p>
           </div>
         </div>
+        </>)}
+
+        {mode === 'pick' && (
+          <div className="mt-3">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search size={14} aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or email"
+                  className="w-full rounded-lg border border-edge py-1.5 pl-8 pr-3 text-sm focus:border-brand-500 focus:outline-none" />
+              </div>
+              <span className="shrink-0 text-xs font-semibold text-body">{selectedIds.size} selected</span>
+            </div>
+
+            <div className="mt-2 flex items-center gap-3 text-xs">
+              <button type="button" onClick={selectAllFiltered} disabled={!filteredUsers.length} className="text-brand-600 dark:text-brand-400 hover:underline disabled:opacity-40">
+                Select all{search.trim() ? ` ${filteredUsers.length} matching` : ''}
+              </button>
+              <button type="button" onClick={clearSelection} disabled={!selectedIds.size} className="text-muted hover:text-body disabled:opacity-40">Clear</button>
+            </div>
+
+            <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-hair">
+              {usersLoading ? <p className="px-3 py-4 text-sm text-faint">Loading users…</p>
+                : !filteredUsers.length ? <p className="px-3 py-4 text-sm text-faint">{allUsers?.length ? 'No users match your search.' : 'No users to show.'}</p>
+                : filteredUsers.map((u) => (
+                  <label key={u.userId} className="flex cursor-pointer items-center gap-2.5 border-t border-hair px-3 py-2 first:border-t-0 hover:bg-sunken">
+                    <input type="checkbox" checked={selectedIds.has(u.userId)} onChange={() => toggleUser(u.userId)} className="h-4 w-4" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-dim">{u.email}</div>
+                      {u.name && <div className="truncate text-[11px] text-faint">{u.name}</div>}
+                    </div>
+                    <span className="shrink-0 rounded-full bg-sunken px-2 py-0.5 text-[11px] font-medium text-muted capitalize">{u.tier}</span>
+                  </label>
+                ))}
+            </div>
+            <p className="mt-1.5 text-[11px] text-faint">Only active accounts are listed — invited users can't receive a broadcast yet.</p>
+          </div>
+        )}
 
         <div className="mt-4 flex items-center gap-3">
           <button onClick={doPreview} disabled={previewing} className="btn-ghost px-3 py-2 text-sm disabled:opacity-50">
@@ -865,6 +973,27 @@ function AdminNotifications() {
           className="mt-1 w-full rounded-lg border border-edge px-3 py-2 text-sm focus:border-brand-500 focus:outline-none" />
         <p className="mt-1 text-[11px] text-faint">A path inside the app (e.g. /pricing). Clicking the notification opens it.</p>
 
+        <label className="mt-3 block text-sm font-medium text-body">Image / GIF <span className="font-normal text-faint">(optional)</span></label>
+        {image ? (
+          <div className="relative mt-1.5 inline-block">
+            <img src={image} alt="" className="max-h-40 rounded-lg border border-hair" />
+            <button type="button" onClick={() => setImage('')} aria-label="Remove image"
+              className="absolute -right-2 -top-2 rounded-full border border-edge bg-raised p-1 text-muted hover:text-body">
+              <X size={14} aria-hidden />
+            </button>
+          </div>
+        ) : (
+          <div className="mt-1.5">
+            <label className={`btn-ghost inline-flex items-center gap-1.5 px-3 py-1.5 text-xs ${imgUploading ? 'opacity-50' : 'cursor-pointer'}`}>
+              <ImagePlus size={14} aria-hidden />
+              {imgUploading ? 'Uploading…' : 'Add image / GIF'}
+              <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" className="hidden" disabled={imgUploading}
+                onChange={(e) => { uploadImage(e.target.files?.[0]); e.target.value = ''; }} />
+            </label>
+            <p className="mt-1 text-[11px] text-faint">Shows at the top of the email. PNG, JPEG, GIF, or WebP, up to 8MB.</p>
+          </div>
+        )}
+
         <div className="mt-4">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-faint">Channels</h3>
           <div className="mt-2 space-y-2">
@@ -886,6 +1015,39 @@ function AdminNotifications() {
           <span className="text-xs text-faint">{preview ? `Will reach ${preview.count.toLocaleString()} user${preview.count === 1 ? '' : 's'}.` : 'Preview the audience first.'}</span>
           <button onClick={doSend} disabled={sending} className="btn-primary px-4 py-2 text-sm disabled:opacity-50">{sending ? 'Sending…' : 'Send broadcast'}</button>
         </div>
+      </div>
+
+      {/* ── Live email preview ── */}
+      <div className="card p-5 lg:col-span-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold">Preview</h2>
+          <span className="text-[11px] text-faint">How the email looks to recipients · updates as you type</span>
+        </div>
+        <div className="mt-3 flex justify-center rounded-xl" style={{ background: '#f1f5f9', padding: 24 }}>
+          <div style={{ width: '100%', maxWidth: 560, background: '#fff', borderRadius: 14, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+            <div style={{ background: '#4f46e5', padding: '18px 28px' }}>
+              <span style={{ color: '#fff', fontSize: 18, fontWeight: 700 }}>Digimetrics</span>
+            </div>
+            {image && <img src={image} alt="" style={{ display: 'block', width: '100%', maxWidth: 560, height: 'auto', border: 0 }} />}
+            <div style={{ padding: 28 }}>
+              <h1 style={{ margin: '0 0 14px', color: '#0f172a', fontSize: 20, fontWeight: 700 }}>{title.trim() || 'Your title appears here'}</h1>
+              {(body.trim() ? body : 'Your message appears here. Blank lines start a new paragraph in the email.').split(/\n{2,}/).map((p, i) => (
+                <p key={i} style={{ margin: '0 0 14px', color: '#334155', fontSize: 15, lineHeight: 1.6 }}>
+                  {p.split('\n').map((line, j) => <Fragment key={j}>{j > 0 && <br />}{line}</Fragment>)}
+                </p>
+              ))}
+              <p style={{ margin: '22px 0 4px' }}>
+                <span style={{ display: 'inline-block', background: '#4f46e5', color: '#fff', fontWeight: 600, fontSize: 15, padding: '11px 20px', borderRadius: 9 }}>Open Digimetrics</span>
+              </p>
+            </div>
+            <div style={{ padding: '18px 28px', borderTop: '1px solid #f1f5f9' }}>
+              <p style={{ margin: 0, color: '#94a3b8', fontSize: 12, lineHeight: 1.5 }}>
+                You're receiving this because you have a Digimetrics account. <span style={{ color: '#64748b' }}>Unsubscribe from product updates</span>.
+              </p>
+            </div>
+          </div>
+        </div>
+        <p className="mt-2 text-[11px] text-faint">The in-app version shows the title, message{image ? ', and image' : ''} in the notification bell — without the email header, button, or footer.</p>
       </div>
 
       {/* ── History ── */}

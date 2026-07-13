@@ -5,7 +5,7 @@
 // stream completes. The frontend falls back to the buffered /chat if this fails.
 import { getUser, totalCredits, spendCredits, saveConversation } from '../lib/dynamo.mjs';
 import { verify } from '../lib/jwt.mjs';
-import { buildChatSystem } from '../lib/assistant.mjs';
+import { buildChatSystem, sanitizePageContext } from '../lib/assistant.mjs';
 import { CREDIT_COSTS } from '../../../shared/catalog.mjs';
 
 const KEY = process.env.ANTHROPIC_KEY;
@@ -44,9 +44,7 @@ export const handler = aws.streamifyResponse(async (event, responseStream) => {
 
   const conversationId = body.conversationId || `${new Date().toISOString()}#${Math.random().toString(36).slice(2, 8)}`;
   const query = [...msgs].reverse().find((m) => m.role === 'user')?.content || '';
-  const pageContext = body.context && typeof body.context === 'object'
-    ? { path: clamp(body.context.path, 120), toolId: clamp(body.context.toolId, 60) || null }
-    : null;
+  const pageContext = sanitizePageContext(body.context, clamp);
   const system = await buildChatSystem(user, query, pageContext);
 
   // ── Stream ──
