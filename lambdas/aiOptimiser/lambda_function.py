@@ -516,9 +516,11 @@ E-E-A-T CONTENT GUIDELINES
    or "In documented cases" — never fabricated personal claims.
 2. EXPERTISE: Provide deep, focused subject matter coverage 
    confined to the intent of the keyword/topic.
-3. AUTHORITATIVENESS: Reference credible sources and cite them 
+3. AUTHORITATIVENESS: Reference credible sources and cite them
    using absolute HTML hyperlinks (<a href="URL">text</a>).
    Do NOT use bracketed placeholders like [Source: Name].
+   Anchor text must be a short 2–5 word phrase (the source name or
+   concept) — never wrap a whole sentence or clause in the link.
 4. TRUSTWORTHINESS: Be honest about limitations, scope boundaries,
    and where professional advice should be sought.
 5. READABILITY: Write for clarity. Use simple language, avoid 
@@ -664,12 +666,21 @@ EXTERNAL LINKING STRATEGY:
 2. COMPETITOR AVOIDANCE:
    - Target Market: {target_locale}
    - Industry: {target_industry}
-   - RULE: Do NOT link to commercial entities that are direct 
+   - RULE: Do NOT link to commercial entities that are direct
      competitors in the {target_industry} space within {target_locale}.
-   - ACCEPTABLE: You MAY link to commercial sources if they are 
-     clearly NOT direct competitors in the target market 
-     (e.g. tools, complementary services, or global brands 
+   - ACCEPTABLE: You MAY link to commercial sources if they are
+     clearly NOT direct competitors in the target market
+     (e.g. tools, complementary services, or global brands
      if targeting a local audience).
+3. ANCHOR TEXT: The clickable text inside <a>…</a> MUST be a short,
+   descriptive phrase of 2–5 words (e.g. the source name or the concept
+   being cited).
+   - NEVER wrap an entire sentence, clause, or full line in a link.
+   - The <a> tag should cover only the key noun phrase, not the
+     surrounding words.
+   - Correct: According to <a href="URL">the WHO guidelines</a>, ...
+   - Wrong:   <a href="URL">According to the WHO guidelines, exercise
+     lowers blood pressure over time.</a>
 """
 
 
@@ -740,8 +751,12 @@ def build_user_msg(action, content, prompt_override):
             f"2. INSERT at least 3–10 real, credible external links "
             f"embedded directly into sentence structure.\n"
             f"3. FORMAT: <a href=\"URL\" title=\"URL\">anchor text</a>\n"
-            f"4. Do NOT append bracketed sources.\n"
-            f"5. Return the full content as a valid HTML fragment.\n\n"
+            f"4. ANCHOR TEXT must be a short, descriptive phrase of 2–5 "
+            f"words (e.g. the source name or concept cited). NEVER wrap a "
+            f"whole sentence, clause, or line in a link — the <a> tag "
+            f"covers only the key noun phrase, not the surrounding words.\n"
+            f"5. Do NOT append bracketed sources.\n"
+            f"6. Return the full content as a valid HTML fragment.\n\n"
             f"CONTENT:\n{content}"
         )
 
