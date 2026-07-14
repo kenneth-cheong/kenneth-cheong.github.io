@@ -287,6 +287,11 @@ Set the resulting URL as `SMA_ENDPOINT` in index.html.
 ## Contract
 - `POST {action:"start", brand_name, domain, handles:{instagram,tiktok,facebook,linkedin,youtube},
    platforms:[...], competitors:[{platform,handle,name}]}` → `{jobId, platforms}`
-- `POST {action:"poll", jobId}` → `{status:"running", progress}` or `{status:"done", scorecard}`
+- `POST {action:"poll", jobId}` → `{status:"running", progress, partials}` or `{status:"done", scorecard}`.
+  `partials` is a list of lightweight per-platform preview cards (followers /
+  engagement_rate / posts_per_week), populated as each scrape reaches terminal so
+  the UI can render real data before finalize. Stored on the job as a JSON string
+  (maps reject raw floats). A source deadline (`SOURCE_DEADLINE_SECS`) lets poll
+  finalize with whatever completed instead of hanging on a stuck run.
 
-The frontend polls every ~6s until `done`.
+The frontend polls every ~3s until `done`.
