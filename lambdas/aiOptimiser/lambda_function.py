@@ -672,15 +672,22 @@ EXTERNAL LINKING STRATEGY:
      clearly NOT direct competitors in the target market
      (e.g. tools, complementary services, or global brands
      if targeting a local audience).
-3. ANCHOR TEXT: The clickable text inside <a>…</a> MUST be a short,
-   descriptive phrase of 2–5 words (e.g. the source name or the concept
-   being cited).
+3. ANCHOR TEXT: The clickable text inside <a>…</a> MUST be a short
+   NOUN PHRASE of 2–5 words — the name of the source, organisation,
+   programme, or concept being cited.
+   - It must NOT contain a verb (e.g. "installed", "reports", "shows",
+     "walks", "helps") and must NOT run on into the rest of the sentence.
+   - Link ONLY the entity/concept name, then CLOSE the tag before the
+     verb or any following words.
    - NEVER wrap an entire sentence, clause, or full line in a link.
-   - The <a> tag should cover only the key noun phrase, not the
-     surrounding words.
-   - Correct: According to <a href="URL">the WHO guidelines</a>, ...
-   - Wrong:   <a href="URL">According to the WHO guidelines, exercise
-     lowers blood pressure over time.</a>
+   - Correct: The <a href="URL">Housing Development Board</a> has
+     installed solar panels on thousands of rooftops.
+   - Wrong:   The <a href="URL">Housing Development Board has installed
+     solar panels</a> on thousands of rooftops.
+   - Correct: The <a href="URL">International Energy Agency</a> reports
+     that solar is now the cheapest source of electricity.
+   - Wrong:   The <a href="URL">International Energy Agency reports that
+     solar</a> is now the cheapest source of electricity.
 """
 
 
@@ -751,10 +758,14 @@ def build_user_msg(action, content, prompt_override):
             f"2. INSERT at least 3–10 real, credible external links "
             f"embedded directly into sentence structure.\n"
             f"3. FORMAT: <a href=\"URL\" title=\"URL\">anchor text</a>\n"
-            f"4. ANCHOR TEXT must be a short, descriptive phrase of 2–5 "
-            f"words (e.g. the source name or concept cited). NEVER wrap a "
-            f"whole sentence, clause, or line in a link — the <a> tag "
-            f"covers only the key noun phrase, not the surrounding words.\n"
+            f"4. ANCHOR TEXT must be a short NOUN PHRASE of 2–5 words — the "
+            f"name of the source, organisation, programme, or concept cited. "
+            f"It must NOT contain a verb (installed, reports, shows, helps) "
+            f"and must NOT run on into the rest of the sentence. Link ONLY "
+            f"the entity/concept name, then close </a> BEFORE the verb or "
+            f"any following words. NEVER wrap a whole sentence, clause, or "
+            f"line in a link. E.g. link \"Housing Development Board\", never "
+            f"\"Housing Development Board has installed solar panels\".\n"
             f"5. Do NOT append bracketed sources.\n"
             f"6. Return the full content as a valid HTML fragment.\n\n"
             f"CONTENT:\n{content}"
