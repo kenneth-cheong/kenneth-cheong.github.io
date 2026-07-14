@@ -75,6 +75,10 @@ MAX_CREATIVE_IMAGES   = 21    # images fetched + sent to the vision model (brand
 MAX_CREATIVE_IMAGES_COMP = 12 # fewer per competitor — keeps the concurrent calls fast
 MAX_CREATIVE_CAPTIONS = 21    # captions sent as text context
 JOB_TTL_SECS   = 6 * 3600
+# Don't let one slow/stuck scraper gate the whole audit: once we've waited this
+# long and at least one source is ready, finalize with whatever completed (the
+# missing sources contribute empty cards, exactly as a FAILED run would).
+SOURCE_DEADLINE_SECS = 100
 CACHE_TTL_SECS = 30 * 86400        # 30-day Apify cache to cut scrape cost
 # Bump whenever the metrics shape changes so stale-shape cache entries are
 # treated as misses (forces a re-scrape) instead of serving wrong/partial data.
@@ -319,6 +323,10 @@ def handle_start(body):
 
     cached_n = 0
     runs = {}
+    # Split cached (instant) from to-scrape, then launch every non-cached client
+    # scrape concurrently — each _start_platform is a network POST to Apify, so
+    # serial launches added seconds of dead time before polling could even begin.
+    to_start = []
     for p in platforms:
         handle = (handles.get(p) or '').strip()
         if not handle:
@@ -330,12 +338,18 @@ def handle_start(body):
             runs[p] = {'handle': handle, 'cached': True, 'role': 'client'}
             cached_n += 1
             continue
-        entry = _start_platform(p, handle)
-        if entry:
-            runs[p] = {'handle': handle, 'role': 'client', **entry}
+        to_start.append((p, handle))
+    if to_start:
+        with ThreadPoolExecutor(max_workers=min(8, len(to_start))) as ex:
+            launched = list(ex.map(lambda ph: (ph[0], ph[1], _start_platform(ph[0], ph[1])), to_start))
+        for p, handle, entry in launched:
+            if entry:
+                runs[p] = {'handle': handle, 'role': 'client', **entry}
 
-    # Competitors run the same actors (capped to keep cost predictable).
+    # Competitors run the same actors (capped to keep cost predictable) — launched
+    # concurrently for the same reason.
     comp_runs = []
+    comp_to_start = []
     for c in competitors[:3]:
         p = (c.get('platform') or '').strip()
         handle = (c.get('handle') or '').strip()
@@ -347,9 +361,13 @@ def handle_start(body):
             comp_runs.append({'platform': p, 'handle': handle, 'name': name, 'cached': True})
             cached_n += 1
             continue
-        entry = _start_platform(p, handle)
-        if entry:
-            comp_runs.append({'platform': p, 'handle': handle, 'name': name, **entry})
+        comp_to_start.append((p, handle, name))
+    if comp_to_start:
+        with ThreadPoolExecutor(max_workers=min(8, len(comp_to_start))) as ex:
+            launched = list(ex.map(lambda x: (x[0], x[1], x[2], _start_platform(x[0], x[1])), comp_to_start))
+        for p, handle, name, entry in launched:
+            if entry:
+                comp_runs.append({'platform': p, 'handle': handle, 'name': name, **entry})
 
     # Optional: tie this audit to a connected Monthly-Social-Reports client so
     # finalize can overlay that client's first-party API metrics (reach,
@@ -374,6 +392,7 @@ def handle_start(body):
         'native_project': native_pid,
         'native_month': native_month,
         'created': _now_iso(),
+        'created_ts': int(time.time()),   # numeric — drives the source deadline in poll
         'ttl': int(time.time()) + JOB_TTL_SECS,
     })
 
@@ -752,20 +771,91 @@ def handle_poll(body):
     comp_runs = item.get('comp_runs') or []
     # Only live (non-cached) runs have a run_id and need polling.
     live_ids = _all_live_ids(runs, comp_runs)
-    statuses = {rid: _apify_status(rid) for rid in live_ids}
+    statuses = _statuses(live_ids)          # concurrent — was serial per run id
     done = sum(1 for s in statuses.values() if s in TERMINAL)
     total = len(live_ids)
 
-    if total and done < total:
-        return {'status': 'running', 'progress': {'done': done, 'total': total}}
+    # Progressive preview: extract a lightweight card for each client platform as
+    # soon as its scrape lands, so the UI can render real numbers before the
+    # (cross-source) AI synthesis in finalize completes.
+    partials, ready, changed = _collect_partials(item, runs, statuses)
+    if changed:
+        # Stored as a JSON string (like the scorecard) — the cards carry floats
+        # (engagement_rate, posts_per_week) and DynamoDB maps reject raw floats.
+        _jobs().update_item(
+            Key={'jobId': job_id},
+            UpdateExpression='SET partials = :p, partials_ready = :r',
+            ExpressionAttributeValues={':p': json.dumps(partials, default=str), ':r': list(ready)})
+    partial_list = list(partials.values())
 
-    # All runs terminal → start the async finalize exactly once.
+    # Source deadline — don't wait on the slowest scraper forever.
+    created_ts = int(item.get('created_ts') or 0)
+    past_deadline = (created_ts
+                     and (int(time.time()) - created_ts) > SOURCE_DEADLINE_SECS
+                     and done >= 1)
+
+    if total and done < total and not past_deadline:
+        return {'status': 'running', 'progress': {'done': done, 'total': total},
+                'partials': partial_list}
+
+    # All runs terminal (or past the deadline) → start the async finalize once.
     if not item.get('finalize_started'):
         _jobs().update_item(Key={'jobId': job_id},
                             UpdateExpression='SET finalize_started = :t',
                             ExpressionAttributeValues={':t': int(time.time())})
         _self_invoke({'action': 'finalize', 'jobId': job_id})
-    return {'status': 'finalizing', 'progress': {'done': done, 'total': total}}
+    return {'status': 'finalizing', 'progress': {'done': done, 'total': total},
+            'partials': partial_list}
+
+
+def _statuses(run_ids):
+    """Fetch many Apify run statuses concurrently. Serial GETs made both poll and
+    finalize scale linearly with the number of sources."""
+    ids = list(run_ids)
+    if not ids:
+        return {}
+    with ThreadPoolExecutor(max_workers=min(8, len(ids))) as ex:
+        res = list(ex.map(_apify_status, ids))
+    return dict(zip(ids, res))
+
+
+def _lite_card(platform, m):
+    """A _platform_card with the heavy per-post array stripped — small enough to
+    store on the job item and stream back in every poll response."""
+    card = _platform_card(platform, m)
+    card.pop('posts', None)
+    return card
+
+
+def _collect_partials(item, runs, statuses):
+    """Build/extend the per-platform preview cards for client runs whose scrape
+    has finished. Each platform is processed once (tracked in partials_ready).
+    Returns (partials_dict, ready_ids_set, changed)."""
+    _raw = item.get('partials')
+    partials = (json.loads(_raw) if isinstance(_raw, str) else dict(_raw or {}))
+    ready    = set(item.get('partials_ready') or [])
+    changed  = False
+    for p, r in runs.items():
+        if p in partials:
+            continue
+        if r.get('cached'):                       # fresh cache → ready immediately
+            m = dict(_cache_get(p, r.get('handle')) or {})
+            m['handle'] = r.get('handle'); m['found'] = bool(m)
+            partials[p] = _lite_card(p, m); changed = True
+            continue
+        rid = r.get('run_id')
+        if not rid or statuses.get(rid) not in TERMINAL:
+            continue                              # primary run not done yet
+        ok = statuses.get(rid) == 'SUCCEEDED'
+        items = _apify_items(r.get('dataset_id')) if ok else []
+        post_items = []
+        if r.get('posts_dataset_id') and statuses.get(r.get('posts_run_id')) == 'SUCCEEDED':
+            post_items = _apify_items(r.get('posts_dataset_id'))
+        m = _extract(p, items, post_items)
+        m['handle'] = r.get('handle'); m['found'] = bool(items or post_items)
+        partials[p] = _lite_card(p, m)
+        ready.add(rid); changed = True
+    return partials, ready, changed
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -802,7 +892,7 @@ def handle_finalize(body):
         comp_runs = item.get('comp_runs') or []
         brand     = item.get('brand') or 'brand'
         live_ids = _all_live_ids(runs, comp_runs)
-        statuses = {rid: _apify_status(rid) for rid in live_ids}
+        statuses = _statuses(live_ids)          # concurrent — was serial per run id
 
         def _metrics_for(platform, r):
             """Cache hit → reuse stored metrics; else fetch the dataset, extract,
@@ -2901,18 +2991,23 @@ def _connection_status(proj):
         out.append(st)
 
     if tracked('tiktok'):
-        c = conns.get('tiktok') or {}; token = c.get('token')
-        st = base('tiktok', 'TikTok', c); st['connected'] = bool(token)
-        if not token:
+        c = conns.get('tiktok') or {}
+        has = bool(c.get('token') or c.get('refresh_token'))
+        st = base('tiktok', 'TikTok', c); st['connected'] = has
+        if not has:
             st['status'] = 'not_connected'; st['detail'] = 'Not connected — public scrape only.'
+        elif not c.get('refresh_token'):
+            st['status'] = 'reconnect'; st['detail'] = 'Legacy sign-in (no refresh token) — reconnect once for unattended monthly pulls.'
         else:
             try:
-                info = (_tt_call('GET', '/user/info/', token, {'fields': 'display_name'}).get('user')) or {}
-                st['status'] = 'ok'; st['resolved'] = info.get('display_name'); st['detail'] = 'Connected: ' + (info.get('display_name') or c.get('name') or 'account')
+                token = _tt_access_token(c)
+                info = (_tt_call('GET', '/user/info/', token, {'fields': 'display_name'}).get('user')) if token else None
+                if info is not None:
+                    st['status'] = 'ok'; st['resolved'] = info.get('display_name'); st['detail'] = 'Connected: ' + (info.get('display_name') or c.get('name') or 'account')
+                else:
+                    st['status'] = 'error'; st['detail'] = 'Token no longer valid — reconnect.'
             except Exception as e:
                 st['status'] = 'error'; st['detail'] = 'Token error — reconnect. ' + str(e)[:100]
-            if st.get('status') == 'ok' and st.get('days_left') is not None and st['days_left'] <= 7:
-                st['status'] = 'expiring'; st['detail'] = f"Token expires in ~{st['days_left']}d — reconnect soon."
         out.append(st)
 
     return out
@@ -3683,11 +3778,44 @@ def _oauth_tiktok(code, redirect):
     except Exception:
         pass
     out = {'token': token, 'name': name}
+    # TikTok access tokens live only ~24h; persist the refresh_token (~365d) so
+    # _tt_access_token() can mint fresh access tokens for unattended monthly pulls
+    # (mirrors the YouTube handler below).
+    if d.get('refresh_token'):
+        out['refresh_token'] = d['refresh_token']
     if d.get('expires_in'):
         out['expires_in'] = d['expires_in']
+        out['token_expiry'] = int(time.time()) + int(d['expires_in']) - 60
+    if d.get('refresh_expires_in'):
+        out['refresh_expires_in'] = d['refresh_expires_in']
     if d.get('open_id'):
         out['open_id'] = d['open_id']
     return out
+
+
+def _tt_access_token(conn):
+    """A currently-valid TikTok access token for a stored connection dict.
+    Reuses the saved access token while it's fresh; otherwise refreshes it from the
+    stored refresh_token (TikTok access tokens live only ~24h). Returns None when
+    the connection can't yield a usable token (caller falls back to Apify/public).
+    Does NOT persist the refreshed token — connections are shared/mutated elsewhere
+    and a fresh access token is cheap to mint."""
+    conn = conn or {}
+    tok, exp = conn.get('token'), conn.get('token_expiry')
+    if tok and (not exp or int(exp) > int(time.time())):
+        return tok
+    refresh = conn.get('refresh_token')
+    if not refresh or not (TIKTOK_OAUTH_CLIENT_ID and TIKTOK_OAUTH_CLIENT_SECRET):
+        return tok or None   # no refresh available — try the (maybe stale) token
+    try:
+        d = requests.post('https://open.tiktokapis.com/v2/oauth/token/', timeout=20,
+                          headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                          data={'client_key': TIKTOK_OAUTH_CLIENT_ID,
+                                'client_secret': TIKTOK_OAUTH_CLIENT_SECRET,
+                                'grant_type': 'refresh_token', 'refresh_token': refresh}).json()
+        return d.get('access_token') or tok or None
+    except Exception:
+        return tok or None
 
 
 def _oauth_youtube(code, redirect):
@@ -5338,7 +5466,7 @@ def _cron_tiktok_platforms(proj, month):
     handles = proj.get('handles') or {}
     if not (('tiktok' in plats) or handles.get('tiktok')):
         return []
-    token = (((proj.get('connections') or {}).get('tiktok')) or {}).get('token')
+    token = _tt_access_token(((proj.get('connections') or {}).get('tiktok')) or {})
     if not token:
         return []
     if month != _current_month():        # no historical reconstruction possible
