@@ -60,6 +60,13 @@ _ddb = boto3.resource("dynamodb")
 _table = _ddb.Table(TABLE_NAME)
 _daily_tbl = _ddb.Table(DAILY_TABLE)
 
+# Full AI answer text lives in S3, not DynamoDB. A 30-prompt × 2-platform × 4-entity run is
+# ~240 answers at several KB each — far past DynamoDB's 400KB item cap, which is why every
+# answer used to be truncated to 1200 chars and dropped entirely for competitors. S3 has no
+# such ceiling, so the model keeps only {ei,pi,pl} coordinates and the text is fetched on demand.
+ANSWERS_BUCKET = os.environ.get("ANSWERS_BUCKET", "digimetrics-geo-answers")
+_s3 = boto3.client("s3")
+
 # Own function name (Lambda sets this env var automatically) — used to self-invoke
 # the async citations worker. Self-invocation is bound only by this function's own
 # 900s timeout, not API Gateway's 30s (HTTP API) / configured integration timeout
@@ -380,15 +387,143 @@ def _history_point(month, model):
             "ownedShare": _n(model.get("ownedShare") if isinstance(model, dict) else 0)}
 
 
-def _archive_model(cid, month, model):
+def _answers_key(cid, month, run_id):
+    return f"answers/{cid}/{month}/{run_id}.json"
+
+
+def _write_answers(cid, month, run_id, cfg, results):
+    """Persist every AI answer from a run to S3 — including cells where the brand was NOT
+    mentioned and competitor cells, both of which used to be discarded. The absent case is the
+    most actionable one ("who did it recommend instead of us?"), so it must be kept.
+
+    Returns the S3 key, or None if the write failed. A failure is non-fatal: the run still
+    archives, just without browsable answers, rather than losing the whole month's metrics."""
+    prompts = cfg.get("prompts") or []
+    entities = cfg.get("entities") or []
+    cells = []
+    for o in results:
+        r = o.get("res") or {}
+        cells.append({
+            "ei": o.get("ei"), "pi": o.get("pi"), "pl": o.get("pl"),
+            "engine": _plat_label(o.get("pl")),
+            "entity": (entities[o["ei"]].get("name") if isinstance(o.get("ei"), int)
+                       and 0 <= o["ei"] < len(entities) and isinstance(entities[o["ei"]], dict) else ""),
+            "prompt": o.get("prompt") or "",
+            "ok": bool(r.get("ok")), "error": r.get("error") or "",
+            "mentioned": bool(r.get("mentioned")), "sentiment": r.get("sentiment") or "",
+            "snippet": r.get("snippet") or "", "reason": r.get("reason") or "",
+            "theme": r.get("theme") or "", "score": r.get("score") or 0,
+            "rank": r.get("rank") or 0, "cited": bool(r.get("cited")),
+            "citations": r.get("citations") or [],
+            "response": r.get("response") or "",
+        })
+    blob = {"campaignId": cid, "month": month, "runId": run_id, "createdAt": _now(),
+            "brand": cfg.get("brand") or "", "target": cfg.get("target") or "",
+            "entities": [e.get("name") if isinstance(e, dict) else str(e) for e in entities],
+            "prompts": prompts, "cells": cells}
+    key = _answers_key(cid, month, run_id)
+    try:
+        _s3.put_object(Bucket=ANSWERS_BUCKET, Key=key,
+                       Body=json.dumps(blob).encode("utf-8"),
+                       ContentType="application/json")
+        return key
+    except Exception as e:
+        print(f"[GEO] answer-store write failed for {cid}/{month}: {e}")
+        return None
+
+
+def _read_answers(key):
+    obj = _s3.get_object(Bucket=ANSWERS_BUCKET, Key=key)
+    return json.loads(obj["Body"].read().decode("utf-8"))
+
+
+def h_get_answers(req):
+    """Fetch stored AI answers. Without pi/ei this returns an INDEX (no answer text) so the UI can
+    render the list cheaply; with pi (and optionally ei) it returns those cells' full text. That
+    keeps the dashboard's normal load free of megabyte payloads — text arrives only on expand."""
+    cid = str(req.get("id") or "")
+    month = str(req.get("month") or "").strip()
+    if not cid or not month:
+        return _resp(400, {"error": "id and month required"})
+    key = req.get("key")
+    if not key:
+        it = _table.get_item(Key={"id": _month_item_id(cid, month)}).get("Item") or {}
+        key = it.get("answersKey")
+        if not key:
+            return _resp(404, {"error": "no stored answers for that month — re-run the campaign"})
+    try:
+        blob = _read_answers(key)
+    except Exception as e:
+        return _resp(404, {"error": f"answers unavailable: {str(e)[:200]}"})
+
+    cells = blob.get("cells") or []
+    pi, ei = req.get("pi"), req.get("ei")
+    if pi is None and ei is None:
+        idx = [{k: c.get(k) for k in ("ei", "pi", "pl", "engine", "entity", "prompt", "ok",
+                                      "mentioned", "sentiment", "theme", "score", "rank", "cited")}
+               for c in cells]
+        for c, i in zip(cells, idx):
+            i["chars"] = len(c.get("response") or "")
+        return _resp(200, {"month": blob.get("month"), "prompts": blob.get("prompts") or [],
+                           "entities": blob.get("entities") or [], "index": idx,
+                           "createdAt": blob.get("createdAt")})
+    sel = [c for c in cells
+           if (pi is None or c.get("pi") == pi) and (ei is None or c.get("ei") == ei)]
+    return _resp(200, {"month": blob.get("month"), "cells": sel})
+
+
+MAX_ITEM_BYTES = 300000  # headroom under DynamoDB's 400KB hard cap
+
+
+def _shrink_model(model):
+    """Bound an archived model to DynamoDB's item cap, shedding the most redundant data first.
+
+    Answer text now lives in S3, so a normal model is small and none of this fires. It remains a
+    backstop for legacy/oversized models: an unbounded put_item here would throw, and because
+    autoArchive runs unattended that surfaced as a silently missing month rather than an error.
+    Order matters — theme examples are duplicates of sentimentEvidence entries, so they go first."""
+    if len(json.dumps(model)) <= MAX_ITEM_BYTES:
+        return model, None
+    dropped = []
+    for t in (model.get("sentimentThemes") or []):
+        for e in (t.get("examples") or []):
+            e.pop("response", None)
+    for e in (model.get("sentimentEvidence") or []):
+        e.pop("response", None)
+    dropped.append("inline answer text (still in the answer store)")
+    if len(json.dumps(model)) > MAX_ITEM_BYTES:
+        for t in (model.get("sentimentThemes") or []):
+            t["examples"] = (t.get("examples") or [])[:2]
+        dropped.append("theme examples trimmed to 2")
+    if len(json.dumps(model)) > MAX_ITEM_BYTES:
+        model["sentimentEvidence"] = (model.get("sentimentEvidence") or [])[:80]
+        dropped.append("evidence capped at 80")
+    if len(json.dumps(model)) > MAX_ITEM_BYTES:
+        model["citations"] = (model.get("citations") or [])[:200]
+        dropped.append("citations capped at 200")
+    note = "; ".join(dropped)
+    model["_trimmed"] = note
+    print(f"[GEO] model exceeded {MAX_ITEM_BYTES}B — trimmed: {note}")
+    return model, note
+
+
+def _archive_model(cid, month, model, answers_key=None):
     """Persist a model permanently: full month snapshot as its own item + merge the month
     into the campaign record's index (monthsAvailable) and compact month-over-month history.
     Shared by the API save_metrics path AND the headless run worker (so cron runs archive
     with no browser open). Returns the updated monthsAvailable list."""
+    model, _trim_note = _shrink_model(model)
     model_json = json.dumps(model)
     now = _now()
-    _table.put_item(Item={"id": _month_item_id(cid, month), "type": "metrics_month",
-                          "campaignId": cid, "month": month, "model": model_json, "updatedAt": now})
+    item = {"id": _month_item_id(cid, month), "type": "metrics_month",
+            "campaignId": cid, "month": month, "model": model_json, "updatedAt": now}
+    # Pointer to this month's full answers in S3; the UI lazy-loads text through get_answers.
+    if not answers_key:
+        prev = _table.get_item(Key={"id": _month_item_id(cid, month)}).get("Item") or {}
+        answers_key = prev.get("answersKey")
+    if answers_key:
+        item["answersKey"] = answers_key
+    _table.put_item(Item=item)
     it = _table.get_item(Key={"id": cid}).get("Item") or {}
     months = [str(x) for x in (it.get("monthsAvailable") or [])]
     if month not in months:
@@ -451,7 +586,8 @@ def h_get_month(req):
             model = json.loads(model)
         except Exception:
             pass
-    return _resp(200, {"month": month, "model": model, "updatedAt": it.get("updatedAt")})
+    return _resp(200, {"month": month, "model": model, "updatedAt": it.get("updatedAt"),
+                       "answersKey": it.get("answersKey") or ""})
 
 
 def h_delete(req):
@@ -1416,10 +1552,12 @@ def _verify_once(prompt, brand, url, model, source, location, deadline=None):
                 "score": _num(a.get("visibility_score")), "sentiment": a.get("sentiment") or "neutral",
                 "cited": bool(a.get("is_cited")), "rank": int(_num(a.get("rank"))),
                 "snippet": a.get("mention_snippet") or "", "citations": cits[:12],
-                # Evidence that grounds the sentiment for the user (self brand only — see run_job).
+                # Evidence that grounds the sentiment for the user.
                 "reason": (a.get("sentiment_reason") or "")[:200],
                 "theme": (a.get("sentiment_theme") or "").strip()[:60],
-                "response": (result.get("response") or "")[:1200]}
+                # Full text, untruncated — it goes to the S3 answer store, not DynamoDB, and is
+                # stripped from the `results` blob before that write (see h_live_run_worker).
+                "response": result.get("response") or ""}
     except Exception as e:
         return {"ok": False, "error": str(e)[:200]}
 
@@ -1499,11 +1637,16 @@ def _build_model_py(cfg, results):
         if r.get("mentioned") and (r.get("snippet") or r.get("reason")):
             cits = r.get("citations") or []
             pi = o.get("pi")
+            # {ei,pi,pl} are the answer-store coordinates: the model carries no answer text, and
+            # the UI fetches it via get_answers on expand. `response` is intentionally absent —
+            # keeping it here is what used to duplicate every answer up to 7× (once here, up to
+            # 6× more across sentimentThemes[].examples) and blow the item cap.
             evidence.append({"engine": _plat_label(o.get("pl")),
+                             "ei": o.get("ei"), "pi": pi, "pl": o.get("pl"),
                              "prompt": prompts[pi] if isinstance(pi, int) and 0 <= pi < len(prompts) else (o.get("prompt") or ""),
                              "sentiment": r.get("sentiment") or "neutral", "theme": r.get("theme") or "",
                              "snippet": r.get("snippet") or "", "reason": r.get("reason") or "",
-                             "response": r.get("response") or "", "url": cits[0] if cits else ""})
+                             "url": cits[0] if cits else ""})
     evidence.sort(key=lambda e: rank.get(e["sentiment"], 9))
     theme_map = {}
     for e in evidence:
@@ -1863,6 +2006,118 @@ def h_set_topic(req):
     return _resp(200, {"ok": True, "id": cid, "topics": topics})
 
 
+def h_add_annotation(req):
+    """Append a GSC-style chart annotation onto the campaign's shared `annotations` map so every
+    user sees the same notes. Shape: {chartId: {date: [{id, text, ts}, ...]}}. Mirrors the local
+    localStorage fallback the frontend uses for unsaved runs.
+
+    Concurrency-safe: the append is done with DynamoDB's atomic `list_append`, not a
+    read-modify-write of the whole map — so two people annotating the same campaign at the
+    same time both land, instead of the second write clobbering the first."""
+    cid = str(req.get("id") or "")
+    if not _is_campaign_id(cid):
+        return _resp(400, {"error": "valid campaign id required"})
+    if not _table.get_item(Key={"id": cid}).get("Item"):
+        return _resp(404, {"error": "campaign not found"})
+    chart_id = (req.get("chartId") or "").strip()
+    date = (req.get("date") or "").strip()
+    text = (req.get("text") or "").strip()
+    if not chart_id or not date:
+        return _resp(400, {"error": "chartId and date required"})
+    if not text:
+        return _resp(400, {"error": "text required"})
+    entry = {"id": "a" + uuid.uuid4().hex[:8], "text": text[:2000], "ts": _now()}
+    # DynamoDB can only append to an existing path, so ensure the nested maps exist first.
+    # Each step uses if_not_exists, so it's idempotent — racing writers converge on the same
+    # shape and never overwrite an existing bucket. The final list_append is a single atomic op.
+    _table.update_item(
+        Key={"id": cid},
+        UpdateExpression="SET annotations = if_not_exists(annotations, :emptyMap)",
+        ExpressionAttributeValues={":emptyMap": {}},
+    )
+    _table.update_item(
+        Key={"id": cid},
+        UpdateExpression="SET annotations.#c = if_not_exists(annotations.#c, :emptyMap)",
+        ExpressionAttributeNames={"#c": chart_id},
+        ExpressionAttributeValues={":emptyMap": {}},
+    )
+    _table.update_item(
+        Key={"id": cid},
+        UpdateExpression=("SET annotations.#c.#d = "
+                          "list_append(if_not_exists(annotations.#c.#d, :emptyList), :new), "
+                          "updatedAt = :u"),
+        ExpressionAttributeNames={"#c": chart_id, "#d": date},
+        ExpressionAttributeValues={":emptyList": [], ":new": [entry], ":u": _now()},
+    )
+    return _resp(200, {"ok": True, "id": cid, "annotation": entry})
+
+
+def h_delete_annotation(req):
+    """Remove one annotation (by id) from a campaign's shared `annotations` map. Prunes empty
+    date/chart buckets so they don't accumulate.
+
+    Concurrency-safe: removes the specific list slot by index, guarded by a condition that the
+    slot still holds that same annotation id, and retries on a lost race — so a delete can't
+    clobber an annotation another user added at the same moment."""
+    cid = str(req.get("id") or "")
+    if not _is_campaign_id(cid):
+        return _resp(400, {"error": "valid campaign id required"})
+    chart_id = (req.get("chartId") or "").strip()
+    date = (req.get("date") or "").strip()
+    aid = (req.get("annotationId") or "").strip()
+    if not chart_id or not date or not aid:
+        return _resp(400, {"error": "chartId, date and annotationId required"})
+    names = {"#c": chart_id, "#d": date, "#idk": "id"}
+    for _attempt in range(4):
+        it = _table.get_item(Key={"id": cid}).get("Item")
+        if not it:
+            return _resp(404, {"error": "campaign not found"})
+        day = ((it.get("annotations") or {}).get(chart_id) or {}).get(date) or []
+        idx = next((i for i, a in enumerate(day) if a.get("id") == aid), -1)
+        if idx < 0:
+            return _resp(200, {"ok": True, "id": cid})  # already gone — treat as success
+        try:
+            _table.update_item(
+                Key={"id": cid},
+                UpdateExpression="REMOVE annotations.#c.#d[%d] SET updatedAt = :u" % idx,
+                ConditionExpression="annotations.#c.#d[%d].#idk = :aid" % idx,
+                ExpressionAttributeNames=names,
+                ExpressionAttributeValues={":aid": aid, ":u": _now()},
+            )
+        except _table.meta.client.exceptions.ConditionalCheckFailedException:
+            continue  # list shifted under us — re-read and retry
+        _prune_empty_annotation_buckets(cid, chart_id, date)
+        return _resp(200, {"ok": True, "id": cid})
+    return _resp(409, {"error": "could not delete — concurrent modification, please retry"})
+
+
+def _prune_empty_annotation_buckets(cid, chart_id, date):
+    """Best-effort tidy-up after a delete: drop the now-empty date list, then the chart map if
+    it too is empty. Each removal is conditional on the bucket still being empty, so a comment
+    added by another user in the meantime is never lost — the prune just silently no-ops."""
+    cc = _table.meta.client.exceptions.ConditionalCheckFailedException
+    try:
+        _table.update_item(
+            Key={"id": cid},
+            UpdateExpression="REMOVE annotations.#c.#d",
+            ConditionExpression="size(annotations.#c.#d) = :zero",
+            ExpressionAttributeNames={"#c": chart_id, "#d": date},
+            ExpressionAttributeValues={":zero": 0},
+        )
+    except cc:
+        return  # bucket refilled or already gone — leave it be
+    try:
+        _table.update_item(
+            Key={"id": cid},
+            UpdateExpression="REMOVE annotations.#c",
+            ConditionExpression="size(annotations.#c) = :zero",
+            ExpressionAttributeNames={"#c": chart_id},
+            ExpressionAttributeValues={":zero": 0},
+        )
+    except cc:
+        pass
+
+
 def h_set_prompts(req):
     """Replace a campaign's tracked prompts (add / remove / edit). Accepts `prompts` as a list
     of strings OR a list of {text, topic} objects. Topics for surviving prompts are preserved;
@@ -1932,10 +2187,10 @@ def h_live_run_worker(req):
             res = _verify_one(j["prompt"], j["brand"], j["url"], j["pl"], source, location, deadline)
         except Exception as e:
             res = {"ok": False, "error": str(e)[:200]}
-        # Evidence (the full AI response) is only surfaced for the self brand (ei==0); drop it
-        # for competitors to keep the stored results well under DynamoDB's 400KB item cap.
-        if j["ei"] != 0 and isinstance(res, dict):
-            res.pop("response", None)
+        # Answers for every cell — self AND competitors — are kept here and written to the S3
+        # answer store below. They used to be dropped for competitors to fit DynamoDB's item cap;
+        # S3 removes that constraint, and competitor answers are what make "who got recommended
+        # instead of us?" answerable.
         outs[idx] = {"ei": j["ei"], "pi": j["pi"], "pl": j["pl"], "prompt": j["prompt"], "res": res}
         with lock:
             state["done"] += 1
@@ -1954,32 +2209,54 @@ def h_live_run_worker(req):
         with concurrent.futures.ThreadPoolExecutor(max_workers=6) as ex:
             list(ex.map(run_job, range(total)))
         results = [o for o in outs if o is not None]
+        archive_month = cfg.get("month") or _cur_month()
+
+        # 1. Full answers → S3 (no size ceiling), while `results` still carries the text.
+        answers_key = None
+        if campaign_id:
+            answers_key = _write_answers(campaign_id, archive_month, run_id, cfg, results)
+
+        # 2. Now that the text is safely in S3, strip it from the DynamoDB copy — the UI
+        #    lazy-loads it by {ei,pi,pl}, so the run item stays small and the old shed-cascade
+        #    (1200 chars → 400 → dropped) that silently degraded big campaigns is gone.
+        #
+        #    If the S3 write FAILED, do NOT strip: fall back to the previous behaviour (a bounded
+        #    inline excerpt for the self brand). Stripping unconditionally would delete the only
+        #    copy of the text and leave users worse off than before this change.
+        if answers_key:
+            for o in results:
+                (o.get("res") or {}).pop("response", None)
+        else:
+            print("[GEO] no answer-store key — keeping inline excerpts as fallback")
+            for o in results:
+                r = o.get("res") or {}
+                if o.get("ei") != 0:
+                    r.pop("response", None)
+                elif r.get("response"):
+                    r["response"] = r["response"][:1200]
         payload = json.dumps(results)
-        # Keep the item comfortably under DynamoDB's 400KB cap by shedding the heaviest
-        # fields first (full response text), then citations, then responses entirely.
-        if len(payload) > 300000:
+        if len(payload) > MAX_ITEM_BYTES:
+            # Backstop for the fallback path (and unbounded citations).
             for o in results:
                 r = o.get("res") or {}
                 if r.get("response"):
                     r["response"] = r["response"][:400]
-            payload = json.dumps(results)
-        if len(payload) > 300000:
-            for o in results:
-                r = o.get("res") or {}
                 if isinstance(r.get("citations"), list):
                     r["citations"] = r["citations"][:3]
             payload = json.dumps(results)
-        if len(payload) > 300000:
+        if len(payload) > MAX_ITEM_BYTES:
             for o in results:
-                r = o.get("res") or {}
-                r.pop("response", None)
+                (o.get("res") or {}).pop("response", None)
             payload = json.dumps(results)
+        upd = ("SET #s = :s, results = :r, finishedAt = :t, progress = :p"
+               + (", answersKey = :ak" if answers_key else ""))
+        vals = {":s": "done", ":r": payload, ":t": _now(), ":p": {"done": total, "total": total}}
+        if answers_key:
+            vals[":ak"] = answers_key
         _table.update_item(
-            Key=key,
-            UpdateExpression="SET #s = :s, results = :r, finishedAt = :t, progress = :p",
+            Key=key, UpdateExpression=upd,
             ExpressionAttributeNames={"#s": "status"},
-            ExpressionAttributeValues={":s": "done", ":r": payload, ":t": _now(),
-                                       ":p": {"done": total, "total": total}},
+            ExpressionAttributeValues=vals,
         )
         # Headless archive: build the model server-side and persist it permanently under this
         # month, so scheduled (cron) runs archive with no browser open. Interactive runs are also
@@ -1990,11 +2267,11 @@ def h_live_run_worker(req):
         if campaign_id:
             ok_cells = sum(1 for o in results if (o.get("res") or {}).get("ok"))
             ratio = (ok_cells / len(results)) if results else 0.0
-            archive_month = cfg.get("month") or _cur_month()
             cname = cfg.get("brand") or campaign_id
             if ratio >= MIN_OK_RATIO:
                 try:
-                    _archive_model(campaign_id, archive_month, _build_model_py(cfg, results))
+                    _archive_model(campaign_id, archive_month,
+                                   _build_model_py(cfg, results), answers_key)
                 except Exception as e:
                     _alert("GEO monthly: archive FAILED for %s (%s): %s" % (cname, archive_month, str(e)[:180]))
             else:
@@ -2069,6 +2346,8 @@ def lambda_handler(event, context):
             return h_get(req)
         if action == "save_metrics":
             return h_save_metrics(req)
+        if action == "get_answers":
+            return h_get_answers(req)
         if action == "get_month":
             return h_get_month(req)
         if action == "delete":
@@ -2095,6 +2374,10 @@ def lambda_handler(event, context):
             return h_seed_topics(req)
         if action == "set_topic":
             return h_set_topic(req)
+        if action == "add_annotation":
+            return h_add_annotation(req)
+        if action == "delete_annotation":
+            return h_delete_annotation(req)
         if action == "set_prompts":
             return h_set_prompts(req)
         if action == "run_status":

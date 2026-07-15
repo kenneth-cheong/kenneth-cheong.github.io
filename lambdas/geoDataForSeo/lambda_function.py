@@ -194,17 +194,24 @@ EXTRACT_SYSTEM = (
     "You analyse an AI assistant's answer to determine how a specific brand appears in it. "
     "Respond with ONLY a compact JSON object, no prose. Schema: "
     '{"is_mentioned":bool,"sentiment":"positive"|"neutral"|"negative",'
+    '"sentiment_reason":string,"sentiment_theme":string,'
     '"visibility_score":0-100,"rank":int,"mention_snippet":string}. '
     "visibility_score = how prominently/favourably the brand features (0 if absent). "
     "rank = the brand's ordinal position if the answer is a ranked/listed set of options, else 0. "
-    "mention_snippet = the sentence mentioning the brand, or empty string."
+    "mention_snippet = the VERBATIM sentence(s) from the answer that mention the brand "
+    "(copy the exact words, do not paraphrase), or empty string if not mentioned. "
+    "sentiment_reason = one short sentence (<=160 chars) explaining WHY you chose that sentiment, "
+    "grounded in the answer's actual wording; empty string if not mentioned. "
+    "sentiment_theme = a 2-4 word Title Case label for the SPECIFIC angle of the mention so that "
+    "mentions sharing an angle can be grouped (e.g. 'Convenient Locations', 'Pricing Concerns', "
+    "'Reliable Service', 'Limited Availability'); empty string if not mentioned."
 )
 
 
 def extract_with_claude(brand, answer):
     if not answer:
-        return {"is_mentioned": False, "sentiment": "neutral", "visibility_score": 0,
-                "rank": 0, "mention_snippet": ""}
+        return {"is_mentioned": False, "sentiment": "neutral", "sentiment_reason": "",
+                "sentiment_theme": "", "visibility_score": 0, "rank": 0, "mention_snippet": ""}
     user = f"Brand: {brand}\n\nAI answer:\n{answer[:6000]}"
     payload = {"model": EXTRACT_MODEL, "max_tokens": 300, "system": EXTRACT_SYSTEM,
                "messages": [{"role": "user", "content": user}]}
@@ -214,19 +221,23 @@ def extract_with_claude(brand, answer):
     if status != 200:
         # Fallback: heuristic mention detection on the raw text.
         mentioned = bool(brand) and brand.lower() in answer.lower()
-        return {"is_mentioned": mentioned, "sentiment": "neutral",
-                "visibility_score": 50 if mentioned else 0, "rank": 0, "mention_snippet": ""}
+        return {"is_mentioned": mentioned, "sentiment": "neutral", "sentiment_reason": "",
+                "sentiment_theme": "", "visibility_score": 50 if mentioned else 0,
+                "rank": 0, "mention_snippet": ""}
     try:
         txt = "".join(b.get("text", "") for b in body.get("content", []) if b.get("type") == "text")
         m = re.search(r"\{.*\}", txt, re.DOTALL)
         data = json.loads(m.group(0) if m else txt)
     except Exception:
         mentioned = bool(brand) and brand.lower() in answer.lower()
-        return {"is_mentioned": mentioned, "sentiment": "neutral",
-                "visibility_score": 50 if mentioned else 0, "rank": 0, "mention_snippet": ""}
+        return {"is_mentioned": mentioned, "sentiment": "neutral", "sentiment_reason": "",
+                "sentiment_theme": "", "visibility_score": 50 if mentioned else 0,
+                "rank": 0, "mention_snippet": ""}
     return {
         "is_mentioned": bool(data.get("is_mentioned")),
         "sentiment": (data.get("sentiment") or "neutral").lower(),
+        "sentiment_reason": (data.get("sentiment_reason") or "").strip()[:200],
+        "sentiment_theme": (data.get("sentiment_theme") or "").strip()[:60],
         "visibility_score": max(0, min(100, int(data.get("visibility_score") or 0))),
         "rank": int(data.get("rank") or 0),
         "mention_snippet": data.get("mention_snippet") or "",
@@ -267,7 +278,10 @@ def verify_one(prompt, brand, url, location, model_id):
     a = extract_with_claude(brand, answer)
     a["is_cited"] = is_cited
     a["citation_urls"] = citation_urls
-    return {"status": "success", "analysis": a, "response": answer[:4000],
+    # Full answer, untruncated. It used to be cut to 4000 chars here and then again to 1200 in
+    # geoCampaigns, so the text the dashboard showed under "Full AI response" never was one.
+    # Callers that persist it are responsible for where it lands (geoCampaigns → S3 answer store).
+    return {"status": "success", "analysis": a, "response": answer,
             "engine": model_id, "model_name": meta.get("model_name"), "cost": meta.get("cost")}
 
 
