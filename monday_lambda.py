@@ -584,64 +584,27 @@ def google_refresh_token(body):
 #   • ads_offline_authorize: one-time; exchanges an auth code for an MCC
 #     refresh token, stored in Mongo (db.google_ads_auth) so the sweep runs
 #     headless (no signed-in browser).
-#   • ads_budget_sweep: EventBridge {"action":"ads_budget_sweep"} (and
-#     on-demand). Reads the team-wide monitor config from the
-#     clientContextEngine blob (config.adsBudgetMonitor), pulls MTD spend per
-#     enabled account, and posts a Google Chat alert once per threshold-crossing.
 #   • ads_test_webhook: sends a "hello" to a webhook so users can verify it.
+#
+# The per-account monthly-cap sweep (ads_budget_sweep, ads_spend_save) lived here
+# until 2026-07-15. It never alerted on anything: the config held 368 accounts with
+# 0 monthly caps set, and the sweep skipped cap<=0, so it checked 0 accounts — while
+# 207 of those accounts were no longer in the MCC at all. Dropped in favour of the
+# account-budget watch below, which auto-discovers from the MCC and reads Google's
+# own budgets (the thing that actually stops delivery). The Mongo data it wrote
+# (google_ads_config.accounts, google_ads_spend) is left in place, just unread.
 # ══════════════════════════════════════════════════════════════════════
 _ADS_TOKEN_CACHE = {}  # doc _id (email) -> {"token": ..., "exp": ...}
 
-# The monitor config (webhook, accounts, mappings) lives in Mongo
+# The monitor config (webhook, ICIR mappings, acctBudget settings) lives in Mongo
 # (db.google_ads_config singleton) — NOT the clientContextEngine blob, whose
 # save_config is admin-only. Anyone signed in can save here, and the sweep
-# reads it directly (no cross-Lambda hop).
+# reads it directly (no cross-Lambda hop). NB the legacy `accounts` array (per
+# account monthly caps) is still stored but no longer read by anything.
 def _ads_get_config():
     db = get_db()
     doc = db.google_ads_config.find_one({"_id": "singleton"}) if db is not None else None
     return (doc or {}).get("config", {}) or {}
-
-# Last-known month-to-date spend per account (db.google_ads_spend), written by
-# both the client "Refresh spend now" and the daily sweep, so the tool shows a
-# persistent value across reloads / for everyone.
-def _ads_spend_map():
-    db = get_db()
-    if db is None:
-        return {}
-    out = {}
-    for d in db.google_ads_spend.find({}):
-        out[d.get("_id")] = {"cost": d.get("cost", 0), "currency": d.get("currency", ""),
-                             "cap": d.get("cap", 0), "pct": d.get("pct", 0),
-                             "month": d.get("month", ""), "at": d.get("at", ""), "by": d.get("by", "")}
-    return out
-
-def _ads_store_spend(cid, cost, currency='', cap=0, pct=0, by=''):
-    db = get_db()
-    if db is None:
-        return
-    db.google_ads_spend.update_one({"_id": cid}, {"$set": {
-        "cost": cost, "currency": currency, "cap": cap, "pct": pct,
-        "month": datetime.now(timezone.utc).strftime('%Y-%m'),
-        "at": datetime.now(timezone.utc).isoformat(), "by": by}}, upsert=True)
-
-def ads_spend_save(body):
-    who = body.get('userEmail', '') or 'user'
-    saved = 0
-    for e in (body.get('entries') or []):
-        cid = str(e.get('customerId') or '').replace('-', '').strip()
-        if not cid:
-            continue
-        try:
-            cost = float(e.get('cost') or 0)
-        except (TypeError, ValueError):
-            continue
-        try:
-            cap = float(e.get('cap') or 0)
-        except (TypeError, ValueError):
-            cap = 0
-        _ads_store_spend(cid, cost, e.get('currency', ''), cap, e.get('pct') or 0, who)
-        saved += 1
-    return {"statusCode": 200, "body": json.dumps({"ok": True, "saved": saved})}
 
 def _jwt_email(id_token):
     """Extract the email claim from an OIDC id_token (no signature check needed —
@@ -666,7 +629,7 @@ def _ads_auth_info():
     return {"authorized": bool(accounts), "accounts": accounts}
 
 def ads_config_get(body):
-    return {"statusCode": 200, "body": json.dumps({"config": _ads_get_config(), "auth": _ads_auth_info(), "spend": _ads_spend_map()})}
+    return {"statusCode": 200, "body": json.dumps({"config": _ads_get_config(), "auth": _ads_auth_info()})}
 
 def ads_config_save(body):
     cfg = body.get('config')
@@ -777,86 +740,6 @@ def ads_test_webhook(body):
         return {"statusCode": 400, "body": json.dumps({"error": "Not a Google Chat webhook URL"})}
     ok = _post_gchat(url, "✅ *Ads Budget Monitor* test — this space will receive budget-spend alerts.")
     return {"statusCode": 200 if ok else 502, "body": json.dumps({"ok": ok})}
-
-def _ads_month_cost(customer_id, token):
-    q = "SELECT metrics.cost_micros FROM customer WHERE segments.date DURING THIS_MONTH"
-    res = run_google_ads_report(customer_id, q, token)
-    if isinstance(res, dict) and res.get('error'):
-        raise RuntimeError(res.get('error'))
-    micros = 0
-    batches = res if isinstance(res, list) else [res]
-    for b in batches:
-        for row in (b or {}).get('results', []) or []:
-            micros += int((row.get('metrics') or {}).get('costMicros') or 0)
-    return micros / 1_000_000.0
-
-def ads_budget_sweep(body, event):
-    tokens = _ads_all_tokens()
-    if not tokens:
-        return {"statusCode": 200, "body": json.dumps({"skipped": "no offline authorization stored"})}
-    cfg = _ads_get_config()
-    webhook = (cfg.get('webhookUrl') or '').strip()
-    accounts = cfg.get('accounts', []) or []
-    month = datetime.now(timezone.utc).strftime('%Y-%m')
-    db = get_db()
-    alerts, checked = [], 0
-    for a in accounts:
-        if a.get('enabled') is False:
-            continue
-        cid = str(a.get('customerId') or '').replace('-', '').strip()
-        try:
-            cap = float(a.get('monthlyCap') or 0)
-        except (TypeError, ValueError):
-            cap = 0
-        if not cid or cap <= 0:
-            continue
-        checked += 1
-        # Try each authorized account's token until one can read this customer.
-        cost, last_err = None, None
-        for tk in tokens:
-            try:
-                cost = _ads_month_cost(cid, tk["token"])
-                break
-            except Exception as e:
-                last_err = e
-                continue
-        if cost is None:
-            print(f"[ADS_SWEEP] {cid} no authorized account had access: {last_err}")
-            continue
-        pct = round(cost / cap * 100)
-        _ads_store_spend(cid, cost, a.get('currency') or 'SGD', cap, pct, 'sweep')
-        # Per-account list of alert thresholds (falls back to legacy single alertPct).
-        raw = a.get('alertPcts')
-        if raw is None:
-            raw = [a.get('alertPct') or 80]
-        thr = set()
-        for x in (raw if isinstance(raw, list) else [raw]):
-            try:
-                f = float(x)
-                if f > 0:
-                    thr.add(f)
-            except (TypeError, ValueError):
-                pass
-        thresholds = sorted(thr) or [80.0]
-        state = db.google_ads_alerts.find_one({"_id": cid}) if db is not None else None
-        alerted = set(state.get('alerted', [])) if state and state.get('month') == month else set()
-        newly = [t for t in thresholds if pct >= t and t not in alerted]
-        if newly:
-            label = a.get('label') or cid
-            cur = a.get('currency') or 'SGD'
-            crossed = max(newly)
-            alerts.append(f"• *{label}* ({cid}): {pct}% of cap (crossed {crossed:g}%) — {cur} {cost:,.0f} / {cur} {cap:,.0f}")
-            alerted.update(newly)
-            if db is not None:
-                db.google_ads_alerts.update_one(
-                    {"_id": cid},
-                    {"$set": {"month": month, "alerted": sorted(alerted), "pct": pct,
-                              "updated": datetime.now(timezone.utc).isoformat()}}, upsert=True)
-    posted = False
-    if alerts and webhook:
-        header = f"⚠️ *Google Ads budget alert* — {len(alerts)} account(s) over threshold ({month})"
-        posted = _post_gchat(webhook, header + "\n" + "\n".join(alerts))
-    return {"statusCode": 200, "body": json.dumps({"checked": checked, "alerts": len(alerts), "posted": posted})}
 
 # ══════════════════════════════════════════════════════════════════════
 # Account-level "Account Budgets" — expiry / exhaustion watch.
@@ -1187,8 +1070,8 @@ def _ab_check_account(acct, token, cfg_warn_days, cfg_limit_pct):
 def _ab_alert_line(r, warn_days):
     """(stage, text) for an account that warrants a Chat alert, or (None, None).
 
-    Only the tightest stage is emitted per account — mirrors the max(newly) logic in
-    ads_budget_sweep so warnDays [7, 3] sends one message, not two."""
+    Only the tightest stage is emitted per account, so warnDays [7, 3] sends one
+    message rather than two."""
     state = r.get("state")
     if state in ("OK", "NOT_INVOICED", "ERROR", "UNKNOWN", None):
         return None, None
@@ -1272,8 +1155,8 @@ def ads_acct_budget_check(body, event):
         limit_pct = 90.0
 
     # Resolve ONE working token at the MCC enumeration step and reuse it for every child —
-    # MCC access implies child access, since login-customer-id is the MCC. Trying each
-    # token per account (as ads_budget_sweep does) multiplies badly at N=161.
+    # MCC access implies child access, since login-customer-id is the MCC. Trying every
+    # stored token per account would multiply badly at N=162.
     listing, token, last_err = None, None, None
     for tk in tokens:
         res = list_google_ads_child_accounts(MEDIAONE_MCC_ID, tk["token"])
@@ -5898,16 +5781,12 @@ def lambda_handler(event, context):
             result = ads_config_get(body)
         elif action == 'ads_config_save':
             result = ads_config_save(body)
-        elif action == 'ads_spend_save':
-            result = ads_spend_save(body)
         elif action == 'ads_auth_status':
             result = ads_auth_status(body)
         elif action == 'ads_auth_revoke':
             result = ads_auth_revoke(body)
         elif action == 'ads_test_webhook':
             result = ads_test_webhook(body)
-        elif action == 'ads_budget_sweep':
-            result = ads_budget_sweep(body, event)
         elif action == 'ads_acct_budget_check':
             result = ads_acct_budget_check(body, event)
         elif action == 'ads_acct_budget_get':
