@@ -6439,7 +6439,7 @@
             return out;
         }
 
-        function cbSplitSummary(raw) {
+        function cbSplitSummary(raw, truncated) {
             const text = String(raw || '').trim();
             if (!text) return [];
             let out = cbScanSections(text, /^\*\*\s*([^*:\n]+?)\s*:\*\*[ \t]*/gm);
@@ -6453,7 +6453,7 @@
             // A summary cut off at the cap can end mid-header ("...Not Started.\n\n**Chall").
             // That opener never closes, so drop it rather than print bare asterisks.
             const last = out[out.length - 1];
-            if (last && text.length >= CB_SUMMARY_CAP) last.body = last.body.replace(/\s*\*\*[^*\n]*$/, '').trim();
+            if (last && truncated) last.body = last.body.replace(/\s*\*\*[^*\n]*$/, '').trim();
             return out;
         }
 
@@ -6529,8 +6529,12 @@
             return rows.map(r => `<div class="cb-sum-note">${cbSummaryInline(r)}</div>`).join('');
         }
 
-        function cbBuildSummaryHtml(raw, itemId) {
-            const sections = cbSplitSummary(raw);
+        // `truncated` is passed explicitly because it can't be inferred from length
+        // once the full copy is swapped in: the untruncated update is *longer* than
+        // the cap, so a length check would flag the complete text as cut off.
+        function cbBuildSummaryHtml(raw, itemId, truncated) {
+            if (truncated === undefined) truncated = String(raw || '').length >= CB_SUMMARY_CAP;
+            const sections = cbSplitSummary(raw, truncated);
             if (!sections.length) {
                 // No recognised headers — fall back to the plain text, newlines intact.
                 return { head: '', body: `<div class="cb-sum-prose">${cbSummaryInline(String(raw || '').trim()) || '<em>No summary recorded.</em>'}</div>` };
@@ -6561,7 +6565,7 @@
                     </div>`;
             }).join('');
 
-            if (String(raw || '').length >= CB_SUMMARY_CAP) {
+            if (truncated) {
                 const href = itemId ? `https://mediaone-business-group-pte-ltd.monday.com/boards/2845615047/pulses/${encodeURIComponent(itemId)}` : '';
                 body += `<div class="cb-sum-trunc">
                         <i class="fas fa-scissors"></i>
@@ -6572,18 +6576,66 @@
             return { head, body };
         }
 
-        function showSummaryModal(boardId) {
-            const item = state.auditedItems.find(i => i.bId === boardId);
-            if (!item) return;
-            const rendered = cbBuildSummaryHtml(item.masterTechSummary || '', item.masterItemId);
+        // Items carry a mix of staff comments, auto-uploaded report notes, and past
+        // summaries (including a pre-** format). The Lambda posts under the API key's
+        // own user, so author is useless as a filter — match on shape, newest wins.
+        function cbPickSummaryUpdate(updates) {
+            return ((updates || [])
+                .filter(u => /^\s*(\*\*\s*Campaign\s*:\s*\*\*|Campaign\s*:)/i.test(u && u.text_body || ''))
+                .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]?.text_body || '').trim();
+        }
+
+        const cbFullSummaryCache = {};
+        let cbSummaryToken = 0;
+
+        // The Lambda writes the summary twice: to the column (which monday silently
+        // caps at 2000 chars) and to an item update (which it doesn't cap). When the
+        // column copy is at the cap, the untruncated text is on the update.
+        async function cbFetchFullSummary(itemId) {
+            if (!itemId) return '';
+            if (cbFullSummaryCache[itemId] !== undefined) return cbFullSummaryCache[itemId];
+            try {
+                const d = await monday(`query($id:[ID!]){
+                    items(ids:$id){ updates(limit:25){ text_body created_at } }
+                }`, { id: [itemId] }, false);
+                const text = cbPickSummaryUpdate(d?.items?.[0]?.updates);
+                cbFullSummaryCache[itemId] = text;
+                return text;
+            } catch (e) {
+                // Leave uncached so a later open can retry; the column copy still shows.
+                console.warn('Full summary fetch failed:', e);
+                return '';
+            }
+        }
+
+        function cbPaintSummary(item, text, truncated) {
+            const rendered = cbBuildSummaryHtml(text, item.masterItemId, truncated);
             document.getElementById('summary-modal-title').textContent = item.masterName && item.masterName !== '-' ? item.masterName : item.bName;
             document.getElementById('summary-modal-head').innerHTML = rendered.head;
             document.getElementById('summary-modal-body').innerHTML = rendered.body;
+        }
+
+        async function showSummaryModal(boardId) {
+            const item = state.auditedItems.find(i => i.bId === boardId);
+            if (!item) return;
+            const token = ++cbSummaryToken;
+            const col = item.masterTechSummary || '';
+            const capped = col.length >= CB_SUMMARY_CAP;
+
+            // Paint the column copy first so the modal opens instantly.
+            cbPaintSummary(item, col, capped);
             document.getElementById('summary-modal').classList.add('show');
             document.getElementById('summary-modal-backdrop').classList.add('show');
+
+            if (!capped || !item.masterItemId) return;
+            const full = await cbFetchFullSummary(item.masterItemId);
+            // Bail if the modal was closed or another campaign opened meanwhile.
+            if (token !== cbSummaryToken) return;
+            if (full.length > col.length) cbPaintSummary(item, full, false);
         }
 
         function closeSummaryModal() {
+            cbSummaryToken++;
             document.getElementById('summary-modal').classList.remove('show');
             document.getElementById('summary-modal-backdrop').classList.remove('show');
         }
