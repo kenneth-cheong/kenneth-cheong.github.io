@@ -40,10 +40,16 @@ Env vars (see DEPLOY.md):
   GCHAT_WEBHOOK_URL    — human escalation channel
   KB_SEARCH_URL        — monday Lambda endpoint
   KB_SCORE_FLOOR       — default 0.6, mirrors monday_lambda.py:86
+  WA_PROMPT_TABLE      — staff-editable prompt blocks (default dm-bot-prompts)
 
 DynamoDB tables (region ap-southeast-1):
   wa_dedupe         PK: msg_id (S), TTL ttl  — at-least-once delivery guard, ~24h
   wa_conversations  PK: wa_id  (S), TTL ttl  — rolling chat context, ~30d
+  dm-bot-prompts    PK: prompt_id (S), no TTL — the staff-editable half of the
+                    system prompt, written from index.html via staffAuth and read
+                    here at runtime. See the prompt section below for what is and
+                    is not editable, and why. NOT having this table is survivable:
+                    every read falls back to the code defaults.
 
 See DEPLOY.md in this folder for the create-infra commands.
 """
@@ -84,6 +90,10 @@ KB_TOP_K          = int(os.environ.get('KB_TOP_K', '4'))
 
 DEDUPE_TABLE      = os.environ.get('WA_DEDUPE_TABLE', 'wa_dedupe')
 CONVO_TABLE       = os.environ.get('WA_CONVO_TABLE', 'wa_conversations')
+PROMPT_TABLE      = os.environ.get('WA_PROMPT_TABLE', 'dm-bot-prompts')
+
+PROMPT_CACHE_TTL  = 60          # seconds a warm container may serve a stale prompt
+MAX_PROMPT_CHARS  = 8000        # per block; mirrors staffAuth's save-side limit
 
 DEDUPE_TTL_SEC    = 24 * 3600
 CONVO_TTL_SEC     = 30 * 86400
@@ -141,20 +151,147 @@ UNSUPPORTED_MEDIA_REPLY = (
 # 0.79 false match above. Mirrors the shape of monday_lambda.py:3288-3305 — state
 # the limit as absolute, say the tools are hard-limited so don't try, and say
 # exactly what to do instead.
-SYSTEM_PROMPT = """You are MediaOne's WhatsApp FAQ assistant. MediaOne is a digital marketing agency in Singapore (SEO, paid ads, social media, content).
+#
+# ── THE PROMPT IS STAFF-EDITABLE, IN THREE PIECES ───────────────────────────────
+# Staff edit the first two from index.html (Others -> WhatsApp Support Logs). They
+# are stored in DynamoDB `dm-bot-prompts` and read here at runtime. The third is
+# NOT editable and is concatenated on afterwards, by this file, every time.
+#
+# Why the split is where it is:
+#
+#   SHARED_PERSONA  — identity + grounding. The ONLY block that is portable to
+#       another surface, because it asserts nothing about what data the bot can
+#       reach. The client portal's chatbot (separate repo/stack) is intended to
+#       fetch exactly this block and fold it into its own instructions, so that
+#       one edit moves both bots' voice and anti-fabrication policy. Keep it free
+#       of anything WhatsApp-specific, and free of any claim about tools —
+#       the portal bot HAS client campaign data and this text must stay true there.
+#
+#   WHATSAPP_SCOPE  — the "you have NO account data" policy, the snippet-relevance
+#       warning, and WhatsApp styling. NOT portable: the portal bot genuinely can
+#       read a client's campaign via its query_campaign_data tool, so shipping this
+#       block there would be a lie that breaks it.
+#
+#   FIXED_CONTRACT  — the JSON envelope and the escalate= trigger list. Compiled
+#       in, never editable, always appended last. If staff could edit this they
+#       could break _parse_llm_json() (every reply then fails closed to a human) or
+#       delete the escalation triggers, quietly disabling Layer 3. A prompt editor
+#       that can disable the guardrails is not a prompt editor, it's an outage.
+#
+# ESCALATION_REPLY is likewise not editable, and must not become so: staffAuth
+# detects an escalated conversation by exact-matching that string.
+DEFAULT_SHARED_PERSONA = """You are MediaOne's support assistant. MediaOne is a digital marketing agency in Singapore (SEO, paid ads, social media, content).
 
-SCOPE POLICY — ABSOLUTE: You have NO access to any client's account, campaign, ranking, spend, invoice, contract or timeline data. Not limited access. NONE. There is no tool you can call to get it, so do not try. Any such number, date or status you produced would be fabricated. If you are asked anything account-specific, escalate to a human — do not apologise and then guess anyway.
+GROUNDING — ABSOLUTE: Never state a price, timeline, percentage, guarantee or metric that is not written verbatim in the source material you have been given. General marketing explanation is fine. Inventing specifics is not.
+
+HONESTY: If the material you were given does not genuinely answer the question that was asked, say so and hand off to a human. Do not force-fit a near-miss into an answer. Retrieval similarity is NOT relevance."""
+
+DEFAULT_WHATSAPP_SCOPE = """SCOPE POLICY — ABSOLUTE: You have NO access to any client's account, campaign, ranking, spend, invoice, contract or timeline data. Not limited access. NONE. There is no tool you can call to get it, so do not try. Any such number, date or status you produced would be fabricated. If you are asked anything account-specific, escalate to a human — do not apologise and then guess anyway.
 
 ABOUT THE SNIPPETS: The knowledge-base snippets below were retrieved by semantic similarity, and similarity is NOT relevance. They are frequently about a DIFFERENT question than the one asked. Judge for yourself whether they actually answer THIS question. If they do not, escalate — do NOT force-fit a near-miss snippet into an answer. Answering "how much does SEO cost" with a snippet about paid advertising is exactly the failure to avoid.
 
-GROUNDING: Never state a price, timeline, percentage, guarantee or metric that is not written verbatim in a snippet. General marketing explanation is fine. Inventing specifics is not.
+STYLE: WhatsApp — warm, plain, brief. Two short paragraphs at most. No markdown, no bullet lists, no headings."""
 
-STYLE: WhatsApp — warm, plain, brief. Two short paragraphs at most. No markdown, no bullet lists, no headings.
-
-Reply with a JSON object and nothing else:
+# NOT staff-editable. Appended by _system_prompt() after the two blocks above.
+FIXED_CONTRACT = """Reply with a JSON object and nothing else:
 {"reply": "<your message to the user>", "escalate": <true|false>, "reason": "<why, if escalating>"}
 
 Set escalate=true when: the question is account-specific; the snippets do not genuinely answer it; you would have to guess a specific fact; or the person asks for a human. When escalate=true the reply field is discarded, so do not labour over it."""
+
+# Order matters: persona (who you are) -> scope (what you may not do) -> contract
+# (how to reply). Same content the single SYSTEM_PROMPT constant used to carry.
+PROMPT_KEYS = ('shared_persona', 'whatsapp_scope')
+PROMPT_DEFAULTS = {
+    'shared_persona': DEFAULT_SHARED_PERSONA,
+    'whatsapp_scope': DEFAULT_WHATSAPP_SCOPE,
+}
+
+# {key: text} plus the epoch it was fetched. Module-level, so it survives across
+# invocations in a warm container and a prompt edit goes live within ~60s.
+_prompt_cache = {'ts': 0, 'blocks': None}
+
+
+def _seed_prompt(key, text):
+    """Write the code default into the table the first time we see it missing.
+
+    Conditional, so concurrent workers can't clobber a staff edit that landed
+    between our read and our write. `default_text` is what index.html's "Restore
+    default" reverts to — the editor has no other way to know the built-in text.
+    """
+    try:
+        now = int(time.time())
+        _ddb.Table(PROMPT_TABLE).put_item(
+            Item={'prompt_id': key, 'text': text, 'default_text': text,
+                  'updated_at': now, 'updated_by': 'system:seed', 'history': []},
+            ConditionExpression='attribute_not_exists(prompt_id)')
+        print(f'[PROMPT] seeded {key} from the code default')
+    except _ddb.meta.client.exceptions.ConditionalCheckFailedException:
+        pass                      # someone else seeded it first — fine
+    except Exception as e:
+        # Seeding is best-effort. A read-only role still serves the code default.
+        print(f'[PROMPT] seed failed for {key}: {e}')
+
+
+def _prompt_blocks(force=False):
+    """{key: text}, cached for PROMPT_CACHE_TTL. force=True skips the cache.
+
+    FAILS SAFE, NOT CLOSED: any error, missing item, or blank override falls back
+    to the code default for that block. A DynamoDB outage must not take the bot
+    down or, worse, drop the scope policy and let it start guessing.
+    """
+    now = int(time.time())
+    if not force and _prompt_cache['blocks'] is not None and now - _prompt_cache['ts'] < PROMPT_CACHE_TTL:
+        return _prompt_cache['blocks']
+
+    blocks = dict(PROMPT_DEFAULTS)
+    for key in PROMPT_KEYS:
+        try:
+            item = (_ddb.Table(PROMPT_TABLE).get_item(Key={'prompt_id': key}) or {}).get('Item')
+        except Exception as e:
+            print(f'[PROMPT] read failed for {key}: {e} — using the code default')
+            continue
+        if not item:
+            _seed_prompt(key, PROMPT_DEFAULTS[key])
+            continue
+        text = (item.get('text') or '').strip()
+        if text:
+            blocks[key] = text[:MAX_PROMPT_CHARS]
+        else:
+            # Present but blank: treat as "revert to default" rather than sending
+            # the model an empty policy section.
+            print(f'[PROMPT] {key} is blank — using the code default')
+
+    _prompt_cache['blocks'] = blocks
+    _prompt_cache['ts'] = now
+    return blocks
+
+
+def _system_prompt(force=False):
+    b = _prompt_blocks(force=force)
+    return '\n\n'.join((b['shared_persona'], b['whatsapp_scope'], FIXED_CONTRACT))
+
+
+def _agent_prompt_info(event):
+    """Everything index.html's prompt editor needs, sourced from the one file that
+    owns the defaults. Invoked (RequestResponse) by staffAuth.
+
+    Exists so staffAuth never holds a second copy of the prompt text. This repo
+    already has that bug once — WA_ESCALATION_REPLY is duplicated in staffAuth
+    with a "keep in sync or the Escalated flag silently breaks" warning — and a
+    2KB prompt would be a far worse thing to duplicate than a one-line constant.
+
+    Seeds any missing block as a side effect (via _prompt_blocks), so opening the
+    editor on a cold install shows real text instead of an empty box. Returns the
+    COMPOSED prompt so the editor can show staff exactly what the model receives,
+    including the parts they cannot edit. force=True: a save made seconds ago must
+    not be hidden behind this container's 60s cache.
+    """
+    return {'ok': True,
+            'blocks': _prompt_blocks(force=True),
+            'defaults': dict(PROMPT_DEFAULTS),
+            'fixed_contract': FIXED_CONTRACT,
+            'composed': _system_prompt(force=True),
+            'editable_keys': list(PROMPT_KEYS)}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -339,11 +476,19 @@ def _mark_replied(msg_id):
 # ──────────────────────────────────────────────────────────────────────────────
 # Conversation memory — one item per wa_id
 # ──────────────────────────────────────────────────────────────────────────────
-def _append_turn(wa_id, role, text, touch_user_ts=False):
+def _append_turn(wa_id, role, text, touch_user_ts=False, agent=None):
     """Atomic list_append. NOT read-modify-write: two messages arriving together
-    run as two concurrent workers, and RMW silently drops one of the turns."""
+    run as two concurrent workers, and RMW silently drops one of the turns.
+
+    role is 'user', 'assistant' (the bot) or 'agent' (a human colleague replying
+    from index.html). 'agent' is deliberately NOT stored as 'assistant': the logs
+    viewer labels each bubble from this field, and merging the two would credit a
+    colleague's words to the bot in a transcript staff read as evidence.
+    """
     now = int(time.time())
     turn = {'role': role, 'text': (text or '')[:MAX_TURN_CHARS], 'ts': now}
+    if agent:
+        turn['agent'] = str(agent)[:120]
     expr = ('SET turns = list_append(if_not_exists(turns, :empty), :new), '
             '#ttl = :ttl')
     vals = {':empty': [], ':new': [turn], ':ttl': now + CONVO_TTL_SEC}
@@ -360,14 +505,45 @@ def _append_turn(wa_id, role, text, touch_user_ts=False):
         print(f'[CONVO] append failed for {wa_id}: {e}')
 
 
+def _set_paused(wa_id, paused, who):
+    """Hand the conversation to a human, or hand it back to the bot.
+
+    While paused the bot still records inbound messages and still pings Google
+    Chat — it just doesn't reply. Set automatically the moment we escalate: at
+    that point the client has been TOLD a colleague will follow up, so an
+    auto-reply to their next message is the bot talking over our own promise.
+    Also set whenever a colleague sends a reply. Cleared only by a human.
+    """
+    now = int(time.time())
+    try:
+        _ddb.Table(CONVO_TABLE).update_item(
+            Key={'wa_id': wa_id},
+            UpdateExpression='SET bot_paused = :p, paused_at = :t, paused_by = :w, #ttl = :ttl',
+            ExpressionAttributeNames={'#ttl': 'ttl'},
+            ExpressionAttributeValues={
+                ':p': bool(paused), ':t': now, ':w': str(who or 'system')[:120],
+                ':ttl': now + CONVO_TTL_SEC})
+        return True
+    except Exception as e:
+        print(f'[CONVO] pause={paused} failed for {wa_id}: {e}')
+        return False
+
+
 def _get_convo(wa_id):
+    """(turns, last_user_ts, bot_paused).
+
+    On a read failure we report paused=False — i.e. the bot keeps answering. The
+    alternative (fail to paused) would silently mute the bot for every client
+    during a DynamoDB blip, which is a worse and much quieter failure than one
+    duplicate reply.
+    """
     try:
         item = (_ddb.Table(CONVO_TABLE).get_item(Key={'wa_id': wa_id}) or {}).get('Item') or {}
     except Exception as e:
         print(f'[CONVO] read failed for {wa_id}: {e}')
-        return [], 0
+        return [], 0, False
     turns = (item.get('turns') or [])[-MAX_TURNS:]
-    return turns, int(item.get('last_user_ts') or 0)
+    return turns, int(item.get('last_user_ts') or 0), bool(item.get('bot_paused'))
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -441,9 +617,12 @@ def _ask_deepseek(question, kb_matches, turns):
     if not DEEPSEEK_API_KEY:
         print('[LLM] DEEPSEEK_API_KEY not configured')
         return None
-    messages = [{'role': 'system', 'content': SYSTEM_PROMPT}]
+    messages = [{'role': 'system', 'content': _system_prompt()}]
     for t in turns[:-1]:      # history, excluding the turn we just appended
-        messages.append({'role': 'assistant' if t.get('role') == 'assistant' else 'user',
+        # 'agent' (a human colleague) maps to assistant: it is an outbound message
+        # from our side. Letting it fall through to 'user' would replay a
+        # colleague's words back to the model as if the CLIENT had said them.
+        messages.append({'role': 'assistant' if t.get('role') in ('assistant', 'agent') else 'user',
                          'content': t.get('text') or ''})
     messages.append({'role': 'user',
                      'content': f"KNOWLEDGE-BASE SNIPPETS:\n{_kb_block(kb_matches)}\n\n"
@@ -476,7 +655,7 @@ def _ask_haiku_vision(caption, image_b64, mime, kb_matches):
     payload = {
         'model': VISION_MODEL,
         'max_tokens': 700,
-        'system': SYSTEM_PROMPT,
+        'system': _system_prompt(),
         'messages': [{'role': 'user', 'content': [
             {'type': 'image', 'source': {'type': 'base64', 'media_type': mime, 'data': image_b64}},
             {'type': 'text', 'text': f"KNOWLEDGE-BASE SNIPPETS:\n{_kb_block(kb_matches)}\n\n"
@@ -576,13 +755,21 @@ def _post_gchat(text):
 
 
 def _escalate(wa_id, question, reason, turns=None):
+    # Stand the bot down BEFORE the ping. We've just told the client a colleague
+    # will follow up; if the bot answers their next message it contradicts that,
+    # and it may talk straight over a colleague who is mid-reply. A human clears
+    # this from index.html when they're done.
+    _set_paused(wa_id, True, 'system:escalation')
+
     lines = [f'*WhatsApp escalation* — +{wa_id}',
              f'*Reason:* {reason}',
              f'*Their message:* {question[:600]}']
     if turns:
         recent = ' | '.join(f"{t.get('role')}: {(t.get('text') or '')[:120]}" for t in turns[-4:])
         lines.append(f'*Recent context:* {recent}')
-    lines.append('_Reply to them in the WhatsApp Business Inbox._')
+    lines.append('_The bot has stopped replying to this person. Answer them from '
+                 'index.html → Others → WhatsApp Support Logs, or in the WhatsApp '
+                 'Business Inbox, then resume the bot there when you\'re done._')
     _post_gchat('\n'.join(lines))
 
 
@@ -615,7 +802,20 @@ def _worker(event):
         return {'ok': True, 'escalated': True}
 
     _append_turn(wa_id, 'user', question or f'({mtype})', touch_user_ts=True)
-    turns, last_user_ts = _get_convo(wa_id)
+    turns, last_user_ts, paused = _get_convo(wa_id)
+
+    # A colleague owns this conversation. Record and notify, but do NOT reply —
+    # the whole point of the handoff is that the client hears one voice. Checked
+    # after the turn is appended so index.html still shows the new message, and
+    # before the KB/LLM spend, which would be wasted.
+    if paused:
+        print(f'[WORKER] {wa_id} is handed off to a human — recorded, not replying')
+        _post_gchat(f'*WhatsApp — new message on a handed-off chat* — +{wa_id}\n'
+                    f'*Their message:* {question[:600]}\n'
+                    '_The bot is paused for this person. Reply from index.html → '
+                    'Others → WhatsApp Support Logs._')
+        _mark_replied(msg_id)
+        return {'ok': True, 'skipped': 'handed_off'}
 
     # 24h service window. We only ever reply to a message that just arrived, so
     # we're structurally inside it — unless the worker was delayed (DLQ redrive,
@@ -686,10 +886,86 @@ def _worker(event):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Human colleague replying from index.html.
+#
+# WHY THESE LIVE HERE AND NOT IN staffAuth: WA_ACCESS_TOKEN stays in exactly one
+# function, and staffAuth's exec role stays read-only on wa_conversations (Scan +
+# GetItem, nothing else). staffAuth authenticates the person and invokes these
+# synchronously; every write to the conversation happens on this side.
+# ──────────────────────────────────────────────────────────────────────────────
+AGENT_MAX_CHARS = 4096      # WhatsApp's own ceiling for a text body
+
+
+def _agent_send(event):
+    wa_id = (event.get('wa_id') or '').strip()
+    text = (event.get('text') or '').strip()
+    who = (event.get('agent') or 'staff').strip()
+    if not wa_id or not text:
+        return {'ok': False, 'error': 'wa_id and text are required.'}
+    if len(text) > AGENT_MAX_CHARS:
+        return {'ok': False,
+                'error': f'Message is too long ({len(text)} characters, max {AGENT_MAX_CHARS}).'}
+
+    _, last_user_ts, _ = _get_convo(wa_id)
+    if not last_user_ts:
+        return {'ok': False,
+                'error': 'This person has never messaged us — there is no open conversation to reply to.'}
+
+    # Meta's 24h service window, re-checked HERE and not only in the browser: the
+    # page's copy of last_user_ts can be many minutes stale, and a send outside the
+    # window fails at Graph with 131047 — after we'd already have written the turn.
+    age = int(time.time()) - last_user_ts
+    if age > SERVICE_WINDOW_SEC:
+        return {'ok': False, 'outside_window': True,
+                'error': (f'Their last message was {age // 3600}h ago. WhatsApp only allows '
+                          'free-form replies within 24 hours of the client writing to us. '
+                          'Use an approved template in the WhatsApp Business Inbox instead.')}
+
+    if not _send_text(wa_id, text):
+        return {'ok': False, 'error': 'WhatsApp rejected the message — check the CloudWatch logs.'}
+
+    # Strictly after a confirmed send. Recording first would leave a turn in the
+    # transcript that the client never actually received, which is worse than a
+    # lost reply: staff would read it as delivered.
+    _append_turn(wa_id, 'agent', text, agent=who)
+    _set_paused(wa_id, True, who)
+    print(f'[AGENT] {who} replied to {_mask(wa_id)} ({len(text)} chars)')
+    return {'ok': True}
+
+
+def _agent_set_paused(event):
+    wa_id = (event.get('wa_id') or '').strip()
+    who = (event.get('agent') or 'staff').strip()
+    if not wa_id:
+        return {'ok': False, 'error': 'wa_id is required.'}
+    paused = bool(event.get('paused'))
+    if not _set_paused(wa_id, paused, who):
+        return {'ok': False, 'error': 'Could not update this conversation.'}
+    print(f'[AGENT] {who} set paused={paused} on {_mask(wa_id)}')
+    return {'ok': True, 'paused': paused}
+
+
+def _mask(wa_id):
+    """Last 4 digits only — CloudWatch retention on this account is indefinite and
+    an audit line does not need the client's whole phone number."""
+    s = str(wa_id or '')
+    return '***' + s[-4:] if len(s) >= 4 else '***'
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 def lambda_handler(event, context):
     # The async worker invoke has no httpMethod — check it before any HTTP parsing.
     if event.get('action') == 'wa_process':
         return _worker(event)
+    # Invoked synchronously by staffAuth, which has already authenticated the
+    # colleague. Never reachable from the Function URL: Meta's requests are HTTP
+    # POSTs with a body, and _handle_webhook is the only thing that reads those.
+    if event.get('action') == 'wa_agent_send':
+        return _agent_send(event)
+    if event.get('action') == 'wa_set_paused':
+        return _agent_set_paused(event)
+    if event.get('action') == 'wa_prompt_info':
+        return _agent_prompt_info(event)
 
     method = _http_method(event)
     if method == 'GET':

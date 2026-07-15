@@ -32,7 +32,7 @@ rewriting the call in `urllib3` over bundling.
 | Lambda | `whatsappBot` (python3.13, timeout 120, mem 256, reserved concurrency 10) |
 | Role | `whatsappBot-role` (AWSLambdaBasicExecutionRole + inline `whatsappBot-ddb-selfinvoke`) |
 | Function URL | `https://qiiqig6wcrmkxlknp3nomiomdm0athvb.lambda-url.ap-southeast-1.on.aws/` |
-| DynamoDB | `wa_dedupe` (PK msg_id, TTL ttl), `wa_conversations` (PK wa_id, TTL ttl) |
+| DynamoDB | `wa_dedupe` (PK msg_id, TTL ttl), `wa_conversations` (PK wa_id, TTL ttl), `dm-bot-prompts` (PK prompt_id, **no TTL**) |
 | Meta app | **MediaOne Client Support**, App ID `2034376497168449`, unpublished |
 | Business portfolio | MediaOne Business Group (`1538686332865690`), verification complete |
 | Test number | `+1 555 617 9696`, Phone number ID `253052104567619` |
@@ -44,10 +44,10 @@ Meta's own signed sample payload validated against `_verify_signature` on the fi
 try — the raw-body/base64 handling is confirmed correct against a real Meta signer,
 not just against our own test harness.
 
-**Still outstanding:** `WA_ACCESS_TOKEN` (System User token, expiry Never) and a
-verified test recipient. Until the token is set, the bot receives and reasons
-correctly but cannot reply — `[SEND] WA_ACCESS_TOKEN / WA_PHONE_NUMBER_ID not
-configured`, then it raises so Lambda retries.
+`WA_ACCESS_TOKEN` is set (confirmed live 2026-07-16) — an earlier revision of this
+file said it was outstanding; it isn't, and the bot can send. `WA_ALLOWED_WA_IDS`
+is still populated, so the bot only talks to the listed test number. **Clearing it
+is what opens the bot to the public** — see §7.
 
 ## Architecture in one paragraph
 
@@ -77,15 +77,42 @@ aws dynamodb create-table --region ap-southeast-1 \
   --billing-mode PAY_PER_REQUEST
 aws dynamodb update-time-to-live --region ap-southeast-1 \
   --table-name wa_conversations --time-to-live-specification "Enabled=true,AttributeName=ttl"
+
+# Staff-editable prompt blocks. NO TTL — a prompt that quietly expired would
+# revert the bot's wording with nobody touching anything.
+aws dynamodb create-table --region ap-southeast-1 \
+  --table-name dm-bot-prompts \
+  --attribute-definitions AttributeName=prompt_id,AttributeType=S \
+  --key-schema AttributeName=prompt_id,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST
 ```
+
+`dm-bot-prompts` needs no seeding: the bot writes its own code defaults into any
+missing block the first time it reads (`_seed_prompt`), which is also what gives
+index.html's "Restore built-in wording" something to restore (`default_text`).
 
 ## 2. IAM
 
 Exec role `whatsappBot-role` needs `AWSLambdaBasicExecutionRole` plus an inline
 policy granting:
 - `dynamodb:PutItem/GetItem/UpdateItem/DeleteItem` on `wa_dedupe` + `wa_conversations`
+- `dynamodb:GetItem/PutItem` on `dm-bot-prompts` (read the staff-edited prompt;
+  PutItem only for the first-read seed). **Optional by design** — without it the
+  bot logs `[PROMPT] read failed … using the code default` and answers normally
+  off the compiled-in prompt. Verified live 2026-07-16.
 - `lambda:InvokeFunction` on **itself** (the worker self-invoke). Without this the
   webhook releases every claim and 500s, and Meta retries forever.
+
+`staffAuth-role` needs a matching inline policy (`staffAuth-bot-prompts-invoke`):
+- `dynamodb:GetItem/PutItem` on `dm-bot-prompts` — the editor's read/save
+- `lambda:InvokeFunction` on `whatsappBot` — how a staff reply or a pause toggle
+  reaches the bot
+
+> Note what staffAuth deliberately does NOT get: any write on `wa_conversations`,
+> and any Graph credential. It is an internet-facing API with `Access-Control-
+> Allow-Origin: *`. Every send and every turn write happens inside `whatsappBot`,
+> reached by invoke, so `WA_ACCESS_TOKEN` exists in exactly one function. Don't
+> collapse the hop "for simplicity".
 
 ## 3. Create the function
 
@@ -183,6 +210,7 @@ WA_ALLOWED_WA_IDS=6591234567}"
 | `GCHAT_WEBHOOK_URL` | the space that receives escalations |
 | `KB_SEARCH_URL` | optional, defaults to the `monday` endpoint |
 | `KB_SCORE_FLOOR` | optional, default `0.6` (mirrors `monday_lambda.py:86`) |
+| `WA_PROMPT_TABLE` | optional, default `dm-bot-prompts` — the staff-editable prompt |
 
 Every var **fails closed** if unset — no code path falls back to a literal
 credential. Keep real values out of this file; `.gitguardian.yaml` scanning is on.
@@ -257,6 +285,81 @@ Live checks after the webhook is connected:
 | "how much does SEO cost?" | must **not** pivot to a paid-ads pitch (see below) |
 | "what's my campaign ROI this month?" | escalation + a Google Chat post, never a number |
 | CloudWatch `Duration`, webhook path | <200ms warm — the fast-ACK proof |
+
+## The prompt is staff-editable — what that does and does not cover
+
+Staff edit the prompt from index.html → Others → WhatsApp Support Logs → **Bot
+prompt**. Saves land in `dm-bot-prompts` and go live within ~60s (the bot's
+per-container `PROMPT_CACHE_TTL`). There is no deploy step and no approval step.
+
+The prompt is assembled at runtime from three pieces, and only the first two are
+editable:
+
+| Block | Editable | Shared with the client portal bot? |
+|---|---|---|
+| `shared_persona` — identity, tone, anti-fabrication | yes | **that's the intent** |
+| `whatsapp_scope` — "no account data", snippet warning, WhatsApp style | yes | no |
+| `FIXED_CONTRACT` — the JSON envelope + escalate triggers | **no** | no |
+
+`FIXED_CONTRACT` is concatenated on by `_system_prompt()` every time. It is not
+editable because breaking it breaks `_parse_llm_json()` — every reply would then
+fail closed to a human — and because deleting the escalate triggers would quietly
+disable Layer 3 of the anti-fabrication design below. `ESCALATION_REPLY` is not
+editable either: `staffAuth._wa_summary` exact-matches that string to decide
+whether a conversation shows as Escalated.
+
+Anything unreadable, blank or oversized falls back to the compiled-in default per
+block, so a DynamoDB outage cannot drop the scope policy and leave the bot free to
+guess.
+
+### Follow-up: wiring `shared_persona` into the client portal bot
+
+Not built yet — the AWS side shipped first. The client portal is a **separate
+repo and stack** (`github.com/anmediaone/client_portal`: FastAPI + Postgres on
+EC2, Firebase-hosted SPAs, manual deploys, no CI). The intended shape:
+
+1. The portal fetches `shared_persona` **server-side** from `staffAuth` and folds
+   it into `_effective_instructions()` (`app/services/ai_assistant_manager_service.py`),
+   cached ~5min, **failing open** to today's behaviour if unreachable.
+2. Server-side, not browser-side: the portal API is `http://54.254.199.252:8000`,
+   and an HTTPS page cannot call it (mixed content). The portal already calls out
+   to an AWS Lambda this way (`endpoints/analytics.py`), so the path is proven.
+3. `staffAuth` will need a machine-auth read action — the portal has no staff
+   token. `INTERNAL_API_KEY` already exists there for Lambda↔portal calls.
+
+**Only `shared_persona` transfers.** Do NOT ship `whatsapp_scope` to the portal:
+it asserts the bot has no client data, and the portal bot genuinely *does* have it
+via its `query_campaign_data` tool. That block there would be a lie that makes it
+refuse questions it can actually answer. And the portal's own prompt has a
+separate, non-overridable `_RUNTIME_TOOL_POLICY_SUFFIX`, so the shared block must
+be additive, never a replacement.
+
+## Staff replies and the bot handoff
+
+Staff reply from the same tool. `staffAuth.wa_send_message` → invoke
+`whatsappBot {action:"wa_agent_send"}` → Graph. Turns land with `role:"agent"`
+(never `assistant` — the transcript must not credit a colleague's words to the
+bot) plus the sender in `turn.agent`.
+
+Two rules the UI depends on:
+
+- **24h service window.** Meta only allows a free-form reply within 24h of the
+  client's last inbound message; past that Graph rejects it with **131047** and
+  you need an approved template from the Business Inbox. Enforced in
+  `_agent_send` against `last_user_ts`, *not* only in the browser, whose clock
+  drifts while the page sits open. The turn is written only after Graph accepts,
+  so a rejected send never leaves a message in the transcript that the client
+  never got.
+- **`bot_paused`.** Set automatically on **every escalation** (we've just promised
+  a human will follow up — the bot must stop) and on any staff reply. While
+  paused the worker records inbound messages and still pings Google Chat, but
+  does not reply. Cleared only by a human, from index.html.
+
+The trade-off in auto-pausing on escalation: a client whose account question was
+escalated will *not* get an auto-answer to their next question either, until
+someone resumes the bot. That is deliberate — the alternative is the bot talking
+over a colleague mid-conversation — but it means escalations now need someone to
+actually pick them up. Watch the "You reply" pill in the tool.
 
 ## Why the guardrails are three layers, not a prompt
 

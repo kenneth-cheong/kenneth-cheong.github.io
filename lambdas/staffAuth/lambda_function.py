@@ -26,10 +26,22 @@ Actions (POST JSON, field "action"):
   admin_delete   {token, username}
   wa_list_conversations {token|credential, limit?, cursor?}  -> {conversations:[...], cursor}
   wa_get_conversation   {token|credential, wa_id}           -> {wa_id, turns:[...]}
+  wa_get_prompt         {token|credential}                  -> {prompts:{...}, fixed_contract, composed}
+  wa_save_prompt        {token|credential, key, text}       -> {updated_at, updated_by}
+  wa_send_message       {token|credential, wa_id, text}     -> {success}
+  wa_set_paused         {token|credential, wa_id, paused}   -> {paused}
+
+The last four are newer and differ in kind from the read-only pair above: they
+change what a public bot says to clients, and they send real WhatsApp messages.
+Neither is done in this Lambda. Both are a synchronous invoke of whatsappBot, so
+WA_ACCESS_TOKEN lives in one place and this function's role stays read-only on
+wa_conversations. This file authenticates the person; that one does the writing.
 
 Env vars:
   TABLE_NAME          DynamoDB table (PK: username)
   WA_CONVO_TABLE      WhatsApp bot conversations, read-only (default wa_conversations)
+  BOT_PROMPT_TABLE    staff-editable prompt blocks (default dm-bot-prompts)
+  WA_BOT_FUNCTION     the bot Lambda to invoke (default whatsappBot)
   ADMIN_EMAILS        comma-separated allowlist of admin emails
   GOOGLE_CLIENT_ID    OAuth client id the ID token must be issued for
   ADMIN_TOKEN_SECRET  HMAC secret for minting admin session tokens
@@ -77,8 +89,32 @@ _table = _ddb.Table(TABLE_NAME)
 
 # WhatsApp support-bot conversations. READ-ONLY from this Lambda — the exec role is
 # granted only Scan + GetItem on this one table.
+#
+# It stays read-only even now that staff can reply and pause the bot from
+# index.html: those go out as a synchronous invoke of the whatsappBot Lambda, which
+# is the only function holding WA_ACCESS_TOKEN and the only one that writes turns.
+# Keeping the send token out of this internet-facing, CORS-* API is worth the extra
+# hop. Don't "simplify" it by giving this role UpdateItem and a Graph token.
 WA_CONVO_TABLE = os.environ.get("WA_CONVO_TABLE", "wa_conversations")
 _wa_table = _ddb.Table(WA_CONVO_TABLE)
+
+# The whatsappBot Lambda. Invoked for anything that sends a message, writes a turn,
+# or needs the prompt DEFAULTS (which that file owns — see do_wa_get_prompt).
+WA_BOT_FUNCTION = os.environ.get("WA_BOT_FUNCTION", "whatsappBot")
+_lambda = boto3.client("lambda")
+
+# The staff-editable half of the WhatsApp bot's system prompt. This Lambda may
+# read and write these blocks but deliberately does NOT know their default text —
+# whatsappBot does, and hands it over via the wa_prompt_info invoke. Storing a
+# second copy here is exactly the WA_ESCALATION_REPLY drift trap, but 2KB wide.
+BOT_PROMPT_TABLE = os.environ.get("BOT_PROMPT_TABLE", "dm-bot-prompts")
+_prompt_table = _ddb.Table(BOT_PROMPT_TABLE)
+
+# An allow-list, not a free-form key space: the bot only ever reads these two, so
+# any other key would be dead weight that staff could nonetheless fill with text.
+EDITABLE_PROMPT_KEYS = ("shared_persona", "whatsapp_scope")
+MAX_PROMPT_CHARS = 8000        # mirrors whatsappBot's MAX_PROMPT_CHARS
+MAX_PROMPT_HISTORY = 10        # versions kept for one-click revert
 
 # Must stay identical to ESCALATION_REPLY in lambdas/whatsappBot/lambda_function.py.
 # It is how we detect an escalated conversation without a schema change: the bot sends
@@ -604,6 +640,9 @@ def _wa_summary(item: dict) -> dict:
             and (t.get("text") or "").strip() == WA_ESCALATION_REPLY
             for t in turns
         ),
+        # The bot has stood down and a human owns this chat. Set by whatsappBot on
+        # escalation and on any staff reply; cleared by a human from index.html.
+        "bot_paused": bool(item.get("bot_paused")),
     }
 
 
@@ -654,15 +693,202 @@ def do_wa_get_conversation(body):
         "wa_id": item.get("wa_id"),
         "last_ts": int(item.get("last_user_ts") or 0),
         "expires_at": int(item.get("ttl") or 0),   # 30-day TTL; this is not an archive
+        "bot_paused": bool(item.get("bot_paused")),
+        "paused_by": item.get("paused_by") or "",
+        "paused_at": int(item.get("paused_at") or 0),
         "turns": [
             {
-                "role": t.get("role"),
+                "role": t.get("role"),          # user | assistant (bot) | agent (human)
                 "text": t.get("text") or "",
                 "ts": int(t.get("ts") or 0),
+                "agent": t.get("agent") or "",  # who sent it, when role == 'agent'
             }
             for t in (item.get("turns") or [])
         ],
     })
+
+
+def _invoke_bot(payload: dict):
+    """Synchronously invoke whatsappBot. Returns its dict, or None if the call
+    itself failed.
+
+    Synchronous on purpose: the caller is a person watching a spinner after
+    pressing Send. An async invoke would return 202 and they'd never learn that
+    Graph rejected the message.
+    """
+    try:
+        res = _lambda.invoke(
+            FunctionName=WA_BOT_FUNCTION,
+            InvocationType="RequestResponse",
+            Payload=json.dumps(payload).encode(),
+        )
+        # A handler exception surfaces here, not as a boto error.
+        if res.get("FunctionError"):
+            print("bot invoke returned FunctionError:", res["FunctionError"])
+            return None
+        return json.loads(res["Payload"].read().decode() or "{}")
+    except Exception as e:
+        print("bot invoke failed:", repr(e))
+        return None
+
+
+def do_wa_get_prompt(body):
+    """Current prompt blocks + their defaults, history and the fixed guardrails.
+
+    The defaults and the non-editable contract come from whatsappBot itself (which
+    also seeds the table on first call), so there is exactly one copy of that text
+    in the repo. Everything else — who edited, when, and the revert history — is
+    this table's job.
+    """
+    who = _require_platform_user(body)
+    if not who:
+        return _resp(401, {"success": False, "message": "Not authorised."})
+
+    info = _invoke_bot({"action": "wa_prompt_info"}) or {}
+    if not info.get("ok"):
+        return _resp(502, {"success": False,
+                           "message": "Could not reach the WhatsApp bot to load the prompt."})
+
+    out = {}
+    for key in EDITABLE_PROMPT_KEYS:
+        try:
+            item = (_prompt_table.get_item(Key={"prompt_id": key}) or {}).get("Item") or {}
+        except ClientError as e:
+            print("prompt read failed:", repr(e))
+            return _resp(500, {"success": False, "message": "Could not read the saved prompt."})
+        default_text = (info.get("defaults") or {}).get(key, "")
+        text = (item.get("text") or "").strip() or default_text
+        out[key] = {
+            "text": text,
+            "default_text": default_text,
+            "is_default": text.strip() == default_text.strip(),
+            "updated_at": int(item.get("updated_at") or 0),
+            "updated_by": item.get("updated_by") or "",
+            "history": [
+                {
+                    "text": h.get("text") or "",
+                    "updated_at": int(h.get("updated_at") or 0),
+                    "updated_by": h.get("updated_by") or "",
+                }
+                for h in (item.get("history") or [])[:MAX_PROMPT_HISTORY]
+            ],
+        }
+
+    _wa_audit(who, "prompt_view")
+    return _resp(200, {
+        "success": True,
+        "prompts": out,
+        "fixed_contract": info.get("fixed_contract") or "",
+        "composed": info.get("composed") or "",
+        "max_chars": MAX_PROMPT_CHARS,
+    })
+
+
+def do_wa_save_prompt(body):
+    who = _require_platform_user(body)
+    if not who:
+        return _resp(401, {"success": False, "message": "Not authorised."})
+
+    key = (body.get("key") or "").strip()
+    if key not in EDITABLE_PROMPT_KEYS:
+        # Never let an arbitrary key through: the guardrail split only holds
+        # because the bot reads these two and composes the rest itself.
+        return _resp(400, {"success": False, "message": "Unknown prompt block."})
+
+    text = (body.get("text") or "").strip()
+    if not text:
+        return _resp(400, {"success": False,
+                           "message": "The prompt cannot be empty. Use Restore default instead."})
+    if len(text) > MAX_PROMPT_CHARS:
+        return _resp(400, {"success": False,
+                           "message": f"Too long — {len(text)} characters, limit {MAX_PROMPT_CHARS}."})
+
+    try:
+        item = (_prompt_table.get_item(Key={"prompt_id": key}) or {}).get("Item") or {}
+    except ClientError as e:
+        print("prompt read-before-save failed:", repr(e))
+        return _resp(500, {"success": False, "message": "Could not save the prompt."})
+
+    if not item:
+        # whatsappBot seeds on wa_prompt_info, which the editor calls on open. No
+        # item here means the bot could not write, so default_text would be lost
+        # and Restore default would have nothing to restore.
+        return _resp(409, {"success": False,
+                           "message": "The prompt has not been initialised yet. Reopen the tool and try again."})
+
+    now = int(time.time())
+    prev = (item.get("text") or "").strip()
+    history = list(item.get("history") or [])
+    if prev and prev != text:
+        history.insert(0, {"text": prev,
+                           "updated_at": int(item.get("updated_at") or 0),
+                           "updated_by": item.get("updated_by") or ""})
+    history = history[:MAX_PROMPT_HISTORY]
+
+    try:
+        # Read-modify-write on history. Two staff saving the same block within the
+        # same second can cost one history entry; the live text is still last-write-
+        # wins and correct. Not worth a version column for a handful of editors.
+        _prompt_table.put_item(Item={
+            "prompt_id": key,
+            "text": text,
+            "default_text": item.get("default_text") or "",
+            "updated_at": now,
+            "updated_by": who,
+            "history": history,
+        })
+    except ClientError as e:
+        print("prompt save failed:", repr(e))
+        return _resp(500, {"success": False, "message": "Could not save the prompt."})
+
+    # Loud on purpose: this changes what a public bot says to clients.
+    _wa_audit(who, f"prompt_save:{key}:{len(text)}chars")
+    return _resp(200, {"success": True, "updated_at": now, "updated_by": who})
+
+
+def do_wa_send_message(body):
+    """Staff reply. The actual send + turn write happen in whatsappBot."""
+    who = _require_platform_user(body)
+    if not who:
+        return _resp(401, {"success": False, "message": "Not authorised."})
+    wa_id = (body.get("wa_id") or "").strip()
+    text = (body.get("text") or "").strip()
+    if not wa_id or not text:
+        return _resp(400, {"success": False, "message": "wa_id and text are required."})
+
+    _wa_audit(who, "reply", wa_id)
+    res = _invoke_bot({"action": "wa_agent_send", "wa_id": wa_id, "text": text, "agent": who})
+    if res is None:
+        return _resp(502, {"success": False, "message": "Could not reach the WhatsApp bot."})
+    if not res.get("ok"):
+        # 409 for the 24h service window so the UI can special-case it; the client
+        # has simply gone quiet too long and no retry will fix it.
+        status = 409 if res.get("outside_window") else 400
+        return _resp(status, {"success": False,
+                              "message": res.get("error") or "The message was not sent.",
+                              "outside_window": bool(res.get("outside_window"))})
+    return _resp(200, {"success": True})
+
+
+def do_wa_set_paused(body):
+    """Hand a conversation to a human, or hand it back to the bot."""
+    who = _require_platform_user(body)
+    if not who:
+        return _resp(401, {"success": False, "message": "Not authorised."})
+    wa_id = (body.get("wa_id") or "").strip()
+    if not wa_id:
+        return _resp(400, {"success": False, "message": "wa_id is required."})
+    paused = bool(body.get("paused"))
+
+    _wa_audit(who, f"pause:{paused}", wa_id)
+    res = _invoke_bot({"action": "wa_set_paused", "wa_id": wa_id,
+                       "paused": paused, "agent": who})
+    if res is None:
+        return _resp(502, {"success": False, "message": "Could not reach the WhatsApp bot."})
+    if not res.get("ok"):
+        return _resp(400, {"success": False,
+                           "message": res.get("error") or "Could not update this conversation."})
+    return _resp(200, {"success": True, "paused": paused})
 
 
 ACTIONS = {
@@ -677,6 +903,10 @@ ACTIONS = {
     "admin_delete": do_admin_delete,
     "wa_list_conversations": do_wa_list_conversations,
     "wa_get_conversation": do_wa_get_conversation,
+    "wa_get_prompt": do_wa_get_prompt,
+    "wa_save_prompt": do_wa_save_prompt,
+    "wa_send_message": do_wa_send_message,
+    "wa_set_paused": do_wa_set_paused,
 }
 
 
