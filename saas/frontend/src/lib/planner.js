@@ -34,8 +34,19 @@ export function stepTarget({ toolId, action, to }) {
 // The id is derived from the title so re-adding the same recommendation is
 // idempotent (dedupe in addStep). `manual: true` means it's ticked by hand
 // (localStepDone can't detect it); `to` deep-links back to where it came from.
+// The id MUST survive a server round-trip unchanged: sanitizePlan clamps every
+// toolId to PLAN_TOOLID_MAX chars, so a longer id comes back truncated and stops
+// matching the one recStep regenerates — the card then reads as un-added forever
+// and each click appends another copy. Budgeting the slug against the `rec:`
+// prefix makes the id we build byte-identical to that clamp, which also means
+// plans saved before this fix keep matching (don't "tidy" a trailing dash off the
+// slug — the server's clamp keeps it, so stripping it would reintroduce a miss).
+const PLAN_TOOLID_MAX = 40; // keep in sync with backend sanitizePlan()
+const REC_SLUG_MAX = PLAN_TOOLID_MAX - 'rec:'.length;
+
 export function recStep({ title, why, to }) {
-  const slug = String(title || 'note').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48);
+  const slug = String(title || 'note').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    .slice(0, REC_SLUG_MAX);
   return {
     toolId: `rec:${slug || 'note'}`,
     label: String(title || 'Recommendation').slice(0, 80),
