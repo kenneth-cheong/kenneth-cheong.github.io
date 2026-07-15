@@ -1146,6 +1146,46 @@ export async function listNotifications(userId, limit = 50) {
   return Items || [];
 }
 
+// Remove a single notification. Scoped to the caller's own userId (the partition
+// key), so one user can never delete another's row even with a guessed notifId.
+export async function deleteNotification(userId, notifId) {
+  await ddb.send(new DeleteCommand({
+    TableName: TABLES.notifications,
+    Key: { userId, notifId },
+  }));
+}
+
+// "Clear all" — the feed is capped at 50 on read, so paging the query keeps this
+// honest for users whose history runs deeper than one page. BatchWrite caps at
+// 25 items per call, hence the chunking.
+export async function clearNotifications(userId) {
+  let started;
+  let removed = 0;
+  do {
+    const { Items, LastEvaluatedKey } = await ddb.send(new QueryCommand({
+      TableName: TABLES.notifications,
+      KeyConditionExpression: 'userId = :u',
+      ExpressionAttributeValues: { ':u': userId },
+      ProjectionExpression: 'userId, notifId',
+      ExclusiveStartKey: started,
+    }));
+    const rows = Items || [];
+    for (let i = 0; i < rows.length; i += 25) {
+      const chunk = rows.slice(i, i + 25);
+      await ddb.send(new BatchWriteCommand({
+        RequestItems: {
+          [TABLES.notifications]: chunk.map((n) => ({
+            DeleteRequest: { Key: { userId: n.userId, notifId: n.notifId } },
+          })),
+        },
+      }));
+      removed += chunk.length;
+    }
+    started = LastEvaluatedKey;
+  } while (started);
+  return removed;
+}
+
 export async function markNotificationsRead(userId) {
   // `read` is a DynamoDB reserved word — it MUST be aliased via
   // ExpressionAttributeNames in both the filter and the update, otherwise the

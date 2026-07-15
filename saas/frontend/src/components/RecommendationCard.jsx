@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ListChecks, Wand2, Target, Check } from 'lucide-react';
+import { useMemo } from 'react';
+import { ListChecks, Wand2, Target, Check, CircleCheck, Circle } from 'lucide-react';
 import { usePlan } from '../context/PlanContext.jsx';
 import { recStep } from '../lib/planner.js';
 import { toast } from '../lib/ui.js';
@@ -38,11 +38,17 @@ function ctxLine({ toolName, domain } = {}) {
 
 export default function RecommendationCard({ card, sectionTitle, context }) {
   const plan = usePlan();
-  const [added, setAdded] = useState(false);
 
   const title = card.title || 'Recommendation';
   const body = card.body || '';
   const where = ctxLine(context);
+
+  // Both "added" and "done" are derived from the plan, never local state: the
+  // plan is the cross-device source of truth, so the card reads the same after a
+  // reload, on another device, or when the user comes back to a saved result.
+  const step = useMemo(() => recStep({ title, why: body, to: context?.route }), [title, body, context?.route]);
+  const added = !!plan?.plan?.steps?.some((s) => s.toolId === step.toolId);
+  const done = !!plan?.isStepDone?.(step);
 
   const how = () => ask(
     `I got this recommendation${where}: "${title}${body ? ` — ${body}` : ''}".\n\n` +
@@ -57,19 +63,30 @@ export default function RecommendationCard({ card, sectionTitle, context }) {
     `ready to paste in. If you need one or two details from me first, ask them one at a time, then give me the final result.`,
   );
 
+  const viewPlan = { label: 'View plan', onClick: () => window.dispatchEvent(new CustomEvent('dm:open-plan')) };
+
   const addToPlan = () => {
     if (added || !plan?.addStep) return;
-    plan.addStep(recStep({ title, why: body, to: context?.route }));
-    setAdded(true);
-    toast('Added to your plan', 'success');
+    plan.addStep(step);
+    toast('Added to your plan', 'success', viewPlan);
+  };
+
+  // Ticking a recommendation off also files it in the plan, so "what have I
+  // actually done" lives in one place instead of being lost with the result page.
+  const toggleDone = () => {
+    if (!plan?.toggleDone) return;
+    if (!added) plan.addStep(step);
+    plan.toggleDone(step.toolId);
+    if (!done) toast('Nice — marked as done', 'success', viewPlan);
   };
 
   const btn = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors';
 
   return (
-    <div data-explain className="rounded-xl border border-line bg-surface p-3.5 transition-shadow hover:shadow-sm">
+    <div data-explain className={`rounded-xl border bg-surface p-3.5 transition-shadow hover:shadow-sm ${done ? 'border-emerald-200 dark:border-emerald-500/30' : 'border-line'}`}>
       <div className="flex flex-wrap items-center gap-2">
-        <strong className="text-strong">{title}</strong>
+        <strong className={done ? 'text-dim line-through decoration-1' : 'text-strong'}>{title}</strong>
+        {done && <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${BADGE.green}`}>Done</span>}
         {card.badge && <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${BADGE[card.badgeTone] || BADGE.slate}`}>{card.badge}</span>}
       </div>
       {body && <p className="mt-1 text-sm leading-relaxed text-dim">{body}</p>}
@@ -85,9 +102,20 @@ export default function RecommendationCard({ card, sectionTitle, context }) {
         <button
           onClick={addToPlan}
           disabled={added}
+          title={added ? 'This is on your plan' : 'Save it to your checklist'}
           className={`${btn} ${added ? 'cursor-default bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'text-muted hover:bg-sunken'}`}
         >
           {added ? <><Check size={14} aria-hidden /> Added to plan</> : <><Target size={14} aria-hidden /> Add to plan</>}
+        </button>
+        <button
+          onClick={toggleDone}
+          aria-pressed={done}
+          title={done ? 'Reopen this — it goes back on your plan' : 'Tick it off once you\'ve done it'}
+          className={`${btn} ${done ? 'text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10' : 'text-muted hover:bg-sunken'}`}
+        >
+          {done
+            ? <><CircleCheck size={14} aria-hidden /> Done</>
+            : <><Circle size={14} aria-hidden /> Mark as done</>}
         </button>
       </div>
     </div>

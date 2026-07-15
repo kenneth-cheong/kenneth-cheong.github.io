@@ -235,6 +235,8 @@ export const api = {
   // Notifications
   notifications: () => call('/me/notifications'),
   markNotificationsRead: () => call('/me/notifications/read', { method: 'POST' }),
+  deleteNotification: (notifId) => call('/me/notifications/delete', { method: 'POST', body: { notifId } }),
+  clearNotifications: () => call('/me/notifications/clear', { method: 'POST' }),
   // Support tickets (threaded + attachments)
   tickets: () => call('/support/tickets'),
   ticket: (ticketId) => call(`/support/tickets/${encodeURIComponent(ticketId)}`),

@@ -138,7 +138,7 @@ export default function FaultReporter() {
           onClick={openPanel}
           title="Report a problem"
           aria-label="Report a problem"
-          className="fixed right-0 top-1/2 z-20 flex -translate-y-1/2 items-center gap-1.5 rounded-l-lg bg-slate-800 px-2 py-3 text-xs font-semibold text-white shadow-lg hover:bg-slate-900"
+          className="dm-no-print fixed right-0 top-1/2 z-20 flex -translate-y-1/2 items-center gap-1.5 rounded-l-lg bg-slate-800 px-2 py-3 text-xs font-semibold text-white shadow-lg hover:bg-slate-900"
           style={{ writingMode: 'vertical-rl' }}
         >
           <Bug size={15} aria-hidden style={{ writingMode: 'horizontal-tb' }} />

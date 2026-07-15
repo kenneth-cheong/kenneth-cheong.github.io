@@ -7,7 +7,7 @@ import {
   saveConversation, listConversations, getConversation, deleteConversation,
   createTicket, getTicket, addTicketMessage, setTicketStatus, listTickets, listAllTickets,
   setIntegration, redactIntegrations,
-  addNotification, listNotifications, markNotificationsRead,
+  addNotification, listNotifications, markNotificationsRead, deleteNotification, clearNotifications,
   createProject, listProjects, deleteProject,
   addTracked, listTracked, countTracked, removeTracked, appendSnapshot, mergeSnapshots,
   listMetrics,
@@ -744,6 +744,16 @@ export const handler = async (event) => {
     // ── Notifications ─────────────────────────────────────────────────────────
     if (method === 'GET' && path.endsWith('/me/notifications')) return ok({ notifications: await listNotifications(user.userId) });
     if (method === 'POST' && path.endsWith('/me/notifications/read')) { await markNotificationsRead(user.userId); return ok({ ok: true }); }
+    // Dismiss one / clear the lot. Both are scoped to the caller's own userId,
+    // so there's nothing to authorise beyond being signed in.
+    if (method === 'POST' && path.endsWith('/me/notifications/delete')) {
+      if (!body.notifId) return badRequest('notifId is required.');
+      await deleteNotification(user.userId, String(body.notifId));
+      return ok({ ok: true });
+    }
+    if (method === 'POST' && path.endsWith('/me/notifications/clear')) {
+      return ok({ ok: true, removed: await clearNotifications(user.userId) });
+    }
 
     // ── Support tickets ───────────────────────────────────────────────────────
     if (method === 'POST' && path.endsWith('/support/attachments')) {

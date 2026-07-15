@@ -5,6 +5,7 @@ import ReportHtml from './ReportHtml.jsx';
 import { copyText, toast } from '../lib/ui.js';
 import InfoTip, { glossaryFor } from './InfoTip.jsx';
 import RecommendationCard from './RecommendationCard.jsx';
+import { CellLink } from '../lib/links.jsx';
 import { Check, X, Info, TrendingUp, TrendingDown } from 'lucide-react';
 
 // Themed renderer for the structured `sections` result format. Turns the raw
@@ -312,6 +313,10 @@ function TableSection({ s }) {
 }
 
 function Table({ columns, rows, exportName }) {
-  const cols = columns.map((c) => ({ key: c, label: c, render: (r) => String(r[c] ?? '—') }));
+  const cols = columns.map((c) => ({
+    key: c,
+    label: c,
+    render: (r) => (r[c] == null || r[c] === '' ? '—' : <CellLink value={r[c]} />),
+  }));
   return <SortableTable columns={cols} rows={rows} filterable={rows.length > 8} exportName={exportName} />;
 }

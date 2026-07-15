@@ -2,8 +2,13 @@ import { useEffect, useState } from 'react';
 import { TERMS_VERSION, NDA_VERSION } from '@shared/catalog.mjs';
 
 // ── Toasts ───────────────────────────────────────────────────────────────────
-export function toast(msg, type = 'info') {
-  window.dispatchEvent(new CustomEvent('dm:toast', { detail: { msg, type, id: Math.random().toString(36).slice(2) } }));
+// `action` is an optional { label, onClick } — a toast that tells the user where
+// something went should be able to take them there ("Added to your plan" →
+// View plan). Actioned toasts linger longer, since they're meant to be clicked.
+export function toast(msg, type = 'info', action = null) {
+  window.dispatchEvent(new CustomEvent('dm:toast', {
+    detail: { msg, type, action, id: Math.random().toString(36).slice(2) },
+  }));
 }
 
 // ── Clipboard + downloads ────────────────────────────────────────────────────

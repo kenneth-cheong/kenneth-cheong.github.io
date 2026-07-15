@@ -47,6 +47,14 @@ export default function PlanWidget() {
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
 
+  // "View plan" from elsewhere (e.g. the Added-to-plan toast) pops the checklist
+  // open — the plan is a header popover, so this is the one place it can surface.
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener('dm:open-plan', onOpen);
+    return () => window.removeEventListener('dm:open-plan', onOpen);
+  }, []);
+
   // No plan yet → a brand-tinted nudge to set one. Tinted (not grey) so it reads
   // as a call to action next to the neutral meters, keeping the north star
   // discoverable rather than hidden.

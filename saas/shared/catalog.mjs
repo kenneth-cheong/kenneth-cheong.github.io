@@ -218,7 +218,7 @@ export const TOOLS = [
     cost: 'page_analysis', upstream: 'auditLandingPageDirect', slow: true,
     desc: 'Conversion potential, clarity, speed, SEO readiness.' },
   { id: 'sem-copy', name: 'SEM Ad Copy Generator', category: 'Strategy', minTier: 'pro',
-    cost: 'ai_long', upstream: 'generateSemGoogle',
+    cost: 'ai_long', upstream: 'generateSemGoogle', slow: true,
     desc: 'USP extraction → ad copy for Google / Meta / LinkedIn.' },
   { id: 'perf-marketing', name: 'Performance Marketing Audit', category: 'Strategy', minTier: 'pro',
     cost: 'ai_long', upstream: 'performanceMarketing', slow: true,

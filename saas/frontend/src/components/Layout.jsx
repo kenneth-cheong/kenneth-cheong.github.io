@@ -389,7 +389,7 @@ export default function Layout({ children }) {
 
       {/* Friendly one-time tour invitation (replaces the old auto-fired tour). */}
       {tourOffer && (
-        <div className="fixed bottom-4 left-1/2 z-40 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl border border-line bg-surface p-4 shadow-xl">
+        <div className="dm-no-print fixed bottom-4 left-1/2 z-40 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl border border-line bg-surface p-4 shadow-xl">
           <div className="flex items-start gap-3">
             <Mascot bare size={40} className="shrink-0" />
             <div className="min-w-0">

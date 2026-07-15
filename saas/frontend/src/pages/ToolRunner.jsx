@@ -13,6 +13,7 @@ import SortableTable from '../components/SortableTable.jsx';
 import ShareResult from '../components/ShareResult.jsx';
 import InfoTip, { glossaryFor } from '../components/InfoTip.jsx';
 import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
+import { CellLink, toHref } from '../lib/links.jsx';
 import { startToolTour, sampleResultFor, hasSeen, markSeen } from '../lib/tours.js';
 import { Lock, Compass, Sparkles, AlertTriangle, Clock, ChevronRight, Check, MessageCircleQuestion, ThumbsUp, ThumbsDown } from 'lucide-react';
 
@@ -1063,7 +1064,7 @@ function cell(col, val) {
   if (c === 'intent' || c === 'status' || c === 'type') return <Badge t={s} tone="slate" />;
   if (c === 'difficulty') { const n = parseFloat(s); if (Number.isFinite(n)) return <span className={n < 30 ? 'font-medium text-green-600 dark:text-green-400' : n < 60 ? 'font-medium text-amber-600 dark:text-amber-400' : 'font-medium text-red-600 dark:text-red-400'}>{n}</span>; }
   if (['volume', 'impressions', 'clicks', 'sessions', 'users', 'backlinks', 'traffic', 'conversions'].includes(c)) return <span className="tabular-nums">{fmtNum(s)}</span>;
-  if (c === 'url' && /^https?:\/\//i.test(s)) return <a href={s} target="_blank" rel="noreferrer" className="break-all text-brand-600 dark:text-brand-400 hover:underline">{s.replace(/^https?:\/\//i, '')}</a>;
+  if (toHref(s)) return <CellLink value={s} />;
   return s;
 }
 

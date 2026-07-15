@@ -133,7 +133,7 @@ export default function ProactiveEngine({ paused = false, chatOpen = false }) {
 
   // The nudge: a compact peek anchored under the header, near the Otter button.
   return (
-    <div className="fixed right-4 top-16 z-40 w-72 motion-safe:animate-slide-in-right">
+    <div className="dm-no-print fixed right-4 top-16 z-40 w-72 motion-safe:animate-slide-in-right">
       <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-xl">
         <div className="flex items-start gap-2.5 p-3">
           <Mascot size={36} className="mt-0.5 shrink-0" />

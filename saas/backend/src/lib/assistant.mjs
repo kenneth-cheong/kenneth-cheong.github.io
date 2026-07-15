@@ -5,7 +5,7 @@
 import { listProjects, listTracked, listRuns } from './dynamo.mjs';
 import { isStaff } from './admin.mjs';
 import { retrieveKb } from './kb.mjs';
-import { CREDIT_COSTS, PLANS, TOOLS, toolById, inputsFor, tabsFor, exampleFor } from '../../../shared/catalog.mjs';
+import { CREDIT_COSTS, PLANS, TOOLS, toolById, inputsFor, tabsFor, exampleFor, PROFILE_FIELDS } from '../../../shared/catalog.mjs';
 import { integrationSummary } from '../../../shared/connectors.mjs';
 
 export const TOOL_CATALOG = TOOLS
@@ -63,6 +63,29 @@ export const CHAT_RULES =
   'help with your SEO, content, or account questions." Describe tools only by WHAT they do for the user, ' +
   'never HOW they are built or what they run on.';
 
+// The business questionnaire (/profile) in the assistant's words. We ask users
+// 13 required questions and pay a 50-credit bonus for answering, so the answers
+// have to actually reach the model — otherwise "do it for me" drafts generic
+// copy that ignores the industry, audience and budget they just told us about.
+// Contact fields (phone, preferred contact, how-they-heard) are deliberately
+// left out: they're PII/admin, not business context, and would only add noise.
+const PROFILE_CONTEXT_KEYS = [
+  'companyName', 'industry', 'companySize', 'role',
+  'primaryGoal', 'monthlyBudget', 'channels', 'seoExperience',
+  'targetMarkets', 'targetAudience', 'competitors', 'timezone',
+];
+const PROFILE_LABELS = Object.fromEntries(PROFILE_FIELDS.map((f) => [f.key, f.label]));
+
+function profileLines(profile) {
+  const out = [];
+  for (const key of PROFILE_CONTEXT_KEYS) {
+    const v = profile?.[key];
+    const val = Array.isArray(v) ? v.join(', ') : String(v ?? '').trim();
+    if (val) out.push(`- ${PROFILE_LABELS[key] || key}: ${val.replace(/\s+/g, ' ')}`);
+  }
+  return out;
+}
+
 // Assemble a compact, factual snapshot of the user's account so the assistant
 // can answer "how many credits do I have / what's my plan / how is X ranking"
 // without inventing numbers. Everything here is the user's own data.
@@ -97,6 +120,18 @@ export async function buildUserContext(user) {
   lines.push('', `INTEGRATIONS (${intg.length})`);
   if (intg.length) for (const s of intg) lines.push(`- ${s}`);
   else lines.push('- None connected. Connect Google Search Console / GA4 / Google Ads on the Integrations page.');
+
+  const biz = profileLines(user.profile);
+  if (biz.length) {
+    lines.push('', "THE USER'S BUSINESS (from their profile — use this to tailor every answer,");
+    lines.push('recommendation and draft. Never ask them for something already listed here.)');
+    lines.push(...biz);
+  } else {
+    lines.push('', "THE USER'S BUSINESS");
+    lines.push('- Not filled in yet. They can complete the short business profile on the Profile '
+      + 'page to earn a one-time 50-credit bonus and get answers tailored to their business — '
+      + 'suggest it if a vague answer is holding you back.');
+  }
 
   lines.push('', `PROJECTS / CAMPAIGNS (${projects.length} of ${plan.projects} allowed)`);
   if (projects.length) for (const p of projects.slice(0, 15)) lines.push(`- ${p.name}${p.domain ? ` — ${p.domain}` : ''}`);
