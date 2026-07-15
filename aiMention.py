@@ -10,6 +10,24 @@ OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 GOOGLE_API_KEY = os.environ.get('GOOGLE_API_KEY')
 BRIGHTDATA_TOKEN = os.environ.get('BRIGHTDATA_TOKEN')
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
+DATAFORSEO_AUTH = os.environ.get('DATAFORSEO_AUTH')
+
+# Google AI Overview is read off the live SERP, which keys on Google's own
+# location/language ids rather than the display labels the UI sends.
+DFS_LOCATION_CODES = {
+    'singapore': 2702, 'south korea': 2410, 'malaysia': 2458, 'japan': 2392,
+    'germany': 2276, 'france': 2250, 'hong kong': 2344, 'taiwan': 2158,
+    'thailand': 2764, 'vietnam': 2704, 'australia': 2036, 'canada': 2124,
+    'united kingdom': 2826, 'united states': 2840,
+}
+DFS_LANGUAGE_CODES = {
+    'english': 'en', 'korean': 'ko', 'japanese': 'ja', 'german': 'de',
+    'french': 'fr', 'thai': 'th', 'vietnamese': 'vi', 'malay': 'ms',
+    'tamil': 'ta', 'chinese (simplified)': 'zh-CN', 'chinese (traditional)': 'zh-TW',
+}
+# The UI's "Global" option has no SERP equivalent — Google always answers from
+# somewhere — so it resolves to the US result set.
+DFS_DEFAULT_LOCATION = 2840
 
 # Bright Data's sync /scrape endpoint blocks for up to 60s, then answers 202 +
 # snapshot_id. Must stay above 60s or we abort exactly as that reply lands and
@@ -67,15 +85,16 @@ def lambda_handler(event, context):
         brand = body.get('brand')
         url = body.get('url')
         location = body.get('location', 'Global')
+        language = body.get('language', 'English')
         models = body.get('models', ['gpt-4o-mini', 'gemini-3.1-flash-lite-preview', 'perplexity', 'copilot'])
-        
+
         if not prompt or not brand:
             return error_response("Missing prompt or brand")
 
         # 1. Parallel Query all requested models
         results = {}
         with ThreadPoolExecutor(max_workers=max(len(models), 1)) as executor:
-            future_to_model = {executor.submit(query_model, m, prompt, location): m for m in models}
+            future_to_model = {executor.submit(query_model, m, prompt, location, language): m for m in models}
             for future in future_to_model:
                 model_name = future_to_model[future]
                 try:
@@ -93,7 +112,24 @@ def lambda_handler(event, context):
                     "error": res["error"]
                 })
                 continue
-                
+
+            if res.get('status') == 'no_ai_overview':
+                # Google rendered no AI Overview for this query. That is a real
+                # finding about visibility, not a failure, so it grades as a
+                # clean zero instead of an error card.
+                verified_results.append({
+                    "model": model_name,
+                    "status": "no_ai_overview",
+                    "response": "",
+                    "analysis": {
+                        "is_mentioned": False, "sentiment": "neutral",
+                        "sentiment_reason": "", "sentiment_theme": "",
+                        "is_cited": False, "citation_urls": [], "rank": 0,
+                        "mention_snippet": "", "visibility_score": 0
+                    }
+                })
+                continue
+
             try:
                 raw_text = res.get('text', '')
                 if not raw_text:
@@ -104,8 +140,11 @@ def lambda_handler(event, context):
                 
                 grading = grade_response(raw_text, brand, url)
                 # Attempt to parse it locally to ensure it's valid JSON
-                grading_data = json.loads(grading) 
-                
+                grading_data = json.loads(grading)
+
+                if res.get('citations'):
+                    apply_aio_citations(grading_data, res['citations'], url)
+
                 verified_results.append({
                     "model": model_name,
                     "status": "success",
@@ -136,10 +175,11 @@ def lambda_handler(event, context):
     except Exception as e:
         return error_response(str(e))
 
-def query_model(model_name, prompt, location):
+def query_model(model_name, prompt, location, language='English'):
     """Router for different LLM providers."""
     m_lower = model_name.lower()
-    
+    is_aio = 'aio' in m_lower or 'ai-overview' in m_lower or 'ai_overview' in m_lower
+
     # Pre-flight API key check
     if m_lower.startswith('gpt') and not OPENAI_API_KEY:
         return {"error": "OpenAI API Key not configured in environment"}
@@ -149,6 +189,12 @@ def query_model(model_name, prompt, location):
         return {"error": "Search Engine API Token not configured in environment"}
     if ('claude' in m_lower or 'anthropic' in m_lower) and not ANTHROPIC_API_KEY:
         return {"error": "Anthropic API Key not configured in environment"}
+    if is_aio and not DATAFORSEO_AUTH:
+        return {"error": "DataForSEO credentials not configured in environment"}
+
+    # Checked before the provider prefixes so google-aio can't fall into Gemini.
+    if is_aio:
+        return query_google_aio(prompt, location, language)
 
     if m_lower.startswith('gpt'):
         return query_openai(model_name, prompt, location)
@@ -378,6 +424,108 @@ def query_copilot(prompt, location):
         return {"error": "Wait, the search engine responded (Copilot) but no content was extracted. Please try again."}
     except Exception as e:
         return {"error": f"Search Connection Error (Copilot): {str(e)}"}
+
+def query_google_aio(prompt, location, language):
+    """Google AI Overview, read off the live SERP via DataForSEO.
+
+    Unlike the chat engines there is nothing to ask: the AI Overview either
+    renders for a query or it doesn't, and "it didn't" is a real answer about
+    visibility rather than an error — hence the no_ai_overview status.
+    """
+    task = {
+        "keyword": prompt[:700],
+        "location_code": DFS_LOCATION_CODES.get((location or '').strip().lower(), DFS_DEFAULT_LOCATION),
+        "language_code": DFS_LANGUAGE_CODES.get((language or '').strip().lower(), 'en'),
+        "device": "desktop",
+        # AI Overviews are lazy-loaded; without this the block comes back empty.
+        "load_async_ai_overview": True,
+    }
+
+    try:
+        response = requests.post(
+            "https://api.dataforseo.com/v3/serp/google/organic/live/advanced",
+            json=[task],
+            headers={"Authorization": DATAFORSEO_AUTH, "Content-Type": "application/json"},
+            timeout=90)
+        response.raise_for_status()
+        data = response.json()
+    except Exception as e:
+        return {"error": f"Google AIO Connection Error: {str(e)}"}
+
+    tasks = data.get('tasks') or []
+    if not tasks:
+        return {"error": "Google AIO: DataForSEO returned no tasks"}
+    t0 = tasks[0]
+    if (t0.get('status_code') or 0) >= 40000:
+        return {"error": f"Google AIO: {t0.get('status_message', 'task error')}"}
+    results = t0.get('result') or []
+    if not results:
+        return {"error": "Google AIO: DataForSEO returned no result"}
+
+    items = results[0].get('items') or []
+    aio = next((i for i in items if i.get('type') == 'ai_overview'), None)
+    if not aio:
+        return {"status": "no_ai_overview"}
+
+    text, citations = extract_aio(aio)
+    if not text:
+        return {"status": "no_ai_overview"}
+    return {"text": text, "citations": citations}
+
+
+def extract_aio(aio):
+    """Answer text + reference links out of a SERP ai_overview block.
+
+    The block carries the whole answer in `markdown`; its `items` only repeat
+    that same text in fragments, so they are a fallback, not an addition.
+    References hang off both the block and each element.
+    """
+    parts = []
+    if isinstance(aio.get('markdown'), str) and aio['markdown'].strip():
+        parts.append(aio['markdown'])
+    else:
+        for sub in (aio.get('items') or []):
+            for field in ('markdown', 'text'):
+                val = sub.get(field)
+                if isinstance(val, str) and val.strip():
+                    parts.append(val)
+                    break
+
+    refs = list(aio.get('references') or [])
+    for sub in (aio.get('items') or []):
+        refs += (sub.get('references') or [])
+
+    citations, seen = [], set()
+    for r in refs:
+        u = (r or {}).get('url')
+        if isinstance(u, str) and u.strip() and u not in seen:
+            seen.add(u)
+            citations.append({"url": u, "title": r.get('title') or '', "domain": r.get('domain') or ''})
+    return "\n\n".join(parts).strip(), citations
+
+
+def domain_of(u):
+    if not u:
+        return ""
+    s = re.sub(r'^https?://', '', str(u).strip(), flags=re.I).split('/')[0].split('?')[0].lower()
+    return s[4:] if s.startswith('www.') else s
+
+
+def apply_aio_citations(analysis, citations, url):
+    """An AI Overview's sources are structured data, so they beat the grader's
+    reading of the prose — the answer text carries no inline links for it to find.
+    """
+    analysis['citation_urls'] = [c['url'] for c in citations]
+    target = domain_of(url)
+    cited = False
+    if target:
+        for c in citations:
+            d = domain_of(c['url'])
+            if d == target or d.endswith('.' + target) or target.endswith('.' + d):
+                cited = True
+                break
+    analysis['is_cited'] = cited
+
 
 def extract_answer(res):
     """Pull the assistant's answer out of a Bright Data record.
