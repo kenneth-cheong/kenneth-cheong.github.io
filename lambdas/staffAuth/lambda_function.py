@@ -10,6 +10,12 @@ Two audiences:
     accounts. Admin calls are gated by a short-lived HMAC session token that is
     only minted after a Google ID token is verified against the allowlist.
 
+A third audience was added later: any authenticated platform user (admin OR staff
+account OR a verified @mediaone.co Google identity) can read the WhatsApp support
+bot's conversation logs. Those live in a different table and are READ-ONLY here.
+They are gated because they are client PII — phone numbers and message
+transcripts. See _require_platform_user().
+
 Actions (POST JSON, field "action"):
   login          {username, password}                       -> {success, user}
   admin_session  {credential}                               -> {token, exp, email, name}
@@ -18,9 +24,12 @@ Actions (POST JSON, field "action"):
   admin_update   {token, username, name?, sections?, active?}
   admin_reset    {token, username, password}
   admin_delete   {token, username}
+  wa_list_conversations {token|credential, limit?, cursor?}  -> {conversations:[...], cursor}
+  wa_get_conversation   {token|credential, wa_id}           -> {wa_id, turns:[...]}
 
 Env vars:
   TABLE_NAME          DynamoDB table (PK: username)
+  WA_CONVO_TABLE      WhatsApp bot conversations, read-only (default wa_conversations)
   ADMIN_EMAILS        comma-separated allowlist of admin emails
   GOOGLE_CLIENT_ID    OAuth client id the ID token must be issued for
   ADMIN_TOKEN_SECRET  HMAC secret for minting admin session tokens
@@ -65,6 +74,21 @@ MAX_TOOLS = 200
 
 _ddb = boto3.resource("dynamodb")
 _table = _ddb.Table(TABLE_NAME)
+
+# WhatsApp support-bot conversations. READ-ONLY from this Lambda — the exec role is
+# granted only Scan + GetItem on this one table.
+WA_CONVO_TABLE = os.environ.get("WA_CONVO_TABLE", "wa_conversations")
+_wa_table = _ddb.Table(WA_CONVO_TABLE)
+
+# Must stay identical to ESCALATION_REPLY in lambdas/whatsappBot/lambda_function.py.
+# It is how we detect an escalated conversation without a schema change: the bot sends
+# this exact constant (never model-generated text) when it hands off to a human. Change
+# the bot's wording without changing this and the "escalated" flag silently goes false
+# for every conversation.
+WA_ESCALATION_REPLY = (
+    "That's one for a human colleague — I've passed this to the MediaOne team "
+    "and someone will follow up with you here."
+)
 
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9._@-]{3,64}$")
 
@@ -518,6 +542,129 @@ def do_admin_delete(body: dict) -> dict:
     return _resp(200, {"success": True})
 
 
+# --------------------------------------------------------------------------- #
+# WhatsApp support-log viewer (read-only)
+#
+# These serve client PII, so they are gated. The `monday` Lambda that backs every
+# other tool in index.html has NO authentication at all — routing this data through
+# it would publish phone numbers and transcripts to anyone who reads the JS bundle.
+# That is why these live here instead: this file already has the only real identity
+# verification in the repo, and we reuse it rather than inventing a second one.
+# --------------------------------------------------------------------------- #
+def _require_platform_user(body):
+    """Any authenticated platform user. Returns an identity string, else None.
+
+    Three ways in, because the app has three kinds of session:
+      * admin token   — verify_admin_token re-checks ADMIN_EMAILS on every call
+      * staff token   — issued by do_login to a username/password account
+      * Google id_token — for @mediaone.co people who sign in with Google but are
+        not admins, and so have no minted token of their own. The email comes from
+        Google's tokeninfo, never from the request body.
+    """
+    tok = (body.get("token") or "").strip()
+    if tok:
+        email = verify_admin_token(tok)
+        if email:
+            return email
+        user = verify_staff_token(tok)
+        if user:
+            return f"staff:{user}"
+    cred = (body.get("credential") or "").strip()
+    if cred:
+        got = verify_google_credential(cred)
+        if got and got[0].endswith("@mediaone.co"):
+            return got[0]
+    return None
+
+
+def _wa_mask(wa_id) -> str:
+    """Last 4 digits only. Audit lines go to CloudWatch, whose retention on this
+    account is indefinite — an audit trail doesn't need the whole phone number."""
+    s = str(wa_id or "")
+    return "***" + s[-4:] if len(s) >= 4 else "***"
+
+
+def _wa_audit(identity, action, wa_id=None):
+    print(f"[WA_ADMIN] {identity} {action} {_wa_mask(wa_id) if wa_id else '-'}")
+
+
+def _wa_summary(item: dict) -> dict:
+    """List-view row. Deliberately does NOT include the transcript — the list is a
+    directory, and full message bodies only leave the table via wa_get_conversation
+    (which is audited per conversation)."""
+    turns = item.get("turns") or []
+    last = turns[-1] if turns else {}
+    return {
+        "wa_id": item.get("wa_id"),
+        "turns": len(turns),
+        "last_ts": int(item.get("last_user_ts") or last.get("ts") or 0),
+        "preview": (last.get("text") or "")[:120],
+        "escalated": any(
+            t.get("role") == "assistant"
+            and (t.get("text") or "").strip() == WA_ESCALATION_REPLY
+            for t in turns
+        ),
+    }
+
+
+def do_wa_list_conversations(body):
+    who = _require_platform_user(body)
+    if not who:
+        return _resp(401, {"success": False, "message": "Not authorised."})
+    _wa_audit(who, "list")
+    try:
+        limit = max(1, min(int(body.get("limit") or 100), 500))
+    except (TypeError, ValueError):
+        limit = 100
+    kwargs = {"Limit": limit}
+    cursor = (body.get("cursor") or "").strip()
+    if cursor:
+        kwargs["ExclusiveStartKey"] = {"wa_id": cursor}
+    try:
+        res = _wa_table.scan(**kwargs)
+    except ClientError as e:
+        print("wa scan failed:", repr(e))
+        return _resp(500, {"success": False, "message": "Could not read conversations."})
+    rows = [_wa_summary(i) for i in res.get("Items", [])]
+    rows.sort(key=lambda r: r["last_ts"], reverse=True)
+    return _resp(200, {
+        "success": True,
+        "conversations": rows,
+        "cursor": (res.get("LastEvaluatedKey") or {}).get("wa_id"),
+    })
+
+
+def do_wa_get_conversation(body):
+    who = _require_platform_user(body)
+    if not who:
+        return _resp(401, {"success": False, "message": "Not authorised."})
+    wa_id = (body.get("wa_id") or "").strip()
+    if not wa_id:
+        return _resp(400, {"success": False, "message": "wa_id required."})
+    _wa_audit(who, "view", wa_id)
+    try:
+        item = (_wa_table.get_item(Key={"wa_id": wa_id}) or {}).get("Item")
+    except ClientError as e:
+        print("wa get failed:", repr(e))
+        return _resp(500, {"success": False, "message": "Could not read conversation."})
+    if not item:
+        return _resp(404, {"success": False, "message": "Not found."})
+    return _resp(200, {
+        "success": True,
+        "wa_id": item.get("wa_id"),
+        "last_ts": int(item.get("last_user_ts") or 0),
+        "expires_at": int(item.get("ttl") or 0),   # 30-day TTL; this is not an archive
+        "turns": [
+            {
+                "role": t.get("role"),
+                "text": t.get("text") or "",
+                "ts": int(t.get("ts") or 0),
+            }
+            for t in (item.get("turns") or [])
+        ],
+    })
+
+
 ACTIONS = {
     "login": do_login,
     "usage_status": do_usage_status,
@@ -528,6 +675,8 @@ ACTIONS = {
     "admin_update": do_admin_update,
     "admin_reset": do_admin_reset,
     "admin_delete": do_admin_delete,
+    "wa_list_conversations": do_wa_list_conversations,
+    "wa_get_conversation": do_wa_get_conversation,
 }
 
 
