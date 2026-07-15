@@ -494,7 +494,11 @@ def h_get_answers(req):
     try:
         blob = _read_answers(key)
     except Exception as e:
-        return _resp(404, {"error": f"answers unavailable: {str(e)[:200]}"})
+        # Never surface the raw boto error: S3 answers a missing key with AccessDenied (not
+        # NoSuchKey) unless the role also holds s3:ListBucket, and that message embeds the account
+        # id and role ARN. Log the detail, hand the browser a plain sentence.
+        print(f"[GEO] answer read failed for {key}: {e}")
+        return _resp(404, {"error": "no stored answers for that month — re-run the campaign"})
 
     cells = blob.get("cells") or []
     pi, ei = req.get("pi"), req.get("ei")
