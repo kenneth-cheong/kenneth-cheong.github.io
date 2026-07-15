@@ -632,6 +632,116 @@
             line-height: 1.7;
         }
 
+        /* ── Campaign Summary: structured rendering ── */
+        .cb-sum-header { flex-direction: column; align-items: stretch; }
+
+        .cb-sum-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .cb-sum-chip {
+            font-size: 11px;
+            padding: 3px 9px;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.06);
+            color: var(--muted);
+            white-space: nowrap;
+        }
+        .cb-sum-chip i { margin-right: 4px; font-size: 10px; }
+        .cb-sum-chip.success { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+        .cb-sum-chip.warning { background: rgba(245,158,11,0.15); color: #fcd34d; }
+        .cb-sum-chip.danger  { background: rgba(239,68,68,0.15); color: #fca5a5; }
+        .cb-sum-chip.code    { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); }
+        .cb-sum-chip.svc     { background: rgba(56,189,248,0.12); color: #7dd3fc; }
+
+        .cb-sum-link {
+            font-size: 11px;
+            color: var(--primary);
+            text-decoration: none;
+            margin-left: auto;
+            white-space: nowrap;
+        }
+        .cb-sum-link:hover { text-decoration: underline; }
+
+        .cb-sum-sec { margin-bottom: 16px; }
+        .cb-sum-sec:last-child { margin-bottom: 0; }
+        .cb-sum-sec.danger {
+            border-left: 2px solid var(--danger);
+            border-radius: 0;
+            padding-left: 11px;
+        }
+        .cb-sum-sec.accent {
+            border-left: 2px solid var(--primary);
+            border-radius: 0;
+            padding-left: 11px;
+        }
+
+        .cb-sum-label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #64748b;
+            margin-bottom: 5px;
+        }
+        .cb-sum-label i { margin-right: 5px; font-size: 11px; }
+        .cb-sum-sec.danger .cb-sum-label { color: #f87171; }
+        .cb-sum-sec.accent .cb-sum-label { color: var(--primary); }
+
+        .cb-sum-prose { white-space: pre-wrap; }
+        .cb-sum-prose a, .cb-sum-row a, .cb-sum-note a { color: var(--primary); text-decoration: none; }
+        .cb-sum-prose a:hover, .cb-sum-row a:hover, .cb-sum-note a:hover { text-decoration: underline; }
+
+        .cb-sum-tally { font-size: 11px; color: #475569; margin-bottom: 6px; }
+
+        .cb-sum-bar {
+            display: flex;
+            height: 5px;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 9px;
+            background: rgba(255,255,255,0.05);
+        }
+        .cb-sum-bar .done { background: var(--success); }
+        .cb-sum-bar .wip  { background: var(--warning); }
+        .cb-sum-bar .idle { background: #475569; }
+
+        .cb-sum-row { display: flex; gap: 8px; padding: 3px 0; }
+        .cb-sum-note { padding: 2px 0; }
+
+        .cb-sum-dot {
+            flex-shrink: 0;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-top: 8px;
+            background: #475569;
+        }
+        .cb-sum-dot.done  { background: var(--success); }
+        .cb-sum-dot.wip   { background: var(--warning); }
+        .cb-sum-dot.idle  { background: #475569; }
+        .cb-sum-dot.plain { background: rgba(255,255,255,0.15); }
+
+        .cb-sum-trunc {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 11px;
+            color: #64748b;
+            padding: 8px 10px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 8px;
+            margin-top: 14px;
+            line-height: 1.5;
+        }
+        .cb-sum-trunc span { flex: 1; }
+        .cb-sum-trunc a { color: var(--primary); text-decoration: none; white-space: nowrap; }
+        .cb-sum-trunc a:hover { text-decoration: underline; }
+
         .folder-sub {
             font-size: 10px;
             color: var(--muted);
@@ -2815,6 +2925,7 @@
                 masterTimeline: masterData.timeline,
                 masterName: masterData.masterName,
                 masterTechSummary: masterData.techSummary || '',
+                masterItemId: masterData.masterItemId || '',
                 csmCampaignStatus: csmStatusCol?.label || '',
                 status,
                 statusColumnId: st?.id || '',
@@ -5658,6 +5769,7 @@
                             items_page(limit:100, cursor:$c){
                                 cursor
                                 items {
+                                    id
                                     name
                                     column_values {
                                         id
@@ -5723,6 +5835,7 @@
 
                         if (csmList.length > 0 || timelineParts.length > 0 || statusParts.length > 0 || boardIds.length > 0) {
                             state.masterCampaignMap[item.name.trim()] = {
+                                itemId: item.id,
                                 name: item.name.trim(),
                                 normalized: normalizeString(item.name),
                                 code: code,
@@ -5794,7 +5907,7 @@
 
             if (!bestMatch || maxSpecificity <= 3) {
                 const placeholder = state.masterDataLoaded ? '-' : '...';
-                return { csm: [placeholder], timeline: placeholder, status: placeholder, csmStatus: placeholder, masterName: placeholder, techSummary: '' };
+                return { csm: [placeholder], timeline: placeholder, status: placeholder, csmStatus: placeholder, masterName: placeholder, techSummary: '', masterItemId: '' };
             }
 
             return {
@@ -5803,7 +5916,8 @@
                 status: bestMatch.status,
                 csmStatus: bestMatch.csmStatus || '',
                 masterName: bestMatch.name,
-                techSummary: bestMatch.techSummary || ''
+                techSummary: bestMatch.techSummary || '',
+                masterItemId: bestMatch.itemId || ''
             };
         }
 
@@ -5819,6 +5933,7 @@
                         i.masterTimeline = mapped.timeline;
                         i.masterName = mapped.masterName;
                         i.masterTechSummary = mapped.techSummary;
+                        i.masterItemId = mapped.masterItemId || '';
                         changed = true;
                     }
                 }
@@ -6274,11 +6389,196 @@
             if (dS && dS.classList.contains('show') && wS && !wS.contains(e.target)) toggleCsmStatusDropdown(false);
         });
 
+        // ── Campaign Summary rendering ──────────────────────────────
+        // The [Tech] Campaign Summary column is written by the Campaign Summary
+        // Lambda as newline-separated "**Section:** body" blocks. monday's
+        // long_text columns hard-cap at 2000 chars, so the tail is often cut mid-word.
+        const CB_SUMMARY_CAP = 2000;
+
+        const CB_SUMMARY_SECTIONS = {
+            'strategy': { icon: 'fa-chess-knight', label: 'Strategy' },
+            'progress': { icon: 'fa-list-check', label: 'Progress' },
+            'challenges & notes': { icon: 'fa-triangle-exclamation', label: 'Challenges & notes', tone: 'danger' },
+            'trajectory': { icon: 'fa-route', label: 'Trajectory', tone: 'accent' },
+            'peculiarities & notable updates': { icon: 'fa-lightbulb', label: 'Peculiarities & notable updates' }
+        };
+
+        const CB_SUMMARY_SERVICES = ['PSG', 'SEO', 'SEM', 'SMM', 'SMA', 'GEO', 'Content', 'Branding', 'EDM', 'Website', 'Web Design'];
+
+        // Ordered: first match wins, so the blocking states outrank "done" —
+        // "topics done ... blog final Not Started" should read as not started.
+        const CB_PROGRESS_TONES = [
+            { re: /\bnot\s+(yet\s+)?started\b/i, tone: 'idle' },
+            { re: /\bnot\s+needed\b/i, tone: 'idle' },
+            { re: /\bto\s+fill(\s+up)?\b/i, tone: 'idle' },
+            { re: /\b(working\s+on\s+it|in\s+progress)\b/i, tone: 'wip' },
+            { re: /\b(pending|awaiting|stuck|on\s+hold|paused|blocked)\b/i, tone: 'wip' },
+            { re: /\b(done|completed|delivered|confirmed|collected|received)\b/i, tone: 'done' }
+        ];
+
+        function cbSummaryEsc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        // Escape, then re-apply the two bits of markdown the Lambda actually emits.
+        function cbSummaryInline(s) {
+            return cbSummaryEsc(s)
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/(https?:\/\/[^\s<)|]+)/g, u => `<a href="${u}" target="_blank" rel="noopener">${u.replace(/^https?:\/\//, '').replace(/\/$/, '')}</a>`);
+        }
+
+        function cbScanSections(text, re) {
+            const out = [];
+            let m, prev = null;
+            while ((m = re.exec(text)) !== null) {
+                if (prev) prev.body = text.slice(prev.at, m.index).trim();
+                prev = { title: m[1].trim(), at: re.lastIndex };
+                out.push(prev);
+            }
+            if (prev) prev.body = text.slice(prev.at).trim();
+            return out;
+        }
+
+        function cbSplitSummary(raw) {
+            const text = String(raw || '').trim();
+            if (!text) return [];
+            let out = cbScanSections(text, /^\*\*\s*([^*:\n]+?)\s*:\*\*[ \t]*/gm);
+            // A few summaries carry the same sections without the ** markers. The
+            // heading vocabulary is fixed, so match it literally rather than guess.
+            if (!out.length) {
+                const titles = ['Campaign', 'Status', 'Strategy', 'Progress'].concat(Object.values(CB_SUMMARY_SECTIONS).map(s => s.label));
+                const alt = titles.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+                out = cbScanSections(text, new RegExp(`^(${alt})[ \\t]*:[ \\t]*`, 'gim'));
+            }
+            // A summary cut off at the cap can end mid-header ("...Not Started.\n\n**Chall").
+            // That opener never closes, so drop it rather than print bare asterisks.
+            const last = out[out.length - 1];
+            if (last && text.length >= CB_SUMMARY_CAP) last.body = last.body.replace(/\s*\*\*[^*\n]*$/, '').trim();
+            return out;
+        }
+
+        // "Oxley Dental Pte Ltd | https://oxleydental.sg/ | [25-06/OXD-01] (PSG, SEO, SEM)"
+        function cbParseCampaignLine(line) {
+            const meta = { name: '', url: '', code: '', services: [] };
+            if (!line) return meta;
+            const code = line.match(/\b(\d{2}-\d{2}\/[A-Z]{2,4}-\d{1,2})\b/i);
+            if (code) meta.code = code[1].toUpperCase();
+            const url = line.match(/https?:\/\/[^\s|)\]]+/i);
+            if (url) meta.url = url[0];
+            else {
+                const bare = line.match(/\b((?:[a-z0-9-]+\.)+(?:com|sg|net|org|io|co)(?:\.[a-z]{2})?)\b/i);
+                if (bare) meta.url = 'https://' + bare[1];
+            }
+            CB_SUMMARY_SERVICES.forEach(s => {
+                if (new RegExp(`(^|[^a-z])${s.replace(/ /g, '\\s')}([^a-z]|$)`, 'i').test(line)) meta.services.push(s);
+            });
+            meta.name = line.split(/\s*[|—–]\s*|\s*\(|\s*\[|https?:\/\//)[0].trim().replace(/[,;:–—-]$/, '').trim();
+            return meta;
+        }
+
+        function cbStatusTone(status) {
+            const s = String(status || '').toLowerCase();
+            if (/stuck|at risk|stalled|blocked|cancel|terminat|overdue/.test(s)) return 'danger';
+            if (/partially|mixed|concluding|final report|pending|on hold|paused|incoming/.test(s)) return 'warning';
+            if (/live|active|on track|delivering|ongoing/.test(s)) return 'success';
+            return 'muted';
+        }
+
+        function cbProgressTone(line) {
+            for (const t of CB_PROGRESS_TONES) if (t.re.test(line)) return t.tone;
+            return 'plain';
+        }
+
+        // Progress is written either as "- " bullets or as dense prose. Bulletise
+        // prose only when it splits into enough sentences to be worth it.
+        function cbProgressRows(body) {
+            const bullets = body.split('\n').map(l => l.trim()).filter(l => /^[-•*]\s+/.test(l));
+            if (bullets.length >= 2) return bullets.map(l => l.replace(/^[-•*]\s+/, ''));
+            const sentences = body.split(/(?<=[.;])\s+(?=[A-Z0-9])/).map(s => s.trim()).filter(Boolean);
+            return sentences.length >= 3 ? sentences : [];
+        }
+
+        function cbRenderProgress(body) {
+            const rows = cbProgressRows(body).map(text => ({ text, tone: cbProgressTone(text) }));
+
+            // Tally the rows we actually drew, so the bar can never disagree with the dots.
+            const tally = { done: 0, wip: 0, idle: 0 };
+            rows.forEach(r => { if (tally[r.tone] !== undefined) tally[r.tone]++; });
+            const total = tally.done + tally.wip + tally.idle;
+
+            let html = '';
+            if (total >= 3) {
+                const parts = [];
+                if (tally.done) parts.push(`${tally.done} done`);
+                if (tally.wip) parts.push(`${tally.wip} in progress`);
+                if (tally.idle) parts.push(`${tally.idle} not started`);
+                html += `<div class="cb-sum-tally">${parts.join(' · ')}</div>
+                    <div class="cb-sum-bar">
+                        <span style="flex:${tally.done}" class="done"></span>
+                        <span style="flex:${tally.wip}" class="wip"></span>
+                        <span style="flex:${tally.idle}" class="idle"></span>
+                    </div>`;
+            }
+            if (!rows.length) return `<div class="cb-sum-prose">${cbSummaryInline(body)}</div>`;
+            return html + rows.map(r => `<div class="cb-sum-row"><span class="cb-sum-dot ${r.tone}"></span><span>${cbSummaryInline(r.text)}</span></div>`).join('');
+        }
+
+        function cbRenderNoteRows(body) {
+            const rows = cbProgressRows(body);
+            if (!rows.length) return `<div class="cb-sum-prose">${cbSummaryInline(body)}</div>`;
+            return rows.map(r => `<div class="cb-sum-note">${cbSummaryInline(r)}</div>`).join('');
+        }
+
+        function cbBuildSummaryHtml(raw, itemId) {
+            const sections = cbSplitSummary(raw);
+            if (!sections.length) {
+                // No recognised headers — fall back to the plain text, newlines intact.
+                return { head: '', body: `<div class="cb-sum-prose">${cbSummaryInline(String(raw || '').trim()) || '<em>No summary recorded.</em>'}</div>` };
+            }
+
+            const find = name => sections.find(s => s.title.toLowerCase() === name);
+            const campaign = find('campaign');
+            const status = find('status');
+            const meta = cbParseCampaignLine(campaign ? campaign.body : '');
+
+            const chips = [];
+            if (status && status.body) chips.push(`<span class="cb-sum-chip ${cbStatusTone(status.body)}"><i class="fas fa-flag"></i>${cbSummaryEsc(status.body.split(/[—\n]|\s+--\s+/)[0].trim())}</span>`);
+            if (meta.code) chips.push(`<span class="cb-sum-chip code">${cbSummaryEsc(meta.code)}</span>`);
+            meta.services.forEach(s => chips.push(`<span class="cb-sum-chip svc">${cbSummaryEsc(s)}</span>`));
+            const link = meta.url ? `<a class="cb-sum-link" href="${cbSummaryEsc(meta.url)}" target="_blank" rel="noopener">${cbSummaryEsc(meta.url.replace(/^https?:\/\//, '').replace(/\/$/, ''))} <i class="fas fa-arrow-up-right-from-square"></i></a>` : '';
+            const head = chips.length || link ? `<div class="cb-sum-chips">${chips.join('')}${link}</div>` : '';
+
+            let body = sections.filter(s => !['campaign', 'status'].includes(s.title.toLowerCase()) && s.body).map(s => {
+                const key = s.title.toLowerCase();
+                const cfg = CB_SUMMARY_SECTIONS[key] || { icon: 'fa-circle-info', label: s.title };
+                let inner;
+                if (key === 'progress') inner = cbRenderProgress(s.body);
+                else if (key === 'challenges & notes' || key === 'peculiarities & notable updates') inner = cbRenderNoteRows(s.body);
+                else inner = `<div class="cb-sum-prose">${cbSummaryInline(s.body)}</div>`;
+                return `<div class="cb-sum-sec ${cfg.tone || ''}">
+                        <div class="cb-sum-label"><i class="fas ${cfg.icon}"></i>${cbSummaryEsc(cfg.label)}</div>
+                        ${inner}
+                    </div>`;
+            }).join('');
+
+            if (String(raw || '').length >= CB_SUMMARY_CAP) {
+                const href = itemId ? `https://mediaone-business-group-pte-ltd.monday.com/boards/2845615047/pulses/${encodeURIComponent(itemId)}` : '';
+                body += `<div class="cb-sum-trunc">
+                        <i class="fas fa-scissors"></i>
+                        <span>Summary hit monday's ${CB_SUMMARY_CAP.toLocaleString()}-character cap and was cut off here.</span>
+                        ${href ? `<a href="${href}" target="_blank" rel="noopener">Open item <i class="fas fa-arrow-up-right-from-square"></i></a>` : ''}
+                    </div>`;
+            }
+            return { head, body };
+        }
+
         function showSummaryModal(boardId) {
             const item = state.auditedItems.find(i => i.bId === boardId);
             if (!item) return;
-            document.getElementById('summary-modal-title').textContent = item.bName;
-            document.getElementById('summary-modal-body').textContent = item.masterTechSummary || '';
+            const rendered = cbBuildSummaryHtml(item.masterTechSummary || '', item.masterItemId);
+            document.getElementById('summary-modal-title').textContent = item.masterName && item.masterName !== '-' ? item.masterName : item.bName;
+            document.getElementById('summary-modal-head').innerHTML = rendered.head;
+            document.getElementById('summary-modal-body').innerHTML = rendered.body;
             document.getElementById('summary-modal').classList.add('show');
             document.getElementById('summary-modal-backdrop').classList.add('show');
         }
@@ -6827,12 +7127,15 @@ ${JSON.stringify(contextData)}${focusNote}`;
     <!-- Campaign Summary Modal -->
     <div id="summary-modal-backdrop" class="summary-modal-backdrop" onclick="closeSummaryModal()"></div>
     <div id="summary-modal" class="summary-modal">
-        <div class="summary-modal-header">
-            <div>
-                <div class="summary-modal-subtitle"><i class="fas fa-file-alt" style="margin-right:4px;"></i>Campaign Summary</div>
-                <div class="summary-modal-title" id="summary-modal-title"></div>
+        <div class="summary-modal-header cb-sum-header">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+                <div style="min-width:0;">
+                    <div class="summary-modal-subtitle"><i class="fas fa-file-alt" style="margin-right:4px;"></i>Campaign Summary</div>
+                    <div class="summary-modal-title" id="summary-modal-title"></div>
+                </div>
+                <button onclick="closeSummaryModal()" style="background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; flex-shrink:0; padding:0;"><i class="fas fa-times"></i></button>
             </div>
-            <button onclick="closeSummaryModal()" style="background:none; border:none; color:var(--muted); cursor:pointer; font-size:16px; flex-shrink:0; padding:0;"><i class="fas fa-times"></i></button>
+            <div id="summary-modal-head"></div>
         </div>
         <div class="summary-modal-body" id="summary-modal-body"></div>
     </div>
