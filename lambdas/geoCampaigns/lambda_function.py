@@ -404,10 +404,23 @@ def _point_metrics(model):
             "ownedShare": _n(model.get("ownedShare") if isinstance(model, dict) else 0)}
 
 
+def _model_source(model):
+    """Which engine produced this model. Workduo-derived months (backfilled from the daily store)
+    and DataForSEO runs measure very differently — the same brand/month can read 2.6% vs 68% — so
+    every trend point carries its source and the UI never joins the two into one line."""
+    if isinstance(model, dict) and model.get("metricsSource"):
+        return str(model["metricsSource"])
+    return "dataforseo"
+
+
 def _history_point(month, model):
     """A tiny per-month summary for the month-over-month trend (kept on the campaign record)."""
     p = _point_metrics(model)
     p["month"] = month
+    p["source"] = _model_source(model)
+    # Workduo never exposed sentiment; plotting its 0/0 as real would draw a flat "no sentiment"
+    # line that looks measured. Flag it so the UI can leave those months out instead.
+    p["sentiment"] = bool(model.get("sentimentAvailable", True)) if isinstance(model, dict) else True
     return p
 
 
@@ -619,10 +632,18 @@ def _archive_model(cid, month, model, answers_key=None, run_date=None):
         hist = []
     hist = [h for h in hist if h.get("month") != month] + [_history_point(month, model)]
     hist = sorted(hist, key=lambda h: h.get("month") or "")
-    upd = ("SET #m = :m, hasMetrics = :h, metricsUpdatedAt = :t, updatedAt = :t, "
-           "monthsAvailable = :ma, history = :hi, latestMonth = :lm")
-    vals = {":m": model_json, ":h": True, ":t": now, ":ma": months,
-            ":hi": json.dumps(hist), ":lm": month}
+    # `metrics` is the campaign's CURRENT snapshot, so only the newest month may set it. Archiving
+    # an older month (a Workduo backfill) must add to the history index without rewriting the
+    # dashboard's live numbers or pulling latestMonth backwards.
+    prev_latest = str(it.get("latestMonth") or "")
+    is_latest = (not prev_latest) or month >= prev_latest
+    sets = ["updatedAt = :t", "monthsAvailable = :ma", "history = :hi"]
+    vals = {":t": now, ":ma": months, ":hi": json.dumps(hist)}
+    names = {}
+    if is_latest:
+        sets += ["#m = :m", "hasMetrics = :h", "metricsUpdatedAt = :t", "latestMonth = :lm"]
+        vals.update({":m": model_json, ":h": True, ":lm": month})
+        names["#m"] = "metrics"
     if run_date:
         try:
             snaps = json.loads(it["snapshots"]) if isinstance(it.get("snapshots"), str) else (it.get("snapshots") or [])
@@ -631,14 +652,13 @@ def _archive_model(cid, month, model, answers_key=None, run_date=None):
         snaps = [s for s in snaps if s.get("date") != run_date] + [_snapshot_point(run_date, model)]
         snaps = sorted(snaps, key=lambda s: s.get("date") or "")[-MAX_SNAPSHOTS:]
         dates = sorted(set([str(x) for x in (it.get("snapshotsAvailable") or [])] + [run_date]))[-MAX_SNAPSHOTS:]
-        upd += ", snapshots = :sn, snapshotsAvailable = :sa, latestSnapshot = :ls"
+        sets += ["snapshots = :sn", "snapshotsAvailable = :sa", "latestSnapshot = :ls"]
         vals.update({":sn": json.dumps(snaps), ":sa": dates, ":ls": run_date})
-    _table.update_item(
-        Key={"id": cid},
-        UpdateExpression=upd,
-        ExpressionAttributeNames={"#m": "metrics"},
-        ExpressionAttributeValues=vals,
-    )
+    kwargs = {"Key": {"id": cid}, "UpdateExpression": "SET " + ", ".join(sets),
+              "ExpressionAttributeValues": vals}
+    if names:  # DynamoDB rejects an empty ExpressionAttributeNames
+        kwargs["ExpressionAttributeNames"] = names
+    _table.update_item(**kwargs)
     return months
 
 
@@ -2269,6 +2289,100 @@ def h_monthly_run_all(req):
                        "runs": started, "skipped": skipped})
 
 
+def h_backfill_months(req):
+    """Fill MISSING month archives from our own Workduo daily store (geoCampaignDaily) — zero
+    Workduo API calls, so it keeps working after Workduo access ends.
+
+    Why this exists: the DataForSEO monthly run only started in 2026-07, but the daily store holds
+    real Workduo history going back months. Those months are genuinely measured data; leaving them
+    out means the month-over-month view starts from nothing.
+
+    What it will NOT do:
+      - overwrite a month that's already archived (that's where the DataForSEO runs live) unless
+        `force`; the two engines disagree by up to ~65 points on the same brand/month, so a
+        backfill must never silently replace a live run's numbers.
+      - invent sentiment. Workduo never exposed sentiment or per-URL citations, so those months
+        archive with sentimentAvailable=false and the UI leaves them out of the sentiment trend
+        rather than drawing 0/0 as if it were measured.
+
+    filter — campaign-name substring (default '(live)'; '' for every campaign)
+    id     — restrict to one campaign
+    months — explicit ['YYYY-MM', …]; default = every month the daily store covers
+    dryRun — report what would be written, write nothing
+    force  — re-archive months that already exist
+    """
+    flt = (req.get("filter") if req.get("filter") is not None else "(live)").lower()
+    only_id = str(req.get("id") or "").strip()
+    want = [str(m).strip() for m in (req.get("months") or []) if str(m).strip()]
+    dry = bool(req.get("dryRun"))
+    force = bool(req.get("force"))
+    limit = int(req.get("limit") or 500)
+
+    items, kwargs = [], {}
+    while True:
+        page = _table.scan(**kwargs)
+        items.extend(page.get("Items", []))
+        if "LastEvaluatedKey" not in page:
+            break
+        kwargs["ExclusiveStartKey"] = page["LastEvaluatedKey"]
+
+    done, skipped, errors = [], [], []
+    for it in items:
+        iid = str(it.get("id") or "")
+        if not _is_campaign_id(iid) or it.get("type") == "metrics_month":
+            continue
+        name = (it.get("name") or "").strip()
+        if only_id and iid != only_id:
+            continue
+        if not only_id and flt and flt not in name.lower():
+            continue
+        have = set(str(x) for x in (it.get("monthsAvailable") or []))
+        # Which months does the daily store actually cover for this campaign?
+        try:
+            span = build_model_from_db(iid, "2000-01-01", _today().isoformat(), "all")
+        except Exception as e:
+            errors.append({"id": iid, "name": name, "error": "span: " + str(e)[:160]})
+            continue
+        covered = sorted({str(p.get("date"))[:7] for p in (span.get("visibilitySeries") or [])
+                          if p.get("date")})
+        if not covered:
+            skipped.append({"id": iid, "name": name, "why": "no Workduo daily data"})
+            continue
+        todo = [m for m in (want or covered) if m in covered]
+        # Never touch the current month: the live DataForSEO run owns it.
+        todo = [m for m in todo if m != _cur_month()]
+        if not force:
+            todo = [m for m in todo if m not in have]
+        if not todo:
+            skipped.append({"id": iid, "name": name, "why": "nothing missing"})
+            continue
+        wrote = []
+        for mo in todo:
+            if len(done) + len(wrote) >= limit:
+                break
+            first = mo + "-01"
+            last = "%s-%02d" % (mo, calendar.monthrange(int(mo[:4]), int(mo[5:7]))[1])
+            try:
+                model = build_model_from_db(iid, first, last, mo)
+                # Be explicit rather than trusting the builder's defaults — these two flags are
+                # what stop the UI from mixing engines or drawing absent sentiment as zero.
+                model["metricsSource"] = "workduo"
+                model["sentimentAvailable"] = False
+                model["citationsDetailAvailable"] = False
+                if not dry:
+                    _archive_model(iid, mo, model)
+                wrote.append({"month": mo,
+                              "visibility": (model.get("self") or {}).get("visibility")})
+            except Exception as e:
+                errors.append({"id": iid, "name": name, "month": mo, "error": str(e)[:160]})
+        if wrote:
+            done.append({"id": iid, "name": name, "months": [w["month"] for w in wrote],
+                         "sample": wrote[:3]})
+    return _resp(200, {"dryRun": dry, "campaigns": len(done),
+                       "monthsWritten": sum(len(d["months"]) for d in done),
+                       "done": done, "skipped": skipped, "errors": errors})
+
+
 def h_save_monthly_config(req):
     """Persist a campaign's scheduled-run preferences: how often to pull, which engines to use,
     whether to include competitors, and whether it's on the schedule at all. Read by
@@ -2977,6 +3091,8 @@ def lambda_handler(event, context):
             # The daily cron entry point: same fan-out, but each campaign runs only when its own
             # runFrequency says it's due today.
             return h_monthly_run_all(dict(req, dueOnly=True))
+        if action == "backfill_months":
+            return h_backfill_months(req)
         if action == "save_monthly_config":
             return h_save_monthly_config(req)
         if action == "seed_topics":
