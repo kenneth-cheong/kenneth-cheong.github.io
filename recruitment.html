@@ -2108,12 +2108,14 @@
                 <div style="margin-top: 32px; border-top: 1px solid var(--border); padding-top: 24px;">
                     <h4 style="margin-bottom: 16px;">Comments</h4>
                     <div id="commentsList"
-                        style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; max-height: 200px; overflow-y: auto;">
+                        style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; max-height: 360px; overflow-y: auto;">
                         <!-- Comments here -->
                     </div>
-                    <div style="display: flex; gap: 12px;">
-                        <input type="text" id="newCommentInput" placeholder="Add a comment..."
-                            style="flex: 1; padding: 12px; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; color: white; outline: none;">
+                    <div style="display: flex; gap: 12px; align-items: flex-end;">
+                        <textarea id="newCommentInput" rows="1" placeholder="Add a comment... (Enter for a new line, Ctrl/Cmd+Enter to post)"
+                            oninput="autoGrowComment(this)"
+                            onkeydown="if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') { event.preventDefault(); submitComment(); }"
+                            style="flex: 1; padding: 12px; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border); border-radius: 12px; color: white; outline: none; font: inherit; line-height: 1.5; resize: vertical; min-height: 46px; max-height: 320px; overflow-y: auto;"></textarea>
                         <button class="btn btn-primary" onclick="submitComment()">Post</button>
                     </div>
                 </div>
@@ -6926,6 +6928,17 @@
 
         let editingCandId = null;
 
+        function escapeCommentHtml(s) {
+            const d = document.createElement('div');
+            d.textContent = s == null ? '' : String(s);
+            return d.innerHTML;
+        }
+
+        function autoGrowComment(el) {
+            el.style.height = 'auto';
+            el.style.height = Math.min(el.scrollHeight, 320) + 'px';
+        }
+
         function renderComments(c) {
             const container = document.getElementById('commentsList');
             if (!c.comments || c.comments.length === 0) {
@@ -6935,10 +6948,10 @@
             container.innerHTML = c.comments.map(com => `
                 <div style="padding: 12px; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                        <span style="font-weight: 700; font-size: 0.8rem; color: var(--primary-light);">${com.user}</span>
-                        <span style="font-size: 0.7rem; color: var(--text-dim);">${com.date}</span>
+                        <span style="font-weight: 700; font-size: 0.8rem; color: var(--primary-light);">${escapeCommentHtml(com.user)}</span>
+                        <span style="font-size: 0.7rem; color: var(--text-dim);">${escapeCommentHtml(com.date)}</span>
                     </div>
-                    <div style="font-size: 0.875rem; color: var(--text-main);">${com.text}</div>
+                    <div style="font-size: 0.875rem; color: var(--text-main); white-space: pre-wrap; overflow-wrap: anywhere;">${escapeCommentHtml(com.text)}</div>
                 </div>
             `).join('');
         }
@@ -6958,6 +6971,7 @@
                 };
                 cand.comments.push(newComment);
                 input.value = '';
+                input.style.height = '';
                 renderComments(cand);
 
                 // Persist comments
