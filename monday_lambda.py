@@ -1125,8 +1125,10 @@ def ads_acct_budget_check(body, event):
     endpoint blast the Chat space. The token-less path is EventBridge using stored offline
     tokens; anything carrying a browser access_token is read-only BY CONSTRUCTION.
 
-    Paged because MONDAY_LAMBDA_URL is API Gateway (~29s hard cap) and a 161-account sweep
-    cannot finish inside it — the caller loops with a rising offset until done:true."""
+    Pageable because MONDAY_LAMBDA_URL is API Gateway (~29s hard cap) and a 162-account
+    sweep cannot finish inside it — the browser passes max_accounts and loops with a rising
+    offset until done:true. A scheduled invoke passes neither and sweeps the whole MCC in
+    one go (~35s), which is why the default is "everything", not a page."""
     user_token = (body.get('access_token') or '').strip()
     notify = not user_token
     tokens = [{"email": "browser", "token": user_token}] if user_token else _ads_all_tokens()
@@ -1134,6 +1136,13 @@ def ads_acct_budget_check(body, event):
         return {"statusCode": 200, "body": json.dumps(
             {"skipped": "no offline authorization stored", "rows": [], "done": True})}
 
+    # Paging is the BROWSER's problem, not EventBridge's. A scheduled invoke sends one
+    # flat payload and never loops, so defaulting it to a page would sweep 25 of 162
+    # accounts and report a clean bill of health for the other 137 — a silent cap, and
+    # the worst possible failure for a monitor. When no max_accounts is given (the
+    # EventBridge shape), sweep EVERYTHING; the whole MCC takes ~35s against a 180s
+    # Lambda timeout. The UI always passes max_accounts explicitly.
+    explicit_max = body.get('max_accounts') is not None
     try:
         max_accounts = min(max(int(body.get('max_accounts') or 25), 1), 60)
     except (TypeError, ValueError):
@@ -1171,7 +1180,7 @@ def ads_acct_budget_check(body, event):
 
     children = listing.get("child_accounts", [])
     total = len(children)
-    batch = children[offset:offset + max_accounts]
+    batch = children[offset:offset + max_accounts] if explicit_max else children[offset:]
 
     from concurrent.futures import ThreadPoolExecutor
     def _one(a):
@@ -1180,8 +1189,19 @@ def ads_acct_budget_check(body, event):
         except Exception as e:
             return {"customerId": a.get("id"), "name": a.get("name") or "",
                     "state": "ERROR", "error": str(e)[:200]}
+    # Chunked so the wall-clock guard can actually stop us: the Lambda times out at 180s
+    # and dies silently mid-sweep otherwise. If we do run out of budget, say so in the
+    # response rather than returning a short list that reads as "all clear".
+    deadline = time.time() + 150
+    rows, skipped = [], 0
     with ThreadPoolExecutor(max_workers=12) as ex:
-        rows = list(ex.map(_one, batch))
+        for i in range(0, len(batch), 40):
+            if time.time() > deadline:
+                skipped = len(batch) - len(rows)
+                print(f"[ADS_ACCT_BUDGET] 150s budget hit — {skipped} of {len(batch)} accounts "
+                      f"not checked this run (resume at offset {offset + len(rows)})")
+                break
+            rows.extend(ex.map(_one, batch[i:i + 40]))
 
     db = get_db()
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -1223,12 +1243,17 @@ def ads_acct_budget_check(body, event):
     counts = {}
     for r in rows:
         counts[r.get("state") or "?"] = counts.get(r.get("state") or "?", 0) + 1
-    next_offset = offset + len(batch)
-    return {"statusCode": 200, "body": json.dumps({
-        "rows": rows, "counts": counts, "checked": len(batch), "total": total,
+    # next_offset counts what was actually CHECKED, not what was requested — so a
+    # budget-truncated run resumes where it stopped instead of skipping a hole.
+    next_offset = offset + len(rows)
+    out = {
+        "rows": rows, "counts": counts, "checked": len(rows), "total": total,
         "offset": offset, "nextOffset": next_offset, "done": next_offset >= total,
         "alerts": len(alerts), "posted": posted, "notified": notify,
-        "alertsEnabled": ab_cfg.get('alertsEnabled') is True})}
+        "alertsEnabled": ab_cfg.get('alertsEnabled') is True}
+    if skipped:
+        out["skippedForTime"] = skipped
+    return {"statusCode": 200, "body": json.dumps(out)}
 
 
 def ads_acct_budget_get(body):
