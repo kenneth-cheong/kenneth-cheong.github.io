@@ -432,6 +432,46 @@ def _write_answers(cid, month, run_id, cfg, results):
         return None
 
 
+def _merge_answers(cid, month, run_id, cfg, results, prompt_index):
+    """Fold a single-prompt run's answers into the month's existing answer blob.
+
+    Read-modify-write: cells for this prompt are replaced, every other prompt is left alone. If the
+    month has no blob yet (or it can't be read), this writes a fresh one containing just this
+    prompt — better than nothing, and the next full run supersedes it.
+
+    Returns the S3 key, or None if the write failed (non-fatal — the answers still come back to the
+    browser through run_status, so a re-run is useful even when persistence is unavailable)."""
+    existing = None
+    it = _table.get_item(Key={"id": _month_item_id(cid, month)}).get("Item") or {}
+    old_key = it.get("answersKey")
+    if old_key:
+        try:
+            existing = _read_answers(old_key)
+        except Exception as e:
+            print(f"[GEO] merge: could not read existing answers {old_key}: {e}")
+    # Reuse _write_answers' cell shape by building the new blob through it, then splicing.
+    fresh_key = _write_answers(cid, month, run_id, cfg, results)
+    if not fresh_key:
+        return None
+    try:
+        fresh = _read_answers(fresh_key)
+    except Exception:
+        return fresh_key
+    if not existing:
+        return fresh_key
+    kept = [c for c in (existing.get("cells") or []) if c.get("pi") != prompt_index]
+    existing["cells"] = kept + (fresh.get("cells") or [])
+    existing["updatedAt"] = _now()
+    try:
+        _s3.put_object(Bucket=ANSWERS_BUCKET, Key=old_key,
+                       Body=json.dumps(existing).encode("utf-8"),
+                       ContentType="application/json")
+        return old_key
+    except Exception as e:
+        print(f"[GEO] merge: write-back to {old_key} failed: {e}")
+        return fresh_key
+
+
 def _read_answers(key):
     obj = _s3.get_object(Bucket=ANSWERS_BUCKET, Key=key)
     return json.loads(obj["Body"].read().decode("utf-8"))
@@ -1765,7 +1805,16 @@ def h_start_live_run(req):
            "prompts": prompts, "platforms": platforms, "campaignId": str(req.get("id") or ""),
            # Month to permanently archive this run under (YYYY-MM). Empty for ad-hoc/no-campaign runs;
            # the worker defaults it to the current month when a campaign is attached.
-           "month": str(req.get("month") or "").strip()}
+           "month": str(req.get("month") or "").strip(),
+           # Single-prompt re-run from the AI answers page. `partial` means: merge these answers
+           # into the month's answer store and DON'T archive a model — a one-prompt model would
+           # otherwise overwrite the whole month's metrics with a near-empty snapshot.
+           # promptIndex is the prompt's index in the campaign's full list, so merged cells keep
+           # the coordinates the rest of the model refers to.
+           "partial": bool(req.get("partial")),
+           "promptIndex": int(req.get("promptIndex")) if str(req.get("promptIndex", "")).lstrip("-").isdigit() else -1}
+    if cfg["partial"] and cfg["promptIndex"] < 0:
+        return _resp(400, {"error": "promptIndex is required for a partial run"})
     total = len(_build_jobs(cfg))
     run_id = uuid.uuid4().hex
     _table.put_item(Item={
@@ -1773,7 +1822,9 @@ def h_start_live_run(req):
         "startedAt": _now(), "progress": {"done": 0, "total": total},
         "config": cfg, "ttl": int(time.time()) + RUN_TTL_SECONDS,
     })
-    if cfg["campaignId"]:
+    # A partial run deliberately does NOT claim activeRunId: it's a quick side-run, and a crashed
+    # one would otherwise leave the campaign looking busy and get it skipped by monthly_run_all.
+    if cfg["campaignId"] and not cfg["partial"]:
         try:
             _table.update_item(Key={"id": cfg["campaignId"]},
                                UpdateExpression="SET activeRunId = :r",
@@ -2210,11 +2261,22 @@ def h_live_run_worker(req):
             list(ex.map(run_job, range(total)))
         results = [o for o in outs if o is not None]
         archive_month = cfg.get("month") or _cur_month()
+        is_partial = bool(cfg.get("partial"))
+
+        # A partial run was given a one-prompt list, so its jobs came back as pi=0. Restore the
+        # prompt's real index before anything persists it, or the merged cells would collide with
+        # prompt 0 and the model's {ei,pi,pl} coordinates would point at the wrong answer.
+        if is_partial:
+            real_pi = int(cfg.get("promptIndex", -1))
+            for o in results:
+                o["pi"] = real_pi
 
         # 1. Full answers → S3 (no size ceiling), while `results` still carries the text.
         answers_key = None
         if campaign_id:
-            answers_key = _write_answers(campaign_id, archive_month, run_id, cfg, results)
+            answers_key = (_merge_answers(campaign_id, archive_month, run_id, cfg, results, int(cfg.get("promptIndex", -1)))
+                           if is_partial
+                           else _write_answers(campaign_id, archive_month, run_id, cfg, results))
 
         # 2. Now that the text is safely in S3, strip it from the DynamoDB copy — the UI
         #    lazy-loads it by {ei,pi,pl}, so the run item stays small and the old shed-cascade
@@ -2223,7 +2285,12 @@ def h_live_run_worker(req):
         #    If the S3 write FAILED, do NOT strip: fall back to the previous behaviour (a bounded
         #    inline excerpt for the self brand). Stripping unconditionally would delete the only
         #    copy of the text and leave users worse off than before this change.
-        if answers_key:
+        if is_partial:
+            # One prompt × a few platforms is a handful of answers — orders of magnitude under the
+            # item cap. Keep the text on the run item so run_status hands it straight back and the
+            # page renders the moment the run finishes, with or without the answer store.
+            pass
+        elif answers_key:
             for o in results:
                 (o.get("res") or {}).pop("response", None)
         else:
@@ -2264,7 +2331,10 @@ def h_live_run_worker(req):
         # BUT only archive a run that mostly succeeded — a degraded run (e.g. rate-limited/low
         # balance, most calls failed) is left UNarchived so the reconcile pass re-runs just this
         # campaign, instead of freezing bad data into the permanent monthly history.
-        if campaign_id:
+        # A partial run must NOT archive: _build_model_py over one prompt would produce a model with
+        # that prompt's metrics only, and _archive_model would overwrite the month's real snapshot
+        # with it. Re-running a single prompt refreshes its answers, not the campaign's numbers.
+        if campaign_id and not is_partial:
             ok_cells = sum(1 for o in results if (o.get("res") or {}).get("ok"))
             ratio = (ok_cells / len(results)) if results else 0.0
             cname = cfg.get("brand") or campaign_id
@@ -2287,7 +2357,9 @@ def h_live_run_worker(req):
                            ExpressionAttributeNames={"#s": "status"},
                            ExpressionAttributeValues={":s": "error", ":e": str(e)[:500]})
     finally:
-        if campaign_id:
+        # Only a full run claims activeRunId, so only a full run may clear it. A partial run
+        # clearing it here would un-flag a full run happening concurrently on the same campaign.
+        if campaign_id and not bool(cfg.get("partial")):
             try:
                 _table.update_item(Key={"id": campaign_id}, UpdateExpression="REMOVE activeRunId")
             except Exception:
