@@ -590,6 +590,16 @@ Analyze the following AI response for a specific brand mention.
 BRAND TO TRACK: {brand}
 TARGET URL: {url}
 
+WHAT COUNTS AS THE BRAND:
+is_mentioned is TRUE when the response refers to the tracked brand by ANY name a customer would
+recognise as that business - the exact name, a shortening ("Da Paolo Group" -> "Da Paolo"), a
+sub-brand, outlet, product line or venue operated under it ("Da Paolo Group" -> "Tutto by Da
+Paolo"), a legal-entity variant ("Acme Pte Ltd" -> "Acme"), or a common misspelling. Corporate
+suffixes (Group, Holdings, Pte Ltd, Inc, LLC) are noise - judge on the distinctive part of the
+name. It is FALSE when the response names a DIFFERENT business that merely shares a word
+("Paolo's Trattoria" is not "Da Paolo Group"). If genuinely ambiguous, prefer TRUE and explain in
+sentiment_reason.
+
 AI RESPONSE:
 ---
 {clean_text[:10000]}

@@ -196,6 +196,18 @@ EXTRACT_SYSTEM = (
     '{"is_mentioned":bool,"sentiment":"positive"|"neutral"|"negative",'
     '"sentiment_reason":string,"sentiment_theme":string,'
     '"visibility_score":0-100,"rank":int,"mention_snippet":string}. '
+    # Without this, the grader matches the brand string literally and scores a prominent
+    # sub-brand mention as absent: "Da Paolo Group" was graded not_mentioned against an answer
+    # recommending "Tutto by Da Paolo" as its top pick.
+    "WHAT COUNTS AS THE BRAND: is_mentioned is TRUE when the answer refers to the tracked brand "
+    "by ANY name a customer would recognise as that business — the exact name, a shortening "
+    "('Da Paolo Group' -> 'Da Paolo'), a sub-brand, outlet, product line or venue operated under "
+    "it ('Da Paolo Group' -> 'Tutto by Da Paolo', 'Da Paolo Pizza Bar'), a legal-entity variant "
+    "('Acme Pte Ltd' -> 'Acme'), or a common misspelling. Corporate suffixes (Group, Holdings, "
+    "Pte Ltd, Inc, LLC) are noise: judge on the distinctive part of the name. "
+    "It is FALSE when the answer names a DIFFERENT business that merely shares a word "
+    "('Paolo's Trattoria' is not 'Da Paolo Group'). If genuinely ambiguous, prefer TRUE and say "
+    "why in sentiment_reason. "
     "visibility_score = how prominently/favourably the brand features (0 if absent). "
     "rank = the brand's ordinal position if the answer is a ranked/listed set of options, else 0. "
     "mention_snippet = the VERBATIM sentence(s) from the answer that mention the brand "
@@ -206,6 +218,37 @@ EXTRACT_SYSTEM = (
     "mentions sharing an angle can be grouped (e.g. 'Convenient Locations', 'Pricing Concerns', "
     "'Reliable Service', 'Limited Availability'); empty string if not mentioned."
 )
+
+
+# Corporate noise words: present in the registered name, absent from how anyone refers to the
+# business in prose. "Da Paolo Group" is written as "Da Paolo"; matching the full string misses it.
+_BRAND_NOISE = ("group", "holdings", "holding", "pte", "ltd", "ltd.", "limited", "inc", "inc.",
+                "llc", "llp", "plc", "corp", "corp.", "corporation", "company", "co", "co.",
+                "sdn", "bhd", "gmbh", "the", "&", "and")
+
+
+def brand_core(brand):
+    """The distinctive part of a brand name — what a human would actually say.
+
+    'Da Paolo Group' -> 'da paolo'. Used only by the heuristic fallback that runs when the grader
+    LLM is unreachable; the grader itself is told the rule in EXTRACT_SYSTEM. Returns '' when a
+    name is nothing but noise words, so callers must treat '' as "can't match" rather than
+    "matches everything"."""
+    words = [w for w in re.split(r"[\s,]+", (brand or "").lower().strip()) if w]
+    core = [w for w in words if w.strip(".,") not in _BRAND_NOISE]
+    return " ".join(core).strip()
+
+
+def heuristic_mentioned(brand, answer):
+    """Substring check on the brand's distinctive core, not its registered name."""
+    if not brand or not answer:
+        return False
+    a = answer.lower()
+    if brand.lower() in a:
+        return True
+    core = brand_core(brand)
+    # Require a couple of characters so a one-letter core can't match everything.
+    return bool(core) and len(core) >= 3 and core in a
 
 
 def extract_with_claude(brand, answer):
@@ -220,7 +263,7 @@ def extract_with_claude(brand, answer):
         "Content-Type": "application/json"})
     if status != 200:
         # Fallback: heuristic mention detection on the raw text.
-        mentioned = bool(brand) and brand.lower() in answer.lower()
+        mentioned = heuristic_mentioned(brand, answer)
         return {"is_mentioned": mentioned, "sentiment": "neutral", "sentiment_reason": "",
                 "sentiment_theme": "", "visibility_score": 50 if mentioned else 0,
                 "rank": 0, "mention_snippet": ""}
@@ -229,7 +272,7 @@ def extract_with_claude(brand, answer):
         m = re.search(r"\{.*\}", txt, re.DOTALL)
         data = json.loads(m.group(0) if m else txt)
     except Exception:
-        mentioned = bool(brand) and brand.lower() in answer.lower()
+        mentioned = heuristic_mentioned(brand, answer)
         return {"is_mentioned": mentioned, "sentiment": "neutral", "sentiment_reason": "",
                 "sentiment_theme": "", "visibility_score": 50 if mentioned else 0,
                 "rank": 0, "mention_snippet": ""}
