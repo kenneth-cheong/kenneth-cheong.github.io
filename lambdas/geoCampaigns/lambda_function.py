@@ -340,6 +340,10 @@ def h_list():
             "monthlyPlatforms": [str(x) for x in (it.get("monthlyPlatforms") or [])],
             "monthlyEnabled": it.get("monthlyEnabled"),
             "monthlyIncludeCompetitors": bool(it.get("monthlyIncludeCompetitors")),
+            "runFrequency": _run_frequency(it),
+            "lastScheduledRunAt": it.get("lastScheduledRunAt"),
+            "snapshotsAvailable": [str(x) for x in (it.get("snapshotsAvailable") or [])],
+            "latestSnapshot": it.get("latestSnapshot"),
             "updatedAt": it.get("updatedAt"), "metricsUpdatedAt": it.get("metricsUpdatedAt"),
             "activeRunId": it.get("activeRunId"),  # non-null while a live run is in progress for this campaign
         })
@@ -357,11 +361,12 @@ def h_get(req):
             it["metrics"] = json.loads(it["metrics"])
         except Exception:
             pass
-    if isinstance(it.get("history"), str):
-        try:
-            it["history"] = json.loads(it["history"])
-        except Exception:
-            pass
+    for k in ("history", "snapshots"):
+        if isinstance(it.get(k), str):
+            try:
+                it[k] = json.loads(it[k])
+            except Exception:
+                pass
     return _resp(200, {"campaign": it})
 
 
@@ -371,20 +376,47 @@ def _month_item_id(cid, month):
     return cid + "#m#" + month
 
 
-def _history_point(month, model):
-    """A tiny per-month summary for the month-over-month trend (kept on the campaign record)."""
+def _snap_item_id(cid, date):
+    """Id of one run-date snapshot ('YYYY-MM-DD'). Deliberately shares the "#m#" id space with
+    the month snapshots: every campaign scan already skips ids containing "#m#", so dated
+    snapshots stay out of the campaign lists for free, and get_month reads either by id."""
+    return _month_item_id(cid, date)
+
+
+# How many run-date trend points to keep inline on the campaign record. These ride alongside
+# `metrics` (capped at MAX_ITEM_BYTES), so the list stays small: 180 points is half a year of
+# daily pulls at ~90 bytes each (~16KB), well inside the headroom under DynamoDB's 400KB cap.
+MAX_SNAPSHOTS = 180
+
+
+def _point_metrics(model):
+    """The numbers behind one trend point — shared by the month history and the run-date snapshots."""
     self_m = (model.get("self") or {}) if isinstance(model, dict) else {}
     def _n(v):
         try:
             return round(float(v), 2)
         except Exception:
             return 0
-    return {"month": month,
-            "positive": int(model.get("positive", 0) or 0) if isinstance(model, dict) else 0,
+    return {"positive": int(model.get("positive", 0) or 0) if isinstance(model, dict) else 0,
             "negative": int(model.get("negative", 0) or 0) if isinstance(model, dict) else 0,
             "visibility": _n(self_m.get("visibility")), "sov": _n(self_m.get("sov")),
             "mentions": int(self_m.get("mentions", 0) or 0),
             "ownedShare": _n(model.get("ownedShare") if isinstance(model, dict) else 0)}
+
+
+def _history_point(month, model):
+    """A tiny per-month summary for the month-over-month trend (kept on the campaign record)."""
+    p = _point_metrics(model)
+    p["month"] = month
+    return p
+
+
+def _snapshot_point(date, model):
+    """The same summary keyed by run date — this is what gives a sub-monthly cadence a real
+    trend line instead of one overwritten point per month."""
+    p = _point_metrics(model)
+    p["date"] = date
+    return p
 
 
 def _answers_key(cid, month, run_id):
@@ -551,11 +583,16 @@ def _shrink_model(model):
     return model, note
 
 
-def _archive_model(cid, month, model, answers_key=None):
+def _archive_model(cid, month, model, answers_key=None, run_date=None):
     """Persist a model permanently: full month snapshot as its own item + merge the month
     into the campaign record's index (monthsAvailable) and compact month-over-month history.
     Shared by the API save_metrics path AND the headless run worker (so cron runs archive
-    with no browser open). Returns the updated monthsAvailable list."""
+    with no browser open). Returns the updated monthsAvailable list.
+
+    run_date ('YYYY-MM-DD') additionally archives this run under its own date and appends a
+    dated trend point. The month snapshot still holds the LATEST run of the month, so every
+    existing month-keyed reader is unaffected; the dated snapshots are what let a campaign on
+    a sub-monthly cadence build a real trend instead of overwriting one point per month."""
     model, _trim_note = _shrink_model(model)
     model_json = json.dumps(model)
     now = _now()
@@ -568,6 +605,9 @@ def _archive_model(cid, month, model, answers_key=None):
     if answers_key:
         item["answersKey"] = answers_key
     _table.put_item(Item=item)
+    if run_date:
+        snap = dict(item, id=_snap_item_id(cid, run_date), type="metrics_snapshot", date=run_date)
+        _table.put_item(Item=snap)
     it = _table.get_item(Key={"id": cid}).get("Item") or {}
     months = [str(x) for x in (it.get("monthsAvailable") or [])]
     if month not in months:
@@ -579,13 +619,25 @@ def _archive_model(cid, month, model, answers_key=None):
         hist = []
     hist = [h for h in hist if h.get("month") != month] + [_history_point(month, model)]
     hist = sorted(hist, key=lambda h: h.get("month") or "")
+    upd = ("SET #m = :m, hasMetrics = :h, metricsUpdatedAt = :t, updatedAt = :t, "
+           "monthsAvailable = :ma, history = :hi, latestMonth = :lm")
+    vals = {":m": model_json, ":h": True, ":t": now, ":ma": months,
+            ":hi": json.dumps(hist), ":lm": month}
+    if run_date:
+        try:
+            snaps = json.loads(it["snapshots"]) if isinstance(it.get("snapshots"), str) else (it.get("snapshots") or [])
+        except Exception:
+            snaps = []
+        snaps = [s for s in snaps if s.get("date") != run_date] + [_snapshot_point(run_date, model)]
+        snaps = sorted(snaps, key=lambda s: s.get("date") or "")[-MAX_SNAPSHOTS:]
+        dates = sorted(set([str(x) for x in (it.get("snapshotsAvailable") or [])] + [run_date]))[-MAX_SNAPSHOTS:]
+        upd += ", snapshots = :sn, snapshotsAvailable = :sa, latestSnapshot = :ls"
+        vals.update({":sn": json.dumps(snaps), ":sa": dates, ":ls": run_date})
     _table.update_item(
         Key={"id": cid},
-        UpdateExpression="SET #m = :m, hasMetrics = :h, metricsUpdatedAt = :t, updatedAt = :t, "
-                         "monthsAvailable = :ma, history = :hi, latestMonth = :lm",
+        UpdateExpression=upd,
         ExpressionAttributeNames={"#m": "metrics"},
-        ExpressionAttributeValues={":m": model_json, ":h": True, ":t": now, ":ma": months,
-                                   ":hi": json.dumps(hist), ":lm": month},
+        ExpressionAttributeValues=vals,
     )
     return months
 
@@ -594,14 +646,20 @@ def h_save_metrics(req):
     cid = str(req.get("id") or "")
     model = req.get("model")
     month = str(req.get("month") or "").strip()  # 'YYYY-MM' — when given, also archive permanently
+    run_date = str(req.get("date") or "").strip()  # 'YYYY-MM-DD' — also archive under this run date
     if not cid or model is None:
         return _resp(400, {"error": "id and model required"})
     it = _table.get_item(Key={"id": cid}).get("Item")
     if not it:
         return _resp(404, {"error": "campaign not found — import it first"})
     if month:
-        months = _archive_model(cid, month, model)
-        return _resp(200, {"ok": True, "id": cid, "month": month,
+        # Saving the current month means "this is today's run" (the browser archiving the run it
+        # just finished), so it earns a dated trend point. Saving an OLDER month is a history
+        # edit — dating that today would plant a false point, so it stays month-only.
+        if not run_date and month == _cur_month():
+            run_date = _today().strftime("%Y-%m-%d")
+        months = _archive_model(cid, month, model, run_date=run_date or None)
+        return _resp(200, {"ok": True, "id": cid, "month": month, "date": run_date or None,
                            "monthsAvailable": months, "metricsUpdatedAt": _now()})
     model_json = json.dumps(model)
     now = _now()
@@ -1964,6 +2022,9 @@ def h_start_live_run(req):
            # Month to permanently archive this run under (YYYY-MM). Empty for ad-hoc/no-campaign runs;
            # the worker defaults it to the current month when a campaign is attached.
            "month": str(req.get("month") or "").strip(),
+           # Run date (YYYY-MM-DD) to archive this run under as its own trend point. The worker
+           # defaults it to today, so every run — scheduled or interactive — extends the trend.
+           "runDate": str(req.get("runDate") or "").strip(),
            # Single-prompt re-run from the AI answers page. `partial` means: merge these answers
            # into the month's answer store and DON'T archive a model — a one-prompt model would
            # otherwise overwrite the whole month's metrics with a near-empty snapshot.
@@ -1994,10 +2055,96 @@ def h_start_live_run(req):
     return _resp(200, {"ok": True, "runId": run_id, "total": total})
 
 
+# Per-campaign data-pull cadence, one of:
+#   '7' / '14' — every N days. Weekly is the deliberate floor: tighter multiplies the per-call
+#                spend without moving the numbers much.
+#   'month'    — once a month, on the LAST day (so the month's data is captured inside the month
+#                it describes).
+#   'day:N'    — once a month, on day N (1-31), clamped to the last day in shorter months.
+RUN_FREQUENCIES = ("7", "14", "month")
+DEFAULT_FREQUENCY = "month"
+_DAY_FREQ_RE = re.compile(r"^day:(\d{1,2})$")
+
+
+def _valid_frequency(raw):
+    """Normalise a cadence to its canonical form, or None if it isn't one we support."""
+    f = str(raw or "").strip().lower()
+    if f in RUN_FREQUENCIES:
+        return f
+    m = _DAY_FREQ_RE.match(f)
+    if m and 1 <= int(m.group(1)) <= 31:
+        return "day:%d" % int(m.group(1))
+    return None
+
+
+def _run_frequency(it):
+    return _valid_frequency(it.get("runFrequency")) or DEFAULT_FREQUENCY
+
+
+def _is_monthly(freq):
+    """True for the cadences that archive once per calendar month — end-of-month and fixed-day.
+    Those are the ones gated by monthsAvailable and healed by the reconcile pass; the N-day
+    cadences archive many runs into one month on purpose and self-heal on their next tick."""
+    return freq == DEFAULT_FREQUENCY or freq.startswith("day:")
+
+
+def _is_last_day(d):
+    return (d + timedelta(days=1)).month != d.month
+
+
+def _month_day_target(n, d):
+    """Which day a 'day:N' cadence actually fires in d's month. Months are short: N=31 lands on
+    the 28th (29th in a leap year) in February and the 30th in April, so a clamped N still fires
+    exactly once every month instead of silently skipping the short ones."""
+    return min(n, calendar.monthrange(d.year, d.month)[1])
+
+
+def _prev_month():
+    return (_today().replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+
+
+def _due_reason(it, today):
+    """Is this campaign's scheduled pull due today? Returns (due, why_not).
+
+    The daily cron asks this of every campaign, so this — not the caller's cron expression —
+    is what actually implements each cadence."""
+    freq = _run_frequency(it)
+    if _is_monthly(freq):
+        if freq == DEFAULT_FREQUENCY:
+            if not _is_last_day(today):
+                return False, "monthly — runs on the last day of the month"
+        else:
+            target = _month_day_target(int(freq.split(":")[1]), today)
+            if today.day != target:
+                return False, "monthly — runs on day %d" % target
+        if _cur_month() in [str(x) for x in (it.get("monthsAvailable") or [])]:
+            return False, "already archived this month"
+        return True, None
+    n = int(freq)
+    last = str(it.get("lastScheduledRunAt") or "").strip()[:10]
+    if not last:
+        return True, None  # never pulled on a schedule — start the cadence today
+    try:
+        prev = datetime.strptime(last, "%Y-%m-%d").date()
+    except Exception:
+        return True, None
+    gap = (today - prev).days
+    if gap < n:
+        return False, "every %d day(s) — next in %d" % (n, n - gap)
+    return True, None
+
+
 def h_monthly_run_all(req):
-    """Scheduled monthly fan-out: start a live analysis for every eligible campaign, each of
-    which archives itself server-side (see h_live_run_worker) under the target month. Fired by
-    the EventBridge rule geoCampaigns-monthly-sentiment-run; also callable manually.
+    """Scheduled fan-out: start a live analysis for every eligible campaign, each of which
+    archives itself server-side (see h_live_run_worker) under the target month + run date.
+    Fired daily by the EventBridge rule geoCampaigns-daily-scheduled-run (as `scheduled_run_all`,
+    i.e. dueOnly=True, which honours each campaign's own runFrequency); also callable manually.
+
+    dueOnly  — only run campaigns whose cadence says they're due today (see _due_reason). This is
+               what the cron uses. Without it (a manual fire) every eligible campaign runs.
+    reconcile— retry pass for the MONTHLY cadence only: targets the previous month and re-runs
+               just the campaigns still missing its archive. Sub-monthly campaigns are skipped
+               (their next pull is never more than 14 days out, so they self-heal).
 
     filter   — campaign-name substring to match (default '(live)'; pass '' to run every campaign)
     month    — YYYY-MM to archive under (default: current month)
@@ -2012,7 +2159,13 @@ def h_monthly_run_all(req):
       monthlyIncludeCompetitors — when False (default), runs self-only (no competitor calls)
     """
     flt = (req.get("filter") if req.get("filter") is not None else "(live)").lower()
-    month = str(req.get("month") or _cur_month())
+    due_only = bool(req.get("dueOnly"))
+    reconcile = bool(req.get("reconcile"))
+    today = _today()
+    # A reconcile pass runs the DAY AFTER the monthly cadence fires, so the month it's healing is
+    # last month, not the one that just started. Defaulting to _cur_month() here would find every
+    # campaign "missing" the new month and start a full paid run for all of them.
+    month = str(req.get("month") or (_prev_month() if reconcile else _cur_month()))
     # Cost-safe default: ONE engine, and competitors are opt-in per campaign (see below). A campaign
     # can opt into more engines / competitors via its own saved monthly settings.
     default_platforms = [str(p).strip() for p in (req.get("platforms") or ["chatgpt"]) if str(p).strip()]
@@ -2020,6 +2173,7 @@ def h_monthly_run_all(req):
     limit = int(req.get("limit") or 200)
     dry = bool(req.get("dryRun"))
     force = bool(req.get("force"))  # ignore idempotency and re-run even already-archived months
+    run_date = today.strftime("%Y-%m-%d")
 
     items, kwargs = [], {}
     while True:
@@ -2040,10 +2194,22 @@ def h_monthly_run_all(req):
         if it.get("monthlyEnabled") is False:
             skipped.append({"id": iid, "name": name, "why": "disabled in settings"})
             continue
+        freq = _run_frequency(it)
+        if reconcile and not _is_monthly(freq):
+            skipped.append({"id": iid, "name": name, "why": "not on a monthly cadence"})
+            continue
+        if due_only:
+            ok, why = _due_reason(it, today)
+            if not ok:
+                skipped.append({"id": iid, "name": name, "why": why})
+                continue
         # Idempotency: don't re-run (or re-spend on) a campaign already archived for this month, and
         # never double-start one whose run is still in progress. This makes re-fires + the reconcile
         # pass safe — they only pick up the campaigns still MISSING this month. `force` overrides.
-        if not force and month in [str(x) for x in (it.get("monthsAvailable") or [])]:
+        # Only meaningful for the MONTHLY cadences: a campaign pulling every 7-14 days archives many
+        # runs into the same month on purpose, so this check would skip it for the rest of the month
+        # after its first pull. Its cadence is gated by _due_reason (lastScheduledRunAt) instead.
+        if not force and _is_monthly(freq) and month in [str(x) for x in (it.get("monthsAvailable") or [])]:
             skipped.append({"id": iid, "name": name, "why": "already archived this month"})
             continue
         if it.get("activeRunId"):
@@ -2068,19 +2234,28 @@ def h_monthly_run_all(req):
             skipped.append({"id": iid, "name": name, "why": "limit"})
             continue
         if dry:
-            started.append({"id": iid, "name": name, "engines": platforms,
+            started.append({"id": iid, "name": name, "engines": platforms, "frequency": freq,
                             "competitors": len(competitors), "prompts": len(prompts), "estCalls": calls})
             continue
         r = h_start_live_run({"id": iid, "brand": brand, "target": target,
                               "location": it.get("region") or "", "competitors": competitors,
                               "aliases": it.get("alternativeNames") or [],
                               "prompts": prompts, "platforms": platforms,
-                              "source": source, "month": month})
+                              "source": source, "month": month, "runDate": run_date})
         try:
             rid = json.loads(r.get("body") or "{}").get("runId")
         except Exception:
             rid = None
-        started.append({"id": iid, "name": name, "engines": platforms, "runId": rid, "estCalls": calls})
+        # Stamp the cadence clock on START, not on success: a campaign whose runs keep failing then
+        # waits its normal interval instead of being retried on every daily fire (which would burn
+        # budget). The monthly cadence has the reconcile pass; sub-monthly ones retry within 14 days.
+        try:
+            _table.update_item(Key={"id": iid}, UpdateExpression="SET lastScheduledRunAt = :d",
+                               ExpressionAttributeValues={":d": run_date})
+        except Exception:
+            pass
+        started.append({"id": iid, "name": name, "engines": platforms, "frequency": freq,
+                        "runId": rid, "estCalls": calls})
 
     if not dry:
         no_rid = [s["name"] for s in started if not s.get("runId")]
@@ -2095,8 +2270,9 @@ def h_monthly_run_all(req):
 
 
 def h_save_monthly_config(req):
-    """Persist a campaign's scheduled-run preferences: which engines to use, whether to include
-    competitors, and whether it's part of the monthly schedule at all. Read by h_monthly_run_all."""
+    """Persist a campaign's scheduled-run preferences: how often to pull, which engines to use,
+    whether to include competitors, and whether it's on the schedule at all. Read by
+    h_monthly_run_all. `frequency` is one of RUN_FREQUENCIES; omitting it keeps the current one."""
     cid = str(req.get("id") or "")
     if not cid:
         return _resp(400, {"error": "id required"})
@@ -2106,14 +2282,25 @@ def h_save_monthly_config(req):
     platforms = [str(p).strip() for p in (req.get("platforms") or []) if str(p).strip()]
     enabled = bool(req.get("enabled", True))
     include_comp = bool(req.get("includeCompetitors", False))
+    raw_freq = str(req.get("frequency") or "").strip()
+    if raw_freq:
+        freq = _valid_frequency(raw_freq)
+        if not freq:
+            # Reject rather than fall back: silently storing 'month' for a typo'd cadence would
+            # look like the save worked while the campaign quietly pulls on the wrong schedule.
+            return _resp(400, {"error": "frequency must be 7, 14, month, or day:N (N=1-31)"})
+    else:
+        freq = _run_frequency(it)
     _table.update_item(
         Key={"id": cid},
         UpdateExpression="SET monthlyPlatforms = :p, monthlyEnabled = :e, "
-                         "monthlyIncludeCompetitors = :c, updatedAt = :t",
-        ExpressionAttributeValues={":p": platforms, ":e": enabled, ":c": include_comp, ":t": _now()},
+                         "monthlyIncludeCompetitors = :c, runFrequency = :f, updatedAt = :t",
+        ExpressionAttributeValues={":p": platforms, ":e": enabled, ":c": include_comp,
+                                   ":f": freq, ":t": _now()},
     )
     return _resp(200, {"ok": True, "id": cid, "monthlyPlatforms": platforms,
-                       "monthlyEnabled": enabled, "monthlyIncludeCompetitors": include_comp})
+                       "monthlyEnabled": enabled, "monthlyIncludeCompetitors": include_comp,
+                       "runFrequency": freq})
 
 
 def _is_campaign_id(cid):
@@ -2605,6 +2792,7 @@ def h_live_run_worker(req):
             list(ex.map(run_job, range(total)))
         results = [o for o in outs if o is not None]
         archive_month = cfg.get("month") or _cur_month()
+        archive_date = cfg.get("runDate") or _today().strftime("%Y-%m-%d")
         is_partial = bool(cfg.get("partial"))
 
         # A partial run was given a one-prompt list, so its jobs came back as pi=0. Restore the
@@ -2685,7 +2873,8 @@ def h_live_run_worker(req):
             if ratio >= MIN_OK_RATIO:
                 try:
                     _archive_model(campaign_id, archive_month,
-                                   _build_model_py(cfg, results), answers_key)
+                                   _build_model_py(cfg, results), answers_key,
+                                   run_date=archive_date)
                 except Exception as e:
                     _alert("GEO monthly: archive FAILED for %s (%s): %s" % (cname, archive_month, str(e)[:180]))
             else:
@@ -2784,6 +2973,10 @@ def lambda_handler(event, context):
             return h_start_live_run(req)
         if action == "monthly_run_all":
             return h_monthly_run_all(req)
+        if action == "scheduled_run_all":
+            # The daily cron entry point: same fan-out, but each campaign runs only when its own
+            # runFrequency says it's due today.
+            return h_monthly_run_all(dict(req, dueOnly=True))
         if action == "save_monthly_config":
             return h_save_monthly_config(req)
         if action == "seed_topics":
