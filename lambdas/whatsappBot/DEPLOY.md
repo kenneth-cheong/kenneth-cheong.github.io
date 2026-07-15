@@ -1,0 +1,276 @@
+# whatsappBot — deploy
+
+WhatsApp Cloud API webhook for MediaOne client support / FAQ.
+Region: `ap-southeast-1`, account `167633412846`.
+
+## ✅ This package bundles NO dependencies — a single-file zip is SAFE
+
+`urllib3`, `boto3`, `hmac`, `hashlib`, `base64` are all in the python3.13 runtime.
+There is nothing at the zip root but `lambda_function.py`.
+
+**Do NOT apply the download-unzip-repack "safe deploy recipe" from
+`lambdas/socialMediaAudit/DEPLOY.md` here.** That recipe exists only because that
+function bundles `requests` next to its handler, so a bare zip wipes its deps.
+This function deliberately uses `urllib3` instead precisely so that whole class of
+drift cannot happen. Deploy is just:
+
+```bash
+cd lambdas/whatsappBot
+zip -q whatsappBot.zip lambda_function.py
+aws lambda update-function-code --region ap-southeast-1 \
+  --function-name whatsappBot --zip-file fileb://whatsappBot.zip
+aws lambda wait function-updated --region ap-southeast-1 --function-name whatsappBot
+```
+
+Keep it that way: if you ever need a library that isn't in the runtime, prefer
+rewriting the call in `urllib3` over bundling.
+
+## DEPLOYED (2026-07-15) — live resources
+
+| | |
+|---|---|
+| Lambda | `whatsappBot` (python3.13, timeout 120, mem 256, reserved concurrency 10) |
+| Role | `whatsappBot-role` (AWSLambdaBasicExecutionRole + inline `whatsappBot-ddb-selfinvoke`) |
+| Function URL | `https://qiiqig6wcrmkxlknp3nomiomdm0athvb.lambda-url.ap-southeast-1.on.aws/` |
+| DynamoDB | `wa_dedupe` (PK msg_id, TTL ttl), `wa_conversations` (PK wa_id, TTL ttl) |
+| Meta app | **MediaOne Client Support**, App ID `2034376497168449`, unpublished |
+| Business portfolio | MediaOne Business Group (`1538686332865690`), verification complete |
+| Test number | `+1 555 617 9696`, Phone number ID `253052104567619` |
+| WABA ID | `239474995927242` |
+| Graph version | **v25.0** (what the Meta console emits; not the repo's usual v23.0) |
+
+Webhook verified 2026-07-15 (`[VERIFY] handshake ok`), subscribed to `messages` only.
+Meta's own signed sample payload validated against `_verify_signature` on the first
+try — the raw-body/base64 handling is confirmed correct against a real Meta signer,
+not just against our own test harness.
+
+**Still outstanding:** `WA_ACCESS_TOKEN` (System User token, expiry Never) and a
+verified test recipient. Until the token is set, the bot receives and reasons
+correctly but cannot reply — `[SEND] WA_ACCESS_TOKEN / WA_PHONE_NUMBER_ID not
+configured`, then it raises so Lambda retries.
+
+## Architecture in one paragraph
+
+Meta POSTs to a Lambda Function URL. The webhook path verifies the
+`X-Hub-Signature-256` HMAC, drops delivery receipts, claims the message id in
+`wa_dedupe`, async self-invokes itself, and returns 200 — all in well under a
+second. The worker invocation does the slow part: searches the knowledge base via
+the `monday` Lambda, asks DeepSeek (or Haiku for images), and sends the reply.
+**The split exists because Meta retries any webhook that is slow to ACK**, which
+would double-message the client and eventually get the subscription throttled.
+
+## 1. DynamoDB tables
+
+```bash
+aws dynamodb create-table --region ap-southeast-1 \
+  --table-name wa_dedupe \
+  --attribute-definitions AttributeName=msg_id,AttributeType=S \
+  --key-schema AttributeName=msg_id,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST
+aws dynamodb update-time-to-live --region ap-southeast-1 \
+  --table-name wa_dedupe --time-to-live-specification "Enabled=true,AttributeName=ttl"
+
+aws dynamodb create-table --region ap-southeast-1 \
+  --table-name wa_conversations \
+  --attribute-definitions AttributeName=wa_id,AttributeType=S \
+  --key-schema AttributeName=wa_id,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST
+aws dynamodb update-time-to-live --region ap-southeast-1 \
+  --table-name wa_conversations --time-to-live-specification "Enabled=true,AttributeName=ttl"
+```
+
+## 2. IAM
+
+Exec role `whatsappBot-role` needs `AWSLambdaBasicExecutionRole` plus an inline
+policy granting:
+- `dynamodb:PutItem/GetItem/UpdateItem/DeleteItem` on `wa_dedupe` + `wa_conversations`
+- `lambda:InvokeFunction` on **itself** (the worker self-invoke). Without this the
+  webhook releases every claim and 500s, and Meta retries forever.
+
+## 3. Create the function
+
+```bash
+aws lambda create-function --region ap-southeast-1 \
+  --function-name whatsappBot \
+  --runtime python3.13 --handler lambda_function.lambda_handler \
+  --timeout 120 --memory-size 256 \
+  --role arn:aws:iam::167633412846:role/whatsappBot-role \
+  --zip-file fileb://whatsappBot.zip
+```
+
+Timeout 120s is for the **worker** path (LLM). The webhook path returns in
+milliseconds and never approaches it.
+
+Reserved concurrency caps a retry storm:
+
+```bash
+aws lambda put-function-concurrency --region ap-southeast-1 \
+  --function-name whatsappBot --reserved-concurrent-executions 10
+```
+
+## 4. Function URL
+
+`AuthType: NONE` is correct here, not a compromise: **the HMAC signature is the
+authentication**, and Meta cannot sign SigV4 — there is no AWS credential on
+their side. Any webhook endpoint is public by construction; the same is true of
+the Stripe webhook in `saas/backend`.
+
+> ### ⚠️ You need TWO permission statements, not one
+> This is the single biggest trap here, and it cost this repo a whole REST API
+> once already (see `lambdas/socialMediaAudit/DEPLOY.md`, which recorded the
+> symptom as "Function URLs are blocked at the account level" — they are not).
+>
+> With only the first statement below, **every** request, including the GET
+> handshake, is rejected by Lambda's own auth layer with:
+> ```
+> {"Message":"Forbidden. For troubleshooting Function URL authorization issues,
+>  see: https://docs.aws.amazon.com/lambda/latest/dg/urls-auth.html"}
+> ```
+> ...before it ever reaches `lambda_function.py`. It looks exactly like an
+> account-level block. It isn't. Verified live 2026-07-15.
+
+```bash
+aws lambda create-function-url-config --region ap-southeast-1 \
+  --function-name whatsappBot --auth-type NONE
+
+# (1) lets the URL accept the request
+aws lambda add-permission --region ap-southeast-1 \
+  --function-name whatsappBot \
+  --statement-id FunctionURLAllowPublicAccess \
+  --action lambda:InvokeFunctionUrl --principal '*' \
+  --function-url-auth-type NONE
+
+# (2) lets that request actually invoke the function. WITHOUT THIS: Forbidden.
+aws lambda add-permission --region ap-southeast-1 \
+  --function-name whatsappBot \
+  --statement-id FunctionURLInvokeAllowPublicAccess \
+  --action lambda:InvokeFunction --principal '*' \
+  --invoked-via-function-url
+```
+
+The resulting policy must have both, matching what SAM emits for
+`digimetrics-saas-ChatStreamFn` (a working public Function URL in this account):
+
+```
+lambda:InvokeFunctionUrl | {'lambda:FunctionUrlAuthType': 'NONE'}
+lambda:InvokeFunction    | {'lambda:InvokedViaFunctionUrl': 'true'}
+```
+
+Note the returned URL — it goes in the Meta dashboard.
+
+## 5. Env vars
+
+```bash
+aws lambda update-function-configuration --region ap-southeast-1 \
+  --function-name whatsappBot \
+  --environment "Variables={WA_VERIFY_TOKEN=xxx,WA_APP_SECRET=xxx,\
+WA_ACCESS_TOKEN=xxx,WA_PHONE_NUMBER_ID=xxx,\
+DEEPSEEK_API_KEY=xxx,ANTHROPIC_API_KEY=xxx,\
+GCHAT_WEBHOOK_URL=https://chat.googleapis.com/...,\
+WA_ALLOWED_WA_IDS=6591234567}"
+```
+
+| Var | Where it comes from |
+|---|---|
+| `WA_VERIFY_TOKEN` | invent one (`openssl rand -hex 16`); must match the dashboard |
+| `WA_APP_SECRET` | Meta app → Settings → Basic → App Secret → Show |
+| `WA_ACCESS_TOKEN` | **System User token, expiry Never** — see the warning below |
+| `WA_PHONE_NUMBER_ID` | WhatsApp → API Setup |
+| `WA_GRAPH_VERSION` | optional, default `v23.0` |
+| `WA_ALLOWED_WA_IDS` | comma-separated allowlist. **Empty = everyone.** Set it while testing. |
+| `DEEPSEEK_API_KEY` | same key as the `monday` Lambda |
+| `ANTHROPIC_API_KEY` | images only; `ANTHROPIC_API_KEY_BACKUP` is retried on 429/529 |
+| `GCHAT_WEBHOOK_URL` | the space that receives escalations |
+| `KB_SEARCH_URL` | optional, defaults to the `monday` endpoint |
+| `KB_SCORE_FLOOR` | optional, default `0.6` (mirrors `monday_lambda.py:86`) |
+
+Every var **fails closed** if unset — no code path falls back to a literal
+credential. Keep real values out of this file; `.gitguardian.yaml` scanning is on.
+
+> ### ⚠️ `WA_ACCESS_TOKEN` must be a System User token with expiry **Never**
+> The 24-hour token on the API Setup page is fine for one smoke test and nothing
+> else. This repo has already been burned by expiring Meta tokens silently killing
+> a scheduled job — see the `META_ACCESS_TOKEN` note in
+> `lambdas/socialMediaAudit/DEPLOY.md`. Generate from Business Settings → Users →
+> System Users → Add → assign the app → Generate token with
+> `whatsapp_business_messaging` + `whatsapp_business_management`, expiry **Never**.
+
+## 6. Meta dashboard
+
+1. developers.facebook.com → **Create App** → type **Business**.
+   **Not** the existing "Media Buy" app (`1116760423638082`) — its overdue Annual
+   Data Use Checkup is disrupting that app's API access, and WhatsApp would
+   inherit the problem.
+2. **Add product → WhatsApp → Set up.** Creates a test WABA + a free test number.
+   Note the **Phone number ID**.
+3. **API Setup** → add your mobile as a verified recipient (test numbers reach 5).
+4. **App Settings → Basic → App Secret → Show** → `WA_APP_SECRET`.
+5. Generate the System User token (see warning above) → `WA_ACCESS_TOKEN`.
+6. Deploy steps 1–5 above first — the next step needs a live endpoint.
+7. **WhatsApp → Configuration → Webhook → Edit.** Callback URL = the Function URL,
+   Verify token = `WA_VERIFY_TOKEN` → **Verify and save** (fires the GET handshake).
+8. **Webhook fields → Manage → subscribe to `messages` only.** Unsubscribed fields
+   never arrive, which is cheaper than filtering them.
+
+## 7. Going live on MediaOne's real number — ⚠️ IRREVERSIBLE
+
+Prove the bot on the test number first. When you're ready:
+
+**A number already active on the WhatsApp Business app must be deleted from that
+app before it can join the Cloud API. That wipes its chat history on the app and
+cannot be undone.** Both cannot run on the same number. Schedule it deliberately;
+it is not part of a routine deploy.
+
+Then: Business Settings → WhatsApp Accounts → Add phone number, verify by
+SMS/voice, update `WA_PHONE_NUMBER_ID`, and clear `WA_ALLOWED_WA_IDS`.
+
+Also confirm current **service-conversation pricing** in the dashboard before
+launch — Meta reprices this periodically.
+
+## 8. Verify
+
+```bash
+URL=https://<your-function-url>.lambda-url.ap-southeast-1.on.aws
+TOK=<WA_VERIFY_TOKEN>
+
+# 1. handshake -> prints exactly: abc123  (no quotes)
+curl -s "$URL?hub.mode=subscribe&hub.verify_token=$TOK&hub.challenge=abc123"; echo
+
+# 2. wrong token -> 403
+curl -s -o /dev/null -w '%{http_code}\n' "$URL?hub.mode=subscribe&hub.verify_token=wrong&hub.challenge=abc123"
+
+# 3/4. signed vs tampered POST — see the harness note below
+```
+
+The full local harness (signature, dedupe, claim-release, stale-window, the
+guardrails against the real KB + DeepSeek) is not committed; it stubs DynamoDB and
+the Graph API and runs the handler in-process. Reproduce with:
+`python3 -c "import lambda_function"` after stubbing `boto3`, or re-derive from the
+verify table in the plan.
+
+Live checks after the webhook is connected:
+
+| Test | Expect |
+|---|---|
+| message from your phone | reply arrives in-app |
+| send an image | Haiku describes it |
+| "how much does SEO cost?" | must **not** pivot to a paid-ads pitch (see below) |
+| "what's my campaign ROI this month?" | escalation + a Google Chat post, never a number |
+| CloudWatch `Duration`, webhook path | <200ms warm — the fast-ACK proof |
+
+## Why the guardrails are three layers, not a prompt
+
+The KB retriever returns **confident false matches**. Verified live 2026-07-15:
+`"how much does SEO cost"` returns *"Is it necessary to do paid ads when I am doing
+SEO?"* at score **0.79** — well above the 0.6 floor — and none of the top matches
+contain a price at all. A model told to "ground your answer in these snippets"
+will answer a pricing question with a paid-ads pitch.
+
+So: (1) a deterministic regex escalates account-specific questions before any LLM
+runs; (2) the system prompt states outright that the snippets may be irrelevant and
+must not be force-fitted; (3) the user-facing escalation text is a **compile-time
+constant** — on escalation the model's `reply` is discarded, so it cannot invent a
+response time or a colleague's name. The bot **fails closed to a human** on an LLM
+error, unparseable JSON, or zero KB matches — never to an improvised answer.
+
+If you loosen any of these, re-run the `"how much does SEO cost?"` check.

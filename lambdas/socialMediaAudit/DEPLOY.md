@@ -27,8 +27,25 @@ Monthly Social Reports refresh themselves daily, no user trigger.
 - **Manual test:** `aws lambda invoke --function-name socialMediaAudit --cli-binary-format raw-in-base64-out --payload '{"action":"cron_capture_all"}' out.json` (or target one project with `{"action":"cron_capture_one","projectId":"<pid>"}`).
 - **Endpoint:** REST API `vceg7jm8w0`, stage `socialMediaAudit`, root resource POST+OPTIONS → AWS_PROXY →
   `https://vceg7jm8w0.execute-api.ap-southeast-1.amazonaws.com/socialMediaAudit`
-- **NOTE:** Lambda Function URLs are blocked at the account level (returned `Forbidden` even with a correct
-  resource policy + AuthType NONE) — that's why this uses a REST API, matching the rest of the project.
+- **NOTE:** this uses a REST API, matching the rest of the project.
+  ~~Lambda Function URLs are blocked at the account level (returned `Forbidden` even with a correct
+  resource policy + AuthType NONE).~~ **CORRECTED 2026-07-15 — that claim is wrong, and the real
+  cause is now known.** Function URLs work fine in account `167633412846`.
+
+  A public Function URL needs **TWO** resource-policy statements, not one:
+  ```
+  1. lambda:InvokeFunctionUrl  + StringEquals lambda:FunctionUrlAuthType  = NONE
+  2. lambda:InvokeFunction     + Bool         lambda:InvokedViaFunctionUrl = true
+  ```
+  With only (1), **every** request — including the GET handshake — is rejected by Lambda's own auth
+  layer with `{"Message":"Forbidden. For troubleshooting Function URL authorization issues, ..."}`
+  before it reaches your handler. That is exactly the `Forbidden` recorded above. Add (2) with
+  `aws lambda add-permission --action lambda:InvokeFunction --principal '*' --invoked-via-function-url`.
+
+  Reproduced and fixed live on `lambdas/whatsappBot` 2026-07-15: identical `Forbidden` with only (1)
+  present; adding (2) made the handshake return 200 immediately. `digimetrics-saas-ChatStreamFn` has
+  had both statements all along (SAM emits both), which is why it works. Don't let the stale claim
+  push you into a REST API you don't need.
 - Verified end-to-end with `{handles:{instagram:"nike"}}` → real 292M-follower scorecard.
 
 Re-deploy code: `update-function-code --function-name socialMediaAudit --zip-file fileb://socialMediaAudit.zip --region ap-southeast-1`
