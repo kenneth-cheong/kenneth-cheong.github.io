@@ -2859,11 +2859,6 @@ html[data-theme="dark"] [data-tooltip]::before{background:#1a1f3c}
             color: var(--dm-i-4f46e5);
         }
         .model-switch-btn i { font-size: 0.8rem; }
-        .model-switch-btn.gchat-on {
-            background: var(--dm-s-dcfce7, #dcfce7);
-            border-color: var(--dm-r-86efac, #86efac);
-            color: var(--dm-i-15803d, #15803d);
-        }
 
         /* Voice chat (hands-free) button */
         .voice-mode-btn {
@@ -3837,7 +3832,7 @@ html[data-theme="dark"] [data-tooltip]::before{background:#1a1f3c}
         </div>
 
         <header>
-            <h1><svg class="otter-mascot" viewBox="0 0 48 48" fill="none" width="30" height="30" style="flex-shrink:0" role="img" aria-label="Monty"><clipPath id="otterHeadClip"><circle cx="24" cy="24" r="24"/></clipPath><g clip-path="url(#otterHeadClip)"><circle cx="24" cy="24" r="24" fill="#e8f0ff"/><image href="assets/monty.jpg" x="-12.52" y="-11.48" width="73.04" height="73.04"/><path d="M8.4 20 Q24 -1 39.6 20" stroke="#2563eb" stroke-width="2.6" fill="none" stroke-linecap="round"/><ellipse cx="8.4" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><ellipse cx="39.6" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><path d="M8.4 24 Q5.5 31 16 32.2" stroke="#2563eb" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="16.3" cy="32.2" r="1.5" fill="#2563eb"/></g></svg> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2764</span></h1>
+            <h1><svg class="otter-mascot" viewBox="0 0 48 48" fill="none" width="30" height="30" style="flex-shrink:0" role="img" aria-label="Monty"><clipPath id="otterHeadClip"><circle cx="24" cy="24" r="24"/></clipPath><g clip-path="url(#otterHeadClip)"><circle cx="24" cy="24" r="24" fill="#e8f0ff"/><image href="assets/monty.jpg" x="-12.52" y="-11.48" width="73.04" height="73.04"/><path d="M8.4 20 Q24 -1 39.6 20" stroke="#2563eb" stroke-width="2.6" fill="none" stroke-linecap="round"/><ellipse cx="8.4" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><ellipse cx="39.6" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><path d="M8.4 24 Q5.5 31 16 32.2" stroke="#2563eb" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="16.3" cy="32.2" r="1.5" fill="#2563eb"/></g></svg> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2812</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -4212,7 +4207,8 @@ html[data-theme="dark"] [data-tooltip]::before{background:#1a1f3c}
                                 <button class="btn-service-connect" id="btnConnectWorkspace" onclick="connectService('Workspace')" title="Sign in with Google to connect Workspace (Chat, Drive, Gmail)">Connect</button>
                                 <button class="btn-service-disconnect" id="btnDisconnectWorkspace" onclick="disconnectService('Workspace')" title="Remove your Google Workspace connection" style="display:none;">Disconnect</button>
                             </div>
-                            <!-- Sync toggles — nested under Workspace since Gmail & Drive require it -->
+                            <!-- Sync toggles — nested under Workspace since Gmail & Drive require it.
+                                 Google Chat has no toggle: picking spaces below IS the opt-in. -->
                             <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 10px;">
                                 <div style="background: var(--dm-s-f8fafc); border-radius: 10px; border: 1px solid var(--dm-r-e2e8f0); overflow: hidden;">
                                     <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px;">
@@ -4816,10 +4812,6 @@ html[data-theme="dark"] [data-tooltip]::before{background:#1a1f3c}
                 <button class="prompts-btn" onclick="openPromptsModal()" title="Browse and insert quick prompt templates" data-tooltip="Quick Prompts Templates">
                     <i class="fas fa-wand-magic-sparkles"></i>
                 </button>
-                <button class="model-switch-btn" id="gchatToggleBtn" onclick="toggleGchat()"
-                    title="Include Google Chat — OFF by default. When on, the assistant may read Google Chat spaces you name. While off it never reads Chat and will ask you to turn this on and pick a space.">
-                    <i class="fas fa-comments"></i><span id="gchatToggleLabel">Chat: Off</span>
-                </button>
                 <textarea id="userInput" placeholder="Type your message..." rows="1"></textarea>
                 <button class="icon-btn" id="sendBtn" onclick="handleSendMessage()" title="Send message">
                     <i class="fas fa-paper-plane"></i>
@@ -4905,25 +4897,18 @@ html[data-theme="dark"] [data-tooltip]::before{background:#1a1f3c}
                     : 'Switched to Claude', 'info');
             }
         }
-        // ── Google Chat opt-in toggle (default OFF) ─────────────────────────
-        // Chat spaces are private and often belong to different clients, so the
-        // assistant never reads Chat unless the user explicitly opts in here.
-        function renderGchatToggle() {
-            const on = localStorage.getItem('cbGchatEnabled') === '1';
-            const btn = document.getElementById('gchatToggleBtn');
-            const label = document.getElementById('gchatToggleLabel');
-            if (label) label.textContent = on ? 'Chat: On' : 'Chat: Off';
-            if (btn) btn.classList.toggle('gchat-on', on);
-        }
-        function toggleGchat() {
-            const next = localStorage.getItem('cbGchatEnabled') === '1' ? '0' : '1';
-            localStorage.setItem('cbGchatEnabled', next);
-            renderGchatToggle();
-            if (typeof showToast === 'function') {
-                showToast(next === '1'
-                    ? 'Google Chat ON — tell me which space(s) to read'
-                    : 'Google Chat OFF — I won’t read any Chat spaces', 'info');
-            }
+        // ── Google Chat scope (default: nothing) ────────────────────────────
+        // There is no on/off switch: the Chat Spaces picker in Settings → Google
+        // Connectors IS the opt-in, the same way picking Drive folders is. No spaces
+        // selected = the user doesn't want Chat searched, so we send an empty list and
+        // the Lambda refuses every Chat tool. When spaces ARE selected the Lambda is
+        // confined to exactly those ids, so a fuzzy space match can't wander into a
+        // different client's space.
+        function getSelectedGchatSpaces() {
+            const sel = (window.msState && msState.msChatSpaceDropdown && msState.msChatSpaceDropdown.selected) || [];
+            return sel
+                .map(s => (typeof s === 'object' && s ? { id: s.id, name: s.name || s.id } : { id: s, name: s }))
+                .filter(s => s.id);
         }
         window.lastSyncedInternalState = { boards: [], items: [], staff: [] };
 
@@ -5016,12 +5001,46 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             const status = document.getElementById('reportFormatStatus');
             if (status) status.textContent = 'Reset to default — click Save format to apply.';
         }
-        // Resume the last conversation across reloads — including the reload a version
-        // update triggers — so an in-progress chat is never lost off the screen. Users
-        // start a fresh thread with the "New Chat" button. Shared links (?share=) load
-        // their own stored state, same as before.
-        let currentConversationId = localStorage.getItem('chatbot_conversationId') || null;
-        let chatHistory = JSON.parse(localStorage.getItem('chatbot_history') || '[]');
+        // A page load starts a FRESH conversation. The one exception is the reload the
+        // version-update toast triggers: that's our own reload of a page the user may be
+        // mid-chat on, so showUpdateToast() hands the thread across via a one-shot
+        // sessionStorage flag. Every other load — manual refresh, new tab — begins a new
+        // thread; the previous one stays reachable in History (the pagehide beacon flush +
+        // the orphan-tail rescue below are what make that safe to do).
+        // Shared links (?share=) load their own stored state on window.load, unaffected.
+        const _resumeChat = sessionStorage.getItem('chatbot_resume_once') === '1';
+        try { sessionStorage.removeItem('chatbot_resume_once'); } catch (e) {}   // one-shot
+
+        // A previous session's unconfirmed tail (a save the beacon flush never got
+        // acknowledged) must not be dropped just because this load starts fresh — losing
+        // that tail is the exact bug that got fresh-on-load reverted before. Capture it
+        // BEFORE the wipe below; _flushOrphanTail() sends it to History once userId is up.
+        const _orphanTail = (!_resumeChat && localStorage.getItem('chatbot_unsynced') === '1')
+            ? (() => {
+                try {
+                    const msgs = JSON.parse(localStorage.getItem('chatbot_history') || '[]');
+                    if (!msgs.length) return null;
+                    return {
+                        conversationId: localStorage.getItem('chatbot_conversationId') || null,
+                        messages: msgs,
+                        baseRev: parseInt(localStorage.getItem('chatbot_convRev') || '0', 10) || 0,
+                        threadId: localStorage.getItem('threadId')
+                    };
+                } catch (e) { return null; }
+            })()
+            : null;
+
+        let currentConversationId = _resumeChat ? (localStorage.getItem('chatbot_conversationId') || null) : null;
+        let chatHistory = _resumeChat ? JSON.parse(localStorage.getItem('chatbot_history') || '[]') : [];
+
+        if (!_resumeChat) {
+            // Drop the previous thread's local state so the first message of this load
+            // mints a new conversation instead of appending to the old one. threadId is
+            // assigned too — it was already read into the variable further up.
+            ['chatbot_conversationId', 'chatbot_history', 'chatbot_convRev', 'chatbot_unsynced', 'threadId']
+                .forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
+            threadId = null;
+        }
         // An id with no restored history is a desync: a past failed/empty load once
         // persisted [] next to a live conversationId, so the next message would overwrite
         // the server thread. Disown the orphan id — a fresh save mints a new one instead
@@ -5039,15 +5058,16 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
         // Server revision this client last saw for currentConversationId. Persisted so a
         // resumed session (or a recovery flush) sends the right baseRev for the optimistic-
         // concurrency guard; a conflict triggers a merge + retry. See saveConversation().
-        let currentConvRev = parseInt(localStorage.getItem('chatbot_convRev') || '0', 10) || 0;
+        let currentConvRev = _resumeChat ? (parseInt(localStorage.getItem('chatbot_convRev') || '0', 10) || 0) : 0;
         // Set whenever a message is pushed, cleared on a confirmed cloud save. Drives the
         // pagehide/visibility beacon flush so the last turn survives a reload or tab close
         // even though the routine cloud save only fires after a bot reply.
         let _historyDirty = false;
-        // A prior session left an unconfirmed (dirty) tail — a save that never got
+        // A resumed session left an unconfirmed (dirty) tail — a save that never got
         // acknowledged. We flush it to the cloud once on load (see the restore block) so
-        // it lands in History instead of being lost; baseRev makes that flush safe.
-        const _pendingUnsynced = localStorage.getItem('chatbot_unsynced') === '1';
+        // it lands in History instead of being lost; baseRev makes that flush safe. On a
+        // fresh load the equivalent rescue is _orphanTail/_flushOrphanTail() instead.
+        const _pendingUnsynced = _resumeChat && localStorage.getItem('chatbot_unsynced') === '1';
 
         // Google Client ID — fetched from Lambda env var on load
         let _googleClientId = localStorage.getItem('googleClientId') || '';
@@ -5441,6 +5461,42 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
         }
         window.addEventListener('pagehide', _beaconFlushChat);
         document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') _beaconFlushChat(); });
+
+        // One-shot rescue of the previous session's unconfirmed tail when this load started
+        // a fresh thread (see _orphanTail). saveConversation() can't do this job — it saves
+        // the *current* in-memory thread, which is now deliberately empty — so post the
+        // captured payload directly. baseRev keeps the optimistic-concurrency guard intact:
+        // if another device advanced the thread the server rejects this and keeps its copy.
+        function _flushOrphanTail() {
+            try {
+                if (!_orphanTail || !userId) return;
+                const t = _orphanTail;
+                let title = t.conversationId ? localStorage.getItem(`title_${t.conversationId}`) : null;
+                if (!title) {
+                    const f = t.messages.find(m => m.role === 'user' && (m.content || '').length > 5 && !String(m.content).includes('Internal data loaded'));
+                    title = f ? String(f.content).substring(0, 50) + '...' : 'New Conversation';
+                }
+                fetch(PERSISTENCE_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'save_conversation',
+                        data: {
+                            userId: userId,
+                            conversationId: t.conversationId,
+                            messages: t.messages,
+                            baseRev: t.baseRev,
+                            threadId: t.threadId,
+                            mode: 'claude',
+                            title: title,
+                            userLabel: (typeof chatUserLabel === 'function' ? chatUserLabel() : null),
+                            timestamp: new Date().toISOString()
+                        }
+                    })
+                }).then(() => console.log('[PERSISTENCE] Rescued the previous session\'s unsynced tail into History.'))
+                  .catch(e => console.warn('[PERSISTENCE] Orphan tail flush failed', e));
+            } catch (e) { console.warn('[PERSISTENCE] Orphan tail flush failed', e); }
+        }
 
         let _allHistoryConvs = [];
 
@@ -5917,6 +5973,13 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
 
         // Initialize from localStorage
         window.addEventListener('load', async () => {
+            // A fresh thread starts with a clean slate, same as the "New Chat" button:
+            // drop the previous session's synced board data so it can't leak into a
+            // conversation the user didn't load it for. The focus selections are kept, so
+            // re-syncing is one click on "Load Selected Data".
+            if (!_resumeChat) {
+                try { localStorage.removeItem('syncedContext'); } catch (e) {}
+            }
             // Clear stale or oversized syncedContext on every page load so old massive syncs
             // from previous sessions don't inflate the system prompt.
             try {
@@ -5929,7 +5992,6 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
 
             // Reflect the saved LLM provider on the switcher button
             renderModelSwitch();
-            renderGchatToggle();
 
             // Start background fetches for filters
             fetchSERankingSites();
@@ -5976,6 +6038,10 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     setTimeout(() => { saveConversation(); }, 1500);
                 }
             }
+
+            // This load started fresh but the previous session left an unsynced tail —
+            // get it into History before it's only in a discarded localStorage snapshot.
+            if (_orphanTail) setTimeout(() => { _flushOrphanTail(); }, 1500);
 
             // Restore mode
             if (currentMode === 'internal') {
@@ -15969,7 +16035,13 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 const refreshBtn = document.createElement('button');
                 refreshBtn.textContent = 'Refresh';
                 refreshBtn.className = 'toast-undo-btn';
-                refreshBtn.onclick = () => location.reload();
+                refreshBtn.onclick = () => {
+                    // Carry the on-screen chat across OUR reload. A page load otherwise
+                    // starts a fresh thread, and taking a version update must never be the
+                    // thing that clears the chat the user is in the middle of.
+                    try { sessionStorage.setItem('chatbot_resume_once', '1'); } catch (e) {}
+                    location.reload();
+                };
                 const dismissBtn = document.createElement('button');
                 dismissBtn.textContent = 'Later';
                 dismissBtn.className = 'toast-undo-btn';
