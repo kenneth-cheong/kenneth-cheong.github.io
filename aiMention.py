@@ -68,7 +68,7 @@ def lambda_handler(event, context):
                 return error_response("Snapshot finished but no content extracted")
             
             text = strip_html(text)
-            grading = grade_response(text, brand, url)
+            grading = grade_response(text, brand, url, body.get("aliases") or [])
             grading_data = json.loads(grading)
             
             return success_response({
@@ -87,6 +87,9 @@ def lambda_handler(event, context):
         location = body.get('location', 'Global')
         language = body.get('language', 'English')
         models = body.get('models', ['gpt-4o-mini', 'gemini-3.1-flash-lite-preview', 'perplexity', 'copilot'])
+        # Curated brand aliases (campaign alternativeNames). The grader rule handles names that
+        # look like the brand; these carry acronyms (HLAS, FSBP) it could never infer.
+        aliases = [str(a).strip() for a in (body.get('aliases') or []) if str(a).strip()]
 
         if not prompt or not brand:
             return error_response("Missing prompt or brand")
@@ -138,7 +141,7 @@ def lambda_handler(event, context):
                 # Strip HTML before returning to UI
                 raw_text = strip_html(raw_text)
                 
-                grading = grade_response(raw_text, brand, url)
+                grading = grade_response(raw_text, brand, url, aliases)
                 # Attempt to parse it locally to ensure it's valid JSON
                 grading_data = json.loads(grading)
 
@@ -580,15 +583,18 @@ def check_brightdata_snapshot(snapshot_id):
     except Exception as e:
         return {"error": f"Snapshot Check Error: {str(e)}"}
 
-def grade_response(ai_text, brand, url):
+def grade_response(ai_text, brand, url, aliases=None):
     """Uses a Grader LLM (GPT-4o-mini) to extract structured metrics."""
     # Strip HTML to prevent UI breakage and improve grading accuracy
     clean_text = strip_html(ai_text)
     
+    known = [a for a in (aliases or []) if a and a.strip().lower() != (brand or "").strip().lower()]
+    alias_line = ("ALSO KNOWN AS (these ALL count as the brand): " + ", ".join(known[:20]) + "\n") if known else ""
+
     grader_prompt = f"""
 Analyze the following AI response for a specific brand mention.
 BRAND TO TRACK: {brand}
-TARGET URL: {url}
+{alias_line}TARGET URL: {url}
 
 WHAT COUNTS AS THE BRAND:
 is_mentioned is TRUE when the response refers to the tracked brand by ANY name a customer would

@@ -1535,7 +1535,7 @@ def _alert(text):
         print("[GEO-ALERT] webhook failed:", str(e)[:160])
 
 
-def _verify_one(prompt, brand, url, model, source, location, deadline=None):
+def _verify_one(prompt, brand, url, model, source, location, deadline=None, aliases=None):
     """Retry wrapper around one prompt×brand×platform check. Successful results (incl. a valid
     'not mentioned') return immediately; only failures are retried, with short backoff, and only
     when they look transient — so a flaky DataForSEO call self-heals instead of silently dropping
@@ -1544,7 +1544,7 @@ def _verify_one(prompt, brand, url, model, source, location, deadline=None):
     for attempt in range(3):
         if deadline and time.time() > deadline:
             return {"ok": False, "error": "deadline exceeded"}
-        res = _verify_once(prompt, brand, url, model, source, location, deadline)
+        res = _verify_once(prompt, brand, url, model, source, location, deadline, aliases)
         if res.get("ok"):
             return res
         last = res
@@ -1556,14 +1556,14 @@ def _verify_one(prompt, brand, url, model, source, location, deadline=None):
     return last
 
 
-def _verify_once(prompt, brand, url, model, source, location, deadline=None):
+def _verify_once(prompt, brand, url, model, source, location, deadline=None, aliases=None):
     """Python port of the JS WD.verifyOne — one prompt × brand × platform check.
     Returns the same dict shape the JS buildModel consumes. Never raises."""
     endpoint = DFS_ENDPOINT if source == "dataforseo" else AI_ENDPOINT
     try:
         _st, raw = _post_json(endpoint, {"action": "verify_mentions", "prompt": prompt,
                                          "brand": brand, "url": url, "location": location,
-                                         "models": [model]}, timeout=90)
+                                         "models": [model], "aliases": aliases or []}, timeout=90)
         data = _unwrap(raw)
         ver = data.get("verification") if isinstance(data, dict) else None
         result = ver[0] if ver else None
@@ -1777,15 +1777,18 @@ def _build_model_py(cfg, results):
 def _build_jobs(cfg):
     """entities (self + competitors) × prompts × platforms — same grid as WD.runLive."""
     brand, target = cfg.get("brand"), cfg.get("target")
-    entities = [{"brand": brand, "target": target}]
+    # Aliases belong to the tracked brand only — we have curated alternativeNames for the client,
+    # not for their competitors, and applying the client's aliases to a rival would be nonsense.
+    entities = [{"brand": brand, "target": target, "aliases": cfg.get("aliases") or []}]
     for c in (cfg.get("competitors") or []):
-        entities.append({"brand": c, "target": ""})
+        entities.append({"brand": c, "target": "", "aliases": []})
     jobs = []
     for ei, ent in enumerate(entities):
         for pi, pr in enumerate(cfg.get("prompts") or []):
             for pl in (cfg.get("platforms") or []):
                 jobs.append({"ei": ei, "pi": pi, "pl": pl, "prompt": pr,
-                             "brand": ent["brand"], "url": ent["target"] or target})
+                             "brand": ent["brand"], "url": ent["target"] or target,
+                             "aliases": ent.get("aliases") or []})
     return jobs
 
 
@@ -1806,6 +1809,9 @@ def h_start_live_run(req):
     cfg = {"brand": brand, "target": target, "location": req.get("location") or "",
            "source": req.get("source") or "dataforseo",
            "competitors": [str(c).strip() for c in (req.get("competitors") or []) if str(c).strip()],
+           # Curated alternativeNames for the tracked brand (acronyms like HLAS/FSBP that no
+           # grader can infer). Forwarded to the engine per self-brand check.
+           "aliases": [str(a).strip() for a in (req.get("aliases") or []) if str(a).strip()][:20],
            "prompts": prompts, "platforms": platforms, "campaignId": str(req.get("id") or ""),
            # Month to permanently archive this run under (YYYY-MM). Empty for ad-hoc/no-campaign runs;
            # the worker defaults it to the current month when a campaign is attached.
@@ -1919,6 +1925,7 @@ def h_monthly_run_all(req):
             continue
         r = h_start_live_run({"id": iid, "brand": brand, "target": target,
                               "location": it.get("region") or "", "competitors": competitors,
+                              "aliases": it.get("alternativeNames") or [],
                               "prompts": prompts, "platforms": platforms,
                               "source": source, "month": month})
         try:
@@ -2318,7 +2325,8 @@ def h_live_run_worker(req):
     def run_job(idx):
         j = jobs[idx]
         try:
-            res = _verify_one(j["prompt"], j["brand"], j["url"], j["pl"], source, location, deadline)
+            res = _verify_one(j["prompt"], j["brand"], j["url"], j["pl"], source, location,
+                              deadline, j.get("aliases"))
         except Exception as e:
             res = {"ok": False, "error": str(e)[:200]}
         # Answers for every cell — self AND competitors — are kept here and written to the S3

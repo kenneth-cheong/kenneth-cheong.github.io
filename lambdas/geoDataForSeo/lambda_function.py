@@ -239,23 +239,35 @@ def brand_core(brand):
     return " ".join(core).strip()
 
 
-def heuristic_mentioned(brand, answer):
-    """Substring check on the brand's distinctive core, not its registered name."""
-    if not brand or not answer:
+def heuristic_mentioned(brand, answer, aliases=None):
+    """Substring check on the brand's distinctive core and any curated aliases."""
+    if not answer:
         return False
     a = answer.lower()
-    if brand.lower() in a:
-        return True
-    core = brand_core(brand)
-    # Require a couple of characters so a one-letter core can't match everything.
-    return bool(core) and len(core) >= 3 and core in a
+    for name in [brand] + list(aliases or []):
+        if not name:
+            continue
+        if name.lower() in a:
+            return True
+        core = brand_core(name)
+        # Require a few characters so a short core can't match half the language. Aliases like
+        # "FSBP" are deliberate acronyms, so they're checked verbatim above before this.
+        if core and len(core) >= 3 and core in a:
+            return True
+    return False
 
 
-def extract_with_claude(brand, answer):
+def extract_with_claude(brand, answer, aliases=None):
     if not answer:
         return {"is_mentioned": False, "sentiment": "neutral", "sentiment_reason": "",
                 "sentiment_theme": "", "visibility_score": 0, "rank": 0, "mention_snippet": ""}
-    user = f"Brand: {brand}\n\nAI answer:\n{answer[:6000]}"
+    # Aliases are curated per campaign and cover what the general rule can't infer (acronyms like
+    # HLAS/FSBP). They ADD to the rule rather than replace it: an unlisted sub-brand must still
+    # count, which is exactly the case that produced the original false negative.
+    known = [a for a in (aliases or []) if a and a.strip().lower() != (brand or "").strip().lower()]
+    alias_line = ("\nAlso known as (these ALL count as the brand): "
+                  + ", ".join(known[:20]) + "\n") if known else ""
+    user = f"Brand: {brand}\n{alias_line}\nAI answer:\n{answer[:6000]}"
     payload = {"model": EXTRACT_MODEL, "max_tokens": 300, "system": EXTRACT_SYSTEM,
                "messages": [{"role": "user", "content": user}]}
     status, body = _http_json("https://api.anthropic.com/v1/messages", payload, headers={
@@ -263,7 +275,7 @@ def extract_with_claude(brand, answer):
         "Content-Type": "application/json"})
     if status != 200:
         # Fallback: heuristic mention detection on the raw text.
-        mentioned = heuristic_mentioned(brand, answer)
+        mentioned = heuristic_mentioned(brand, answer, aliases)
         return {"is_mentioned": mentioned, "sentiment": "neutral", "sentiment_reason": "",
                 "sentiment_theme": "", "visibility_score": 50 if mentioned else 0,
                 "rank": 0, "mention_snippet": ""}
@@ -272,7 +284,7 @@ def extract_with_claude(brand, answer):
         m = re.search(r"\{.*\}", txt, re.DOTALL)
         data = json.loads(m.group(0) if m else txt)
     except Exception:
-        mentioned = heuristic_mentioned(brand, answer)
+        mentioned = heuristic_mentioned(brand, answer, aliases)
         return {"is_mentioned": mentioned, "sentiment": "neutral", "sentiment_reason": "",
                 "sentiment_theme": "", "visibility_score": 50 if mentioned else 0,
                 "rank": 0, "mention_snippet": ""}
@@ -290,7 +302,7 @@ def extract_with_claude(brand, answer):
 # ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------
-def verify_one(prompt, brand, url, location, model_id):
+def verify_one(prompt, brand, url, location, model_id, aliases=None):
     iso = LOCATION_ISO.get((location or "").strip().lower(), "")
     if model_id in SERP_ENGINES:
         answer, citations, meta = call_serp_ai(model_id, prompt, iso)
@@ -318,7 +330,7 @@ def verify_one(prompt, brand, url, location, model_id):
             citation_urls.append(c["url"])
     is_cited = bool(target_domain) and any(domain_of(u) == target_domain for u in citation_urls)
 
-    a = extract_with_claude(brand, answer)
+    a = extract_with_claude(brand, answer, aliases)
     a["is_cited"] = is_cited
     a["citation_urls"] = citation_urls
     # Full answer, untruncated. It used to be cut to 4000 chars here and then again to 1200 in
@@ -374,13 +386,17 @@ def lambda_handler(event, context):
     url = req.get("url") or ""
     location = req.get("location") or ""
     models = req.get("models") or ["chatgpt"]
+    # Curated brand aliases from the campaign record (alternativeNames). No model can infer
+    # that "HLAS" is HL Assurance or "FSBP" is Free Skin & Body Perfect — the prompt rule only
+    # catches names that LOOK like the brand. These carry the ones it cannot guess.
+    aliases = [str(a).strip() for a in (req.get("aliases") or []) if str(a).strip()]
     model_id = models[0]
 
     if not prompt or not brand:
         return _resp(400, {"error": "prompt and brand are required"})
 
     try:
-        result = verify_one(prompt, brand, url, location, model_id)
+        result = verify_one(prompt, brand, url, location, model_id, aliases)
         return _resp(200, {"verification": [result]})
     except Exception as e:
         return _resp(200, {"verification": [{"status": "error", "error": str(e), "engine": model_id}]})
