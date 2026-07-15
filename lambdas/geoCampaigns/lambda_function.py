@@ -979,6 +979,89 @@ def _acc_overall(dst, r):
         dst["os"] += r["ownedCitationShare"]; dst["on"] += 1
 
 
+_OVR_PREFIX = "__ovr__"
+
+
+def _ovr_date_key(date):
+    return _OVR_PREFIX + date
+
+
+def _load_day_overrides(cid, start, end):
+    """Manual per-date corrections for a window, as {date: {"ents": {...}, "queries": {...}}}.
+
+    Stored one row per date under a `__ovr__<date>` sort key in the SAME daily table, which buys
+    two things: the range query below mirrors the metrics query exactly, and the nightly export
+    can't clobber them — it only ever put_items real `<date>` rows plus `__meta__`. The prefix
+    also sorts clear of the real dates ('_' > any digit), so `between(start, end)` on the metrics
+    query never picks these up.
+    """
+    out = {}
+    cond = Key("campaignId").eq(cid) & Key("date").between(_ovr_date_key(start), _ovr_date_key(end))
+    resp = _daily_tbl.query(KeyConditionExpression=cond)
+    items = resp.get("Items", [])
+    while "LastEvaluatedKey" in resp:
+        resp = _daily_tbl.query(KeyConditionExpression=cond, ExclusiveStartKey=resp["LastEvaluatedKey"])
+        items.extend(resp.get("Items", []))
+    for it in items:
+        try:
+            out[str(it["date"])[len(_OVR_PREFIX):]] = json.loads(it["blob"])
+        except Exception:
+            continue
+    return out
+
+
+def _patch_day_counters(src, ovr):
+    """Apply one day's corrections to that day's RAW per-entity counters.
+
+    Corrections are stated as the DERIVED value the user sees (visibility %, mentions, avg.
+    position) and back-solved into counters here, because the aggregator sums counters across the
+    window and derives percentages once at the end. Doing it this way is what makes a single day's
+    fix flow into the single-day view, the 30-day average AND the trend chart, instead of only
+    whichever one the edit was made on.
+
+    SOV is deliberately NOT overridable: it's mentions/totalEntitiesMentions, a ratio over a
+    denominator every brand that day shares. Pinning one brand's SOV by hand breaks the
+    sum-to-100 invariant. Editing visibility or mentions moves SOV coherently instead — which is
+    why the shared denominator is shifted by the same delta below, so the other brands' SOV
+    reacts to the correction exactly as it would have if the measurement itself had differed.
+    """
+    out = {eid: dict(ov) for eid, ov in src.items()}
+    delta = 0.0
+    for eid, o in out.items():
+        eo = ovr.get(eid)
+        if not eo:
+            continue
+        before = o.get("m", 0) or 0
+        if "mentions" in eo:
+            o["m"] = max(0.0, float(eo["mentions"]["v"]))
+        elif "visibility" in eo and (o.get("r") or 0):
+            o["m"] = max(0.0, float(eo["visibility"]["v"]) / 100.0 * o["r"])
+        if "avgPosition" in eo:
+            pc = o.get("pc") or 1
+            o["ps"] = float(eo["avgPosition"]["v"]) * pc
+            o["pc"] = pc
+        delta += (o.get("m", 0) or 0) - before
+    if delta:
+        for o in out.values():
+            o["em"] = max(0.0, (o.get("em", 0) or 0) + delta)
+    return out
+
+
+def _patch_day_query(ov, qo):
+    """Same back-solve as _patch_day_counters, for one query's counters on one day. `responses`
+    is editable here (unlike entities, where it isn't surfaced) because the query table shows it."""
+    o = dict(ov)
+    if "responses" in qo:
+        o["r"] = max(0.0, float(qo["responses"]["v"]))
+    if "visibility" in qo and (o.get("r") or 0):
+        o["m"] = max(0.0, float(qo["visibility"]["v"]) / 100.0 * o["r"])
+    if "avgPosition" in qo:
+        pc = o.get("pc") or 1
+        o["ps"] = float(qo["avgPosition"]["v"]) * pc
+        o["pc"] = pc
+    return o
+
+
 def export_daily(campaign, proj=None, max_windows=24):
     """Pull available daily history from Workduo and store it per (campaign, date)
     in geoCampaignDaily. Walks backward in 30-day windows until the data runs out
@@ -1013,9 +1096,12 @@ def export_daily(campaign, proj=None, max_windows=24):
     def day(d):
         return days.setdefault(d, {"ents": {}})
 
-    # Per-entity overall daily metrics only (topic-daily is cheap: few topics/day).
-    # This is range-accurate for the time-series, KPIs, SOV and competitor leaderboard.
-    # The per-query breakdown table is sourced from the persisted snapshot in build_model_from_db.
+    # Per-entity daily metrics on two dimensions: `topic` (drives the time-series, KPIs, SOV and
+    # competitor leaderboard, plus the per-topic scoping) and `query` (drives the per-query
+    # breakdown). The per-query table used to be borrowed from the persisted month snapshot on the
+    # assumption Workduo had no cheap per-query daily — it does: dimension=query&interval=daily
+    # returns the same accumulator fields per (date, queryId). Sourcing it here makes the query
+    # table range-accurate AND gives per-date corrections a real row to attach to.
     today, empty, windows_used = _today(), 0, 0
     for w in range(max_windows):
         end = today - timedelta(days=w * 30)
@@ -1039,6 +1125,16 @@ def export_daily(campaign, proj=None, max_windows=24):
                     st = day(d).setdefault("selfTopics", {}).setdefault(t, {"m": 0, "r": 0})
                     st["m"] += r.get("mentions", 0) or 0
                     st["r"] += r.get("totalResponses", 0) or 0
+            # Per-entity per-QUERY daily accumulators, keyed by Workduo's queryId (the row's
+            # `query` field is an opaque slug, not the prompt text — the text comes from qmeta).
+            for r in _wd_get_metrics(em["id"], pid, "query", "daily", range_qs=qs):
+                d = (r.get("date") or "")[:10]
+                qid = str(r.get("queryId") or "")
+                if not d or not qid:
+                    continue
+                win_rows += 1
+                qa = day(d).setdefault("qs", {}).setdefault(em["id"], {}).setdefault(qid, _blank())
+                _acc_overall(qa, r)
         windows_used = w + 1
         empty = empty + 1 if win_rows == 0 else 0
         if empty >= 2:
@@ -1047,7 +1143,10 @@ def export_daily(campaign, proj=None, max_windows=24):
     primary_name = next((m["name"] for m in metas if m["id"] == primary_id), None)
     meta = {"brand": brand, "target": target, "domain": domain, "region": region,
             "primaryId": primary_id, "primaryName": primary_name,
-            "entities": {m["id"]: {"name": m["name"], "url": m["url"], "isSelf": m["isSelf"]} for m in metas}}
+            "entities": {m["id"]: {"name": m["name"], "url": m["url"], "isSelf": m["isSelf"]} for m in metas},
+            # queryId -> {text, topic}: the daily `qs` accumulators are keyed by id, so the range
+            # view needs this to render prompt text (and to survive a query being reworded).
+            "queries": qmeta}
     _daily_tbl.put_item(Item={"campaignId": pid, "date": "__meta__", "blob": json.dumps(meta)})
     with _daily_tbl.batch_writer() as bw:
         for d, data in days.items():
@@ -1118,10 +1217,15 @@ def build_model_from_db(cid, start, end, label, topic=None):
         resp = _daily_tbl.query(KeyConditionExpression=cond, ExclusiveStartKey=resp["LastEvaluatedKey"])
         items.extend(resp.get("Items", []))
 
+    day_ovr = _load_day_overrides(cid, start, end)
+    self_eid = next((eid for eid, m in ents_meta.items() if m.get("isSelf")), None)
+    q_self, q_comp, q_seen = {}, {}, {}
+
     ent_tot, series, topic_by_date, avail_topics = {}, {}, {}, set()
     for it in items:
         d = it["date"]
         data = json.loads(it["blob"])
+        dov = day_ovr.get(d) or {}
         ent_topics = data.get("entTopics") or {}
         for _tm in ent_topics.values():
             avail_topics.update(_tm.keys())
@@ -1131,6 +1235,28 @@ def build_model_from_db(cid, start, end, label, topic=None):
             src = {eid: (tm.get(topic)) for eid, tm in ent_topics.items() if tm.get(topic)}
         else:
             src = data.get("ents", {})
+            # Corrections are recorded against the whole-brand day, so they'd be double-counted
+            # (and mis-scaled) if also applied to a single topic's slice — topic views stay raw.
+            if dov.get("ents"):
+                src = _patch_day_counters(src, dov["ents"])
+
+        # Per-query daily accumulators for self + the primary competitor, so the query table is
+        # range-accurate rather than borrowed from the month snapshot.
+        qmap = data.get("qs") or {}
+        dq_ov = dov.get("queries") or {}
+        for _eid, byq in qmap.items():
+            tgt = q_self if _eid == self_eid else (q_comp if _eid == primary_id else None)
+            if tgt is None:
+                continue
+            for qid, qov in byq.items():
+                if tgt is q_self:
+                    q_seen[qid] = 1
+                    if dq_ov.get(qid):
+                        qov = _patch_day_query(qov, dq_ov[qid])
+                t = tgt.setdefault(qid, _blank())
+                for k in t:
+                    t[k] += qov.get(k, 0) or 0
+
         for eid, ov in src.items():
             t = ent_tot.setdefault(eid, _blank())
             for k in t:
@@ -1155,7 +1281,9 @@ def build_model_from_db(cid, start, end, label, topic=None):
     ent_models = []
     for eid, t in ent_tot.items():
         em = ents_meta.get(eid) or {}
-        ent_models.append({"name": em.get("name") or eid,
+        # `id` is surfaced so the dashboard can target a per-date correction at the entity
+        # rather than matching on display name (which is editable upstream in Workduo).
+        ent_models.append({"id": eid, "name": em.get("name") or eid,
                            "domain": domain_of(em.get("url")) or (meta["domain"] if em.get("isSelf") else ""),
                            "isSelf": bool(em.get("isSelf")), **overall(t)})
     ent_models.sort(key=lambda e: -e["visibility"])
@@ -1179,15 +1307,35 @@ def build_model_from_db(cid, start, end, label, topic=None):
                            "positive": 0, "negative": 0, "byBrand": bb,
                            "byTopic": topic_by_date.get(d, {})})
 
-    # Per-query breakdown: reuse the persisted last-30d snapshot. (Workduo doesn't expose
-    # per-query daily cheaply; the time-series / KPIs / SOV / competitors above ARE range-accurate.)
+    # Per-query breakdown, built from the daily `qs` accumulators so it's range-accurate and can
+    # carry per-date corrections. Campaigns exported before `qs` existed have none, so those fall
+    # back to the persisted month snapshot — the old behaviour — rather than showing an empty
+    # table until a re-export runs.
+    q_meta_stored = meta.get("queries") or {}
     prompts = []
-    snap = _table.get_item(Key={"id": cid}).get("Item")
-    if snap and snap.get("metrics"):
-        try:
-            prompts = (json.loads(snap["metrics"]) or {}).get("prompts", []) or []
-        except Exception:
-            prompts = []
+    for qid in q_seen:
+        t = q_self.get(qid) or _blank()
+        qm = q_meta_stored.get(qid) or {}
+        ct = q_comp.get(qid)
+        self_pct = round(t["m"] / t["r"] * 100, 1) if t["r"] else 0
+        prompts.append({"queryId": qid,
+                        "text": qm.get("text") or qid,
+                        "topic": qm.get("topic") or "No Topic",
+                        "region": meta["region"],
+                        "responses": int(t["r"]),
+                        "visibility": self_pct,
+                        "sov": round(t["m"] / t["em"] * 100, 1) if t["em"] else 0,
+                        "avgPosition": round(t["ps"] / t["pc"], 1) if t["pc"] else 0,
+                        "selfPct": self_pct,
+                        "competitorPct": round(ct["m"] / ct["r"] * 100, 1) if ct and ct["r"] else 0})
+    prompts.sort(key=lambda p: -p["visibility"])
+    if not prompts:
+        snap = _table.get_item(Key={"id": cid}).get("Item")
+        if snap and snap.get("metrics"):
+            try:
+                prompts = (json.loads(snap["metrics"]) or {}).get("prompts", []) or []
+            except Exception:
+                prompts = []
     primary_name = meta.get("primaryName") or ((ents_meta.get(primary_id) or {}).get("name") if primary_id else None)
 
     return {"brand": meta["brand"], "target": meta["target"], "domain": meta["domain"], "location": meta["region"],
@@ -2147,6 +2295,111 @@ def h_clear_override(req):
     return _resp(200, {"ok": True, "id": cid, "key": key})
 
 
+_DAY_OVR_FIELDS = {"ents": ("visibility", "mentions", "avgPosition"),
+                   "queries": ("visibility", "responses", "avgPosition")}
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def h_set_day_override(req):
+    """Correct one measured value for ONE DATE. Written per (campaign, date) into the daily table;
+    build_model_from_db back-solves it into that day's raw counters, so the fix shows up in the
+    single-day view, in every longer range containing the day, and in the trend chart.
+
+    `scope` is 'ents' (brand/competitor) or 'queries'. SOV is intentionally absent from both field
+    lists — see _patch_day_counters for why a hand-pinned share can't stay coherent.
+
+    Read-modify-write of a single date's row is fine here: contention is one editor on one day.
+    """
+    cid = str(req.get("id") or "")
+    if not _is_campaign_id(cid):
+        return _resp(400, {"error": "valid campaign id required"})
+    date = (req.get("date") or "").strip()
+    if not _DATE_RE.match(date):
+        return _resp(400, {"error": "date must be YYYY-MM-DD"})
+    scope = (req.get("scope") or "").strip()
+    if scope not in _DAY_OVR_FIELDS:
+        return _resp(400, {"error": f"scope must be one of {sorted(_DAY_OVR_FIELDS)}"})
+    field = (req.get("field") or "").strip()
+    if field not in _DAY_OVR_FIELDS[scope]:
+        return _resp(400, {"error": f"field must be one of {list(_DAY_OVR_FIELDS[scope])} for scope {scope}"})
+    target = str(req.get("targetId") or "").strip()
+    if not target:
+        return _resp(400, {"error": "targetId required (entityId or queryId)"})
+    try:
+        value = float(req.get("value"))
+    except (TypeError, ValueError):
+        return _resp(400, {"error": "value must be a number"})
+    if value < 0:
+        return _resp(400, {"error": "value cannot be negative"})
+    if field == "visibility" and value > 100:
+        return _resp(400, {"error": "visibility is a percentage (0-100)"})
+
+    key = {"campaignId": cid, "date": _ovr_date_key(date)}
+    row = _daily_tbl.get_item(Key=key).get("Item")
+    blob = {}
+    if row and row.get("blob"):
+        try:
+            blob = json.loads(row["blob"])
+        except Exception:
+            blob = {}
+    entry = {"v": value, "rec": req.get("recorded"), "by": str(req.get("by") or "")[:120], "at": _now()}
+    blob.setdefault(scope, {}).setdefault(target, {})[field] = entry
+    _daily_tbl.put_item(Item={**key, "blob": json.dumps(blob)})
+    return _resp(200, {"ok": True, "id": cid, "date": date, "scope": scope,
+                       "targetId": target, "field": field, "override": entry})
+
+
+def h_clear_day_override(req):
+    """Drop one per-date correction (or every correction on that date when `field` is omitted),
+    so the day falls back to what the export actually recorded. Prunes empty buckets, and deletes
+    the row entirely once nothing is left, so cleared dates don't linger as empty blobs."""
+    cid = str(req.get("id") or "")
+    if not _is_campaign_id(cid):
+        return _resp(400, {"error": "valid campaign id required"})
+    date = (req.get("date") or "").strip()
+    if not _DATE_RE.match(date):
+        return _resp(400, {"error": "date must be YYYY-MM-DD"})
+    key = {"campaignId": cid, "date": _ovr_date_key(date)}
+    row = _daily_tbl.get_item(Key=key).get("Item")
+    if not row:
+        return _resp(200, {"ok": True, "id": cid, "date": date, "cleared": 0})
+    try:
+        blob = json.loads(row["blob"])
+    except Exception:
+        blob = {}
+    scope, target, field = (req.get("scope") or "").strip(), str(req.get("targetId") or "").strip(), (req.get("field") or "").strip()
+    if not scope:
+        blob = {}
+    else:
+        bucket = (blob.get(scope) or {}).get(target) or {}
+        if field:
+            bucket.pop(field, None)
+        else:
+            bucket = {}
+        if bucket:
+            blob[scope][target] = bucket
+        else:
+            (blob.get(scope) or {}).pop(target, None)
+            if not blob.get(scope):
+                blob.pop(scope, None)
+    if blob:
+        _daily_tbl.put_item(Item={**key, "blob": json.dumps(blob)})
+    else:
+        _daily_tbl.delete_item(Key=key)
+    return _resp(200, {"ok": True, "id": cid, "date": date, "remaining": blob})
+
+
+def h_list_day_overrides(req):
+    """Every per-date correction in a window — lets the dashboard mark edited days and lets a
+    reviewer see, in one call, exactly what has been hand-adjusted on a campaign."""
+    cid = str(req.get("id") or "")
+    if not _is_campaign_id(cid):
+        return _resp(400, {"error": "valid campaign id required"})
+    start = (req.get("startDate") or "2000-01-01").strip()
+    end = (req.get("endDate") or _today().isoformat()).strip()
+    return _resp(200, {"ok": True, "id": cid, "overrides": _load_day_overrides(cid, start, end)})
+
+
 def h_add_annotation(req):
     """Append a GSC-style chart annotation onto the campaign's shared `annotations` map so every
     user sees the same notes. Shape: {chartId: {date: [{id, text, ts}, ...]}}. Mirrors the local
@@ -2541,6 +2794,12 @@ def lambda_handler(event, context):
             return h_set_override(req)
         if action == "clear_override":
             return h_clear_override(req)
+        if action == "set_day_override":
+            return h_set_day_override(req)
+        if action == "clear_day_override":
+            return h_clear_day_override(req)
+        if action == "list_day_overrides":
+            return h_list_day_overrides(req)
         if action == "add_annotation":
             return h_add_annotation(req)
         if action == "delete_annotation":
