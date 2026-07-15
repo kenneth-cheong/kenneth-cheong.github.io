@@ -889,7 +889,7 @@ def _ab_start(b):
     return _ab_parse_dt(b.get("approvedStartDateTime")) or _ab_parse_dt(b.get("proposedStartDateTime"))
 
 
-def _ab_classify(budgets, now_local, warn_days, limit_warn_pct):
+def _ab_classify(budgets, now_local, warn_days, limit_warn_pcts):
     """Classify one account's account-budget state from its budget rows.
 
     Returns {state, flags, budget, daysLeft, pct, ...}. Date math is date-level with a
@@ -955,7 +955,9 @@ def _ab_classify(budgets, now_local, warn_days, limit_warn_pct):
         # lags reporting, so EXHAUSTED confirms late — LIMIT_NEAR is the real alert.
         if served >= limit:
             flags.append("EXHAUSTED")
-        elif pct >= limit_warn_pct:
+        elif limit_warn_pcts and pct >= min(limit_warn_pcts):
+            # LIMIT_NEAR from the LOOSEST threshold on; _ab_alert_line then reports the
+            # tightest one actually crossed, so [50, 80, 90] escalates one alert per band.
             flags.append("LIMIT_NEAR")
     if not end_known or not limit_known:
         flags.append("UNKNOWN")
@@ -974,7 +976,7 @@ def _ab_classify(budgets, now_local, warn_days, limit_warn_pct):
     }
 
 
-def _ab_check_account(acct, token, cfg_warn_days, cfg_limit_pct):
+def _ab_check_account(acct, token, cfg_warn_days, cfg_limit_pcts):
     """Classify a single child account. Query order short-circuits hard: the budget query
     runs first, so a non-invoiced account (the common case on a card-paying portfolio)
     costs exactly ONE call instead of three."""
@@ -1025,7 +1027,7 @@ def _ab_check_account(acct, token, cfg_warn_days, cfg_limit_pct):
     row["cost7d"] = cost7
     row["cost30d"] = cost30
 
-    row.update(_ab_classify(budgets, now_local, cfg_warn_days, cfg_limit_pct))
+    row.update(_ab_classify(budgets, now_local, cfg_warn_days, cfg_limit_pcts))
 
     # Liveness gate: ENABLED campaigns, NOT recent spend. Once a budget stops an account
     # spend goes to zero, so gating on spend would suppress exactly the long-running
@@ -1067,7 +1069,7 @@ def _ab_check_account(acct, token, cfg_warn_days, cfg_limit_pct):
     return row
 
 
-def _ab_alert_line(r, warn_days):
+def _ab_alert_line(r, warn_days, limit_pcts):
     """(stage, text) for an account that warrants a Chat alert, or (None, None).
 
     Only the tightest stage is emitted per account, so warnDays [7, 3] sends one
@@ -1104,9 +1106,17 @@ def _ab_alert_line(r, warn_days):
     if state == "LIMIT_NEAR":
         pace = (f", ~{r['daysOfBudgetLeft']:g} days left at current pace"
                 if r.get("daysOfBudgetLeft") else "")
-        return f"NEAR{int(r.get('pct') or 0)}", (
-            f"⚠️ *{label}* ({cid}): account budget \"{r.get('budget')}\" at {r.get('pct')}% "
-            f"({cur} {r.get('served'):,.0f} of {cur} {r.get('limit'):,.0f}){pace}.{tz_note}")
+        # Stage is the THRESHOLD crossed, never the live percentage. Keying it on pct (as
+        # this did originally) re-alerted every time the figure ticked 93 -> 94 -> 95,
+        # because each reading minted a new ledger key. Tightest band crossed wins, so
+        # [50, 80, 90] escalates: one alert at each band, then silence until the next.
+        pct = r.get('pct')
+        crossed = max([p for p in (limit_pcts or []) if pct is not None and pct >= p], default=None)
+        if crossed is None:
+            return None, None
+        return f"NEAR{crossed:g}", (
+            f"⚠️ *{label}* ({cid}): account budget \"{r.get('budget')}\" past {crossed:g}% — "
+            f"at {pct}% ({cur} {r.get('served'):,.0f} of {cur} {r.get('limit'):,.0f}){pace}.{tz_note}")
     if state == "EXPIRING_SOON":
         d = r.get("daysLeft")
         crossed = min([w for w in (warn_days or []) if d is not None and d <= w], default=d)
@@ -1158,10 +1168,20 @@ def ads_acct_budget_check(body, event):
         return {"statusCode": 200, "body": json.dumps({"skipped": "acctBudget disabled", "done": True})}
     warn_days = sorted({int(x) for x in (ab_cfg.get('warnDays') or [7, 3])
                         if str(x).strip().lstrip('-').isdigit()}) or [3, 7]
-    try:
-        limit_pct = float(ab_cfg.get('limitWarnPct') or 90)
-    except (TypeError, ValueError):
-        limit_pct = 90.0
+    # limitWarnPcts is a LIST (e.g. [50, 80, 90]) — one alert per band crossed. The old
+    # single-value limitWarnPct is still honoured so existing saved config keeps working.
+    raw_pcts = ab_cfg.get('limitWarnPcts')
+    if raw_pcts is None:
+        raw_pcts = [ab_cfg.get('limitWarnPct') or 90]
+    limit_pcts = set()
+    for x in (raw_pcts if isinstance(raw_pcts, list) else [raw_pcts]):
+        try:
+            f = float(x)
+        except (TypeError, ValueError):
+            continue
+        if 0 < f <= 100:
+            limit_pcts.add(f)
+    limit_pcts = sorted(limit_pcts) or [90.0]
 
     # Resolve ONE working token at the MCC enumeration step and reuse it for every child —
     # MCC access implies child access, since login-customer-id is the MCC. Trying every
@@ -1185,7 +1205,7 @@ def ads_acct_budget_check(body, event):
     from concurrent.futures import ThreadPoolExecutor
     def _one(a):
         try:
-            return _ab_check_account(a, token, warn_days, limit_pct)
+            return _ab_check_account(a, token, warn_days, limit_pcts)
         except Exception as e:
             return {"customerId": a.get("id"), "name": a.get("name") or "",
                     "state": "ERROR", "error": str(e)[:200]}
@@ -1219,7 +1239,7 @@ def ads_acct_budget_check(body, event):
     if notify and ab_cfg.get('alertsEnabled') is True:
         webhook = (cfg.get('webhookUrl') or '').strip()
         for r in rows:
-            stage, text = _ab_alert_line(r, warn_days)
+            stage, text = _ab_alert_line(r, warn_days, limit_pcts)
             if not stage:
                 continue
             # Key includes the end date: without it, a budget that gets EXTENDED (same id,
