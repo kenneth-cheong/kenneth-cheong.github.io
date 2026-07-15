@@ -2061,6 +2061,85 @@ def h_set_topic(req):
     return _resp(200, {"ok": True, "id": cid, "topics": topics})
 
 
+_OVERRIDE_KINDS = ("num", "int", "text", "bool")
+
+
+def _override_map_bootstrap(cid):
+    # DynamoDB can only SET/REMOVE a nested path whose parent already exists, so ensure the map
+    # is there first. if_not_exists makes this idempotent — racing writers converge instead of
+    # one clobbering the other.
+    _table.update_item(
+        Key={"id": cid},
+        UpdateExpression="SET overrides = if_not_exists(overrides, :emptyMap)",
+        ExpressionAttributeValues={":emptyMap": {}},
+    )
+
+
+def h_set_override(req):
+    """Persist one manual correction to a recorded metric onto the campaign's shared `overrides`
+    map, so every user sees the same corrected number. Shape: {key: {v, kind, rec, by, at}}.
+
+    `key` is the frontend's stable cell path (e.g. 'e|Acme|sov', 'q|best crm|visibility',
+    's|positive', 'c|https://x.com/a|count'). The recorded value is kept in `rec` so the UI can
+    show what was measured and offer a reset — a correction never destroys the original.
+
+    Values are stored as STRINGS with a `kind` tag on purpose: this table never carries floats
+    (the whole metrics model is JSON-stringified for exactly that reason) and boto3 rejects
+    float outright. The frontend coerces back via `kind`.
+
+    Concurrency-safe: writes a single nested key, not a read-modify-write of the whole map, so
+    two people correcting different cells at once both land (same reasoning as h_add_annotation).
+    """
+    cid = str(req.get("id") or "")
+    if not _is_campaign_id(cid):
+        return _resp(400, {"error": "valid campaign id required"})
+    if not _table.get_item(Key={"id": cid}).get("Item"):
+        return _resp(404, {"error": "campaign not found"})
+    key = (req.get("key") or "").strip()
+    if not key:
+        return _resp(400, {"error": "key required"})
+    if req.get("value") is None:
+        return _resp(400, {"error": "value required"})
+    kind = (req.get("kind") or "num").strip()
+    if kind not in _OVERRIDE_KINDS:
+        return _resp(400, {"error": f"bad kind: {kind}"})
+    entry = {
+        "v": str(req.get("value"))[:200],
+        "kind": kind,
+        "rec": "" if req.get("recorded") is None else str(req.get("recorded"))[:200],
+        "by": str(req.get("by") or "")[:120],
+        "at": _now(),
+    }
+    _override_map_bootstrap(cid)
+    _table.update_item(
+        Key={"id": cid},
+        UpdateExpression="SET overrides.#k = :e, updatedAt = :u",
+        ExpressionAttributeNames={"#k": key},
+        ExpressionAttributeValues={":e": entry, ":u": _now()},
+    )
+    return _resp(200, {"ok": True, "id": cid, "key": key, "override": entry})
+
+
+def h_clear_override(req):
+    """Drop one manual correction so the cell falls back to the value the run actually recorded."""
+    cid = str(req.get("id") or "")
+    if not _is_campaign_id(cid):
+        return _resp(400, {"error": "valid campaign id required"})
+    if not _table.get_item(Key={"id": cid}).get("Item"):
+        return _resp(404, {"error": "campaign not found"})
+    key = (req.get("key") or "").strip()
+    if not key:
+        return _resp(400, {"error": "key required"})
+    _override_map_bootstrap(cid)
+    _table.update_item(
+        Key={"id": cid},
+        UpdateExpression="REMOVE overrides.#k SET updatedAt = :u",
+        ExpressionAttributeNames={"#k": key},
+        ExpressionAttributeValues={":u": _now()},
+    )
+    return _resp(200, {"ok": True, "id": cid, "key": key})
+
+
 def h_add_annotation(req):
     """Append a GSC-style chart annotation onto the campaign's shared `annotations` map so every
     user sees the same notes. Shape: {chartId: {date: [{id, text, ts}, ...]}}. Mirrors the local
@@ -2450,6 +2529,10 @@ def lambda_handler(event, context):
             return h_seed_topics(req)
         if action == "set_topic":
             return h_set_topic(req)
+        if action == "set_override":
+            return h_set_override(req)
+        if action == "clear_override":
+            return h_clear_override(req)
         if action == "add_annotation":
             return h_add_annotation(req)
         if action == "delete_annotation":
