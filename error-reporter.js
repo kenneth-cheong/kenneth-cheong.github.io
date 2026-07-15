@@ -26,6 +26,12 @@
     var SECRET_RE = /token|key|secret|authorization|password|cookie|bearer|api[_-]?key/i;
     var _recent = {}; // signature -> ts, client-side throttle (mirrors the server dedup)
 
+    // Only real users on the deployed site page the team. A local checkout opened
+    // over file:// sends `Origin: null`, which every API Gateway here rejects at the
+    // CORS preflight — so EVERY call fails and each dev session floods the Chat space
+    // with "Failed to fetch" that no production user ever hits. Same for dev servers.
+    var IS_PROD = /(^|\.)digimetrics\.ai$/i.test(location.hostname);
+
     function getUser() {
         try {
             return localStorage.getItem('clientEmail')
@@ -70,6 +76,11 @@
         try {
             ctx = ctx || {};
             var err = ctx.error;
+            if (!IS_PROD) {
+                // Still visible to whoever is doing the local run — just not to the team.
+                try { console.warn('[DMError] not reported (non-production origin):', ctx.function, err); } catch (e) { }
+                return;
+            }
             var payload = {
                 action: 'report_error',
                 app: APP,

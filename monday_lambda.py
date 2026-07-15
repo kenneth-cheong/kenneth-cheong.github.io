@@ -151,6 +151,14 @@ def forward_error_report(body, event):
         return {"statusCode": 502, "body": json.dumps({"error": str(e)})}
 
 
+# Sentinels a tool returns as {"error": ...} to *steer the model* — a deliberate
+# policy answer, not a fault. They ride the error channel because that's what the
+# model reliably obeys, but reporting them pages the team about working behaviour.
+_EXPECTED_TOOL_SENTINELS = {
+    "google_chat_disabled",   # user picked no Chat spaces — the opt-in gate did its job
+}
+
+
 def _report_tool_failures(content_blocks, tool_results, messages, body, event=None):
     """Report ANY failed tool call inside a chatbot turn to Google Chat.
 
@@ -183,7 +191,8 @@ def _report_tool_failures(content_blocks, tool_results, messages, body, event=No
             try:
                 parsed = json.loads(content_str)
                 if isinstance(parsed, dict) and parsed.get("error"):
-                    err_text = json.dumps(parsed.get("error"))
+                    if parsed.get("error") not in _EXPECTED_TOOL_SENTINELS:
+                        err_text = json.dumps(parsed.get("error"))
             except Exception:
                 pass
         if not err_text:
