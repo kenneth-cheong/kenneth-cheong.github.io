@@ -13,7 +13,7 @@ import ShareResult from '../components/ShareResult.jsx';
 import InfoTip, { glossaryFor } from '../components/InfoTip.jsx';
 import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
 import { startToolTour, sampleResultFor, hasSeen, markSeen } from '../lib/tours.js';
-import { Lock, Compass, Sparkles, AlertTriangle, Clock, ChevronRight, Check, MessageCircleQuestion, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Lock, Compass, Sparkles, AlertTriangle, Clock, ChevronRight, Check, MessageCircleQuestion, ThumbsUp, ThumbsDown, Loader2, Plus } from 'lucide-react';
 
 const CONFIRM_AT = 25; // credits — confirm before running pricey tools
 
@@ -276,7 +276,7 @@ export default function ToolRunner() {
       <div className={`card ${tabs ? 'mt-4' : 'mt-6'} p-5`}>
         <div className="space-y-4">
           {primaryFields.map((f, i) => (
-            <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} autoFocus={i === 0} provider={tool.integration} values={values} invalid={isMissing(f)} />
+            <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} setValue={set} autoFocus={i === 0} provider={tool.integration} values={values} invalid={isMissing(f)} />
           ))}
           {advancedFields.length > 0 && (
             <div className="border-t border-hair pt-3">
@@ -289,7 +289,7 @@ export default function ToolRunner() {
               {showAdv && (
                 <div className="mt-4 space-y-4">
                   {advancedFields.map((f) => (
-                    <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} provider={tool.integration} values={values} />
+                    <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} setValue={set} provider={tool.integration} values={values} />
                   ))}
                 </div>
               )}
@@ -1326,7 +1326,52 @@ function Segmented({ options, optionDesc = {}, value, onChange }) {
   );
 }
 
-function Field({ field, value, onChange, autoFocus, provider, values, invalid }) {
+// Upload a draft that has no URL yet. The extracted text is written into the
+// field named by `field.fills` (the Content box), so the run payload and the
+// backend contract stay exactly as they are — the file itself never leaves the
+// browser.
+function FileField({ field, onFill }) {
+  const inputRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [name, setName] = useState('');
+
+  async function handle(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ''; // let the same file be re-picked
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) {
+      toast(`That file is ${(file.size / 1048576).toFixed(1)} MB — please upload something under 15 MB.`, 'error');
+      return;
+    }
+    setBusy(true);
+    setName('');
+    try {
+      const { extractFileText } = await import('../lib/extractFiles.js');
+      const text = await extractFileText(file);
+      onFill(text);
+      setName(file.name);
+      toast(`Loaded ${file.name} into the content box.`, 'success');
+    } catch (err) {
+      toast(`Could not read that file: ${err.message || 'unsupported or corrupt file'}`, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-1.5">
+      <input ref={inputRef} type="file" accept={field.accept} onChange={handle} className="hidden" />
+      <button type="button" disabled={busy} onClick={() => inputRef.current?.click()}
+        className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm font-medium text-body hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-60">
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+        {busy ? 'Reading…' : 'Upload file'}
+      </button>
+      {name && <span className="ml-2 text-xs font-medium text-brand-600 dark:text-brand-400">Loaded: {name}</span>}
+    </div>
+  );
+}
+
+function Field({ field, value, onChange, autoFocus, provider, values, invalid, setValue }) {
   const base = `field mt-1.5${invalid ? ' !border-amber-400 !ring-4 !ring-amber-400/20' : ''}`;
   // Plain-English help on the label itself: an explicit `help` string from the
   // catalog wins, else fall back to the glossary (same matching as result tips).
@@ -1337,7 +1382,9 @@ function Field({ field, value, onChange, autoFocus, provider, values, invalid })
         {field.label}{field.required && <span className={invalid ? 'font-bold text-amber-600 dark:text-amber-400' : 'text-amber-500'}> *</span>}
         {tip && <InfoTip text={tip} className="ml-1" />}
       </span>
-      {field.type === 'account' ? (
+      {field.type === 'file' ? (
+        <FileField field={field} onFill={(text) => setValue(field.fills || field.name, text)} />
+      ) : field.type === 'account' ? (
         <AccountField provider={provider} value={value} onChange={onChange} placeholder={field.placeholder} />
       ) : field.type === 'tags' ? (
         <>

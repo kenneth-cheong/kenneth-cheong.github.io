@@ -993,7 +993,13 @@ export const INPUTS = {
       help: 'Paste the page address and we pull its text automatically — no copy-pasting. Or paste the content below instead.' },
     { name: 'input', label: 'Content (or topic if writing new)', type: 'textarea',
       placeholder: 'Paste content to optimise (or leave blank if you gave a URL above), or a topic to write about…',
-      hint: 'Give either a URL above or paste the content here.' },
+      hint: 'Give a URL above, paste the content here, or upload a draft below.' },
+    // Not every draft is published yet — upload fills the `input` field above so
+    // the backend contract is unchanged (it only ever sees text).
+    { name: 'inputFile', label: '…or upload a draft', type: 'file', fills: 'input',
+      accept: '.docx,.pdf,.txt,.md',
+      showWhen: { field: 'mode', in: ['Optimise existing content'] },
+      help: 'Not published yet? Upload the Word doc, PDF or text file and we read the text straight into the Content box. The file stays in your browser.' },
     { name: 'keyword', label: 'Target keyword', type: 'text', placeholder: 'e.g. project management software' },
     { name: 'secondary', label: 'Secondary keywords', type: 'tags', placeholder: 'add a keyword and press Enter' },
     { name: 'location', label: 'Target market', type: 'select', options: LOCATIONS, default: 'Singapore',

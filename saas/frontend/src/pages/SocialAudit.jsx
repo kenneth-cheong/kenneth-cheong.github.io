@@ -9,6 +9,7 @@ import ReportHtml from '../components/ReportHtml.jsx';
 import { toast } from '../lib/ui.js';
 import { Loader2, Wand2, Plus, X, Microscope, ScanSearch, Compass, AlertTriangle } from 'lucide-react';
 import { renderSMAScorecard, renderSocialAudit, installSmaGlobals } from '../lib/smaRender.js';
+import { extractFiles } from '../lib/extractFiles.js';
 import { startSocialAuditTour, hasSeen, markSeen } from '../lib/tours.js';
 // Bundled (not CDN) so the strict production CSP serves them from 'self'. FA's
 // webfonts are emitted as hashed same-origin assets; scoping the import to this
@@ -183,58 +184,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // agency app's model switch, persisted under the same localStorage key).
 const getLlmProvider = () => (localStorage.getItem('chatLlmProvider') === 'anthropic' ? 'anthropic' : 'deepseek');
 
-// pdf.js + mammoth are bundled (npm) and dynamically imported on first use, so
-// they stay out of the page's initial chunk and only download when a user
-// actually attaches a PDF/DOCX. The pdf.js worker is a same-origin hashed asset
-// (CSP-safe) via Vite's `?url` import.
-let _pdfjs = null, _mammoth = null;
-async function getPdfjs() {
-  if (_pdfjs) return _pdfjs;
-  const pdfjsLib = await import('pdfjs-dist');
-  pdfjsLib.GlobalWorkerOptions.workerSrc = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default;
-  _pdfjs = pdfjsLib;
-  return pdfjsLib;
-}
-async function getMammoth() {
-  if (_mammoth) return _mammoth;
-  const m = await import('mammoth/mammoth.browser');
-  _mammoth = m.default || m;
-  return _mammoth;
-}
-
 // Browser-side text extraction for the optional context uploads — PDF via
-// pdf.js, DOCX via mammoth, everything else read as text. Output is capped so
-// the payload stays small. Port of extractSmaContext / extractProFieldContext.
-async function extractFiles(files, maxPer = 12000, maxTotal = 40000) {
-  if (!files || !files.length) return '';
-  const parts = [];
-  for (const file of files) {
-    let text = '';
-    try {
-      const ext = (file.name.split('.').pop() || '').toLowerCase();
-      if (ext === 'pdf') {
-        const pdfjsLib = await getPdfjs();
-        const ab = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(ab) }).promise;
-        const lines = [];
-        for (let n = 1; n <= pdf.numPages; n++) {
-          const c = await (await pdf.getPage(n)).getTextContent();
-          lines.push(c.items.map((it) => it.str).join(' '));
-          if (lines.join('\n').length > maxPer) break;
-        }
-        text = lines.join('\n');
-      } else if (ext === 'docx') {
-        const mammoth = await getMammoth();
-        const ab = await file.arrayBuffer();
-        text = (await mammoth.extractRawText({ arrayBuffer: ab })).value;
-      } else {
-        text = await file.text();
-      }
-    } catch (err) { text = `[Could not read ${file.name}: ${err.message}]`; }
-    parts.push(`### ${file.name}\n${(text || '').trim().slice(0, maxPer)}`);
-  }
-  return parts.join('\n\n').slice(0, maxTotal);
-}
+// pdf.js, DOCX via mammoth, everything else read as text. Shared with the
+// Content Optimiser's draft upload; see lib/extractFiles.js.
 
 // Source badge shown next to an auto-discovered handle / competitor.
 function SourceBadge({ source }) {
