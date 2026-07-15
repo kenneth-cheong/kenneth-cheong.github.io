@@ -858,6 +858,508 @@ def ads_budget_sweep(body, event):
         posted = _post_gchat(webhook, header + "\n" + "\n".join(alerts))
     return {"statusCode": 200, "body": json.dumps({"checked": checked, "alerts": len(alerts), "posted": posted})}
 
+# ══════════════════════════════════════════════════════════════════════
+# Account-level "Account Budgets" — expiry / exhaustion watch.
+#
+# An account budget (Billing → Budgets) has a hard end date and a spending
+# limit. Hit either and Google STOPS SERVING ADS ACROSS THE WHOLE ACCOUNT,
+# but campaigns stay ENABLED — so nothing else in our tooling notices. Google
+# only emails the billing contact and shows an in-UI notice; neither is
+# reachable programmatically, hence this sweep.
+#
+# What the first live sweep of the MCC (162 children, 2026-07-15) actually found,
+# which is NOT what Google's docs lead you to expect:
+#   • 157/162 accounts DO have an account_budget row. The docs frame these as
+#     monthly-invoicing-only; in practice almost every account carries one. Most
+#     (122) are FOREVER + INFINITE — an unbounded wrapper that is simply OK.
+#   • Only 5 had zero rows, and all 5 were test accounts → NOT_INVOICED (N/A),
+#     never an alert, never ERROR.
+#   • The real finds are the ~11 with a finite end date, plus long-running budgets
+#     with a finite limit that have finally been consumed (e.g. a 2017 budget of
+#     SGD 39,010 with 6 cents left and spend already stopped).
+#   • 151/162 are Asia/Singapore, so _AB_TZ covers the portfolio almost exactly.
+# ══════════════════════════════════════════════════════════════════════
+
+# Every top-level field — no submessages (pending_proposal.*), which keeps the
+# query shape low-risk: one unsupported field fails the whole request. A
+# pending successor is recoverable from the PENDING rows' proposed_* fields.
+# No WHERE on status: PENDING rows are what separate "expired, successor
+# queued" from "expired, nothing queued", and budgets are strictly sequential
+# and non-overlapping, so even a 5-year account holds only ~60 rows.
+_AB_QUERY = (
+    "SELECT account_budget.id, account_budget.name, account_budget.status, "
+    "account_budget.approved_start_date_time, account_budget.approved_end_date_time, "
+    "account_budget.approved_end_time_type, "
+    "account_budget.approved_spending_limit_micros, account_budget.approved_spending_limit_type, "
+    "account_budget.adjusted_spending_limit_micros, account_budget.adjusted_spending_limit_type, "
+    "account_budget.amount_served_micros, account_budget.total_adjustments_micros, "
+    "account_budget.proposed_start_date_time, account_budget.proposed_end_date_time, "
+    "account_budget.proposed_end_time_type, "
+    "account_budget.proposed_spending_limit_micros, account_budget.proposed_spending_limit_type "
+    "FROM account_budget"
+)
+
+# approved_end_date_time is account-local wall-clock with NO offset, and this
+# Lambda has no tz library (zoneinfo/pytz/dateutil are all absent, and it is
+# hand-deployed, so adding one is a manual rebuild). Map only DST-FREE zones to
+# a fixed offset — a fixed offset is simply wrong for anything with DST
+# (Europe/London, America/*, Australia/Sydney), so those fall back to UTC and
+# get flagged tzAssumed so the alert text can own the assumption. All date math
+# below is date-level with a safety margin, which keeps an 8h skew harmless.
+_AB_TZ = {
+    "Asia/Singapore": SGT, "Asia/Kuala_Lumpur": SGT, "Asia/Hong_Kong": SGT,
+    "Asia/Shanghai": SGT, "Asia/Taipei": SGT, "Asia/Manila": SGT, "Asia/Brunei": SGT,
+    "Asia/Jakarta": timezone(timedelta(hours=7)), "Asia/Bangkok": timezone(timedelta(hours=7)),
+    "Asia/Ho_Chi_Minh": timezone(timedelta(hours=7)), "Asia/Saigon": timezone(timedelta(hours=7)),
+    "Asia/Tokyo": timezone(timedelta(hours=9)), "Asia/Seoul": timezone(timedelta(hours=9)),
+    "Asia/Kolkata": timezone(timedelta(hours=5, minutes=30)),
+    "Asia/Calcutta": timezone(timedelta(hours=5, minutes=30)),
+    "Asia/Dubai": timezone(timedelta(hours=4)),
+    "UTC": timezone.utc, "Etc/GMT": timezone.utc,
+}
+
+# Worst-first. EXPIRED/EXHAUSTED = delivery already stopped. GAP = expired but a
+# successor is queued to start. UNKNOWN = we could not read the budget's shape —
+# surfaced rather than silently defaulted to the permissive value.
+_AB_SEVERITY = {"EXPIRED": 6, "EXHAUSTED": 5, "GAP": 4, "LIMIT_NEAR": 3,
+                "EXPIRING_SOON": 3, "UNKNOWN": 2, "ERROR": 1, "OK": 0, "NOT_INVOICED": 0}
+
+
+def _ab_flatten(raw):
+    """(rows, error) from a run_google_ads_report response.
+
+    Load-bearing: run_google_ads_report returns a FALSY [] for an empty stream and
+    {"error": ...} on failure. A bare truthiness check would classify a 429 or
+    PERMISSION_DENIED as 'no budgets' — silently marking an account safe forever."""
+    if isinstance(raw, dict) and raw.get("error"):
+        return None, raw.get("error")
+    rows = []
+    for b in (raw if isinstance(raw, list) else [raw]):
+        if isinstance(b, dict):
+            rows.extend(b.get("results") or [])
+    return rows, None
+
+
+def _ab_parse_dt(s):
+    """Parse a Google Ads 'YYYY-MM-DD HH:MM:SS' timestamp to a NAIVE datetime.
+    Naive on purpose: it is account-local wall clock, compared against a local
+    wall clock built by _ab_now(), so both sides are in the same frame."""
+    if not s:
+        return None
+    base = str(s).split("+")[0].split(".")[0].strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(base, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _ab_now(tz_name):
+    """(naive local wall-clock now, tz_assumed). Falls back to UTC for any zone we
+    cannot represent without a tz library — never silently, the flag rides along."""
+    tz = _AB_TZ.get(str(tz_name or "").strip())
+    if tz is not None:
+        return datetime.now(tz).replace(tzinfo=None), False
+    return datetime.now(timezone.utc).replace(tzinfo=None), True
+
+
+def _ab_int(v):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _ab_end_time(b):
+    """(end_datetime|None, is_forever, known) for a budget's APPROVED end.
+
+    searchStream omits unset fields, so an absent approvedEndTimeType does NOT mean
+    'not FOREVER' — it means the other oneof arm is set. Both arms absent is UNKNOWN,
+    never FOREVER: defaulting to the permissive arm means never alerting, which is the
+    exact silent miss this whole check exists to prevent."""
+    d = _ab_parse_dt(b.get("approvedEndDateTime"))
+    if d:
+        return d, False, True
+    if b.get("approvedEndTimeType") == "FOREVER":
+        return None, True, True
+    return None, False, False
+
+
+def _ab_limit(b):
+    """(limit_micros|None, is_infinite, known) — the spending limit actually in effect.
+
+    adjusted_* first (it already folds in total_adjustments — do NOT add that on top),
+    falling back to approved_*. NEVER proposed_*: that figure is not in effect. Both
+    arms absent is UNKNOWN, not INFINITE, for the same reason as _ab_end_time."""
+    for p in ("adjusted", "approved"):
+        n = _ab_int(b.get(p + "SpendingLimitMicros"))
+        if n is not None:
+            return n, False, True
+        if b.get(p + "SpendingLimitType") == "INFINITE":
+            return None, True, True
+    return None, False, False
+
+
+def _ab_start(b):
+    """A budget's effective start — approved_* once approved, proposed_* while pending."""
+    return _ab_parse_dt(b.get("approvedStartDateTime")) or _ab_parse_dt(b.get("proposedStartDateTime"))
+
+
+def _ab_classify(budgets, now_local, warn_days, limit_warn_pct):
+    """Classify one account's account-budget state from its budget rows.
+
+    Returns {state, flags, budget, daysLeft, pct, ...}. Date math is date-level with a
+    one-day margin on EXPIRED: a false 'your budget expired' page is worse than finding
+    out 8 hours late, and the daily sweep self-corrects."""
+    today = now_local.date()
+    rows = sorted(budgets, key=lambda b: (_ab_start(b) or datetime.min))
+    active = None
+    future = []
+    for b in rows:
+        status = b.get("status")
+        start = _ab_start(b)
+        if status == "PENDING" or (start and start.date() > today):
+            if status in ("PENDING", "APPROVED"):
+                future.append(b)
+            continue
+        if status != "APPROVED":
+            continue  # CANCELLED / UNKNOWN never covers "now"
+        end_dt, forever, end_known = _ab_end_time(b)
+        started = (start is None) or (start <= now_local)
+        if not started:
+            continue
+        if forever or (end_dt and end_dt.date() >= today) or not end_known:
+            # not end_known → we cannot prove it has ended, so treat it as covering
+            # and let the UNKNOWN flag below carry the caveat rather than false-alarm.
+            active = b
+            break
+
+    if not active:
+        # No budget covers today. A queued successor is a GAP (delivery is stopped but
+        # someone has already acted); nothing queued is a flat EXPIRED.
+        state = "GAP" if future else "EXPIRED"
+        last = None
+        for b in rows:
+            if b.get("status") == "APPROVED":
+                e, _f, k = _ab_end_time(b)
+                if k and e and (last is None or e > last):
+                    last = e
+        nxt = min([s for s in (_ab_start(f) for f in future) if s], default=None)
+        return {"state": state, "flags": [state], "budget": None,
+                "expiredOn": last.strftime("%Y-%m-%d") if last else None,
+                "nextStartsOn": nxt.strftime("%Y-%m-%d") if nxt else None,
+                "daysSinceEnd": (today - last.date()).days if last else None,
+                "budgetId": None, "endRepr": last.strftime("%Y-%m-%d") if last else "none"}
+
+    flags = []
+    end_dt, forever, end_known = _ab_end_time(active)
+    limit, infinite, limit_known = _ab_limit(active)
+    served = _ab_int(active.get("amountServedMicros")) or 0
+
+    days_left = None
+    if end_known and not forever and end_dt:
+        days_left = (end_dt.date() - today).days
+        if days_left < 0:
+            flags.append("EXPIRED")
+        elif warn_days and days_left <= max(warn_days):
+            flags.append("EXPIRING_SOON")
+
+    pct = None
+    if limit_known and not infinite and limit and limit > 0:
+        pct = round(served / limit * 100, 1)
+        # amount_served_micros is a BILLING figure that reconciles against invoicing and
+        # lags reporting, so EXHAUSTED confirms late — LIMIT_NEAR is the real alert.
+        if served >= limit:
+            flags.append("EXHAUSTED")
+        elif pct >= limit_warn_pct:
+            flags.append("LIMIT_NEAR")
+    if not end_known or not limit_known:
+        flags.append("UNKNOWN")
+
+    state = max(flags, key=lambda f: _AB_SEVERITY.get(f, 0)) if flags else "OK"
+    return {
+        "state": state, "flags": flags,
+        "budget": active.get("name") or "", "budgetId": str(active.get("id") or ""),
+        "startsOn": (_ab_start(active).strftime("%Y-%m-%d") if _ab_start(active) else None),
+        "endsOn": end_dt.strftime("%Y-%m-%d") if end_dt else ("forever" if forever else None),
+        "endRepr": end_dt.strftime("%Y-%m-%d") if end_dt else ("forever" if forever else "unknown"),
+        "daysLeft": days_left, "pct": pct,
+        "daysSinceEnd": (-days_left if (days_left is not None and days_left < 0) else None),
+        "limit": None if (infinite or not limit_known) else round((limit or 0) / 1e6, 2),
+        "limitInfinite": infinite, "served": round(served / 1e6, 2),
+    }
+
+
+def _ab_check_account(acct, token, cfg_warn_days, cfg_limit_pct):
+    """Classify a single child account. Query order short-circuits hard: the budget query
+    runs first, so a non-invoiced account (the common case on a card-paying portfolio)
+    costs exactly ONE call instead of three."""
+    cid = acct["id"]
+    row = {"customerId": cid, "name": acct.get("name") or "",
+           "currency": acct.get("currency_code") or ""}
+
+    raw, err = _ab_flatten(run_google_ads_report(cid, _AB_QUERY, token))
+    if err:
+        row.update({"state": "ERROR", "error": str(err)[:200]})
+        return row
+    budgets = [(r.get("accountBudget") or {}) for r in raw]
+    if not budgets:
+        # No account budget object at all, so there is nothing to expire. Rare — 5 of
+        # 162 on the first sweep, all of them test accounts. Never alert on it.
+        row.update({"state": "NOT_INVOICED"})
+        return row
+
+    # Account metadata. Kept SEPARATE from the spend query below on purpose: a query with a
+    # segments.date filter returns ZERO rows for an account that spent nothing, so folding
+    # these together silently lost the timezone for exactly the dormant accounts (76 of 162
+    # on the first live sweep read as tz "(unknown)"). This one always returns its row.
+    tz_name = ""
+    mrows, merr = _ab_flatten(run_google_ads_report(
+        cid, "SELECT customer.time_zone, customer.currency_code FROM customer LIMIT 1", token))
+    if not merr and mrows:
+        cust = mrows[0].get("customer") or {}
+        tz_name = cust.get("timeZone") or cust.get("time_zone") or ""
+        row["currency"] = cust.get("currencyCode") or cust.get("currency_code") or row["currency"]
+    now_local, tz_assumed = _ab_now(tz_name)
+    row["timeZone"] = tz_name or "(unknown)"
+    row["tzAssumed"] = tz_assumed
+
+    # Daily spend. No rows is a real answer — the account spent nothing — so it means 0.0,
+    # NOT unknown. Only an API error leaves these None.
+    cost7, cost30 = None, None
+    crows, cerr = _ab_flatten(run_google_ads_report(
+        cid, "SELECT segments.date, metrics.cost_micros FROM customer "
+             "WHERE segments.date DURING LAST_30_DAYS", token))
+    if not cerr:
+        cutoff7 = (now_local.date() - timedelta(days=7)).strftime("%Y-%m-%d")
+        cost7, cost30 = 0.0, 0.0
+        for cr in crows:
+            c = (_ab_int((cr.get("metrics") or {}).get("costMicros")) or 0) / 1e6
+            cost30 += c
+            if str((cr.get("segments") or {}).get("date") or "") >= cutoff7:
+                cost7 += c
+    row["cost7d"] = cost7
+    row["cost30d"] = cost30
+
+    row.update(_ab_classify(budgets, now_local, cfg_warn_days, cfg_limit_pct))
+
+    # Liveness gate: ENABLED campaigns, NOT recent spend. Once a budget stops an account
+    # spend goes to zero, so gating on spend would suppress exactly the long-running
+    # silent failure we most want to catch. Spend is severity instead (below).
+    cutoff = (now_local.date() - timedelta(days=1)).strftime("%Y-%m-%d")
+    lrows, lerr = _ab_flatten(run_google_ads_report(
+        cid, "SELECT campaign.id FROM campaign WHERE campaign.status = 'ENABLED' "
+             f"AND campaign.end_date >= '{cutoff}'", token))
+    row["enabledCampaigns"] = None if lerr else len(lrows)
+
+    # Enabled campaigns but nothing spent in 7 days, against a dead budget = the account
+    # has already gone dark. That is the loudest thing this check can find.
+    row["deliveryStopped"] = bool(
+        row.get("state") in ("EXPIRED", "EXHAUSTED", "GAP")
+        and (row.get("enabledCampaigns") or 0) > 0 and cost7 == 0)
+
+    # DORMANT — the single most important gate, and the one the first live probe taught us.
+    # ENABLED campaigns alone is far too weak a liveness signal: the MCC is full of accounts
+    # whose budget was exhausted in 2017-2022 and which have not spent a cent since, but
+    # still carry enabled campaigns. Those are wound-down clients, not emergencies, and they
+    # made every alert in the first sweep a false positive.
+    #
+    # An account is worth paging about only if it is a going concern: it spent something in
+    # the last 30 days, OR its budget died so recently that spend stopping IS the news.
+    # Dormant accounts stay fully visible in the UI — they are just never sent to Chat.
+    # cost30 None means the spend query ERRORED, not that spend was zero — so it must not
+    # suppress. Failing toward "surface it" is right here: a stray alert costs a glance, a
+    # silently-swallowed dead budget costs the client's delivery.
+    days_since_end = row.get("daysSinceEnd")
+    row["dormant"] = bool(
+        cost30 is not None and cost30 <= 0
+        and not (days_since_end is not None and days_since_end <= 30))
+    # Pace off the fresher cost metric, since amount_served lags: how long the remaining
+    # limit lasts at the current run rate.
+    if row.get("limit") and cost7 and cost7 > 0 and row.get("served") is not None:
+        remaining = row["limit"] - row["served"]
+        if remaining > 0:
+            row["daysOfBudgetLeft"] = round(remaining / (cost7 / 7.0), 1)
+    return row
+
+
+def _ab_alert_line(r, warn_days):
+    """(stage, text) for an account that warrants a Chat alert, or (None, None).
+
+    Only the tightest stage is emitted per account — mirrors the max(newly) logic in
+    ads_budget_sweep so warnDays [7, 3] sends one message, not two."""
+    state = r.get("state")
+    if state in ("OK", "NOT_INVOICED", "ERROR", "UNKNOWN", None):
+        return None, None
+    # Never page about an account that is not trying to serve...
+    if not (r.get("enabledCampaigns") or 0) > 0:
+        return None, None
+    # ...nor about one that is not actually running. See the DORMANT note in
+    # _ab_check_account: enabled campaigns alone made every alert in the first live
+    # sweep a false positive (budgets exhausted in 2017-2022, zero spend since).
+    if r.get("dormant"):
+        return None, None
+    label = r.get("name") or r.get("customerId")
+    cid, cur = r.get("customerId"), r.get("currency") or ""
+    camps = r.get("enabledCampaigns")
+    tz_note = " · dates assumed UTC" if r.get("tzAssumed") else ""
+    dark = " — *delivery has stopped* (no spend in 7d)" if r.get("deliveryStopped") else ""
+
+    if state == "EXPIRED":
+        on = r.get("expiredOn") or r.get("endsOn") or "an earlier date"
+        return "EXPIRED", (f"🛑 *{label}* ({cid}): account budget expired {on}, nothing queued to "
+                          f"replace it — {camps} campaign(s) still enabled{dark}.{tz_note}")
+    if state == "GAP":
+        return "GAP", (f"🛑 *{label}* ({cid}): no account budget covers today (last one ended "
+                       f"{r.get('expiredOn') or '?'}, next starts {r.get('nextStartsOn') or '?'}) — "
+                       f"{camps} campaign(s) still enabled{dark}.{tz_note}")
+    if state == "EXHAUSTED":
+        return "EXHAUSTED", (f"🛑 *{label}* ({cid}): account budget \"{r.get('budget')}\" is fully "
+                             f"served ({cur} {r.get('served'):,.0f} of {cur} {r.get('limit'):,.0f}) — "
+                             f"{camps} campaign(s) still enabled{dark}.{tz_note}")
+    if state == "LIMIT_NEAR":
+        pace = (f", ~{r['daysOfBudgetLeft']:g} days left at current pace"
+                if r.get("daysOfBudgetLeft") else "")
+        return f"NEAR{int(r.get('pct') or 0)}", (
+            f"⚠️ *{label}* ({cid}): account budget \"{r.get('budget')}\" at {r.get('pct')}% "
+            f"({cur} {r.get('served'):,.0f} of {cur} {r.get('limit'):,.0f}){pace}.{tz_note}")
+    if state == "EXPIRING_SOON":
+        d = r.get("daysLeft")
+        crossed = min([w for w in (warn_days or []) if d is not None and d <= w], default=d)
+        return f"WARN{crossed}", (
+            f"⚠️ *{label}* ({cid}): account budget \"{r.get('budget')}\" ends "
+            f"{r.get('endsOn')} — {d} day(s) left, {camps} campaign(s) enabled. Raise the next "
+            f"budget before delivery stops.{tz_note}")
+    return None, None
+
+
+def ads_acct_budget_check(body, event):
+    """Sweep one page of MCC children for expired / exhausted account budgets.
+
+    notify is INFERRED, never a parameter: the dispatcher has no auth and the webhook comes
+    from server-side config, so an explicit {"notify": true} would let anyone who knows the
+    endpoint blast the Chat space. The token-less path is EventBridge using stored offline
+    tokens; anything carrying a browser access_token is read-only BY CONSTRUCTION.
+
+    Paged because MONDAY_LAMBDA_URL is API Gateway (~29s hard cap) and a 161-account sweep
+    cannot finish inside it — the caller loops with a rising offset until done:true."""
+    user_token = (body.get('access_token') or '').strip()
+    notify = not user_token
+    tokens = [{"email": "browser", "token": user_token}] if user_token else _ads_all_tokens()
+    if not tokens:
+        return {"statusCode": 200, "body": json.dumps(
+            {"skipped": "no offline authorization stored", "rows": [], "done": True})}
+
+    try:
+        max_accounts = min(max(int(body.get('max_accounts') or 25), 1), 60)
+    except (TypeError, ValueError):
+        max_accounts = 25
+    try:
+        offset = max(int(body.get('offset') or 0), 0)
+    except (TypeError, ValueError):
+        offset = 0
+
+    cfg = _ads_get_config()
+    ab_cfg = cfg.get('acctBudget') or {}
+    if ab_cfg.get('enabled') is False:
+        return {"statusCode": 200, "body": json.dumps({"skipped": "acctBudget disabled", "done": True})}
+    warn_days = sorted({int(x) for x in (ab_cfg.get('warnDays') or [7, 3])
+                        if str(x).strip().lstrip('-').isdigit()}) or [3, 7]
+    try:
+        limit_pct = float(ab_cfg.get('limitWarnPct') or 90)
+    except (TypeError, ValueError):
+        limit_pct = 90.0
+
+    # Resolve ONE working token at the MCC enumeration step and reuse it for every child —
+    # MCC access implies child access, since login-customer-id is the MCC. Trying each
+    # token per account (as ads_budget_sweep does) multiplies badly at N=161.
+    listing, token, last_err = None, None, None
+    for tk in tokens:
+        res = list_google_ads_child_accounts(MEDIAONE_MCC_ID, tk["token"])
+        if isinstance(res, dict) and res.get("error"):
+            last_err = res["error"]
+            continue
+        listing, token = res, tk["token"]
+        break
+    if listing is None:
+        return {"statusCode": 200, "body": json.dumps(
+            {"error": f"Could not enumerate MCC {MEDIAONE_MCC_ID}: {last_err}", "done": True})}
+
+    children = listing.get("child_accounts", [])
+    total = len(children)
+    batch = children[offset:offset + max_accounts]
+
+    from concurrent.futures import ThreadPoolExecutor
+    def _one(a):
+        try:
+            return _ab_check_account(a, token, warn_days, limit_pct)
+        except Exception as e:
+            return {"customerId": a.get("id"), "name": a.get("name") or "",
+                    "state": "ERROR", "error": str(e)[:200]}
+    with ThreadPoolExecutor(max_workers=12) as ex:
+        rows = list(ex.map(_one, batch))
+
+    db = get_db()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if db is not None and rows:
+        db.google_ads_acct_budget.bulk_write([
+            UpdateOne({"_id": r["customerId"]}, {"$set": dict(r, updated=now_iso)}, upsert=True)
+            for r in rows if r.get("customerId")], ordered=False)
+
+    # Chat alerting is OPT-IN (default off), on top of notify being token-less-only. Two
+    # reasons: a bare {"action":"ads_acct_budget_check"} invoke — the obvious way to smoke-
+    # test — is the alerting path, and it blasted 4 false positives at the team on the very
+    # first run; and nobody should be paged off a sweep whose output has not been eyeballed
+    # once. Tick "Send Google Chat alerts" in the tool after reviewing a sweep.
+    alerts, posted = [], False
+    if notify and ab_cfg.get('alertsEnabled') is True:
+        webhook = (cfg.get('webhookUrl') or '').strip()
+        for r in rows:
+            stage, text = _ab_alert_line(r, warn_days)
+            if not stage:
+                continue
+            # Key includes the end date: without it, a budget that gets EXTENDED (same id,
+            # new end date) and later expires again would never re-alert, because
+            # {cid}:{budgetId}:EXPIRED is already burned.
+            key = f"{r['customerId']}:{r.get('budgetId') or '-'}:{stage}:{r.get('endRepr') or '-'}"
+            doc = db.google_ads_acct_budget_alerts.find_one({"_id": r["customerId"]}) if db is not None else None
+            if doc and key in (doc.get("sent") or {}):
+                continue
+            alerts.append(text)
+            if db is not None:
+                db.google_ads_acct_budget_alerts.update_one(
+                    {"_id": r["customerId"]},
+                    {"$set": {f"sent.{key.replace('.', '_')}": now_iso, "updated": now_iso}},
+                    upsert=True)
+        if alerts and webhook:
+            header = (f"🚨 *Google Ads account budgets* — {len(alerts)} account(s) need attention\n"
+                      "_Account budgets stop ALL delivery when they end or run out._")
+            posted = _post_gchat(webhook, header + "\n" + "\n".join(alerts))
+
+    counts = {}
+    for r in rows:
+        counts[r.get("state") or "?"] = counts.get(r.get("state") or "?", 0) + 1
+    next_offset = offset + len(batch)
+    return {"statusCode": 200, "body": json.dumps({
+        "rows": rows, "counts": counts, "checked": len(batch), "total": total,
+        "offset": offset, "nextOffset": next_offset, "done": next_offset >= total,
+        "alerts": len(alerts), "posted": posted, "notified": notify,
+        "alertsEnabled": ab_cfg.get('alertsEnabled') is True})}
+
+
+def ads_acct_budget_get(body):
+    """The stored snapshot, for rendering. The UI reads this rather than sweeping."""
+    db = get_db()
+    rows = list(db.google_ads_acct_budget.find({})) if db is not None else []
+    for r in rows:
+        r["customerId"] = r.pop("_id", r.get("customerId"))
+    rows.sort(key=lambda r: (-_AB_SEVERITY.get(r.get("state") or "OK", 0), r.get("name") or ""))
+    cfg = _ads_get_config()
+    return {"statusCode": 200, "body": json.dumps(
+        {"rows": rows, "config": cfg.get('acctBudget') or {}, "auth": _ads_auth_info()})}
+
+
 def tiktok_auth(body):
     auth_code = body.get('auth_code')
     if not auth_code:
@@ -5406,6 +5908,10 @@ def lambda_handler(event, context):
             result = ads_test_webhook(body)
         elif action == 'ads_budget_sweep':
             result = ads_budget_sweep(body, event)
+        elif action == 'ads_acct_budget_check':
+            result = ads_acct_budget_check(body, event)
+        elif action == 'ads_acct_budget_get':
+            result = ads_acct_budget_get(body)
         elif action == 'linkedin_get_ad_accounts':
             result = linkedin_get_ad_accounts(body)
         elif action == 'tiktok_auth':
