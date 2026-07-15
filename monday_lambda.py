@@ -1432,6 +1432,53 @@ def run_google_chat_mcp_tool(tool_name, tool_input, access_token):
 # ───────────────────────────────────────────────────────────────────────────
 
 
+# ── Google Chat space scoping ────────────────────────────────────────────────
+# Chat spaces are private and often belong to DIFFERENT clients. The user picks
+# the space(s) to read in Settings → Google Connectors; the client sends those
+# ids as `gchat_spaces` and EVERY Chat tool is confined to them here. Enforcing
+# the scope in code (rather than asking the model nicely in the prompt) is what
+# stops a fuzzy space match from reaching another client's space.
+def _gchat_space_key(ref):
+    """Normalise a space reference ('spaces/AAA', 'AAA') to its bare id."""
+    return str(ref or "").strip().rstrip("/").split("/")[-1]
+
+
+def _gchat_space_allowed(ref, allowed):
+    """True if a space resource name / id is in the user's selected set."""
+    key = _gchat_space_key(ref)
+    return bool(key) and key in {_gchat_space_key(a) for a in (allowed or {})}
+
+
+def _gchat_msg_space(msg):
+    """The space a message belongs to.
+
+    Prefer the explicit `space.name`, else derive it from the message resource
+    name — 'spaces/AAA/messages/1' belongs to 'spaces/AAA'. Taking the last
+    segment here would yield the MESSAGE id and silently drop in-scope hits.
+    """
+    space = (msg.get("space") or {}).get("name")
+    if space:
+        return space
+    parts = str(msg.get("name") or "").split("/")
+    return "/".join(parts[:2]) if len(parts) >= 2 else ""
+
+
+def _gchat_denied(ref, allowed):
+    """Refusal payload for a Chat call aimed outside the selected spaces."""
+    names = sorted((allowed or {}).values())
+    return {
+        "error": "google_chat_space_not_selected",
+        "message": (
+            f"'{ref}' is not one of the Google Chat spaces the user selected, so it was "
+            f"NOT read. Only these spaces are in scope: {names}. Do not retry this space, "
+            "do not guess another, and never attribute its contents to a client. If the "
+            "user wants a different space, tell them to pick it in Settings → Google "
+            "Connectors → Google Chat Spaces."
+        ),
+        "spaces_in_scope": names,
+    }
+
+
 # ── Google Chat Standard API helper ──────────────────────────────────────────
 def _gchat_error(r):
     """Translate a non-200 Google Chat response into an actionable error dict.
@@ -1450,10 +1497,13 @@ def _gchat_error(r):
     return {"error": f"Google Chat API HTTP {r.status_code}", "detail": r.text[:500]}
 
 
-def list_google_chat_spaces_standard(access_token, page_size=100):
+def list_google_chat_spaces_standard(access_token, page_size=100, allowed=None):
     """
     Directly call the Google Chat API (v1) to list spaces.
     Useful as a fallback if MCP tools fail.
+
+    `allowed` confines the result to the spaces the user selected, so the model
+    never even learns that other clients' spaces exist.
     """
     if not access_token:
         return {"error": "google_auth_expired", "auth_expired": True,
@@ -1466,7 +1516,14 @@ def list_google_chat_spaces_standard(access_token, page_size=100):
         r = requests.get(url, headers=headers, params=params, timeout=20)
         if r.status_code != 200:
             return _gchat_error(r)
-        return r.json()
+        data = r.json()
+        if allowed:
+            data["spaces"] = [s for s in (data.get("spaces") or [])
+                              if _gchat_space_allowed(s.get("name"), allowed)]
+            data.pop("nextPageToken", None)
+            data["_scope_note"] = ("Only the spaces the user selected in Settings are listed; "
+                                   "any others are out of scope and cannot be read.")
+        return data
     except Exception as e:
         return {"error": str(e)}
 
@@ -1491,11 +1548,17 @@ def list_google_chat_messages_standard(access_token, space_name, page_size=20, f
     except Exception as e:
         return {"error": str(e)}
 
-def search_google_chat_messages_standard(access_token, query, order_by="CREATE_TIME_DESC"):
+def search_google_chat_messages_standard(access_token, query, order_by="CREATE_TIME_DESC", allowed=None):
     """
     User-level Google Chat message search.
     Step 1: Try the admin search endpoint.
     Step 2 (Fallback): List all spaces, fuzzy-match by name, then fetch messages from matching space.
+
+    `allowed` is the set of spaces the user selected in Settings. Both steps are
+    confined to it: the admin search hits every space the user can see, so its
+    results are filtered afterwards, and the fuzzy fallback only ever considers
+    in-scope spaces — which is what stops a loose name match from surfacing a
+    different client's conversation.
     """
     if not access_token:
         return {"error": "google_auth_expired", "auth_expired": True,
@@ -1510,7 +1573,22 @@ def search_google_chat_messages_standard(access_token, query, order_by="CREATE_T
         print(f"[GCHAT] Searching via Standard API: {query}")
         r = requests.get(url, headers=headers, params=params, timeout=20)
         if r.status_code == 200:
-            return r.json()
+            data = r.json()
+            if allowed:
+                # ':search' spans every space the token can see — drop anything the
+                # user didn't put in scope before the model ever sees it.
+                kept = [m for m in (data.get("messages") or [])
+                        if _gchat_space_allowed(_gchat_msg_space(m), allowed)]
+                dropped = len(data.get("messages") or []) - len(kept)
+                data["messages"] = kept
+                data.pop("nextPageToken", None)
+                if dropped:
+                    print(f"[GCHAT] Dropped {dropped} out-of-scope messages from search")
+                    data["_scope_note"] = (
+                        f"{dropped} result(s) from spaces the user did not select were discarded. "
+                        "Only the selected spaces are in scope."
+                    )
+            return data
         # An expired/revoked token won't be fixed by the space-name fallback — bail early
         # with an actionable message rather than firing a second doomed request.
         if r.status_code in (401, 403):
@@ -1537,7 +1615,12 @@ def search_google_chat_messages_standard(access_token, query, order_by="CREATE_T
             pages += 1
             if not next_page_token:
                 break
-        
+
+        # Confine the fuzzy match to the user's selected spaces. With the pool
+        # restricted, a bad match can only ever land on a space they already chose.
+        if allowed:
+            all_spaces = [s for s in all_spaces if _gchat_space_allowed(s.get("name"), allowed)]
+
         # Fuzzy match: strip hyphens, spaces, case-insensitive.
         # Only DISTINCTIVE words count. Generic/domain words ("the", "centre",
         # "seo", "sem"…) are dropped so that a query for one client cannot match
@@ -1578,10 +1661,11 @@ def search_google_chat_messages_standard(access_token, query, order_by="CREATE_T
                            f"'{query}' looks like a topic or domain rather than a space name."),
                 "spaces_checked": len(all_spaces),
                 "available_spaces": space_names[:200],
-                "hint": ("The query did not match any space name. Pick the closest match from "
-                         "available_spaces and call search_messages_standard again with that exact "
-                         "space name, or call list_my_spaces to browse all spaces. Do NOT report "
-                         "failure to the user before trying at least one real space name."),
+                "hint": ("The query did not match any space name. available_spaces lists every "
+                         "space the user put in scope — pick the closest match and call "
+                         "search_messages_standard again with that exact space name. No other "
+                         "space can be read. If none of them fit, say so and tell the user to "
+                         "adjust the selection in Settings → Google Connectors → Google Chat Spaces."),
             }
         
         space_id = best_space["name"]  # e.g. "spaces/XXXXXXXX"
@@ -2766,19 +2850,40 @@ def claude_chat_with_tools(body):
     )
     # Google Chat governance. Chat spaces are private and frequently belong to
     # DIFFERENT clients; a fuzzy space match once attributed one client's space
-    # to another and the model fabricated an "also known as" alias. Chat is
-    # OFF unless the user flips the composer toggle on (gchat_enabled below).
-    _gchat_policy = (
-        "GOOGLE CHAT POLICY: Google Chat spaces are private and often belong to "
-        "DIFFERENT clients. Do NOT pull Google Chat data as part of a Monday/board "
-        "crawl or any client research unless the user has explicitly turned on the "
-        "'Include Google Chat' toggle AND named the space(s) to read. If Chat could "
-        "help and it is off, ask the user to switch on the 'Include Google Chat' "
-        "toggle in the message box and tell you which space(s) — do not call any "
-        "Chat tool first. Never attribute a Chat space's contents to a client unless "
-        "the space name clearly contains that client's own distinctive name, and "
-        "never invent aliases such as one client being 'also known as' another."
-    )
+    # to another and the model fabricated an "also known as" alias. The user picks
+    # the spaces to read in Settings → Google Connectors → Google Chat Spaces and
+    # those ids arrive as `gchat_spaces`. No selection = no Chat at all; a selection
+    # confines every Chat tool to exactly those ids (enforced in the dispatch loop
+    # below, not merely requested in this prompt).
+    GCHAT_ALLOWED_SPACES = {}
+    for _s in (body.get('gchat_spaces') or []):
+        if isinstance(_s, dict):
+            _sid, _snm = _s.get('id'), _s.get('name')
+        else:
+            _sid, _snm = _s, _s
+        if _sid:
+            GCHAT_ALLOWED_SPACES[str(_sid)] = str(_snm or _sid)
+    gchat_enabled = bool(GCHAT_ALLOWED_SPACES)
+
+    if gchat_enabled:
+        _gchat_policy = (
+            "GOOGLE CHAT POLICY: Google Chat spaces are private and often belong to "
+            "DIFFERENT clients. The user has put EXACTLY these spaces in scope: "
+            f"{sorted(GCHAT_ALLOWED_SPACES.values())}. Every Chat tool is hard-limited to "
+            "them — a call aimed at any other space is refused, so do not try. Never "
+            "attribute a Chat space's contents to a client unless the space name clearly "
+            "contains that client's own distinctive name, and never invent aliases such as "
+            "one client being 'also known as' another. If the user wants a different space, "
+            "tell them to pick it in Settings → Google Connectors → Google Chat Spaces."
+        )
+    else:
+        _gchat_policy = (
+            "GOOGLE CHAT POLICY: The user has selected NO Google Chat spaces, which means "
+            "they do not want Chat searched. Every Google Chat tool is disabled this turn — "
+            "do not call one. Do not pull Chat data as part of a Monday/board crawl or any "
+            "client research. If Chat would genuinely help, say so and tell the user to pick "
+            "the space(s) in Settings → Google Connectors → Google Chat Spaces."
+        )
     _preamble = _date_line + "\n\n" + _gchat_policy
     if isinstance(system, list):
         system = [{"type": "text", "text": _preamble}] + system
@@ -2791,10 +2896,6 @@ def claude_chat_with_tools(body):
     max_tokens = int(body.get('max_tokens', 4096))
     thinking   = body.get('thinking')  # e.g. {"type": "enabled", "budget_tokens": 8000}
 
-    # Composer "Include Google Chat" toggle (default OFF). When off, every Google
-    # Chat tool call is short-circuited below so no Chat data is ever read without
-    # the user's explicit opt-in.
-    gchat_enabled = bool(body.get('gchat_enabled'))
     GCHAT_TOOLS = {
         "search_conversations", "list_messages", "search_messages", "send_message",
         "list_my_spaces", "list_messages_standard", "search_messages_standard",
@@ -3739,28 +3840,44 @@ def claude_chat_with_tools(body):
                     _report_progress(_tool_label)
 
                     # ── Google Chat opt-in gate ─────────────────────────────
-                    # When the composer toggle is OFF, never touch Chat. Return
-                    # a sentinel that stops the model and makes it ask the user
-                    # to enable the toggle and name the space(s).
+                    # No spaces picked in Settings = the user doesn't want Chat
+                    # searched. Return a sentinel that stops the model and makes it
+                    # point them at the picker instead of guessing a space.
                     if tool_name in GCHAT_TOOLS and not gchat_enabled:
-                        tool_call_log.append("▸ Google Chat: blocked (toggle off)")
+                        tool_call_log.append("▸ Google Chat: blocked (no spaces selected)")
                         tool_results.append({
                             "type":        "tool_result",
                             "tool_use_id": tool_id,
                             "content":     json.dumps({
                                 "error": "google_chat_disabled",
                                 "message": (
-                                    "Google Chat is OFF for this conversation, so NO Chat data "
+                                    "The user has selected no Google Chat spaces, so NO Chat data "
                                     "was read. Do not call any Google Chat tool again this turn. "
                                     "Tell the user that if they want Google Chat included, they "
-                                    "should switch on the 'Include Google Chat' toggle in the "
-                                    "message box and tell you which space(s) to check. Do not "
-                                    "guess a space, do not attribute any Chat content to this "
-                                    "client, and never claim one client is 'also known as' another."
+                                    "should pick the space(s) in Settings → Google Connectors → "
+                                    "Google Chat Spaces. Do not guess a space, do not attribute any "
+                                    "Chat content to this client, and never claim one client is "
+                                    "'also known as' another."
                                 ),
                             }),
                         })
                         continue
+
+                    # ── Google Chat space scope ─────────────────────────────
+                    # A selection is a whitelist, not a hint: refuse any call that
+                    # names a space outside it before it reaches Google.
+                    if tool_name in GCHAT_TOOLS:
+                        _target = (tool_input.get('spaceName') or tool_input.get('conversationId')
+                                   or tool_input.get('space') or tool_input.get('spaceId'))
+                        if _target and not _gchat_space_allowed(_target, GCHAT_ALLOWED_SPACES):
+                            tool_call_log.append(f"▸ Google Chat: refused out-of-scope space ({_target})")
+                            print(f"[GCHAT] Refused out-of-scope space: {_target}")
+                            tool_results.append({
+                                "type":        "tool_result",
+                                "tool_use_id": tool_id,
+                                "content":     json.dumps(_gchat_denied(_target, GCHAT_ALLOWED_SPACES)),
+                            })
+                            continue
 
                     if tool_name == "monday_graphql":
                         gql_query = tool_input.get("query", "")
@@ -3800,7 +3917,8 @@ def claude_chat_with_tools(body):
                         print(f"[TOOLS] Listing Google Chat Spaces via Standard API")
                         
                         page_size = tool_input.get('pageSize', 100)
-                        result_data = list_google_chat_spaces_standard(google_token, page_size)
+                        result_data = list_google_chat_spaces_standard(google_token, page_size,
+                                                                       allowed=GCHAT_ALLOWED_SPACES)
                         result_str = json.dumps(result_data)
                         
                         tool_results.append({
@@ -3829,7 +3947,8 @@ def claude_chat_with_tools(body):
                         order_by = tool_input.get('orderBy', 'CREATE_TIME_DESC')
                         
                         print(f"[TOOLS] Searching Google Chat Messages via Standard API for {query}")
-                        result_data = search_google_chat_messages_standard(google_token, query, order_by)
+                        result_data = search_google_chat_messages_standard(google_token, query, order_by,
+                                                                           allowed=GCHAT_ALLOWED_SPACES)
                         result_str = json.dumps(result_data)
                         
                         tool_results.append({

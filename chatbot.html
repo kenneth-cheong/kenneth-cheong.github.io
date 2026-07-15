@@ -3832,7 +3832,7 @@ html[data-theme="dark"] [data-tooltip]::before{background:#1a1f3c}
         </div>
 
         <header>
-            <h1><svg class="otter-mascot" viewBox="0 0 48 48" fill="none" width="30" height="30" style="flex-shrink:0" role="img" aria-label="Monty"><clipPath id="otterHeadClip"><circle cx="24" cy="24" r="24"/></clipPath><g clip-path="url(#otterHeadClip)"><circle cx="24" cy="24" r="24" fill="#e8f0ff"/><image href="assets/monty.jpg" x="-12.52" y="-11.48" width="73.04" height="73.04"/><path d="M8.4 20 Q24 -1 39.6 20" stroke="#2563eb" stroke-width="2.6" fill="none" stroke-linecap="round"/><ellipse cx="8.4" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><ellipse cx="39.6" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><path d="M8.4 24 Q5.5 31 16 32.2" stroke="#2563eb" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="16.3" cy="32.2" r="1.5" fill="#2563eb"/></g></svg> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2812</span></h1>
+            <h1><svg class="otter-mascot" viewBox="0 0 48 48" fill="none" width="30" height="30" style="flex-shrink:0" role="img" aria-label="Monty"><clipPath id="otterHeadClip"><circle cx="24" cy="24" r="24"/></clipPath><g clip-path="url(#otterHeadClip)"><circle cx="24" cy="24" r="24" fill="#e8f0ff"/><image href="assets/monty.jpg" x="-12.52" y="-11.48" width="73.04" height="73.04"/><path d="M8.4 20 Q24 -1 39.6 20" stroke="#2563eb" stroke-width="2.6" fill="none" stroke-linecap="round"/><ellipse cx="8.4" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><ellipse cx="39.6" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><path d="M8.4 24 Q5.5 31 16 32.2" stroke="#2563eb" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="16.3" cy="32.2" r="1.5" fill="#2563eb"/></g></svg> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2813</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -4905,7 +4905,9 @@ html[data-theme="dark"] [data-tooltip]::before{background:#1a1f3c}
         // confined to exactly those ids, so a fuzzy space match can't wander into a
         // different client's space.
         function getSelectedGchatSpaces() {
-            const sel = (window.msState && msState.msChatSpaceDropdown && msState.msChatSpaceDropdown.selected) || [];
+            // msState is a `let` binding, so it is NOT on window — reach it directly.
+            const dd = (typeof msState !== 'undefined' && msState) ? msState.msChatSpaceDropdown : null;
+            const sel = (dd && dd.selected) || [];
             return sel
                 .map(s => (typeof s === 'object' && s ? { id: s.id, name: s.name || s.id } : { id: s, name: s }))
                 .filter(s => s.id);
@@ -11393,13 +11395,11 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             • User asks about tracking brand mentions in AI responses
               → AI Mentions (https://app.digimetrics.ai/#discoveryKeywordsSection) — monitors brand mentions across AI models
             • User asks to TRACK AI visibility over time, share of voice in AI answers, or compare their AI-search presence vs competitors on a dashboard
-              → GEO Analytics Dashboard (https://app.digimetrics.ai/#geoAnalyticsSection) — day-level trend charts for AI visibility, mentions, SoV & position across models
+              → GEO Analytics Dashboard (https://app.digimetrics.ai/#geoAnalyticsSection) — day-level trend charts for AI visibility, mentions, SoV & position across models. This also covers what the retired WorkDuo AI Visibility tool used to do — if a user asks about WorkDuo, point them here.
             • User asks about optimising content for AI summaries, ChatGPT, or Perplexity
               → GEO On-Page Optimisation (https://app.digimetrics.ai/#geoOnPageSection)
             • User asks about llms.txt or making their site AI-crawlable
               → llms.txt Generator (https://app.digimetrics.ai/#llmsTxtGenerator)
-            • User asks specifically about WorkDuo data or an existing WorkDuo AI-visibility project
-              → WorkDuo AI Visibility (https://app.digimetrics.ai/#workduoIntegrationSection) — pulls AI-visibility metrics from WorkDuo for tracked topics
 
             SEM TOOLS:
             • User asks about Google Ads campaign structure, ad copy, or bidding strategy
@@ -11418,6 +11418,8 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
               → Google Analytics 4 (https://app.digimetrics.ai/#ga4IntegrationSection)
             • User asks how their Google Ads results compare to industry benchmarks (is my CPC/CTR/conversion rate normal for my industry)
               → SEM Benchmark (https://app.digimetrics.ai/#semBenchmarkSection) — compares your metrics against MediaOne benchmarks across 22 Singapore industries
+            • User asks whether we still have access to a client's Google Ads account, how our access compares to the ICIR campaign list, or wants monthly ad-spend/budget pacing tracked with alerts when an account overspends
+              → Ads Access & Budget Monitor (https://app.digimetrics.ai/#adsBudgetMonitorSection) — checks Google Ads access coverage against the monday ICIR and monitors monthly budget spend with Google Chat alerts
 
             SMM TOOLS:
             • User asks about social media content strategy, hashtags, or trending topics
@@ -11439,7 +11441,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
 
             OTHER TOOLS:
             • User asks about competitor websites, competitor identification, or competitive analysis
-              → Competitors Identifier (https://app.digimetrics.ai — open Others > Competitors Identifier)
+              → Competitors Identifier (https://app.digimetrics.ai/#competitorsSection) — discovers who you actually compete with in Google (listed under SEO)
             • User asks about Search Console data, impressions, or click-through rates
               → Google Search Console (https://app.digimetrics.ai/#gscIntegrationSection)
             • User asks about buyer personas, target audience, or customer profiles
@@ -11454,6 +11456,14 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
               → Content Check (https://app.digimetrics.ai — open Others > Content Check)
             • User asks for a proposal, quote, or pricing for SEO services
               → SEO Pricing Quote (https://app.digimetrics.ai/#pricingQuoteSection)
+            • User asks about responding to a tender or RFP, or wants a pitch/proposal deck built from a tender document
+              → Tender Builder (https://app.digimetrics.ai/#tenderSection) — TenderAI analyses the tender brief and generates response slides you can edit and export to PPTX
+            • User asks to automate a recurring job, run something on a schedule, or wants to see/manage the platform's automated background tasks
+              → Task Scheduler (https://app.digimetrics.ai/#schedulerSection) — create, inspect and manage automated background tasks
+
+            COCKPIT:
+            • User asks how campaigns are tracking overall, wants a cross-client or cross-channel overview, or asks "what needs my attention today" across rankings, ads, GEO and client satisfaction
+              → Cockpit Dashboard (https://app.digimetrics.ai/#cockpitSection) — one screen of expandable cards (campaign board, SE Ranking, Google/Meta Ads, Search Console, SEO KPIs, GEO visibility, NPS) topped by a Performance Intelligence synthesis
 
             CONTENT TOOLS:
             • User asks about keeping client context organised, client briefs, a client knowledge base / database, tone-of-voice or brand context for writing, or a shared workspace to co-write on-brand content
@@ -12141,7 +12151,9 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                         app_source: 'chatbot.html',
                         max_tokens: 4096,
                         monday_api_key: localStorage.getItem('mondayApiKey'),
-                        gchat_enabled: (localStorage.getItem('cbGchatEnabled') === '1'),
+                        // Chat is scoped to the spaces picked in Settings; none = don't search Chat.
+                        gchat_spaces: getSelectedGchatSpaces(),
+                        gchat_enabled: getSelectedGchatSpaces().length > 0,
                         google_access_token: localStorage.getItem('googleToken_Workspace'),
                         google_tokens: {
                             workspace: localStorage.getItem('googleToken_Workspace'),
@@ -12303,7 +12315,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
         }
 
         // Map of platform tool section ids -> friendly names, for [ACTION: OPEN_TOOL:...] buttons.
-        const CB_PLATFORM_TOOLS = {"seoDiagnosticsSection": "SEO Diagnostics","strategyEngine": "Digimetrics Strategy Engine","siteAnalysisSection": "Page Technical & Domain Analysis","rankCheckerSection": "Rank Checker","keywordAnalysis": "Keyword Analysis","keywordMappingSection": "Keyword Mapping","technicalSeo": "Technical SEO","crawlerSimulator": "Google Crawler Simulator","schemaGeneratorButton": "Schema Generator","onPageSection": "On-Page Optimisation","seoTime2RankSection": "Time to Rank","anchorTextCleanerSection": "Internal Anchor Text Cleaner","backlinksExplorerSection": "Backlinks Explorer","forensicAuditSection": "GEO+SEO Forensic Audit","ahrefsIntegrationSection": "Ahrefs","serankingIntegrationSection": "SE Ranking","aiContentOptimiser": "AI Content Optimiser / Checker","aiDiscoveryAudit": "AI Discovery Audit","discoveryKeywordsSection": "AI Mentions","geoAnalyticsSection": "GEO Analytics Dashboard","geoOnPageSection": "GEO On-Page Optimisation","llmsTxtGenerator": "llms.txt Generator","workduoIntegrationSection": "WorkDuo AI Visibility","semSection": "SEM Analysis & Generation","performanceMarketingSection": "Performance Marketing Audit","adsIntegrationSection": "Google Ads dashboard","metaAdsSection": "Meta Ads dashboard","linkedinAdsSection": "LinkedIn Ads dashboard","tiktokAdsSection": "TikTok Ads dashboard","ga4IntegrationSection": "Google Analytics 4","semBenchmarkSection": "SEM Benchmark","socialMediaStrategy": "Social Media Strategy House","pillarFrameworkContent": "Content Pillar Framework","contentGenerator": "Caption Generator","responseGenerator": "Social Media Response Generator","socialMediaAuditSection": "Social Media Audit","socialReportsSection": "Monthly Social Reports","socialListeningSection": "Social Listening Report","smmReportSection": "Social Media Report Analyser","gscIntegrationSection": "Google Search Console","personaContent": "Persona Generator","mediaplan": "Media Plan","landingPageAudit": "Landing Page Audit","uatToolSection": "Website UAT Audit","pricingQuoteSection": "SEO Pricing Quote","clientContextEngine": "Client Context Engine"};
+        const CB_PLATFORM_TOOLS = {"seoDiagnosticsSection": "SEO Diagnostics","strategyEngine": "Digimetrics Strategy Engine","siteAnalysisSection": "Page Technical & Domain Analysis","rankCheckerSection": "Rank Checker","keywordAnalysis": "Keyword Analysis","keywordMappingSection": "Keyword Mapping","technicalSeo": "Technical SEO","crawlerSimulator": "Google Crawler Simulator","schemaGeneratorButton": "Schema Generator","onPageSection": "On-Page Optimisation","seoTime2RankSection": "Time to Rank","anchorTextCleanerSection": "Internal Anchor Text Cleaner","backlinksExplorerSection": "Backlinks Explorer","forensicAuditSection": "GEO+SEO Forensic Audit","ahrefsIntegrationSection": "Ahrefs","serankingIntegrationSection": "SE Ranking","aiContentOptimiser": "AI Content Optimiser / Checker","aiDiscoveryAudit": "AI Discovery Audit","discoveryKeywordsSection": "AI Mentions","geoAnalyticsSection": "GEO Analytics Dashboard","geoOnPageSection": "GEO On-Page Optimisation","llmsTxtGenerator": "llms.txt Generator","semSection": "SEM Analysis & Generation","performanceMarketingSection": "Performance Marketing Audit","adsIntegrationSection": "Google Ads dashboard","metaAdsSection": "Meta Ads dashboard","linkedinAdsSection": "LinkedIn Ads dashboard","tiktokAdsSection": "TikTok Ads dashboard","ga4IntegrationSection": "Google Analytics 4","semBenchmarkSection": "SEM Benchmark","adsBudgetMonitorSection": "Ads Access & Budget Monitor","socialMediaStrategy": "Social Media Strategy House","pillarFrameworkContent": "Content Pillar Framework","contentGenerator": "Caption Generator","responseGenerator": "Social Media Response Generator","socialMediaAuditSection": "Social Media Audit","socialReportsSection": "Monthly Social Reports","socialListeningSection": "Social Listening Report","smmReportSection": "Social Media Report Analyser","gscIntegrationSection": "Google Search Console","personaContent": "Persona Generator","mediaplan": "Media Plan","landingPageAudit": "Landing Page Audit","uatToolSection": "Website UAT Audit","pricingQuoteSection": "SEO Pricing Quote","tenderSection": "Tender Builder","schedulerSection": "Task Scheduler","cockpitSection": "Cockpit Dashboard","competitorsSection": "Competitors Identifier","clientContextEngine": "Client Context Engine"};
         // Render [ACTION: OPEN_TOOL:sectionId] as a button that opens the tool on the platform
         // (this standalone chatbot has no tools of its own, so it deep-links to app.digimetrics.ai).
         function cbBuildPlatformToolButton(sectionId){
