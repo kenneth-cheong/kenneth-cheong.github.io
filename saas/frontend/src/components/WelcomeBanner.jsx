@@ -30,8 +30,13 @@ export default function WelcomeBanner({ onShowTools, onUpgrade }) {
   const dismiss = () => { setGone(true); localStorage.setItem(KEY, '1'); };
 
   return (
+    // Wrapper is overflow-visible + carries top clearance so the otter can break
+    // out above the slab's top edge (the slab itself stays overflow-hidden for its
+    // rounded gradient). The extra top margin keeps the protrusion clear of
+    // whatever sits above the banner on the dashboard.
+    <div className="relative mt-11">
     <div
-      className="relative mt-2 flex min-h-[192px] flex-col justify-center gap-2.5 overflow-hidden rounded-[22px] px-9 py-8"
+      className="relative flex min-h-[192px] flex-col justify-center gap-2.5 overflow-hidden rounded-[22px] px-9 py-8"
       style={{ background: 'linear-gradient(115deg,#c3ceff 0%,#9fb0ff 100%)', color: '#0d2a5e', boxShadow: 'var(--e-shadow)' }}
     >
       <div className="text-[15px] font-bold tracking-tight">Welcome</div>
@@ -89,16 +94,19 @@ export default function WelcomeBanner({ onShowTools, onUpgrade }) {
         )}
       </div>
 
-      {/* The mockup parks a photo of a success specialist here. Otter — one of
-          Monty's friends — takes the slot instead, peeking over the banner's
-          bottom edge and waving. Decorative; the wrapper carries the mockup's
-          drop-shadow and the peek offset. */}
-      <span
-        className="pointer-events-none absolute -bottom-2 right-8 hidden select-none sm:block"
-        style={{ filter: 'drop-shadow(-10px 12px 22px rgba(4,30,60,.35))' }}
-        aria-hidden
-      >
-        <PeekMascot name="otter" width={210} /></span>
+    </div>
+
+      {/* The mockup parks a photo of a success specialist here — a figure that
+          breaks out ABOVE the banner's top-right edge. Otter takes that slot:
+          it protrudes above the slab (head + waving paw over the top edge, body
+          overlapping into the banner). A wrapper sibling, so the slab's
+          overflow-hidden doesn't clip it. Decorative (PeekMascot is aria-hidden). */}
+      <PeekMascot
+        name="otter"
+        width={250}
+        className="pointer-events-none absolute right-10 top-[-44px] hidden select-none sm:block"
+        style={{ filter: 'drop-shadow(-8px 10px 20px rgba(4,30,60,.32))' }}
+      />
     </div>
   );
 }
