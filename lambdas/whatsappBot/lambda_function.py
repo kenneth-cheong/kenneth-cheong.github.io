@@ -122,7 +122,42 @@ _ddb = boto3.resource('dynamodb', region_name=REGION)
 # question with a paid-ads pitch. Hence three independent layers.
 # ──────────────────────────────────────────────────────────────────────────────
 
-# Layer 1: deterministic. No LLM involved, so it cannot be argued out of it.
+# Layer 1a: deterministic, and it applies to EVERYONE — including a client whose
+# number is linked and switched on. Money and contracts are a human's job, full stop.
+#
+# This is the load-bearing half of the split below. The prompt also tells the model to
+# escalate these, but a prompt can be talked round and a regex cannot, and the cost of
+# being wrong here is a client's contract value or payment status going out over
+# WhatsApp. It runs before the LLM, before the KB, and before any client lookup.
+# Scoped to THEIR money, not money in general. "How much does SEO cost?" is a
+# published-price FAQ the knowledge base is meant to answer, and DEPLOY.md keeps it as
+# the standing regression test; blocking it here would quietly kill that. "How much am
+# I paying?" is a different question with a different answer, and that one is a human's.
+FINANCIAL_RE = re.compile(
+    r'('
+    # (?:\w+\s+){0,2} so a qualifier between the possessive and the noun doesn't slip
+    # past: "my AD spend", "my MONTHLY fee", "my SEO campaign budget".
+    r'\b(my|our)\s+(?:\w+\s+){0,2}(invoice|invoices|bill|billing|payment|payments'
+    r'|contract|contracts|agreement|fee|fees|price|pricing|rate|rates|budget|budgets'
+    r'|spend|spending|plan|package|subscription|balance|deposit|retainer)\b'
+    r'|\bhow\s+much\s+(am\s+i|are\s+we|do\s+i|do\s+we|did\s+i|did\s+we|have\s+i|have\s+we|'
+    r'was\s+i|were\s+we)\s+\w*\s*(pay|paying|paid|spend|spending|spent|owe|owing|charged|billed)\b'
+    r'|\b(i|we)\s+(owe|owing)\b'
+    r'|\b(invoice|invoices|billing|refund|refunds|credit\s+note|outstanding\s+(balance|amount)'
+    r'|top\s*up|topup)\b'
+    r'|\bcharge(d)?\s+(me|us)\b'
+    r'|\bcancel(ling|lation)?\s+(my|our|the)\s+(plan|subscription|contract|service|campaign|account)\b'
+    r'|\bterminate\s+(my|our)\s+(contract|agreement|service|campaign)\b'
+    r'|\b(my|our)\s+contract\s+(expire|expires|expiry|end|ends|renew|renews|renewal)\b'
+    r'|\bwhen\s+(does|will)\s+(my|our)\s+(contract|plan|subscription)\b'
+    r')',
+    re.IGNORECASE,
+)
+
+# Layer 1b: deterministic. Applies ONLY to numbers we have NOT linked to a campaign
+# and switched on — for those, this is still the wall it always was. For a linked
+# client the whole point is that they can ask these, so it is skipped and the model
+# answers from the pre-fetched facts (or escalates when they don't cover it).
 ACCOUNT_SPECIFIC_RE = re.compile(
     r'\b('
     r'my\s+(campaign|ranking|rankings|invoice|bill|billing|account|website|site|ads?|budget|spend|report|results?|traffic|keywords?)'
@@ -195,6 +230,24 @@ ABOUT THE SNIPPETS: The knowledge-base snippets below were retrieved by semantic
 
 STYLE: WhatsApp — warm, plain, brief. Two short paragraphs at most. No markdown, no bullet lists, no headings."""
 
+# Used INSTEAD of DEFAULT_WHATSAPP_SCOPE, and only when staff have linked this exact
+# number to a campaign AND ticked "let the bot discuss this client's account". Every
+# other number still gets the block above, which says it has no account data at all.
+#
+# The facts are pre-fetched and pasted in by _campaign_facts_block() — the bot has no
+# tools and cannot go looking. That is the point: it can only ever repeat an
+# allow-listed column that was fetched for THIS number's campaign, so the worst case
+# is "I don't know", never a number it made up or another client's row.
+DEFAULT_WHATSAPP_CLIENT_SCOPE = """SCOPE POLICY — ABSOLUTE: A colleague has confirmed this WhatsApp number belongs to the client named in YOUR CLIENT'S DETAILS below, so you may answer from that section — and from nothing else. It is the entire extent of what you know about them. There is no tool you can call for more, so do not try.
+
+MONEY IS ALWAYS A HUMAN'S JOB: Never discuss invoices, payment, fees, contract value, contract terms, budgets, ad spend, refunds or cancellation — not even if the answer looks like it is below, and not even if they push. Escalate every one of those, every time. Say a colleague will pick it up; do not explain why.
+
+IF IT ISN'T LISTED, YOU DON'T KNOW IT: Anything account-specific that is not written verbatim in YOUR CLIENT'S DETAILS is something you cannot answer. Do not infer it, do not estimate it, do not reason it out from what is there. Escalate instead.
+
+ABOUT THE SNIPPETS: The knowledge-base snippets below were retrieved by semantic similarity, and similarity is NOT relevance. They are frequently about a DIFFERENT question than the one asked. Judge for yourself whether they actually answer THIS question. If they do not, escalate — do NOT force-fit a near-miss snippet into an answer.
+
+STYLE: WhatsApp — warm, plain, brief. Two short paragraphs at most. No markdown, no bullet lists, no headings."""
+
 # NOT staff-editable. Appended by _system_prompt() after the two blocks above.
 FIXED_CONTRACT = """Reply with a JSON object and nothing else:
 {"reply": "<your message to the user>", "escalate": <true|false>, "reason": "<why, if escalating>"}
@@ -203,10 +256,11 @@ Set escalate=true when: the question is account-specific; the snippets do not ge
 
 # Order matters: persona (who you are) -> scope (what you may not do) -> contract
 # (how to reply). Same content the single SYSTEM_PROMPT constant used to carry.
-PROMPT_KEYS = ('shared_persona', 'whatsapp_scope')
+PROMPT_KEYS = ('shared_persona', 'whatsapp_scope', 'whatsapp_client_scope')
 PROMPT_DEFAULTS = {
     'shared_persona': DEFAULT_SHARED_PERSONA,
     'whatsapp_scope': DEFAULT_WHATSAPP_SCOPE,
+    'whatsapp_client_scope': DEFAULT_WHATSAPP_CLIENT_SCOPE,
 }
 
 # {key: text} plus the epoch it was fetched. Module-level, so it survives across
@@ -269,9 +323,13 @@ def _prompt_blocks(force=False):
     return blocks
 
 
-def _system_prompt(force=False):
+def _system_prompt(force=False, client_mode=False):
+    """client_mode swaps ONE block: the scope policy. Persona and the fixed contract
+    are identical either way, so the escalate-on-doubt machinery is the same for a
+    linked client as for a stranger."""
     b = _prompt_blocks(force=force)
-    return '\n\n'.join((b['shared_persona'], b['whatsapp_scope'], FIXED_CONTRACT))
+    scope = b['whatsapp_client_scope'] if client_mode else b['whatsapp_scope']
+    return '\n\n'.join((b['shared_persona'], scope, FIXED_CONTRACT))
 
 
 def _agent_prompt_info(event):
@@ -616,19 +674,20 @@ def _parse_llm_json(text):
     return obj
 
 
-def _ask_deepseek(question, kb_matches, turns):
+def _ask_deepseek(question, kb_matches, turns, facts=None):
     if not DEEPSEEK_API_KEY:
         print('[LLM] DEEPSEEK_API_KEY not configured')
         return None
-    messages = [{'role': 'system', 'content': _system_prompt()}]
+    messages = [{'role': 'system', 'content': _system_prompt(client_mode=bool(facts))}]
     for t in turns[:-1]:      # history, excluding the turn we just appended
         # 'agent' (a human colleague) maps to assistant: it is an outbound message
         # from our side. Letting it fall through to 'user' would replay a
         # colleague's words back to the model as if the CLIENT had said them.
         messages.append({'role': 'assistant' if t.get('role') in ('assistant', 'agent') else 'user',
                          'content': t.get('text') or ''})
+    facts_block = (_campaign_facts_block(facts) + '\n\n') if facts else ''
     messages.append({'role': 'user',
-                     'content': f"KNOWLEDGE-BASE SNIPPETS:\n{_kb_block(kb_matches)}\n\n"
+                     'content': f"{facts_block}KNOWLEDGE-BASE SNIPPETS:\n{_kb_block(kb_matches)}\n\n"
                                 f"QUESTION: {question}\n\nReply with the JSON object."})
     try:
         r = http.request(
@@ -649,19 +708,20 @@ def _ask_deepseek(question, kb_matches, turns):
         return None
 
 
-def _ask_haiku_vision(caption, image_b64, mime, kb_matches):
+def _ask_haiku_vision(caption, image_b64, mime, kb_matches, facts=None):
     """Images go to Haiku — DeepSeek is text-only. Mirrors the routing shim at
     monday_lambda.py:3185-3212, and the backup-key retry at 4150-4165."""
     if not ANTHROPIC_API_KEY:
         print('[LLM] ANTHROPIC_API_KEY not configured')
         return None
+    facts_block = (_campaign_facts_block(facts) + '\n\n') if facts else ''
     payload = {
         'model': VISION_MODEL,
         'max_tokens': 700,
-        'system': _system_prompt(),
+        'system': _system_prompt(client_mode=bool(facts)),
         'messages': [{'role': 'user', 'content': [
             {'type': 'image', 'source': {'type': 'base64', 'media_type': mime, 'data': image_b64}},
-            {'type': 'text', 'text': f"KNOWLEDGE-BASE SNIPPETS:\n{_kb_block(kb_matches)}\n\n"
+            {'type': 'text', 'text': f"{facts_block}KNOWLEDGE-BASE SNIPPETS:\n{_kb_block(kb_matches)}\n\n"
                                      f"The user sent this image with the caption: {caption or '(no caption)'}\n\n"
                                      f"Reply with the JSON object."},
         ]}],
@@ -755,6 +815,130 @@ def _post_gchat(text):
     except Exception as e:
         print(f'[GCHAT] post failed: {e}')
         return False
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Client account facts — the ONLY client data this bot can ever state.
+#
+# AN ALLOW-LIST, AND IT HAS TO BE. The ICIR board carries 121 columns. Among them:
+# "[BD] SEO Contract Value", "[BD] GEO Contract Value", "[FINANCE] Payment Status of
+# Campaign Fee", "[MB] Total Ad Budget", "SEM Payment terms" — and internal notes no
+# client should ever read, like "Contact for Upsell" and "[6Jan25] Intervention".
+# Sending the row and trusting the prompt to hold the line would put a client's
+# contract value one jailbreak away from their phone.
+#
+# So: nothing reaches the model unless it is listed here. Adding a column is a
+# deliberate act. Before you add one, ask whether you would be happy for it to be
+# screenshotted into a group chat, because that is the threat model.
+#
+# The value is the label the client sees, so keep them plain — internal prefixes like
+# "[CSM]" and "[Reg]" mean nothing to them.
+CLIENT_FACT_COLS = {
+    # who is on their account
+    'people2':                  'Client Success Manager',
+    'multiple_person':          'Assistant Client Success Manager',
+    'people6':                  'SEO consultant',
+    'dup__of_people':           'Assistant SEO consultant',
+    'multiple_person_mm1mcx4v': 'GEO consultant',
+    'people4':                  'Social / content lead',
+    # what they have with us
+    'tags':                     'Services',
+    'status':                   'SEO campaign type',
+    'text6':                    'Industry',
+    # where it stands
+    'status0':                  'Overall campaign status',
+    'color1':                   'SEO campaign status',
+    'color_mm1mymh5':           'GEO campaign status',
+    'status3':                  'Paid media campaign status',
+    'status929':                'Social media status',
+    # when
+    'start_live_date':          'Campaign timeline',
+    'timeline5':                'SEO timeline',
+    'timerange_mm1s32zv':       'GEO timeline',
+    'timeline39':               'Social media timeline',
+    'timeline1':                'Paid media timeline',
+    # deliverables + KPI progress (counts and percentages, never money)
+    'total_kws':                'Guaranteed keywords',
+    'numbers3':                 'KPI keywords',
+    'formula9':                 'SEO KPI status',
+    'dup__of_kpi_status0':      'SEO KPI hit rate',
+    'numeric_mm1yf15f':         'GEO KPI status (%)',
+    'numbers70':                'SEO articles',
+    # reporting
+    'text9__1':                 'Report due date',
+    'color94__1':               'Latest SEO report sent',
+    'color5__1':                'Latest social report sent',
+}
+
+
+def _campaign_facts(campaign_id):
+    """The allow-listed columns for ONE ICIR item, as {label: value}.
+
+    Reuses the monday Lambda over HTTP (same endpoint as the KB) rather than talking
+    to Monday directly, so the API key stays where it already lives. Returns None on
+    ANY failure — the caller escalates rather than answering from a half-empty row,
+    because a missing fact is indistinguishable from "they don't have that service"
+    and the bot would happily tell a client the wrong one.
+    """
+    ids = '","'.join(CLIENT_FACT_COLS.keys())
+    query = ('{ items(ids:[' + str(campaign_id) + ']){ name column_values(ids:["' + ids + '"])'
+             '{ id text ... on FormulaValue { display_value } } } }')
+    try:
+        r = http.request(
+            'POST', KB_SEARCH_URL,
+            headers={'Content-Type': 'application/json'},
+            body=json.dumps({'action': 'get_monday_data', 'query': query}),
+            timeout=urllib3.Timeout(total=20))
+        if r.status != 200:
+            print(f'[FACTS] http {r.status}: {r.data[:200]}')
+            return None
+        outer = json.loads(r.data.decode('utf-8'))
+        inner = outer.get('body')
+        data = json.loads(inner) if isinstance(inner, str) else (inner or outer)
+        items = (data.get('data') or data).get('items') or []
+        if not items:
+            print(f'[FACTS] no item {campaign_id}')
+            return None
+        item = items[0]
+    except Exception as e:
+        print(f'[FACTS] fetch failed for {campaign_id}: {e}')
+        return None
+
+    facts = {'Campaign': item.get('name') or ''}
+    for cv in (item.get('column_values') or []):
+        label = CLIENT_FACT_COLS.get(cv.get('id'))
+        if not label:
+            continue                       # not on the allow-list — cannot happen, but belt
+        val = (cv.get('display_value') or cv.get('text') or '').strip()
+        if val:
+            facts[label] = val
+    return facts
+
+
+def _campaign_facts_block(facts):
+    lines = [f'{k}: {v}' for k, v in facts.items() if v]
+    return "YOUR CLIENT'S DETAILS (everything you know about them — nothing else exists):\n" \
+        + '\n'.join(lines)
+
+
+def _client_ctx(wa_id):
+    """{company, name, campaign_id, enabled} for a number, or {} if unknown.
+
+    `enabled` is the per-number switch a colleague ticked in index.html. It is the
+    difference between a bot that discusses someone's campaign and one that doesn't,
+    so it is read fresh on every message — never cached — and it fails to False.
+    """
+    try:
+        item = (_ddb.Table(CLIENT_DIR_TABLE).get_item(Key={'wa_id': wa_id}) or {}).get('Item') or {}
+    except Exception as e:
+        print(f'[CLIENT] lookup failed for {_mask(wa_id)}: {e}')
+        return {}
+    return {
+        'company': item.get('company') or '',
+        'name': item.get('name') or '',
+        'campaign_id': (item.get('campaign_id') or '').strip(),
+        'enabled': bool(item.get('account_data_enabled')),
+    }
 
 
 def _client_label(wa_id):
@@ -851,8 +1035,39 @@ def _worker(event):
         _mark_replied(msg_id)
         return {'ok': True, 'skipped': 'stale'}
 
-    # Layer 1 — deterministic, before any LLM or KB spend.
-    if ACCOUNT_SPECIFIC_RE.search(question):
+    # Layer 1a — money, always, for everyone. Before any lookup, LLM or KB spend.
+    if FINANCIAL_RE.search(question):
+        print(f'[WORKER] {msg_id} matched the financial pre-filter — escalating')
+        _send_text(wa_id, ESCALATION_REPLY)
+        _append_turn(wa_id, 'assistant', ESCALATION_REPLY)
+        _escalate(wa_id, question, 'money / contract question (deterministic pre-filter)', turns)
+        _mark_replied(msg_id)
+        return {'ok': True, 'escalated': True}
+
+    # Is this number one a colleague has linked to a campaign AND switched on?
+    # Read fresh every message: the switch is how a client's account data is allowed
+    # out, so a stale cached "yes" is exactly the thing we can't have.
+    ctx = _client_ctx(wa_id)
+    facts = None
+    if ctx.get('enabled') and ctx.get('campaign_id'):
+        facts = _campaign_facts(ctx['campaign_id'])
+        if facts is None:
+            # Fetch failed. Do NOT fall through to the no-account-data prompt and let
+            # the model wing it — a half-known client is worse than an unknown one.
+            print(f'[WORKER] {msg_id} facts fetch failed for campaign '
+                  f'{ctx.get("campaign_id")} — escalating')
+            _send_text(wa_id, ESCALATION_REPLY)
+            _append_turn(wa_id, 'assistant', ESCALATION_REPLY)
+            _escalate(wa_id, question, "could not read this client's campaign row", turns)
+            _mark_replied(msg_id)
+            return {'ok': True, 'escalated': True}
+        print(f'[WORKER] {msg_id} answering as linked client '
+              f'{ctx.get("company") or "?"} ({len(facts)} facts)')
+
+    # Layer 1b — for everyone we have NOT linked and switched on, account questions
+    # are still a hard stop before any LLM. A linked client skips this: answering them
+    # is the entire point, and the facts block bounds what "answering" can mean.
+    if not facts and ACCOUNT_SPECIFIC_RE.search(question):
         print(f'[WORKER] {msg_id} matched the account-specific pre-filter — escalating')
         _send_text(wa_id, ESCALATION_REPLY)
         _append_turn(wa_id, 'assistant', ESCALATION_REPLY)
@@ -864,11 +1079,14 @@ def _worker(event):
 
     if mtype == 'image':
         b64, mime = _fetch_media((msg.get('image') or {}).get('id'))
-        result = _ask_haiku_vision(question, b64, mime, kb) if b64 else None
+        result = _ask_haiku_vision(question, b64, mime, kb, facts=facts) if b64 else None
     else:
-        # No snippets at all -> nothing to ground on. Fail closed to a human.
-        result = _ask_deepseek(question, kb, turns) if kb else None
-        if not kb:
+        # "Who is my CSM?" will never match a knowledge-base snippet, so for a linked
+        # client the facts block is a legitimate thing to ground on all by itself.
+        # With neither facts nor snippets there is still nothing to answer from, and
+        # it fails closed to a human exactly as before.
+        result = _ask_deepseek(question, kb, turns, facts=facts) if (kb or facts) else None
+        if not kb and not facts:
             print(f'[WORKER] no KB matches above {KB_SCORE_FLOOR} — escalating')
 
     # Fail closed: LLM error, unparseable JSON, or an explicit escalate all end

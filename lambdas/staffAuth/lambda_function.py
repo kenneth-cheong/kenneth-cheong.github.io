@@ -129,7 +129,7 @@ _prompt_table = _ddb.Table(BOT_PROMPT_TABLE)
 
 # An allow-list, not a free-form key space: the bot only ever reads these two, so
 # any other key would be dead weight that staff could nonetheless fill with text.
-EDITABLE_PROMPT_KEYS = ("shared_persona", "whatsapp_scope")
+EDITABLE_PROMPT_KEYS = ("shared_persona", "whatsapp_scope", "whatsapp_client_scope")
 MAX_PROMPT_CHARS = 8000        # mirrors whatsappBot's MAX_PROMPT_CHARS
 MAX_PROMPT_HISTORY = 10        # versions kept for one-click revert
 
