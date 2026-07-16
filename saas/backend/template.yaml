@@ -340,6 +340,38 @@ Resources:
 
   # Ticket attachments (screenshots / files). PRIVATE — objects are served only
   # via short-lived presigned GET URLs the app mints on read (see lib/s3.mjs).
+  # Public bucket for images embedded in admin broadcast notifications. Unlike
+  # the private AttachmentsBucket, objects here are world-readable (served in
+  # every recipient's bell), so BlockPublicPolicy is false + a public GetObject
+  # bucket policy. Retained on delete so the change-set can never drop it.
+  BroadcastImagesBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      OwnershipControls:
+        Rules: [{ ObjectOwnership: BucketOwnerEnforced }]
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: false
+        RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods: [GET]
+            AllowedOrigins: ['*']
+            AllowedHeaders: ['*']
+  BroadcastImagesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref BroadcastImagesBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub '${BroadcastImagesBucket.Arn}/*'
+
   AttachmentsBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
@@ -696,6 +728,8 @@ Resources:
         Metrics: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /metrics, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Notifications: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/notifications, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         NotificationsRead: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/notifications/read, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        NotificationsDelete: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/notifications/delete, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        NotificationsClear: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/notifications/clear, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         TicketsList: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /support/tickets, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         TicketCreate: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /support/tickets, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         TicketGet: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: '/support/tickets/{ticketId}', Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
@@ -868,7 +902,16 @@ Resources:
         Variables:
           ADMIN_EMAILS: !Ref AdminEmails
           SES_FROM: !Ref SesFrom
+          # SMTP for broadcast + admin emails. Password in Secrets Manager;
+          # empty SMTP_USER falls back to SES.
+          SMTP_USER: !Ref SmtpUser
+          SMTP_FROM: !Ref SmtpFrom
+          SMTP_HOST: !Ref SmtpHost
+          SMTP_PORT: !Ref SmtpPort
+          SMTP_PASS: '{{resolve:secretsmanager:digimetrics-saas/smtp-pass:SecretString}}'
           BROADCASTS_TABLE: !Ref BroadcastsTable
+          # Public bucket for images embedded in broadcast notifications.
+          BROADCAST_IMAGES_BUCKET: !Ref BroadcastImagesBucket
           AMPLIFY_APP_ID: !Ref AmplifyAppId
           AMPLIFY_DOMAIN: !Ref AmplifyDomain
           AMPLIFY_BRANCH: !Ref AmplifyBranch
@@ -883,6 +926,8 @@ Resources:
         - DynamoDBCrudPolicy: { TableName: !Ref NotificationsTable }
         # Broadcast audit log (audience filter, channels, send counts).
         - DynamoDBCrudPolicy: { TableName: !Ref BroadcastsTable }
+        # Broadcast images uploaded to the public bucket.
+        - S3WritePolicy: { BucketName: !Ref BroadcastImagesBucket }
         - Statement:
             - Effect: Allow
               Action: [ses:SendEmail, ses:SendRawEmail]
@@ -916,6 +961,7 @@ Resources:
         SettingsSet: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/settings, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         BroadcastHistory: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/history, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         BroadcastPreview: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/preview, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
+        BroadcastUpload: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/upload, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         BroadcastSend: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/send, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         BroadcastBackfill: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/notifications/backfill, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         PlatformUsage: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/platform/usage, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }

@@ -1146,6 +1146,44 @@ export async function listNotifications(userId, limit = 50) {
   return Items || [];
 }
 
+// Remove a single notification (the bell's per-row dismiss).
+export async function deleteNotification(userId, notifId) {
+  await ddb.send(new DeleteCommand({
+    TableName: TABLES.notifications,
+    Key: { userId, notifId },
+  }));
+}
+
+// Clear all of a user's notifications ("clear all"). Pages the partition and
+// deletes in BatchWrite chunks of 25 (the service limit); returns the count.
+export async function clearNotifications(userId) {
+  let started;
+  let removed = 0;
+  do {
+    const { Items, LastEvaluatedKey } = await ddb.send(new QueryCommand({
+      TableName: TABLES.notifications,
+      KeyConditionExpression: 'userId = :u',
+      ExpressionAttributeValues: { ':u': userId },
+      ProjectionExpression: 'userId, notifId',
+      ExclusiveStartKey: started,
+    }));
+    const rows = Items || [];
+    for (let i = 0; i < rows.length; i += 25) {
+      const chunk = rows.slice(i, i + 25);
+      await ddb.send(new BatchWriteCommand({
+        RequestItems: {
+          [TABLES.notifications]: chunk.map((n) => ({
+            DeleteRequest: { Key: { userId: n.userId, notifId: n.notifId } },
+          })),
+        },
+      }));
+      removed += chunk.length;
+    }
+    started = LastEvaluatedKey;
+  } while (started);
+  return removed;
+}
+
 export async function markNotificationsRead(userId) {
   // `read` is a DynamoDB reserved word — it MUST be aliased via
   // ExpressionAttributeNames in both the filter and the update, otherwise the

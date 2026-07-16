@@ -40,6 +40,7 @@ import { amplifyUsage, amplifyAccessLogs } from '../lib/platform-usage.mjs';
 import { financeReport } from '../lib/finances.mjs';
 import { sendEmail } from '../lib/email.mjs';
 import { buildAcceptancePdf } from '../lib/pdf.mjs';
+import { putBroadcastImage } from '../lib/s3.mjs';
 import { signUnsubToken } from '../lib/jwt.mjs';
 import { ok, badRequest, unauthorized, serverError, json, parseBody, claims, isEmail, clampStr } from '../lib/http.mjs';
 
@@ -235,6 +236,16 @@ export const handler = async (event) => {
       maxAudience: MAX_AUDIENCE,
       sample: matched.slice(0, 25).map(audienceRow),
     });
+  }
+
+  // Upload an image for a broadcast (stored in the public broadcast bucket).
+  if (method === 'POST' && path.endsWith('/admin/notifications/upload')) {
+    try {
+      const image = await putBroadcastImage({ name: body.name, contentType: body.contentType, dataBase64: body.data });
+      return ok({ image });
+    } catch (e) {
+      return badRequest(e.message || 'Could not upload the image.');
+    }
   }
 
   // Send a broadcast to the filtered audience over the chosen channels.
