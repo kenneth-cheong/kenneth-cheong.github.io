@@ -9,6 +9,24 @@ DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 DEEPSEEK_MODEL = "deepseek-chat"
 
 
+def _strip_document_scaffolding(content):
+    """Return just the persona-card blocks.
+
+    The prompt forbids it, but models still wrap the cards in a full HTML document
+    whose <style> carries unscoped rules (including `body { ... }`) that would
+    restyle any page the cards are injected into. Cards are the only top-level
+    content, so everything before the first card and after the last close tag is
+    scaffolding. Left alone if no card is found, so errors stay visible.
+    """
+    start = content.find('<div class="persona-card"')
+    if start == -1:
+        return content
+    end = content.rfind('</div>')
+    if end == -1:
+        return content[start:]
+    return content[start:end + len('</div>')]
+
+
 def _call_deepseek(api_key, system, user_prompt, max_tokens=8192):
     """Call DeepSeek (OpenAI-compatible shape). No web search: only safe for the
     'generate' action, which works purely from the context passed in."""
@@ -158,7 +176,13 @@ Format each persona as a single HTML block:
 Company/Product Info: {json.dumps(data)}
 Additional Instructions: {manual}
 
-Output ONLY the HTML for the 10 cards. No markdown fences.
+OUTPUT FORMAT — STRICT. These are page fragments, not a web page:
+- Return EXACTLY the 10 <div class="persona-card"> blocks, one after another, and NOTHING else.
+- Your reply MUST start with `<div class="persona-card">` and MUST end with `</div>`.
+- NEVER wrap them in a document: no <!DOCTYPE>, no <html>, <head>, <body>, <meta> or <title>.
+- NEVER emit a <style> tag or any CSS. The page already styles these cards; your CSS is not
+  scoped and would override the site's own styling and break its dark mode.
+- No markdown fences, no explanation before or after the cards.
 """
         use_web_search = False
 
@@ -183,6 +207,7 @@ Output ONLY the HTML for the 10 cards. No markdown fences.
 
         if action == 'generate':
             content = content.replace('```html', '').replace('```', '').replace('\n', '')
+            content = _strip_document_scaffolding(content)
 
         return {
             'statusCode': 200,
