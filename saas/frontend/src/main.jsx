@@ -9,6 +9,7 @@ import { SupportTicketsProvider } from './context/SupportTicketsContext.jsx';
 import { PlanProvider } from './context/PlanContext.jsx';
 import { init as initDiagnostics } from './lib/diagnostics.js';
 import { initAnalytics } from './lib/analytics.js';
+import '@fortawesome/fontawesome-free/css/all.min.css';
 import './index.css';
 
 // Start capturing diagnostics (errors, failed calls, error toasts) before the

@@ -35,7 +35,7 @@ export function KeywordRankings({ tracked }) {
   const total = (tracked || []).length;
 
   return (
-    <section className="card p-[18px]">
+    <Link to="/tracking" className="card card-hover block p-[18px]">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-faint">Keyword rankings</span>
         {ranked > 0 && (
@@ -73,7 +73,7 @@ export function KeywordRankings({ tracked }) {
           </div>
         </>
       )}
-    </section>
+    </Link>
   );
 }
 
@@ -94,7 +94,7 @@ export function TopMovers({ tracked }) {
   }, [tracked]);
 
   return (
-    <section className="card p-[18px]">
+    <Link to="/tracking" className="card card-hover block p-[18px]">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-faint">Top movers</span>
         <span className="rounded-full bg-sunken px-2.5 py-1 text-[10.5px] font-bold text-muted">all time</span>
@@ -117,7 +117,7 @@ export function TopMovers({ tracked }) {
           ))}
         </ul>
       )}
-    </section>
+    </Link>
   );
 }
 

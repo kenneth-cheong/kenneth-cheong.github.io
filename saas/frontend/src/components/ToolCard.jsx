@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import { Lock, ArrowRight } from 'lucide-react';
 import { PLANS, CREDIT_COSTS, CATEGORY_META, tierMeets } from '@shared/catalog.mjs';
-import { CategoryIcon } from '../lib/icons.jsx';
+import { ToolIcon } from '../lib/icons.jsx';
+import PeekMascot, { CATEGORY_MASCOT } from './PeekMascot.jsx';
 
 // A tool tile, in the approved design (mockups/saas-overview.html .tool-card):
 // a colour-washed illustration header carrying the category's hue, then name,
@@ -47,7 +48,7 @@ export default function ToolCard({ tool, userTier }) {
       className={`card card-hover group relative flex flex-col overflow-hidden ${unlocked ? '' : 'border-dashed'}`}
     >
       <div className="dm-tool-illus">
-        <CategoryIcon category={tool.category} size={32} className="text-white" />
+        <ToolIcon tool={tool} className="dm-tool-glyph text-white" />
         {/* Tier lock rides on the wash, where it reads against any category hue. */}
         {!unlocked && (
           <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-black/35 px-2 py-0.5 text-[10px] font-bold uppercase text-white backdrop-blur-sm">
@@ -55,6 +56,17 @@ export default function ToolCard({ tool, userTier }) {
           </span>
         )}
       </div>
+
+      {/* The category's mascot breaks the frame — it sits on the illustration's
+          bottom edge and PROTRUDES down into the card body (like the mockup's
+          105%-tall banner figure), waving the user in. A card child (not an illus
+          child) so the wash's overflow-hidden doesn't clip it; it pops up a touch
+          on card hover. Decorative (aria-hidden inside PeekMascot). */}
+      <PeekMascot
+        name={CATEGORY_MASCOT[tool.category]}
+        width={62}
+        className="dm-tool-peek absolute right-2 top-[54px] z-[1]"
+      />
 
       <div className="flex flex-1 flex-col gap-1.5 p-3.5">
         <h3 className="text-[13px] font-bold leading-tight text-heading">{tool.name}</h3>

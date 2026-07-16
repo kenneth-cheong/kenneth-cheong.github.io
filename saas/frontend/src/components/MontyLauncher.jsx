@@ -4,23 +4,29 @@ import Mascot from './Mascot.jsx';
 // with the animated gradient wordmark and a tail, beside a gradient avatar
 // button carrying a live badge and a slow ping.
 //
-// Hidden while the assistant panel is open — the mockup never shows both, and a
-// FAB that opens what's already open is just a dead control.
-export default function MontyLauncher({ open, onOpen }) {
-  if (open) return null;
+// Monty's avatar STAYS put while the assistant panel is open — the character
+// anchors the panel to its corner and keeps a constant presence. It just turns
+// into a toggle: closed → opens the panel; open → minimizes it back down. The
+// "Ask Monty anything" invitation pill and the attention ping only show while
+// closed, since neither makes sense once the panel is already up.
+export default function MontyLauncher({ open, onOpen, onClose }) {
+  const toggle = () => (open ? onClose?.() : onOpen?.());
   return (
     <div className="dm-monty-fab">
-      <button type="button" onClick={onOpen} className="dm-monty-label" aria-hidden tabIndex={-1}>
-        Ask Monty <span className="dm-mg">anything</span>
-      </button>
+      {!open && (
+        <button type="button" onClick={onOpen} className="dm-monty-label" aria-hidden tabIndex={-1}>
+          Ask Monty <span className="dm-mg">anything</span>
+        </button>
+      )}
       <button
         type="button"
-        onClick={onOpen}
+        onClick={toggle}
         className="dm-monty-btn"
-        title="Ask Monty anything"
-        aria-label="Open Monty the assistant"
+        title={open ? 'Minimize Monty' : 'Ask Monty anything'}
+        aria-label={open ? 'Minimize the Monty assistant' : 'Open Monty the assistant'}
+        aria-expanded={open}
       >
-        <span className="dm-monty-ping" aria-hidden />
+        {!open && <span className="dm-monty-ping" aria-hidden />}
         <span className="grid h-[52px] w-[52px] place-items-center overflow-hidden rounded-full">
           <Mascot bare size={52} />
         </span>

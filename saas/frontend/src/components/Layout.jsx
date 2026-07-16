@@ -280,7 +280,7 @@ export default function Layout({ children }) {
       {wide && <ProactiveEngine paused={needsConsent || needsNda || showWelcome} chatOpen={chatOpen} />}
       {/* Floating launcher — desktop only, matching the assistant's own rule
           (on mobile the panel is a full-screen sheet). */}
-      {wide && <MontyLauncher open={chatOpen} onOpen={() => setChatOpen(true)} />}
+      {wide && <MontyLauncher open={chatOpen} onOpen={() => setChatOpen(true)} onClose={() => setChatOpen(false)} />}
 
       {/* One instance serves every tool tile, via the dm:open-tool event. */}
       <ToolRunModal />

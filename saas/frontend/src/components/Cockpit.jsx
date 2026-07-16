@@ -115,7 +115,7 @@ export default function Cockpit({ googleConnected }) {
       </div>
 
       {/* ── Activity chart ─────────────────────────────────────────────────── */}
-      <section className="card p-[18px]">
+      <Link to="/history" className="card card-hover block p-[18px]">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-faint">Activity</span>
           <span className="text-[11px] font-semibold text-muted">Tool runs · last 7 days</span>
@@ -147,27 +147,27 @@ export default function Cockpit({ googleConnected }) {
             </div>
           </>
         )}
-      </section>
+      </Link>
 
       {/* ── Tracking & Results: the two cards real data backs ─────────────── */}
       <KeywordRankings tracked={tracked} />
       <TopMovers tracked={tracked} />
 
       {/* ── Credits gauge ──────────────────────────────────────────────────── */}
-      <section className="card flex flex-col p-[18px]">
+      <Link to="/usage" className="card card-hover flex flex-col p-[18px]">
         <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-faint">AI Credits</span>
         <div className="grid flex-1 place-items-center py-3">
           <Gauge used={used} max={max} />
         </div>
-        <Link to="/usage" className="flex items-center gap-2.5 rounded-xl border border-line bg-raised p-3 transition-colors hover:bg-overlay">
+        <div className="flex items-center gap-2.5 rounded-xl border border-line bg-raised p-3">
           <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg" style={{ background: 'rgb(var(--c-warn) / .18)' }}>
             <Zap size={14} className="text-warn" aria-hidden />
           </span>
           <span className="text-[11.5px] font-semibold text-body">
             You have {left.toLocaleString()} credit{left === 1 ? '' : 's'} left
           </span>
-        </Link>
-      </section>
+        </div>
+      </Link>
       </div>
 
       {/* Tracking & Results — each card reads its tool's latest stored run. */}

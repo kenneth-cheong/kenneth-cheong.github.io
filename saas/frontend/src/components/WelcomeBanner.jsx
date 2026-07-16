@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PLANS, TOOLS, tierMeets } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
-import Mascot from './Mascot.jsx';
+import PeekMascot from './PeekMascot.jsx';
 
 // The approved design's welcome hero (mockup .banner): a periwinkle slab with a
 // greeting, an upgrade pitch and two CTAs.
@@ -89,16 +89,16 @@ export default function WelcomeBanner({ onShowTools, onUpgrade }) {
         )}
       </div>
 
-      {/* The mockup parks a photo of a success specialist here. There's no such
-          asset in the app, so Monty — who IS the app's guide — takes the slot
-          rather than a stock face we'd have to invent. (Mascot takes no `style`
-          prop, hence the wrapper carrying the mockup's drop-shadow.) */}
+      {/* The mockup parks a photo of a success specialist here. Otter — one of
+          Monty's friends — takes the slot instead, peeking over the banner's
+          bottom edge and waving. Decorative; the wrapper carries the mockup's
+          drop-shadow and the peek offset. */}
       <span
-        className="pointer-events-none absolute -bottom-6 right-8 hidden select-none sm:block"
+        className="pointer-events-none absolute -bottom-2 right-8 hidden select-none sm:block"
         style={{ filter: 'drop-shadow(-10px 12px 22px rgba(4,30,60,.35))' }}
         aria-hidden
       >
-        <Mascot bare size={190} /></span>
+        <PeekMascot name="otter" width={210} /></span>
     </div>
   );
 }
