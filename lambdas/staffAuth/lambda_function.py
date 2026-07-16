@@ -76,7 +76,24 @@ ADMIN_EMAILS = {
 }
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 ADMIN_TOKEN_SECRET = os.environ.get("ADMIN_TOKEN_SECRET", "")
-ADMIN_TOKEN_TTL = 12 * 60 * 60  # 12h
+# Admin session length.
+#
+# Was 12h, which meant signing in with Google twice a day — and because a Google
+# id_token only lives ~1h, an expired admin token had NO renewal path at all: the
+# only way back was a fresh interactive sign-in. That is what made the tools read
+# "Please sign in again" so constantly.
+#
+# 30d is defensible here specifically because expiry is NOT the revocation
+# mechanism: verify_admin_token re-checks ADMIN_EMAILS on every single call, so
+# dropping someone from that env var cuts them off instantly no matter how long
+# their token had left. A shorter TTL never bought us revocation — it only bought
+# us re-authentication, which is not the same thing.
+#
+# ADMIN_SESSION_MAX still bounds it: admin_refresh keeps the ORIGINAL iat, so a
+# session cannot roll forever. Ninety days after first signing in, you sign in
+# again for real.
+ADMIN_TOKEN_TTL = int(os.environ.get("ADMIN_TOKEN_TTL_SEC", 30 * 24 * 60 * 60))
+ADMIN_SESSION_MAX = int(os.environ.get("ADMIN_SESSION_MAX_SEC", 90 * 24 * 60 * 60))
 STAFF_TOKEN_TTL = 30 * 24 * 60 * 60  # 30d — staff session, used for usage metering
 
 # Sections a staff account can be granted. Keep in sync with the frontend nav.
@@ -216,17 +233,25 @@ def verify_pw(password: str, stored: str) -> bool:
         return False
 
 
-def make_admin_token(email: str) -> dict:
-    exp = int(time.time()) + ADMIN_TOKEN_TTL
-    payload = f"{email.lower()}|{exp}"
+def make_admin_token(email: str, iat: int = None) -> dict:
+    """Payload is email|iat|exp. iat is carried through admin_refresh unchanged so
+    ADMIN_SESSION_MAX measures from the ORIGINAL Google sign-in — otherwise a
+    session could roll forever and the cap would be decorative."""
+    now = int(time.time())
+    iat = int(iat or now)
+    exp = now + ADMIN_TOKEN_TTL
+    payload = f"{email.lower()}|{iat}|{exp}"
     sig = hmac.new(
         ADMIN_TOKEN_SECRET.encode(), payload.encode(), hashlib.sha256
     ).hexdigest()
-    return {"token": f"{_b64u(payload.encode())}.{sig}", "exp": exp}
+    return {"token": f"{_b64u(payload.encode())}.{sig}", "exp": exp, "iat": iat}
 
 
-def verify_admin_token(token: str):
-    """Return the admin email if the token is valid & unexpired, else None."""
+def _parse_admin_token(token: str):
+    """(email, iat, exp) if the signature is good, else None. Does NOT check expiry
+    or the allow-list — callers decide, because admin_refresh must be able to look
+    at a token that has already expired.
+    """
     try:
         payload_b64, sig = token.split(".")
         payload = _b64u_dec(payload_b64).decode()
@@ -235,14 +260,35 @@ def verify_admin_token(token: str):
         ).hexdigest()
         if not hmac.compare_digest(expected, sig):
             return None
-        email, exp = payload.rsplit("|", 1)
-        if int(exp) < int(time.time()):
-            return None
-        if email.lower() not in ADMIN_EMAILS:
-            return None
-        return email.lower()
+        parts = payload.split("|")      # an email cannot contain '|'
+        if len(parts) == 3:
+            return parts[0], int(parts[1]), int(parts[2])
+        if len(parts) == 2:
+            # Legacy email|exp token, minted before iat existed. Still in browsers
+            # right now, so it must keep working — infer an iat from the old 12h TTL
+            # rather than logging everyone out on deploy.
+            exp = int(parts[1])
+            return parts[0], exp - (12 * 60 * 60), exp
+        return None
     except Exception:
         return None
+
+
+def verify_admin_token(token: str):
+    """Return the admin email if the token is valid & unexpired, else None.
+
+    ADMIN_EMAILS is re-checked on EVERY call — this, not expiry, is how an admin is
+    revoked. Drop them from the env var and every token they hold dies at once.
+    """
+    got = _parse_admin_token(token or "")
+    if not got:
+        return None
+    email, _iat, exp = got
+    if exp < int(time.time()):
+        return None
+    if email.lower() not in ADMIN_EMAILS:
+        return None
+    return email.lower()
 
 
 def make_staff_token(username: str) -> dict:
@@ -480,6 +526,35 @@ def do_admin_session(body: dict) -> dict:
         return _resp(403, {"success": False, "message": "Not an authorised admin."})
     tok = make_admin_token(email)
     return _resp(200, {"success": True, "email": email, "name": name, **tok})
+
+
+def do_admin_refresh(body: dict) -> dict:
+    """Swap an admin token for a fresh one, with no Google round-trip.
+
+    This is the piece that was missing. A Google id_token lives ~1h, so once the
+    admin token expired there was no way back except an interactive sign-in — which
+    is why the tools kept saying "Please sign in again".
+
+    Deliberately accepts an EXPIRED token, within ADMIN_SESSION_MAX of the original
+    sign-in. Refusing expired ones would mean anyone who didn't open the app for a
+    month had to re-auth anyway, which is the whole problem. What still bounds it:
+      * the HMAC must verify — this is not a free pass, it's proof we minted it
+      * iat is carried over, so the 90-day cap is measured from the real sign-in
+      * ADMIN_EMAILS is re-checked here, so a revoked admin cannot refresh at all
+    """
+    tok = (body.get("token") or "").strip()
+    got = _parse_admin_token(tok)
+    if not got:
+        return _resp(401, {"success": False, "message": "Not a valid session.", "reauth": True})
+    email, iat, _exp = got
+    if email.lower() not in ADMIN_EMAILS:
+        return _resp(403, {"success": False, "message": "Not an authorised admin.", "reauth": True})
+    if int(time.time()) - iat > ADMIN_SESSION_MAX:
+        return _resp(401, {"success": False, "reauth": True,
+                           "message": "It's been 90 days — please sign in with Google again."})
+    fresh = make_admin_token(email, iat=iat)
+    print(f"[ADMIN] refreshed session for {email}")
+    return _resp(200, {"success": True, "email": email, **fresh})
 
 
 def _require_admin(body: dict):
@@ -1110,6 +1185,7 @@ ACTIONS = {
     "usage_status": do_usage_status,
     "record_usage": do_record_usage,
     "admin_session": do_admin_session,
+    "admin_refresh": do_admin_refresh,
     "admin_list": do_admin_list,
     "admin_create": do_admin_create,
     "admin_update": do_admin_update,
