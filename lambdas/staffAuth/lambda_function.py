@@ -130,6 +130,28 @@ CLIENT_DIR_TABLE = os.environ.get("CLIENT_DIR_TABLE", "dm-client-directory")
 _client_table = _ddb.Table(CLIENT_DIR_TABLE)
 MAX_CLIENT_FIELD = 120
 
+# The account matrix: which of our systems this number's client lives in.
+#
+# Each asset stores an id AND the label it had when it was picked. The label is not
+# redundant: the Google Ads and Meta pickers can only be populated by a browser that
+# holds a live OAuth token / a pasted Meta token, so a colleague without either would
+# otherwise open the matrix and see a bare customer id with no idea what it is. The
+# id is what's authoritative; the label is what's readable.
+#
+# campaign_id is the ICIR item (board 2845615047) — the thing that actually IS a
+# client. board_id / seranking_id are pre-filled FROM that item's own columns
+# (text_mknpdk1p, text_mm3zt0yn) rather than re-asked, because Monday already knows
+# them and a second hand-typed copy would just drift.
+ASSET_FIELDS = (
+    "campaign",     # ICIR item — the client record everything else hangs off
+    "board",        # that client's per-client Monday execution board
+    "seranking",    # SE Ranking site
+    "ads",          # Google Ads customer
+    "meta",         # Meta ad account (id already carries the act_ prefix)
+    "geo",          # GEO / WorkDuo dashboard campaign
+    "smm",          # social monthly report project (note: keyed projectId upstream)
+)
+
 
 def _norm_phone(raw):
     """WhatsApp's `from` is digits with no '+' (e.g. 6593665477). Store that shape,
@@ -801,17 +823,30 @@ def do_clients_list(body):
         print("client list failed:", repr(e))
         return _resp(500, {"success": False, "message": "Could not read the client directory."})
     rows.sort(key=lambda r: (r.get("company") or "").lower())
-    return _resp(200, {"success": True, "clients": [
-        {
-            "wa_id": r.get("wa_id"),
-            "name": r.get("name") or "",
-            "company": r.get("company") or "",
-            "notes": r.get("notes") or "",
-            "updated_at": int(r.get("updated_at") or 0),
-            "updated_by": r.get("updated_by") or "",
-        }
-        for r in rows
-    ]})
+    return _resp(200, {"success": True, "clients": [_client_row(r) for r in rows]})
+
+
+def _client_row(r: dict) -> dict:
+    out = {
+        "wa_id": r.get("wa_id"),
+        "name": r.get("name") or "",
+        "company": r.get("company") or "",
+        "notes": r.get("notes") or "",
+        # Tier 2 gate. Default off, and OFF IS THE ONLY SAFE DEFAULT: this decides
+        # whether the bot may ever discuss this client's account with whoever holds
+        # this SIM. Nothing reads it yet — the bot still escalates every
+        # account-specific question — but it is stored per number from the start so
+        # the switch is a deliberate act per client, never a global flip.
+        "account_data_enabled": bool(r.get("account_data_enabled")),
+        "verified_by": r.get("verified_by") or "",
+        "verified_at": int(r.get("verified_at") or 0),
+        "updated_at": int(r.get("updated_at") or 0),
+        "updated_by": r.get("updated_by") or "",
+    }
+    for f in ASSET_FIELDS:
+        out[f + "_id"] = r.get(f + "_id") or ""
+        out[f + "_name"] = r.get(f + "_name") or ""
+    return out
 
 
 def do_clients_upsert(body):
@@ -834,18 +869,40 @@ def do_clients_upsert(body):
     # the directory keeps a stale entry that still claims that number.
     old = _norm_phone(body.get("old_wa_id"))
     now = int(time.time())
+
+    item = {
+        "wa_id": wa_id, "name": name, "company": company, "notes": notes,
+        "updated_at": now, "updated_by": who,
+    }
+    for f in ASSET_FIELDS:
+        item[f + "_id"] = (body.get(f + "_id") or "").strip()[:MAX_CLIENT_FIELD]
+        item[f + "_name"] = (body.get(f + "_name") or "").strip()[:MAX_CLIENT_FIELD]
+
+    # Turning account access ON is a named act by a named person, and re-stamped on
+    # every save so the record shows who most recently vouched for this number —
+    # not whoever first created the row months ago.
+    enabled = bool(body.get("account_data_enabled"))
+    item["account_data_enabled"] = enabled
+    if enabled:
+        item["verified_by"] = who
+        item["verified_at"] = now
+    else:
+        item["verified_by"] = ""
+        item["verified_at"] = 0
+
     try:
-        _client_table.put_item(Item={
-            "wa_id": wa_id, "name": name, "company": company, "notes": notes,
-            "updated_at": now, "updated_by": who,
-        })
+        _client_table.put_item(Item=item)
         if old and old != wa_id:
             _client_table.delete_item(Key={"wa_id": old})
     except ClientError as e:
         print("client upsert failed:", repr(e))
         return _resp(500, {"success": False, "message": "Could not save this client."})
 
+    # Loud, and separately from the rest: this one decides whether a client's account
+    # data may leave over WhatsApp.
     _wa_audit(who, "client_save", wa_id)
+    if enabled:
+        _wa_audit(who, "client_account_access_ON", wa_id)
     return _resp(200, {"success": True, "wa_id": wa_id, "updated_at": now, "updated_by": who})
 
 
