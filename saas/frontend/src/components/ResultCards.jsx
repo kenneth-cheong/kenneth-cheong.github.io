@@ -134,8 +134,18 @@ export default function ResultCards() {
 // state pointing at the tool instead of a fake number.
 function Card({ title, toolId, run, chip, icon, children }) {
   const has = !!run?.result;
+  // The whole card opens the tool's run popup (mockup: a result card is a live
+  // control, not a static tile). The inner Re-run / Run-it buttons stop
+  // propagation so they don't double-fire the same event.
+  const open = () => window.dispatchEvent(new CustomEvent('dm:open-tool', { detail: { id: toolId } }));
   return (
-    <section className="card flex flex-col p-[18px]">
+    <section
+      role="button"
+      tabIndex={0}
+      onClick={open}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }}
+      className="card card-hover group flex cursor-pointer flex-col p-[18px]"
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-faint">
           {icon}{title}
@@ -152,7 +162,7 @@ function Card({ title, toolId, run, chip, icon, children }) {
             <span className="truncate text-[10px] text-faint" title={run.target}>{run.target} · {ago(run.ts)}</span>
             <button
               type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent('dm:open-tool', { detail: { id: toolId } }))}
+              onClick={(e) => { e.stopPropagation(); open(); }}
               className="shrink-0 text-[10px] font-bold text-peri hover:underline"
             >
               Re-run
@@ -165,7 +175,7 @@ function Card({ title, toolId, run, chip, icon, children }) {
           <p className="text-[11px] text-muted">No run yet — run this once and it stays here.</p>
           <button
             type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent('dm:open-tool', { detail: { id: toolId } }))}
+            onClick={(e) => { e.stopPropagation(); open(); }}
             className="btn-primary px-3 py-1.5 text-xs"
           >
             <Play size={12} aria-hidden /> Run it
