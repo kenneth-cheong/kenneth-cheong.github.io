@@ -836,7 +836,10 @@ def do_wa_get_conversation(body):
         "client_name": c.get("name") or "",
         "client_company": c.get("company") or "",
         "last_ts": int(item.get("last_user_ts") or 0),
-        "expires_at": int(item.get("ttl") or 0),   # 30-day TTL; this is not an archive
+        # Deliberately NOT returned any more: conversations are kept (TTL disabled on the
+        # table 2026-07-16). Old items still carry a stale `ttl` from when they were
+        # written, and surfacing it would tell staff a conversation expires on a date it
+        # no longer will.
         "bot_paused": bool(item.get("bot_paused")),
         "paused_by": item.get("paused_by") or "",
         "paused_at": int(item.get("paused_at") or 0),

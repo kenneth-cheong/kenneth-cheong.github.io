@@ -32,7 +32,7 @@ rewriting the call in `urllib3` over bundling.
 | Lambda | `whatsappBot` (python3.13, timeout 120, mem 256, reserved concurrency 10) |
 | Role | `whatsappBot-role` (AWSLambdaBasicExecutionRole + inline `whatsappBot-ddb-selfinvoke`) |
 | Function URL | `https://qiiqig6wcrmkxlknp3nomiomdm0athvb.lambda-url.ap-southeast-1.on.aws/` |
-| DynamoDB | `wa_dedupe` (PK msg_id, TTL ttl), `wa_conversations` (PK wa_id, TTL ttl), `dm-bot-prompts` (PK prompt_id, **no TTL**) |
+| DynamoDB | `wa_dedupe` (PK msg_id, TTL ttl), `wa_conversations` (PK wa_id, **no TTL**), `dm-bot-prompts` (PK prompt_id, no TTL), `dm-client-directory` (PK wa_id, no TTL) |
 | Meta app | **MediaOne Client Support**, App ID `2034376497168449`, unpublished |
 | Business portfolio | MediaOne Business Group (`1538686332865690`), verification complete |
 | Test number | `+1 555 617 9696`, Phone number ID `253052104567619` |
@@ -75,8 +75,8 @@ aws dynamodb create-table --region ap-southeast-1 \
   --attribute-definitions AttributeName=wa_id,AttributeType=S \
   --key-schema AttributeName=wa_id,KeyType=HASH \
   --billing-mode PAY_PER_REQUEST
-aws dynamodb update-time-to-live --region ap-southeast-1 \
-  --table-name wa_conversations --time-to-live-specification "Enabled=true,AttributeName=ttl"
+# NO TTL on this one — see "Retention" below. wa_dedupe keeps its 24h TTL; that one is a
+# delivery guard, not a record.
 
 # Staff-editable prompt blocks. NO TTL — a prompt that quietly expired would
 # revert the bot's wording with nobody touching anything.
@@ -285,6 +285,26 @@ Live checks after the webhook is connected:
 | "how much does SEO cost?" | must **not** pivot to a paid-ads pitch (see below) |
 | "what's my campaign ROI this month?" | escalation + a Google Chat post, never a number |
 | CloudWatch `Duration`, webhook path | <200ms warm — the fast-ACK proof |
+
+## Retention — conversations are KEPT (changed 2026-07-16)
+
+`wa_conversations` had a 30-day TTL from the last message. It no longer does: TTL is
+**disabled on the table** and the code writes no `ttl` attribute (`CONVO_TTL_SEC = None`).
+
+Why it changed: a 30-day rolling window was fine when this was a read-only viewer. It isn't
+now — staff reply from index.html, so a thread is the record of **what MediaOne told a
+client**, which is exactly what you want months later in a dispute. And there was no safety
+net: PITR **disabled**, no Streams, no backups. An expiry was a permanent, silent loss.
+
+What it costs: client PII now accumulates indefinitely, in a table that **any authenticated
+@mediaone.co identity can read** (`staffAuth._require_platform_user` checks identity, not
+per-tool grants). If retention ever needs bounding again under PDPA, bound it deliberately —
+Streams → Lambda → S3 on the way out — rather than reinstating a TTL that deletes into the
+void. Do not simply re-enable TTL.
+
+Staff can pull a single conversation out as plain text (Transcript button in the
+conversation header). The CSV export next to it is the LIST only — numbers, counts, a
+120-char preview — not the messages.
 
 ## The prompt is staff-editable — what that does and does not cover
 

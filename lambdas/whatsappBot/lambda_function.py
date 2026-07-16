@@ -44,7 +44,9 @@ Env vars (see DEPLOY.md):
 
 DynamoDB tables (region ap-southeast-1):
   wa_dedupe         PK: msg_id (S), TTL ttl  — at-least-once delivery guard, ~24h
-  wa_conversations  PK: wa_id  (S), TTL ttl  — rolling chat context, ~30d
+  wa_conversations  PK: wa_id  (S), NO TTL   — chat context AND the record of what we told
+                    a client. Kept indefinitely as of 2026-07-16; TTL disabled on the table
+                    and no `ttl` attribute is written. See CONVO_TTL_SEC for why.
   dm-bot-prompts    PK: prompt_id (S), no TTL — the staff-editable half of the
                     system prompt, written from index.html via staffAuth and read
                     here at runtime. See the prompt section below for what is and
@@ -98,8 +100,23 @@ CLIENT_DIR_TABLE  = os.environ.get('CLIENT_DIR_TABLE', 'dm-client-directory')
 PROMPT_CACHE_TTL  = 60          # seconds a warm container may serve a stale prompt
 MAX_PROMPT_CHARS  = 8000        # per block; mirrors staffAuth's save-side limit
 
-DEDUPE_TTL_SEC    = 24 * 3600
-CONVO_TTL_SEC     = 30 * 86400
+DEDUPE_TTL_SEC    = 24 * 3600     # wa_dedupe ONLY. This one must keep expiring: it's the
+                                  # at-least-once delivery guard, not a record of anything.
+
+# wa_conversations does NOT expire. TTL was disabled on the table 2026-07-16 and this code
+# no longer writes a `ttl` attribute.
+#
+# It used to be 30 days from the last message, and that was defensible when this was a
+# read-only viewer. It isn't now: staff reply from this tool, so a thread is the record of
+# what MediaOne actually told a client — the thing you want in a dispute, months later.
+# There were no Streams, no PITR and no backups, so an expiry was a permanent, silent loss.
+#
+# The cost of keeping them is that client PII now accumulates indefinitely in a table any
+# authenticated @mediaone.co identity can read (see staffAuth._require_platform_user, which
+# checks identity, not per-tool grants). If retention ever needs bounding again, bound it
+# deliberately — archive to S3 on the way out rather than reinstating a TTL that deletes
+# into the void.
+CONVO_TTL_SEC = None
 MAX_TURNS         = 10          # trimmed on read
 MAX_TURN_CHARS    = 2000        # 400KB item ceiling is otherwise reachable
 SERVICE_WINDOW_SEC = 23 * 3600  # Meta's is 24h; leave an hour of headroom
@@ -550,9 +567,9 @@ def _append_turn(wa_id, role, text, touch_user_ts=False, agent=None):
     turn = {'role': role, 'text': (text or '')[:MAX_TURN_CHARS], 'ts': now}
     if agent:
         turn['agent'] = str(agent)[:120]
-    expr = ('SET turns = list_append(if_not_exists(turns, :empty), :new), '
-            '#ttl = :ttl')
-    vals = {':empty': [], ':new': [turn], ':ttl': now + CONVO_TTL_SEC}
+    # No `ttl` written — conversations are kept. See CONVO_TTL_SEC.
+    expr = 'SET turns = list_append(if_not_exists(turns, :empty), :new)'
+    vals = {':empty': [], ':new': [turn]}
     if touch_user_ts:
         expr += ', last_user_ts = :now'
         vals[':now'] = now
@@ -560,7 +577,6 @@ def _append_turn(wa_id, role, text, touch_user_ts=False, agent=None):
         _ddb.Table(CONVO_TABLE).update_item(
             Key={'wa_id': wa_id},
             UpdateExpression=expr,
-            ExpressionAttributeNames={'#ttl': 'ttl'},     # 'ttl' is reserved
             ExpressionAttributeValues=vals)
     except Exception as e:
         print(f'[CONVO] append failed for {wa_id}: {e}')
@@ -579,11 +595,9 @@ def _set_paused(wa_id, paused, who):
     try:
         _ddb.Table(CONVO_TABLE).update_item(
             Key={'wa_id': wa_id},
-            UpdateExpression='SET bot_paused = :p, paused_at = :t, paused_by = :w, #ttl = :ttl',
-            ExpressionAttributeNames={'#ttl': 'ttl'},
+            UpdateExpression='SET bot_paused = :p, paused_at = :t, paused_by = :w',
             ExpressionAttributeValues={
-                ':p': bool(paused), ':t': now, ':w': str(who or 'system')[:120],
-                ':ttl': now + CONVO_TTL_SEC})
+                ':p': bool(paused), ':t': now, ':w': str(who or 'system')[:120]})
         return True
     except Exception as e:
         print(f'[CONVO] pause={paused} failed for {wa_id}: {e}')
