@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { getPreference, resolveTheme, subscribe } from '../lib/theme.js';
+import { getPreference, isDarkTheme, subscribe } from '../lib/theme.js';
 import { themeReport } from '../lib/reportTheme.js';
 
 // Renders server-provided report HTML (dangerouslySetInnerHTML) and normalizes
@@ -11,7 +11,9 @@ export default function ReportHtml({ html, className = 'dm-report max-w-none tex
   const [, setPref] = useState(getPreference);
   useEffect(() => subscribe(setPref), []);
   useLayoutEffect(() => {
-    themeReport(ref.current, resolveTheme() === 'dark');
+    // isDarkTheme(), not `=== 'dark'` — royal is a dark canvas too, and reports
+    // arrive as light-themed inline-styled HTML that needs normalizing there.
+    themeReport(ref.current, isDarkTheme());
   });
   return <div ref={ref} className={className} dangerouslySetInnerHTML={{ __html: html }} />;
 }

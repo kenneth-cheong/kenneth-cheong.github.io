@@ -13,6 +13,8 @@ export default {
   content: { relative: true, files: ['./index.html', './src/**/*.{js,jsx}'] },
   // Dark mode is opt-in via a `.dark` class on <html> (toggled by the theme
   // switcher, persisted to localStorage, applied pre-paint in index.html).
+  // Royal — the approved mockup design — is a third theme on a `.royal` class;
+  // it re-points the same semantic tokens, so no `royal:` variants are needed.
   darkMode: 'class',
   theme: {
     extend: {
@@ -42,13 +44,29 @@ export default {
         line: token('--c-line'),         // default border              ← slate-200
         hair: token('--c-hair'),         // hairline divider            ← slate-100/50
         edge: token('--c-edge'),         // input border (stronger)     ← slate-300
+        // ── Accent tokens (mockups/saas-overview.html) ────────────────────
+        // Themed, not fixed hexes: the mockup's accents are tuned for white
+        // text on deep blue and drop to ~1.6:1 on a white canvas, so the light
+        // theme substitutes darker equivalents of the same hues.
+        pos: token('--c-pos'),           // positive / up   — royal #4ade87
+        neg: token('--c-neg'),           // negative / down — royal #ff7a68
+        warn: token('--c-warn'),         // caution         — royal #ffc857
+        peri: token('--c-peri'),         // periwinkle info — royal #9fb0ff
+        cta: token('--c-cta'),           // primary action fill
+        'cta-ink': token('--c-cta-ink'), // text ON the primary action
+        'cta-hover': token('--c-cta-hover'),
       },
       fontFamily: {
         sans: ['"Plus Jakarta Sans"', 'Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        // Royal sets `font-display` on <body>; the mockup is set in Inter.
+        display: ['Inter', '"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
         // index.html metric/cockpit card lift on hover
         lift: '0 12px 24px rgba(0, 0, 0, 0.05)',
+        // Themed card shadow — the mockup's deep blue cast in royal, a soft
+        // neutral in light/dark. Value lives in --e-shadow (src/index.css).
+        card: 'var(--e-shadow)',
       },
       // Assistant panel "launch" entrance — slides in from the right edge while
       // fading in. Applied (motion-safe) on the ChatDrawer aside each open.

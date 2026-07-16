@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Sun, Moon, Monitor } from 'lucide-react';
+import { Sun, Moon, Monitor, Contrast } from 'lucide-react';
 import { getPreference, cyclePreference, subscribe } from '../lib/theme.js';
 
-// Single-button theme switcher cycling light → dark → system. The icon shows
-// the current preference; the tooltip names what a click switches to next.
-const NEXT = { light: 'dark', dark: 'system', system: 'light' };
-const LABEL = { light: 'Light', dark: 'Dark', system: 'System' };
+// Single-button theme switcher cycling royal → light → dark → system. The icon
+// shows the current preference; the tooltip names what a click switches to next
+// (the icon alone reads ambiguously — Monitor for System has confused people).
+const NEXT = { royal: 'light', light: 'dark', dark: 'system', system: 'royal' };
+const LABEL = { royal: 'Royal', light: 'Light', dark: 'Dark', system: 'System' };
+const ICON = { royal: Contrast, light: Sun, dark: Moon, system: Monitor };
 
 export default function ThemeToggle({ className = '', tourId }) {
   const [pref, setPref] = useState(getPreference);
   useEffect(() => subscribe(setPref), []);
 
-  const Icon = pref === 'dark' ? Moon : pref === 'system' ? Monitor : Sun;
+  const Icon = ICON[pref] || Sun;
   return (
     <button
       onClick={() => setPref(cyclePreference())}

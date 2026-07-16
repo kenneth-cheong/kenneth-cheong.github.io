@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Clock, Check } from 'lucide-react';
-import { TOOLS, CATEGORIES, GOALS, SIMPLE_NAMES, toolById, tierMeets, explorerProgress } from '@shared/catalog.mjs';
+import { GOALS, toolById, explorerProgress } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { api } from '../lib/api.js';
@@ -9,9 +9,10 @@ import ToolCard from '../components/ToolCard.jsx';
 import ProfilePrompt from '../components/ProfilePrompt.jsx';
 import GoalPlanner from '../components/GoalPlanner.jsx';
 import ExplorerCard from '../components/ExplorerCard.jsx';
+import Cockpit from '../components/Cockpit.jsx';
+import WelcomeBanner from '../components/WelcomeBanner.jsx';
 import PostUsageSurvey from '../components/PostUsageSurvey.jsx';
 import ExitMicroSurvey from '../components/ExitMicroSurvey.jsx';
-import { CategoryIcon } from '../lib/icons.jsx';
 import { getRecent, isStepDone } from '../lib/ui.js';
 
 // The setup checklist's "first action" step, tailored to the goal the user
@@ -27,32 +28,12 @@ const GOAL_STEPS = {
   'my-data': { title: 'Connect Google', body: 'Pull your Search Console / GA4 / Ads data.', to: '/integrations', cta: 'Connect', connect: true },
 };
 
-// Plain-language overrides for Simple mode (beginners), pro labels otherwise.
-const display = (t, simple) => (simple && SIMPLE_NAMES[t.id] ? { ...t, ...SIMPLE_NAMES[t.id] } : t);
-
 export default function Dashboard() {
   const { user, setOnboarding } = useAuth();
   const { projects } = useProjects();
   const [params, setParams] = useSearchParams();
-  const [q, setQ] = useState('');
-  const [cat, setCat] = useState('All');
   const [plannerGoal, setPlannerGoal] = useState(null); // goal id deep-linked from the welcome flow
   const [googleConnected, setGoogleConnected] = useState(false);
-  const [mode, setMode] = useState(() => {
-    const saved = localStorage.getItem('dm_view_mode');
-    if (saved === 'simple' || saved === 'advanced') return saved;
-    // Default experienced users (have run tools) to Advanced; newcomers to Simple.
-    return getRecent().length ? 'advanced' : 'simple';
-  });
-  const simple = mode === 'simple';
-  // Flash the Simple/Advanced toggle to draw the eye until the user first uses
-  // it — then stop nagging (remembered across sessions).
-  const [switchSeen, setSwitchSeen] = useState(() => localStorage.getItem('dm_mode_switch_seen') === '1');
-  const setView = (m) => {
-    setMode(m);
-    localStorage.setItem('dm_view_mode', m);
-    if (!switchSeen) { setSwitchSeen(true); localStorage.setItem('dm_mode_switch_seen', '1'); }
-  };
 
   // Arriving from the welcome flow with ?goal=<id> → open Simple mode and hand
   // the goal to the planner as a starting selection, then strip the param so a
@@ -62,7 +43,7 @@ export default function Dashboard() {
   const goalParam = params.get('goal');
   useEffect(() => {
     if (goalParam && GOALS.some((x) => x.id === goalParam)) {
-      setMode('simple'); setPlannerGoal(goalParam);
+      setPlannerGoal(goalParam);
       const next = new URLSearchParams(params); next.delete('goal'); setParams(next, { replace: true });
     }
   }, [goalParam]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -86,13 +67,8 @@ export default function Dashboard() {
     done: user.onboarding?.explorer?.done || {},
   }).coreComplete;
 
-  const match = (t) => q === '' || (t.name + t.desc + (SIMPLE_NAMES[t.id]?.name || '')).toLowerCase().includes(q.toLowerCase());
-  const filtered = TOOLS.filter((t) => (cat === 'All' || t.category === cat) && match(t));
-  const lockedCount = TOOLS.filter((t) => !tierMeets(user.tier, t.minTier)).length;
-  const recent = getRecent().map(toolById).filter(Boolean).filter(match);
-  const searching = q !== '';
-
-  const Card = (t) => <ToolCard key={t.id} tool={display(t, simple)} userTier={user.tier} />;
+  const recent = getRecent().map(toolById).filter(Boolean);
+  const Card = (t) => <ToolCard key={t.id} tool={t} userTier={user.tier} />;
 
   // Onboarding checklist — real progress, shown until dismissed. The middle
   // "first action" step is goal-aware: it reflects the goal chosen in the
@@ -126,39 +102,24 @@ export default function Dashboard() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Welcome back, {user.name?.split(' ')[0] || 'there'}</h1>
-          <p className="mt-1 text-dim">
-            {simple ? 'What would you like to get done today?' : `${TOOLS.length} tools · ${lockedCount > 0 ? `${lockedCount} unlock at higher tiers` : 'all unlocked'}`}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Simple ↔ Advanced view toggle */}
-          <div className="flex items-center gap-2">
-            <span className="hidden text-xs font-medium uppercase tracking-wide text-faint sm:inline">View</span>
-            <div className={`flex rounded-lg bg-sunken p-0.5 text-sm font-medium ${switchSeen ? '' : 'dm-mode-attn'}`}>
-              {[['simple', 'Simple'], ['advanced', 'Advanced']].map(([m, label]) => (
-                <button key={m} onClick={() => setView(m)}
-                  className={`rounded-md px-3 py-1 transition-colors ${mode === m ? 'bg-surface text-strong shadow-sm' : 'text-muted hover:text-body'}`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search tools…"
-            data-tour="search"
-            className="w-full rounded-lg border border-edge px-3 py-2 text-sm focus:border-brand-500 focus:outline-none sm:w-56"
-          />
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold">Welcome back, {user.name?.split(' ')[0] || 'there'}</h1>
+        <p className="mt-1 text-dim">Here's how your sites are doing today.</p>
       </div>
+
+      {/* Cockpit — the approved design's stat row, activity chart and credit
+          gauge. Real account data only; see Cockpit.jsx. */}
+      {(
+        <WelcomeBanner
+          onShowTools={() => window.dispatchEvent(new CustomEvent('dm:open-tools'))}
+          onUpgrade={() => window.dispatchEvent(new CustomEvent('dm:open-plan'))}
+        />
+      )}
+      <Cockpit googleConnected={googleConnected} />
 
       {/* Onboarding checklist (until all done or dismissed; deferred until a
           first run so it never stacks on the goal planner for a new user) */}
-      {showOnboard && !allDone && !searching && (everRan || !simple) && (
+      {showOnboard && !allDone && everRan && (
         <div className="mt-6 rounded-xl border border-brand-200 dark:border-brand-500/30 bg-brand-50/60 dark:bg-brand-500/10 p-5">
           <div className="flex items-start justify-between">
             <h2 className="font-semibold text-brand-800 dark:text-brand-300">Get set up — {steps.filter((s) => s.done).length}/{steps.length} done</h2>
@@ -172,55 +133,26 @@ export default function Dashboard() {
 
       {/* Progressive-profiling nudge — self-hides when complete/rewarded/snoozed.
           Held back until the user has run something: earn value before asking. */}
-      {!searching && everRan && <ProfilePrompt />}
+      {everRan && <ProfilePrompt />}
 
       {/* Breadth checklist — steers trial users across every discipline (and pays
           bonus credits). Self-hides once fully claimed or dismissed. */}
-      {!searching && <ExplorerCard googleConnected={googleConnected} projects={projects} />}
+      <ExplorerCard googleConnected={googleConnected} projects={projects} />
 
       {/* Post-usage NPS questionnaire — shown once the user has earned an opinion. */}
-      {!searching && <PostUsageSurvey coreComplete={explorerCoreComplete} />}
+      <PostUsageSurvey coreComplete={explorerCoreComplete} />
 
       {/* Exit micro-survey — self-gating idle nudge for stalled, low-engagement users. */}
       <ExitMicroSurvey />
 
-      {/* ───────── Simple mode: goal intake → agentic pathway ───────── */}
-      {simple && !searching ? (
-        <>
-          <GoalPlanner initialGoal={plannerGoal} />
-          {recent.length > 0 && (
-            <Section title="Recently used" icon={<Clock size={14} aria-hidden />}>{recent.map((t) => Card(t))}</Section>
-          )}
-        </>
-      ) : (
-        /* ───────── Advanced mode (or searching): full tool grid ───────── */
-        <>
-          <div className="mt-6 flex flex-wrap gap-2" data-tour="categories">
-            {['All', ...CATEGORIES].map((c) => (
-              <button key={c} onClick={() => setCat(c)}
-                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ${cat === c ? 'bg-brand-600 text-white' : 'bg-surface text-dim ring-1 ring-line hover:bg-raised'}`}>
-                {c !== 'All' && <CategoryIcon category={c} size={14} />}{c}
-              </button>
-            ))}
-          </div>
+      {/* The goal planner — the mockup's "AI Custom Plan". Always on now: it
+          used to be gated behind Simple mode, whose only alternative was the
+          tool grid that has since moved to the rail's catalog popup. */}
+      <GoalPlanner initialGoal={plannerGoal} />
 
-          {cat === 'All' && !searching && recent.length > 0 && (
-            <Section title="Recently used" icon={<Clock size={14} aria-hidden />}>{recent.map((t) => Card(t))}</Section>
-          )}
-
-          {cat === 'All' && !searching ? (
-            CATEGORIES.map((c) => {
-              const tools = TOOLS.filter((t) => t.category === c);
-              if (!tools.length) return null;
-              return <Section key={c} title={c} icon={<CategoryIcon category={c} size={14} />}>{tools.map((t) => Card(t))}</Section>;
-            })
-          ) : (
-            <div className="dm-card-grid mt-6">
-              {filtered.length === 0 && <p className="text-faint">No tools match “{q}”.</p>}
-              {filtered.map((t) => Card(t))}
-            </div>
-          )}
-        </>
+      {/* A shortcut, not a catalog — the popup doesn't surface recents. */}
+      {recent.length > 0 && (
+        <Section title="Recently used" icon={<Clock size={14} aria-hidden />}>{recent.map((t) => Card(t))}</Section>
       )}
     </div>
   );
@@ -239,10 +171,12 @@ function Step({ n, done, title, body, to, cta }) {
   );
 }
 
+// Section heading in the approved design's `.lab` style: a small, widely
+// letterspaced, faint uppercase label rather than a competing sub-heading.
 function Section({ title, icon, children }) {
   return (
     <section className="mt-8">
-      <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-muted">{icon}{title}</h2>
+      <h2 className="mb-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-faint">{icon}{title}</h2>
       <div className="dm-card-grid">{children}</div>
     </section>
   );

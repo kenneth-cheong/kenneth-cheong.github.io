@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSupportTickets } from '../context/SupportTicketsContext.jsx';
-import CreditMeter from './CreditMeter.jsx';
 import ChatDrawer from './ChatDrawer.jsx';
 import Mascot from './Mascot.jsx';
 import NotificationBell from './NotificationBell.jsx';
@@ -11,6 +10,9 @@ import Toaster from './Toaster.jsx';
 import ExplainMenu from './ExplainMenu.jsx';
 import ProactiveEngine from './ProactiveEngine.jsx';
 import ProjectSelector from './ProjectSelector.jsx';
+import Sidebar from './Sidebar.jsx';
+import ToolRunModal from './ToolRunModal.jsx';
+import MontyLauncher from './MontyLauncher.jsx';
 import ThemeToggle from './ThemeToggle.jsx';
 import Welcome from './Welcome.jsx';
 import ConsentGate from './ConsentGate.jsx';
@@ -23,22 +25,8 @@ import { PLANS } from '@shared/catalog.mjs';
 import { startPlatformTour, hasSeen, markSeen } from '../lib/tours.js';
 import { Menu, HelpCircle, ChevronDown, ChevronLeft } from 'lucide-react';
 
-// Core workflow links stay in the top bar; account/meta links live in the
-// right-side account dropdown so the row never overflows. Labels are jobs, not
-// system nouns ("Connect your data", not "Integrations").
-const primaryNav = [
-  { to: '/', label: 'Home', end: true },
-  { to: '/projects', label: 'Projects' },
-  { to: '/schedules', label: 'Schedules' },
-];
-// The recurring "check on my site" surfaces — previously reachable only via
-// deep links from the dashboard/projects, i.e. invisible to anyone who didn't
-// remember the path. Grouped under one labelled Monitor menu in the top bar.
-const monitorNav = [
-  { to: '/audit', label: 'Site Health Check' },
-  { to: '/tracking', label: 'Rank Tracking' },
-  { to: '/performance', label: 'Performance' },
-];
+// Account/meta links live in the right-side account dropdown. The primary
+// workflow nav moved to the fixed rail — see Sidebar.jsx for that list.
 const menuNav = [
   { to: '/account', label: 'Account & billing' },
   { to: '/integrations', label: 'Connect your data' },
@@ -59,14 +47,6 @@ function TicketBadge({ count }) {
   );
 }
 
-// User-resizable assistant panel. 384px is the default; drag the panel's left
-// edge to change it (ChatDrawer reports new widths via onResize). The width is
-// shared with the page margin below so content always tracks the panel.
-const CHAT_W_DEFAULT = 384;
-const CHAT_W_MIN = 320;
-const CHAT_W_MAX = 720;
-const clampChatW = (w) => Math.min(CHAT_W_MAX, Math.max(CHAT_W_MIN, Math.round(w)));
-
 export default function Layout({ children }) {
   const { user, logout, setOnboarding } = useAuth();
   const { unanswered } = useSupportTickets();
@@ -78,12 +58,6 @@ export default function Layout({ children }) {
   const [ask, setAsk] = useState(null);
   const [say, setSay] = useState(null); // proactive canned message to inject into the chat
   const wide = useMediaQuery('(min-width: 768px)');
-  // Persisted, user-adjustable width for the assistant panel (desktop only).
-  const [chatW, setChatW] = useState(() => {
-    const saved = Number(localStorage.getItem('dm:chatWidth'));
-    return clampChatW(Number.isFinite(saved) && saved > 0 ? saved : CHAT_W_DEFAULT);
-  });
-  useEffect(() => { localStorage.setItem('dm:chatWidth', String(chatW)); }, [chatW]);
   // Stamp identity onto fault reports so support can tie a report to an account,
   // and onto the session recording so a tester's runs are findable by email.
   useEffect(() => { setDiagnosticsUser(user); identifyRecording(user); }, [user]);
@@ -149,71 +123,36 @@ export default function Layout({ children }) {
   }, []);
 
   const acctLinks = user.isAdmin ? [...menuNav, { to: '/admin', label: 'Admin' }] : menuNav;
-  const linkCls = ({ isActive }) =>
-    `rounded-lg px-3 py-1.5 text-sm font-medium ${isActive ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300' : 'text-dim hover:bg-sunken'}`;
-  const [monitorOpen, setMonitorOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const onMonitorPage = monitorNav.some((n) => location.pathname.startsWith(n.to));
 
   return (
     <>
+      {/* The approved design's fixed rail. Off-canvas under `md`, where the
+          hamburger + backdrop drive it. */}
+      <Sidebar
+        open={menuOpen}
+        onNavigate={() => setMenuOpen(false)}
+        onOpenChat={() => { setMenuOpen(false); setChatOpen(true); }}
+      />
+      {menuOpen && (
+        <div className="fixed inset-0 z-[69] bg-[rgba(6,10,50,.5)] md:hidden" onClick={() => setMenuOpen(false)} aria-hidden />
+      )}
+
       {/* On desktop the page shifts left so chat sits beside content; on mobile
-          the chat is a full-screen sheet, so no shift. */}
-      <div className="min-h-screen transition-[margin] duration-200" style={{ marginRight: chatOpen && wide ? chatW : 0 }}>
+          the chat is a full-screen sheet, so no shift. The rail claims 236px on
+          the left from `md` up — matching .dm-sidebar's width. */}
+      <div className="min-h-screen md:pl-[236px]">
         <header className="sticky top-0 z-20 border-b border-line bg-surface/90 backdrop-blur">
-          <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
+          <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
             <button className="md:hidden" onClick={() => setMenuOpen((o) => !o)} aria-label="Menu">
               <Menu size={22} aria-hidden />
             </button>
-            <Link to="/" className="flex shrink-0 items-center gap-2 font-bold text-brand-700 dark:text-brand-300" onClick={() => setMenuOpen(false)}>
-              <span className="grid h-7 w-7 place-items-center rounded-md bg-brand-600 text-white">D</span>
-              <span className="hidden sm:inline">Digimetrics</span>
-            </Link>
-            <nav className="hidden min-w-0 items-center gap-1 md:flex">
-              <NavLink to="/" end data-tour="nav-/" className={linkCls}>Home</NavLink>
-              {/* Monitor menu — the recurring "how is my site doing?" surfaces. */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setMonitorOpen((o) => !o)}
-                  data-tour="nav-monitor"
-                  className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm font-medium ${onMonitorPage ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300' : 'text-dim hover:bg-sunken'}`}
-                >
-                  Monitor <ChevronDown size={13} className="text-faint" aria-hidden />
-                </button>
-                {monitorOpen && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setMonitorOpen(false)} />
-                    <div className="absolute left-0 z-20 mt-2 w-48 rounded-xl border border-line bg-surface py-1.5 shadow-lg">
-                      {monitorNav.map((n) => (
-                        <NavLink key={n.to} to={n.to} onClick={() => setMonitorOpen(false)}
-                          className={({ isActive }) => `block px-3 py-1.5 text-sm ${isActive ? 'font-medium text-brand-700 dark:text-brand-300' : 'text-dim hover:bg-raised'}`}>
-                          {n.label}
-                        </NavLink>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-              {primaryNav.slice(1).map((n) => <NavLink key={n.to} to={n.to} end={n.end} data-tour={`nav-${n.to}`} className={linkCls}>{n.label}</NavLink>)}
-            </nav>
+            {/* Nav, credits and Monty now live in the rail; the header keeps only
+                what's contextual (which project) or global (alerts, account). */}
+            <ProjectSelector />
             <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
-              <ProjectSelector />
               <PlanWidget />
-              <CreditMeter />
               <NotificationBell />
-              <button
-                onClick={() => setChatOpen((o) => !o)}
-                data-tour="assistant"
-                title={chatOpen ? 'Close Monty' : 'Open Monty'}
-                aria-label={chatOpen ? 'Close Monty the assistant' : 'Open Monty the assistant'}
-                className={`inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm font-semibold ${chatOpen ? 'bg-brand-600 text-white' : 'bg-sunken text-body hover:bg-overlay'}`}
-              >
-                {/* Bare otter (no background circle). Sized to fit the fixed button
-                    height so this matches the "Up next" pill in the header row. */}
-                <Mascot bare size={30} className="shrink-0" />
-                <span className="hidden text-[13px] font-semibold lg:inline">Monty</span>
-              </button>
 
               {/* Help menu — visible on every screen size (the tour used to hide
                   behind an unlabelled desktop-only icon). One place for "show me
@@ -322,41 +261,6 @@ export default function Layout({ children }) {
             </div>
           )}
 
-          {/* Mobile menu — grouped by job (was one flat 11-row list) + sign out */}
-          {menuOpen && (
-            <nav className="flex flex-col border-t border-hair px-4 py-2 md:hidden">
-              {primaryNav.map((n) => (
-                <NavLink key={n.to} to={n.to} end={n.end} onClick={() => setMenuOpen(false)} className={linkCls}>
-                  {n.label}
-                </NavLink>
-              ))}
-              <div className="mt-2 px-3 text-[11px] font-semibold uppercase tracking-wide text-faint">Monitor</div>
-              {monitorNav.map((n) => (
-                <NavLink key={n.to} to={n.to} onClick={() => setMenuOpen(false)} className={linkCls}>
-                  {n.label}
-                </NavLink>
-              ))}
-              <div className="mt-2 px-3 text-[11px] font-semibold uppercase tracking-wide text-faint">Account</div>
-              {acctLinks.map((n) => (
-                <NavLink key={n.to} to={n.to} onClick={() => setMenuOpen(false)} className={linkCls}>
-                  {n.label}
-                  {n.to === '/admin' && <TicketBadge count={unanswered} />}
-                </NavLink>
-              ))}
-              <button
-                type="button"
-                onClick={() => { setMenuOpen(false); startPlatformTour(); }}
-                className="mt-1 rounded-lg px-3 py-1.5 text-left text-sm font-medium text-dim hover:bg-sunken"
-              >
-                Show me around (2-min tour)
-              </button>
-              <div className="mt-1 flex items-center gap-2 px-3 py-1.5">
-                <ThemeToggle />
-                <span className="text-sm text-dim">Theme</span>
-              </div>
-              <button onClick={logout} className="mt-1 px-3 py-1.5 text-left text-sm text-muted">Sign out</button>
-            </nav>
-          )}
         </header>
         {user?.pastDue && (
           <div className="border-b border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10">
@@ -369,17 +273,17 @@ export default function Layout({ children }) {
         <main className="dm-main mx-auto max-w-6xl px-4 py-8">{children}</main>
       </div>
 
-      <ChatDrawer
-        open={chatOpen}
-        onClose={() => setChatOpen(false)}
-        width={wide ? chatW : '100%'}
-        onResize={wide ? (w) => setChatW(clampChatW(w)) : undefined}
-        ask={ask}
-        say={say}
-      />
+      {/* Floats over the page (mockup .monty-chat) — it no longer displaces content. */}
+      <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} ask={ask} say={say} />
       {/* Proactive Helpful Otter — desktop only (mobile chat is a full-screen sheet
           it shouldn't hijack). Suppressed until the consent/NDA/welcome overlays clear. */}
       {wide && <ProactiveEngine paused={needsConsent || needsNda || showWelcome} chatOpen={chatOpen} />}
+      {/* Floating launcher — desktop only, matching the assistant's own rule
+          (on mobile the panel is a full-screen sheet). */}
+      {wide && <MontyLauncher open={chatOpen} onOpen={() => setChatOpen(true)} />}
+
+      {/* One instance serves every tool tile, via the dm:open-tool event. */}
+      <ToolRunModal />
       <ExplainMenu />
       <FaultReporter />
       <Toaster />

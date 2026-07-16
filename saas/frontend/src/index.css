@@ -6,7 +6,19 @@
    RGB triplets consumed by Tailwind's semantic colors (see tailwind.config.js)
    AND by the raw-CSS blocks below via rgb(var(--c-*)). Light values equal the
    exact slate/white shades they replaced, so the light theme is unchanged; the
-   .dark block supplies the dark palette. Toggle = a `.dark` class on <html>. */
+   .dark block supplies the dark palette. Toggle = a `.dark` class on <html>.
+
+   THREE themes now: light, dark, and `royal` — the approved design from
+   mockups/saas-overview.html (deep blue gradient canvas, translucent glass
+   cards, white ink). Royal is the default for users with no saved preference.
+   All three re-point the SAME tokens, so pages need no per-theme markup.
+
+   Royal's surface/line tokens are the mockup's translucent whites PRE-BLENDED
+   over the canvas blue (#1b2fd6): a token has to be an opaque triplet for
+   Tailwind's `/<alpha-value>` modifier to keep working, and pre-blending also
+   avoids translucency stacking up wherever surfaces nest. The genuinely
+   see-through treatment — where the canvas gradient must show through, i.e.
+   cards and chrome — is applied from --e-* below, which hold real rgba(). */
 :root {
   color-scheme: light;       /* native controls (date pickers, scrollbars) */
   --c-canvas: 248 250 252;   /* slate-50  — page background            */
@@ -23,23 +35,100 @@
   --c-line: 226 232 240;     /* slate-200 — default border             */
   --c-hair: 241 245 249;     /* slate-100 — hairline divider           */
   --c-edge: 203 213 225;     /* slate-300 — input border (stronger)    */
+  /* Accents — darkened from the mockup's hues to stay legible on white.
+     The mockup's own #4ade87/#ffc857 sit at ~1.6:1 / ~1.5:1 on white. */
+  --c-pos: 22 163 74;        /* green-600  ← royal #4ade87             */
+  --c-neg: 220 38 38;        /* red-600    ← royal #ff7a68             */
+  --c-warn: 217 119 6;       /* amber-600  ← royal #ffc857             */
+  --c-peri: 79 70 229;       /* indigo-600 ← royal #9fb0ff             */
+  --c-cta: 37 99 235;        /* brand-600 — solid blue button          */
+  --c-cta-ink: 255 255 255;  /* white text on it                       */
+  --c-cta-hover: 29 78 216;  /* brand-700                              */
+  /* Effects (real rgba/gradients, not triplets) */
+  --e-card: rgb(var(--c-surface));
+  --e-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --e-radius: 1rem;          /* card radius — royal opens this to 20px */
+  --e-illus-to: rgba(15, 23, 42, .45);   /* tool-tile wash fade-out */
+  --e-rail: rgb(var(--c-surface));        /* sidebar fill */
+  --e-modal: rgb(var(--c-surface));       /* popup panel fill */
+  /* Tool-tile category hues. Light keeps catalog.mjs's saturated mid-tones,
+     which are built to read on white. Royal/dark swap in the mockup's pastels
+     — CATEGORY_META's SEO blue (#2563eb) is royal's own canvas blue, so on
+     royal every SEO tile would vanish into the page. Themed here rather than in
+     @shared/catalog.mjs: that file is inlined into all 9 Lambda bundles, and a
+     colour has no business forcing a backend redeploy. */
+  --cat-seo: #2563eb;
+  --cat-content: #7c3aed;
+  --cat-ai: #0891b2;
+  --cat-strategy: #ea580c;
+  --cat-integrations: #16a34a;
 }
 .dark {
   color-scheme: dark;        /* dark native date pickers / scrollbars  */
-  --c-canvas: 8 12 24;       /* near-black navy — page background      */
-  --c-surface: 15 23 42;     /* slate-900 — cards / panels / inputs    */
-  --c-raised: 30 41 59;      /* slate-800 — subtle raised / soft hover */
-  --c-sunken: 30 41 59;      /* slate-800 — pills / button rest        */
-  --c-overlay: 51 65 85;     /* slate-700 — stronger hover             */
-  --c-heading: 248 250 252;  /* slate-50  — headings / strongest text  */
-  --c-strong: 226 232 240;   /* slate-200 — strong text                */
-  --c-body: 203 213 225;     /* slate-300 — default body text          */
-  --c-dim: 190 200 216;      /* secondary text — brightened for contrast */
-  --c-muted: 159 172 192;    /* tertiary text — brightened for contrast  */
-  --c-faint: 133 147 169;    /* icons / placeholders — min ~4.5:1 on canvas */
-  --c-line: 30 41 59;        /* slate-800 — default border             */
-  --c-hair: 23 32 48;        /* deep slate — hairline divider          */
-  --c-edge: 51 65 85;        /* slate-700 — input border (stronger)    */
+  /* Mockup [data-theme="dark"] — a deep navy ramp, not a flat near-black. */
+  --r-bg-a: #16226e;
+  --r-bg-b: #0c1442;
+  --r-bg-c: #070d29;
+  /* Surfaces = the mockup's translucent whites pre-blended over #0c1442. */
+  --c-canvas: 12 20 66;      /* #0c1442                                */
+  --c-surface: 30 38 80;     /* white .075 — card gradient mean        */
+  --c-raised: 41 48 89;      /* white .12                              */
+  --c-sunken: 36 44 85;      /* white .10                              */
+  --c-overlay: 56 62 100;    /* white .18                              */
+  --c-heading: 255 255 255;
+  --c-strong: 234 240 255;
+  --c-body: 219 227 255;
+  --c-dim: 201 211 251;
+  --c-muted: 182 194 247;    /* #b6c2f7 */
+  --c-faint: 136 149 226;    /* #8895e2 */
+  --c-line: 51 58 96;        /* white .16 blended                      */
+  --c-hair: 36 44 85;        /* white .10 blended                      */
+  --c-edge: 65 72 108;       /* white .22 blended                      */
+  /* Accents — the mockup's hues work as-is on a dark canvas. */
+  --c-pos: 74 222 135;       /* #4ade87 */
+  --c-neg: 255 122 104;      /* #ff7a68 */
+  --c-warn: 255 200 87;      /* #ffc857 */
+  --c-peri: 159 176 255;     /* #9fb0ff */
+  --c-cta: 255 255 255;      /* mockup inverts the CTA on dark canvases */
+  --c-cta-ink: 27 47 214;
+  --c-cta-hover: 232 236 255;
+  /* The 3D: translucent white gradient + a deep cast shadow. */
+  --e-card-hi: rgba(255, 255, 255, .105);
+  --e-card-lo: rgba(255, 255, 255, .045);
+  --e-card: linear-gradient(180deg, var(--e-card-hi), var(--e-card-lo));
+  --e-shadow: 0 24px 50px -24px rgba(4, 10, 80, .55);
+  --e-radius: 20px;
+  --e-illus-to: rgba(9, 13, 54, .55);
+  --e-rail: linear-gradient(180deg, rgba(11, 19, 82, .72), rgba(8, 13, 60, .85));
+  --e-modal: linear-gradient(180deg, #1c2a92, #141f77);
+  --cat-seo: #9fb0ff;
+  --cat-content: #4ade87;
+  --cat-ai: #2dd4bf;
+  --cat-strategy: #ffc857;
+  --cat-integrations: #c9b8ff;
+}
+
+/* ── Royal ────────────────────────────────────────────────────────────────
+   The approved mockup design. Canvas is a fixed blue gradient; cards are a
+   translucent white gradient over it. Sourced 1:1 from the mockup's :root
+   (--bg-a #2e4bff, --bg-b #1b2fd6, --bg-c #1122b0, --ink #fff,
+   --muted #b6c2f7, --faint #8895e2, --line rgba(255,255,255,.16)). */
+.royal {
+  /* Royal carries BOTH classes (<html class="dark royal">), so it inherits the
+     whole glass treatment from .dark above and overrides ONLY what differs:
+     the canvas hues, and the surfaces re-blended over that blue. This mirrors
+     the mockup, where [data-theme] switches --bg-a/b/c and nothing else. */
+  --r-bg-a: #2e4bff;         /* radial highlight, top-left             */
+  --r-bg-b: #1b2fd6;         /* linear start — the canvas blue         */
+  --r-bg-c: #1122b0;         /* linear end                             */
+  --c-canvas: 27 47 214;     /* #1b2fd6                                */
+  --c-surface: 44 63 217;    /* white .075 over the blue               */
+  --c-raised: 54 72 219;     /* white .12                              */
+  --c-sunken: 50 68 218;     /* white .10                              */
+  --c-overlay: 68 84 221;    /* white .18                              */
+  --c-line: 64 80 221;       /* white .16                              */
+  --c-hair: 50 68 218;       /* white .10                              */
+  --c-edge: 77 93 223;       /* white .22                              */
 }
 
 @layer base {
@@ -50,26 +139,299 @@
   body, .card, .field, header, aside {
     transition: background-color .2s ease, border-color .2s ease, color .2s ease;
   }
+  /* Royal's canvas is the mockup's two-layer gradient rather than a flat fill:
+     a blue radial highlight off the top-left over a steeper vertical ramp.
+     `fixed` anchors it to the viewport — without it, tall pages (the 31-tool
+     grid) re-run the ramp per screenful and show a seam. */
+  .dark body {
+    background:
+      radial-gradient(1300px 1000px at 16% -12%, var(--r-bg-a), transparent 78%),
+      linear-gradient(168deg, var(--r-bg-b) 0%, var(--r-bg-c) 100%);
+    background-attachment: fixed;
+    /* The mockup is set in Inter; Plus Jakarta Sans stays the light/dark face. */
+    font-family: theme('fontFamily.display');
+  }
 }
 
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition;
   }
-  /* index.html primary action: solid blue with a soft brand-tinted shadow. */
+  /* Primary action. Light/dark resolve the cta tokens to the old brand-600 blue
+     with white text; royal inverts it the way the mockup does — white fill,
+     blue ink — because on a saturated blue canvas a blue button disappears. */
   .btn-primary {
-    @apply btn bg-brand-600 text-white shadow-sm shadow-brand-600/20 hover:bg-brand-700 disabled:opacity-50 disabled:shadow-none;
+    @apply btn bg-cta text-cta-ink shadow-sm shadow-brand-600/20 hover:bg-cta-hover disabled:opacity-50 disabled:shadow-none;
   }
   .btn-ghost {
     @apply btn border border-edge bg-surface text-body hover:bg-raised;
   }
-  /* index.html metric/cockpit card resting state: 1px slate border, soft
-     radius, faint shadow. Hover-lift is opt-in via .card-hover (tiles/rows). */
+  /* Card resting state, driven by the theme's --e-* effect tokens so one class
+     covers all three themes: light/dark keep the old 1px border + 1rem radius
+     + shadow-sm exactly (--e-card resolves to a flat bg-surface, so light stays
+     pixel-identical); royal swaps in the mockup's 20px radius, translucent
+     white gradient and deep blue shadow. Hover-lift is opt-in via .card-hover. */
   .card {
-    @apply rounded-2xl border border-line bg-surface shadow-sm;
+    @apply border border-line;
+    border-radius: var(--e-radius);
+    background: var(--e-card);
+    box-shadow: var(--e-shadow);
   }
+  /* Hover lift. Royal brightens the glass edge rather than going brand-blue —
+     a blue border on a blue canvas reads as nothing. */
   .card-hover {
     @apply transition duration-300 hover:-translate-y-0.5 hover:border-brand-500 hover:shadow-lift;
+  }
+  .royal .card-hover:hover {
+    border-color: rgba(255, 255, 255, .26);
+    box-shadow: 0 20px 36px -18px rgba(4, 10, 80, .7);
+  }
+
+  /* ── Monty floating launcher ──────────────────────────────────────────────
+     The approved design's FAB (mockup .monty-fab): a white pill with animated
+     multi-colour gradient text and a speech-bubble tail, beside a gradient
+     avatar button with a live badge and a slow ping. Fixed palette, as in the
+     mockup — it reads as a lit object on every theme. */
+  .dm-monty-fab { @apply fixed bottom-[26px] right-[26px] z-[80] flex items-center gap-3; }
+  .dm-monty-label {
+    @apply relative whitespace-nowrap rounded-[14px] bg-white px-4 py-[11px] text-[12.5px] font-bold;
+    color: #1b2fd6;
+    box-shadow: 0 16px 32px -14px rgba(4, 10, 80, .55);
+    transition: transform .2s ease, box-shadow .2s ease;
+  }
+  /* The tail — a rotated square tucked under the pill's right edge. */
+  .dm-monty-label::after {
+    content: ''; position: absolute; right: -4px; top: 50%;
+    height: 11px; width: 11px; background: #fff; border-radius: 2px;
+    transform: translateY(-50%) rotate(45deg);
+  }
+  .dm-monty-fab:hover .dm-monty-label {
+    transform: translateY(-1px);
+    box-shadow: 0 20px 38px -14px rgba(4, 10, 80, .6);
+  }
+  /* Animated gradient wordmark — background-clip on the text itself. */
+  .dm-mg {
+    background: linear-gradient(100deg, #2440e0, #7c3aed 30%, #0ea5a0 62%, #e0891a);
+    background-size: 220% 100%;
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    animation: dm-monty-hue 6s linear infinite alternate;
+  }
+  @keyframes dm-monty-hue { 0% { background-position: 0% 50%; } 100% { background-position: 220% 50%; } }
+
+  .dm-monty-btn {
+    @apply relative grid h-[60px] w-[60px] shrink-0 place-items-center rounded-full border-none;
+    background: linear-gradient(160deg, #5d78ff 0%, #22349f 100%);
+    box-shadow: 0 18px 36px -12px rgba(4, 10, 80, .7), 0 0 0 4px rgba(255, 255, 255, .14);
+    transition: transform .15s;
+  }
+  .dm-monty-btn:hover { transform: translateY(-2px); }
+  .dm-monty-badge {
+    @apply absolute right-[5px] top-[5px] h-[13px] w-[13px] rounded-full bg-pos;
+    border: 2.5px solid #22349f;
+  }
+  .dm-monty-ping {
+    @apply pointer-events-none absolute inset-0 rounded-full;
+    animation: dm-monty-ping 2.6s ease-out infinite;
+  }
+  @keyframes dm-monty-ping {
+    0% { box-shadow: 0 0 0 0 rgba(74, 222, 135, .45); }
+    70% { box-shadow: 0 0 0 16px rgba(74, 222, 135, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(74, 222, 135, 0); }
+  }
+  @media (max-width: 680px) {
+    .dm-monty-fab { @apply bottom-4 right-4; }
+    .dm-monty-label { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dm-mg, .dm-monty-ping { animation: none !important; }
+    .dm-monty-btn, .dm-monty-label { transition: none !important; }
+    /* The gradient can't animate, so give the wordmark a solid readable fill. */
+    .dm-mg { -webkit-text-fill-color: #1b2fd6; color: #1b2fd6; }
+  }
+
+  /* ── Monty chat popover ───────────────────────────────────────────────────
+     The approved design's chatbot (mockup .monty-chat): a floating card that
+     grows out of the FAB's corner, rather than a full-height right drawer.
+     Fixed palette + its own scale, so it reads as a lifted object on any theme. */
+  .dm-monty-chat {
+    @apply fixed bottom-[100px] right-[26px] z-[79] flex flex-col overflow-hidden border border-line;
+    width: 384px;
+    max-width: calc(100vw - 40px);
+    height: min(74vh, 588px);
+    background: var(--e-modal);
+    border-radius: 22px;
+    box-shadow: 0 40px 80px -24px rgba(4, 10, 80, .78);
+    transform-origin: bottom right;
+    transform: translateY(20px) scale(.96);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform .26s cubic-bezier(.2, .8, .3, 1), opacity .24s ease;
+  }
+  .dm-monty-chat-open { transform: none; opacity: 1; pointer-events: auto; }
+  @media (max-width: 520px) {
+    .dm-monty-chat { @apply bottom-[88px] left-3 right-3; width: auto; height: 72vh; }
+  }
+  @media (prefers-reduced-motion: reduce) { .dm-monty-chat { transition: none !important; } }
+
+  /* Bubbles — bot sits left with a squared bottom-left corner, the user right
+     with a squared bottom-right, so each tail points at its speaker. */
+  .dm-mc-bot {
+    background: rgba(255, 255, 255, .09);
+    border-radius: 15px 15px 15px 5px;
+  }
+  .dm-mc-me {
+    background: linear-gradient(135deg, #5d78ff, #3f5cf6);
+    border-radius: 15px 15px 5px 15px;
+    color: #fff;
+  }
+
+  /* Typing dots — the mockup's mcType: a small lift on a stagger, dimming at
+     rest. Tailwind's animate-bounce is a much larger throw than the design. */
+  .dm-mc-dot {
+    animation: dm-mc-type 1.2s infinite ease-in-out;
+    background: rgb(var(--c-peri));
+  }
+  .dm-mc-dot:nth-child(2) { animation-delay: .15s; }
+  .dm-mc-dot:nth-child(3) { animation-delay: .3s; }
+  @keyframes dm-mc-type {
+    0%, 60%, 100% { transform: translateY(0); opacity: .45; }
+    30% { transform: translateY(-4px); opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dm-mc-dot { animation: none !important; opacity: .7; }
+  }
+
+  /* ── Modal ────────────────────────────────────────────────────────────────
+     The approved design's centred popup (mockup .modal + .ov): the panel eases
+     up from -46%/scale(.97) into place while a blurred scrim fades in. Mounted
+     always and toggled via .dm-modal-open so the transition has two states to
+     move between — a panel that mounts at its final position can't animate. */
+  .dm-scrim {
+    @apply fixed inset-0 z-[90] opacity-0 transition-opacity duration-200;
+    background: rgba(6, 10, 50, .5);
+    backdrop-filter: blur(2px);
+    pointer-events: none;
+  }
+  .dm-scrim-open { @apply opacity-100; pointer-events: auto; }
+
+  .dm-modal {
+    @apply fixed left-1/2 top-1/2 z-[95] flex max-h-[88vh] w-[680px] max-w-[calc(100vw-32px)] flex-col overflow-hidden border border-line opacity-0;
+    background: var(--e-modal);
+    border-radius: 22px;
+    box-shadow: 0 50px 90px -24px rgba(4, 10, 80, .8);
+    transform: translate(-50%, -46%) scale(.97);
+    transition: transform .24s cubic-bezier(.2, .8, .3, 1), opacity .2s;
+    pointer-events: none;
+  }
+  .dm-modal-open {
+    @apply opacity-100;
+    transform: translate(-50%, -50%) scale(1);
+    pointer-events: auto;
+  }
+  /* Catalog popup runs wider than the default 680 (mockup .tools-modal). */
+  .dm-modal-wide { width: 940px; }
+  .dm-modal-head { @apply flex items-center gap-3 border-b border-line px-5 py-[18px]; }
+  .dm-modal-tag {
+    @apply rounded-lg px-2.5 py-1 text-[9px] font-extrabold tracking-[0.14em] text-pos;
+    background: rgb(var(--c-pos) / .14);
+  }
+  .dm-modal-body { @apply flex flex-col gap-4 overflow-y-auto p-5; }
+  .dm-modal-x {
+    @apply grid h-8 w-8 shrink-0 place-items-center rounded-[10px] border border-line bg-raised text-body transition-colors hover:bg-overlay;
+  }
+
+  /* ── Motion ───────────────────────────────────────────────────────────────
+     The mockup's hover vocabulary, kept in one place so tiles/pills/icons all
+     move the same way. Every rule here is decorative — the reduced-motion block
+     at the bottom of this file switches the lot off. */
+  .dm-lift { @apply transition duration-200; }
+  .dm-lift:hover { transform: translateY(-3px); }
+  /* Icon tiles kick as their card is hovered (mockup .stat:hover .ico). */
+  .dm-kick { @apply transition-transform duration-200; }
+  .group:hover .dm-kick { transform: scale(1.12) rotate(-5deg); }
+
+  /* All of the above is decoration. Honour the OS setting: land every element
+     in its FINAL state instantly rather than animating (the modal still opens
+     — it just doesn't travel). The existing .dm-mode-attn override above is
+     kept separate because it swaps in a static ring rather than nothing. */
+  @media (prefers-reduced-motion: reduce) {
+    .dm-lift, .dm-kick, .card-hover, .dm-sidebar, .dm-modal, .dm-scrim,
+    .dm-tool-illus > svg, .dm-sb-item {
+      transition: none !important;
+      animation: none !important;
+    }
+    .dm-lift:hover, .group:hover .dm-kick, .card-hover:hover { transform: none !important; }
+  }
+
+  /* ── Sidebar ──────────────────────────────────────────────────────────────
+     The approved design's fixed left rail (mockup .sidebar). Off-canvas below
+     `md`, where a backdrop + hamburger drive it. The glassy fill is royal's;
+     light/dark fall back to flat surface tokens. */
+  .dm-sidebar {
+    @apply fixed left-0 top-0 z-[70] flex h-full w-[236px] flex-col gap-1.5 border-r border-line p-[22px_15px];
+    background: var(--e-rail);
+    transform: translateX(-100%);
+    transition: transform .28s cubic-bezier(.2, .8, .25, 1);
+  }
+  .dm-sidebar-open { transform: none; }
+  @media (min-width: 768px) { .dm-sidebar { transform: none; } }
+  .dark .dm-sidebar { backdrop-filter: blur(8px); }
+
+  .dm-brand-dot {
+    @apply h-[11px] w-[11px] shrink-0 rounded-full bg-pos;
+    box-shadow: 0 0 0 4px rgb(var(--c-pos) / .2);
+  }
+
+  .dm-sb-item {
+    @apply flex items-center gap-3 rounded-xl px-3 py-[11px] text-[13px] font-semibold text-muted transition-colors;
+  }
+  .dm-sb-item:hover { @apply bg-raised text-strong; }
+  /* Active row: the mockup's left-to-right periwinkle wash + a green glyph. */
+  .dm-sb-item-on {
+    background: linear-gradient(100deg, rgb(var(--c-peri) / .40), rgb(var(--c-peri) / .12));
+    @apply text-heading;
+  }
+  .dm-sb-item-on .dm-sb-ico { @apply text-pos; }
+  .dm-sb-badge {
+    @apply ml-auto rounded-[10px] bg-overlay px-2 py-0.5 text-[10px] font-extrabold text-body;
+  }
+
+  .dm-sb-credits { @apply mt-2 block rounded-2xl border border-line bg-raised p-[13px] transition-colors hover:bg-overlay; }
+  .dm-sb-bar { @apply h-[7px] overflow-hidden rounded; background: rgb(var(--c-canvas) / .5); }
+  .dm-sb-bar > i { @apply block h-full rounded; background: linear-gradient(90deg, rgb(var(--c-peri)), rgb(var(--c-pos))); }
+  .dm-sb-upgrade {
+    @apply mt-2.5 block rounded-xl bg-cta py-2.5 text-center text-[11px] font-extrabold tracking-wide text-cta-ink transition-colors hover:bg-cta-hover;
+  }
+  .dm-sb-monty { @apply mt-1.5 flex items-center gap-2.5 rounded-xl p-2.5 transition-colors hover:bg-raised; }
+
+  /* ── Tool tile ────────────────────────────────────────────────────────────
+     The mockup's illustrated catalog card (.tool-card / .tool-illus): a short
+     colour-washed header carrying the category's hue, two decorative cut
+     circles, and a white glyph. The hue arrives per-card as --tc (inline
+     style, from CATEGORY_META.color); --e-illus-to is the theme's fade-out. */
+  .dm-tool-illus {
+    position: relative;
+    display: flex;
+    height: 86px;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: linear-gradient(150deg, var(--tc, theme('colors.brand.600')), var(--e-illus-to));
+  }
+  .dm-tool-illus::before {
+    content: ''; position: absolute; top: -28px; right: -20px;
+    height: 82px; width: 82px; border-radius: 9999px;
+    background: rgba(255, 255, 255, .14);
+  }
+  .dm-tool-illus::after {
+    content: ''; position: absolute; bottom: -16px; left: 16px;
+    height: 46px; width: 46px; border-radius: 9999px;
+    border: 2px solid rgba(255, 255, 255, .18);
+  }
+  .dm-tool-illus > svg {
+    position: relative;
+    filter: drop-shadow(0 2px 5px rgba(0, 0, 0, .3));
   }
   /* Inputs/selects/textareas — index.html's blue focus ring. */
   .field {
@@ -115,6 +477,42 @@
 }
 
 .dm-main { container-type: inline-size; container-name: dm-main; }
+
+/* Cockpit + results grids. These MUST be container queries, not viewport
+   breakpoints: the usable width is the viewport minus the 236px rail minus the
+   assistant panel (up to 720px), so a `lg:grid-cols-3` fired at a 1280px
+   viewport was laying 3 columns into ~660px — 197px cards, which clipped the
+   Page Speed rings and the backlink count. `.dm-main` measures what's actually
+   available, so the cards reflow instead of being crushed. */
+.dm-cockpit-grid { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
+.dm-stat-row { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
+.dm-result-grid { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
+/* Each result card is its own query container so figures can size to the CARD
+   (cqw), not the page — a 6-digit backlink count has to shrink in a narrow
+   column instead of running past the border. */
+.dm-result-grid > .card { container-type: inline-size; }
+@container dm-main (min-width: 560px) {
+  .dm-stat-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dm-result-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container dm-main (min-width: 900px) {
+  /* Chart gets 2fr, gauge 1fr — the mockup's Activity/AI-Credits split. */
+  .dm-cockpit-grid { grid-template-columns: 2fr 1fr; }
+}
+@container dm-main (min-width: 1040px) {
+  .dm-result-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+/* No container-query support → fall back to viewport breakpoints. */
+@supports not (container-type: inline-size) {
+  @media (min-width: 900px) {
+    .dm-stat-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .dm-result-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1400px) {
+    .dm-cockpit-grid { grid-template-columns: 2fr 1fr; }
+    .dm-result-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+}
 
 .dm-card-grid { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
 @container dm-main (min-width: 520px) {
@@ -254,6 +652,24 @@ select:focus-visible,
 
 /* Print just the result: hide chrome (header, chat, toasts, forms). */
 @media print {
+  /* Paper is white, so print always uses the LIGHT palette regardless of the
+     screen theme — otherwise `body{background:#fff}` below meets near-white
+     --c-heading ink and the page prints blank. Resetting the tokens (rather
+     than patching each rule) fixes every consumer at once: dark and royal both
+     fall back to the exact values :root declares. Royal is the default theme,
+     so without this every user's first PDF export would come out empty. */
+  :root, .dark, .royal {
+    color-scheme: light;
+    --c-canvas: 248 250 252; --c-surface: 255 255 255; --c-raised: 248 250 252;
+    --c-sunken: 241 245 249; --c-overlay: 226 232 240;
+    --c-heading: 15 23 42; --c-strong: 30 41 59; --c-body: 51 65 85;
+    --c-dim: 71 85 105; --c-muted: 100 116 139; --c-faint: 148 163 184;
+    --c-line: 226 232 240; --c-hair: 241 245 249; --c-edge: 203 213 225;
+    --c-pos: 22 163 74; --c-neg: 220 38 38; --c-warn: 217 119 6;
+    --c-peri: 79 70 229; --c-cta: 37 99 235; --c-cta-ink: 255 255 255;
+    --e-card: #fff; --e-shadow: none; --e-radius: 1rem;
+    --e-illus-to: rgba(15, 23, 42, .45); --e-rail: #fff; --e-modal: #fff;
+  }
   header, aside, nav, form, .dm-no-print { display: none !important; }
   [style*="margin-right"] { margin-right: 0 !important; }
   .card { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }

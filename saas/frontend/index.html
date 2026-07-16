@@ -18,18 +18,27 @@
     <meta name="twitter:description" content="SEO, AI content and AI-visibility tools for solo marketers, in one workspace." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <!-- Inter is the royal theme's face (the mockup is set in it); Plus Jakarta
+         Sans stays the light/dark face. Both are fetched in one request. -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <!-- Apply the saved theme BEFORE first paint so there's no light-mode flash
-         on load. Mirrors src/lib/theme.js: 'dm:theme' = light | dark | system
-         (default system). Kept inline + tiny so it runs synchronously in <head>. -->
+    <!-- Apply the saved theme BEFORE first paint so there's no flash of the
+         wrong canvas on load. Mirrors src/lib/theme.js: 'dm:theme' =
+         royal | light | dark | system (default royal). Kept inline + tiny so it
+         runs synchronously in <head>.
+         CSP: this script is allow-listed by a sha256 hash in
+         public/customHttp.yml AND amplify.yml — recompute both if you edit it
+         (see DEPLOY.md), or the theme stops applying pre-paint in production. -->
     <script>
       (function () {
         try {
-          var pref = localStorage.getItem('dm:theme') || 'system';
-          var dark = pref === 'dark' || (pref === 'system' &&
-            window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-          document.documentElement.classList.toggle('dark', dark);
+          var pref = localStorage.getItem('dm:theme') || 'royal';
+          var theme = pref === 'system'
+            ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+            : pref;
+          var cl = document.documentElement.classList;
+          cl.toggle('dark', theme === 'dark' || theme === 'royal');
+          cl.toggle('royal', theme === 'royal');
         } catch (e) {}
       })();
     </script>

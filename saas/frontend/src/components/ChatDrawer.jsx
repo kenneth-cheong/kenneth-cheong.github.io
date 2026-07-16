@@ -109,10 +109,10 @@ function renderMessage(text, chipFor) {
 // Animated "assistant is typing" indicator — three bouncing dots.
 function TypingDots() {
   return (
-    <span className="inline-flex items-center gap-1 py-1" role="status" aria-label="Assistant is typing">
-      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.3s]" />
-      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.15s]" />
-      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" />
+    <span className="inline-flex items-center gap-1" role="status" aria-label="Assistant is typing">
+      <span className="dm-mc-dot h-1.5 w-1.5 rounded-full" />
+      <span className="dm-mc-dot h-1.5 w-1.5 rounded-full" />
+      <span className="dm-mc-dot h-1.5 w-1.5 rounded-full" />
     </span>
   );
 }
@@ -131,7 +131,7 @@ function ago(iso) {
 // when open). Each reply costs `ai_chat` credits and the bot can answer about
 // the user's connected GSC / GA4 / Google Ads data. Conversations persist
 // server-side: start a new one or reopen past ones from the history list.
-export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, say }) {
+export default function ChatDrawer({ open, onClose, ask, say }) {
   const { user, setCredits } = useAuth();
   const { active, activeId } = useProjects();
   const navigate = useNavigate();
@@ -382,32 +382,41 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
     window.addEventListener('touchend', stop);
   }
 
-  if (!open) return null;
+  // Mount → next frame → open, so the popover has a start state to grow FROM.
+  // Kept mounted through the close transition (260ms per .dm-monty-chat).
+  const [shown, setShown] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      const r = requestAnimationFrame(() => setShown(true));
+      return () => cancelAnimationFrame(r);
+    }
+    setShown(false);
+    const t = setTimeout(() => setMounted(false), 260);
+    return () => clearTimeout(t);
+  }, [open]);
+
+  if (!mounted) return null;
 
   return (
     <aside
-      className="fixed right-0 top-0 z-30 flex h-screen flex-col border-l border-line bg-surface shadow-xl motion-safe:animate-slide-in-right"
-      style={{ width }}
+      className={`dm-monty-chat ${shown ? 'dm-monty-chat-open' : ''}`}
+      role="dialog"
+      aria-label="Monty the assistant"
     >
-      {onResize && (
-        <div
-          onMouseDown={startResize}
-          onTouchStart={startResize}
-          title="Drag to resize"
-          aria-label="Resize assistant panel"
-          role="separator"
-          aria-orientation="vertical"
-          className="group absolute left-0 top-0 z-10 h-full w-1.5 -translate-x-1/2 cursor-col-resize"
-        >
-          <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors group-hover:bg-brand-400" />
+      {/* Header — the mockup's .mc-head: avatar, name, and a live status line.
+          The panel is a fixed 384px now, so the old `width >= 460` gate on the
+          cost pill could never be true; it moved into the status line instead. */}
+      <div className="flex items-center gap-3 border-b border-line px-4 py-3.5 text-white">
+        {mascot && <Mascot size={40} className="shrink-0" title="Monty, your assistant" />}
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-bold leading-tight">Monty</div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-[10px] font-semibold text-muted">
+            <span className="h-[7px] w-[7px] shrink-0 rounded-full bg-pos" style={{ boxShadow: '0 0 0 3px rgb(var(--c-pos) / .22)' }} aria-hidden />
+            AI concierge · {COST} credit{COST === 1 ? '' : 's'} / message
+          </div>
         </div>
-      )}
-      <div className="flex items-center gap-2 border-b border-hair bg-slate-900 px-4 py-3 text-white">
-        {mascot && <Mascot size={34} className="shrink-0" title="Monty, your assistant" />}
-        <span className="font-semibold">Monty</span>
-        {/* Hide the per-message credit cost when the panel is narrow — the longer
-            "Helpful Otter" title + controls need the room; it returns when widened. */}
-        {width >= 460 && <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs">{COST} credits / message</span>}
         <div className="ml-auto flex items-center gap-1">
           {/* One-tap switch for Monty's proactive prompts (Monty starting a chat
               on its own). On by default; off = reactive-only. Mirrors the fuller
@@ -528,12 +537,12 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
               const isUser = m.role === 'user';
               const bubble = (
                 <div
-                  className={`max-w-[86%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
+                  className={`max-w-[86%] whitespace-pre-wrap px-3.5 py-2.5 text-[12.5px] leading-relaxed ${
                     isUser
-                      ? 'ml-auto rounded-br-sm bg-brand-600 text-white'
+                      ? 'dm-mc-me ml-auto'
                       : m.error
-                        ? 'rounded-bl-sm border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300'
-                        : 'rounded-bl-sm bg-sunken text-strong'
+                        ? 'rounded-2xl rounded-bl-sm border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300'
+                        : 'dm-mc-bot text-strong'
                   }`}
                 >
                   {m.role === 'assistant' ? (m.content ? renderMessage(m.content, chipFor) : <TypingDots />) : m.content}
@@ -552,7 +561,7 @@ export default function ChatDrawer({ open, onClose, width = 384, onResize, ask, 
             {busy && msgs[msgs.length - 1]?.role === 'user' && (
               <div className="flex items-end gap-2">
                 {mascot && <Mascot size={40} className="mb-0.5 shrink-0" />}
-                <div className="w-fit rounded-2xl rounded-bl-sm bg-sunken px-3 py-2"><TypingDots /></div>
+                <div className="dm-mc-bot w-fit px-3.5 py-3"><TypingDots /></div>
               </div>
             )}
             {msgs.length <= 1 && !busy && (
