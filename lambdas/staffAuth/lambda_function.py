@@ -116,6 +116,39 @@ EDITABLE_PROMPT_KEYS = ("shared_persona", "whatsapp_scope")
 MAX_PROMPT_CHARS = 8000        # mirrors whatsappBot's MAX_PROMPT_CHARS
 MAX_PROMPT_HISTORY = 10        # versions kept for one-click revert
 
+# Who a WhatsApp number belongs to. Staff-maintained from index.html.
+#
+# SCOPE — read this before extending it: the directory exists so a colleague reading
+# a transcript knows who they are talking to. It is NOT an authorisation record. The
+# bot does not use it to decide what to tell anyone, and `whatsapp_scope` still says
+# it has no account data. A phone number proves possession of a SIM, not that the
+# holder is entitled to a client's campaign or billing data — numbers get recycled,
+# handsets get shared, and people leave the company still holding their phone. If you
+# ever wire this into what the bot DISCLOSES, that is a different feature with a
+# different risk profile, and the three guardrail layers have to be revisited.
+CLIENT_DIR_TABLE = os.environ.get("CLIENT_DIR_TABLE", "dm-client-directory")
+_client_table = _ddb.Table(CLIENT_DIR_TABLE)
+MAX_CLIENT_FIELD = 120
+
+
+def _norm_phone(raw):
+    """WhatsApp's `from` is digits with no '+' (e.g. 6593665477). Store that shape,
+    so the directory key and the conversation key are the same string.
+
+    Returns None rather than guessing. A wrong-but-plausible normalisation is the
+    worst outcome here: it doesn't error, it just labels a conversation with the
+    wrong company, and nobody notices.
+    """
+    s = re.sub(r"[^\d]", "", str(raw or ""))
+    if s.startswith("00"):          # 0065… international prefix
+        s = s[2:]
+    # E.164 is max 15 digits. The floor is 9 to force a country code: a Singapore
+    # local "93665477" would store as 8 digits and silently never match the
+    # "6593665477" WhatsApp actually sends.
+    if not (9 <= len(s) <= 15):
+        return None
+    return s
+
 # Must stay identical to ESCALATION_REPLY in lambdas/whatsappBot/lambda_function.py.
 # It is how we detect an escalated conversation without a schema change: the bot sends
 # this exact constant (never model-generated text) when it hands off to a human. Change
@@ -665,6 +698,13 @@ def do_wa_list_conversations(body):
         print("wa scan failed:", repr(e))
         return _resp(500, {"success": False, "message": "Could not read conversations."})
     rows = [_wa_summary(i) for i in res.get("Items", [])]
+    # Label each conversation with who it is. Joined here, once, rather than making
+    # the page fire a lookup per row.
+    directory = _client_map()
+    for r in rows:
+        c = directory.get(r["wa_id"]) or {}
+        r["client_name"] = c.get("name") or ""
+        r["client_company"] = c.get("company") or ""
     rows.sort(key=lambda r: r["last_ts"], reverse=True)
     return _resp(200, {
         "success": True,
@@ -688,9 +728,16 @@ def do_wa_get_conversation(body):
         return _resp(500, {"success": False, "message": "Could not read conversation."})
     if not item:
         return _resp(404, {"success": False, "message": "Not found."})
+    try:
+        c = (_client_table.get_item(Key={"wa_id": wa_id}) or {}).get("Item") or {}
+    except ClientError as e:
+        print("client lookup failed:", repr(e))
+        c = {}          # unlabelled beats failing the transcript read
     return _resp(200, {
         "success": True,
         "wa_id": item.get("wa_id"),
+        "client_name": c.get("name") or "",
+        "client_company": c.get("company") or "",
         "last_ts": int(item.get("last_user_ts") or 0),
         "expires_at": int(item.get("ttl") or 0),   # 30-day TTL; this is not an archive
         "bot_paused": bool(item.get("bot_paused")),
@@ -706,6 +753,116 @@ def do_wa_get_conversation(body):
             for t in (item.get("turns") or [])
         ],
     })
+
+
+def _client_map():
+    """{wa_id: {name, company}} for every directory entry.
+
+    A full Scan, deliberately: this table is one row per client phone number — tens,
+    maybe hundreds. Scanning it once and joining in memory costs less than a GetItem
+    per conversation, and the caller already holds the whole conversation list.
+    Returns {} on failure — an unlabelled list is a far better outcome than a 500
+    on the tool staff use to read escalations.
+    """
+    out = {}
+    try:
+        kwargs = {}
+        while True:
+            res = _client_table.scan(**kwargs)
+            for i in res.get("Items", []):
+                out[i.get("wa_id")] = {
+                    "name": i.get("name") or "",
+                    "company": i.get("company") or "",
+                }
+            key = res.get("LastEvaluatedKey")
+            if not key:
+                break
+            kwargs["ExclusiveStartKey"] = key
+    except ClientError as e:
+        print("client directory scan failed:", repr(e))
+        return {}
+    return out
+
+
+def do_clients_list(body):
+    who = _require_platform_user(body)
+    if not who:
+        return _resp(401, {"success": False, "message": "Not authorised."})
+    try:
+        rows, kwargs = [], {}
+        while True:
+            res = _client_table.scan(**kwargs)
+            rows.extend(res.get("Items", []))
+            key = res.get("LastEvaluatedKey")
+            if not key:
+                break
+            kwargs["ExclusiveStartKey"] = key
+    except ClientError as e:
+        print("client list failed:", repr(e))
+        return _resp(500, {"success": False, "message": "Could not read the client directory."})
+    rows.sort(key=lambda r: (r.get("company") or "").lower())
+    return _resp(200, {"success": True, "clients": [
+        {
+            "wa_id": r.get("wa_id"),
+            "name": r.get("name") or "",
+            "company": r.get("company") or "",
+            "notes": r.get("notes") or "",
+            "updated_at": int(r.get("updated_at") or 0),
+            "updated_by": r.get("updated_by") or "",
+        }
+        for r in rows
+    ]})
+
+
+def do_clients_upsert(body):
+    who = _require_platform_user(body)
+    if not who:
+        return _resp(401, {"success": False, "message": "Not authorised."})
+
+    wa_id = _norm_phone(body.get("wa_id"))
+    if not wa_id:
+        return _resp(400, {"success": False, "message":
+                           "That doesn't look like a phone number with a country code. "
+                           "Singapore mobiles start 65 — e.g. 6591234567."})
+    name = (body.get("name") or "").strip()[:MAX_CLIENT_FIELD]
+    company = (body.get("company") or "").strip()[:MAX_CLIENT_FIELD]
+    notes = (body.get("notes") or "").strip()[:MAX_CLIENT_FIELD * 4]
+    if not name and not company:
+        return _resp(400, {"success": False, "message": "Give the number a name or a company."})
+
+    # If the caller renamed the number (edited the key), drop the old row — otherwise
+    # the directory keeps a stale entry that still claims that number.
+    old = _norm_phone(body.get("old_wa_id"))
+    now = int(time.time())
+    try:
+        _client_table.put_item(Item={
+            "wa_id": wa_id, "name": name, "company": company, "notes": notes,
+            "updated_at": now, "updated_by": who,
+        })
+        if old and old != wa_id:
+            _client_table.delete_item(Key={"wa_id": old})
+    except ClientError as e:
+        print("client upsert failed:", repr(e))
+        return _resp(500, {"success": False, "message": "Could not save this client."})
+
+    _wa_audit(who, "client_save", wa_id)
+    return _resp(200, {"success": True, "wa_id": wa_id, "updated_at": now, "updated_by": who})
+
+
+def do_clients_delete(body):
+    who = _require_platform_user(body)
+    if not who:
+        return _resp(401, {"success": False, "message": "Not authorised."})
+    wa_id = _norm_phone(body.get("wa_id"))
+    if not wa_id:
+        return _resp(400, {"success": False, "message": "wa_id required."})
+    try:
+        _client_table.delete_item(Key={"wa_id": wa_id})
+    except ClientError as e:
+        print("client delete failed:", repr(e))
+        return _resp(500, {"success": False, "message": "Could not remove this client."})
+    _wa_audit(who, "client_delete", wa_id)
+    return _resp(200, {"success": True})
 
 
 def _invoke_bot(payload: dict):
@@ -907,6 +1064,9 @@ ACTIONS = {
     "wa_save_prompt": do_wa_save_prompt,
     "wa_send_message": do_wa_send_message,
     "wa_set_paused": do_wa_set_paused,
+    "clients_list": do_clients_list,
+    "clients_upsert": do_clients_upsert,
+    "clients_delete": do_clients_delete,
 }
 
 

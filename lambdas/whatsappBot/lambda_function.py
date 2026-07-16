@@ -91,6 +91,9 @@ KB_TOP_K          = int(os.environ.get('KB_TOP_K', '4'))
 DEDUPE_TABLE      = os.environ.get('WA_DEDUPE_TABLE', 'wa_dedupe')
 CONVO_TABLE       = os.environ.get('WA_CONVO_TABLE', 'wa_conversations')
 PROMPT_TABLE      = os.environ.get('WA_PROMPT_TABLE', 'dm-bot-prompts')
+# Staff-maintained "who is this number". Read ONLY to label escalation pings for
+# colleagues — never fed to the model, never used to decide what to tell a client.
+CLIENT_DIR_TABLE  = os.environ.get('CLIENT_DIR_TABLE', 'dm-client-directory')
 
 PROMPT_CACHE_TTL  = 60          # seconds a warm container may serve a stale prompt
 MAX_PROMPT_CHARS  = 8000        # per block; mirrors staffAuth's save-side limit
@@ -754,6 +757,23 @@ def _post_gchat(text):
         return False
 
 
+def _client_label(wa_id):
+    """"Acme Pte Ltd — Jane Tan" if staff have named this number, else ''.
+
+    STAFF-FACING ONLY. This never reaches the model or the client: it goes in the
+    Google Chat ping so whoever picks up an escalation knows who they're talking to.
+    The bot still has no client data and `whatsapp_scope` still says so — a phone
+    number is possession of a SIM, not proof of who is holding it.
+    """
+    try:
+        item = (_ddb.Table(CLIENT_DIR_TABLE).get_item(Key={'wa_id': wa_id}) or {}).get('Item') or {}
+    except Exception as e:
+        print(f'[CLIENT] lookup failed for {_mask(wa_id)}: {e}')
+        return ''
+    bits = [b for b in (item.get('company'), item.get('name')) if b]
+    return ' — '.join(bits)
+
+
 def _escalate(wa_id, question, reason, turns=None):
     # Stand the bot down BEFORE the ping. We've just told the client a colleague
     # will follow up; if the bot answers their next message it contradicts that,
@@ -761,7 +781,8 @@ def _escalate(wa_id, question, reason, turns=None):
     # this from index.html when they're done.
     _set_paused(wa_id, True, 'system:escalation')
 
-    lines = [f'*WhatsApp escalation* — +{wa_id}',
+    who = _client_label(wa_id)
+    lines = [f'*WhatsApp escalation* — +{wa_id}' + (f'  ({who})' if who else '  (unknown number)'),
              f'*Reason:* {reason}',
              f'*Their message:* {question[:600]}']
     if turns:
@@ -810,7 +831,9 @@ def _worker(event):
     # before the KB/LLM spend, which would be wasted.
     if paused:
         print(f'[WORKER] {wa_id} is handed off to a human — recorded, not replying')
-        _post_gchat(f'*WhatsApp — new message on a handed-off chat* — +{wa_id}\n'
+        _who = _client_label(wa_id)
+        _post_gchat(f'*WhatsApp — new message on a handed-off chat* — +{wa_id}'
+                    + (f'  ({_who})' if _who else '') + '\n'
                     f'*Their message:* {question[:600]}\n'
                     '_The bot is paused for this person. Reply from index.html → '
                     'Others → WhatsApp Support Logs._')
