@@ -2192,7 +2192,7 @@
                     <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
                         <input type="text" id="filter-text" class="filter-input"
                             style="flex: 1; padding: 6px 10px; font-size: 12px;" placeholder="Search items or boards..."
-                            oninput="updateFilteredUI()">
+                            oninput="debouncedFilterUI()">
 
                         <div class="person-filter-wrapper">
                             <input type="text" id="filter-csm-input" class="filter-input"
@@ -5424,6 +5424,16 @@
                 if (state.filters.hiddenCsmStatuses.has(i.masterCsmStatus || '')) return false;
                 return i.name.toLowerCase().includes(queryText) || i.bName.toLowerCase().includes(queryText);
             });
+        }
+
+        // The search box fires oninput on every keystroke, and updateFilteredUI()
+        // rebuilds the whole active view (every campaign row's innerHTML) + renderNav().
+        // Debounce so rapid typing collapses into a single re-render instead of one
+        // per character — avoids a CPU spike on large boards.
+        let _filterDebounceTimer = null;
+        function debouncedFilterUI() {
+            clearTimeout(_filterDebounceTimer);
+            _filterDebounceTimer = setTimeout(updateFilteredUI, 150);
         }
 
         function updateFilteredUI() {
