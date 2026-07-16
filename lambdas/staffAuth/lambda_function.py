@@ -326,6 +326,13 @@ def usage_attr(month: str = None) -> str:
     return "u_" + (month or current_month())
 
 
+def tool_usage_attr(month: str = None) -> str:
+    # Per-tool breakdown for the month, stored as a map {toolId: count} alongside
+    # the u_YYYY-MM running total. Kept in a separate attribute so the total stays
+    # a single cheap counter and the breakdown can be dropped without touching it.
+    return "tu_" + (month or current_month())
+
+
 def clean_tools(raw) -> list:
     if not isinstance(raw, list):
         return []
@@ -374,6 +381,14 @@ def clean_sections(raw) -> list:
 def public_account(item: dict) -> dict:
     """Strip the password hash before returning an account to an admin."""
     month = current_month()
+    raw_tool_usage = item.get(tool_usage_attr(month)) or {}
+    tool_usage = {}
+    if isinstance(raw_tool_usage, dict):
+        for k, v in raw_tool_usage.items():
+            try:
+                tool_usage[k] = int(v)
+            except (TypeError, ValueError):
+                continue
     return {
         "username": item.get("username"),
         "name": item.get("name", ""),
@@ -381,6 +396,7 @@ def public_account(item: dict) -> dict:
         "tools": item.get("tools", []),
         "quota": int(item.get("quota") or 0),
         "usageThisMonth": int(item.get(usage_attr(month)) or 0),
+        "toolUsage": tool_usage,
         "month": month,
         "active": bool(item.get("active", True)),
         "createdBy": item.get("createdBy", ""),
@@ -510,8 +526,59 @@ def do_record_usage(body: dict) -> dict:
     except ClientError:
         return _resp(500, {"success": False, "message": "Server error."})
 
+    # Best-effort per-tool breakdown. Kept separate from the quota increment above
+    # so a hiccup here can never miscount the quota (which is the number that gates
+    # the run). The monthly map tu_YYYY-MM holds {toolId: count}.
+    tool = (body.get("tool") or "").strip()[:64]
+    if tool:
+        _bump_tool_usage(username, month, tool)
+
     return _resp(200, {"success": True, "allowed": True, "month": month, "used": used,
                        "limit": quota, "remaining": (max(0, quota - used) if quota > 0 else -1)})
+
+
+def _bump_tool_usage(username: str, month: str, tool: str) -> None:
+    """Increment one tool's counter inside the monthly map, best-effort.
+
+    A nested increment fails if the map attribute doesn't exist yet (first tool run
+    of the month for this account), so fall back to seeding the map with this tool.
+    Any failure is swallowed: the quota total is already counted and correct, and a
+    lost breakdown entry is not worth failing the caller's run over.
+    """
+    tattr = tool_usage_attr(month)
+    try:
+        _table.update_item(
+            Key={"username": username},
+            UpdateExpression="SET #m.#t = if_not_exists(#m.#t, :z) + :one",
+            ExpressionAttributeNames={"#m": tattr, "#t": tool},
+            ExpressionAttributeValues={":z": 0, ":one": 1},
+        )
+        return
+    except ClientError:
+        pass
+    # Map (or its parent path) not there yet — create it seeded with this tool. The
+    # conditional guards a race where a concurrent call created it first.
+    try:
+        _table.update_item(
+            Key={"username": username},
+            UpdateExpression="SET #m = :seed",
+            ExpressionAttributeNames={"#m": tattr},
+            ExpressionAttributeValues={":seed": {tool: 1}},
+            ConditionExpression="attribute_not_exists(#m)",
+        )
+        return
+    except ClientError:
+        pass
+    # Lost the seed race: the map now exists, so the plain nested increment works.
+    try:
+        _table.update_item(
+            Key={"username": username},
+            UpdateExpression="SET #m.#t = if_not_exists(#m.#t, :z) + :one",
+            ExpressionAttributeNames={"#m": tattr, "#t": tool},
+            ExpressionAttributeValues={":z": 0, ":one": 1},
+        )
+    except ClientError:
+        pass
 
 
 def do_admin_session(body: dict) -> dict:
