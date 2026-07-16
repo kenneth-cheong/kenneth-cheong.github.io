@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Zap, TrendingUp, Trophy, Activity as ActivityIcon } from 'lucide-react';
+import { Zap, TrendingUp, Trophy, Activity as ActivityIcon, ArrowRight } from 'lucide-react';
 import { PLANS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
@@ -96,6 +96,7 @@ export default function Cockpit({ googleConnected }) {
           icon={<TrendingUp size={15} aria-hidden />}
           value={rank ? rank.avg.toFixed(1) : '—'}
           sub={rank ? `${rank.total} tracked keyword${rank.total === 1 ? '' : 's'}` : 'No keywords tracked yet'}
+          cta={rank ? null : 'Track a keyword'}
           to="/tracking"
         />
         <Stat
@@ -103,6 +104,7 @@ export default function Cockpit({ googleConnected }) {
           icon={<Trophy size={15} aria-hidden />}
           value={rank ? String(rank.page1) : '—'}
           sub={rank ? `of ${rank.total} tracked` : 'Track keywords to see this'}
+          cta={rank ? null : 'Track a keyword'}
           to="/tracking"
         />
         <Stat
@@ -110,7 +112,8 @@ export default function Cockpit({ googleConnected }) {
           icon={<ActivityIcon size={15} aria-hidden />}
           value={runs === null ? '—' : String(runsThisWeek)}
           sub={streak > 0 ? `${streak}-day streak · last 7 days` : 'Last 7 days'}
-          to="/history"
+          cta={runs && runsThisWeek === 0 ? 'Run your first tool' : null}
+          to={runs && runsThisWeek === 0 ? '/tool/keyword-analysis' : '/history'}
         />
       </div>
 
@@ -176,7 +179,7 @@ export default function Cockpit({ googleConnected }) {
   );
 }
 
-function Stat({ label, icon, value, sub, to }) {
+function Stat({ label, icon, value, sub, cta, to }) {
   return (
     <Link to={to} className="card card-hover group flex flex-col gap-2.5 p-[18px]">
       <div className="flex items-center justify-between">
@@ -186,7 +189,14 @@ function Stat({ label, icon, value, sub, to }) {
         </span>
       </div>
       <div className="text-3xl font-extrabold leading-none tracking-tight tabular-nums text-heading">{value}</div>
-      <div className="text-[11px] font-medium text-muted">{sub}</div>
+      {cta ? (
+        // Empty state → an explicit call to action rather than a dead "—".
+        <span className="inline-flex items-center gap-1 text-[11.5px] font-bold text-brand-600 dark:text-brand-400">
+          {cta} <ArrowRight size={13} className="transition group-hover:translate-x-0.5" aria-hidden />
+        </span>
+      ) : (
+        <div className="text-[11px] font-medium text-muted">{sub}</div>
+      )}
     </Link>
   );
 }

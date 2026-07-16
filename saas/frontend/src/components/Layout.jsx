@@ -23,7 +23,8 @@ import { identify as identifyRecording } from '../lib/analytics.js';
 import { useMediaQuery, needsWelcome, hasAcceptedTerms, hasAcceptedNda } from '../lib/ui.js';
 import { PLANS } from '@shared/catalog.mjs';
 import { startPlatformTour, hasSeen, markSeen } from '../lib/tours.js';
-import { Menu, HelpCircle, ChevronDown, ChevronLeft } from 'lucide-react';
+import { Menu, HelpCircle, ChevronDown, ChevronLeft, Search } from 'lucide-react';
+import CommandPalette from './CommandPalette.jsx';
 
 // Account/meta links live in the right-side account dropdown. The primary
 // workflow nav moved to the fixed rail — see Sidebar.jsx for that list.
@@ -188,6 +189,26 @@ export default function Layout({ children }) {
                 )}
               </div>
 
+              {/* ⌘K search — opens the command palette (also bound globally). */}
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('dm:open-command'))}
+                className="hidden items-center gap-2 rounded-lg border border-line bg-surface py-1.5 pl-2.5 pr-2 text-sm text-faint hover:border-brand-300 hover:text-dim dark:hover:border-brand-500/40 lg:flex"
+                title="Search everything (⌘K)"
+                aria-label="Open command palette"
+              >
+                <Search size={15} aria-hidden />
+                <span className="text-[13px]">Search</span>
+                <kbd className="rounded border border-line px-1 py-0.5 text-[10px] font-semibold">⌘K</kbd>
+              </button>
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('dm:open-command'))}
+                className="grid h-9 w-9 place-items-center rounded-lg hover:bg-sunken lg:hidden"
+                title="Search (⌘K)"
+                aria-label="Open command palette"
+              >
+                <Search size={18} className="text-dim" aria-hidden />
+              </button>
+
               <ThemeToggle className="hidden sm:grid" tourId="theme" />
 
               {/* Account dropdown (desktop) — holds Account/Usage/Pricing/Support/Admin + Sign out */}
@@ -281,6 +302,9 @@ export default function Layout({ children }) {
       {/* Floating launcher — desktop only, matching the assistant's own rule
           (on mobile the panel is a full-screen sheet). */}
       {wide && <MontyLauncher open={chatOpen} onOpen={() => setChatOpen(true)} onClose={() => setChatOpen(false)} />}
+
+      {/* ⌘K command palette — jump to any tool, page or project. */}
+      <CommandPalette />
 
       {/* One instance serves every tool tile, via the dm:open-tool event. */}
       <ToolRunModal />

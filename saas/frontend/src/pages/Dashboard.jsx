@@ -10,6 +10,7 @@ import ProfilePrompt from '../components/ProfilePrompt.jsx';
 import GoalPlanner from '../components/GoalPlanner.jsx';
 import ExplorerCard from '../components/ExplorerCard.jsx';
 import Cockpit from '../components/Cockpit.jsx';
+import DailyFocus from '../components/DailyFocus.jsx';
 import WelcomeBanner from '../components/WelcomeBanner.jsx';
 import PostUsageSurvey from '../components/PostUsageSurvey.jsx';
 import ExitMicroSurvey from '../components/ExitMicroSurvey.jsx';
@@ -106,6 +107,10 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold">Welcome back, {user.name?.split(' ')[0] || 'there'}</h1>
         <p className="mt-1 text-dim">Here's how your sites are doing today.</p>
       </div>
+
+      {/* One clear next action, chosen from the user's real state — the daily
+          return hook. Self-hides once dismissed for the day. */}
+      <DailyFocus googleConnected={googleConnected} />
 
       {/* Cockpit — the approved design's stat row, activity chart and credit
           gauge. Real account data only; see Cockpit.jsx. */}
