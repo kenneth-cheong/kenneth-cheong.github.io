@@ -5,7 +5,7 @@ import {
   Check, ArrowRight, ArrowUp, Lock, Wand2, Plug, RotateCcw, PartyPopper,
 } from 'lucide-react';
 import {
-  GOALS, INTAKE, SIMPLE_NAMES, PLANS, CREDIT_COSTS, buildPathway, toolById,
+  GOALS, INTAKE, SIMPLE_NAMES, PLANS, buildPathway, toolById,
 } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePlan } from '../context/PlanContext.jsx';
@@ -15,14 +15,9 @@ import { enrichPathway, stepTarget, stepLabel } from '../lib/planner.js';
 
 const GOAL_ICON = { TrendingUp, Stethoscope, PenLine, LineChart, Sparkles, Swords, BarChart3 };
 
-const costLabel = (toolId) => {
-  const c = CREDIT_COSTS[toolById(toolId)?.cost] ?? 0;
-  return c === 0 ? 'Free' : `${c} credit${c > 1 ? 's' : ''}`;
-};
-
 export default function GoalPlanner({ initialGoal }) {
   const { user, setCredits, setOnboarding } = useAuth();
-  const { plan, hasPlan, setPlan, clearPlan, isStepDone, progress } = usePlan();
+  const { plan, hasPlan, setPlan, clearPlan, progress } = usePlan();
   const navigate = useNavigate();
 
   const [editing, setEditing] = useState(false);
@@ -180,7 +175,7 @@ export default function GoalPlanner({ initialGoal }) {
 
   // ── Plan ────────────────────────────────────────────────────────────────────
   const canPersonalise = (plan.freeText || '').trim().length > 0 && !plan.aiRefined;
-  const { done, total, pct, complete, next } = progress;
+  const { complete } = progress;
   return (
     <section className="mt-8" data-tour="pathway">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -207,54 +202,20 @@ export default function GoalPlanner({ initialGoal }) {
         </div>
       </div>
 
-      {/* Progress — the north-star bar */}
-      <div className="mt-4 rounded-xl border border-line bg-surface p-4">
-        {complete ? (
+      {/* The progress bar and the ordered step list deliberately DON'T live here:
+          the plan strip under the top nav (PlanBreadcrumb) carries both on every
+          page, so repeating them on the dashboard was pure duplication. The
+          completion state stays — the strip hides itself once the plan is done,
+          and this is the only place a new goal can be set from. */}
+      {complete && (
+        <div className="mt-4 rounded-xl border border-line bg-surface p-4">
           <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
             <PartyPopper size={18} aria-hidden />
             <span className="font-semibold">Plan complete — nice work! </span>
             <button onClick={reset} className="text-sm font-semibold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Set a new goal →</button>
           </div>
-        ) : (
-          <>
-            <div className="flex items-center justify-between text-sm">
-              <span className="font-semibold text-body">{done} of {total} done</span>
-              {next && <span className="truncate text-muted">Up next: <span className="font-medium text-body">{stepLabel(next)}</span></span>}
-            </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-sunken">
-              <div className="h-full rounded-full bg-brand-600 transition-[width] duration-500" style={{ width: `${pct}%` }} />
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Ordered steps */}
-      <ol className="mt-4 space-y-3">
-        {plan.steps.map((s, i) => {
-          const isDone = isStepDone(s);
-          return (
-            <li key={s.toolId} className={`card flex items-center gap-4 p-4 ${isDone ? 'border-green-200 dark:border-green-500/30 bg-green-50/40 dark:bg-green-500/10' : ''}`}>
-              <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-sm font-bold text-white ${isDone ? 'bg-green-500' : 'bg-brand-600'}`}>
-                {isDone ? <Check size={15} aria-hidden /> : i + 1}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={`font-semibold ${isDone ? 'text-muted' : 'text-heading'}`}>{stepLabel(s)}</span>
-                  {s.quickWin && !isDone && <span className="rounded-full bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">Start here</span>}
-                  <span className="rounded-full bg-sunken px-2 py-0.5 text-[11px] font-semibold text-muted">{costLabel(s.toolId)}</span>
-                </div>
-                <p className="mt-0.5 text-sm text-muted">{s.why}</p>
-              </div>
-              <button
-                onClick={() => go(s)}
-                className={`shrink-0 rounded-lg px-3 py-1.5 text-sm font-semibold ${isDone ? 'text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-500/10' : 'bg-brand-600 text-white hover:bg-brand-700'}`}
-              >
-                {isDone ? 'Again' : 'Open'} <ArrowRight size={14} className="inline" aria-hidden />
-              </button>
-            </li>
-          );
-        })}
-      </ol>
+        </div>
+      )}
 
       {/* Tier-locked but relevant */}
       {plan.locked.length > 0 && (
