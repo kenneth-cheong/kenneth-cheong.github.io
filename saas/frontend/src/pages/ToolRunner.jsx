@@ -976,14 +976,17 @@ function MultiSelect({ field, options, value, onChange, values }) {
   const compat = field?.compatibility === 'ga4-metrics';
 
   // Refetch the compatible set whenever the breakdown dimension changes.
+  // Aborts on unmount/dimension-change so closing the tool cancels the in-flight
+  // request rather than letting it complete (and its failure surface) after the
+  // component is gone.
   useEffect(() => {
     if (!compat) return;
-    let cancelled = false;
+    const ctrl = new AbortController();
     setAllowed(null);
-    api.ga4Compatibility(dim)
-      .then((d) => { if (!cancelled) setAllowed(Array.isArray(d.metrics) ? d.metrics.map((m) => m.toLowerCase()) : null); })
-      .catch(() => { if (!cancelled) setAllowed(null); });
-    return () => { cancelled = true; };
+    api.ga4Compatibility(dim, ctrl.signal)
+      .then((d) => setAllowed(Array.isArray(d.metrics) ? d.metrics.map((m) => m.toLowerCase()) : null))
+      .catch(() => { if (!ctrl.signal.aborted) setAllowed(null); });
+    return () => ctrl.abort();
   }, [compat, dim]);
 
   const isAllowed = (o) => !allowed || allowed.includes(o.toLowerCase());

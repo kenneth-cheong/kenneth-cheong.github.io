@@ -51,8 +51,10 @@ async function tryRefresh() {
 
 // Notify the diagnostics collector (lib/diagnostics.js listens) about a failed
 // request so the fault reporter can show "which functions weren't run". Best-effort.
-function reportApiError(method, path, status, message) {
-  try { window.dispatchEvent(new CustomEvent('dm:api-error', { detail: { method, path, status, message } })); } catch { /* non-browser */ }
+// `background:true` marks a probe the user didn't initiate and that fails softly
+// (has its own fallback) — still logged, but it must not auto-open the reporter.
+function reportApiError(method, path, status, message, background) {
+  try { window.dispatchEvent(new CustomEvent('dm:api-error', { detail: { method, path, status, message, background } })); } catch { /* non-browser */ }
 }
 
 // Same idea for successes — lets a ticket reviewer tell "this one endpoint is
@@ -61,7 +63,7 @@ function reportApiSuccess(method, path) {
   try { window.dispatchEvent(new CustomEvent('dm:api-success', { detail: { method, path } })); } catch { /* non-browser */ }
 }
 
-async function call(path, { method = 'GET', body, auth = true, base, _retried = false } = {}) {
+async function call(path, { method = 'GET', body, auth = true, base, signal, background = false, _retried = false } = {}) {
   let res;
   try {
     res = await fetch((base || BASE) + path, {
@@ -71,24 +73,29 @@ async function call(path, { method = 'GET', body, auth = true, base, _retried = 
         ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
+      signal,
     });
   } catch (err) {
+    // A caller that aborted this request (e.g. a component unmounting) isn't a
+    // real failure — don't report it, or an orphaned in-flight fetch pollutes
+    // diagnostics and can trip the fault reporter after the view is gone.
+    if (err?.name === 'AbortError') throw err;
     // Network-level failure (offline, DNS, CORS) — no response at all.
-    reportApiError(method, path, 0, err?.message || 'Network request failed');
+    reportApiError(method, path, 0, err?.message || 'Network request failed', background);
     throw err;
   }
   // Token expired/denied → refresh once and retry before surfacing the error.
   if ((res.status === 401 || res.status === 403) && auth && !_retried && (await tryRefresh())) {
-    return call(path, { method, body, auth, base, _retried: true });
+    return call(path, { method, body, auth, base, signal, background, _retried: true });
   }
   const payload = await res.json().catch(() => ({}));
   if (res.status === 429) {
     const secs = payload?.retryAfter || Number(res.headers.get('Retry-After')) || 60;
-    reportApiError(method, path, 429, 'Rate limited');
+    reportApiError(method, path, 429, 'Rate limited', background);
     throw new ApiError(429, { ...payload, error: `You're going a bit fast — try again in ${secs}s.` });
   }
   if (!res.ok) {
-    reportApiError(method, path, res.status, payload?.error || `HTTP ${res.status}`);
+    reportApiError(method, path, res.status, payload?.error || `HTTP ${res.status}`, background);
     throw new ApiError(res.status, payload);
   }
   reportApiSuccess(method, path);
@@ -275,7 +282,7 @@ export const api = {
   integrations: () => call('/integrations'),
   integrationAccounts: (provider) => call(`/integrations/accounts?provider=${encodeURIComponent(provider)}`),
   // GA4: metrics compatible with the chosen breakdown dimension (null = allow all).
-  ga4Compatibility: (dimension) => call(`/integrations/ga4/compatibility?dimension=${encodeURIComponent(dimension || '')}`),
+  ga4Compatibility: (dimension, signal) => call(`/integrations/ga4/compatibility?dimension=${encodeURIComponent(dimension || '')}`, { signal, background: true }),
   // single:true → auth a different account for just this source (not the whole family).
   authorizeIntegration: (provider, { single = false } = {}) =>
     call(`/integrations/authorize?provider=${encodeURIComponent(provider)}${single ? '&single=1' : ''}`),

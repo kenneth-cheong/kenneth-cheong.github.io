@@ -180,7 +180,9 @@ export function init() {
   window.addEventListener('dm:api-error', (e) => {
     const d = e.detail || {};
     push(state.apiFailures, { method: d.method, path: d.path, status: d.status, message: clamp(d.message, 500), ts: nowIso() });
-    if (isHardStatus(d.status)) emitFault('api');
+    // Background probes the user didn't initiate (and that fail softly) are still
+    // logged above for a report, but must not auto-open the reporter on a blip.
+    if (isHardStatus(d.status) && !d.background) emitFault('api');
   });
 
   // Successful calls too — a small ring so a ticket reviewer can see whether

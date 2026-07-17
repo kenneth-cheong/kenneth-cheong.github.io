@@ -75,9 +75,16 @@ export default {
           '0%': { transform: 'translateX(100%)', opacity: '0' },
           '100%': { transform: 'translateX(0)', opacity: '1' },
         },
+        // Monty's proactive nudge grows out of the bottom-right launcher: a
+        // small rise + scale from the corner (pair with origin-bottom-right).
+        'pop-from-corner': {
+          '0%': { transform: 'translateY(8px) scale(.96)', opacity: '0' },
+          '100%': { transform: 'translateY(0) scale(1)', opacity: '1' },
+        },
       },
       animation: {
         'slide-in-right': 'slide-in-right 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+        'pop-from-corner': 'pop-from-corner 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
       },
     },
   },

@@ -164,7 +164,19 @@ export const handler = async (event) => {
   const rl = await rateLimit('app', c.userId, APP_LIMITS);
   if (!rl.allowed) return tooManyRequests(rl.retryAfter);
 
-  const user = await getUser(c.userId);
+  // getUser hits DynamoDB and runs BEFORE the main try/catch below (which only
+  // wraps routing). A transient DynamoDB error (throttle, timeout, cold-start)
+  // would otherwise escape the handler entirely and return a raw API Gateway 500
+  // with no CORS/JSON body — which the browser surfaces as a status-0 network
+  // fault on whatever call raced it (often the dashboard's auto-fired probes).
+  // Route it through serverError() so the client gets a clean, handleable 500.
+  let user;
+  try {
+    user = await getUser(c.userId);
+  } catch (err) {
+    console.error('app_error getUser', method, path, err);
+    return serverError('Something went wrong. Please try again.');
+  }
   if (!user) return unauthorized('User not found');
   if (accountBlocked(user)) return forbidden({ error: 'account_suspended', status: user.status });
   const body = parseBody(event);
