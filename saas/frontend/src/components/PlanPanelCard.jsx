@@ -5,10 +5,29 @@ import { usePlan } from '../context/PlanContext.jsx';
 import { stepTarget, stepLabel } from '../lib/planner.js';
 
 // Persist the expand/collapse choice so the panel doesn't fight the user. Starts
-// COLLAPSED — the assistant is a chat first, so the docked plan stays a compact
-// one-liner ("Up next: X · Start") until the user chooses to expand it. That
-// keeps Monty present-but-not-buried under the full step list.
+// COLLAPSED — the assistant is a chat first, so the docked plan stays a single
+// "up next" row (a progress ring + the next step, mirroring the header pill)
+// until the user expands it. That keeps Monty present-but-not-buried.
 const LS_KEY = 'dm:planPanelExpanded';
+
+// Compact progress ring with the done/total count in the centre — the same
+// at-a-glance read the header pill uses, so the collapsed row needs neither a
+// separate title nor a progress bar.
+function MiniRing({ done, total }) {
+  const r = 9;
+  const c = 2 * Math.PI * r;
+  const pct = total ? (done / total) * 100 : 0;
+  return (
+    <span className="relative grid h-6 w-6 shrink-0 place-items-center text-brand-600 dark:text-brand-400">
+      <svg width="24" height="24" viewBox="0 0 24 24" className="-rotate-90" aria-hidden>
+        <circle cx="12" cy="12" r={r} fill="none" stroke="currentColor" strokeOpacity="0.2" strokeWidth="2.5" />
+        <circle cx="12" cy="12" r={r} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} style={{ transition: 'stroke-dashoffset 500ms ease' }} />
+      </svg>
+      <span className="absolute text-[9px] font-bold tabular-nums leading-none">{done}/{total}</span>
+    </span>
+  );
+}
 
 // The north-star plan, docked at the top of the Assistant panel. The panel is
 // open most of the time (it auto-opens on load), so this keeps "where am I / what
@@ -49,13 +68,39 @@ export default function PlanPanelCard() {
     );
   }
 
+  // Collapsed (default): a single compact row — ring + "up next" step + Start +
+  // an expand chevron. One line, ~40px, so the docked plan barely touches the
+  // chat below.
+  if (!expanded) {
+    return (
+      <div className="flex items-center gap-2.5 border-b border-brand-100 dark:border-brand-500/25 bg-brand-50 dark:bg-brand-500/10 px-3 py-2">
+        <button onClick={toggle} title="Show all steps" aria-expanded={false} className="shrink-0">
+          <MiniRing done={done} total={total} />
+        </button>
+        <button onClick={() => next && goStep(next)} className="flex min-w-0 flex-1 flex-col items-start leading-tight text-left">
+          <span className="text-[9px] font-bold uppercase tracking-wide text-brand-400">Up next</span>
+          <span className="max-w-full truncate text-xs font-semibold text-strong">{next ? stepLabel(next) : 'Your plan'}</span>
+        </button>
+        {next && (
+          <button onClick={() => goStep(next)} className="shrink-0 rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-brand-700">
+            Start <ArrowRight size={12} className="inline align-[-1px]" aria-hidden />
+          </button>
+        )}
+        <button onClick={toggle} title="Show all steps" className="shrink-0 rounded p-0.5 text-faint hover:text-dim">
+          <ChevronDown size={16} aria-hidden />
+        </button>
+      </div>
+    );
+  }
+
+  // Expanded: the full checklist, with a title row + progress bar.
   return (
     <div className="border-b border-brand-100 dark:border-brand-500/25 bg-brand-50 dark:bg-brand-500/10">
-      <button onClick={toggle} className="flex w-full items-center gap-2 px-4 pb-2 pt-2.5 text-left" aria-expanded={expanded} title={expanded ? 'Collapse plan' : 'Expand plan'}>
+      <button onClick={toggle} className="flex w-full items-center gap-2 px-4 pb-2 pt-2.5 text-left" aria-expanded={expanded} title="Collapse plan">
         <Target size={16} className="shrink-0 text-brand-600 dark:text-brand-400" aria-hidden />
         <span className="text-sm font-semibold text-strong">Your plan</span>
         <span className="ml-auto text-xs font-semibold tabular-nums text-brand-700 dark:text-brand-300">{done} / {total} done</span>
-        {expanded ? <ChevronUp size={16} className="shrink-0 text-faint" aria-hidden /> : <ChevronDown size={16} className="shrink-0 text-faint" aria-hidden />}
+        <ChevronUp size={16} className="shrink-0 text-faint" aria-hidden />
       </button>
 
       <div className="px-4 pb-1">
@@ -64,10 +109,9 @@ export default function PlanPanelCard() {
         </div>
       </div>
 
-      {expanded ? (
-        // Cap the list so a long plan scrolls inside the card instead of eating
-        // the whole panel — the chat thread below keeps its room either way.
-        <ul className="max-h-[34vh] overflow-y-auto px-2 pb-3 pt-1.5">
+      {/* Cap the list so a long plan scrolls inside the card instead of eating
+          the whole panel — the chat thread below keeps its room either way. */}
+      <ul className="max-h-[34vh] overflow-y-auto px-2 pb-3 pt-1.5">
           {plan.steps.map((s, i) => {
             const isDone = isStepDone(s);
             const isNext = !!next && s.toolId === next.toolId && !isDone;
@@ -94,17 +138,7 @@ export default function PlanPanelCard() {
               </li>
             );
           })}
-        </ul>
-      ) : (
-        <div className="flex items-center gap-2 px-4 pb-2.5 pt-1.5">
-          <span className="min-w-0 flex-1 truncate text-xs text-dim">Up next: <span className="font-semibold text-strong">{next ? stepLabel(next) : ''}</span></span>
-          {next && (
-            <button onClick={() => goStep(next)} className="shrink-0 rounded-lg bg-brand-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-brand-700">
-              Start <ArrowRight size={12} className="inline align-[-1px]" aria-hidden />
-            </button>
-          )}
-        </div>
-      )}
+      </ul>
     </div>
   );
 }
