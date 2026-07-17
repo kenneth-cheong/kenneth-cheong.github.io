@@ -587,6 +587,13 @@ Resources:
       FunctionUrlConfig:
         AuthType: NONE
         InvokeMode: BUFFERED
+        # CORS MUST be declared here — it was previously set out-of-band, so a CFN
+        # deploy reset the Function URL to no-CORS and broke every browser tool run
+        # ("Failed to fetch" on the RunUrl). Mirrors ChatStreamFn's Function URL.
+        Cors:
+          AllowOrigins: ['*']
+          AllowMethods: [POST]
+          AllowHeaders: [authorization, content-type]
       Events:
         # This /run path is HARD-CAPPED at 30s: HTTP APIs (ApiGatewayV2) have a
         # maximum integration timeout of 30000ms that AWS does NOT allow raising
