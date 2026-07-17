@@ -397,10 +397,33 @@ export default function ChatDrawer({ open, onClose, ask, say }) {
     return () => clearTimeout(t);
   }, [open]);
 
+  // Anchor the panel's top edge just below the sticky top nav so it uses the
+  // full height of the window beneath the header — the header's height varies
+  // (the plan breadcrumb adds a row off-dashboard), so we measure it live rather
+  // than hard-code an offset. CSS reads the result via --dm-monty-top. Runs once
+  // the panel is actually in the DOM (mounted), and tracks header size changes.
+  const asideRef = useRef(null);
+  useEffect(() => {
+    if (!mounted) return;
+    const header = document.querySelector('header');
+    const el = asideRef.current;
+    if (!header || !el) return;
+    const apply = () => {
+      const bottom = Math.round(header.getBoundingClientRect().bottom);
+      el.style.setProperty('--dm-monty-top', `${Math.max(bottom + 8, 12)}px`);
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(header);
+    window.addEventListener('resize', apply);
+    return () => { ro.disconnect(); window.removeEventListener('resize', apply); };
+  }, [mounted]);
+
   if (!mounted) return null;
 
   return (
     <aside
+      ref={asideRef}
       className={`dm-monty-chat ${shown ? 'dm-monty-chat-open' : ''}`}
       role="dialog"
       aria-label="Monty the assistant"
