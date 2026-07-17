@@ -629,7 +629,10 @@ def _ads_auth_info():
     return {"authorized": bool(accounts), "accounts": accounts}
 
 def ads_config_get(body):
-    return {"statusCode": 200, "body": json.dumps({"config": _ads_get_config(), "auth": _ads_auth_info()})}
+    # metaAuth rides along so the (now cross-platform) tool knows in one round-trip
+    # whether a Meta System-User token is stored, alongside the Google offline auth.
+    return {"statusCode": 200, "body": json.dumps(
+        {"config": _ads_get_config(), "auth": _ads_auth_info(), "metaAuth": _meta_auth_info()})}
 
 def ads_config_save(body):
     cfg = body.get('config')
@@ -1286,6 +1289,603 @@ def ads_acct_budget_get(body):
     cfg = _ads_get_config()
     return {"statusCode": 200, "body": json.dumps(
         {"rows": rows, "config": cfg.get('acctBudget') or {}, "auth": _ads_auth_info()})}
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Meta (Facebook / Instagram) Ads — the cross-platform half of the monitor.
+#
+# Google's "account budget" (a first-class object with an end date + spending
+# limit that stops ALL delivery when either is hit) has no single Meta analog.
+# The Meta things that stop delivery across a whole ad account are:
+#   • account_status != ACTIVE — DISABLED / UNSETTLED (unpaid) / IN_GRACE_PERIOD
+#     / PENDING_RISK_REVIEW / CLOSED. Billing or policy halted the account.
+#   • spend_cap reached — amount_spent >= spend_cap is the account spending
+#     limit; Meta stops serving the whole account when it is hit (the closest
+#     analog to Google's budget exhaustion). spend_cap == 0 means "no cap".
+#   • (opt-in) campaign / ad-set LIFETIME budgets whose end_time is near or whose
+#     budget_remaining is ~0 — the closest thing to Google's end date, but
+#     per-entity not per-account, so it is behind a config toggle (lifetimeBudgets).
+#
+# Results are emitted in the SAME state vocabulary as the Google sweep
+# (_AB_SEVERITY: EXPIRED / EXHAUSTED / LIMIT_NEAR / EXPIRING_SOON / UNKNOWN /
+# ERROR / OK), so the merged UI table and the Chat-alert plumbing treat both
+# platforms uniformly. Every row carries platform:"meta" to disambiguate.
+#
+# Auth mirrors Google's stored offline token: a non-expiring Business System-User
+# token (ads_read + business_management) is entered once via the tool and stored
+# server-side in Mongo (db.meta_ads_auth), so the scheduled sweep runs unattended.
+# ══════════════════════════════════════════════════════════════════════
+
+META_GRAPH_URL = "https://graph.facebook.com/v23.0"
+
+# account_status → (label, mapped shared-state). Non-ACTIVE = delivery stopped
+# (EXPIRED) or at imminent risk (a warn state). Kept explicit so an unknown code
+# surfaces as UNKNOWN rather than being silently treated as healthy.
+_META_ACCT_STATUS = {
+    1:   ("ACTIVE", None),
+    2:   ("DISABLED", "EXPIRED"),
+    3:   ("UNSETTLED", "EXPIRED"),          # unpaid balance — delivery stops
+    7:   ("PENDING_RISK_REVIEW", "EXPIRING_SOON"),
+    8:   ("PENDING_SETTLEMENT", "EXPIRING_SOON"),
+    9:   ("IN_GRACE_PERIOD", "LIMIT_NEAR"),  # will disable if it stays unpaid
+    100: ("PENDING_CLOSURE", "EXPIRED"),
+    101: ("CLOSED", "EXPIRED"),
+    201: ("ANY_ACTIVE", None),
+    202: ("ANY_CLOSED", "EXPIRED"),
+}
+# disable_reason codes (only meaningful when the account is disabled).
+_META_DISABLE_REASON = {
+    0: "", 1: "ads_integrity_policy", 2: "ads_ip_review", 3: "risk_payment",
+    4: "gray_account_shut_down", 5: "ad_account_closed", 6: "business_integrity_policy",
+    7: "permanent_close", 8: "unused_reseller_account", 9: "unused_account",
+}
+
+
+def _meta_get(path, params, token):
+    """(json, error) from a Graph API GET. Never raises — the sweep must classify
+    an account as ERROR rather than abort the whole run on one bad account."""
+    p = dict(params or {})
+    p["access_token"] = token
+    try:
+        r = requests.get(META_GRAPH_URL + path, params=p, timeout=30)
+        d = r.json()
+    except Exception as e:
+        return None, str(e)[:200]
+    if isinstance(d, dict) and d.get("error"):
+        err = d["error"] or {}
+        msg = err.get("message", "Meta API error")
+        # Surface the Data-Use-Checkup lockout (code 200, subcode 2069032) as its
+        # own signal — it disables ALL Graph access for the app and otherwise reads
+        # as a generic permission error.
+        if err.get("code") == 200 and "checkup" in str(msg).lower():
+            msg = "API access disrupted — the app's Data Use Checkup is past due (admin must complete it)."
+        return None, msg
+    return d, None
+
+
+def _meta_auth_doc():
+    db = get_db()
+    return db.meta_ads_auth.find_one({"_id": "singleton"}) if db is not None else None
+
+
+def _meta_token():
+    return ((_meta_auth_doc() or {}).get("token") or "").strip()
+
+
+def _meta_auth_info():
+    doc = _meta_auth_doc() or {}
+    return {"connected": bool((doc.get("token") or "").strip()),
+            "name": doc.get("name", ""), "app": doc.get("app", ""),
+            "scopes": doc.get("scopes", []),
+            "authorized_by": doc.get("authorized_by", ""),
+            "authorized_at": doc.get("authorized_at", "")}
+
+
+def meta_auth_status(body):
+    return {"statusCode": 200, "body": json.dumps(_meta_auth_info())}
+
+
+def meta_auth_revoke(body):
+    db = get_db()
+    if db is not None:
+        db.meta_ads_auth.delete_one({"_id": "singleton"})
+    return {"statusCode": 200, "body": json.dumps({"ok": True})}
+
+
+def meta_auth_save(body):
+    """Store a Business System-User token team-wide after verifying it. Best-effort
+    capture of the token's identity/app/scopes via /me + /debug_token so the tool can
+    show what is connected without ever echoing the secret back."""
+    token = (body.get('token') or '').strip()
+    if not token:
+        return {"statusCode": 400, "body": json.dumps({"error": "missing token"})}
+    me, err = _meta_get("/me", {"fields": "id,name"}, token)
+    if err:
+        return {"statusCode": 400, "body": json.dumps({"error": f"Token rejected: {err}"})}
+    scopes, app = [], ""
+    # debug_token normally wants an app token; a system-user token often self-inspects.
+    # Failure is non-fatal — we still store a token that /me accepted.
+    dbg, derr = _meta_get("/debug_token", {"input_token": token}, token)
+    if not derr and isinstance(dbg, dict):
+        data = dbg.get("data") or {}
+        scopes = data.get("scopes") or []
+        app = data.get("application") or ""
+    db = get_db()
+    if db is not None:
+        db.meta_ads_auth.update_one(
+            {"_id": "singleton"},
+            {"$set": {"token": token, "name": me.get("name", ""), "app": app,
+                      "scopes": scopes, "authorized_by": body.get('userEmail', ''),
+                      "authorized_at": datetime.now(timezone.utc).isoformat()}},
+            upsert=True)
+    return {"statusCode": 200, "body": json.dumps(
+        {"ok": True, "name": me.get("name", ""), "app": app, "scopes": scopes})}
+
+
+def _meta_money(v):
+    """Meta returns amount_spent / spend_cap / *_budget as an integer string in the
+    account currency's MINOR unit (cents). None on anything unparseable."""
+    try:
+        return round(int(v) / 100.0, 2)
+    except (TypeError, ValueError):
+        return None
+
+
+def _meta_list_accounts(token, fields):
+    """(accounts, error) — every ad account the token can see, cursor-paged. A
+    System-User token returns exactly the accounts assigned to it in Business Mgr."""
+    accts, after, guard = [], None, 0
+    while guard < 40:
+        params = {"fields": fields, "limit": 200}
+        if after:
+            params["after"] = after
+        d, err = _meta_get("/me/adaccounts", params, token)
+        if err:
+            return None, err
+        accts.extend(d.get("data") or [])
+        paging = d.get("paging") or {}
+        after = ((paging.get("cursors") or {}).get("after"))
+        if not paging.get("next") or not after:
+            break
+        guard += 1
+    return accts, None
+
+
+def meta_list_ad_accounts(body):
+    """Enumerate accessible Meta ad accounts (for the Coverage tab's name-matching)."""
+    token = (body.get('access_token') or '').strip() or _meta_token()
+    if not token:
+        return {"statusCode": 200, "body": json.dumps(
+            {"accounts": [], "skipped": "no Meta token stored"})}
+    accts, err = _meta_list_accounts(token, "id,name,account_status,currency,timezone_name")
+    if err:
+        return {"statusCode": 200, "body": json.dumps({"error": err, "accounts": []})}
+    out = [{"id": a.get("id"), "name": a.get("name") or "",
+            "currency": a.get("currency") or "",
+            "status": _ab_int(a.get("account_status")),
+            "timeZone": a.get("timezone_name") or ""} for a in accts]
+    return {"statusCode": 200, "body": json.dumps({"accounts": out, "count": len(out)})}
+
+
+def _meta_parse_iso(s):
+    """Parse a Meta ISO8601 timestamp (e.g. 2024-12-31T16:00:00-0800) to an aware
+    datetime, or None. Meta always includes the offset, so this stays tz-correct
+    without a tz database — unlike the Google side's account-local wall clock."""
+    if not s:
+        return None
+    txt = str(s).strip()
+    for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+        try:
+            dt = datetime.strptime(txt, fmt)
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    return None
+
+
+def _meta_scan_lifetime_budgets(aid, token, warn_days):
+    """Active campaigns + ad sets carrying a LIFETIME budget, with days-to-end and
+    remaining headroom. Bounded to two calls per account (campaigns, adsets), only
+    when the lifetimeBudgets toggle is on. Returns (entities, worst_flag)."""
+    now = datetime.now(timezone.utc)
+    max_warn = max(warn_days) if warn_days else 7
+    ents, worst = [], None
+    for level, path in (("campaign", f"/{aid}/campaigns"), ("adset", f"/{aid}/adsets")):
+        d, err = _meta_get(path, {
+            "fields": "name,effective_status,lifetime_budget,budget_remaining,end_time,stop_time",
+            "effective_status": json.dumps(["ACTIVE"]), "limit": 200}, token)
+        if err or not isinstance(d, dict):
+            continue
+        for e in (d.get("data") or []):
+            lb = _ab_int(e.get("lifetime_budget"))
+            if not lb:
+                continue  # daily-budget or CBO-parent entity — no lifetime end to watch
+            end_dt = _meta_parse_iso(e.get("end_time") or e.get("stop_time"))
+            rem = _meta_money(e.get("budget_remaining"))
+            days_left = (end_dt - now).days if end_dt else None
+            flag = None
+            if rem is not None and rem <= 0:
+                flag = "EXHAUSTED"
+            elif days_left is not None and days_left < 0:
+                flag = "EXPIRED"
+            elif days_left is not None and days_left <= max_warn:
+                flag = "EXPIRING_SOON"
+            if flag and (worst is None or _AB_SEVERITY.get(flag, 0) > _AB_SEVERITY.get(worst, 0)):
+                worst = flag
+            ents.append({"level": level, "name": e.get("name") or "",
+                         "budget": _meta_money(lb), "remaining": rem,
+                         "endsOn": end_dt.strftime("%Y-%m-%d") if end_dt else None,
+                         "daysLeft": days_left, "flag": flag})
+    # Loudest entities first, capped so a huge account cannot bloat the snapshot doc.
+    ents.sort(key=lambda x: (-_AB_SEVERITY.get(x.get("flag") or "OK", 0),
+                             x.get("daysLeft") if x.get("daysLeft") is not None else 9999))
+    return ents[:25], worst
+
+
+def _meta_classify_account(acct, token, warn_days, limit_pcts, scan_lifetime):
+    """Classify one Meta ad account into the shared state vocabulary. Mirrors
+    _ab_check_account's shape (state / flags / limit / served / pct / dormant /
+    deliveryStopped) so merged rendering and alerting are platform-agnostic."""
+    aid = acct.get("id")
+    row = {"customerId": aid, "platform": "meta",
+           "name": acct.get("name") or "",
+           "currency": acct.get("currency") or "",
+           "timeZone": acct.get("timezone_name") or ""}
+    flags = []
+
+    status_code = _ab_int(acct.get("account_status"))
+    label, sev_state = _META_ACCT_STATUS.get(status_code, (f"STATUS_{status_code}", "UNKNOWN"))
+    row["statusCode"] = status_code
+    row["statusLabel"] = label
+    if sev_state:
+        flags.append(sev_state)
+    dr = _ab_int(acct.get("disable_reason"))
+    row["disableReason"] = _META_DISABLE_REASON.get(dr, "") if dr else ""
+
+    # Account spending limit (spend_cap) vs spend-against-cap (amount_spent). cap<=0
+    # (or absent) means no cap — an unbounded wrapper, exactly like Google's INFINITE.
+    cap = _meta_money(acct.get("spend_cap"))
+    spent = _meta_money(acct.get("amount_spent"))
+    has_cap = bool(cap and cap > 0)
+    row["limit"] = cap if has_cap else None
+    row["limitInfinite"] = not has_cap
+    row["served"] = spent
+    pct = None
+    if has_cap and spent is not None:
+        pct = round(spent / cap * 100, 1)
+        if spent >= cap:
+            flags.append("EXHAUSTED")
+        elif limit_pcts and pct >= min(limit_pcts):
+            flags.append("LIMIT_NEAR")
+    row["pct"] = pct
+
+    # Opt-in lifetime-budget scan (per-campaign / per-ad-set end dates).
+    if scan_lifetime:
+        ents, worst = _meta_scan_lifetime_budgets(aid, token, warn_days)
+        row["lifetimeBudgets"] = ents
+        soonest = min([e["daysLeft"] for e in ents
+                       if e.get("daysLeft") is not None], default=None)
+        row["lifetimeDaysLeft"] = soonest
+        if worst:
+            flags.append(worst)
+
+    # Recent spend for the dormant gate. Meta's amount_spent is lifetime-against-cap,
+    # not windowed, so pull a 30-day insights row (spend only). No rows = spent nothing
+    # (a real 0.0), matching the Google side; only an API error leaves these None.
+    cost30 = None
+    ins, ierr = _meta_get(f"/{aid}/insights",
+                          {"fields": "spend", "date_preset": "last_30d"}, token)
+    if not ierr and isinstance(ins, dict):
+        cost30 = 0.0
+        for r in (ins.get("data") or []):
+            try:
+                cost30 += float(r.get("spend") or 0)
+            except (TypeError, ValueError):
+                pass
+    row["cost30d"] = cost30
+
+    row["state"] = max(flags, key=lambda f: _AB_SEVERITY.get(f, 0)) if flags else "OK"
+    row["flags"] = flags
+    # deliveryStopped: account is halted/exhausted AND had spend in the window (so it
+    # was a going concern), mirroring the Google gate's intent.
+    row["deliveryStopped"] = bool(
+        row["state"] in ("EXPIRED", "EXHAUSTED") and (cost30 or 0) > 0)
+    # Dormant = no spend in 30d and not freshly halted. Fully visible in the UI, never
+    # paged. cost30 None means the insights call ERRORED, so it must not suppress.
+    row["dormant"] = bool(cost30 is not None and cost30 <= 0
+                          and row["state"] not in ("EXPIRED", "EXHAUSTED"))
+    return row
+
+
+def _meta_alert_line(r, warn_days, limit_pcts):
+    """(stage, text) for a Meta account that warrants a Chat alert, or (None, None).
+    Same contract as _ab_alert_line so the shared alert loop can call either."""
+    state = r.get("state")
+    if state in ("OK", "ERROR", "UNKNOWN", None):
+        return None, None
+    if r.get("dormant"):
+        return None, None
+    label = r.get("name") or r.get("customerId")
+    aid, cur = r.get("customerId"), r.get("currency") or ""
+    dark = " — *delivery has stopped*" if r.get("deliveryStopped") else ""
+
+    if state == "EXPIRED":
+        why = r.get("statusLabel") or "not active"
+        reason = f" ({r['disableReason']})" if r.get("disableReason") else ""
+        return "EXPIRED", (f"🛑 *{label}* ({aid}): Meta ad account is {why}{reason} — "
+                           f"delivery is stopped across the account{dark}.")
+    if state == "EXHAUSTED":
+        return "EXHAUSTED", (f"🛑 *{label}* ({aid}): Meta account spending limit fully "
+                             f"served ({cur} {r.get('served'):,.0f} of {cur} {r.get('limit'):,.0f}) — "
+                             f"delivery stops account-wide{dark}.")
+    if state == "LIMIT_NEAR":
+        pct = r.get('pct')
+        crossed = max([p for p in (limit_pcts or []) if pct is not None and pct >= p], default=None)
+        if crossed is None:
+            # Reached LIMIT_NEAR via IN_GRACE_PERIOD rather than the spend cap.
+            return "GRACE", (f"⚠️ *{label}* ({aid}): Meta ad account is in a grace period "
+                             f"(unpaid balance) — it will be disabled if left unsettled.")
+        return f"NEAR{crossed:g}", (
+            f"⚠️ *{label}* ({aid}): Meta account spending limit past {crossed:g}% — "
+            f"at {pct}% ({cur} {r.get('served'):,.0f} of {cur} {r.get('limit'):,.0f}).")
+    if state == "EXPIRING_SOON":
+        d = r.get("lifetimeDaysLeft")
+        if d is None:
+            why = r.get("statusLabel") or "pending review"
+            return "WARN", (f"⚠️ *{label}* ({aid}): Meta ad account status is {why} — "
+                            f"delivery is at risk.")
+        crossed = min([w for w in (warn_days or []) if d is not None and d <= w], default=d)
+        return f"WARN{crossed}", (
+            f"⚠️ *{label}* ({aid}): a lifetime budget ends in {d} day(s) — "
+            f"raise or extend it before delivery stops.")
+    return None, None
+
+
+def meta_acct_budget_check(body, event):
+    """Sweep Meta ad accounts for status / spend-cap / lifetime-budget problems.
+
+    Same safety model as ads_acct_budget_check: notify is INFERRED from the absence
+    of a browser access_token (the token-less path is EventBridge on the stored
+    System-User token, and is the only path that may post to Chat). Pageable for the
+    API Gateway ~29s cap — the browser passes max_accounts + offset and loops; a
+    scheduled invoke passes neither and sweeps everything."""
+    user_token = (body.get('access_token') or '').strip()
+    # The Meta token is server-side, so a browser "Run check now" reads with the stored
+    # token but must stay read-only. read_only:true forces notify off; only the token-less
+    # EventBridge path (no access_token, no read_only) may post to Chat.
+    notify = (not user_token) and (not body.get('read_only'))
+    token = user_token or _meta_token()
+    if not token:
+        return {"statusCode": 200, "body": json.dumps(
+            {"skipped": "no Meta token stored", "rows": [], "done": True})}
+
+    cfg = _ads_get_config()
+    mb_cfg = cfg.get('metaAcctBudget') or {}
+    if mb_cfg.get('enabled') is False:
+        return {"statusCode": 200, "body": json.dumps({"skipped": "metaAcctBudget disabled", "done": True})}
+    warn_days = sorted({int(x) for x in (mb_cfg.get('warnDays') or [7, 3])
+                        if str(x).strip().lstrip('-').isdigit()}) or [3, 7]
+    limit_pcts = []
+    for x in (mb_cfg.get('limitWarnPcts') or [90]):
+        try:
+            f = float(x)
+        except (TypeError, ValueError):
+            continue
+        if 0 < f <= 100:
+            limit_pcts.append(f)
+    limit_pcts = sorted(set(limit_pcts)) or [90.0]
+    scan_lifetime = mb_cfg.get('lifetimeBudgets') is True
+
+    explicit_max = body.get('max_accounts') is not None
+    try:
+        max_accounts = min(max(int(body.get('max_accounts') or 25), 1), 60)
+    except (TypeError, ValueError):
+        max_accounts = 25
+    try:
+        offset = max(int(body.get('offset') or 0), 0)
+    except (TypeError, ValueError):
+        offset = 0
+
+    fields = ("id,name,account_status,currency,timezone_name,"
+              "spend_cap,amount_spent,disable_reason")
+    accounts, err = _meta_list_accounts(token, fields)
+    if err:
+        return {"statusCode": 200, "body": json.dumps(
+            {"error": f"Could not enumerate Meta ad accounts: {err}", "done": True})}
+    total = len(accounts)
+    batch = accounts[offset:offset + max_accounts] if explicit_max else accounts[offset:]
+
+    from concurrent.futures import ThreadPoolExecutor
+    def _one(a):
+        try:
+            return _meta_classify_account(a, token, warn_days, limit_pcts, scan_lifetime)
+        except Exception as e:
+            return {"customerId": a.get("id"), "platform": "meta",
+                    "name": a.get("name") or "", "state": "ERROR", "error": str(e)[:200]}
+    deadline = time.time() + 150
+    rows, skipped = [], 0
+    with ThreadPoolExecutor(max_workers=10) as ex:
+        for i in range(0, len(batch), 30):
+            if time.time() > deadline:
+                skipped = len(batch) - len(rows)
+                print(f"[META_ACCT_BUDGET] 150s budget hit — {skipped} of {len(batch)} "
+                      f"accounts not checked (resume at offset {offset + len(rows)})")
+                break
+            rows.extend(ex.map(_one, batch[i:i + 30]))
+
+    db = get_db()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    if db is not None and rows:
+        db.meta_acct_budget.bulk_write([
+            UpdateOne({"_id": r["customerId"]}, {"$set": dict(r, updated=now_iso)}, upsert=True)
+            for r in rows if r.get("customerId")], ordered=False)
+
+    # Chat alerting is opt-in (default off), on top of notify being token-less-only —
+    # identical guardrails to the Google sweep, reusing the SAME webhook.
+    alerts, posted = [], False
+    if notify and mb_cfg.get('alertsEnabled') is True:
+        webhook = (cfg.get('webhookUrl') or '').strip()
+        for r in rows:
+            stage, text = _meta_alert_line(r, warn_days, limit_pcts)
+            if not stage:
+                continue
+            key = f"meta:{r['customerId']}:{stage}:{r.get('endRepr') or r.get('statusCode') or '-'}"
+            doc = db.meta_acct_budget_alerts.find_one({"_id": r["customerId"]}) if db is not None else None
+            if doc and key.replace('.', '_') in (doc.get("sent") or {}):
+                continue
+            alerts.append(text)
+            if db is not None:
+                db.meta_acct_budget_alerts.update_one(
+                    {"_id": r["customerId"]},
+                    {"$set": {f"sent.{key.replace('.', '_')}": now_iso, "updated": now_iso}},
+                    upsert=True)
+        if alerts and webhook:
+            header = (f"🚨 *Meta ad accounts* — {len(alerts)} account(s) need attention\n"
+                      "_A disabled/unsettled account or a hit spending limit stops ALL delivery._")
+            posted = _post_gchat(webhook, header + "\n" + "\n".join(alerts))
+
+    counts = {}
+    for r in rows:
+        counts[r.get("state") or "?"] = counts.get(r.get("state") or "?", 0) + 1
+    next_offset = offset + len(rows)
+    out = {"rows": rows, "counts": counts, "checked": len(rows), "total": total,
+           "offset": offset, "nextOffset": next_offset, "done": next_offset >= total,
+           "alerts": len(alerts), "posted": posted, "notified": notify,
+           "alertsEnabled": mb_cfg.get('alertsEnabled') is True}
+    if skipped:
+        out["skippedForTime"] = skipped
+    return {"statusCode": 200, "body": json.dumps(out)}
+
+
+def meta_acct_budget_get(body):
+    """Stored Meta snapshot, for rendering the merged Budgets table."""
+    db = get_db()
+    rows = list(db.meta_acct_budget.find({})) if db is not None else []
+    for r in rows:
+        r["customerId"] = r.pop("_id", r.get("customerId"))
+    rows.sort(key=lambda r: (-_AB_SEVERITY.get(r.get("state") or "OK", 0), r.get("name") or ""))
+    cfg = _ads_get_config()
+    return {"statusCode": 200, "body": json.dumps(
+        {"rows": rows, "config": cfg.get('metaAcctBudget') or {}, "metaAuth": _meta_auth_info()})}
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Budget Pacing — actual spend per ad account over a campaign window.
+#
+# Backs the Ads Monitor's "Budget Pacing" tab, which replaces the legacy
+# "Overall Budget Pacing Sheet". The board supplies budget + window + owner;
+# this action supplies the one thing monday cannot know — what was ACTUALLY
+# spent in the campaign's ad account between its live date and today.
+#
+# Grain is per-ACCOUNT on purpose. The legacy sheet paced per campaign by
+# matching free-text campaign names into per-platform RAW DATA tabs with
+# SUMIFS; those formulas hardcode the account name per row and drift (a
+# DDK Capital row summing MoleSkine's Google spend was found live). An ICIR
+# item owns an account's budget for a window, so account-level spend over
+# that window is both simpler and more truthful.
+#
+# Read-only by construction: no writes, no Chat alerts, no snapshot.
+# ══════════════════════════════════════════════════════════════════════
+
+def _pacing_google_spend(cid, since, until, token):
+    """(spend, currency, error) for one Google Ads customer over a date range.
+    No rows is a real answer — the account spent nothing — so it means 0.0, not
+    unknown; only an API error returns an error."""
+    q = ("SELECT metrics.cost_micros, customer.currency_code FROM customer "
+         f"WHERE segments.date BETWEEN '{since}' AND '{until}'")
+    rows, err = _ab_flatten(run_google_ads_report(cid, q, token))
+    if err:
+        return None, "", str(err)[:200]
+    total, cur = 0.0, ""
+    for r in rows:
+        total += (_ab_int((r.get("metrics") or {}).get("costMicros")) or 0) / 1e6
+        cur = cur or ((r.get("customer") or {}).get("currencyCode") or "")
+    return round(total, 2), cur, None
+
+
+def _pacing_meta_spend(aid, since, until, token):
+    """(spend, currency, error) for one Meta ad account over a date range."""
+    acct = str(aid)
+    if not acct.startswith("act_"):
+        acct = "act_" + acct
+    d, err = _meta_get(f"/{acct}/insights",
+                       {"fields": "spend,account_currency",
+                        "time_range": json.dumps({"since": since, "until": until})}, token)
+    if err:
+        return None, "", err
+    total, cur = 0.0, ""
+    for r in ((d or {}).get("data") or []):
+        try:
+            total += float(r.get("spend") or 0)
+        except (TypeError, ValueError):
+            pass
+        cur = cur or (r.get("account_currency") or "")
+    return round(total, 2), cur, None
+
+
+def pacing_spend(body):
+    """Actual spend for each {platform, accountId, since, until} entry.
+
+    The browser passes its Google token (as the budget sweep does) and pages the
+    entry list to stay inside API Gateway's ~29s cap; Meta always uses the stored
+    System-User token. A truncated run REPORTS what it skipped rather than
+    returning a short list that reads as "everything spent nothing"."""
+    entries = body.get('entries')
+    if not isinstance(entries, list) or not entries:
+        return {"statusCode": 400, "body": json.dumps({"error": "entries[] required"})}
+    entries = entries[:120]
+
+    g_token = (body.get('access_token') or '').strip()
+    if not g_token:
+        toks = _ads_all_tokens()
+        g_token = toks[0]["token"] if toks else ""
+    m_token = _meta_token()
+
+    def _one(e):
+        platform = str(e.get('platform') or '').lower()
+        aid = str(e.get('accountId') or '').strip()
+        since, until = e.get('since'), e.get('until')
+        out = {"key": e.get('key'), "platform": platform, "accountId": aid,
+               "since": since, "until": until}
+        if not aid or not since or not until:
+            out["error"] = "missing accountId/since/until"
+            return out
+        try:
+            if platform == 'google':
+                if not g_token:
+                    out["error"] = "no Google authorization"
+                    return out
+                s, c, err = _pacing_google_spend(aid, since, until, g_token)
+            elif platform == 'meta':
+                if not m_token:
+                    out["error"] = "no Meta token stored"
+                    return out
+                s, c, err = _pacing_meta_spend(aid, since, until, m_token)
+            else:
+                out["error"] = f"unsupported platform '{platform}'"
+                return out
+            if err:
+                out["error"] = err
+            else:
+                out["spend"], out["currency"] = s, c
+        except Exception as ex:
+            out["error"] = str(ex)[:200]
+        return out
+
+    from concurrent.futures import ThreadPoolExecutor
+    deadline = time.time() + 20
+    results, skipped = [], 0
+    with ThreadPoolExecutor(max_workers=10) as ex:
+        for i in range(0, len(entries), 20):
+            if time.time() > deadline:
+                skipped = len(entries) - len(results)
+                print(f"[PACING] 20s budget hit — {skipped} of {len(entries)} entries not priced")
+                break
+            results.extend(ex.map(_one, entries[i:i + 20]))
+    out = {"results": results, "checked": len(results), "total": len(entries)}
+    if skipped:
+        out["skippedForTime"] = skipped
+    return {"statusCode": 200, "body": json.dumps(out)}
 
 
 def tiktok_auth(body):
@@ -5836,6 +6436,20 @@ def lambda_handler(event, context):
             result = ads_acct_budget_check(body, event)
         elif action == 'ads_acct_budget_get':
             result = ads_acct_budget_get(body)
+        elif action == 'meta_auth_save':
+            result = meta_auth_save(body)
+        elif action == 'meta_auth_status':
+            result = meta_auth_status(body)
+        elif action == 'meta_auth_revoke':
+            result = meta_auth_revoke(body)
+        elif action == 'meta_list_ad_accounts':
+            result = meta_list_ad_accounts(body)
+        elif action == 'meta_acct_budget_check':
+            result = meta_acct_budget_check(body, event)
+        elif action == 'meta_acct_budget_get':
+            result = meta_acct_budget_get(body)
+        elif action == 'pacing_spend':
+            result = pacing_spend(body)
         elif action == 'linkedin_get_ad_accounts':
             result = linkedin_get_ad_accounts(body)
         elif action == 'tiktok_auth':
