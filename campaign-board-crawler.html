@@ -2189,6 +2189,8 @@
                         </div>
                     </div>
 
+                    <div id="discipline-filter" style="display:flex; gap:6px; margin-bottom:8px; flex-wrap:wrap; align-items:center;"></div>
+
                     <div style="display: flex; gap: 8px; margin-bottom: 8px; align-items: center;">
                         <input type="text" id="filter-text" class="filter-input"
                             style="flex: 1; padding: 6px 10px; font-size: 12px;" placeholder="Search items or boards..."
@@ -2414,7 +2416,7 @@
             allStatusLabels: [],
             sort: { key: 'deadline', dir: 'asc' },
             campaignSort: 'priority_desc',
-            filters: { text: '', people: new Set(), csManagers: new Set(), status: 'all', hiddenCsmStatuses: new Set(['Abandoned', 'Completed', 'Expired', 'Terminated', '[PSG]  Expired']) },
+            filters: { text: '', people: new Set(), csManagers: new Set(), status: 'all', discipline: 'all', hiddenCsmStatuses: new Set(['Abandoned', 'Completed', 'Expired', 'Terminated', '[PSG]  Expired']) },
             selectedItemIds: new Set(),
             chatScopeToSelection: false, // true while "Ask AI about selected" scopes the chat to selectedItemIds
             excludedStatusLabels: new Set([
@@ -3703,6 +3705,34 @@
             pct = Math.max(0, Math.min(100, pct));
             const daysRemaining = Math.round((end - now) / 86400000);
             return { hasDates: true, start, end, pctElapsed: pct, daysRemaining, label: `${dates[0]} → ${dates[1]}` };
+        }
+
+        // ── Discipline dimension (SEO / Performance Marketing / Social / Content) ──
+        // No service-type column exists on the boards, so discipline is inferred from
+        // the folder / board name by keyword, with a manual override persisted per
+        // campaign in localStorage (same-origin bridge, like cbcSeoPacing/cbcEscalations).
+        const CB_DISCIPLINES = {
+            seo:     { label: 'SEO',                   color: '#6366f1', icon: 'fa-magnifying-glass' },
+            perf:    { label: 'Performance Marketing', color: '#f59e0b', icon: 'fa-bullhorn' },
+            social:  { label: 'Social',                color: '#ec4899', icon: 'fa-hashtag' },
+            content: { label: 'Content',               color: '#10b981', icon: 'fa-pen-nib' },
+        };
+        function _cbDisciplineMap() { try { return JSON.parse(localStorage.getItem('cbcDisciplineMap') || '{}') || {}; } catch (_) { return {}; } }
+        function _cbSetDiscipline(campaignId, disc) {
+            const m = _cbDisciplineMap();
+            if (disc && CB_DISCIPLINES[disc]) m[campaignId] = disc; else delete m[campaignId];
+            try { localStorage.setItem('cbcDisciplineMap', JSON.stringify(m)); } catch (_) {}
+        }
+        // Infer discipline for an item/campaign; a saved override always wins.
+        function _cbDiscipline(x) {
+            const id = x && (x.bId || x.id);
+            const over = id != null ? _cbDisciplineMap()[id] : null;
+            if (over && CB_DISCIPLINES[over]) return over;
+            const hay = `${(x && (x.fName || x.folder)) || ''} ${(x && (x.bName || x.name)) || ''}`.toLowerCase();
+            if (/\b(ppc|paid\s*search|google\s*ads|sem|pmax|performance\s*max|paid\s*media|meta\s*ads|display)\b/.test(hay)) return 'perf';
+            if (/\b(social|smm|instagram|facebook|tiktok|linkedin|community)\b/.test(hay)) return 'social';
+            if (/\b(content|copywrit|blog|article|editorial)\b/.test(hay)) return 'content';
+            return 'seo'; // default — SEO is the largest book of work
         }
 
         // Severity-graded health band (green → amber → orange → red) shared by both dashboards.
@@ -5473,6 +5503,7 @@
                 if (state.filters.status !== 'all' && i.status !== state.filters.status) return false;
                 if (state.filters.csManagers.size > 0 && !i.csManagers.some(p => state.filters.csManagers.has(p))) return false;
                 if (state.filters.hiddenCsmStatuses.has(i.masterCsmStatus || '')) return false;
+                if (state.filters.discipline !== 'all' && _cbDiscipline(i) !== state.filters.discipline) return false;
                 return i.name.toLowerCase().includes(queryText) || i.bName.toLowerCase().includes(queryText);
             });
         }
@@ -5487,9 +5518,44 @@
             _filterDebounceTimer = setTimeout(updateFilteredUI, 150);
         }
 
+        // Discipline segmented filter (All · SEO · PM · Social · Content), counts live.
+        function cbDisciplineFilter(disc) {
+            state.filters.discipline = (state.filters.discipline === disc && disc !== 'all') ? 'all' : disc;
+            updateFilteredUI();
+        }
+        function renderDisciplineFilter() {
+            const el = document.getElementById('discipline-filter');
+            if (!el) return;
+            // Count campaigns (distinct boards) per discipline over the non-discipline-filtered set.
+            const base = state.auditedItems.filter(i => {
+                if (state.excludedStatusLabels.has(i.itemStatus)) return false;
+                if (state.filters.hiddenCsmStatuses.has(i.masterCsmStatus || '')) return false;
+                return true;
+            });
+            const seen = {}, counts = { all: new Set() };
+            base.forEach(i => {
+                const d = _cbDiscipline(i);
+                counts.all.add(i.bId);
+                (counts[d] = counts[d] || new Set()).add(i.bId);
+            });
+            const cur = state.filters.discipline || 'all';
+            const pill = (key, label, color) => {
+                const n = key === 'all' ? counts.all.size : (counts[key] ? counts[key].size : 0);
+                const active = cur === key;
+                return `<span onclick="cbDisciplineFilter('${key}')" role="button" tabindex="0"
+                    style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:99px;cursor:pointer;
+                    border:1px solid ${active ? color : 'var(--border)'};background:${active ? color : 'transparent'};color:${active ? '#fff' : 'var(--muted)'};">
+                    ${label}<span style="font-weight:600;opacity:.8;">${n}</span></span>`;
+            };
+            el.innerHTML = `<span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px;">Discipline</span>`
+                + pill('all', 'All', 'var(--primary)')
+                + Object.keys(CB_DISCIPLINES).map(k => pill(k, CB_DISCIPLINES[k].label, CB_DISCIPLINES[k].color)).join('');
+        }
+
         function updateFilteredUI() {
             // Sync the persona mode switcher + sub-tabs
             renderNav();
+            renderDisciplineFilter();
             // Sync stat-card active state
             document.querySelectorAll('.stat-card').forEach(c => {
                 c.classList.toggle('active', c.dataset.status === state.filters.status);
