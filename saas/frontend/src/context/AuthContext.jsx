@@ -66,6 +66,17 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  // api.js raises `dm:session-expired` when a request is rejected by the API's
+  // authorizer and no refresh can rescue it. Dropping the user here swaps the
+  // app for the login screen — without it the UI stays fully rendered while
+  // every request fails, which reads as "the app is broken" rather than
+  // "you're signed out".
+  useEffect(() => {
+    const onExpired = () => setUser(null);
+    window.addEventListener('dm:session-expired', onExpired);
+    return () => window.removeEventListener('dm:session-expired', onExpired);
+  }, []);
+
   // Let any component patch the credit balance after a tool run. Takes the total
   // spendable (`credits`) and optionally the top-up remainder so the monthly vs
   // top-up split stays exact without waiting for the next /me. Mirrors the new

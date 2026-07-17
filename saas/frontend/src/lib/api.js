@@ -7,15 +7,20 @@ const RUN_URL = import.meta.env.VITE_RUN_URL || '';
 const CHAT_STREAM_URL = import.meta.env.VITE_CHAT_STREAM_URL || '';
 export const chatStreamAvailable = !!CHAT_STREAM_URL;
 
-let accessToken = localStorage.getItem('dm_access') || null;
-let refreshToken = localStorage.getItem('dm_refresh') || null;
+// localStorage is the single source of truth for both tokens — they're read on
+// every use rather than cached in a module variable. The app is routinely open
+// in several tabs of one origin, and a cached copy outlives another tab
+// clearing storage: a tab could keep renewing `dm_access` from an in-memory
+// refresh token that storage no longer had, leaving an access token with no
+// refresh token behind it. The account then looked signed in until the access
+// token lapsed (30m), after which every call was denied with no way to recover.
+const getToken = () => localStorage.getItem('dm_access') || null;
+const getRefreshToken = () => localStorage.getItem('dm_refresh') || null;
 export function setToken(t) {
-  accessToken = t;
   if (t) localStorage.setItem('dm_access', t);
   else localStorage.removeItem('dm_access');
 }
 export function setRefreshToken(t) {
-  refreshToken = t;
   if (t) localStorage.setItem('dm_refresh', t);
   else localStorage.removeItem('dm_refresh');
 }
@@ -23,15 +28,37 @@ export function setRefreshToken(t) {
 /** Custom error carrying the backend's structured 402/403 payload. */
 export class ApiError extends Error {
   constructor(status, payload) {
-    super(payload?.error || `HTTP ${status}`);
+    // `message` is API Gateway's own field (our handlers always use `error`), so
+    // falling back to it keeps a gateway-level rejection from surfacing as a
+    // bare, unreadable "HTTP 403".
+    super(payload?.error || payload?.message || `HTTP ${status}`);
     this.status = status;
     this.payload = payload;
   }
 }
 
+// Every 4xx our own handlers emit carries an `error` field; API Gateway's do not
+// (it sends {"message":"Unauthorized"|"Forbidden"}). So a 401/403 with no
+// `error` is the JWT authorizer rejecting the token — a missing or expired
+// session — and never a real authorization verdict like tier_locked or
+// admin_only, which must not sign anyone out.
+const isSessionDenial = (status, payload) =>
+  (status === 401 || status === 403) && !payload?.error;
+
+// A denial we couldn't refresh away means the session is unrecoverable. Drop the
+// dead tokens and tell the app to show the login screen, rather than leaving the
+// UI looking signed in while every request fails.
+function endSession() {
+  setToken(null);
+  setRefreshToken(null);
+  try { window.dispatchEvent(new CustomEvent('dm:session-expired')); } catch { /* non-browser */ }
+  return new ApiError(401, { error: 'Your session expired — please sign in again.' });
+}
+
 // Access tokens are short-lived (30m). When one lapses, transparently mint a
 // new one from the refresh token and retry the request once.
 async function tryRefresh() {
+  const refreshToken = getRefreshToken();
   if (!refreshToken) return false;
   try {
     const res = await fetch(BASE + '/auth/refresh', {
@@ -65,12 +92,13 @@ function reportApiSuccess(method, path) {
 
 async function call(path, { method = 'GET', body, auth = true, base, signal, background = false, _retried = false } = {}) {
   let res;
+  const token = getToken();
   try {
     res = await fetch((base || BASE) + path, {
       method,
       headers: {
         'Content-Type': 'application/json',
-        ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        ...(auth && token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
       signal,
@@ -84,11 +112,17 @@ async function call(path, { method = 'GET', body, auth = true, base, signal, bac
     reportApiError(method, path, 0, err?.message || 'Network request failed', background);
     throw err;
   }
-  // Token expired/denied → refresh once and retry before surfacing the error.
-  if ((res.status === 401 || res.status === 403) && auth && !_retried && (await tryRefresh())) {
-    return call(path, { method, body, auth, base, signal, background, _retried: true });
-  }
   const payload = await res.json().catch(() => ({}));
+  // Token missing/expired → mint a fresh one from the refresh token and replay
+  // once. If that can't be done the session is unrecoverable, so surface it as
+  // an expiry (and send the user to sign in) instead of a raw HTTP error.
+  if (isSessionDenial(res.status, payload) && auth) {
+    if (!_retried && (await tryRefresh())) {
+      return call(path, { method, body, auth, base, signal, background, _retried: true });
+    }
+    reportApiError(method, path, res.status, 'Session expired', background);
+    throw endSession();
+  }
   if (res.status === 429) {
     const secs = payload?.retryAfter || Number(res.headers.get('Retry-After')) || 60;
     reportApiError(method, path, 429, 'Rate limited', background);
@@ -105,14 +139,17 @@ async function call(path, { method = 'GET', body, auth = true, base, signal, bac
 // Authed GET that returns a binary Blob (e.g. a server-rendered PNG). Same
 // token-refresh-and-retry behaviour as call(), but reads res.blob() on success.
 async function callBlob(path, { _retried = false } = {}) {
+  const token = getToken();
   const res = await fetch(BASE + path, {
-    headers: { ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
   });
-  if ((res.status === 401 || res.status === 403) && !_retried && (await tryRefresh())) {
-    return callBlob(path, { _retried: true });
-  }
   if (!res.ok) {
     const payload = await res.json().catch(() => ({}));
+    if (isSessionDenial(res.status, payload)) {
+      if (!_retried && (await tryRefresh())) return callBlob(path, { _retried: true });
+      reportApiError('GET', path, res.status, 'Session expired');
+      throw endSession();
+    }
     reportApiError('GET', path, res.status, payload?.error || `HTTP ${res.status}`);
     throw new ApiError(res.status, payload);
   }
@@ -126,7 +163,7 @@ async function callBlob(path, { _retried = false } = {}) {
 export async function chatStream(messages, conversationId, onDelta, { signal, context } = {}, _retried = false) {
   const res = await fetch(CHAT_STREAM_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+    headers: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}) },
     body: JSON.stringify({ messages, conversationId, context }),
     signal,
   });
