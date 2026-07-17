@@ -1666,6 +1666,156 @@ def _serp_site_mentions(terms, site_expr, location, language, headers, limit=8):
     return out
 
 
+# ── Boolean listening via Google SERP ────────────────────────────────────────
+# Content Analysis can't do boolean (verified above), but Google SERP honours
+# AND/OR/NOT, quoted phrases and parentheses natively — so a client's Brandwatch-
+# style query, e.g.  ("Anderco") AND ("container" OR "storage"),  runs here as a
+# general web search + the enabled site layers, with Haiku labelling sentiment.
+def _serp_web_mentions(query, location, language, headers, limit=15):
+    """One boolean query as a general Google web search → organic mentions
+    (url/domain/title/snippet/date). Best-effort."""
+    out = []
+    if not (query or '').strip():
+        return out
+    try:
+        r = requests.post(f'{DFS_BASE}/serp/google/organic/live/advanced',
+                          headers=headers, timeout=25,
+                          json=[{'keyword': query, 'location_name': location,
+                                 'language_name': language, 'depth': max(10, limit)}])
+        res = (((r.json().get('tasks') or [{}])[0].get('result')) or [{}])[0] or {}
+        for it in (res.get('items') or []):
+            if it.get('type') != 'organic' or not it.get('url'):
+                continue
+            out.append({'url': it.get('url'), 'domain': it.get('domain') or '',
+                        'title': (it.get('title') or '')[:160],
+                        'snippet': (it.get('description') or '')[:240],
+                        'date': it.get('timestamp'), 'page_type': 'web'})
+            if len(out) >= limit:
+                break
+    except Exception:
+        pass
+    return out
+
+
+def _serp_site_mentions_q(query, site_expr, location, language, headers, limit=8):
+    """Like _serp_site_mentions but scopes a raw boolean query (not a term list)
+    to one site group (Reddit / X / forums)."""
+    out = []
+    if not (query or '').strip():
+        return out
+    try:
+        r = requests.post(f'{DFS_BASE}/serp/google/organic/live/advanced',
+                          headers=headers, timeout=25,
+                          json=[{'keyword': f'{site_expr} {query}',
+                                 'location_name': location, 'language_name': language,
+                                 'depth': max(10, limit)}])
+        res = (((r.json().get('tasks') or [{}])[0].get('result')) or [{}])[0] or {}
+        for it in (res.get('items') or []):
+            if it.get('type') != 'organic' or not it.get('url'):
+                continue
+            out.append({'url': it.get('url'),
+                        'title': (it.get('title') or '')[:160],
+                        'snippet': (it.get('description') or '')[:200],
+                        'date': it.get('timestamp')})
+            if len(out) >= limit:
+                break
+    except Exception:
+        pass
+    return out
+
+
+def _classify_sentiment(mentions):
+    """Label each mention positive/negative/neutral toward the brand from its
+    title+snippet, in one batched Haiku call. Mutates `mentions`; best-effort."""
+    api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
+    items = [m for m in mentions if (m.get('title') or m.get('snippet'))][:40]
+    if not api_key or not items:
+        return
+    numbered = '\n'.join(
+        f'{i + 1}. {((m.get("title") or "") + " — " + (m.get("snippet") or "")).strip()[:280]}'
+        for i, m in enumerate(items))
+    prompt = ('Label the sentiment TOWARD the brand for each numbered mention as exactly one of '
+              '"positive", "negative" or "neutral". Return ONLY a JSON array of that many strings, '
+              'in order.\n\n' + numbered)
+    try:
+        r = requests.post('https://api.anthropic.com/v1/messages',
+                          headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01',
+                                   'content-type': 'application/json'}, timeout=40,
+                          json={'model': HAIKU_MODEL, 'max_tokens': 700,
+                                'messages': [{'role': 'user', 'content': prompt}]})
+        txt = ''.join(b.get('text', '') for b in (r.json().get('content') or [])
+                      if b.get('type') == 'text')
+        arr = json.loads(txt[txt.find('['):txt.rfind(']') + 1])
+        for m, s in zip(items, arr):
+            s = str(s).strip().lower()
+            if s in ('positive', 'negative', 'neutral'):
+                m['sentiment'] = s
+    except Exception:
+        pass
+
+
+def _listen_boolean(queries, sources, location, language, headers):
+    """Boolean listening: each named query → general web SERP + enabled site
+    layers, deduped, noise-filtered, Haiku sentiment. Returns the SAME shape as
+    fetch_social_listening's Content-Analysis path so the report renders the same."""
+    out = {'enabled': True, 'summary': None, 'mentions': [], 'platforms': {},
+           'terms': [(q.get('label') or q.get('q') or '') for q in queries],
+           'note': None, 'queries': [], 'mode': 'boolean'}
+    web_all, plat_acc, total = [], {}, 0
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        web_futs, site_futs = {}, {}
+        for i, q in enumerate(queries):
+            qs = q.get('q') or ''
+            if 'web' in sources:
+                web_futs[i] = ex.submit(_serp_web_mentions, qs, location, language, headers, 15)
+            for key, (site_expr, label) in LISTEN_SITES.items():
+                if key in sources:
+                    site_futs[(i, key)] = (label, ex.submit(
+                        _serp_site_mentions_q, qs, site_expr, location, language, headers, 8))
+        for i, q in enumerate(queries):
+            items = web_futs[i].result() if i in web_futs else []
+            total += len(items)
+            web_all.extend(items)
+            out['queries'].append({'label': q.get('label') or '',
+                                   'q': q.get('q') or '', 'count': len(items)})
+        for (i, key), (label, fut) in site_futs.items():
+            slot = plat_acc.setdefault(key, {'label': label, '_seen': set(), 'results': []})
+            for r in (fut.result() or []):
+                u = r.get('url')
+                if u and u not in slot['_seen']:
+                    slot['_seen'].add(u)
+                    slot['results'].append(r)
+    seen, web = set(), []
+    for it in web_all:
+        u = it.get('url')
+        if not u or u in seen:
+            continue
+        if _mostly_non_latin(it.get('title')) or _is_promo_noise(it.get('domain'), it.get('title')):
+            continue
+        seen.add(u)
+        web.append(it)
+    web = web[:30]
+    _classify_sentiment(web)
+    sent, dom = {'positive': 0, 'negative': 0, 'neutral': 0}, {}
+    for m in web:
+        s = m.get('sentiment')
+        if s in sent:
+            sent[s] += 1
+        d = m.get('domain')
+        if d:
+            dom[d] = dom.get(d, 0) + 1
+    for slot in plat_acc.values():
+        slot.pop('_seen', None)
+    out['mentions'] = web
+    out['summary'] = {
+        'total_mentions': total or None,
+        'sentiment': sent if web else {'positive': None, 'negative': None, 'neutral': None},
+        'top_domains': [k for k, _ in sorted(dom.items(), key=lambda kv: kv[1], reverse=True)[:8]],
+    }
+    out['platforms'] = plat_acc
+    return out
+
+
 def fetch_social_listening(brand, domain, location='Singapore', language='English', cfg=None):
     cfg = cfg or {}
     out = {'enabled': True, 'summary': None, 'mentions': [],
@@ -1677,6 +1827,15 @@ def fetch_social_listening(brand, domain, location='Singapore', language='Englis
     headers = {'Authorization': auth, 'Content-Type': 'application/json'}
     sources = cfg.get('sources') or ['web', 'reddit', 'twitter', 'forums']
     lang_code = _ca_lang_code(language)
+
+    # Boolean-query mode — when the client configured named boolean queries, route
+    # them through Google SERP (honours AND/OR/quotes/parentheses, which Content
+    # Analysis cannot) instead of the comma-term path below. Capped so a runaway
+    # topic list can't blow DataForSEO spend.
+    _queries = [q for q in (cfg.get('queries') or [])
+                if isinstance(q, dict) and (q.get('q') or '').strip()][:12]
+    if _queries:
+        return _listen_boolean(_queries, sources, location, language, headers)
 
     # Search terms = brand + the user's "extra terms to track", deduped case-
     # insensitively and capped. Content Analysis has no boolean OR (verified:
@@ -2382,6 +2541,10 @@ def report_save_project(body):
         # Social-listening config — extra terms to track + the on/off flag the
         # monthly capture (runMonth) reads. Brand name is always tracked server-side.
         'listenKeywords': data.get('listenKeywords') if data.get('listenKeywords') is not None else existing.get('listenKeywords', []),
+        # Boolean listening queries [{label, q}] — Brandwatch-style AND/OR/quoted
+        # queries run via Google SERP (see _listen_boolean). Preferred over the
+        # comma-term listenKeywords when present.
+        'listenQueries':  data.get('listenQueries')  if data.get('listenQueries')  is not None else existing.get('listenQueries', []),
         'listenEnabled':  data.get('listenEnabled')  if data.get('listenEnabled')  is not None else existing.get('listenEnabled', True),
         # Competitor scrape cadence: 'daily' (default) | 'weekly' | 'off' — the main
         # Apify cost lever now that owned platforms pull natively for free.
@@ -3442,6 +3605,7 @@ def sl_save_topic(body):
         'clientId': cid, 'topicId': tid,
         'name':     (data.get('name') or existing.get('name') or 'Untitled topic').strip(),
         'keywords': data.get('keywords') if data.get('keywords') is not None else existing.get('keywords', []),
+        'queries':  data.get('queries')  if data.get('queries')  is not None else existing.get('queries', []),
         'location': (data.get('location') or existing.get('location') or client.get('location') or 'Singapore').strip(),
         'language': (data.get('language') or existing.get('language') or 'English').strip(),
         'sources':  data.get('sources') if data.get('sources') is not None else existing.get('sources', ['web', 'reddit', 'twitter', 'forums']),
@@ -3493,7 +3657,8 @@ def _sl_snapshot_topic(cid, tid, who):
         raise RuntimeError('Unknown client or topic.')
     client, topic = _dec(client), _dec(topic)
     cfg = {'sources': topic.get('sources') or ['web', 'reddit', 'twitter', 'forums'],
-           'keywords': topic.get('keywords') or []}
+           'keywords': topic.get('keywords') or [],
+           'queries': topic.get('queries') or []}
     # brand must be the CLIENT's name (e.g. "Singapore Pools"), not the topic
     # name (e.g. "Payment/Payout") — fetch_social_listening searches
     # [brand] + keywords, so an unqualified topic name as the anchor term
