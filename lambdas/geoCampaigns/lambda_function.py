@@ -2701,6 +2701,97 @@ def h_list_day_overrides(req):
     return _resp(200, {"ok": True, "id": cid, "overrides": _load_day_overrides(cid, start, end)})
 
 
+def _derive_day_field(c, field):
+    """One day's raw counters -> the derived number the dashboard shows for `field`. Same formulas
+    as build_model_from_db's overall(), applied to a single day instead of a window's sum."""
+    c = c or {}
+    if field == "visibility":
+        return round(c.get("m", 0) / c["r"] * 100, 1) if c.get("r") else 0
+    if field == "avgPosition":
+        return round(c.get("ps", 0) / c["pc"], 1) if c.get("pc") else 0
+    if field == "mentions":
+        return c.get("m", 0)
+    if field == "responses":
+        return c.get("r", 0)
+    return None
+
+
+def h_list_day_values(req):
+    """Per-date values for ONE target+field across a window — the data behind the corrections
+    panel, so a stretch of mis-measured days can be fixed in one pass rather than one
+    range-change-and-refetch per day.
+
+    Returns both numbers for every date that has data: `rec`, derived from the day's untouched raw
+    counters, and `cur`, what the dashboard shows today (= rec unless a correction is pinned). The
+    panel needs both — one to seed the input, the other to offer a per-row reset.
+
+    This has to be a server call. The model's visibilitySeries carries per-day numbers only for
+    entity visibility, so avgPosition and every query field have no client-side per-day source at
+    all. Reading `rec` from the real `<date>` rows (never the `__ovr__<date>` ones) is also what
+    keeps a correction non-destructive: the measurement is still there to go back to.
+    """
+    cid = str(req.get("id") or "")
+    if not _is_campaign_id(cid):
+        return _resp(400, {"error": "valid campaign id required"})
+    scope = (req.get("scope") or "").strip()
+    if scope not in _DAY_OVR_FIELDS:
+        return _resp(400, {"error": f"scope must be one of {sorted(_DAY_OVR_FIELDS)}"})
+    field = (req.get("field") or "").strip()
+    if field not in _DAY_OVR_FIELDS[scope]:
+        return _resp(400, {"error": f"field must be one of {list(_DAY_OVR_FIELDS[scope])} for scope {scope}"})
+    target = str(req.get("targetId") or "").strip()
+    if not target:
+        return _resp(400, {"error": "targetId required (entityId or queryId)"})
+    start = (req.get("startDate") or "2000-01-01").strip()
+    end = (req.get("endDate") or _today().isoformat()).strip()
+
+    meta_item = _daily_tbl.get_item(Key={"campaignId": cid, "date": "__meta__"}).get("Item")
+    if not meta_item:
+        return _resp(404, {"error": "no daily data exported for this campaign yet"})
+    meta = json.loads(meta_item["blob"])
+    # Query counters are stored per (entity, query); the panel only ever edits the SELF brand's
+    # queries, matching the query table it's opened from.
+    self_eid = next((eid for eid, m in (meta.get("entities") or {}).items() if m.get("isSelf")), None)
+    if scope == "queries" and not self_eid:
+        return _resp(404, {"error": "campaign has no self entity — cannot resolve query counters"})
+
+    cond = Key("campaignId").eq(cid) & Key("date").between(start, end)
+    resp = _daily_tbl.query(KeyConditionExpression=cond)
+    items = resp.get("Items", [])
+    while "LastEvaluatedKey" in resp:
+        resp = _daily_tbl.query(KeyConditionExpression=cond, ExclusiveStartKey=resp["LastEvaluatedKey"])
+        items.extend(resp.get("Items", []))
+
+    day_ovr = _load_day_overrides(cid, start, end)
+    rows = []
+    for it in items:
+        d = str(it["date"])
+        try:
+            data = json.loads(it["blob"])
+        except Exception:
+            continue
+        if scope == "ents":
+            raw = (data.get("ents") or {}).get(target)
+        else:
+            raw = ((data.get("qs") or {}).get(self_eid) or {}).get(target)
+        if raw is None:
+            continue          # target wasn't measured that day — no row to correct
+        dov = ((day_ovr.get(d) or {}).get(scope) or {}).get(target) or {}
+        patched = raw
+        if dov:
+            patched = (_patch_day_counters({target: raw}, {target: dov})[target] if scope == "ents"
+                       else _patch_day_query(raw, dov))
+        ent = dov.get(field) or {}
+        rows.append({"date": d,
+                     "rec": _derive_day_field(raw, field),
+                     "cur": _derive_day_field(patched, field),
+                     "edited": field in dov,
+                     "by": ent.get("by") or "", "at": ent.get("at") or ""})
+    rows.sort(key=lambda r: r["date"])
+    return _resp(200, {"ok": True, "id": cid, "scope": scope, "targetId": target,
+                       "field": field, "rows": rows})
+
+
 def h_add_annotation(req):
     """Append a GSC-style chart annotation onto the campaign's shared `annotations` map so every
     user sees the same notes. Shape: {chartId: {date: [{id, text, ts}, ...]}}. Mirrors the local
@@ -3109,6 +3200,8 @@ def lambda_handler(event, context):
             return h_clear_day_override(req)
         if action == "list_day_overrides":
             return h_list_day_overrides(req)
+        if action == "list_day_values":
+            return h_list_day_values(req)
         if action == "add_annotation":
             return h_add_annotation(req)
         if action == "delete_annotation":
