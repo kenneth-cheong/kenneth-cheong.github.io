@@ -1227,7 +1227,7 @@ export function startPlatformTour() {
     },
     { element: '[data-tour="tools"]', popover: { title: 'All your tools live here', description: 'Every tool, grouped by job — <b>SEO</b> = rank on Google · <b>Content</b> = write things · <b>AI Visibility</b> = get mentioned by ChatGPT & co. · <b>Strategy</b> = plans & audits · <b>Integrations</b> = your own Google data. Click to open the catalogue and search by name or job.', side: 'right', align: 'start' } },
     { element: '[data-tour="pathway"]', popover: { title: 'Not sure where to start? Follow a plan', description: 'Pick a goal — more visitors, a healthier site, showing up in AI answers — and we turn it into a step-by-step plan: the exact tools to run, in order, ticking off as you go. Add one sentence about your business and hit <b>Personalise with AI</b> to tailor it. Prefer to explore on your own? Open <b>Tools</b> in the sidebar and browse the full catalogue.', side: 'top', align: 'start' } },
-    { element: '[data-tour="plan-widget"]', popover: { title: 'Your plan follows you', description: 'Once you set a goal, this pill tracks it from every page — the ring shows progress and the label shows what to do next. Click it to jump straight back in.', side: 'bottom', align: 'end' } },
+    { element: '[data-tour="plan-widget"]', popover: { title: 'Your plan follows you', description: 'Set a goal here and we turn it into a step-by-step plan. A progress bar then rides under the top nav on <b>every page</b> — it shows how far along you are and what to do next, with a <b>Start</b> button to jump straight in.', side: 'bottom', align: 'end' } },
     {
       element: 'main a[href^="/tool/"]',
       popover: {
