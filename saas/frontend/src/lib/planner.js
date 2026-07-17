@@ -25,7 +25,10 @@ export function stepTarget({ toolId, action, to }) {
   if (to) return { to };                 // ad-hoc steps carry an explicit route
   if (action) return { to: ACTION_ROUTES[action] || '/dashboard' };
   const t = toolById(toolId);
-  return { to: t?.route || `/tool/${toolId}` };
+  // Ad-hoc recommendation steps have a synthetic id ("rec:…") and any unknown id
+  // isn't a real tool — never build `/tool/rec:…`, which is a dead NotFound route
+  // (a user hit exactly this when the step's `to` was lost across a plan sync).
+  return { to: t ? (t.route || `/tool/${toolId}`) : '/dashboard' };
 }
 
 // ── Ad-hoc "recommendation" steps ─────────────────────────────────────────────
