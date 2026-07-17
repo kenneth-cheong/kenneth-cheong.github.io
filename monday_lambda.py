@@ -99,6 +99,28 @@ def get_db():
     return mongo_client[MONGODB_DATABASE]
 
 
+_tool_logs_indexed = False
+
+def _tool_logs_coll():
+    """The tool_logs collection, with the (orgId, ts) index ensured once per container.
+
+    Admin Console reads filter on orgId + a ts range and sort by ts desc; without this
+    index both the page query and the count_documents total collection-scan.
+    """
+    global _tool_logs_indexed
+    db = get_db()
+    if db is None:
+        return None
+    coll = db.tool_logs
+    if not _tool_logs_indexed:
+        try:
+            coll.create_index([("orgId", 1), ("ts", -1)])
+            _tool_logs_indexed = True
+        except Exception:
+            pass  # index may already exist / Mongo hiccup — never block the read
+    return coll
+
+
 def forward_error_report(body, event):
     """Forward a client-side error report to the team Google Chat space.
     Bounded by a per-container dedup throttle + field truncation so a crash
@@ -6562,20 +6584,38 @@ def lambda_handler(event, context):
                     db.tool_logs.insert_one(log)
                 result = {"statusCode": 200, "body": json.dumps({"success": True}, cls=JSONEncoder)}
         elif action == 'fetch_tool_logs':
-            db = get_db()
-            if db is None:
+            coll = _tool_logs_coll()
+            if coll is None:
                 result = {"statusCode": 500, "body": json.dumps({"error": "MongoDB not configured"})}
             else:
                 limit = min(int(body.get('limit', 500)), 1000)
                 since = body.get('since')   # ts > since  (incremental updates)
                 before = body.get('before') # ts < before (backward cursor pagination)
+
+                # ts is an ISO-8601 UTC string ('2026-07-17T09:31:37.123Z'), so lexical
+                # order is chronological and a 'YYYY-MM-DD' prefix bounds a whole UTC day.
+                span = {}
+                if body.get('date_from'):
+                    span["$gte"] = body['date_from']            # inclusive
+                if body.get('date_to'):
+                    span["$lte"] = body['date_to'] + '\uffff'   # inclusive to end of day
+
                 query = {"orgId": "digimetrics"}
+                if span:
+                    query["ts"] = dict(span)
                 if since:
-                    query["ts"] = {"$gt": since}
+                    query.setdefault("ts", {})["$gt"] = since
                 elif before:
-                    query["ts"] = {"$lt": before}
-                logs = list(db.tool_logs.find(query, {"_id": 0, "savedAt": 0, "orgId": 0}).sort("ts", -1).limit(limit))
-                result = {"statusCode": 200, "body": json.dumps({"logs": logs, "has_more": len(logs) == limit}, cls=JSONEncoder)}
+                    query.setdefault("ts", {})["$lt"] = before
+
+                logs = list(coll.find(query, {"_id": 0, "savedAt": 0, "orgId": 0}).sort("ts", -1).limit(limit))
+                payload = {"logs": logs, "has_more": len(logs) == limit}
+                # Total for the whole span, ignoring the page cursor, so the client can
+                # show a true count without holding every row in memory. First page only.
+                if body.get('with_total'):
+                    payload["total"] = coll.count_documents(
+                        {"orgId": "digimetrics", **({"ts": span} if span else {})})
+                result = {"statusCode": 200, "body": json.dumps(payload, cls=JSONEncoder)}
         elif action == 'clear_tool_logs':
             db = get_db()
             if db is None:
