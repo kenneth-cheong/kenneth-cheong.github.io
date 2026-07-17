@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
 
 // Two of the approved design's Tracking & Results cards — the two whose numbers
 // the app can actually stand behind, both derived from tracked keyword history
@@ -20,7 +19,7 @@ const BANDS = [
 
 const latest = (t) => t.history?.[t.history.length - 1]?.position;
 
-export function KeywordRankings({ tracked }) {
+export function KeywordRankings({ tracked, onOpen }) {
   const bands = useMemo(() => {
     const counts = BANDS.map((b) => ({ ...b, n: 0 }));
     (tracked || []).forEach((t) => {
@@ -35,7 +34,7 @@ export function KeywordRankings({ tracked }) {
   const total = (tracked || []).length;
 
   return (
-    <Link to="/tracking" className="card card-hover block p-[18px]">
+    <button type="button" onClick={onOpen} className="card card-hover block w-full p-[18px] text-left">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-faint">Keyword rankings</span>
         {ranked > 0 && (
@@ -73,11 +72,11 @@ export function KeywordRankings({ tracked }) {
           </div>
         </>
       )}
-    </Link>
+    </button>
   );
 }
 
-export function TopMovers({ tracked }) {
+export function TopMovers({ tracked, onOpen }) {
   const movers = useMemo(() => {
     return (tracked || [])
       .map((t) => {
@@ -94,7 +93,7 @@ export function TopMovers({ tracked }) {
   }, [tracked]);
 
   return (
-    <Link to="/tracking" className="card card-hover block p-[18px]">
+    <button type="button" onClick={onOpen} className="card card-hover block w-full p-[18px] text-left">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-faint">Top movers</span>
         <span className="rounded-full bg-sunken px-2.5 py-1 text-[10.5px] font-bold text-muted">all time</span>
@@ -117,7 +116,7 @@ export function TopMovers({ tracked }) {
           ))}
         </ul>
       )}
-    </Link>
+    </button>
   );
 }
 

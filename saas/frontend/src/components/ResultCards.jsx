@@ -1,6 +1,12 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Play, ShieldCheck, ShieldAlert, Gauge as GaugeIcon, Link2, Bot, LineChart } from 'lucide-react';
+import { toolById } from '@shared/catalog.mjs';
 import { useLatestRuns, ago } from '../lib/latestRuns.js';
+import Modal from './Modal.jsx';
+import ResultSections from './ResultSections.jsx';
+import ReportHtml from './ReportHtml.jsx';
+import { DetailLink } from './CardDetails.jsx';
 
 // The approved design's Tracking & Results wall, driven by each tool's LATEST
 // STORED RUN (see lib/latestRuns.js). Every number is one the tool actually
@@ -135,16 +141,24 @@ export default function ResultCards() {
 function Card({ title, toolId, run, chip, icon, children }) {
   const has = !!run?.result;
   const navigate = useNavigate();
-  // The whole card opens the tool's page (a result card is a live control, not a
-  // static tile). The inner Re-run / Run-it buttons stop propagation so they
-  // don't double-fire.
-  const open = () => navigate(`/tool/${toolId}`);
+  const [show, setShow] = useState(false);
+  // With a stored run → clicking the card opens a detail modal with the full run
+  // (sections / report), plus a footer link to open the tool and re-run. With no
+  // run yet → the card goes straight to the tool to run it the first time.
+  const openTool = () => navigate(`/tool/${toolId}`);
+  const openDetail = () => setShow(true);
+  const act = has ? openDetail : openTool;
+  const toolName = toolById(toolId)?.name || title;
+  const sections = run?.result?.sections;
+  const html = run?.result?.html;
+
   return (
+    <>
     <section
       role="button"
       tabIndex={0}
-      onClick={open}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } }}
+      onClick={act}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } }}
       className="card card-hover group flex cursor-pointer flex-col p-[18px]"
     >
       <div className="flex items-center justify-between gap-2">
@@ -163,7 +177,7 @@ function Card({ title, toolId, run, chip, icon, children }) {
             <span className="truncate text-[10px] text-faint" title={run.target}>{run.target} · {ago(run.ts)}</span>
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); open(); }}
+              onClick={(e) => { e.stopPropagation(); openTool(); }}
               className="shrink-0 text-[10px] font-bold text-peri hover:underline"
             >
               Re-run
@@ -176,7 +190,7 @@ function Card({ title, toolId, run, chip, icon, children }) {
           <p className="text-[11px] text-muted">No run yet — run this once and it stays here.</p>
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); open(); }}
+            onClick={(e) => { e.stopPropagation(); openTool(); }}
             className="btn-primary px-3 py-1.5 text-xs"
           >
             <Play size={12} aria-hidden /> Run it
@@ -184,6 +198,26 @@ function Card({ title, toolId, run, chip, icon, children }) {
         </div>
       )}
     </section>
+
+    {has && (
+      <Modal
+        open={show}
+        onClose={() => setShow(false)}
+        wide
+        tag="DETAILS"
+        title={title}
+        titleNote={run.target}
+        labelledBy="dm-result-detail"
+        footer={<DetailLink to={`/tool/${toolId}`} primary onClick={() => setShow(false)}>Open {toolName}</DetailLink>}
+      >
+        {Array.isArray(sections) && sections.length
+          ? <ResultSections sections={sections} />
+          : html
+            ? <ReportHtml html={html} />
+            : <div className="dm-result-detail-fallback">{children}</div>}
+      </Modal>
+    )}
+    </>
   );
 }
 

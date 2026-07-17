@@ -8,6 +8,8 @@ import { api } from '../lib/api.js';
 import AttentionStrip from './AttentionStrip.jsx';
 import { KeywordRankings, TopMovers } from './RankingCards.jsx';
 import ResultCards from './ResultCards.jsx';
+import Modal from './Modal.jsx';
+import { KeywordDetail, RunsDetail, CreditsDetail, DetailLink } from './CardDetails.jsx';
 
 // The approved design's dashboard cockpit (mockup: the stat row + AI Credits
 // gauge + Activity chart + Run streak).
@@ -36,6 +38,9 @@ export default function Cockpit({ googleConnected }) {
   const { activeId } = useProjects();
   const [runs, setRuns] = useState(null);
   const [tracked, setTracked] = useState(null);
+  // Which card's detail modal is open. { kind, mode?, title }
+  const [detail, setDetail] = useState(null);
+  const closeDetail = () => setDetail(null);
 
   useEffect(() => { api.runs().then((d) => setRuns(d.runs || [])).catch(() => setRuns([])); }, []);
   useEffect(() => { api.tracking(activeId).then((d) => setTracked(d.tracked || [])).catch(() => setTracked([])); }, [activeId]);
@@ -98,6 +103,7 @@ export default function Cockpit({ googleConnected }) {
           sub={rank ? `${rank.total} tracked keyword${rank.total === 1 ? '' : 's'}` : 'No keywords tracked yet'}
           cta={rank ? null : 'Track a keyword'}
           to="/tracking"
+          onOpen={() => setDetail({ kind: 'keywords', mode: 'avg', title: 'Average position' })}
         />
         <Stat
           label="Keywords on page 1"
@@ -106,6 +112,7 @@ export default function Cockpit({ googleConnected }) {
           sub={rank ? `of ${rank.total} tracked` : 'Track keywords to see this'}
           cta={rank ? null : 'Track a keyword'}
           to="/tracking"
+          onOpen={() => setDetail({ kind: 'keywords', mode: 'page1', title: 'Keywords on page 1' })}
         />
         <Stat
           label="Tool runs"
@@ -114,11 +121,12 @@ export default function Cockpit({ googleConnected }) {
           sub={streak > 0 ? `${streak}-day streak · last 7 days` : 'Last 7 days'}
           cta={runs && runsThisWeek === 0 ? 'Run your first tool' : null}
           to={runs && runsThisWeek === 0 ? '/tool/keyword-analysis' : '/history'}
+          onOpen={() => setDetail({ kind: 'runs', title: 'Tool runs' })}
         />
       </div>
 
       {/* ── Activity chart ─────────────────────────────────────────────────── */}
-      <Link to="/history" className="card card-hover block p-[18px]">
+      <button type="button" onClick={() => setDetail({ kind: 'runs', title: 'Activity' })} className="card card-hover block w-full p-[18px] text-left">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-faint">Activity</span>
           <span className="text-[11px] font-semibold text-muted">Tool runs · last 7 days</span>
@@ -150,14 +158,14 @@ export default function Cockpit({ googleConnected }) {
             </div>
           </>
         )}
-      </Link>
+      </button>
 
       {/* ── Tracking & Results: the two cards real data backs ─────────────── */}
-      <KeywordRankings tracked={tracked} />
-      <TopMovers tracked={tracked} />
+      <KeywordRankings tracked={tracked} onOpen={() => setDetail({ kind: 'keywords', mode: 'avg', title: 'Keyword rankings' })} />
+      <TopMovers tracked={tracked} onOpen={() => setDetail({ kind: 'keywords', mode: 'movers', title: 'Top movers' })} />
 
       {/* ── Credits gauge ──────────────────────────────────────────────────── */}
-      <Link to="/usage" className="card card-hover flex flex-col p-[18px]">
+      <button type="button" onClick={() => setDetail({ kind: 'credits', title: 'AI credits' })} className="card card-hover flex w-full flex-col p-[18px] text-left">
         <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-faint">AI Credits</span>
         <div className="grid flex-1 place-items-center py-3">
           <Gauge used={used} max={max} />
@@ -170,8 +178,23 @@ export default function Cockpit({ googleConnected }) {
             You have {left.toLocaleString()} credit{left === 1 ? '' : 's'} left
           </span>
         </div>
-      </Link>
+      </button>
       </div>
+
+      {/* Card detail modal — one instance, its body/footer driven by which card
+          was clicked. A read-only "look closer" with a link out to the tool. */}
+      <Modal open={!!detail} onClose={closeDetail} wide tag="DETAILS" title={detail?.title || ''} labelledBy="dm-card-detail"
+        footer={
+          detail?.kind === 'keywords' ? <DetailLink to="/tracking" primary onClick={closeDetail}>Open Rank Tracking</DetailLink>
+          : detail?.kind === 'runs' ? <><DetailLink to="/history" primary onClick={closeDetail}>View full history</DetailLink><DetailLink to="/tool/keyword-analysis" onClick={closeDetail}>Run a tool</DetailLink></>
+          : detail?.kind === 'credits' ? <DetailLink to="/usage" primary onClick={closeDetail}>Manage &amp; top up</DetailLink>
+          : null
+        }
+      >
+        {detail?.kind === 'keywords' && <KeywordDetail tracked={tracked} mode={detail.mode} />}
+        {detail?.kind === 'runs' && <RunsDetail runs={runs} />}
+        {detail?.kind === 'credits' && <CreditsDetail used={used} max={max} left={left} topup={user.topupCredits || 0} />}
+      </Modal>
 
       {/* Tracking & Results — each card reads its tool's latest stored run. */}
       <ResultCards />
@@ -179,9 +202,12 @@ export default function Cockpit({ googleConnected }) {
   );
 }
 
-function Stat({ label, icon, value, sub, cta, to }) {
-  return (
-    <Link to={to} className="card card-hover group flex flex-col gap-2.5 p-[18px]">
+// With data → a button that opens the detail modal. Empty (cta) → a Link to the
+// tool, since there's no detail to show yet.
+function Stat({ label, icon, value, sub, cta, to, onOpen }) {
+  const cls = 'card card-hover group flex w-full flex-col gap-2.5 p-[18px] text-left';
+  const inner = (
+    <>
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-faint">{label}</span>
         <span className="dm-kick grid h-8 w-8 place-items-center rounded-[10px] text-peri" style={{ background: 'rgb(var(--c-peri) / .16)' }}>
@@ -190,15 +216,17 @@ function Stat({ label, icon, value, sub, cta, to }) {
       </div>
       <div className="text-3xl font-extrabold leading-none tracking-tight tabular-nums text-heading">{value}</div>
       {cta ? (
-        // Empty state → an explicit call to action rather than a dead "—".
         <span className="inline-flex items-center gap-1 text-[11.5px] font-bold text-brand-600 dark:text-brand-400">
           {cta} <ArrowRight size={13} className="transition group-hover:translate-x-0.5" aria-hidden />
         </span>
       ) : (
         <div className="text-[11px] font-medium text-muted">{sub}</div>
       )}
-    </Link>
+    </>
   );
+  return cta
+    ? <Link to={to} className={cls}>{inner}</Link>
+    : <button type="button" onClick={onOpen} className={cls}>{inner}</button>;
 }
 
 // The mockup's ring gauge. An SVG arc rather than a conic-gradient so the track
