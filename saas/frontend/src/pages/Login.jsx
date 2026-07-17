@@ -123,7 +123,9 @@ export default function Login() {
         <h1 className="mt-6 text-3xl font-bold">Digimetrics</h1>
         <p className="mt-2 text-dim">SEO, AI content & AI-visibility tools for solo marketers.</p>
 
-        <div className="card mt-8 p-6 text-left">
+        {/* mt leaves room for Monty (96px) to peek over the card's top edge. */}
+        <div className="card relative mt-28 p-6 text-left">
+          <div className="dm-monty-peek" aria-hidden="true" />
           <p className="mb-4 text-center text-sm font-medium text-body">
             {!pwAuth
               ? 'Sign in to start with 30 free credits'

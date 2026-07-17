@@ -510,6 +510,29 @@
     .dm-tool-peek { transition: none !important; }
     .card:hover .dm-tool-peek { transform: none !important; }
   }
+  /* ── Monty peeking over the login card ───────────────────────────────────
+     Monty is drawn leaning on a ledge, so the sprite's bottom edge IS that
+     ledge — sitting him at `bottom: 100%` rests his paws on the card's top
+     border. /monty-poses.webp is a 10-frame filmstrip (232x192 each, 2x for
+     retina) cut from the pose sheet; steps(10) flips it like a flipbook, so
+     each pose holds 2s. No bob/float: he's leaning on something. */
+  .dm-monty-peek {
+    @apply pointer-events-none absolute bottom-full left-1/2 h-24 w-[116px] -translate-x-1/2 select-none;
+    background: url('/monty-poses.webp') 0 0 / 1160px 96px no-repeat;
+    animation: dm-monty-poses 20s steps(10) infinite;
+    /* Same lift as .dm-tool-peek — his headset is brand blue, so on the royal
+       theme he'd otherwise sink into the blue page behind him. */
+    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, .28));
+  }
+  @keyframes dm-monty-poses {
+    from { background-position-x: 0; }
+    to   { background-position-x: -1160px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* Park on frame 1 — Monty smiling, which is the friendliest still. */
+    .dm-monty-peek { animation: none !important; }
+  }
+
   /* Inputs/selects/textareas — index.html's blue focus ring. */
   .field {
     @apply w-full rounded-lg border border-edge bg-surface text-body p-2.5 text-sm transition focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/10;
