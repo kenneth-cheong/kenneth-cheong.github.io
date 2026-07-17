@@ -134,6 +134,24 @@ function sanitizeExplorer(raw) {
   return { done: boolMap(raw.done, 40), claimed: boolMap(raw.claimed, 4), updatedAt: new Date().toISOString() };
 }
 
+// Bound the profile-nudge state before persisting it under onboarding.profileNudge:
+// when the card is snoozed until, whether it's collapsed to the pill, and how many
+// times it's been snoozed (which is what caps snoozing). Purely presentational —
+// it gates a nudge, never the PROFILE_BONUS grant, which /me/profile decides from
+// the saved answers. snoozeUntil is clamped to a sane horizon so a client can't
+// park it in the year 3000 and retire the nudge permanently.
+function sanitizeProfileNudge(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const out = { updatedAt: new Date().toISOString() };
+  const until = raw.snoozeUntil ? Date.parse(raw.snoozeUntil) : NaN;
+  out.snoozeUntil = Number.isFinite(until)
+    ? new Date(Math.min(until, Date.now() + 30 * 86400000)).toISOString()
+    : null;
+  out.collapsed = !!raw.collapsed;
+  out.snoozes = Number.isFinite(raw.snoozes) ? Math.max(0, Math.min(99, Math.round(raw.snoozes))) : 0;
+  return out;
+}
+
 // Coarse health of an integration pull, derived from the saved run preview
 // (same heuristic as the History page): 'issue' | 'empty' | 'ok'.
 function pullStatus(preview) {
@@ -255,6 +273,9 @@ export const handler = async (event) => {
       // Explorer breadth-checklist progress (ticked tasks + claimed milestones),
       // synced so it follows the user across devices.
       if (body.explorer && typeof body.explorer === 'object') { const e = sanitizeExplorer(body.explorer); if (e) patch.explorer = e; }
+      // Profile-nudge snooze/collapse state, synced so the nudge survives a cleared
+      // browser or a device switch instead of being silently lost with localStorage.
+      if (body.profileNudge && typeof body.profileNudge === 'object') { const n = sanitizeProfileNudge(body.profileNudge); if (n) patch.profileNudge = n; }
       if (!Object.keys(patch).length) return badRequest('Nothing to update.');
       return ok({ onboarding: await updateOnboarding(user.userId, patch) });
     }

@@ -9,24 +9,32 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { toast } from '../lib/ui.js';
 import ProfileField from './ProfileField.jsx';
 
-const SNOOZE_KEY = 'dm_profile_snooze';
-const SNOOZE_DAYS = 7;
-const COLLAPSE_KEY = 'dm_profile_collapsed';
+const SNOOZE_DAYS = 3;
+const MAX_SNOOZES = 2; // after this many "maybe later"s, it collapses instead of hiding
 
 // Progressive-profiling nudge on the Dashboard: shows the next 1–2 unanswered
 // required questions inline. Answering advances to the next; completing the whole
-// profile pays a one-time PROFILE_BONUS (handled server-side). Non-blocking, so
-// "Maybe later" just snoozes via localStorage — the profile data stays durable.
+// profile pays a one-time PROFILE_BONUS (handled server-side).
+//
+// Non-blocking but hard to lose: "Maybe later" hides it for SNOOZE_DAYS, and only
+// for the first MAX_SNOOZES times — after that it degrades to the collapsed pill
+// rather than disappearing, so the only way out is to finish (and get paid). All
+// of that state lives server-side under onboarding.profileNudge, NOT localStorage:
+// it used to be browser-local, so clearing storage or switching device silently
+// retired the nudge forever, and only 2 of 36 accounts ever completed a profile.
 export default function ProfilePrompt() {
-  const { user, saveProfile } = useAuth();
+  const { user, saveProfile, setOnboarding } = useAuth();
   const profile = user.profile || {};
   const [pending, setPending] = useState({}); // edits not yet saved
   const [busy, setBusy] = useState(false);
-  const [snoozed, setSnoozed] = useState(() => {
-    const until = Number(localStorage.getItem(SNOOZE_KEY) || 0);
-    return until > Date.now();
-  });
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1');
+
+  // Nudge state is read straight off the (optimistically-patched) user record, so
+  // it needs no local mirror: setOnboarding updates context before the round-trip.
+  const nudge = user.onboarding?.profileNudge || {};
+  const snoozeUntil = nudge.snoozeUntil ? Date.parse(nudge.snoozeUntil) : 0;
+  const snoozed = snoozeUntil > Date.now();
+  const collapsed = !!nudge.collapsed;
+  const patchNudge = (p) => setOnboarding({ profileNudge: { ...nudge, ...p } });
 
   // Next 1–2 unanswered required fields (in schema order).
   const nextFields = useMemo(() => {
@@ -41,7 +49,8 @@ export default function ProfilePrompt() {
   const { done, total } = profileProgress(profile);
   const pct = total ? Math.round((done / total) * 100) : 0;
 
-  // Hide once complete, already rewarded, snoozed, or nothing left to ask.
+  // Gone for good only once there's nothing left to ask (complete + rewarded);
+  // otherwise a live snooze is the only thing that hides it, and it expires.
   if (user.profileBonusGranted || nextFields.length === 0 || snoozed) return null;
 
   const setField = (key, val) => setPending((p) => ({ ...p, [key]: val }));
@@ -73,20 +82,20 @@ export default function ProfilePrompt() {
     }
   }
 
+  // "Maybe later" buys SNOOZE_DAYS of quiet, but only MAX_SNOOZES times; the last
+  // one converts the card into the pill instead, which is the floor — never nothing.
   function snooze() {
-    localStorage.setItem(SNOOZE_KEY, String(Date.now() + SNOOZE_DAYS * 86400000));
-    setSnoozed(true);
+    const snoozes = (nudge.snoozes || 0) + 1;
+    const canHide = snoozes <= MAX_SNOOZES;
+    patchNudge({
+      snoozes,
+      snoozeUntil: canHide ? new Date(Date.now() + SNOOZE_DAYS * 86400000).toISOString() : null,
+      collapsed: !canHide,
+    });
   }
 
-  function collapse() {
-    localStorage.setItem(COLLAPSE_KEY, '1');
-    setCollapsed(true);
-  }
-
-  function expand() {
-    localStorage.removeItem(COLLAPSE_KEY);
-    setCollapsed(false);
-  }
+  const collapse = () => patchNudge({ collapsed: true });
+  const expand = () => patchNudge({ collapsed: false });
 
   // Collapsed: a small floating pill that stays out of the way but keeps the nudge reachable.
   if (collapsed) {

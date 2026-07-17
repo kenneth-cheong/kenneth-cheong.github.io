@@ -55,7 +55,16 @@ export default function Dashboard() {
   // checklist + GoalPlanner + profile prompt all at once. Now the goal planner
   // leads alone; the checklist and profile prompt wait until there's been a
   // first run (or the user opts into Advanced mode, where the planner is gone).
-  const everRan = getRecent().length > 0;
+  // ...but "has run something" can't come from localStorage alone: recents live in
+  // one browser, so a cleared/other device reads zero runs and permanently retires
+  // both nudges for an account that's actually active. Fall back to the server's
+  // run history, and only when the local list is empty (the common case pays nothing).
+  const [ranBefore, setRanBefore] = useState(false);
+  const everRan = getRecent().length > 0 || ranBefore;
+  useEffect(() => {
+    if (getRecent().length) return;
+    api.runs().then((d) => setRanBefore((d.runs || []).length > 0)).catch(() => {});
+  }, []);
   useEffect(() => { api.integrations().then((d) => setGoogleConnected(Object.values(d.connected || {}).some((c) => c?.connected))).catch(() => {}); }, []);
 
   // Has the user finished the Explorer "essentials"? Gates the post-usage NPS
