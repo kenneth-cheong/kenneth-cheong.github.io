@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
-import { toolById, inputsFor, tabsFor, exampleFor, CREDIT_COSTS, PLANS, tierMeets, isSchedulable, scheduleLimits } from '@shared/catalog.mjs';
+import { toolById, inputsFor, tabsFor, exampleFor, CREDIT_COSTS, costPerRun, PLANS, tierMeets, isSchedulable, scheduleLimits } from '@shared/catalog.mjs';
 import { api, ApiError } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
@@ -131,7 +131,9 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   // but if it somehow does, hand off to the page instead of rendering nothing.)
   if (tool.route) { if (embedded) { onClose?.(); navigate(tool.route); return null; } return <Navigate to={tool.route} replace />; }
   const unlocked = tierMeets(user.tier, tool.minTier);
-  const cost = CREDIT_COSTS[tool.cost] ?? 0;
+  // Fan-out aware: rank-checker & friends charge per keyword, so the label and
+  // the confirm dialog must reflect the live input count, not the flat unit.
+  const cost = costPerRun(tool, values);
   const set = (name, v) => { setNudge(false); setValues((s) => ({ ...s, [name]: v })); };
   // Switch GSC sub-tool tab: clear the previous result, seed any new fields'
   // defaults, but keep shared values (e.g. the selected property) across tabs.
@@ -202,7 +204,8 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
       const what = activeTab.op === 'indexing' ? 'request removal of these URLs from Google’s index' : 'delete this sitemap from Search Console';
       if (!window.confirm(`This will ${what}. Continue?`)) return;
     }
-    if (unlocked && cost >= CONFIRM_AT && !window.confirm(`This run costs ${cost} credits. Continue?`)) return;
+    const runCost = costPerRun(tool, vals);
+    if (unlocked && runCost >= CONFIRM_AT && !window.confirm(`This run costs ${runCost} credits. Continue?`)) return;
     setBusy(true);
     setOut(null);
     setJob(null);

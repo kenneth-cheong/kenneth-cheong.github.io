@@ -610,18 +610,17 @@ Resources:
                 - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:generateFunnel'
       # Function URL bypasses API Gateway's hard 30s integration limit for
       # long-running tools (strategy engine, persona, forensic audit). JWT is
-      # verified inside the handler; CORS is handled by the handler too.
+      # verified inside the handler; CORS is owned SOLELY by the handler.
       FunctionUrlConfig:
         AuthType: NONE
         InvokeMode: BUFFERED
-        # CORS MUST be declared here — it was previously set out-of-band, so a CFN
-        # deploy reset the Function URL to no-CORS and broke every browser tool run
-        # ("Failed to fetch" on the RunUrl). Mirrors ChatStreamFn's Function URL.
-        Cors:
-          AllowOrigins: ['*']
-          AllowMethods: [POST]
-          AllowHeaders: [authorization, content-type]
-          MaxAge: 86400
+        # Do NOT add a `Cors:` block here. The handler already emits full CORS on
+        # every path — it answers the OPTIONS preflight (src/metering/index.mjs →
+        # `preflight()`) and every JSON response carries CORS via src/lib/http.mjs.
+        # An edge-level `Cors:` block ADDS a second Access-Control-Allow-Origin
+        # header; browsers reject any response with duplicated ACAO, which surfaced
+        # as "Failed to fetch" on EVERY slow tool (2026-07-17). Edge CORS + handler
+        # CORS must never both be on. The handler is the single source of truth.
       Events:
         # This /run path is HARD-CAPPED at 30s: HTTP APIs (ApiGatewayV2) have a
         # maximum integration timeout of 30000ms that AWS does NOT allow raising

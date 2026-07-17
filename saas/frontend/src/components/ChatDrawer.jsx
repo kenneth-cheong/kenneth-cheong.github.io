@@ -619,7 +619,8 @@ export default function ChatDrawer({ open, onClose, ask, say }) {
             )}
           </form>
           <div className="px-3 pb-2 text-center text-[11px] text-faint">
-            Out of credits? <Link to="/account" className="text-brand-600 dark:text-brand-400">Top up</Link> or <Link to="/pricing" className="text-brand-600 dark:text-brand-400">upgrade</Link>
+            {(user?.credits ?? 0) < COST ? 'Out of credits — ' : 'Need more credits? '}
+            <Link to="/account" className="text-brand-600 dark:text-brand-400">Top up</Link> or <Link to="/pricing" className="text-brand-600 dark:text-brand-400">upgrade</Link>
           </div>
         </>
       )}

@@ -10,7 +10,7 @@ import { toast } from '../lib/ui.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import {
-  schedulableTools, scheduleLimits, inputsFor, CREDIT_COSTS, CATEGORIES,
+  schedulableTools, scheduleLimits, inputsFor, costPerRun, CATEGORIES,
 } from '@shared/catalog.mjs';
 import {
   FREQUENCIES, WEEKDAYS, describeSchedule, runsPerMonth, DEFAULT_TZ,
@@ -22,15 +22,6 @@ const HOURS = Array.from({ length: 24 }, (_, h) => h);
 const fmtWhen = (ms) => (ms ? new Date(ms).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—');
 const fmtDate = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—');
 const fmtNum = (n) => (Math.abs(n) >= 1000 ? Math.round(n).toLocaleString() : (Math.round(n * 100) / 100).toString());
-
-// Estimated credit cost of one fire (unit × fan-out item count).
-function costPerRun(tool, inputs) {
-  const unit = CREDIT_COSTS[tool.cost] ?? 0;
-  if (!unit || !tool.fanout) return unit;
-  const raw = inputs?.[tool.fanout];
-  const arr = Array.isArray(raw) ? raw : String(raw || '').split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
-  return unit * Math.max(1, Math.min(50, arr.length));
-}
 
 const isVisible = (f, values) => !f.showWhen || (f.showWhen.in || []).includes(values[f.showWhen.field]);
 

@@ -124,6 +124,21 @@ export const CREDIT_COSTS = {
   ai_chat: 2, // one assistant message (Claude call + injected account context)
 };
 
+// Real credit cost of ONE run: the unit cost, multiplied by the fan-out item
+// count for tools that charge per item (e.g. rank-checker → per keyword). The
+// tool page, the schedule estimate, and the confirm dialog MUST all use this so
+// the "Costs N credits" label and the spend-confirmation match what's charged.
+// Clamped to the 1..50 window the metering backend enforces per run.
+export function costPerRun(tool, inputs) {
+  const unit = CREDIT_COSTS[tool?.cost] ?? 0;
+  if (!unit || !tool?.fanout) return unit;
+  const raw = inputs?.[tool.fanout];
+  const arr = Array.isArray(raw)
+    ? raw
+    : String(raw || '').split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+  return unit * Math.max(1, Math.min(50, arr.length));
+}
+
 // ── Tool registry ───────────────────────────────────────────────────────────
 // `minTier`     — lowest plan that unlocks the tool fully.
 // `cost`        — key into CREDIT_COSTS (what one run charges).
