@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Link } from 'react-router-dom';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
 import {
   LayoutGrid, FolderKanban, HeartPulse, TrendingUp, LineChart,
   CalendarClock, Plug, Settings, Shield, Check, LayoutList,
@@ -9,41 +9,49 @@ import { useSupportTickets } from '../context/SupportTicketsContext.jsx';
 import { PLANS, TOOLS, tierMeets } from '@shared/catalog.mjs';
 import Mascot from './Mascot.jsx';
 import Modal from './Modal.jsx';
-import ToolsModal from './ToolsModal.jsx';
 
-// The approved design's fixed left rail (mockup .sidebar). Replacing the top bar
-// buys real estate: every "Monitor" destination that used to hide behind a
-// dropdown is now a first-class row, and the header stops fighting for width.
+// The approved design's fixed left rail (mockup .sidebar). Grouped into labelled
+// sections so the purpose of each row is obvious at a glance — you jump to the
+// SECTION that matches your intent (see how I'm doing → Insights; get things done
+// → Work; set up → Setup) instead of scanning ten equal rows.
 //
 // `data-tour` anchors are carried over from the old top nav — the platform tour
 // hangs off these ids, so renaming one silently breaks a step.
-const NAV = [
-  { to: '/', label: 'Home', icon: LayoutGrid, end: true, tour: 'nav-/' },
-  { to: '/projects', label: 'Projects', icon: FolderKanban, tour: 'nav-/projects' },
-  { to: '/audit', label: 'Site Health', icon: HeartPulse, tour: 'nav-monitor' },
-  { to: '/tracking', label: 'Rank Tracking', icon: TrendingUp },
-  { to: '/performance', label: 'Performance', icon: LineChart },
-  { to: '/schedules', label: 'Schedules', icon: CalendarClock, tour: 'nav-/schedules' },
-  { to: '/integrations', label: 'Connect data', icon: Plug },
-  // No `tour` here — the header's account dropdown already owns 'account-menu',
-  // and driver.js resolves a duplicate anchor to whichever comes first in DOM.
-  { to: '/account', label: 'Settings', icon: Settings },
+const NAV_GROUPS = [
+  { items: [
+    { to: '/', label: 'Home', icon: LayoutGrid, end: true, tour: 'nav-/' },
+  ] },
+  { label: 'Insights', items: [
+    { to: '/audit', label: 'Site Health', icon: HeartPulse, tour: 'nav-monitor' },
+    { to: '/tracking', label: 'Rankings', icon: TrendingUp },
+    { to: '/performance', label: 'Traffic', icon: LineChart },
+  ] },
+  { label: 'Work', items: [
+    { to: '/tools', label: 'Tools', icon: LayoutList, tour: 'tools', badge: TOOLS.length },
+    { to: '/projects', label: 'Projects', icon: FolderKanban, tour: 'nav-/projects' },
+    { to: '/schedules', label: 'Schedules', icon: CalendarClock, tour: 'nav-/schedules' },
+  ] },
+  { label: 'Setup', items: [
+    { to: '/integrations', label: 'Connect data', icon: Plug },
+    { to: '/account', label: 'Settings', icon: Settings },
+  ] },
 ];
 
 export default function Sidebar({ open, onNavigate, onOpenChat }) {
   const { user } = useAuth();
   const { unanswered } = useSupportTickets();
+  const navigate = useNavigate();
   const [planOpen, setPlanOpen] = useState(false);
-  const [toolsOpen, setToolsOpen] = useState(false);
-  // Let any page open the rail's popups (the welcome banner and attention strip
-  // both pitch upgrades) — same window-event idiom as dm:open-chat/dm:open-tools.
+  // Let any page trigger the rail's actions: "explore tools" now navigates to the
+  // Tools page (it used to open a modal); the upgrade pitch opens the plan popup.
+  // Same window-event idiom as dm:open-chat.
   useEffect(() => {
-    const tools = () => setToolsOpen(true);
+    const tools = () => navigate('/tools');
     const plan = () => setPlanOpen(true);
     window.addEventListener('dm:open-tools', tools);
     window.addEventListener('dm:open-plan', plan);
     return () => { window.removeEventListener('dm:open-tools', tools); window.removeEventListener('dm:open-plan', plan); };
-  }, []);
+  }, [navigate]);
   if (!user) return null;
 
   const max = PLANS[user.tier].monthlyCredits;
@@ -70,22 +78,22 @@ export default function Sidebar({ open, onNavigate, onOpenChat }) {
       </Link>
 
       <nav className="flex flex-1 flex-col gap-[3px]">
-        {NAV.map(({ to, label, icon: Icon, end, tour, badge }) => (
-          <NavLink key={to} to={to} end={end} data-tour={tour} onClick={onNavigate} className={item}>
-            <Icon size={18} aria-hidden className="dm-sb-ico shrink-0" />
-            <span className="truncate">{label}</span>
-            {badge ? <span className="dm-sb-badge">{badge}</span> : null}
-          </NavLink>
+        {NAV_GROUPS.map((group, gi) => (
+          <div key={gi} className={`flex flex-col gap-[3px] ${group.label ? 'mt-3' : ''}`}>
+            {group.label && (
+              <span className="px-3 pb-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-faint">{group.label}</span>
+            )}
+            {group.items.map(({ to, label, icon: Icon, end, tour, badge }) => (
+              <NavLink key={to} to={to} end={end} data-tour={tour} onClick={onNavigate} className={item}>
+                <Icon size={18} aria-hidden className="dm-sb-ico shrink-0" />
+                <span className="truncate">{label}</span>
+                {badge ? <span className="dm-sb-badge">{badge}</span> : null}
+              </NavLink>
+            ))}
+          </div>
         ))}
-        {/* Mockup's rail has Tools as a peer of Home; here it opens the catalog
-            popup rather than routing, since Home already lists the same tiles. */}
-        <button type="button" onClick={() => setToolsOpen(true)} data-tour="tools" className="dm-sb-item w-full">
-          <LayoutList size={18} aria-hidden className="dm-sb-ico shrink-0" />
-          <span className="truncate">Tools</span>
-          <span className="dm-sb-badge">{TOOLS.length}</span>
-        </button>
         {user.isAdmin && (
-          <NavLink to="/admin" onClick={onNavigate} className={item}>
+          <NavLink to="/admin" onClick={onNavigate} className={({ isActive }) => `${item({ isActive })} mt-3`}>
             <Shield size={18} aria-hidden className="dm-sb-ico shrink-0" />
             <span className="truncate">Admin</span>
             {unanswered > 0 && <span className="dm-sb-badge !bg-red-500 !text-white">{unanswered > 9 ? '9+' : unanswered}</span>}
@@ -111,8 +119,6 @@ export default function Sidebar({ open, onNavigate, onOpenChat }) {
           <span className="block truncate text-[10px] text-muted">Ask anything</span>
         </span>
       </button>
-
-      <ToolsModal open={toolsOpen} onClose={() => setToolsOpen(false)} />
 
       <Modal
         open={planOpen}

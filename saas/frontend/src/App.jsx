@@ -49,6 +49,7 @@ const Performance = lazyWithReload(() => import('./pages/Performance.jsx'));
 const SiteAudit = lazyWithReload(() => import('./pages/SiteAudit.jsx'));
 const SocialAudit = lazyWithReload(() => import('./pages/SocialAudit.jsx'));
 const Schedules = lazyWithReload(() => import('./pages/Schedules.jsx'));
+const Tools = lazyWithReload(() => import('./pages/Tools.jsx'));
 
 const Loading = () => <div className="grid min-h-[40vh] place-items-center text-faint">Loading…</div>;
 
@@ -90,6 +91,7 @@ export default function App() {
       <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/tools" element={<Tools />} />
           <Route path="/tool/:toolId" element={<ToolRunner />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/projects/:projectId" element={<ProjectDetail />} />
