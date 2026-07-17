@@ -2867,7 +2867,7 @@
                         items_page(limit:500,cursor:$c){
                             cursor
                             items {
-                                id name
+                                id name updated_at
                                 column_values {
                                     id text type
                                     column { title }
@@ -4590,6 +4590,8 @@
             lines.push('Items needing attention:');
             b.items.slice(0, 40).forEach(it => lines.push(`- ${it.kind === 'blank' ? '[no dates] ' : '[lapsed ' + it.daysOverdue + 'd] '}${it.name}`));
             copyHygieneText(lines.join('\n'), 'Nudge copied — paste into Monday / Slack');
+            // Record the nudge so it shows up as reminder history in the campaign drill-down.
+            _cbLogReminder(bId, { channel: 'Hygiene nudge copied', note: `${b.stale} un-updated ranges` });
         }
 
         function hygieneOnTimeMap() {
@@ -6742,6 +6744,110 @@
             document.getElementById('summary-modal-body').innerHTML = rendered.body;
         }
 
+        // ══ Manager drill-down chain (Step 11, sub-steps 3–5) ═══════════════════
+        // Health → campaign → reason → person → task → content item →
+        // approval delay → reminder history → next recommended action.
+        function _cbBuildCampaign(boardId) {
+            const items = state.auditedItems.filter(i => i.bId === boardId);
+            const counts = { overdue: 0, soon: 0, v2w: 0 };
+            items.forEach(i => counts[i.status === '2w' ? 'v2w' : i.status]++);
+            return { id: boardId, name: items[0] ? items[0].bName : '', items, counts };
+        }
+        function _cbItemAwaitingApproval(i) {
+            return _cbApprovalStatus(i.itemStatus) || _cbApprovalStatus(i.masterCsmStatus) || _cbApprovalStatus(i.csmCampaignStatus);
+        }
+        // Days an awaiting-approval item has sat without any change (proxy for approval delay).
+        // Uses item.updated_at (now fetched); null when the timestamp is unavailable.
+        function _cbApprovalAging(i) {
+            if (!i || !i.updated_at) return null;
+            const t = new Date(i.updated_at).getTime();
+            if (!t) return null;
+            return Math.max(0, Math.round((Date.now() - t) / 86400000));
+        }
+        function _cbIsContentItem(i) {
+            return _cbDiscipline(i) === 'content'
+                || /\b(article|blog|content|caption|copywrit|editorial|newsletter|whitepaper|ebook|landing\s*page)\b/i.test(i.name || '');
+        }
+        // Compose the "why is this flagged" reason from the campaign's live signals.
+        function _cbCampaignReason(camp) {
+            const r = [];
+            if (camp.counts.overdue > 0) r.push(`${camp.counts.overdue} overdue task${camp.counts.overdue > 1 ? 's' : ''}`);
+            if (_campaignEscalated(camp)) r.push('flagged as escalated');
+            if (_campaignKwBehind(camp.id, camp.name)) r.push('behind keyword pace');
+            if (camp.items.some(i => /blocked|urgent|critical|delayed|issue|problem|escalat|stall|behind/i.test(i.masterTechSummary || ''))) r.push('risk signals in the latest summary');
+            const appr = camp.items.filter(_cbItemAwaitingApproval).length;
+            if (appr) r.push(`${appr} item${appr > 1 ? 's' : ''} awaiting approval`);
+            if (!r.length && camp.counts.soon > 0) r.push(`${camp.counts.soon} due soon`);
+            return r.length ? r.join('; ') : 'No blocking issues — on track';
+        }
+        // Rule-based next recommended action from the dominant signal.
+        function _cbNextAction(camp) {
+            if (_campaignEscalated(camp)) return { text: 'Review the escalation with the account lead and agree a recovery plan.', icon: 'fa-triangle-exclamation', color: 'var(--danger)' };
+            if (camp.counts.overdue > 0) return { text: `Chase the owner(s) on ${camp.counts.overdue} overdue task${camp.counts.overdue > 1 ? 's' : ''} and re-baseline the dates.`, icon: 'fa-clock', color: 'var(--warning)' };
+            const appr = camp.items.filter(_cbItemAwaitingApproval).length;
+            if (appr) return { text: `Nudge the client on ${appr} pending approval${appr > 1 ? 's' : ''}.`, icon: 'fa-bell', color: '#eab308' };
+            if (_campaignKwBehind(camp.id, camp.name)) return { text: 'Review keyword targets and content velocity to recover Page-1 pace.', icon: 'fa-bullseye', color: 'var(--warning)' };
+            if (camp.counts.soon > 0) return { text: `Prepare the ${camp.counts.soon} task${camp.counts.soon > 1 ? 's' : ''} due soon so nothing slips.`, icon: 'fa-list-check', color: 'var(--primary)' };
+            return { text: 'On track — maintain the current delivery cadence and reporting.', icon: 'fa-check', color: 'var(--success)' };
+        }
+        // ── Reminder history (Step 11, sub-step 5) — logged on nudge, read in the drill ──
+        function _cbReminderLog() { try { return JSON.parse(localStorage.getItem('cbcReminderLog') || '{}') || {}; } catch (_) { return {}; } }
+        function _cbRemindersFor(boardId) { return _cbReminderLog()[boardId] || []; }
+        function _cbLogReminder(boardId, entry) {
+            entry = entry || {};
+            const log = _cbReminderLog();
+            (log[boardId] = log[boardId] || []).unshift({
+                ts: new Date().toISOString(),
+                by: state.currentUser || 'You',
+                channel: entry.channel || 'Nudge copied',
+                note: entry.note || '',
+            });
+            log[boardId] = log[boardId].slice(0, 50); // cap history
+            try { localStorage.setItem('cbcReminderLog', JSON.stringify(log)); } catch (_) {}
+        }
+
+        function _cbDrillChainHtml(camp) {
+            const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const sig = _successSignal(camp);
+            const disc = CB_DISCIPLINES[_cbDiscipline({ bId: camp.id, bName: camp.name })] || { label: '—', color: 'var(--muted)' };
+            const people = [...new Set(camp.items.flatMap(i => i.people).filter(p => p && !/deleted|unassigned/i.test(p)))];
+            const overdueItems = camp.items.filter(i => i.status === 'overdue');
+            const contentItems = camp.items.filter(_cbIsContentItem);
+            const approvals = camp.items.filter(_cbItemAwaitingApproval);
+            const reminders = _cbRemindersFor(camp.id);
+            const next = _cbNextAction(camp);
+
+            const section = (icon, title, inner, accent) => `<div style="margin-bottom:10px;padding:11px 13px;background:var(--surface);border:1px solid var(--border);border-left:3px solid ${accent || 'var(--border)'};border-radius:8px;">
+                <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:6px;"><i class="fas ${icon}" style="margin-right:5px;"></i>${title}</div>${inner}</div>`;
+            const chip = (txt, color) => `<span style="display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:${color}22;color:${color};margin:2px 4px 2px 0;">${esc(txt)}</span>`;
+            const itemLine = (i, extra) => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 0;border-bottom:1px dashed var(--border);">
+                <span style="color:var(--text);">${esc(i.name)}</span><span style="color:var(--muted);white-space:nowrap;">${extra}</span></div>`;
+            const none = t => `<div style="font-size:11px;color:var(--muted);font-style:italic;">${t}</div>`;
+
+            return `<div style="margin-bottom:16px;">
+                <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+                    ${chip(`${sig.label} · ${sig.score}`, sig.color)}
+                    ${chip(disc.label, disc.color)}
+                    ${chip(`${camp.items.length} tasks`, 'var(--muted)')}
+                </div>
+                ${section('fa-circle-question', 'Reason for issue', `<div style="font-size:12px;color:var(--text);">${esc(_cbCampaignReason(camp))}</div>`, sig.color)}
+                ${section('fa-users', 'People', people.length ? people.map(p => chip(p, 'var(--primary)')).join('') : none('No named assignees.'))}
+                ${section('fa-clock', `Overdue tasks (${overdueItems.length})`, overdueItems.length ? overdueItems.slice(0, 8).map(i => itemLine(i, `${Math.abs(i.daysOverdue || 0)}d overdue`)).join('') : none('No overdue tasks.'), overdueItems.length ? 'var(--danger)' : 'var(--border)')}
+                ${section('fa-pen-nib', `Content items (${contentItems.length})`, contentItems.length ? contentItems.slice(0, 8).map(i => itemLine(i, esc(i.itemStatus || ''))).join('') : none('No content items detected.'))}
+                ${section('fa-clipboard-check', `Approval delay (${approvals.length})`, approvals.length ? approvals.slice(0, 8).map(i => { const a = _cbApprovalAging(i); return itemLine(i, a != null ? `awaiting ${a}d` : 'awaiting'); }).join('') : none('Nothing awaiting approval.'), approvals.length ? '#eab308' : 'var(--border)')}
+                ${section('fa-bell', `Reminder history (${reminders.length})`, reminders.length ? reminders.slice(0, 8).map(r => `<div style="font-size:12px;padding:3px 0;border-bottom:1px dashed var(--border);"><span style="color:var(--text);">${esc(r.channel)}</span> <span style="color:var(--muted);">· ${esc(r.by)} · ${new Date(r.ts).toLocaleString()}</span></div>`).join('') : none('No reminders logged yet — use “Copy nudge” to start a trail.'))}
+                ${section('fa-lightbulb', 'Next recommended action', `<div style="font-size:12px;color:var(--text);font-weight:600;"><i class="fas ${next.icon}" style="color:${next.color};margin-right:6px;"></i>${esc(next.text)}</div>`, next.color)}
+            </div>`;
+        }
+        // Prepend the drill chain above the tech-summary body in the campaign modal.
+        function cbInjectDrillChain(boardId) {
+            const body = document.getElementById('summary-modal-body');
+            if (!body) return;
+            const camp = _cbBuildCampaign(boardId);
+            if (!camp.items.length) return;
+            body.insertAdjacentHTML('afterbegin', _cbDrillChainHtml(camp));
+        }
+
         async function showSummaryModal(boardId) {
             const item = state.auditedItems.find(i => i.bId === boardId);
             if (!item) return;
@@ -6751,6 +6857,7 @@
 
             // Paint the column copy first so the modal opens instantly.
             cbPaintSummary(item, col, capped);
+            cbInjectDrillChain(boardId);
             document.getElementById('summary-modal').classList.add('show');
             document.getElementById('summary-modal-backdrop').classList.add('show');
 
@@ -6758,7 +6865,7 @@
             const full = await cbFetchFullSummary(item.masterItemId);
             // Bail if the modal was closed or another campaign opened meanwhile.
             if (token !== cbSummaryToken) return;
-            if (full.length > col.length) cbPaintSummary(item, full, false);
+            if (full.length > col.length) { cbPaintSummary(item, full, false); cbInjectDrillChain(boardId); }
         }
 
         function closeSummaryModal() {
