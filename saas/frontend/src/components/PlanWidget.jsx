@@ -47,6 +47,22 @@ export default function PlanWidget() {
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
 
+  // Pulse the pill for a beat when the NEXT step changes (a step got ticked and a
+  // new one is up), so the "what next" moves even if the user's eyes were on the
+  // page — not just the corner. Skips the first render so it doesn't fire on load.
+  const nextId = progress?.next?.toolId || null;
+  const [pinged, setPinged] = useState(false);
+  const prevNextId = useRef(undefined);
+  useEffect(() => {
+    if (prevNextId.current !== undefined && nextId && nextId !== prevNextId.current) {
+      setPinged(true);
+      const t = setTimeout(() => setPinged(false), 2600);
+      prevNextId.current = nextId;
+      return () => clearTimeout(t);
+    }
+    prevNextId.current = nextId;
+  }, [nextId]);
+
   // No plan yet → a brand-tinted nudge to set one. Tinted (not grey) so it reads
   // as a call to action next to the neutral meters, keeping the north star
   // discoverable rather than hidden.
@@ -58,7 +74,7 @@ export default function PlanWidget() {
         title="Set your goal and get a step-by-step plan"
         className="hidden items-center gap-1.5 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 px-2.5 py-1.5 text-sm font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-500/15 sm:inline-flex"
       >
-        <Target size={16} aria-hidden /><span className="hidden lg:inline">Set a goal</span>
+        <Target size={16} aria-hidden /><span className="hidden md:inline">Set a goal</span>
       </button>
     );
   }
@@ -75,7 +91,7 @@ export default function PlanWidget() {
         onClick={() => setOpen((o) => !o)}
         data-tour="plan-widget"
         title={complete ? 'Your plan — all done' : next ? `Up next: ${stepLabel(next)}` : 'Your plan'}
-        className={`inline-flex items-center gap-2 rounded-lg border px-2 py-1 text-sm font-semibold transition-colors ${
+        className={`relative inline-flex items-center gap-2 rounded-lg border px-2 py-1 text-sm font-semibold transition-colors ${
           open
             ? 'border-brand-600 bg-brand-600 text-white'
             : complete
@@ -83,6 +99,9 @@ export default function PlanWidget() {
               : 'border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-500/15'
         }`}
       >
+        {pinged && !open && !complete && (
+          <span className="pointer-events-none absolute inset-0 rounded-lg ring-2 ring-brand-400 motion-safe:animate-ping" aria-hidden />
+        )}
         <Ring pct={pct} done={done} total={total} complete={complete} active={open} />
         {complete ? (
           <span className="flex items-center gap-1 pr-0.5">
@@ -90,7 +109,7 @@ export default function PlanWidget() {
             <span className="hidden md:inline">Plan complete</span>
           </span>
         ) : (
-          <span className="hidden min-w-0 flex-col items-start leading-tight lg:flex">
+          <span className="hidden min-w-0 flex-col items-start leading-tight md:flex">
             <span className={`text-[9px] font-bold uppercase tracking-wide ${open ? 'text-white/70' : 'text-brand-400'}`}>Up next</span>
             <span className="max-w-[9rem] truncate text-xs font-semibold">{next ? stepLabel(next) : 'Your plan'}</span>
           </span>

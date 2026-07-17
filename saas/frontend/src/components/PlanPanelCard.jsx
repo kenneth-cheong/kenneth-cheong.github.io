@@ -5,7 +5,9 @@ import { usePlan } from '../context/PlanContext.jsx';
 import { stepTarget, stepLabel } from '../lib/planner.js';
 
 // Persist the expand/collapse choice so the panel doesn't fight the user. Starts
-// expanded (the default the product wants) but respects a collapse.
+// COLLAPSED — the assistant is a chat first, so the docked plan stays a compact
+// one-liner ("Up next: X · Start") until the user chooses to expand it. That
+// keeps Monty present-but-not-buried under the full step list.
 const LS_KEY = 'dm:planPanelExpanded';
 
 // The north-star plan, docked at the top of the Assistant panel. The panel is
@@ -15,7 +17,7 @@ const LS_KEY = 'dm:planPanelExpanded';
 export default function PlanPanelCard() {
   const { hasPlan, plan, progress, isStepDone, toggleDone } = usePlan();
   const navigate = useNavigate();
-  const [expanded, setExpanded] = useState(() => localStorage.getItem(LS_KEY) !== '0');
+  const [expanded, setExpanded] = useState(() => localStorage.getItem(LS_KEY) === '1');
   const toggle = () => setExpanded((e) => { const n = !e; localStorage.setItem(LS_KEY, n ? '1' : '0'); return n; });
   // Navigate WITHOUT closing the panel — it's docked, and "keep both" means the
   // plan should stay put while the user works through a step.
@@ -63,7 +65,9 @@ export default function PlanPanelCard() {
       </div>
 
       {expanded ? (
-        <ul className="px-2 pb-3 pt-1.5">
+        // Cap the list so a long plan scrolls inside the card instead of eating
+        // the whole panel — the chat thread below keeps its room either way.
+        <ul className="max-h-[34vh] overflow-y-auto px-2 pb-3 pt-1.5">
           {plan.steps.map((s, i) => {
             const isDone = isStepDone(s);
             const isNext = !!next && s.toolId === next.toolId && !isDone;

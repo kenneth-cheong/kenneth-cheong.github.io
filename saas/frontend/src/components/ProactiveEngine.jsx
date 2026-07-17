@@ -120,6 +120,12 @@ export default function ProactiveEngine({ paused = false, chatOpen = false }) {
     return () => window.removeEventListener('dm:proactive-event', onEvent);
   }, [evaluate]);
 
+  // Broadcast whether a nudge is on screen so the plan peek (which shares this
+  // corner) can yield rather than stack on top of it.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('dm:nudge-active', { detail: { active: !!nudge } }));
+  }, [nudge]);
+
   function acceptNudge() {
     if (nudge) deliver(nudge.payload);
     setNudge(null);
@@ -131,9 +137,12 @@ export default function ProactiveEngine({ paused = false, chatOpen = false }) {
 
   if (!nudge) return null;
 
-  // The nudge: a compact peek anchored under the header, near the Otter button.
+  // The nudge: a compact peek that pops out of the Monty launcher (bottom-right,
+  // 60px avatar at bottom/right 26px). Sits just above the avatar, right edges
+  // aligned, and scales up from that corner. z-index stays under the launcher's
+  // z-80 so the avatar reads as the source.
   return (
-    <div className="fixed right-4 top-16 z-40 w-72 motion-safe:animate-slide-in-right">
+    <div className="fixed bottom-[100px] right-[26px] z-[70] w-72 origin-bottom-right motion-safe:animate-pop-from-corner">
       <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-xl">
         <div className="flex items-start gap-2.5 p-3">
           <Mascot size={36} className="mt-0.5 shrink-0" />

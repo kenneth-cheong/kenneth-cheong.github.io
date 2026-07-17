@@ -6,6 +6,7 @@ import ChatDrawer from './ChatDrawer.jsx';
 import Mascot from './Mascot.jsx';
 import NotificationBell from './NotificationBell.jsx';
 import PlanWidget from './PlanWidget.jsx';
+import PlanBreadcrumb from './PlanBreadcrumb.jsx';
 import Toaster from './Toaster.jsx';
 import ExplainMenu from './ExplainMenu.jsx';
 import ProactiveEngine from './ProactiveEngine.jsx';
@@ -13,6 +14,7 @@ import ProjectSelector from './ProjectSelector.jsx';
 import Sidebar from './Sidebar.jsx';
 import ToolRunModal from './ToolRunModal.jsx';
 import MontyLauncher from './MontyLauncher.jsx';
+import PlanPeek from './PlanPeek.jsx';
 import ThemeToggle from './ThemeToggle.jsx';
 import Welcome from './Welcome.jsx';
 import ConsentGate from './ConsentGate.jsx';
@@ -266,6 +268,11 @@ export default function Layout({ children }) {
             </div>
           </div>
 
+          {/* Plan progress strip — a slim reminder of "what next" that follows
+              the user off the dashboard. Self-hides on `/`, when complete, or
+              after a per-session dismiss. */}
+          <PlanBreadcrumb />
+
           {/* Back-to-project strip — lives on its own row below the nav so it
               never gets clipped by the crowded top bar. */}
           {fromProjectId && (
@@ -302,6 +309,9 @@ export default function Layout({ children }) {
       {/* Floating launcher — desktop only, matching the assistant's own rule
           (on mobile the panel is a full-screen sheet). */}
       {wide && <MontyLauncher open={chatOpen} onOpen={() => setChatOpen(true)} onClose={() => setChatOpen(false)} />}
+      {/* Once-per-session peek of the plan's next step out of the closed launcher
+          — defers to the proactive nudge so the corner never double-stacks. */}
+      {wide && <PlanPeek chatOpen={chatOpen} />}
 
       {/* ⌘K command palette — jump to any tool, page or project. */}
       <CommandPalette />
