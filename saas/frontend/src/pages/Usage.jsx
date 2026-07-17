@@ -14,8 +14,13 @@ export default function Usage() {
     api.usage().then((d) => setRows(d.usage || [])).catch(() => {});
   }, []);
 
-  const spent = rows.reduce((a, r) => a + (r.delta < 0 ? -r.delta : 0), 0);
   const topup = user.topupCredits || 0;
+  // Spent THIS cycle = the monthly allowance minus what's left of the monthly
+  // bucket (total credits minus never-expiring top-ups). Mirrors the dashboard's
+  // "N of allowance used". The ledger `rows` span multiple cycles/resets, so
+  // summing their deltas over-counts massively (was showing 5,576 for ~6 spent).
+  const monthlyLeft = Math.max(0, (user.credits || 0) - topup);
+  const spent = Math.max(0, (plan?.monthlyCredits || 0) - monthlyLeft);
   const renews = user.periodEnd
     ? new Date(user.periodEnd).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
     : null;

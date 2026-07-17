@@ -1096,7 +1096,14 @@ function RepivotBar({ fields, values, busy, onChange }) {
             onChange={(e) => onChange(f.name, e.target.value)}
             className="dm-select rounded-lg border border-edge bg-surface py-1 pl-2 pr-7 text-sm transition focus:border-brand-600 focus:outline-none focus:ring-4 focus:ring-brand-600/10 disabled:opacity-50"
           >
-            {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+            {f.options.map((o) => {
+              // Options are plain strings or {value,label} (e.g. GSC property,
+              // GA4 account). Rendering the object directly throws React #31 and
+              // crashed the whole integration page — mirror the main select.
+              const v = typeof o === 'string' ? o : o.value;
+              const l = typeof o === 'string' ? o : o.label;
+              return <option key={v} value={v}>{l}</option>;
+            })}
           </select>
         </label>
       ))}
