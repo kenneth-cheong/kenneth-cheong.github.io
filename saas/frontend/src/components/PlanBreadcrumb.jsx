@@ -1,23 +1,22 @@
 import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Target, Check, ArrowRight, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { usePlan } from '../context/PlanContext.jsx';
 import { stepTarget, stepLabel } from '../lib/planner.js';
 
 // A slim, full-width progress strip that sits under the top nav on EVERY page,
-// so the plan's "what next" stays in front of the user once they leave the
-// dashboard (where GoalPlanner already carries the goal). Deliberately one row
-// tall so it never crowds the page; the step list is an opt-in expand.
+// including the dashboard — so the plan's "what next" is a constant anchor no
+// matter where the user is. Deliberately one row tall so it never crowds the
+// page; the step list is an opt-in expand.
 //
-// Hidden where it would be noise: on the dashboard (the big card owns it there),
-// once the plan is complete, when there's no plan, and after a per-session
-// dismiss — so a user who wants it gone gets a quiet app back until next visit.
+// Hidden only where it would be noise: once the plan is complete, when there's
+// no plan, and after a per-session dismiss — so a user who wants it gone gets a
+// quiet app back until next visit.
 const SS_KEY = 'dm:planStripDismissed';
 
 export default function PlanBreadcrumb() {
   const { hasPlan, plan, progress, isStepDone } = usePlan();
   const navigate = useNavigate();
-  const { pathname } = useLocation();
   const [expanded, setExpanded] = useState(false);
   const [dismissed, setDismissed] = useState(() => {
     try { return sessionStorage.getItem(SS_KEY) === '1'; } catch { return false; }
@@ -28,8 +27,7 @@ export default function PlanBreadcrumb() {
     try { sessionStorage.setItem(SS_KEY, '1'); } catch { /* ignore */ }
   };
 
-  // The dashboard's GoalPlanner is the plan's home turf — no need to echo it there.
-  if (pathname === '/' || dismissed || !hasPlan || progress.complete) return null;
+  if (dismissed || !hasPlan || progress.complete) return null;
 
   const { done, total, pct, next } = progress;
   const go = (item) => navigate(stepTarget(item).to);
