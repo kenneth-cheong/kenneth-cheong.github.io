@@ -36,7 +36,7 @@ export default function Sidebar({ open, onNavigate, onOpenChat }) {
   const [planOpen, setPlanOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   // Let any page open the rail's popups (the welcome banner and attention strip
-  // both pitch upgrades) — same window-event idiom as dm:open-chat/dm:open-tool.
+  // both pitch upgrades) — same window-event idiom as dm:open-chat/dm:open-tools.
   useEffect(() => {
     const tools = () => setToolsOpen(true);
     const plan = () => setPlanOpen(true);

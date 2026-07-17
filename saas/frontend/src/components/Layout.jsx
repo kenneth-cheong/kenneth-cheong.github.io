@@ -12,7 +12,6 @@ import ExplainMenu from './ExplainMenu.jsx';
 import ProactiveEngine from './ProactiveEngine.jsx';
 import ProjectSelector from './ProjectSelector.jsx';
 import Sidebar from './Sidebar.jsx';
-import ToolRunModal from './ToolRunModal.jsx';
 import MontyLauncher from './MontyLauncher.jsx';
 import PlanPeek from './PlanPeek.jsx';
 import ThemeToggle from './ThemeToggle.jsx';
@@ -316,8 +315,6 @@ export default function Layout({ children }) {
       {/* ⌘K command palette — jump to any tool, page or project. */}
       <CommandPalette />
 
-      {/* One instance serves every tool tile, via the dm:open-tool event. */}
-      <ToolRunModal />
       <ExplainMenu />
       <FaultReporter />
       <Toaster />

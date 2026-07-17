@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Play, ShieldCheck, ShieldAlert, Gauge as GaugeIcon, Link2, Bot, LineChart } from 'lucide-react';
 import { useLatestRuns, ago } from '../lib/latestRuns.js';
 
@@ -134,10 +134,11 @@ export default function ResultCards() {
 // state pointing at the tool instead of a fake number.
 function Card({ title, toolId, run, chip, icon, children }) {
   const has = !!run?.result;
-  // The whole card opens the tool's run popup (mockup: a result card is a live
-  // control, not a static tile). The inner Re-run / Run-it buttons stop
-  // propagation so they don't double-fire the same event.
-  const open = () => window.dispatchEvent(new CustomEvent('dm:open-tool', { detail: { id: toolId } }));
+  const navigate = useNavigate();
+  // The whole card opens the tool's page (a result card is a live control, not a
+  // static tile). The inner Re-run / Run-it buttons stop propagation so they
+  // don't double-fire.
+  const open = () => navigate(`/tool/${toolId}`);
   return (
     <section
       role="button"

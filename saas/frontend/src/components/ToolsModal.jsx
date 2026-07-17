@@ -53,7 +53,7 @@ export default function ToolsModal({ open, onClose }) {
           <h4 className="mb-2.5 text-[10px] font-extrabold uppercase tracking-[0.14em] text-faint">{category}</h4>
           {/* auto-fill/224px — the mockup's denser catalog grid, not the page's 3-up */}
           <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(224px, 1fr))' }}>
-            {tools.map((t) => <ToolCard key={t.id} tool={t} userTier={user.tier} />)}
+            {tools.map((t) => <ToolCard key={t.id} tool={t} userTier={user.tier} onNavigate={onClose} />)}
           </div>
         </section>
       ))}

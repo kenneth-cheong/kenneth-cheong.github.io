@@ -22,7 +22,7 @@ const HUE_VAR = {
   Integrations: '--cat-integrations',
 };
 
-export default function ToolCard({ tool, userTier }) {
+export default function ToolCard({ tool, userTier, onNavigate }) {
   const unlocked = tierMeets(userTier, tool.minTier);
   const cost = CREDIT_COSTS[tool.cost] ?? 0;
   const meta = CATEGORY_META[tool.category] || { color: '#64748b' };
@@ -30,20 +30,14 @@ export default function ToolCard({ tool, userTier }) {
     ? `var(${HUE_VAR[tool.category]}, ${meta.color})`
     : meta.color;
 
-  // Unlocked, ToolRunner-backed tools open the run popup (mockup: a card opens
-  // #modal-tool, it doesn't navigate). Tools with their own route (/audit,
-  // /tracking) and locked tools still navigate — the page owns the teaser and
-  // upsell paths, and a popup would have to duplicate them.
-  const asPopup = unlocked && !tool.route;
-  const open = (e) => {
-    e.preventDefault();
-    window.dispatchEvent(new CustomEvent('dm:open-tool', { detail: { id: tool.id } }));
-  };
-
+  // Every tool opens as its OWN PAGE — the generic ToolRunner at /tool/:id, or
+  // the tool's bespoke route (only Social Media Audit has one). One behaviour for
+  // all tools; locked tools land on the page's teaser/upsell. A plain Link, so
+  // the page deep-links and ⌘-click opens the tool in a new tab.
   return (
     <Link
       to={tool.route || `/tool/${tool.id}`}
-      onClick={asPopup ? open : undefined}
+      onClick={onNavigate}
       style={{ '--tc': hue }}
       className={`card card-hover group relative flex flex-col overflow-hidden ${unlocked ? '' : 'border-dashed'}`}
     >

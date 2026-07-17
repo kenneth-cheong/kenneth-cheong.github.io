@@ -12,7 +12,7 @@ import { api } from '../lib/api.js';
 // with one clear move, and celebrates the streak so returning daily feels earned.
 //
 // Dismissible for the day (never nags twice). Purely a router over things that
-// already exist — navigation + the dm:open-tool / dm:open-tools events.
+// already exist — navigation + the dm:open-tools event.
 
 const DAY = 86400000;
 const startOfDay = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
@@ -68,7 +68,7 @@ export default function DailyFocus({ googleConnected = false }) {
     if (lowCredits) return { icon: Zap, tag: 'Heads up', tone: 'warn', title: 'You’re low on AI credits', body: `${left.toLocaleString()} left this cycle. Top up so runs don’t stall mid-task.`, cta: 'Top up', act: () => navigate('/account') };
     if (!ranToday) {
       const g = GOAL_ACTION[user.onboarding?.goal] || { title: 'Run today’s check', body: 'One quick run keeps your data — and your streak — fresh.', tool: 'keyword-analysis' };
-      const act = g.to ? () => navigate(g.to) : () => window.dispatchEvent(new CustomEvent('dm:open-tool', { detail: { id: g.tool } }));
+      const act = g.to ? () => navigate(g.to) : () => navigate(`/tool/${g.tool}`);
       return { icon: Flame, tag: streak > 0 ? `Keep your ${streak}-day streak` : 'Today', title: g.title, body: g.body, cta: 'Do it', act };
     }
     return { icon: PartyPopper, tone: 'good', tag: 'All caught up', title: streak > 1 ? `You’re on a ${streak}-day roll` : 'You’re set for today', body: 'Nice work. Explore a tool you haven’t tried, or line up more keywords to track.', cta: 'Explore tools', act: () => window.dispatchEvent(new CustomEvent('dm:open-tools')) };

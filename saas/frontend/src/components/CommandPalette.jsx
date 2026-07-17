@@ -15,7 +15,7 @@ import { ToolIcon } from '../lib/icons.jsx';
 // (or the `dm:open-command` event, e.g. from the top-bar search button).
 //
 // Mounted once in Layout. Navigation and the app's existing window-event idioms
-// (dm:open-chat / dm:open-tool / dm:open-tools / dm:open-plan) do the work, so
+// (dm:open-chat / dm:open-tools / dm:open-plan) do the work, so
 // the palette stays a thin router over what already exists.
 
 const fire = (name, detail) => window.dispatchEvent(new CustomEvent(name, detail ? { detail } : undefined));
@@ -70,11 +70,8 @@ export default function CommandPalette() {
 
   // Build every command once per relevant input. `run` closes the palette then acts.
   const commands = useMemo(() => {
-    const openTool = (t) => {
-      const unlocked = tierMeets(user?.tier, t.minTier);
-      if (unlocked && !t.route) fire('dm:open-tool', { id: t.id });
-      else navigate(t.route || `/tool/${t.id}`);
-    };
+    // Every tool opens as its own page (the tool's route, else /tool/:id).
+    const openTool = (t) => navigate(t.route || `/tool/${t.id}`);
     const actions = [
       { id: 'a-chat', label: 'Ask Monty', hint: 'AI concierge', group: 'Actions', icon: MessageCircle, act: () => fire('dm:open-chat') },
       { id: 'a-tools', label: 'Browse all tools', group: 'Actions', icon: LayoutGrid, act: () => fire('dm:open-tools') },
