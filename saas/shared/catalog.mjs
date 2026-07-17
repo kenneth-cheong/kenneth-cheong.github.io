@@ -139,6 +139,46 @@ export function costPerRun(tool, inputs) {
   return unit * Math.max(1, Math.min(50, arr.length));
 }
 
+// Honest per-tool runtime bands [low, high] in seconds, from measured backend
+// durations (2026-07) with headroom for cold starts / bigger sites. The generic
+// "30–150s" undersold ai-mentions (~184s) and oversold quick tools (~7–20s),
+// so users abandoned legit long runs and distrusted fast ones. Any slow tool
+// not listed falls back to the generic band.
+const TOOL_ETA = {
+  'content-check': [10, 45], onpage: [10, 45], 'perf-marketing': [10, 45],
+  backlinks: [10, 45], 'ai-discovery': [15, 60], 'page-analysis': [15, 75],
+  'landing-audit': [15, 75], 'anchor-cleaner': [15, 75], 'keyword-analysis': [20, 90],
+  'llms-txt': [20, 90], 'time-to-rank': [20, 90], 'strategy-engine': [30, 120],
+  'technical-seo': [30, 150], 'geo-onpage': [40, 150], persona: [45, 150],
+  'content-writer': [30, 180], 'forensic-audit': [60, 210], 'media-plan': [60, 210],
+  'social-audit': [45, 180], 'ai-mentions': [120, 300],
+};
+const GENERIC_ETA = [30, 150];
+
+/** [low, high] seconds for a tool (or tool id), or null for non-slow tools. */
+export function etaBand(tool) {
+  const id = typeof tool === 'string' ? tool : tool?.id;
+  if (TOOL_ETA[id]) return TOOL_ETA[id];
+  const slow = typeof tool === 'object' ? tool?.slow : TOOLS.find((t) => t.id === id)?.slow;
+  return slow ? GENERIC_ETA : null;
+}
+
+/** Human ETA range, e.g. "10s–45s" or "2–5 min" (no leading "~"). */
+export function etaLabel(tool) {
+  const b = etaBand(tool);
+  if (!b) return null;
+  const fmt = (s) => (s < 60 ? `${s}s` : `${String(Math.round(s / 30) / 2).replace(/\.0$/, '')} min`);
+  const lo = fmt(b[0]); const hi = fmt(b[1]);
+  // Collapse the unit when both ends are minutes: "2 min–5 min" → "2–5 min".
+  return lo.endsWith('min') && hi.endsWith('min') ? `${lo.replace(' min', '')}–${hi}` : `${lo}–${hi}`;
+}
+
+/** Typical seconds (band midpoint) — drives the progress animation pacing. */
+export function etaTypical(tool) {
+  const b = etaBand(tool);
+  return b ? Math.round((b[0] + b[1]) / 2) : 90;
+}
+
 // ── Tool registry ───────────────────────────────────────────────────────────
 // `minTier`     — lowest plan that unlocks the tool fully.
 // `cost`        — key into CREDIT_COSTS (what one run charges).

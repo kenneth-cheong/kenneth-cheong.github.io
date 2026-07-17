@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
-import { toolById, inputsFor, tabsFor, exampleFor, CREDIT_COSTS, costPerRun, PLANS, tierMeets, isSchedulable, scheduleLimits } from '@shared/catalog.mjs';
+import { toolById, inputsFor, tabsFor, exampleFor, CREDIT_COSTS, costPerRun, etaLabel, etaTypical, PLANS, tierMeets, isSchedulable, scheduleLimits } from '@shared/catalog.mjs';
 import { api, ApiError } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
@@ -394,13 +394,14 @@ async function pollJob(toolId, jobId, onTick) {
 // we say so honestly instead of looping the same message.
 function SlowProgress({ tool, job }) {
   const steps = ['Sending your request', 'Reaching the data sources', 'Crunching the numbers', 'Compiling the results'];
-  const TYPICAL = 90; // seconds — middle of the ~30–150s band for slow tools
+  const TYPICAL = etaTypical(tool); // seconds — this tool's measured midpoint
+  const range = etaLabel(tool) || '30–150s';
   const [sec, setSec] = useState(0);
   useEffect(() => {
     const a = setInterval(() => setSec((s) => s + 1), 1000);
     return () => clearInterval(a);
   }, []);
-  const overdue = sec > 150;
+  const overdue = sec > (etaTypical(tool) * 2);
 
   // Live server-side progress (async-job tools like the Content Optimiser).
   if (job) {
@@ -434,7 +435,7 @@ function SlowProgress({ tool, job }) {
       <div className="flex items-center gap-3">
         <span className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
         <span className="font-medium text-body">{steps[i]}…</span>
-        <span className="ml-auto text-xs tabular-nums text-faint">{sec}s · usually 30–150s</span>
+        <span className="ml-auto text-xs tabular-nums text-faint">{sec}s · usually {range}</span>
       </div>
       <ul className="mt-4 space-y-2">
         {steps.map((s, k) => (

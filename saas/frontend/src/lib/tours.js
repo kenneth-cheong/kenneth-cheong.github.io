@@ -19,7 +19,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
-import { CREDIT_COSTS, PLANS, TOOLS, isSchedulable } from '@shared/catalog.mjs';
+import { CREDIT_COSTS, PLANS, TOOLS, isSchedulable, etaLabel } from '@shared/catalog.mjs';
 
 // ── driver.js base config (brand-themed via the .dm-tour popover class) ──────
 function run(steps, { onDone } = {}) {
@@ -772,7 +772,7 @@ export function startToolTour(tool, fields, hooks = {}) {
       title: tool.name,
       description:
         `<p class="dm-ex-lead">${TOOL_INTRO[tool.id] || tool.desc}</p>` +
-        `<p class="dm-ex-note">${tool.category} · ${cost === 0 ? 'free to run' : `${cost} credit${cost > 1 ? 's' : ''} per run`}${tool.slow ? ' · ~30–150s' : ''}</p>` +
+        `<p class="dm-ex-note">${tool.category} · ${cost === 0 ? 'free to run' : `${cost} credit${cost > 1 ? 's' : ''} per run`}${tool.slow ? ` · ~${etaLabel(tool)}` : ''}</p>` +
         note('We’ve filled the form with a real <b>asana.com</b> example and shown its result below. Nothing is running and <b>no credits are spent</b> while you look around — leaving the tour clears it all.'),
     },
   });
@@ -805,7 +805,7 @@ export function startToolTour(tool, fields, hooks = {}) {
     popover: {
       title: tool.slow ? 'Run it (give it a moment)' : 'Run it',
       description: (tool.slow
-        ? 'On your own data you’d hit run here — this tool calls live data + AI, so it takes ~30–150s with live progress. We’ve pre-run the example for you ↓'
+        ? `On your own data you’d hit run here — this tool calls live data + AI, so it takes ~${etaLabel(tool)} with live progress. We’ve pre-run the example for you ↓`
         : 'On your own data you’d hit run here. We’ve already run the example so you can see the output ↓') + scheduleNote,
       side: 'top',
       align: 'end',
@@ -866,7 +866,7 @@ export function startSocialAuditTour(tool, hooks = {}) {
         title: 'Social Media Audit',
         description:
           lead('Pulls live numbers from Instagram, TikTok, Facebook, LinkedIn &amp; YouTube — followers, engagement (how much people actually interact), posting habits — then builds the strategy: what to post, where, and what competitors do better.') +
-          `<p class="dm-ex-note">${tool.category} · ${cost} credits per run · ~30–150s (two phases)</p>` +
+          `<p class="dm-ex-note">${tool.category} · ${cost} credits per run · ~${etaLabel(tool)} (two phases)</p>` +
           note('We’ve filled this in with a real <b>asana.com</b> example and rendered the result below — nothing runs and <b>no credits are spent</b> while you look around.'),
       },
     },
@@ -928,7 +928,7 @@ export function startSocialAuditTour(tool, hooks = {}) {
       element: '[data-tour="sma-run"]',
       popover: {
         title: 'Run it (give it a moment)',
-        description: `On your own data you’d hit run here — it costs <b>${cost} credits</b> and works in two phases (pull the live numbers → build the strategy), so it takes ~30–150s with live progress. It keeps going even if you close the tab, and sends a notification when it’s done. We’ve pre-run the example so you can see the output ↓`,
+        description: `On your own data you’d hit run here — it costs <b>${cost} credits</b> and works in two phases (pull the live numbers → build the strategy), so it takes ~${etaLabel(tool)} with live progress. It keeps going even if you close the tab, and sends a notification when it’s done. We’ve pre-run the example so you can see the output ↓`,
         side: 'top', align: 'start',
       },
     },

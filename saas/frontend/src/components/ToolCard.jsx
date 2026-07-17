@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Lock, ArrowRight } from 'lucide-react';
-import { PLANS, CREDIT_COSTS, CATEGORY_META, tierMeets } from '@shared/catalog.mjs';
+import { PLANS, CREDIT_COSTS, CATEGORY_META, tierMeets, etaLabel } from '@shared/catalog.mjs';
 import { ToolIcon } from '../lib/icons.jsx';
 import PeekMascot, { CATEGORY_MASCOT } from './PeekMascot.jsx';
 
@@ -70,7 +70,7 @@ export default function ToolCard({ tool, userTier, onNavigate }) {
             {cost === 0 ? 'Free' : `${cost} credit${cost > 1 ? 's' : ''}`}
           </span>
           <span className="flex min-w-0 items-center gap-2">
-            {tool.slow && <span className="truncate text-[10px] text-faint">~30–150s</span>}
+            {tool.slow && <span className="truncate text-[10px] text-faint">~{etaLabel(tool)}</span>}
             {!unlocked && tool.teaser && <span className="truncate text-[10px] font-semibold text-peri">1 free preview</span>}
             <ArrowRight size={15} aria-hidden className="shrink-0 text-faint transition group-hover:translate-x-0.5 group-hover:text-heading" />
           </span>
