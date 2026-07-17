@@ -6780,6 +6780,84 @@
             if (!r.length && camp.counts.soon > 0) r.push(`${camp.counts.soon} due soon`);
             return r.length ? r.join('; ') : 'No blocking issues — on track';
         }
+        // ── Observation vs diagnosis (Step 12) ──────────────────────────────
+        // _cbCampaignReason() above states only what is *observed*. A diagnosis has
+        // to explain *why*, cite the evidence it reasoned from, and admit when the
+        // signal is too thin — so a surface reading is never dressed up as a root cause.
+        function _cbPersonLoad() {
+            const m = {};
+            state.auditedItems.forEach(i => (i.people || []).forEach(p => {
+                if (p && !/deleted|unassigned/i.test(p)) m[p] = (m[p] || 0) + 1;
+            }));
+            return m;
+        }
+        function _cbDiagnosis(camp) {
+            const observation = _cbCampaignReason(camp);
+            const overdue = camp.items.filter(i => i.status === 'overdue');
+            const appr = camp.items.filter(_cbItemAwaitingApproval);
+            const esc = _campaignEscalated(camp);
+            const kw = _campaignKwBehind(camp.id, camp.name);
+            const mk = (diagnosis, basis, confidence) => ({ observation, diagnosis, basis, confidence });
+
+            // Blocked on the client, not on delivery capacity.
+            if (overdue.length && appr.length) {
+                const waiting = overdue.filter(_cbItemAwaitingApproval).length;
+                if (waiting / overdue.length >= 0.5) {
+                    return mk('Blocked on client approval rather than delivery capacity.',
+                        `${waiting} of ${overdue.length} overdue tasks are sitting in an approval status.`, 'High');
+                }
+            }
+            // Overdue work concentrated on one heavily-loaded owner.
+            if (overdue.length >= 2) {
+                const byPerson = {};
+                overdue.forEach(i => (i.people || []).forEach(p => {
+                    if (p && !/deleted|unassigned/i.test(p)) byPerson[p] = (byPerson[p] || 0) + 1;
+                }));
+                const top = Object.entries(byPerson).sort((a, b) => b[1] - a[1])[0];
+                if (top && top[1] / overdue.length >= 0.6) {
+                    const load = _cbPersonLoad()[top[0]] || 0;
+                    return mk(`Capacity bottleneck on ${top[0]} rather than a campaign-wide delivery problem.`,
+                        `${top[1]} of ${overdue.length} overdue tasks sit with ${top[0]}, who carries ${load} open items across all campaigns.`,
+                        load >= 15 ? 'High' : 'Medium');
+                }
+            }
+            // The plan itself is stale — the overdue count may be record-keeping, not slippage.
+            const hy = (state.hygiene && state.hygiene.loaded) ? state.hygiene.data.find(b => b.bId === camp.id) : null;
+            if (hy && hy.untouchedDays != null && hy.untouchedDays >= 21 && overdue.length) {
+                return mk('The plan is stale, so the overdue count may be a record-keeping artefact rather than real slippage. Verify the dates before chasing delivery.',
+                    `Date columns untouched for ${hy.untouchedDays} days across ${hy.stale} of ${hy.total} items.`, 'Medium');
+            }
+            // Delivery clean but outcomes lagging → strategy, not execution.
+            if (kw && !overdue.length) {
+                return mk('Delivery is on schedule but outcomes are lagging, which points to strategy or content effectiveness rather than execution.',
+                    'Behind keyword pace with no overdue tasks.', 'Medium');
+            }
+            if (esc && overdue.length) {
+                return mk('Active escalation compounded by real delivery slippage.',
+                    `Escalated with ${overdue.length} overdue task${overdue.length > 1 ? 's' : ''}.`, 'High');
+            }
+            if (esc && !overdue.length) {
+                return mk('The escalation is not explained by delivery slippage — more likely an expectation or relationship issue.',
+                    'Flagged as escalated but no overdue tasks.', 'Medium');
+            }
+            // Approvals outstanding but delivery itself is clean.
+            if (appr.length && !overdue.length) {
+                return mk('Waiting on the client; delivery itself shows no slippage.',
+                    `${appr.length} item${appr.length > 1 ? 's' : ''} awaiting approval with no overdue tasks.`, 'Medium');
+            }
+            if (!overdue.length && !appr.length && !kw && !esc) {
+                // Due-soon work is a real signal, so it must not be reported as "clean".
+                if (camp.counts.soon > 0) {
+                    return mk('Nothing is wrong yet — the only signal is upcoming workload.',
+                        `${camp.counts.soon} task${camp.counts.soon > 1 ? 's' : ''} due soon, with no overdue, approval, pace or escalation signals.`, 'High');
+                }
+                return mk('No issue to diagnose — the signals are clean.',
+                    'No overdue, approval, pace or escalation signals.', 'High');
+            }
+            return mk('Not enough signal to diagnose a root cause beyond the observation above.',
+                'Load the Hygiene / Timeliness views or add a campaign summary for a deeper read.', 'Low');
+        }
+
         // Rule-based next recommended action from the dominant signal.
         function _cbNextAction(camp) {
             if (_campaignEscalated(camp)) return { text: 'Review the escalation with the account lead and agree a recovery plan.', icon: 'fa-triangle-exclamation', color: 'var(--danger)' };
@@ -6816,6 +6894,9 @@
             const approvals = camp.items.filter(_cbItemAwaitingApproval);
             const reminders = _cbRemindersFor(camp.id);
             const next = _cbNextAction(camp);
+            const dx = _cbDiagnosis(camp);
+            // Confidence colours the diagnosis so a low-confidence read never looks certain.
+            const dxColor = dx.confidence === 'High' ? 'var(--success)' : dx.confidence === 'Medium' ? '#eab308' : 'var(--muted)';
 
             const section = (icon, title, inner, accent) => `<div style="margin-bottom:10px;padding:11px 13px;background:var(--surface);border:1px solid var(--border);border-left:3px solid ${accent || 'var(--border)'};border-radius:8px;">
                 <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:6px;"><i class="fas ${icon}" style="margin-right:5px;"></i>${title}</div>${inner}</div>`;
@@ -6830,7 +6911,11 @@
                     ${chip(disc.label, disc.color)}
                     ${chip(`${camp.items.length} tasks`, 'var(--muted)')}
                 </div>
-                ${section('fa-circle-question', 'Reason for issue', `<div style="font-size:12px;color:var(--text);">${esc(_cbCampaignReason(camp))}</div>`, sig.color)}
+                ${section('fa-eye', 'Observed', `<div style="font-size:12px;color:var(--text);">${esc(dx.observation)}</div>`, sig.color)}
+                ${section('fa-stethoscope', `Likely diagnosis · ${dx.confidence.toLowerCase()} confidence`, `
+                    <div style="font-size:12px;color:var(--text);font-weight:600;margin-bottom:5px;">${esc(dx.diagnosis)}</div>
+                    <div style="font-size:11px;color:var(--muted);"><i class="fas fa-flask" style="margin-right:5px;opacity:.7;"></i>Basis: ${esc(dx.basis)}</div>
+                `, dxColor)}
                 ${section('fa-users', 'People', people.length ? people.map(p => chip(p, 'var(--primary)')).join('') : none('No named assignees.'))}
                 ${section('fa-clock', `Overdue tasks (${overdueItems.length})`, overdueItems.length ? overdueItems.slice(0, 8).map(i => itemLine(i, `${Math.abs(i.daysOverdue || 0)}d overdue`)).join('') : none('No overdue tasks.'), overdueItems.length ? 'var(--danger)' : 'var(--border)')}
                 ${section('fa-pen-nib', `Content items (${contentItems.length})`, contentItems.length ? contentItems.slice(0, 8).map(i => itemLine(i, esc(i.itemStatus || ''))).join('') : none('No content items detected.'))}
