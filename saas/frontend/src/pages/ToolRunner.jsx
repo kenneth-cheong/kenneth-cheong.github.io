@@ -36,8 +36,15 @@ function emitRunFinished(toolName, status) {
   window.dispatchEvent(new CustomEvent('dm:proactive-event', { detail: { event: 'run_finished', status, toolName } }));
 }
 
-export default function ToolRunner() {
-  const { toolId } = useParams();
+// Runs one tool: the config form, the (metered, streaming, job-polling) run
+// engine, and the results renderer. Normally a routed PAGE, but it also mounts
+// INSIDE the run modal (`embedded`) so the whole run+results experience can stay
+// on the dashboard — same engine, no duplication. `embedded` mode takes its tool
+// from props instead of the route and drops the page chrome (back link, h1,
+// auto-tour); everything else is shared, so the page path is unchanged.
+export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded = false, onClose } = {}) {
+  const params = useParams();
+  const toolId = toolIdProp ?? params.toolId;
   const { user, setCredits } = useAuth();
   const { activeId, active } = useProjects();
   const tool = toolById(toolId);
@@ -62,7 +69,7 @@ export default function ToolRunner() {
     return looksSite ? bare : '';
   };
   const seedValues = () => {
-    const fromHistory = location.state?.values;
+    const fromHistory = embedded ? initialValues : location.state?.values;
     const last = fromHistory ? {} : (loadLastInput(toolId) || {});
     // Site/URL field ALWAYS defaults to the active project's domain — never a
     // stale last-run value from a different project (which confused beginners).
@@ -78,13 +85,13 @@ export default function ToolRunner() {
   const [busy, setBusy] = useState(false);
   const [job, setJob] = useState(null); // live server-side progress for async-job tools
   const [nudge, setNudge] = useState(false); // highlight missing required fields after an incomplete run attempt
-  const [out, setOut] = useState(location.state?.result ? { result: location.state.result, runId: location.state.runId } : null);
+  const [out, setOut] = useState(!embedded && location.state?.result ? { result: location.state.result, runId: location.state.runId } : null);
   const [modal, setModal] = useState(null);
   const [showAdv, setShowAdv] = useState(false); // reveal collapsed optional fields on long forms
   const shownRef = useRef([]); // latest visible fields, for the auto-started tour
 
   // Reset the form + result when navigating between tools (same route component).
-  useEffect(() => { setTab(0); setValues(seedValues()); setNudge(false); setOut(location.state?.result ? { result: location.state.result, runId: location.state.runId } : null); /* eslint-disable-next-line */ }, [toolId]);
+  useEffect(() => { setTab(0); setValues(seedValues()); setNudge(false); setOut(!embedded && location.state?.result ? { result: location.state.result, runId: location.state.runId } : null); /* eslint-disable-next-line */ }, [toolId]);
 
   // The active project often loads AFTER first render, so the initial seed can
   // miss the domain and fall back to a stale value. Once the project's domain is
@@ -105,8 +112,9 @@ export default function ToolRunner() {
   }, [projDomain, toolId]);
 
   // First tool a user ever opens → auto-run that tool's guided tour, once.
+  // Never inside the modal — a driver.js tour over a portalled dialog is a mess.
   useEffect(() => {
-    if (!tool || hasSeen('tool:any')) return;
+    if (embedded || !tool || hasSeen('tool:any')) return;
     const t = setTimeout(() => {
       if (hasSeen('tool:any')) return;
       markSeen('tool:any');
@@ -119,7 +127,9 @@ export default function ToolRunner() {
   if (!tool) return <p>Unknown tool.</p>;
   // Tools with a bespoke page (e.g. Social Media Audit) render at their own
   // route, not the generic runner — redirect if someone lands here directly.
-  if (tool.route) return <Navigate to={tool.route} replace />;
+  // (Embedded never gets a route tool — the card/palette navigate for those —
+  // but if it somehow does, hand off to the page instead of rendering nothing.)
+  if (tool.route) { if (embedded) { onClose?.(); navigate(tool.route); return null; } return <Navigate to={tool.route} replace />; }
   const unlocked = tierMeets(user.tier, tool.minTier);
   const cost = CREDIT_COSTS[tool.cost] ?? 0;
   const set = (name, v) => { setNudge(false); setValues((s) => ({ ...s, [name]: v })); };
@@ -235,21 +245,33 @@ export default function ToolRunner() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <Link to="/" className="text-sm text-muted hover:text-strong">← All tools</Link>
-      <div className="mt-3 flex items-center gap-3">
-        <h1 className="text-2xl font-bold">{tool.name}</h1>
-        {!unlocked && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-500/15 px-2.5 py-1 text-xs font-bold uppercase text-amber-700 dark:text-amber-300"><Lock size={12} aria-hidden /> {PLANS[tool.minTier].name}</span>}
-        <button
-          type="button"
-          onClick={() => launchTour(shown)}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-dim hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400"
-          title="Guided walkthrough with a real example"
-        >
-          <Compass size={14} aria-hidden /> Tour
-        </button>
-      </div>
-      <p className="mt-1 text-dim">{tool.desc}</p>
+    <div className={embedded ? '' : 'mx-auto max-w-3xl'}>
+      {/* Page chrome (back link, title, tour) — the modal supplies its own header. */}
+      {!embedded && (
+        <>
+          <Link to="/" className="text-sm text-muted hover:text-strong">← All tools</Link>
+          <div className="mt-3 flex items-center gap-3">
+            <h1 className="text-2xl font-bold">{tool.name}</h1>
+            {!unlocked && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-500/15 px-2.5 py-1 text-xs font-bold uppercase text-amber-700 dark:text-amber-300"><Lock size={12} aria-hidden /> {PLANS[tool.minTier].name}</span>}
+            <button
+              type="button"
+              onClick={() => launchTour(shown)}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-semibold text-dim hover:border-brand-300 dark:hover:border-brand-500/40 hover:text-brand-600 dark:hover:text-brand-400"
+              title="Guided walkthrough with a real example"
+            >
+              <Compass size={14} aria-hidden /> Tour
+            </button>
+          </div>
+          <p className="mt-1 text-dim">{tool.desc}</p>
+        </>
+      )}
+      {/* In the modal the header carries the name; show the one-line desc + a lock hint. */}
+      {embedded && (
+        <div className="flex items-start gap-2">
+          <p className="flex-1 text-xs leading-relaxed text-muted">{tool.desc}</p>
+          {!unlocked && <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-500/15 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-700 dark:text-amber-300"><Lock size={11} aria-hidden /> {PLANS[tool.minTier].name}</span>}
+        </div>
+      )}
 
       {!unlocked && tool.teaser && (
         <div className="mt-4 flex items-center gap-2 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 px-4 py-3 text-sm text-brand-800 dark:text-brand-300">
@@ -273,7 +295,7 @@ export default function ToolRunner() {
         </div>
       )}
 
-      <div className={`card ${tabs ? 'mt-4' : 'mt-6'} p-5`}>
+      <div className={`card ${embedded ? 'mt-3' : tabs ? 'mt-4' : 'mt-6'} p-5`}>
         <div className="space-y-4">
           {primaryFields.map((f, i) => (
             <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} setValue={set} autoFocus={i === 0} provider={tool.integration} values={values} invalid={isMissing(f)} />
@@ -312,7 +334,7 @@ export default function ToolRunner() {
             {isSchedulable(tool) && scheduleLimits(user?.tier).enabled && !tabs && (
               <button type="button" className="btn-ghost inline-flex items-center gap-1.5"
                 title="Run this automatically on a schedule"
-                onClick={() => navigate('/schedules', { state: { scheduleCreate: { toolId: tool.id, inputs: values } } })}>
+                onClick={() => { onClose?.(); navigate('/schedules', { state: { scheduleCreate: { toolId: tool.id, inputs: values } } }); }}>
                 <Clock size={15} />Schedule
               </button>
             )}
