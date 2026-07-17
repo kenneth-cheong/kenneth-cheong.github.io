@@ -22,6 +22,8 @@ export default function Account() {
   const [grants, setGrants] = useState(null);
   const [emailOptOut, setEmailOptOut] = useState(null); // null = loading
   const [emailBusy, setEmailBusy] = useState(false);
+  const [uname, setUname] = useState(user.username || '');
+  const [unameBusy, setUnameBusy] = useState(false);
   const plan = PLANS[user.tier];
   // The current device's session id lives in the refresh token (decode locally).
   const currentSid = (() => {
@@ -57,6 +59,24 @@ export default function Account() {
     setSessions((s) => (s || []).filter((x) => x.sid !== sid));
     try { await api.revokeSession(sid); if (sid === currentSid) logout(); }
     catch (e) { toast(e.message, 'error'); }
+  }
+
+  async function saveUsername(e) {
+    e.preventDefault();
+    const next = uname.trim();
+    if (next === (user.username || '')) return;
+    setUnameBusy(true);
+    try {
+      await api.saveUsername(next);
+      await refresh(); // pull the claimed handle back into context
+      toast('Username saved.', 'success');
+    } catch (err) {
+      // The backend owns the taken/invalid wording — surface it as-is.
+      toast(err?.payload?.error || err.message || 'Could not save username.', 'error');
+      setUname(user.username || '');
+    } finally {
+      setUnameBusy(false);
+    }
   }
 
   async function toggleEmailPref(nextOptOut) {
@@ -139,9 +159,38 @@ export default function Account() {
           <div>
             <p className="font-semibold">{user.name}</p>
             <p className="text-sm text-muted">{user.email}</p>
+            {user.username && <p className="text-sm text-muted">@{user.username}</p>}
           </div>
         </div>
       </div>
+
+      {/* ── Username ──────────────────────────────────────────────────────
+          Opt-in: without one you just keep signing in with your email. Shown
+          regardless of the admin toggle so handles can be claimed before
+          username sign-in is switched on. */}
+      <form className="card mt-4 p-5" onSubmit={saveUsername}>
+        <h2 className="font-bold">Username</h2>
+        <p className="mt-1 text-sm text-muted">
+          Optional. Claim a username and you can sign in with it instead of your email address.
+          Your email always keeps working.
+        </p>
+        <div className="mt-4 flex flex-wrap items-start gap-3">
+          <label className="min-w-[16rem] flex-1">
+            <span className="sr-only">Username</span>
+            <input
+              type="text" value={uname} onChange={(e) => setUname(e.target.value)}
+              placeholder="yourname" className="field" autoComplete="username"
+              minLength={3} maxLength={30} aria-describedby="uname-help"
+            />
+          </label>
+          <button type="submit" disabled={unameBusy || uname.trim() === (user.username || '')} className="btn-primary">
+            {unameBusy ? '…' : user.username ? 'Change' : 'Claim'}
+          </button>
+        </div>
+        <p id="uname-help" className="mt-2 text-xs text-faint">
+          3–30 characters: letters, numbers, and . _ - — starting and ending with a letter or number.
+        </p>
+      </form>
 
       <div className="card mt-4 p-5">
         <div className="flex items-center justify-between">

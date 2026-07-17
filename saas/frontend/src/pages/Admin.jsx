@@ -585,6 +585,43 @@ function AdminSettings() {
         </p>
       </div>
 
+      {/* Username sign-in is a password login, so it does nothing on its own —
+          the card stays visible but reads as inactive while the switch above is
+          off, rather than hiding and leaving the state a mystery. */}
+      <div className="card mt-4 p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold">Username sign-in</h2>
+            <p className="mt-1 text-sm text-muted">
+              When on, users can sign in with either their email or a username. Usernames are opt-in —
+              each user claims one from their profile, and anyone who hasn’t simply keeps using their email.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={!!settings?.usernameAuthEnabled}
+            disabled={busy || !settings}
+            onClick={() => toggle('usernameAuthEnabled', !settings.usernameAuthEnabled)}
+            className={`relative mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-50 ${settings?.usernameAuthEnabled ? 'bg-brand-600' : 'bg-overlay'}`}
+          >
+            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${settings?.usernameAuthEnabled ? 'translate-x-5' : 'translate-x-1'}`} />
+          </button>
+        </div>
+        <p className="mt-3 text-sm font-medium">
+          Status:{' '}
+          {settings?.usernameAuthEnabled && !settings?.passwordAuthEnabled ? (
+            <span className="text-amber-600 dark:text-amber-400">
+              On, but inactive — turn on “Email &amp; password sign-in” above for it to take effect
+            </span>
+          ) : (
+            <span className={settings?.usernameAuthEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted'}>
+              {settings?.usernameAuthEnabled ? 'Enabled' : 'Disabled'}
+            </span>
+          )}
+        </p>
+      </div>
+
       <form className="card mt-4 p-5" onSubmit={saveTickets}>
         <h2 className="text-base font-semibold">Support ticket reminders &amp; auto-close</h2>
         <p className="mt-1 text-sm text-muted">

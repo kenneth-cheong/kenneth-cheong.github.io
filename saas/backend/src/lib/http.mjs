@@ -47,6 +47,21 @@ export const tooManyRequests = (retryAfter = 60) => ({
 /** RFC-lite email check (good enough to reject obvious junk; not delivery-proof). */
 export const isEmail = (s) =>
   typeof s === 'string' && s.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim());
+/** Usernames: 3–30 chars, alphanumeric plus . _ -, must start and end
+ *  alphanumeric. No '@', so a username can never parse as an email — sign-in
+ *  routes an identifier to the email or username lookup by testing isEmail
+ *  first, and the two namespaces must not overlap. Reserved words keep
+ *  admin-ish handles and the `username:`/`settings:`/`pending:` key prefixes
+ *  from being claimed. */
+const RESERVED_USERNAMES = new Set([
+  'admin', 'administrator', 'root', 'support', 'help', 'billing', 'security',
+  'settings', 'pending', 'username', 'api', 'system', 'digimetrics', 'mediaone',
+  'no-reply', 'noreply', 'postmaster', 'abuse', 'me', 'staff',
+]);
+export const isUsername = (s) =>
+  typeof s === 'string' &&
+  /^[a-zA-Z0-9][a-zA-Z0-9._-]{1,28}[a-zA-Z0-9]$/.test(s.trim()) &&
+  !RESERVED_USERNAMES.has(s.trim().toLowerCase());
 /** Coerce to string and hard-cap length (defends against unbounded payloads). */
 export const clampStr = (s, max) => String(s ?? '').slice(0, max);
 

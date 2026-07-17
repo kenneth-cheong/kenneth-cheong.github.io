@@ -18,13 +18,24 @@ export default function Login() {
   const [notice, setNotice] = useState(null);   // success / info message
   const [unverified, setUnverified] = useState(false); // show "resend" CTA
   const [pwAuth, setPwAuth] = useState(true);   // email/password enabled?
+  const [userAuth, setUserAuth] = useState(false); // username sign-in enabled?
+
+  // Only sign-in takes a username. Signup creates the account from an email, and
+  // forgot-password needs an address to mail — so both stay email-only, and the
+  // field keeps type="email" (browser validation) in those modes.
+  const identMode = userAuth && mode === 'signin';
 
   // Ask the backend which sign-in methods are enabled. Defaults to showing the
   // password form; if admin has disabled it, we hide it and fall back to Google.
   useEffect(() => {
     let live = true;
     api.authConfig()
-      .then((c) => { if (live && c && typeof c.passwordAuthEnabled === 'boolean') { setPwAuth(c.passwordAuthEnabled); if (!c.passwordAuthEnabled) setMode('signin'); } })
+      .then((c) => {
+        if (!live || !c) return;
+        if (typeof c.passwordAuthEnabled === 'boolean') { setPwAuth(c.passwordAuthEnabled); if (!c.passwordAuthEnabled) setMode('signin'); }
+        // Already the effective value — the backend ands it with passwordAuthEnabled.
+        if (typeof c.usernameAuthEnabled === 'boolean') setUserAuth(c.usernameAuthEnabled);
+      })
       .catch(() => { /* keep default (shown) on error */ });
     return () => { live = false; };
   }, []);
@@ -146,11 +157,15 @@ export default function Login() {
             ) : (
               <form onSubmit={onSubmit} className="space-y-3">
                 <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-dim">Email</span>
+                  <span className="mb-1 block text-xs font-medium text-dim">{identMode ? 'Email or username' : 'Email'}</span>
                   <input
-                    type="email" required autoComplete="email" value={email}
+                    // type="email" would make the browser reject a username before
+                    // submit ever fires — so sign-in relaxes to text when username
+                    // sign-in is on. Signup/forgot keep native email validation.
+                    type={identMode ? 'text' : 'email'} required
+                    autoComplete={identMode ? 'username' : 'email'} value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@company.com" className="field"
+                    placeholder={identMode ? 'you@company.com or yourname' : 'you@company.com'} className="field"
                   />
                 </label>
                 {mode !== 'forgot' && (
@@ -173,11 +188,15 @@ export default function Login() {
 
           {notice && <p className="mt-3 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">{notice}</p>}
           {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
-          {unverified && (
+          {/* /auth/resend needs an address, so only offer this when they signed
+              in with one — a username in the field has nothing to mail to. */}
+          {unverified && (email.includes('@') ? (
             <button onClick={onResend} disabled={busy} className="mt-2 text-sm font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">
               Resend confirmation email
             </button>
-          )}
+          ) : (
+            <p className="mt-2 text-sm text-dim">Sign in with your email address to resend the confirmation link.</p>
+          ))}
 
           {/* Google is always available. Show the "or" divider only when it sits
               under the password form. */}

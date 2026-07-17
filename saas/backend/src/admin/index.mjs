@@ -293,6 +293,9 @@ export const handler = async (event) => {
     if (!isAdmin(me.email)) return json(403, { error: 'admin_only' });
     const patch = {};
     if (typeof body.passwordAuthEnabled === 'boolean') patch.passwordAuthEnabled = body.passwordAuthEnabled;
+    // Additive on top of email+password — stored independently, but only takes
+    // effect while passwordAuthEnabled is on (see /auth/config).
+    if (typeof body.usernameAuthEnabled === 'boolean') patch.usernameAuthEnabled = body.usernameAuthEnabled;
     // Ticket lifecycle: whole days, 0 disables, capped at a year to avoid typos.
     for (const key of ['ticketReminderDays', 'ticketAutoCloseDays']) {
       if (body[key] === undefined) continue;

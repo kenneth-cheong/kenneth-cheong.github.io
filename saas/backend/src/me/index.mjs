@@ -1,9 +1,19 @@
 // Authenticated profile + usage endpoints:
-//   GET /me          -> current user (tier, live credit balance, plan limits)
-//   GET /me/usage    -> recent credit-ledger rows for the usage dashboard
-import { getUser, listLedger, totalCredits, getSettings } from '../lib/dynamo.mjs';
+//   GET  /me           -> current user (tier, live credit balance, plan limits)
+//   GET  /me/usage     -> recent credit-ledger rows for the usage dashboard
+//   POST /me/username  -> claim / change the opt-in sign-in handle
+//
+// /me/username lives here rather than next to /me/profile on AppFn because
+// AppFn's Lambda resource policy is at the hard 20KB ceiling — SAM adds a
+// statement per HttpApi route, and one more tipped it over (the deploy failed
+// with "final policy size (20486) is bigger than the limit (20480)"). MeFn
+// carries two routes, so it has room.
+import {
+  getUser, listLedger, totalCredits, getSettings,
+  putUser, reserveUsername, releaseUsername,
+} from '../lib/dynamo.mjs';
 import { PLANS } from '../../../shared/catalog.mjs';
-import { ok, unauthorized, forbidden, serverError, claims } from '../lib/http.mjs';
+import { ok, badRequest, unauthorized, forbidden, serverError, claims, parseBody, isUsername, clampStr } from '../lib/http.mjs';
 import { isStaff, isAdmin, accountBlocked } from '../lib/admin.mjs';
 
 export const handler = async (event) => {
@@ -17,9 +27,42 @@ export const handler = async (event) => {
     if (accountBlocked(user)) return forbidden({ error: 'account_suspended', status: user.status });
 
     const path = event.rawPath || '';
+    const method = event.requestContext?.http?.method || 'GET';
     if (path.endsWith('/usage')) {
       const rows = await listLedger(user.userId, 200);
       return ok({ usage: rows });
+    }
+
+    // ── Claim / change a username (opt-in sign-in handle) ────────────────────
+    // Deliberately NOT gated on usernameAuthEnabled: an admin needs users to be
+    // able to claim handles BEFORE switching username sign-in on, or the toggle
+    // goes live with nobody holding one. The setting gates the LOGIN path only.
+    //
+    // Uniqueness is the reservation item, not the GSI (a GSI can't enforce it).
+    // Order matters: reserve the new handle, then write the user, then release
+    // the old one. If a step fails midway we leak a reservation we still own —
+    // recoverable, and reserveUsername is idempotent for the owner — whereas
+    // releasing first could hand our old handle to someone else and then fail.
+    // Must precede the /me fall-through below, which answers any other path.
+    if (method === 'POST' && path.endsWith('/me/username')) {
+      const body = parseBody(event) || {};
+      const desired = clampStr(body.username, 40).trim();
+      if (!isUsername(desired)) {
+        return badRequest('Usernames are 3–30 characters — letters, numbers, and . _ - — and must start and end with a letter or number.');
+      }
+      const current = user.username || null;
+      if (current && current.toLowerCase() === desired.toLowerCase()) {
+        // Same handle; only the display case changed. The reservation key is the
+        // lowercase form, so there's nothing to re-reserve.
+        if (current !== desired) await putUser({ ...user, username: desired, updatedAt: new Date().toISOString() });
+        return ok({ username: desired });
+      }
+      if (!(await reserveUsername(desired, user.userId))) {
+        return badRequest('That username is already taken.');
+      }
+      await putUser({ ...user, username: desired, updatedAt: new Date().toISOString() });
+      if (current) await releaseUsername(current, user.userId);
+      return ok({ username: desired });
     }
 
     const plan = PLANS[user.tier];
@@ -39,6 +82,8 @@ export const handler = async (event) => {
         proactive,
         userId: user.userId,
         email: user.email,
+        // null until the user claims one — usernames are opt-in.
+        username: user.username || null,
         name: user.name,
         picture: user.picture,
         tier: user.tier,

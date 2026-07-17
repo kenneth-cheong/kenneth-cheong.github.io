@@ -119,6 +119,7 @@ Resources:
         - { AttributeName: userId, AttributeType: S }
         - { AttributeName: stripeCustomerId, AttributeType: S }
         - { AttributeName: emailLower, AttributeType: S }
+        - { AttributeName: usernameLower, AttributeType: S }
       KeySchema:
         - { AttributeName: userId, KeyType: HASH }
       GlobalSecondaryIndexes:
@@ -131,6 +132,16 @@ Resources:
         - IndexName: emailIndex
           KeySchema:
             - { AttributeName: emailLower, KeyType: HASH }
+          Projection: { ProjectionType: ALL }
+        # Look up an account by normalized username — username sign-in. Sparse:
+        # usernames are opt-in, so only accounts that claimed one are indexed.
+        # Uniqueness is NOT enforced here (a GSI can't) — it comes from the
+        # `username:<lower>` reservation items in lib/dynamo.mjs.
+        # NOTE: CloudFormation applies only ONE GSI change per stack update, so
+        # this index must deploy on its own change-set.
+        - IndexName: usernameIndex
+          KeySchema:
+            - { AttributeName: usernameLower, KeyType: HASH }
           Projection: { ProjectionType: ALL }
 
   LedgerTable:
@@ -460,6 +471,16 @@ Resources:
           ADMIN_EMAILS: !Ref AdminEmails
           # Verified SES sender for email-verification + password-reset mail.
           SES_FROM: !Ref SesFrom
+          # Verification + reset mail prefers authenticated SMTP — same path as
+          # AppFn/CloseFn. This matters more here than elsewhere: SES is still in
+          # the sandbox, which only delivers to verified identities, so the SES
+          # path silently drops mail to real signups. Empty SMTP_USER falls back
+          # to SES.
+          SMTP_USER: !Ref SmtpUser
+          SMTP_FROM: !Ref SmtpFrom
+          SMTP_HOST: !Ref SmtpHost
+          SMTP_PORT: !Ref SmtpPort
+          SMTP_PASS: '{{resolve:secretsmanager:digimetrics-saas/smtp-pass:SecretString}}'
       Policies:
         - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         # Rate-limit counters live in the Cache table (lib/ratelimit.mjs).
@@ -492,11 +513,17 @@ Resources:
         Variables:
           ADMIN_EMAILS: !Ref AdminEmails
       Policies:
-        - DynamoDBReadPolicy: { TableName: !Ref UsersTable }
+        # Crud (not Read) because POST /me/username writes the handle onto the
+        # account and adds/removes its `username:<lower>` reservation item.
+        - DynamoDBCrudPolicy: { TableName: !Ref UsersTable }
         - DynamoDBReadPolicy: { TableName: !Ref LedgerTable }
       Events:
         Me: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Usage: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/usage, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        # Hosted here, not on AppFn beside /me/profile: AppFn's Lambda resource
+        # policy is at the hard 20KB limit (SAM adds a statement per route), and
+        # adding this one there failed the deploy at 20486/20480 bytes.
+        Username: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /me/username, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
 
   # ── Share cards (authed): server-rendered branded PNG of a saved run ────
   # Rasterises the shared SVG generator with resvg-wasm + an embedded brand
@@ -957,6 +984,13 @@ Resources:
         UserCreate: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/users, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Agreements: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/agreements, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         AgreementPdf: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/agreements/pdf, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
+        # Restores the route behind Admin → Agreements → "Sample PDF" (Admin.jsx →
+        # api.adminAgreementSamplePdf → admin/index.mjs:81). It went missing from
+        # this Events block while the handler and the button both stayed, so the
+        # live stack still had the route but the template no longer declared it —
+        # the next deploy would have torn it down and 404'd the button. The
+        # logical id CloudFormation already holds is AdminFnAgreementSamplePdfPermission,
+        # so this event MUST stay named AgreementSamplePdf to match it.
         AgreementSamplePdf: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/agreements/sample-pdf, Method: GET, Auth: { Authorizer: JwtAuthorizer } } }
         Credits: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/credits, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }
         Tier: { Type: HttpApi, Properties: { ApiId: !Ref Api, Path: /admin/tier, Method: POST, Auth: { Authorizer: JwtAuthorizer } } }

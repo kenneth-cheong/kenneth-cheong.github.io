@@ -192,7 +192,8 @@ export const api = {
   loginGoogle: (idToken) => call('/auth/google', { method: 'POST', body: { idToken }, auth: false }),
   // Email / password auth (all public, pre-token).
   signup: (email, password) => call('/auth/signup', { method: 'POST', body: { email, password }, auth: false }),
-  loginPassword: (email, password) => call('/auth/password', { method: 'POST', body: { email, password }, auth: false }),
+  // `identifier` is an email or, when username sign-in is on, a username.
+  loginPassword: (identifier, password) => call('/auth/password', { method: 'POST', body: { identifier, password }, auth: false }),
   verifyEmail: (token) => call('/auth/verify', { method: 'POST', body: { token }, auth: false }),
   resendVerification: (email) => call('/auth/resend', { method: 'POST', body: { email }, auth: false }),
   forgotPassword: (email) => call('/auth/forgot', { method: 'POST', body: { email }, auth: false }),
@@ -210,6 +211,7 @@ export const api = {
   acceptNda: (payload) => call('/me/nda', { method: 'POST', body: payload }),
   // Progressive-profiling answers; completing the whole profile pays a one-time bonus.
   saveProfile: (patch) => call('/me/profile', { method: 'POST', body: { patch } }),
+  saveUsername: (username) => call('/me/username', { method: 'POST', body: { username } }),
   // Explorer breadth checklist: claim a completion reward ('core' | 'full'). The
   // server re-verifies completion and grants the credits at most once.
   claimExplorer: (milestone) => call('/me/explorer/claim', { method: 'POST', body: { milestone } }),

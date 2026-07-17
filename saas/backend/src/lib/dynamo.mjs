@@ -169,6 +169,11 @@ export async function putUser(user) {
   // address. (Provision stubs keep their own email — only set when present.)
   if (item.email) item.emailLower = String(item.email).trim().toLowerCase();
   else delete item.emailLower;
+  // Same deal for the usernameIndex GSI key. Usernames are opt-in, so most
+  // accounts never carry one — omit the attribute entirely rather than writing
+  // null (a GSI hash key rejects it, and absent keys stay out of the index).
+  if (item.username) item.usernameLower = String(item.username).trim().toLowerCase();
+  else delete item.usernameLower;
   await ddb.send(new PutCommand({ TableName: TABLES.users, Item: item }));
   return user;
 }
@@ -189,6 +194,69 @@ export async function getUserByEmail(email) {
   );
   const accounts = (Items || []).filter((u) => !String(u.userId || '').startsWith('pending:'));
   return accounts[0] || null;
+}
+
+// ── Usernames (opt-in, unique) ───────────────────────────────────────────────
+// A DynamoDB GSI does NOT enforce uniqueness, so the index alone can't stop two
+// accounts claiming the same handle. Uniqueness comes from a reservation item
+// (`username:<lower>`) written with attribute_not_exists(userId) — the standard
+// unique-constraint pattern. The GSI is only for the sign-in lookup.
+const usernameKey = (username) => `username:${String(username || '').trim().toLowerCase()}`;
+
+/** Look up an account by username via the usernameIndex GSI. Mirrors
+ *  getUserByEmail, including skipping `pending:` provision stubs. */
+export async function getUserByUsername(username) {
+  const usernameLower = String(username || '').trim().toLowerCase();
+  if (!usernameLower) return null;
+  const { Items } = await ddb.send(
+    new QueryCommand({
+      TableName: TABLES.users,
+      IndexName: 'usernameIndex',
+      KeyConditionExpression: 'usernameLower = :u',
+      ExpressionAttributeValues: { ':u': usernameLower },
+    })
+  );
+  const accounts = (Items || []).filter((u) => !String(u.userId || '').startsWith('pending:'));
+  return accounts[0] || null;
+}
+
+/** Atomically claim a username for `userId`. Returns true on success, false if
+ *  another account already holds it. Idempotent: re-claiming your own handle
+ *  succeeds rather than reporting it taken. */
+export async function reserveUsername(username, userId) {
+  try {
+    await ddb.send(
+      new PutCommand({
+        TableName: TABLES.users,
+        Item: { userId: usernameKey(username), ownerId: userId, createdAt: new Date().toISOString() },
+        // Fails if the handle exists — unless it's already ours (idempotent retry).
+        ConditionExpression: 'attribute_not_exists(userId) OR ownerId = :me',
+        ExpressionAttributeValues: { ':me': userId },
+      })
+    );
+    return true;
+  } catch (e) {
+    if (e.name === 'ConditionalCheckFailedException') return false;
+    throw e;
+  }
+}
+
+/** Release a reservation, but only if `userId` still owns it — a stale release
+ *  must never free a handle that someone else has since claimed. */
+export async function releaseUsername(username, userId) {
+  if (!username) return;
+  try {
+    await ddb.send(
+      new DeleteCommand({
+        TableName: TABLES.users,
+        Key: { userId: usernameKey(username) },
+        ConditionExpression: 'ownerId = :me',
+        ExpressionAttributeValues: { ':me': userId },
+      })
+    );
+  } catch (e) {
+    if (e.name !== 'ConditionalCheckFailedException') throw e;
+  }
 }
 
 // Credits live in two buckets: `credits` (monthly allowance, reset each cycle)
@@ -381,7 +449,7 @@ export async function scanAllUsers() {
     out.push(...(res.Items || []));
     ExclusiveStartKey = res.LastEvaluatedKey;
   } while (ExclusiveStartKey);
-  return out.filter((u) => !isSingleton(u.userId)); // skip the platform-settings row
+  return out.filter((u) => !isBookkeeping(u.userId)); // skip settings + username reservations
 }
 
 // ── Platform-wide settings (admin-toggled) ───────────────────────────────────
@@ -391,11 +459,19 @@ export async function scanAllUsers() {
 const SETTINGS_ID = 'settings:global';
 const DEFAULT_SETTINGS = {
   passwordAuthEnabled: true,
+  // Username sign-in is additive on top of email+password and off by default:
+  // usernames are opt-in, so enabling it must never strand an account that
+  // hasn't claimed one — email sign-in keeps working either way.
+  usernameAuthEnabled: false,
   // Support-ticket lifecycle (admin-tunable). Days; 0 disables that behaviour.
   ticketReminderDays: 3,   // cadence of "please respond" nudges while awaiting the client
   ticketAutoCloseDays: 7,  // inactivity before a ticket auto-closes
 };
-const isSingleton = (userId) => String(userId || '').startsWith('settings:');
+// Non-account rows that share the Users table: the settings singleton and the
+// `username:<lower>` uniqueness reservations. Both must stay out of user scans,
+// or they surface as phantom users in the admin list.
+const isBookkeeping = (userId) =>
+  ['settings:', 'username:'].some((p) => String(userId || '').startsWith(p));
 
 /** Defaulted, typed view of the settings singleton — tolerates a missing row or
  *  missing keys by falling back to DEFAULT_SETTINGS. */
@@ -404,6 +480,9 @@ function viewSettings(item) {
   const num = (v, d) => (Number.isFinite(v) ? v : d);
   return {
     passwordAuthEnabled: s.passwordAuthEnabled !== false,
+    // Meaningless on its own — username sign-in is a password login, so it only
+    // takes effect while passwordAuthEnabled is also on.
+    usernameAuthEnabled: s.usernameAuthEnabled === true,
     ticketReminderDays: num(s.ticketReminderDays, DEFAULT_SETTINGS.ticketReminderDays),
     ticketAutoCloseDays: num(s.ticketAutoCloseDays, DEFAULT_SETTINGS.ticketAutoCloseDays),
     // Proactive-assistant config: fall back to the seeded defaults until an admin
@@ -523,7 +602,7 @@ export async function linkStripeCustomer(userId, customerId) {
 /** Admin-only: list every user (Scan — fine at MVP volume). */
 export async function listAllUsers(limit = 200) {
   const { Items } = await ddb.send(new ScanCommand({ TableName: TABLES.users, Limit: limit }));
-  return (Items || []).filter((u) => !isSingleton(u.userId)); // hide the settings row
+  return (Items || []).filter((u) => !isBookkeeping(u.userId)); // hide settings + username reservations
 }
 
 /** Admin: nudge a user's monthly and/or top-up buckets, with an audit row. */
@@ -1563,6 +1642,11 @@ export async function deleteAllUserData(userId) {
       ExclusiveStartKey = res.LastEvaluatedKey;
     } while (ExclusiveStartKey);
   }
+  // Free the username reservation before dropping the account row — it lives in
+  // this table under its own key, so deleting the user doesn't remove it, and an
+  // orphaned reservation would lock that handle away from everyone forever.
+  const account = await getUser(userId);
+  if (account?.username) await releaseUsername(account.username, userId);
   await ddb.send(new DeleteCommand({ TableName: TABLES.users, Key: { userId } }));
 }
 

@@ -14,8 +14,8 @@
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { OAuth2Client } from 'google-auth-library';
 import {
-  getUser, getUserByEmail, putUser, getProvision, deleteProvision, addSession, validateSession, bumpTokenVersion,
-  getSettings, setEmailOptOut,
+  getUser, getUserByEmail, getUserByUsername, putUser, getProvision, deleteProvision, addSession, validateSession,
+  bumpTokenVersion, getSettings, setEmailOptOut,
 } from '../lib/dynamo.mjs';
 import {
   signAccess, signRefresh, verify,
@@ -23,9 +23,9 @@ import {
   verifyUnsubToken,
 } from '../lib/jwt.mjs';
 import { hashPassword, verifyPassword, isValidPassword } from '../lib/password.mjs';
-import { sendEmail } from '../lib/email.mjs';
+import { sendNotice } from '../lib/email.mjs';
 import { PLANS } from '../../../shared/catalog.mjs';
-import { ok, badRequest, unauthorized, forbidden, tooManyRequests, parseBody, isEmail, clampStr } from '../lib/http.mjs';
+import { ok, badRequest, unauthorized, forbidden, tooManyRequests, parseBody, isEmail, isUsername, clampStr } from '../lib/http.mjs';
 import { rateLimit, AUTH_LIMITS } from '../lib/ratelimit.mjs';
 import { isStaff, accountBlocked } from '../lib/admin.mjs';
 
@@ -59,7 +59,16 @@ export const handler = async (event) => {
   const meta = { ip, device: deviceLabel(ua) };
 
   // Public pre-auth config so the login page knows which methods to show.
-  if (path.endsWith('/config')) return ok({ passwordAuthEnabled: (await getSettings()).passwordAuthEnabled });
+  // usernameAuthEnabled is reported as EFFECTIVE (username sign-in is a password
+  // login, so it's moot while password auth is off) — the login page can use it
+  // directly. The admin panel reads the raw setting from /admin/settings.
+  if (path.endsWith('/config')) {
+    const s = await getSettings();
+    return ok({
+      passwordAuthEnabled: s.passwordAuthEnabled,
+      usernameAuthEnabled: s.passwordAuthEnabled && s.usernameAuthEnabled,
+    });
+  }
 
   // Public one-click unsubscribe from product-update emails (the link target the
   // broadcast footer carries). Token-authenticated, idempotent, and independent
@@ -73,12 +82,13 @@ export const handler = async (event) => {
 
   const PASSWORD_PATHS = ['/signup', '/verify', '/password', '/forgot', '/reset', '/resend'];
   if (PASSWORD_PATHS.some((p) => path.endsWith(p))) {
-    if (!(await getSettings()).passwordAuthEnabled) {
+    const settings = await getSettings();
+    if (!settings.passwordAuthEnabled) {
       return forbidden({ error: 'password_auth_disabled', message: 'Email & password sign-in is currently disabled. Please use “Sign in with Google”.' });
     }
     if (path.endsWith('/signup')) return handleSignup(body);
     if (path.endsWith('/verify')) return handleVerify(body, meta);
-    if (path.endsWith('/password')) return handlePasswordLogin(body, meta);
+    if (path.endsWith('/password')) return handlePasswordLogin(body, meta, settings);
     if (path.endsWith('/forgot')) return handleForgot(body);
     if (path.endsWith('/reset')) return handleReset(body, meta);
     if (path.endsWith('/resend')) return handleResend(body);
@@ -257,7 +267,7 @@ async function handleSignup({ email, password }) {
 async function sendVerificationEmail(user) {
   const token = signVerifyToken(user.userId, user.email);
   const link = `${APP_ORIGIN}/verify?token=${encodeURIComponent(token)}`;
-  await sendEmail({
+  await sendNotice({
     to: user.email,
     subject: 'Confirm your Digimetrics account',
     text:
@@ -317,21 +327,32 @@ async function handleResend({ email }) {
 
 // ── Email / password sign-in ────────────────────────────────────────────────
 
-async function handlePasswordLogin({ email, password }, meta = {}) {
-  email = clampStr(email, 254).trim();
-  if (!isEmail(email) || typeof password !== 'string' || !password) {
-    return badRequest('Email and password are required.');
+async function handlePasswordLogin({ identifier, email, password }, meta = {}, settings = {}) {
+  // `identifier` is an email or — when username sign-in is on — a username.
+  // `email` is still accepted so a frontend bundle cached across the deploy
+  // keeps working. A username can't contain '@', so isEmail decides the lookup
+  // unambiguously and the two namespaces never overlap.
+  const ident = clampStr(identifier ?? email, 254).trim();
+  const usernameAuth = settings.usernameAuthEnabled === true;
+  const byEmail = isEmail(ident);
+  const byUsername = usernameAuth && isUsername(ident);
+  if ((!byEmail && !byUsername) || typeof password !== 'string' || !password) {
+    return badRequest(usernameAuth
+      ? 'Email or username, and a password, are required.'
+      : 'Email and password are required.');
   }
-  const limit = await rateLimit('authlogin', email.toLowerCase(), EMAIL_LIMITS);
+  const limit = await rateLimit('authlogin', ident.toLowerCase(), EMAIL_LIMITS);
   if (!limit.allowed) return tooManyRequests(limit.retryAfter);
 
-  const user = await getUserByEmail(email);
+  const user = byEmail ? await getUserByEmail(ident) : await getUserByUsername(ident);
   // Same generic error whether the account is missing or the password is wrong,
   // and we still run a verify against a dummy hash to keep timing uniform.
   const okPw = user?.passwordHash
     ? verifyPassword(password, user.passwordHash)
     : (verifyPassword(password, '$$$'), false);
-  if (!user || !okPw) return unauthorized('Invalid email or password.');
+  if (!user || !okPw) {
+    return unauthorized(usernameAuth ? 'Invalid credentials.' : 'Invalid email or password.');
+  }
 
   if (!user.emailVerified) {
     return forbidden({ error: 'email_not_verified', message: 'Please confirm your email first — check your inbox.' });
@@ -360,7 +381,7 @@ async function handleForgot({ email }) {
     await putUser({ ...user, pwReset: { jti: hashNonce(jti), exp: Date.now() + 3600_000 }, updatedAt: new Date().toISOString() });
     const token = signResetToken(user.userId, jti);
     const link = `${APP_ORIGIN}/reset-password?token=${encodeURIComponent(token)}`;
-    await sendEmail({
+    await sendNotice({
       to: user.email,
       subject: 'Reset your Digimetrics password',
       text:
