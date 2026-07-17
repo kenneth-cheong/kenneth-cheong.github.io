@@ -4477,27 +4477,49 @@ def _meta_fb_insights(page_id, token, since, until):
 
     Meta deprecated a swathe of Page metrics in current Graph API versions — they
     now return "(#100) not a valid insights metric". Confirmed dead (2026-07):
-    page_impressions, page_impressions_unique (page reach), page_fan_adds/removes,
-    page_posts_impressions, all post_impressions* (post reach). Surviving
-    equivalents we use instead: page_posts_impressions_organic (impressions) and
-    page_daily_follows_unique / page_daily_unfollows_unique (follower growth).
-    UNIQUE reach is no longer exposed at page OR post level, so we intentionally
-    do NOT report FB reach rather than surface a wrong number; FB engagement rate
-    therefore uses impressions as the denominator (IG still uses reach)."""
+    page_impressions, page_impressions_unique, page_fan_adds/removes,
+    page_posts_impressions, all post_impressions*.
+
+    CORRECTION 2026-07-17: an earlier pass here concluded from those #100s that FB
+    reach had been DELETED. Wrong — Meta RENAMED it. Probed live against v23.0:
+    page_impressions_unique → page_total_media_view_unique (page reach) and
+    post_impressions_unique → post_total_media_view_unique (post reach) both
+    return real data. Never infer deletion from #100 without probing the new name.
+
+    Surviving/renamed equivalents in use: page_total_media_view_unique (reach),
+    page_media_view (impressions), page_daily_follows_unique /
+    page_daily_unfollows_unique (follower growth).
+
+    Impressions was page_posts_impressions_organic until 2026-07-17. That is a
+    much NARROWER universe (organic page posts only) than page-level all-media
+    reach, so pairing the two produced reach >> impressions (Homi June 2026:
+    851,817 reach vs 632 impressions) and engagements that EXCEEDED impressions
+    on every page probed — which tripped the guard below and suppressed FB
+    engagement rate entirely. page_media_view is Meta's stated replacement for
+    page_impressions and shares reach's page-level all-media universe, so the
+    two are comparable (Homi: 5,810,708 / 851,817 = frequency 6.8). NOTE: this
+    makes FB impressions jump by orders of magnitude vs months saved before
+    2026-07-17 — that seam is expected, not a regression.
+
+    Reach is summed over daily rows, so it OVER-counts anyone who saw content on
+    more than one day (metric_type=total_value is silently ignored for this
+    metric). Same approximation IG has always used. period=days_28's last row is
+    the honest trailing-28-day unique if a true monthly figure is ever needed."""
     out = {}
     def s(k, v):
         if v is not None: out[k] = v
-    impressions = _meta_sum_metric(page_id, 'page_posts_impressions_organic', token, since, until)
+    impressions = _meta_sum_metric(page_id, 'page_media_view', token, since, until)
     s('impressions', impressions)
+    s('reach', _meta_sum_metric(page_id, 'page_total_media_view_unique', token, since, until))
     # page_post_engagements = reactions + comments + shares + clicks on Page posts,
     # matching the Brandwatch FB interaction-rate formula's numerator directly.
     engagements = _meta_sum_metric(page_id, 'page_post_engagements', token, since, until)
     s('engagements', engagements)
-    # FB has no reach denominator anymore (deprecated), so express engagement rate
-    # over ORGANIC impressions and label it as such (engagement_rate_impr). Only
-    # when internally consistent (engagements ≤ impressions) — organic impressions
-    # vs all-post engagements can otherwise exceed 100%, so we suppress a bogus rate
-    # rather than show it.
+    # Express FB engagement rate over impressions and label it as such
+    # (engagement_rate_impr) — engagements are post-level while reach is page-level
+    # all-media, so reach is the wrong denominator here (IG keeps reach, its own
+    # official ER definition). Only when internally consistent (engagements ≤
+    # impressions); otherwise suppress rather than surface a bogus rate.
     if impressions and engagements is not None and 0 < engagements <= impressions:
         s('engagement_rate_impr', round(engagements / impressions * 100, 2))
     s('profile_views', _meta_sum_metric(page_id, 'page_views_total', token, since, until))
@@ -4708,24 +4730,37 @@ def _meta_fb_post_metrics(post_id, token):
     post. Returns a dict {reach, reactions_by_type, views} — all optional
     enrichments, so any failure just leaves them blank. post_video_views is
     requested first; if that metric is rejected (e.g. a non-video post) the call
-    is retried without it so reach + reactions still come back."""
+    is retried without it so reach + reactions still come back.
+
+    FIXED 2026-07-17 — this returned {} for EVERY post since Meta's deprecation.
+    post_impressions_unique is dead (#100) and appeared in BOTH metric strings;
+    Graph rejects the whole call if any one metric in the comma list is invalid,
+    so reactions_by_type and views were collateral damage, not just reach. Post
+    reach was RENAMED, not removed: post_impressions_unique →
+    post_total_media_view_unique (probed live, returns real values)."""
     if not post_id:
         return {}
     out = {}
-    for metric in ('post_impressions_unique,post_reactions_by_type_total,post_video_views',
-                   'post_impressions_unique,post_reactions_by_type_total'):
+    for metric in ('post_total_media_view_unique,post_reactions_by_type_total,post_video_views',
+                   'post_total_media_view_unique,post_reactions_by_type_total'):
         try:
             rows = (_meta_get('/' + post_id + '/insights',
                               {'metric': metric, 'access_token': token}).get('data') or [])
         except Exception:
             continue
         for r in rows:
+            # The renamed metrics return a lifetime row AND trailing per-day rows
+            # (the old post_impressions_unique only ever returned lifetime). The
+            # day rows are near-always 0 and land LAST, so without this guard they
+            # overwrite the real lifetime figure with zero.
+            if r.get('period') != 'lifetime':
+                continue
             name = r.get('name')
             vals = r.get('values') or []
             if not vals:
                 continue
             val = vals[0].get('value')
-            if name == 'post_impressions_unique':
+            if name == 'post_total_media_view_unique':
                 out['reach'] = _num(val)
             elif name == 'post_video_views':
                 n = _num(val)

@@ -168,20 +168,68 @@ platform (Settings → Platform connections → Connect). As of 2026-07-04:
   token connected** — connect one to enable native pulls.
 - Until then those platforms fall back to Apify public scraping (unchanged).
 
-### Facebook metric deprecation — FIXED 2026-07-04
+### Facebook metric deprecation — 2026-07-04, **PARTLY WRONG — see correction below**
 A `report_native_preview` audit found FB reach/impressions/follower-growth coming
 back None. Probed the Graph API live: Meta has **deprecated** `page_impressions`,
 `page_impressions_unique` (page reach), `page_fan_adds`/`page_fan_removes`,
 `page_posts_impressions`, and ALL `post_impressions*` (post reach) — they return
 "(#100) not a valid insights metric". `_meta_fb_insights` now uses the survivors:
-- **impressions** ← `page_posts_impressions_organic`
+- **impressions** ← `page_posts_impressions_organic` *(superseded 2026-07-17)*
 - **follower growth** ← `page_daily_follows_unique` / `page_daily_unfollows_unique`
   (verified: Anderco net +18 matches the previously-stored value)
 - **engagements/profile_views** ← `page_post_engagements` / `page_views_total` (unchanged)
-- **reach** — intentionally NOT reported: unique reach is no longer exposed at page
-  OR post level. FB engagement-rate now uses impressions as the denominator (IG
-  still uses reach, its official ER definition — that's why IG ER differs from the
-  old scraped value, which is expected, not a bug).
+- ~~**reach** — intentionally NOT reported: unique reach is no longer exposed at page
+  OR post level.~~ **WRONG — see below.**
+
+### ⚠️ CORRECTION 2026-07-17 — FB reach was RENAMED, not deleted (DEPLOYED)
+The 2026-07-04 pass inferred from the `#100`s that reach had been **removed**. It
+hadn't — Meta **renamed** it, and never probed the new names. Confirmed live on
+v23.0 (Catch Of The Day + Homi, June 2026):
+
+| dead (`#100`) | live replacement | value |
+|---|---|---|
+| `page_impressions_unique` | **`page_total_media_view_unique`** | 78,492 |
+| `page_impressions` | **`page_media_view`** | 123,738 |
+| `post_impressions_unique` | **`post_total_media_view_unique`** | 155 (one post) |
+
+**Lesson: never infer deletion from `#100` without probing the replacement name.**
+
+Three fixes shipped together:
+1. **Page reach** ← `page_total_media_view_unique`. Now populates for the first time.
+2. **Page impressions** `page_posts_impressions_organic` → **`page_media_view`**.
+   The old metric was a much narrower universe (organic page posts only) than
+   page-level all-media reach, so it produced reach ≫ impressions (Homi: 851,817 vs
+   632) and engagements that EXCEEDED impressions on every page probed — which
+   tripped the `engagements <= impressions` guard and **suppressed FB engagement
+   rate entirely**. Now coherent: Catch Of The Day freq 1.58 / ER 2.51%, Homi freq
+   6.82 / ER 0.02%. ⚠️ **Expected seam:** FB impressions jump by orders of magnitude
+   vs months saved before 2026-07-17. Not a regression. Homi's 0.02% ER is real —
+   its impressions are dominated by paid video views against 43 followers.
+3. **`_meta_fb_post_metrics` returned `{}` for EVERY post** since the deprecation —
+   `post_impressions_unique` was in BOTH metric strings and Graph rejects the whole
+   call if any one metric in the comma list is invalid, so per-post
+   `reactions_by_type` and `views` were collateral damage, not just reach.
+
+**GOTCHA — the renamed post metrics return a `lifetime` row AND trailing `day`
+rows** (the old `post_impressions_unique` only ever returned `lifetime`). The day
+rows are near-always 0 and arrive LAST, so a naive `out['reach'] = val` loop zeroes
+out the real figure. `_meta_fb_post_metrics` now skips `period != 'lifetime'`.
+
+**Period caveat (unfixed, pre-existing):** page reach is summed over daily rows, so
+it over-counts anyone who saw content on >1 day; `metric_type=total_value` is
+silently IGNORED for these metrics. Catch Of The Day June: summed-daily 78,492 vs
+`period=days_28` trailing-unique 37,296 — roughly 2×. IG has always had the same
+approximation. Use `days_28`'s last in-month row if a true monthly unique is needed.
+
+**Still no FB audience demographics** — `page_fans_*` remain fully dead with no
+known replacement (unlike reach, these were re-probed 2026-07-17). IG unaffected
+throughout: its `reach` metric never changed.
+
+**Dead code left in place:** `index.html`'s client-side `metaPull()`/`srFbInsights()`
+(~153520) still call the old dead names, but `SR.metaPull` has **no button** — it's
+unreachable legacy. Its `catch(_){return null}` (mirrored by `_meta_sum_metric` here)
+is *why* the rename went unnoticed: an invalid-metric error is indistinguishable
+from "no data". Consider un-swallowing `#100` specifically.
 
 ## Expanded metrics + "Audience & Insights" tab — added 2026-07-04 (DEPLOYED)
 New scalar metrics + demographic/discovery **breakdowns**, shown in a new
