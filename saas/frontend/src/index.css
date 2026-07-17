@@ -50,7 +50,12 @@
   --e-radius: 1rem;          /* card radius — royal opens this to 20px */
   --e-illus-to: rgba(15, 23, 42, .45);   /* tool-tile wash fade-out */
   --e-rail: rgb(var(--c-surface));        /* sidebar fill */
-  --e-modal: rgb(var(--c-surface));       /* popup panel fill */
+  /* Popup panel fill (modals, the assistant panel, ⌘K). A soft light source in
+     the top-left over the surface — enough depth that a large panel reads as a
+     lit sheet rather than one flat block of colour. */
+  --e-modal:
+    radial-gradient(120% 90% at 12% -8%, rgb(var(--c-peri) / .07) 0%, transparent 55%),
+    rgb(var(--c-surface));
   /* Tool-tile category hues. Light keeps catalog.mjs's saturated mid-tones,
      which are built to read on white. Royal/dark swap in the mockup's pastels
      — CATEGORY_META's SEO blue (#2563eb) is royal's own canvas blue, so on
@@ -100,7 +105,13 @@
   --e-radius: 20px;
   --e-illus-to: rgba(9, 13, 54, .55);
   --e-rail: linear-gradient(180deg, rgba(11, 19, 82, .72), rgba(8, 13, 60, .85));
-  --e-modal: linear-gradient(180deg, #1c2a92, #141f77);
+  /* Layered rather than a two-stop blue: a cool light source spilling in from
+     the top-left, a faint teal catch on the top-right (the brand's accent), then
+     a deep diagonal fall-off. Reads as depth, not a slab. */
+  --e-modal:
+    radial-gradient(120% 90% at 12% -8%, rgba(124, 152, 255, .30) 0%, transparent 55%),
+    radial-gradient(85% 65% at 100% 0%, rgba(45, 212, 191, .10) 0%, transparent 50%),
+    linear-gradient(168deg, #202e9c 0%, #16205f 60%, #111a4d 100%);
   --cat-seo: #9fb0ff;
   --cat-content: #4ade87;
   --cat-ai: #2dd4bf;
@@ -354,8 +365,8 @@
      move between — a panel that mounts at its final position can't animate. */
   .dm-scrim {
     @apply fixed inset-0 z-[90] opacity-0 transition-opacity duration-200;
-    background: rgba(6, 10, 50, .5);
-    backdrop-filter: blur(2px);
+    background: rgba(6, 10, 50, .6);
+    backdrop-filter: blur(6px) saturate(120%);
     pointer-events: none;
   }
   .dm-scrim-open { @apply opacity-100; pointer-events: auto; }
@@ -364,7 +375,9 @@
     @apply fixed left-1/2 top-1/2 z-[95] flex max-h-[92vh] w-[min(900px,calc(100vw-40px))] flex-col overflow-hidden border border-line opacity-0;
     background: var(--e-modal);
     border-radius: 22px;
-    box-shadow: 0 50px 90px -24px rgba(4, 10, 80, .8);
+    /* Hairline highlight along the top edge — the panel catches the same light
+       its gradient implies, which is what stops it reading as a printed block. */
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .10), 0 50px 90px -24px rgba(4, 10, 80, .8);
     transform: translate(-50%, -46%) scale(.97);
     transition: transform .24s cubic-bezier(.2, .8, .3, 1), opacity .2s;
     pointer-events: none;
