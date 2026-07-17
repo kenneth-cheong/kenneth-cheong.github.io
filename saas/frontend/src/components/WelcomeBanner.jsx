@@ -96,15 +96,16 @@ export default function WelcomeBanner({ onShowTools, onUpgrade }) {
 
     </div>
 
-      {/* The mockup parks a photo of a success specialist here — a figure that
-          breaks out ABOVE the banner's top-right edge. Otter takes that slot:
-          it protrudes above the slab (head + waving paw over the top edge, body
-          overlapping into the banner). A wrapper sibling, so the slab's
-          overflow-hidden doesn't clip it. Decorative (PeekMascot is aria-hidden). */}
+      {/* Otter breaks out ABOVE the banner's top edge (head + waving paw over
+          the top, body overlapping in). Positioned CENTRE-RIGHT — not the far
+          right — so it clears Monty's chat drawer + toasts, which dock top-right
+          and would otherwise bury it. A wrapper sibling so the slab's
+          overflow-hidden doesn't clip it; lg-only (needs the width to sit centre
+          -right clear of both the text and the chat). Decorative (aria-hidden). */}
       <PeekMascot
         name="otter"
         width={250}
-        className="pointer-events-none absolute right-10 top-[-44px] hidden select-none sm:block"
+        className="pointer-events-none absolute left-[44%] top-[-44px] hidden select-none lg:block"
         style={{ filter: 'drop-shadow(-8px 10px 20px rgba(4,30,60,.32))' }}
       />
     </div>
