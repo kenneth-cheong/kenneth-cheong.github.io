@@ -96,16 +96,15 @@ export default function WelcomeBanner({ onShowTools, onUpgrade }) {
 
     </div>
 
-      {/* Otter breaks out ABOVE the banner's top edge (head + waving paw over
-          the top, body overlapping in). Positioned CENTRE-RIGHT — not the far
-          right — so it clears Monty's chat drawer + toasts, which dock top-right
-          and would otherwise bury it. A wrapper sibling so the slab's
-          overflow-hidden doesn't clip it; lg-only (needs the width to sit centre
-          -right clear of both the text and the chat). Decorative (aria-hidden). */}
+      {/* Otter fills the empty right side of the slab, vertically centred on the
+          banner (top-1/2 + -translate-y-1/2 keeps it centred at any banner
+          height). Right-aligned so it reads as intentional. A wrapper sibling so
+          the slab's overflow-hidden doesn't clip it; lg-only (needs the width to
+          sit right of the text). Decorative (aria-hidden). */}
       <PeekMascot
         name="otter"
         width={250}
-        className="pointer-events-none absolute left-[44%] top-[-44px] hidden select-none lg:block"
+        className="pointer-events-none absolute right-[3%] top-1/2 hidden -translate-y-1/2 select-none lg:block"
         style={{ filter: 'drop-shadow(-8px 10px 20px rgba(4,30,60,.32))' }}
       />
     </div>
