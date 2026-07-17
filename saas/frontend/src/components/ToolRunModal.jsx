@@ -60,9 +60,11 @@ export default function ToolRunModal() {
     >
       {tool && <p className="text-xs leading-relaxed text-muted">{tool.desc}</p>}
 
-      <div className="flex flex-col gap-3.5">
+      {/* Fields flow into two columns on the roomier modal; full-width textareas
+          span both so long inputs stay legible. */}
+      <div className="grid grid-cols-1 gap-x-5 gap-y-3.5 sm:grid-cols-2">
         {fields.map((f) => (
-          <div key={f.name}>
+          <div key={f.name} className={f.type === 'textarea' ? 'sm:col-span-2' : ''}>
             <label htmlFor={`run-${f.name}`} className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.08em] text-faint">
               {f.label}{f.required && <span className="ml-1 text-neg">*</span>}
             </label>
