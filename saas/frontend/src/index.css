@@ -568,6 +568,88 @@
     background-position: right 0.5rem center;
     background-size: 1rem;
   }
+
+  /* ── Login page polish ────────────────────────────────────────────────────
+     Additive aesthetics for pages/Login.jsx. Everything here is decorative and
+     pointer-events-none / reduced-motion-safe, and themed off the same tokens
+     as the rest of the app so it holds on light, dark and royal. */
+
+  /* Ambient aurora behind the card so the surface reads as LIT, not pasted onto
+     a flat gradient. Three soft brand-tinted radials, clipped to the viewport
+     and non-interactive. Glow hues are set per-theme (the --c-cta token flips to
+     white on dark, so we can't reuse it here). */
+  .dm-login-bg { position: relative; overflow: hidden; --glow-a: 37 99 235; --glow-b: 79 70 229; --glow-c: 8 145 178; }
+  .dark .dm-login-bg { --glow-a: 124 152 255; --glow-b: 159 176 255; --glow-c: 45 212 191; }
+  .dm-login-bg::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(52% 42% at 50% 4%,  rgb(var(--glow-a) / .20) 0%, transparent 60%),
+      radial-gradient(42% 40% at 12% 22%, rgb(var(--glow-b) / .16) 0%, transparent 55%),
+      radial-gradient(46% 42% at 88% 86%, rgb(var(--glow-c) / .12) 0%, transparent 55%);
+  }
+
+  /* Card lift — a brand-tinted layered shadow + a top inner highlight so it
+     floats off the aurora. Light gets a blue-tinted cast; dark/royal keep the
+     deep-navy glass shadow with a faint white glass edge. */
+  .dm-login-card {
+    box-shadow:
+      0 1px 0 rgb(255 255 255 / .55) inset,
+      0 22px 48px -22px rgb(37 99 235 / .30),
+      0 10px 24px -14px rgb(15 23 42 / .14);
+  }
+  .dark .dm-login-card {
+    box-shadow:
+      0 1px 0 rgb(255 255 255 / .10) inset,
+      0 0 0 1px rgb(255 255 255 / .06),
+      0 30px 62px -26px rgb(4 10 80 / .72);
+  }
+
+  /* Identity tile — gradient fill + a coloured glow and a top light, instead of
+     a flat brand square. */
+  .dm-login-logo {
+    background: linear-gradient(150deg, #3b82f6 0%, #2563eb 48%, #1d4ed8 100%);
+    box-shadow: 0 10px 22px -8px rgb(37 99 235 / .55), 0 1px 0 rgb(255 255 255 / .35) inset;
+  }
+
+  /* Free-credits badge — a soft brand pill with an icon; gives the conversion
+     hook real visual weight. */
+  .dm-login-badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold;
+    color: rgb(var(--c-cta));
+    background: rgb(var(--c-cta) / .10);
+    border: 1px solid rgb(var(--c-cta) / .22);
+  }
+  .dark .dm-login-badge { color: rgb(var(--c-warn)); background: rgb(var(--c-warn) / .12); border-color: rgb(var(--c-warn) / .28); }
+
+  /* Left-icon inputs — a muted glyph tucked inside the field; pair with pl-9 on
+     the input so text clears it. The password field also gets a right-side
+     show/hide toggle. */
+  .dm-field-wrap { position: relative; }
+  .dm-field-ico {
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+    pointer-events: none; color: rgb(var(--c-faint)); display: grid; place-items: center;
+  }
+  .dm-field-toggle {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    color: rgb(var(--c-muted)); padding: 4px; border-radius: 6px; line-height: 0;
+  }
+  .dm-field-toggle:hover { color: rgb(var(--c-body)); background: rgb(var(--c-sunken)); }
+
+  /* Primary CTA polish — a gentle press and a subtle top-lit gradient on light
+     (dark/royal keep the intentional white fill, so the gradient is removed). */
+  .dm-login-cta { transition: transform .14s ease, box-shadow .2s ease, filter .2s ease; background-image: linear-gradient(180deg, rgb(59 130 246), rgb(37 99 235)); }
+  .dm-login-cta:hover:not(:disabled) { filter: brightness(1.03); }
+  .dm-login-cta:active:not(:disabled) { transform: translateY(1px); }
+  .dark .dm-login-cta { background-image: none; }
+
+  /* Entrance — one tasteful fade-up on mount; the card trails the header
+     slightly for a crafted feel. Fully disabled under reduced-motion. */
+  @keyframes dm-login-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  .dm-login-enter  { animation: dm-login-in .5s cubic-bezier(.2, .7, .3, 1) both; }
+  .dm-login-enter-2 { animation: dm-login-in .5s cubic-bezier(.2, .7, .3, 1) .08s both; }
+  @media (prefers-reduced-motion: reduce) {
+    .dm-login-enter, .dm-login-enter-2 { animation: none !important; }
+  }
 }
 
 /* Container-query grids — column count follows the *content* width, not the
