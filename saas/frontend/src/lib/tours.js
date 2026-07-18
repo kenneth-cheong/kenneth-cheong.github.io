@@ -98,13 +98,13 @@ const SAMPLE_RESULTS = {
     result: {
       source: 'live',
       rows: [
-        { Keyword: 'project management software', Volume: '74,000', Difficulty: '—', CPC: '$8.63', Intent: 'Informational' },
-        { Keyword: 'kanban board', Volume: '33,100', Difficulty: '95', CPC: '$6.10', Intent: 'Informational' },
-        { Keyword: 'task management software', Volume: '14,800', Difficulty: '88', CPC: '$13.45', Intent: 'Informational' },
-        { Keyword: 'free project management software', Volume: '1,900', Difficulty: '71', CPC: '$10.35', Intent: 'Informational' },
-        { Keyword: 'gantt chart maker', Volume: '1,900', Difficulty: '66', CPC: '$4.02', Intent: 'Informational' },
-        { Keyword: 'team collaboration software', Volume: '290', Difficulty: '53', CPC: '$7.84', Intent: 'Informational' },
-        { Keyword: 'work management', Volume: '720', Difficulty: '20', CPC: '$7.99', Intent: 'Informational' },
+        { Keyword: 'project management software', Volume: '74,000', Difficulty: '94', CPC: '$8.96', Intent: 'Informational' },
+        { Keyword: 'kanban board', Volume: '33,100', Difficulty: '94', CPC: '$5.87', Intent: 'Informational' },
+        { Keyword: 'task management software', Volume: '14,800', Difficulty: '92', CPC: '$12.63', Intent: 'Informational' },
+        { Keyword: 'free project management software', Volume: '2,400', Difficulty: '75', CPC: '$9.83', Intent: 'Informational' },
+        { Keyword: 'gantt chart maker', Volume: '1,800', Difficulty: '67', CPC: '$4.50', Intent: 'Informational' },
+        { Keyword: 'work management', Volume: '720', Difficulty: '21', CPC: '$8.08', Intent: 'Informational' },
+        { Keyword: 'team collaboration software', Volume: '80', Difficulty: '48', CPC: '$6.60', Intent: 'Informational' },
       ],
     },
   },
@@ -114,22 +114,22 @@ const SAMPLE_RESULTS = {
       source: 'live',
       sections: [
         stats('asana.com · United States', [
-          { label: 'Keywords', value: '5' }, { label: 'Avg position', value: '6.6', tone: 'amber' },
-          { label: 'Top 3', value: '3', tone: 'green' }, { label: 'On page 1', value: '4', tone: 'green' },
+          { label: 'Keywords', value: '5' }, { label: 'Avg position', value: '5.6', tone: 'amber' },
+          { label: 'Top 3', value: '2', tone: 'green' }, { label: 'On page 1', value: '4', tone: 'green' },
         ]),
-        { type: 'chart', title: 'Position history · "smart goals"', data: [
-          { date: '2026-03-15', position: 16 }, { date: '2026-03-29', position: 15 },
-          { date: '2026-04-12', position: 13 }, { date: '2026-04-26', position: 12 },
-          { date: '2026-05-10', position: 11 }, { date: '2026-05-24', position: 9 },
-          { date: '2026-06-07', position: 8 },
+        { type: 'chart', title: 'Position history · "swot analysis"', data: [
+          { date: '2026-05-24', position: 9 }, { date: '2026-05-31', position: 9 },
+          { date: '2026-06-07', position: 8 }, { date: '2026-06-14', position: 7 },
+          { date: '2026-06-21', position: 6 }, { date: '2026-06-28', position: 5 },
+          { date: '2026-07-05', position: 4 },
         ] },
       ],
       rows: [
-        { Keyword: 'strategic planning', Position: '1', URL: 'https://asana.com/uses/strategic-planning', Change: '0' },
-        { Keyword: 'sunk cost fallacy', Position: '1', URL: 'https://asana.com/resources/sunk-cost-fallacy', Change: '0' },
-        { Keyword: 'team building activities', Position: '3', URL: 'https://asana.com/resources/team-building-games', Change: '+2' },
-        { Keyword: 'smart goals', Position: '8', URL: 'https://asana.com/resources/smart-goals', Change: '+8' },
-        { Keyword: 'project plan template', Position: '20', URL: 'https://asana.com/resources/project-plan-templates', Change: '-12' },
+        { Keyword: 'team building activities', Position: '1', URL: 'https://asana.com/resources/team-building-games', Change: '+2' },
+        { Keyword: 'asana pricing', Position: '1', URL: 'https://asana.com/pricing', Change: '0' },
+        { Keyword: 'swot analysis', Position: '4', URL: 'https://asana.com/resources/swot-analysis', Change: '+5' },
+        { Keyword: 'smart goals', Position: '10', URL: 'https://asana.com/resources/smart-goals', Change: '-2' },
+        { Keyword: 'performance improvement plan', Position: '12', URL: 'https://asana.com/resources/performance-improvement-plan-template', Change: '+31' },
       ],
     },
   },
@@ -141,12 +141,12 @@ const SAMPLE_RESULTS = {
         callout('Forecast based on asana.com’s current authority (Domain Authority 95) and each keyword’s ranking difficulty. Higher-difficulty terms take longer to reach page one, even for a strong domain.'),
       ],
       rows: [
-        { Keyword: 'work management', Volume: '720', Difficulty: '20', 'Time to rank': '2–3 months' },
-        { Keyword: 'team collaboration software', Volume: '290', Difficulty: '53', 'Time to rank': '4–6 months' },
-        { Keyword: 'gantt chart maker', Volume: '1,900', Difficulty: '66', 'Time to rank': '6–9 months' },
-        { Keyword: 'free project management software', Volume: '1,900', Difficulty: '71', 'Time to rank': '9–12 months' },
-        { Keyword: 'task management software', Volume: '14,800', Difficulty: '88', 'Time to rank': '12–18 months' },
-        { Keyword: 'kanban board', Volume: '33,100', Difficulty: '95', 'Time to rank': '18–24 months' },
+        { Keyword: 'work management', Volume: '720', Difficulty: '21', 'Time to rank': '2–3 months' },
+        { Keyword: 'team collaboration software', Volume: '80', Difficulty: '48', 'Time to rank': '4–6 months' },
+        { Keyword: 'gantt chart maker', Volume: '1,800', Difficulty: '67', 'Time to rank': '6–9 months' },
+        { Keyword: 'free project management software', Volume: '2,400', Difficulty: '75', 'Time to rank': '9–12 months' },
+        { Keyword: 'task management software', Volume: '14,800', Difficulty: '92', 'Time to rank': '12–18 months' },
+        { Keyword: 'kanban board', Volume: '33,100', Difficulty: '94', 'Time to rank': '18–24 months' },
       ],
     },
   },
@@ -208,16 +208,16 @@ const SAMPLE_RESULTS = {
       source: 'live',
       sections: [
         stats('Top domains competing for “project management software”', [
-          { label: 'Competing domains', value: '500+' }, { label: 'Top rival’s shared keywords', value: '184,211' },
+          { label: 'Competing domains', value: '500+' }, { label: 'Top rival’s shared keywords', value: '182,715' },
         ]),
       ],
       rows: [
-        { Competitor: 'atlassian.com', 'Shared keywords': '184,211', 'Their keywords': '1,007,621', 'Est. traffic/mo': '820,870' },
-        { Competitor: 'clickup.com', 'Shared keywords': '161,499', 'Their keywords': '767,859', 'Est. traffic/mo': '55,378' },
-        { Competitor: 'smartsheet.com', 'Shared keywords': '147,649', 'Their keywords': '546,592', 'Est. traffic/mo': '526,786' },
-        { Competitor: 'projectmanager.com', 'Shared keywords': '133,364', 'Their keywords': '323,909', 'Est. traffic/mo': '237,302' },
-        { Competitor: 'monday.com', 'Shared keywords': '125,034', 'Their keywords': '376,806', 'Est. traffic/mo': '246,281' },
-        { Competitor: 'wrike.com', 'Shared keywords': '110,888', 'Their keywords': '243,903', 'Est. traffic/mo': '125,794' },
+        { Competitor: 'atlassian.com', 'Shared keywords': '182,715', 'Their keywords': '1,007,125', 'Est. traffic/mo': '759,172' },
+        { Competitor: 'clickup.com', 'Shared keywords': '156,645', 'Their keywords': '745,718', 'Est. traffic/mo': '136,821' },
+        { Competitor: 'smartsheet.com', 'Shared keywords': '145,888', 'Their keywords': '543,018', 'Est. traffic/mo': '552,360' },
+        { Competitor: 'projectmanager.com', 'Shared keywords': '130,771', 'Their keywords': '320,571', 'Est. traffic/mo': '189,285' },
+        { Competitor: 'monday.com', 'Shared keywords': '123,159', 'Their keywords': '375,456', 'Est. traffic/mo': '186,073' },
+        { Competitor: 'wrike.com', 'Shared keywords': '108,839', 'Their keywords': '241,185', 'Est. traffic/mo': '99,540' },
       ],
     },
   },
@@ -227,16 +227,16 @@ const SAMPLE_RESULTS = {
       source: 'live',
       sections: [
         stats('Link profile · asana.com', [
-          { label: 'Backlinks', value: '3.0M' }, { label: 'Ref. domains', value: '116,591' },
-          { label: 'Dofollow', value: '83%', tone: 'green' }, { label: 'Domain rank', value: '95', tone: 'green' },
+          { label: 'Backlinks', value: '2.9M' }, { label: 'Ref. domains', value: '115,922' },
+          { label: 'Dofollow', value: '81%', tone: 'green' }, { label: 'Domain rank', value: '95', tone: 'green' },
         ]),
       ],
       rows: [
-        { 'Referring domain': 'aws.amazon.com', 'Domain rank': '100', Links: '16', Type: 'Dofollow' },
-        { 'Referring domain': 'github.com', 'Domain rank': '100', Links: '273', Type: 'Nofollow' },
-        { 'Referring domain': 'help.vimeo.com', 'Domain rank': '100', Links: '14', Type: 'Dofollow' },
-        { 'Referring domain': 'theblog.adobe.com', 'Domain rank': '100', Links: '6', Type: 'Dofollow' },
-        { 'Referring domain': 'news.microsoft.com', 'Domain rank': '100', Links: '2', Type: 'Dofollow' },
+        { 'Referring domain': 'apps.apple.com', 'Domain rank': '100', Links: '51', Type: 'Dofollow' },
+        { 'Referring domain': 'blog.cloudflare.com', 'Domain rank': '100', Links: '12', Type: 'Dofollow' },
+        { 'Referring domain': 'business.adobe.com', 'Domain rank': '100', Links: '7', Type: 'Dofollow' },
+        { 'Referring domain': 'community.shopify.com', 'Domain rank': '100', Links: '4', Type: 'Nofollow' },
+        { 'Referring domain': 'fr.wikipedia.org', 'Domain rank': '100', Links: '1', Type: 'Nofollow' },
       ],
     },
   },
@@ -247,17 +247,17 @@ const SAMPLE_RESULTS = {
       sections: [
         stats('Site snapshot · asana.com', [
           { label: 'Domain authority', value: '95', tone: 'green' },
-          { label: 'Backlinks', value: '3.0M', tone: 'green' },
-          { label: 'Ref. domains', value: '116,591' },
-          { label: 'Organic keywords', value: '551,445', tone: 'green' },
-          { label: 'Monthly traffic', value: '359,720', tone: 'green' },
+          { label: 'Backlinks', value: '2.9M', tone: 'green' },
+          { label: 'Ref. domains', value: '115,922' },
+          { label: 'Organic keywords', value: '537,894', tone: 'green' },
+          { label: 'Monthly traffic', value: '314,554', tone: 'green' },
           { label: 'HTTPS / SSL', value: 'Valid', tone: 'green' },
         ]),
         list('Where its US rankings sit (organic positions)', [
-          'Top 1–5: 190,132',
-          'Position 6–10: 80,073',
-          'Position 11–20: 102,657',
-          'Position 21–50: 207,161',
+          'Top 1–5: 153,740',
+          'Position 6–10: 74,730',
+          'Position 11–20: 100,289',
+          'Position 21–50: 201,339',
         ]),
       ],
     },
@@ -370,13 +370,13 @@ const SAMPLE_RESULTS = {
       source: 'live',
       sections: [
         stats('AI search visibility · Asana · United States', [
-          { label: 'Brand mentions', value: '120,056', tone: 'green' },
-          { label: 'Citations', value: '103,627', tone: 'green' },
-          { label: 'Avg position in AI answers', value: '4.9', tone: 'green' },
-          { label: 'AI traffic opportunity', value: '80,933' },
+          { label: 'Brand mentions', value: '122,574', tone: 'green' },
+          { label: 'Citations', value: '68,697', tone: 'green' },
+          { label: 'Avg position in AI answers', value: '4.1', tone: 'green' },
+          { label: 'AI traffic opportunity', value: '58,044' },
         ]),
         list('Does each AI assistant cite asana.com when users ask buying questions?', [
-          '✓ Google AI Overviews — names Asana and links asana.com (avg position 6.2)',
+          '✓ Google AI Overviews — names Asana and links asana.com (avg position 6.1)',
           '✓ ChatGPT — names Asana and cites asana.com',
           '✓ Gemini — names Asana and cites asana.com',
           '✓ Perplexity — names Asana and cites asana.com',
@@ -390,11 +390,11 @@ const SAMPLE_RESULTS = {
       source: 'live',
       sections: [
         stats('Brand mentions across AI engines · Asana', [
-          { label: 'Total mentions', value: '120,056', tone: 'green' },
-          { label: 'Avg position', value: '4.9', tone: 'green' },
+          { label: 'Total mentions', value: '122,574', tone: 'green' },
+          { label: 'Avg position', value: '4.1', tone: 'green' },
         ]),
         list('Mentions by AI engine (last 30 days)', [
-          'Google AI Overview: 66,384',
+          'Google AI Overview: 68,902',
           'ChatGPT: 31,624',
           'Gemini: 6,072',
           'Perplexity: 411',
@@ -446,7 +446,7 @@ const SAMPLE_RESULTS = {
       sections: [
         stats('Health score · asana.com', [
           { label: 'Health score', value: '82 / 100', tone: 'green' }, { label: 'Domain authority', value: '95', tone: 'green' },
-          { label: 'Backlinks', value: '3.0M', tone: 'green' }, { label: 'llms.txt', value: 'Missing', tone: 'red' },
+          { label: 'Backlinks', value: '2.9M', tone: 'green' }, { label: 'llms.txt', value: 'Missing', tone: 'red' },
         ]),
       ],
       rows: [
@@ -706,7 +706,7 @@ export const TOOL_INTRO = {
   'ai-mentions': 'Track how often AI chatbots mention your brand — and your share of voice, i.e. how often it’s you rather than a competitor.',
   'llms-txt': 'llms.txt is a small file that tells AI tools what your site is about — like a menu for AI. Check your readiness and generate a ready-to-upload file.',
   'geo-onpage': 'Rewrite a page so AI assistants can easily quote and cite it in their answers — the AI-era side of SEO.',
-  'forensic-audit': 'The deep, everything-at-once audit: classic Google SEO plus AI visibility, boiled down to one health score and a ranked fix list. The big one (50 credits).',
+  'forensic-audit': 'The deep, everything-at-once audit: classic Google SEO plus AI visibility, boiled down to one health score and a ranked fix list. The big one — run it when you want the full picture, not a spot check.',
   persona: 'Personas are profiles of your typical customers. Paste one URL and get up to 10 — their goals, frustrations, favourite channels and what makes them buy.',
   'media-plan': 'Give it a budget and a goal; get a full advertising plan — which channels, how much on each, and the results to expect.',
   'landing-audit': 'Scores a page on how well it turns visitors into customers — clarity, speed, trust and SEO — with concrete fixes.',
@@ -1067,8 +1067,8 @@ const perfHist = (vals) => vals.map((value, i) => ({ date: ['2026-05-01', '2026-
 export const PERFORMANCE_SAMPLE = [
   { tool: 'gsc', toolName: 'Search Console', target: 'https://asana.com', metricId: 'demo#gsc#clicks', label: 'Clicks', unit: '', dir: 'up', lastValue: 34210, history: perfHist([27800, 28900, 29400, 30800, 31900, 33050, 34210]) },
   { tool: 'gsc', toolName: 'Search Console', target: 'https://asana.com', metricId: 'demo#gsc#avgPosition', label: 'Avg position', unit: '', dir: 'down', lastValue: 6.8, history: perfHist([8.1, 7.9, 7.7, 7.4, 7.2, 7.0, 6.8]) },
-  { tool: 'backlinks', toolName: 'Backlinks Explorer', target: 'asana.com', metricId: 'demo#backlinks#refDomains', label: 'Ref. domains', unit: '', dir: 'up', lastValue: 116591, history: perfHist([112040, 112900, 113800, 114570, 115300, 116000, 116591]) },
-  { tool: 'ai-discovery', toolName: 'AI Discovery Audit', target: 'asana.com', metricId: 'demo#ai#mentions', label: 'Brand mentions', unit: '', dir: 'up', lastValue: 120056, history: perfHist([98400, 102300, 106900, 110200, 114800, 117600, 120056]) },
+  { tool: 'backlinks', toolName: 'Backlinks Explorer', target: 'asana.com', metricId: 'demo#backlinks#refDomains', label: 'Ref. domains', unit: '', dir: 'up', lastValue: 115922, history: perfHist([111400, 112300, 113100, 113900, 114600, 115300, 115922]) },
+  { tool: 'ai-discovery', toolName: 'AI Discovery Audit', target: 'asana.com', metricId: 'demo#ai#mentions', label: 'Brand mentions', unit: '', dir: 'up', lastValue: 122574, history: perfHist([100500, 104800, 109200, 113100, 117400, 120100, 122574]) },
 ];
 
 export function startPerformanceTour(hooks = {}) {
@@ -1133,10 +1133,10 @@ export function startPerformanceTour(hooks = {}) {
 // keywords/positions) so the whole product tells one story.
 const trkHist = (positions, url) => positions.map((position, i) => ({ date: ['2026-05-01', '2026-05-08', '2026-05-15', '2026-05-22', '2026-05-29', '2026-06-05', '2026-06-12'][i], position, url }));
 export const TRACKING_SAMPLE = [
-  { trackId: 'demo-1', keyword: 'strategic planning', domain: 'asana.com', lastPosition: 1, lastUrl: 'https://asana.com/uses/strategic-planning', history: trkHist([2, 1, 1, 1, 1, 1, 1], 'https://asana.com/uses/strategic-planning') },
-  { trackId: 'demo-2', keyword: 'team building activities', domain: 'asana.com', lastPosition: 3, lastUrl: 'https://asana.com/resources/team-building-games', history: trkHist([5, 5, 4, 4, 3, 3, 3], 'https://asana.com/resources/team-building-games') },
-  { trackId: 'demo-3', keyword: 'smart goals', domain: 'asana.com', lastPosition: 8, lastUrl: 'https://asana.com/resources/smart-goals', history: trkHist([16, 15, 13, 12, 11, 9, 8], 'https://asana.com/resources/smart-goals') },
-  { trackId: 'demo-4', keyword: 'project plan template', domain: 'asana.com', lastPosition: 20, lastUrl: 'https://asana.com/resources/project-plan-templates', history: trkHist([8, 10, 13, 15, 17, 19, 20], 'https://asana.com/resources/project-plan-templates') },
+  { trackId: 'demo-1', keyword: 'team building activities', domain: 'asana.com', lastPosition: 1, lastUrl: 'https://asana.com/resources/team-building-games', history: trkHist([3, 3, 2, 2, 1, 1, 1], 'https://asana.com/resources/team-building-games') },
+  { trackId: 'demo-2', keyword: 'swot analysis', domain: 'asana.com', lastPosition: 4, lastUrl: 'https://asana.com/resources/swot-analysis', history: trkHist([9, 9, 8, 7, 6, 5, 4], 'https://asana.com/resources/swot-analysis') },
+  { trackId: 'demo-3', keyword: 'smart goals', domain: 'asana.com', lastPosition: 10, lastUrl: 'https://asana.com/resources/smart-goals', history: trkHist([8, 8, 9, 9, 10, 10, 10], 'https://asana.com/resources/smart-goals') },
+  { trackId: 'demo-4', keyword: 'performance improvement plan', domain: 'asana.com', lastPosition: 12, lastUrl: 'https://asana.com/resources/performance-improvement-plan-template', history: trkHist([43, 38, 30, 24, 18, 14, 12], 'https://asana.com/resources/performance-improvement-plan-template') },
 ];
 
 export function startTrackingTour({ limit } = {}, hooks = {}) {
@@ -1225,15 +1225,15 @@ export function startPlatformTour() {
           note('This tour takes about a minute — exit any time with <b>Esc</b>, replay it from the <b>?</b> in the top bar. Looking around never changes anything or spends credits.'),
       },
     },
-    { element: '[data-tour="tools"]', popover: { title: 'All your tools live here', description: 'Every tool, grouped by job — <b>SEO</b> = rank on Google · <b>Content</b> = write things · <b>AI Visibility</b> = get mentioned by ChatGPT & co. · <b>Strategy</b> = plans & audits · <b>Integrations</b> = your own Google data. Click to open the catalogue and search by name or job.', side: 'right', align: 'start' } },
+    { element: '[data-tour="tools"]', popover: { title: 'All your tools live here', description: 'Every tool, grouped by job — <b>SEO</b> = rank on Google · <b>Content</b> = write things · <b>AI Visibility</b> = get mentioned by ChatGPT & co. · <b>Strategy</b> = plans & audits · <b>Integrations</b> = your own Google data. Click to open the catalogue and search by name or job. In the catalogue each tool shows its price per run — <b>green means free</b> — and a lock if it needs a higher plan (most locked tools still give you <b>one real preview run</b>).', side: 'right', align: 'start' } },
     { element: '[data-tour="pathway"]', popover: { title: 'Not sure where to start? Follow a plan', description: 'Pick a goal — more visitors, a healthier site, showing up in AI answers — and we turn it into a step-by-step plan: the exact tools to run, in order, ticking off as you go. Add one sentence about your business and hit <b>Personalise with AI</b> to tailor it. Prefer to explore on your own? Open <b>Tools</b> in the sidebar and browse the full catalogue.', side: 'top', align: 'start' } },
     { element: '[data-tour="plan-widget"]', popover: { title: 'Your plan follows you', description: 'Set a goal here and we turn it into a step-by-step plan. A progress bar then rides under the top nav on <b>every page</b> — it shows how far along you are and what to do next, with a <b>Start</b> button to jump straight in.', side: 'bottom', align: 'end' } },
     {
       element: 'main a[href^="/tool/"]',
       popover: {
-        title: 'Every tool is a card',
+        title: 'Open any tool from here',
         description:
-          'The badge is the price per run — <b>green means free</b>. A lock means it needs a higher plan, but most locked tools still give you <b>one real preview run</b> so you can see what you’d get. Open any tool and hit <b>Tour</b> for a guided, worked example.',
+          'Wherever you see a tool on your dashboard, it’s one click to open its own page. Every tool page has a <b>Tour</b> button that walks you through a real worked example — exactly like this — so it’s the fastest way to learn any tool you haven’t tried yet.',
         side: 'right',
         align: 'start',
       },
