@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { api, ApiError, chatStream, chatStreamAvailable } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
-import { CREDIT_COSTS, toolById } from '@shared/catalog.mjs';
+import { CREDIT_COSTS, toolById, TOOLS } from '@shared/catalog.mjs';
 import { toast } from '../lib/ui.js';
 import { X, Plus, History, Trash2, ArrowLeft, ArrowRight, Settings, Bell, BellOff } from 'lucide-react';
 import PlanPanelCard from './PlanPanelCard.jsx';
@@ -161,7 +161,7 @@ export default function ChatDrawer({ open, onClose, ask, say }) {
         {label}
       </button>
     );
-    if (type === 'tool') { const t = toolById(raw.trim()); return t ? chip(t.name, () => go(`/tool/${t.id}`)) : null; }
+    if (type === 'tool') { const t = toolById(raw.trim()); return t ? chip(t.name, () => go(t.route || `/tool/${t.id}`)) : null; }
     if (type === 'go') { const [path, label] = raw.split('|'); return chip(label?.trim() || path.trim(), () => go(path.trim())); }
     if (type === 'ask') {
       // [[ask:Label]] sends "Label"; [[ask:Label|the text to send]] sends the text.
@@ -218,7 +218,12 @@ export default function ChatDrawer({ open, onClose, ask, say }) {
   function pageContext() {
     const path = location.pathname;
     const m = /^\/tool\/([^/]+)/.exec(path);
-    return { path, toolId: m ? decodeURIComponent(m[1]) : null };
+    if (m) return { path, toolId: decodeURIComponent(m[1]) };
+    // Bespoke tool pages (social-audit, perf-marketing, seo-diagnostics) live at
+    // their own `route`, not /tool/:id — map the path back to the tool so Monty
+    // still gives tool-specific help while the user is on one of them.
+    const routed = TOOLS.find((t) => t.route && t.route === path);
+    return { path, toolId: routed ? routed.id : null };
   }
 
   async function submit(text) {

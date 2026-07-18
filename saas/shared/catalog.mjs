@@ -145,11 +145,12 @@ export function costPerRun(tool, inputs) {
 // so users abandoned legit long runs and distrusted fast ones. Any slow tool
 // not listed falls back to the generic band.
 const TOOL_ETA = {
-  'content-check': [10, 45], onpage: [10, 45], 'perf-marketing': [10, 45],
+  'content-check': [10, 45], onpage: [10, 45], 'perf-marketing': [30, 150],
   backlinks: [10, 45], 'ai-discovery': [15, 60], 'page-analysis': [15, 75],
   'landing-audit': [15, 75], 'anchor-cleaner': [15, 75], 'keyword-analysis': [20, 90],
   'llms-txt': [20, 90], 'time-to-rank': [20, 90], 'strategy-engine': [30, 120],
   'technical-seo': [30, 150], 'geo-onpage': [40, 150], persona: [45, 150],
+  'seo-diagnostics': [60, 210],
   'content-writer': [30, 180], 'forensic-audit': [60, 210], 'media-plan': [60, 210],
   'social-audit': [45, 180], 'ai-mentions': [120, 300],
 };
@@ -272,9 +273,12 @@ export const TOOLS = [
   { id: 'sem-copy', name: 'SEM Ad Copy Generator', category: 'Strategy', minTier: 'pro',
     cost: 'ai_long', upstream: 'generateSemGoogle',
     desc: 'USP extraction → ad copy for Google / Meta / LinkedIn.' },
+  // Performance Marketing Audit — bespoke page (`route`): Starter opportunity
+  // analysis + Pro account-level 9-area diagnosis, with website auto-fill, live
+  // competitor ad intelligence and connected-account (Google Ads/GA4/Meta) pulls.
   { id: 'perf-marketing', name: 'Performance Marketing Audit', category: 'Strategy', minTier: 'pro',
-    cost: 'ai_long', upstream: 'performanceMarketing', slow: true,
-    desc: 'Channel mix, budget split & opportunities for a paid-media plan.' },
+    cost: 'ai_long', upstream: 'performanceMarketing', slow: true, route: '/performance-audit', noSchedule: true,
+    desc: 'Channel mix, budget split & opportunities (Starter) or a full account diagnosis (Pro) for paid media.' },
   // Social Media Audit — bespoke page (`route`): live multi-platform scrape +
   // AI content-gap & competitor strategy in one combined two-phase run. The
   // strategy phase is the single charged step; scrape/discover are free helpers.
@@ -286,6 +290,12 @@ export const TOOLS = [
   { id: 'strategy-engine', name: 'SEO Strategy', category: 'SEO', minTier: 'pro',
     cost: 'ai_long', upstream: 'strategyEngine', slow: true,
     desc: 'Auto-generates a keyword strategy with prioritised SEO action plans.' },
+  // SEO Diagnostics — bespoke 5-step wizard (`route`): manual keyword entry →
+  // opportunity buckets → GA4/GSC context → technical lanes (incl. live SERP) →
+  // prioritised diagnosis + AI plan. Single charged run at the end.
+  { id: 'seo-diagnostics', name: 'SEO Diagnostics', category: 'SEO', minTier: 'pro',
+    cost: 'ai_long', upstream: 'forensicSiteData', slow: true, route: '/seo-diagnostics', noSchedule: true,
+    desc: 'Guided keyword-to-fix audit: opportunity buckets, GA4/GSC context, technical checks & a prioritised diagnosis.' },
 
   // ── Integrations (your own Google data — 0 credits, drives stickiness) ─────
   // `integration` marks a tool that pulls the user's connected Google account

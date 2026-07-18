@@ -907,6 +907,16 @@ export function startSocialAuditTour(tool, hooks = {}) {
       },
     },
     {
+      element: '[data-tour="sma-listening"]',
+      popover: {
+        title: 'Social listening',
+        description:
+          lead('Scans the open web, blogs, forums &amp; news for brand mentions and reads the overall <b>sentiment</b>, then adds results from Reddit, X and SG forums.') +
+          note('On by default. Add extra terms (product names, campaign hashtags) or untick a source you don’t care about — it surfaces as a “mentions &amp; sentiment” card in the scorecard.'),
+        side: 'top', align: 'start',
+      },
+    },
+    {
       element: '[data-tour="sma-context"]',
       popover: {
         title: 'Optional context',
@@ -964,6 +974,134 @@ export function startSocialAuditTour(tool, hooks = {}) {
   setTimeout(() => {
     run(steps, { onDone: () => { markSeen('tool:social-audit'); hooks.clear?.(); } });
   }, 120);
+}
+
+// ── Performance Marketing Audit (bespoke page) ───────────────────────────────
+export function startPerfMarketingTour(tool, hooks = {}) {
+  const cost = CREDIT_COSTS[tool.cost] ?? 0;
+  const steps = [
+    {
+      popover: {
+        title: 'Performance Marketing Audit',
+        description:
+          lead('A paid-media plan for a prospect (<b>Starter</b>) or a full account-level diagnosis from your exported/connected data (<b>Pro</b>).') +
+          `<p class="dm-ex-note">${tool.category} · ${cost} credits per run · ~${etaLabel(tool)}</p>`,
+      },
+    },
+    {
+      element: '[data-tour="pm-mode"]',
+      popover: {
+        title: 'Starter vs Pro',
+        description:
+          lead('<b>Starter</b> — channel mix, budget split &amp; opportunities from first-call inputs. No ad-account data needed.') +
+          note('<b>Pro</b> reveals account-data fields and returns a 9-area diagnosis (tracking, structure, targeting, creative, budget, landing pages…).'),
+        side: 'bottom', align: 'start',
+      },
+    },
+    {
+      element: '[data-tour="pm-autofill"]',
+      popover: {
+        title: 'Analyse & auto-fill',
+        description: 'Enter the website and one click reads the site + researches the market to fill category, audience, objectives and competitors for you. Always review before running.',
+        side: 'bottom', align: 'start',
+      },
+    },
+    {
+      element: '[data-tour="pm-budget"]',
+      popover: {
+        title: 'Currency, budget & objectives',
+        description: 'Pick the output currency (every money figure comes back in it), an optional monthly budget (we suggest a range if blank), your goals and the platforms to consider.',
+        side: 'top', align: 'start',
+      },
+    },
+    {
+      element: '[data-tour="pm-competitors"]',
+      popover: {
+        title: 'Competitors',
+        description: 'One domain per line — we pull each rival’s Google paid keywords and Meta Ad Library activity and feed it into the analysis.',
+        side: 'top', align: 'start',
+      },
+    },
+    {
+      element: '[data-tour="pm-pro"]',
+      popover: {
+        title: 'Account data (Pro)',
+        description: 'Paste or upload your Google Ads / Meta / GA4 exports — or <b>Pull from connected accounts</b> to bring live data straight in from your Integrations.',
+        side: 'top', align: 'start',
+      },
+    },
+    {
+      element: '[data-tour="pm-run"]',
+      popover: {
+        title: 'Run it',
+        description: `On your own data you’d run here — it costs <b>${cost} credits</b> and takes ~${etaLabel(tool)}. Starter returns a budget split + channel-mix chart; Pro returns the account diagnosis.`,
+        side: 'top', align: 'start',
+      },
+    },
+    {
+      popover: {
+        title: 'That’s the tour',
+        description: note('Replay it any time from the <b>Tour</b> button next to the title.'),
+      },
+    },
+  ];
+  hooks.preview?.();
+  setTimeout(() => { run(steps, { onDone: () => { markSeen('tool:perf-marketing'); hooks.clear?.(); } }); }, 120);
+}
+
+// ── SEO Diagnostics (bespoke 5-step wizard) ──────────────────────────────────
+export function startSeoDiagnosticsTour(tool, hooks = {}) {
+  const cost = CREDIT_COSTS[tool.cost] ?? 0;
+  const steps = [
+    {
+      popover: {
+        title: 'SEO Diagnostics',
+        description:
+          lead('A guided, five-step audit that turns your keywords + site into a <b>prioritised fix list</b>.') +
+          `<p class="dm-ex-note">${tool.category} · ${cost} credits per run · ~${etaLabel(tool)}</p>`,
+      },
+    },
+    {
+      element: '[data-tour="sdx-stepper"]',
+      popover: {
+        title: 'Five steps',
+        description: 'Target → flag under-performing keywords → add GA4/Search Console context → technical checks → diagnosis. Move with Next/Back; you can jump back to any completed step.',
+        side: 'bottom', align: 'start',
+      },
+    },
+    {
+      element: '[data-tour="sdx-domain"]',
+      popover: {
+        title: 'Your domain',
+        description: 'The site to diagnose. Use your current project’s domain in one click, and pick the market (location + language) for the live SERP check.',
+        side: 'bottom', align: 'start',
+      },
+    },
+    {
+      popover: {
+        title: 'Keywords → opportunity buckets',
+        description:
+          lead('In step 2 you paste keywords (with optional volume/position/change) and we bucket them: <b>low-hanging fruit</b>, <b>declining</b>, <b>page 2+</b>, <b>not ranking</b>.') +
+          note('Tick the ones to diagnose — the live SERP check reads up to 8 of them to see who ranks above you.'),
+      },
+    },
+    {
+      popover: {
+        title: 'Context + technical checks',
+        description: 'Step 3 lets you paste GA4/Search Console data (optional, sharpens the plan). Step 4 runs PageSpeed, GTmetrix, SSL, on-page, robots/llms.txt, backlinks and the live SERP landscape.',
+      },
+    },
+    {
+      popover: {
+        title: 'Diagnosis & priority plan',
+        description:
+          lead('Step 5 gives a health score, the flagged keyword opportunities, the SERP landscape, a prioritised technical fix list and an AI action plan.') +
+          note('Tables export to CSV, and you can Share the result. Replay this tour any time from the Tour button.'),
+      },
+    },
+  ];
+  hooks.preview?.();
+  setTimeout(() => { run(steps, { onDone: () => { markSeen('tool:seo-diagnostics'); hooks.clear?.(); } }); }, 120);
 }
 
 // ── Dedicated-page tours (Site Health Check / Performance / Tracking) ────────

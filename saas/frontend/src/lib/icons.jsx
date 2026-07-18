@@ -34,6 +34,7 @@ const TOOL_FA = {
   backlinks: 'fa-solid fa-link',
   schema: 'fa-solid fa-sitemap',
   'strategy-engine': 'fa-solid fa-chess-knight',
+  'seo-diagnostics': 'fa-solid fa-stethoscope',
   // Content
   caption: 'fa-solid fa-comment-dots',
   'content-writer': 'fa-solid fa-pen-nib',

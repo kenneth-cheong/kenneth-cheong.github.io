@@ -35,6 +35,9 @@ export const UPSTREAMS = {
   getHtml: 'https://abrhhnjp4m.execute-api.ap-southeast-1.amazonaws.com/getHtml',
   // Performance Marketing Audit: paid-media opportunity analysis.
   performanceMarketing: 'https://4gupr9vio3.execute-api.ap-southeast-1.amazonaws.com',
+  // Performance Marketing competitor ad intelligence — Google paid keywords
+  // (default action) + Meta Ad Library via Apify (`action:'meta_ads'`).
+  competitorAds: 'https://dxjou20zg2.execute-api.ap-southeast-1.amazonaws.com',
   // Google integrations — reuse the agency's proven Lambdas (same as index.html):
   //   gscIntegration → ga4ListProperties / ga4RunReport / adsListCustomers / adsSearchStream (GAQL)
   //   googleAuth     → google_token_exchange / google_refresh_token (holds secret)
@@ -53,6 +56,8 @@ export const UPSTREAMS = {
   // Domain → ranking-keyword map, used to seed AI-visibility discovery prompts.
   keywordsForSite: 'https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite',
   geoOnPageAnalysis: 'https://fhan3l5vta.execute-api.ap-southeast-1.amazonaws.com/geoOnPageAnalysis',
+  // SEO Diagnostics — live SERP landscape lane (who ranks above you per keyword).
+  moreSerps: 'https://2wv8kyc8dg.execute-api.ap-southeast-1.amazonaws.com/moreSerps',
   // GEO+SEO Forensic Audit — the same probes index.html's autoFillForensicAudit() fires.
   // Site data: title/desc/h1-h2/schema/spam/backlinks (DataForSEO on-page snapshot).
   forensicSiteData: 'https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new',

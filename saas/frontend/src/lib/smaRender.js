@@ -491,6 +491,66 @@ export function renderSMAScorecard(d){
                     </div>`);
             }
 
+            // Social listening — brand mentions & sentiment across web + social
+            const sl = d.social_listening;
+            if(sl && sl.enabled !== false){
+                const s = sl.summary || {};
+                const sent = s.sentiment || {};
+                const pos = +sent.positive || 0, neg = +sent.negative || 0, neu = +sent.neutral || 0;
+                const totSent = pos + neg + neu;
+                const pct = x => totSent ? Math.round(x / totSent * 100) : 0;
+                const hasAny = s.total_mentions != null || totSent > 0 || arr(sl.mentions).length
+                    || Object.values(sl.platforms || {}).some(p => arr(p.results).length);
+                if(hasAny){
+                    const slTile = (icon,label,value,color)=>`
+                        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;display:flex;align-items:center;gap:14px;">
+                            <div style="width:44px;height:44px;background:${color}18;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                <i class="fas ${icon}" style="color:${color};font-size:20px;"></i></div>
+                            <div><div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;">${label}</div>
+                                <div style="font-size:22px;font-weight:800;color:#1e293b;line-height:1.2;">${value}</div></div>
+                        </div>`;
+                    const sentBadge = x => {
+                        const m = {positive:['#16a34a','#16a34a18'],negative:['#dc2626','#dc262618'],neutral:['#64748b','#64748b18']}[x];
+                        return m?`<span style="background:${m[1]};color:${m[0]};font-size:10px;font-weight:700;padding:1px 7px;border-radius:9px;text-transform:capitalize;">${x}</span>`:'';
+                    };
+                    let inner = `<div style="font-size:12px;color:#64748b;margin-bottom:14px;">Brand mentions and sentiment across the open web, blogs, forums, Reddit and X${sl.note?` — <span style="color:#b45309;">${esc(sl.note)}</span>`:''}.</div>`;
+                    if(arr(sl.terms).length)
+                        inner += `<div style="margin-bottom:14px;"><span style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-right:8px;">Tracking</span>${chips(sl.terms,'#eef2ff','#4338ca')}</div>`;
+                    if(s.total_mentions != null)
+                        inner += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px;">${slTile('fa-at','Web mentions',num(s.total_mentions),'#0891b2')}</div>`;
+                    if(totSent > 0)
+                        inner += `<div style="margin-bottom:16px;">
+                            <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;"><span>Sentiment of mentions</span><span>${num(totSent)} analysed</span></div>
+                            <div style="display:flex;height:14px;border-radius:7px;overflow:hidden;border:1px solid #e2e8f0;">
+                                <div style="width:${pct(pos)}%;background:#16a34a;"></div><div style="width:${pct(neu)}%;background:#cbd5e1;"></div><div style="width:${pct(neg)}%;background:#dc2626;"></div></div>
+                            <div style="display:flex;gap:14px;margin-top:6px;font-size:12px;color:#475569;flex-wrap:wrap;">
+                                <span><span style="color:#16a34a;font-weight:700;">●</span> Positive ${pct(pos)}%</span>
+                                <span><span style="color:#94a3b8;font-weight:700;">●</span> Neutral ${pct(neu)}%</span>
+                                <span><span style="color:#dc2626;font-weight:700;">●</span> Negative ${pct(neg)}%</span></div>
+                        </div>`;
+                    if(arr(s.top_domains).length)
+                        inner += `<div style="margin-bottom:16px;"><div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Where it's being mentioned</div>${chips(s.top_domains.slice(0,8),'#f1f5f9','#475569')}</div>`;
+                    const mentions = arr(sl.mentions).slice(0,10).map(m=>`
+                        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;">
+                            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">
+                                <a href="${esc(m.url)}" target="_blank" rel="noopener" style="font-size:13px;font-weight:600;color:#4338ca;text-decoration:none;">${esc(m.title||m.url||'')}</a>${sentBadge(m.sentiment)}</div>
+                            <div style="font-size:11px;color:#94a3b8;margin-bottom:4px;">${esc(m.domain||'')}${m.date?' · '+esc(String(m.date).slice(0,10)):''}</div>
+                            ${m.snippet?`<div style="font-size:12px;color:#475569;line-height:1.4;">${esc(m.snippet)}</div>`:''}
+                        </div>`).join('');
+                    if(mentions)
+                        inner += `<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin:4px 0 8px;">Recent mentions</div><div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">${mentions}</div>`;
+                    const platIcon = {reddit:'fab fa-reddit',twitter:'fab fa-x-twitter',forums:'fas fa-comments'};
+                    const platsHtml = Object.entries(sl.platforms||{}).map(([key,obj])=>{
+                        const results = arr(obj.results); if(!results.length) return '';
+                        const rows = results.slice(0,6).map(r=>`<li style="margin-bottom:8px;"><a href="${esc(r.url)}" target="_blank" rel="noopener" style="font-size:12px;font-weight:600;color:#4338ca;text-decoration:none;">${esc(r.title||r.url||'')}</a>${r.snippet?`<div style="font-size:11px;color:#94a3b8;line-height:1.4;">${esc(r.snippet)}</div>`:''}</li>`).join('');
+                        return `<div style="margin-bottom:14px;"><div style="font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;"><i class="${platIcon[key]||'fas fa-globe'}"></i> ${esc(obj.label||key)} <span style="color:#94a3b8;font-weight:500;">(${results.length})</span></div><ul style="list-style:none;padding:0;margin:0;">${rows}</ul></div>`;
+                    }).join('');
+                    if(platsHtml)
+                        inner += `<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin:4px 0 10px;">On social &amp; forums</div>${platsHtml}`;
+                    html += card('Social listening — mentions &amp; sentiment','fa-satellite-dish', inner);
+                }
+            }
+
             // Strengths & gaps — coloured panels with icons
             if(arr(d.strengths).length || arr(d.gaps).length){
                 html += card('Strengths &amp; gaps','fa-scale-balanced',

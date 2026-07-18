@@ -48,6 +48,8 @@ const Tracking = lazyWithReload(() => import('./pages/Tracking.jsx'));
 const Performance = lazyWithReload(() => import('./pages/Performance.jsx'));
 const SiteAudit = lazyWithReload(() => import('./pages/SiteAudit.jsx'));
 const SocialAudit = lazyWithReload(() => import('./pages/SocialAudit.jsx'));
+const PerformanceAudit = lazyWithReload(() => import('./pages/PerformanceAudit.jsx'));
+const SeoDiagnostics = lazyWithReload(() => import('./pages/SeoDiagnostics.jsx'));
 const Schedules = lazyWithReload(() => import('./pages/Schedules.jsx'));
 const Tools = lazyWithReload(() => import('./pages/Tools.jsx'));
 
@@ -99,6 +101,8 @@ export default function App() {
           <Route path="/performance" element={<Performance />} />
           <Route path="/audit" element={<SiteAudit />} />
           <Route path="/social-audit" element={<SocialAudit />} />
+          <Route path="/performance-audit" element={<PerformanceAudit />} />
+          <Route path="/seo-diagnostics" element={<SeoDiagnostics />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route path="/account" element={<Account />} />
           <Route path="/profile" element={<Profile />} />

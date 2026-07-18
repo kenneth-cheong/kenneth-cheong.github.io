@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { __test } from '../src/metering/index.mjs';
 
-const { sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, buildLlmsTxt, buildLlmsFull, extractSiteLinks } = __test;
+const { sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor } = __test;
 
 // Every section must carry a known `type` so the frontend ResultSections
 // renderer has a branch for it (heading/callout/text/stats/list/chart/cards/table).
@@ -104,6 +104,42 @@ describe('sectionsBacklinks + sectionsPerfMarketing shape', () => {
     const mix = out.find((s) => s.type === 'cards' && s.title === 'Recommended channel mix');
     expect(mix.items[0]).toMatchObject({ title: 'Google Search', badgeTone: 'green', barPct: 60 });
     expect(out.some((s) => s.type === 'list' && s.tone === 'green')).toBe(true); // quick wins
+  });
+});
+
+describe('pmSalvageJson (Performance Marketing truncated-JSON recovery)', () => {
+  it('parses clean JSON, strips fences, and closes truncated fragments', () => {
+    expect(pmSalvageJson('{"a":1}')).toEqual({ a: 1 });
+    expect(pmSalvageJson('```json\n{"a":1}\n```')).toEqual({ a: 1 });
+    // Truncated mid-array/string → recover the closeable prefix.
+    const truncated = '{"executive_summary":"Big opportunity","platform_recommendations":[{"platform":"Google Search","budget_share_pct":60},{"platform":"Meta","budget_sha';
+    const out = pmSalvageJson(truncated);
+    expect(out.executive_summary).toBe('Big opportunity');
+    expect(Array.isArray(out.platform_recommendations)).toBe(true);
+    expect(out.platform_recommendations[0].platform).toBe('Google Search');
+  });
+  it('returns null for unrecoverable input', () => {
+    expect(pmSalvageJson('not json at all')).toBe(null);
+    expect(pmSalvageJson(42)).toBe(null);
+  });
+});
+
+describe('parsePmAnswer', () => {
+  it('unwraps {answer} envelopes and salvages bad JSON', () => {
+    expect(parsePmAnswer({ answer: '{"ok":true}' })).toEqual({ ok: true });
+    expect(parsePmAnswer({ body: JSON.stringify({ answer: { ok: 1 } }) })).toEqual({ ok: 1 });
+    expect(parsePmAnswer({ answer: '```json\n{"x":[1,2' })).toEqual({ x: [1, 2] });
+  });
+});
+
+describe('sdxBucketFor (SEO Diagnostics keyword buckets)', () => {
+  it('classifies keywords by position/change/volume', () => {
+    expect(sdxBucketFor({ position: 2 })).toBe('strong');
+    expect(sdxBucketFor({ position: 8 })).toBe('striking');
+    expect(sdxBucketFor({ position: 20 })).toBe('page2');
+    expect(sdxBucketFor({ position: 12, change: -5 })).toBe('declining');
+    expect(sdxBucketFor({ position: null, volume: 300 })).toBe('missing');
+    expect(sdxBucketFor({ position: null, volume: 0 })).toBe('other');
   });
 });
 

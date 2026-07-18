@@ -493,6 +493,9 @@ async function callUpstreamRaw(tool, body) {
   if (tool.id === 'technical-seo') return crawlRun(body, tool);
   // GEO+SEO Forensic Audit: fan out ~30 probes, score them, build a remediation plan.
   if (tool.id === 'forensic-audit') return forensicAuditRun(body);
+  // SEO Diagnostics: guided keyword→fix wizard — technical lanes + SERP landscape
+  // + keyword buckets + AI narrative (SE Ranking excluded; manual keyword entry).
+  if (tool.id === 'seo-diagnostics') return seoDiagnosticsRun(body);
   // Page Technical & Domain Analysis: lighter probe fan-out → metric-card grid.
   if (tool.id === 'page-analysis') return pageAnalysisRun(body);
   // AI-visibility is multi-step: derive prompts → verify_mentions → poll snapshot.
@@ -1589,6 +1592,195 @@ async function forensicAuditRun(body) {
   };
 
   return { sections: faSections(d, recs, score, sevCounts, backlinksSource), summary };
+}
+
+// ── SEO Diagnostics: guided keyword → fix wizard (SE Ranking excluded) ────────
+// The React wizard gathers inputs across five steps (manual domain + keywords,
+// keyword-opportunity bucketing, GA4/GSC context, technical checks, diagnosis);
+// this is the single CHARGED step. It fans out the same technical probes the
+// forensic audit uses (reusing its finding engine + fa* scoring), adds a live
+// SERP-landscape lane (moreSerps), folds in pasted GA4/GSC context, and asks the
+// AI for a prioritised remediation narrative. Returns render-ready `sections`.
+// SE Ranking is deliberately excluded — Step 1 is manual/project-domain entry.
+const SDX_BUCKETS = {
+  striking:  { label: 'Low-hanging fruit', desc: 'Pos 4-15 — one push to page 1', tone: 'green' },
+  declining: { label: 'Declining', desc: 'Dropped 3+ positions', tone: 'red' },
+  page2:     { label: 'Page 2+', desc: 'Pos 16-30', tone: 'amber' },
+  missing:   { label: 'Not ranking', desc: 'No/low position, has volume', tone: 'blue' },
+  strong:    { label: 'Already strong', desc: 'Pos 1-3', tone: 'slate' },
+  other:     { label: 'Other', desc: 'Low volume / unranked', tone: 'slate' },
+};
+function sdxBucketFor(k) {
+  const pos = k.position, ch = k.change || 0, vol = k.volume || 0;
+  if (pos != null && pos >= 1 && pos <= 3) return 'strong';
+  if (ch <= -3 && pos != null && pos <= 30) return 'declining';
+  if (pos != null && pos >= 4 && pos <= 15) return 'striking';
+  if (pos != null && pos >= 16 && pos <= 30) return 'page2';
+  if ((pos == null || pos > 30) && vol > 0) return 'missing';
+  return 'other';
+}
+
+async function seoDiagnosticsRun(body) {
+  let target = String(body.input || body.url || body.domain || '').trim();
+  if (!target) return { _failed: true, text: 'A domain is required.' };
+  if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
+  let u;
+  try { u = new URL(target); } catch { return { _failed: true, text: 'Invalid domain.' }; }
+  const rootDomain = u.origin, domain = u.hostname, baseDomain = domain.replace(/^www\./, '');
+
+  const keywords = (Array.isArray(body.keywords) ? body.keywords : []).map((k) => ({ ...k, bucket: sdxBucketFor(k) }));
+  const selected = keywords.filter((k) => k && k._sel);
+  const selKws = (selected.length ? selected : keywords).slice(0, 8);
+  const loc = { location: String(body.location || 'Singapore'), language: String(body.language || 'English') };
+  const ga4Text = String(body.ga4 || '').trim();
+  const gscText = String(body.gsc || '').trim();
+
+  const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+  const tryJson = (url, payload, ms) => withTimeout(postUpstream(url, payload), ms).catch(() => null);
+  const getHtmlBody = (path, ms) => withTimeout(postUpstream(UPSTREAMS.getHtml, { url: path }), ms)
+    .then((r) => (typeof r === 'string' ? r : (r && typeof r.body === 'string' ? r.body : ''))).catch(() => '');
+
+  // Technical lanes (a focused subset of the forensic probes).
+  const [siteRes, psmRes, psdRes, sslRes, gtRes, homeHtml, robotsBody, llmsBody, llmsFullBody, serp] = await Promise.all([
+    tryJson(UPSTREAMS.forensicSiteData, { url: baseDomain }, 25000),
+    tryJson(UPSTREAMS.pageSpeed, { url: rootDomain }, 60000),
+    tryJson(UPSTREAMS.pageSpeed, { url: rootDomain, strategy: 'desktop' }, 60000),
+    tryJson(UPSTREAMS.sslCheck, { url: domain }, 20000),
+    tryJson(UPSTREAMS.gtmetrix, { url: rootDomain }, 75000),
+    getHtmlBody(rootDomain, 30000),
+    getHtmlBody(rootDomain + '/robots.txt', 20000),
+    getHtmlBody(rootDomain + '/llms.txt', 15000),
+    getHtmlBody(rootDomain + '/llms-full.txt', 15000),
+    sdxSerp(selKws, baseDomain, loc).catch(() => ({ byKeyword: {}, checked: 0 })),
+  ]);
+
+  const d = {
+    url: target, ssl: null, da: null, psd: null, psm: null, gtmetrix: '', ga4: '', gsc: '',
+    metatitle: '', metadesc: '', robots: '', sitemap: '', https: '', structdata: '', semantic: '',
+    llmblock: '', llmstxt: '', llmsfull: '', cms: '', backlinks: null, refdomains: null, spam: null, h1: null, h2: null,
+    custom404: '', copyscape: null, siteliner: null,
+  };
+  if (siteRes) {
+    if (siteRes.title) d.metatitle = String(siteRes.title);
+    if (siteRes.description) d.metadesc = String(siteRes.description);
+    if (siteRes.backlinks_spam_score != null) d.spam = Number(siteRes.backlinks_spam_score);
+    const toCount = (v) => (Array.isArray(v) ? v.length : (v !== '' && v != null ? Number(v) : null));
+    const h1c = toCount(siteRes.h1), h2c = toCount(siteRes.h2);
+    if (h1c != null && !Number.isNaN(h1c)) d.h1 = h1c;
+    if (h2c != null && !Number.isNaN(h2c)) d.h2 = h2c;
+    if (siteRes.schema && siteRes.schema !== 'None') d.structdata = 'Yes';
+    if (siteRes.backlinks != null) d.backlinks = Number(siteRes.backlinks);
+    if (siteRes.referring_domains != null) d.refdomains = Number(siteRes.referring_domains);
+  }
+  const parsePS = (v) => { if (v == null) return null; const n = parseInt(String(v), 10); return Number.isNaN(n) ? null : n; };
+  if (psmRes) { const p = parsePS(psmRes.pagespeed); if (p != null) d.psm = p; d.sitemap = psmRes.sitemap && psmRes.sitemap !== 'Not Found' ? 'Present' : 'Missing'; }
+  if (psdRes) { const p = parsePS(psdRes.pagespeed); if (p != null) d.psd = p; }
+  if (sslRes) d.ssl = (sslRes.message && String(sslRes.message).toLowerCase().includes('valid')) ? 'pass' : 'fail';
+  const grade = gtRes?.data?.attributes?.gtmetrix_grade; if (grade) d.gtmetrix = grade;
+  faParseHomeHtml(homeHtml, d);
+  faParseRobots(robotsBody, d);
+  d.llmstxt = faValidTxt(llmsBody) ? 'Present' : 'Missing';
+  d.llmsfull = faValidTxt(llmsFullBody) ? 'Present' : 'Missing';
+  if (ga4Text) d.ga4 = 'Connected';
+
+  // Technical findings via the forensic engine + fa* scoring.
+  const recs = generateForensicRecommendations(d);
+  recs.forEach((r) => { r.severity = faSeverityFor(r); });
+  recs.sort((a, b) => FA_SEV_ORDER[a.severity] - FA_SEV_ORDER[b.severity]);
+  const score = faComputeHealthScore(d, recs);
+  const sevCounts = { critical: 0, warning: 0, opportunity: 0 };
+  recs.forEach((r) => { sevCounts[r.severity]++; });
+
+  // ── Sections ──────────────────────────────────────────────────────────────
+  const sections = [];
+  sections.push({ type: 'stats', title: 'Diagnosis', items: [
+    { label: 'Health score', value: `${score}/100`, tone: score >= 80 ? 'green' : score >= 50 ? 'amber' : 'red' },
+    { label: 'Critical', value: String(sevCounts.critical), tone: 'red' },
+    { label: 'Warnings', value: String(sevCounts.warning), tone: 'amber' },
+    { label: 'Opportunities', value: String(sevCounts.opportunity), tone: 'blue' },
+  ] });
+
+  // Keyword opportunity buckets.
+  const bucketCounts = {};
+  keywords.forEach((k) => { bucketCounts[k.bucket] = (bucketCounts[k.bucket] || 0) + 1; });
+  if (keywords.length) {
+    sections.push({ type: 'stats', title: 'Keyword opportunities', items: Object.keys(SDX_BUCKETS)
+      .filter((b) => bucketCounts[b]).map((b) => ({ label: SDX_BUCKETS[b].label, value: String(bucketCounts[b]), tone: SDX_BUCKETS[b].tone })) });
+    const kwRows = keywords
+      .filter((k) => ['striking', 'declining', 'page2', 'missing'].includes(k.bucket))
+      .sort((a, b) => (b.volume || 0) - (a.volume || 0)).slice(0, 50)
+      .map((k) => ({ Keyword: k.keyword, Volume: k.volume ?? '—', Position: k.position ?? '—', Change: k.change ?? '—', Opportunity: SDX_BUCKETS[k.bucket].label }));
+    if (kwRows.length) sections.push({ type: 'table', title: 'Under-performing keywords', columns: ['Keyword', 'Volume', 'Position', 'Change', 'Opportunity'], rows: kwRows });
+  }
+
+  // Live SERP landscape.
+  const serpRows = Object.entries(serp.byKeyword || {}).map(([kw, v]) => ({
+    Keyword: kw,
+    'Live position': v.livePos ? `#${v.livePos}` : 'not in top 20',
+    'Ranks above you': v.above && v.above.length ? v.above.map((a) => a.domain).slice(0, 5).join(', ') : 'nothing ranks above you',
+    'SERP features': v.features && v.features.length ? v.features.join(', ') : '—',
+  }));
+  if (serpRows.length) sections.push({ type: 'table', title: `Live SERP landscape · ${loc.location}`, columns: ['Keyword', 'Live position', 'Ranks above you', 'SERP features'], rows: serpRows });
+
+  // Full technical report (reuse the forensic renderer).
+  const backlinksSource = siteRes?.backlinks != null ? 'DataForSEO' : null;
+  sections.push(...faSections(d, recs, score, sevCounts, backlinksSource));
+
+  // AI executive summary + prioritised next steps.
+  const findings = sdxFindingsText(d, recs, bucketCounts, serp, ga4Text, gscText);
+  const rec = await aiRecommendations({
+    label: 'SEO Diagnostics',
+    context: `Domain ${baseDomain}. Market ${loc.location}. Prioritise fixes that lift the flagged under-performing keywords toward page 1.`,
+    findings,
+  });
+  if (rec) sections.push(rec);
+
+  const summary = {
+    healthScore: score, issues: recs.length, critical: sevCounts.critical, warning: sevCounts.warning,
+    opportunity: sevCounts.opportunity, keywords: keywords.length, serpChecked: serp.checked || 0,
+    pageSpeedMobile: d.psm, pageSpeedDesktop: d.psd, ssl: d.ssl,
+  };
+  return { sections, summary };
+}
+
+// Live SERP landscape via moreSerps — who ranks above the domain for each keyword.
+async function sdxSerp(kws, domain, loc) {
+  const list = (kws || []).map((k) => k && k.keyword).filter(Boolean).slice(0, 8);
+  if (!list.length || !domain) return { byKeyword: {}, checked: 0 };
+  const byKeyword = {}; let checked = 0;
+  const results = await Promise.allSettled(list.map(async (kw) => {
+    const raw = deepBody(await postUpstream(UPSTREAMS.moreSerps, {
+      keyword: kw, language: loc.language, location: loc.location, page_types: 'any', limit: 20,
+    }, { timeoutMs: 30000 }));
+    const data = raw && typeof raw === 'object' ? raw : {};
+    const entries = Object.values(data).filter((e) => e && (e.url || e.domain))
+      .map((e, i) => ({ rank: e.rank || (i + 1), domain: cleanDomain(e.url || e.domain || ''), title: e.title || '', type: e.type || e.page_type || 'organic' }))
+      .sort((a, b) => a.rank - b.rank);
+    if (!entries.length) return;
+    let livePos = null;
+    for (const e of entries) { if (e.domain && (e.domain === domain || e.domain.endsWith('.' + domain) || domain.endsWith('.' + e.domain))) { livePos = e.rank; break; } }
+    const above = (livePos ? entries.filter((e) => e.rank < livePos) : entries).filter((e) => e.domain && e.domain !== domain).slice(0, 8);
+    const features = [...new Set(entries.filter((e) => e.type && e.type !== 'organic').map((e) => e.type))];
+    byKeyword[kw] = { livePos, above, features };
+    checked++;
+  }));
+  void results;
+  return { byKeyword, checked };
+}
+
+// Compact everything into a findings brief for the AI recommendations pass.
+function sdxFindingsText(d, recs, bucketCounts, serp, ga4Text, gscText) {
+  const lines = [];
+  lines.push(`Health score: ${faComputeHealthScore(d, recs)}/100. SSL: ${d.ssl || 'unknown'}. PageSpeed mobile: ${d.psm ?? 'n/a'}, desktop: ${d.psd ?? 'n/a'}. GTmetrix: ${d.gtmetrix || 'n/a'}. Structured data: ${d.structdata || 'n/a'}. Sitemap: ${d.sitemap || 'n/a'}. llms.txt: ${d.llmstxt || 'n/a'}.`);
+  if (d.backlinks != null || d.spam != null) lines.push(`Backlinks: ${d.backlinks ?? 'n/a'}, referring domains: ${d.refdomains ?? 'n/a'}, spam score: ${d.spam ?? 'n/a'}.`);
+  const bk = Object.entries(bucketCounts || {}).filter(([b]) => SDX_BUCKETS[b]).map(([b, n]) => `${SDX_BUCKETS[b].label}: ${n}`);
+  if (bk.length) lines.push(`Keyword opportunity buckets — ${bk.join('; ')}.`);
+  const serpLines = Object.entries(serp?.byKeyword || {}).slice(0, 8).map(([kw, v]) => `"${kw}": ${v.livePos ? 'live #' + v.livePos : 'not in top 20'}${v.above && v.above.length ? ', above you: ' + v.above.map((a) => a.domain).slice(0, 3).join(', ') : ''}`);
+  if (serpLines.length) lines.push('Live SERP landscape:\n' + serpLines.join('\n'));
+  lines.push('Top technical issues:\n' + recs.slice(0, 12).map((r) => `[${r.severity}] ${r.error} → ${r.action}`).join('\n'));
+  if (ga4Text) lines.push('GA4 context (pasted):\n' + ga4Text.slice(0, 1500));
+  if (gscText) lines.push('Search Console context (pasted):\n' + gscText.slice(0, 1500));
+  return lines.join('\n');
 }
 
 // ── Page Technical & Domain Analysis ──────────────────────────────────────────
@@ -3816,31 +4008,295 @@ function sectionsAnchors(target, s, flagged) {
 }
 
 // ── Performance Marketing Audit: paid-media opportunity analysis ──────────────
+// Action-based, mirroring index.html's tool: the bespoke React page drives free
+// helper actions (autofill / discover_competitors / connectors_summary) and then
+// the single charged `run` (Starter or Pro). Only `run` returns a billable
+// result; every helper opts out with `_noCharge`.
 async function perfMarketingRun(body) {
-  const raw = await postUpstream(UPSTREAMS.performanceMarketing, {
-    website_url: (body.input || body.url || '').trim(),
-    business_category: (body.category || '').trim(),
-    target_country: (body.country || 'Singapore').trim(),
-    target_audience: (body.audience || '').trim(),
-    monthly_budget: (body.budget || '').trim(),
-    objectives: (body.objectives || '').trim(),
-    current_platforms: splitItems(body.platforms),
-    rfq_notes: (body.rfqNotes || '').trim(),
-  });
-  const d = parsePmAnswer(raw);
-  if (!d) return { text: 'The audit did not return a usable result. Please try again.' };
-  return { sections: sectionsPerfMarketing(d) };
+  const action = String(body.action || 'run').trim();
+  if (action === 'autofill') return pmAutofill(body);
+  if (action === 'discover_competitors') return pmDiscoverCompetitors(body);
+  if (action === 'connectors_summary') return pmConnectorsSummary(body);
+  return pmRunAudit(body);
 }
 
+// Country name → 2-letter code for the ad-library / SERP lookups (SG default).
+const PM_COUNTRY_CODES = {
+  singapore: 'sg', malaysia: 'my', indonesia: 'id', 'united states': 'us', usa: 'us', us: 'us',
+  australia: 'au', 'united kingdom': 'gb', uk: 'gb', india: 'in', philippines: 'ph', thailand: 'th',
+  vietnam: 'vn', 'hong kong': 'hk', taiwan: 'tw', japan: 'jp', 'south korea': 'kr', korea: 'kr',
+  china: 'cn', canada: 'ca', 'new zealand': 'nz', 'united arab emirates': 'ae', uae: 'ae', 'saudi arabia': 'sa',
+};
+const pmCountryCode = (c) => PM_COUNTRY_CODES[String(c || '').trim().toLowerCase()] || 'sg';
+const pmDomainFromLine = (line) => String(line || '').split('—')[0].split(' - ')[0].trim()
+  .replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0].split('?')[0].trim().toLowerCase();
+
+// The single CHARGED step — Starter or Pro audit.
+async function pmRunAudit(body) {
+  const mode = String(body.mode || 'starter').trim().toLowerCase();
+  const currency = String(body.currency || body.output_currency || '').trim();
+  const aiInstr = String(body.aiInstructions || body.additional_instructions || '').trim();
+  const currencyDirective = currency
+    ? `OUTPUT CURRENCY — MANDATORY: Express ALL monetary values in your entire response (budgets, budget splits, CPC, CPL, CPA, ROAS spend figures, projected costs and any other money amounts) in ${currency}. Do NOT use US dollars or any other currency unless it is ${currency}. Format every amount with this currency's symbol/code.`
+    : '';
+  const additional_instructions = [currencyDirective, aiInstr].filter(Boolean).join('\n\n');
+
+  let rfqNotes = String(body.rfqNotes || body.rfq_notes || '').trim();
+  const attachments = String(body.attachments_context || '').trim();
+  if (attachments) rfqNotes = (rfqNotes ? rfqNotes + '\n\n' : '') + 'ADDITIONAL CONTEXT FROM ATTACHED FILES:\n' + attachments;
+
+  const competitors = String(body.competitors || '').trim();
+  const country = String(body.country || body.target_country || 'Singapore').trim();
+
+  // Server-side competitor ad intelligence (Google paid keywords + Meta ads),
+  // best-effort — a failure here must not sink the audit.
+  let competitorAdsIntel = null;
+  if (competitors) {
+    try { competitorAdsIntel = await pmFetchCompetitorAdsIntel(competitors, country); } catch { /* ignore */ }
+  }
+
+  const payload = {
+    mode,
+    website_url: String(body.input || body.url || '').trim(),
+    business_category: String(body.category || '').trim(),
+    target_country: country,
+    target_audience: String(body.audience || '').trim(),
+    monthly_budget: String(body.budget || '').trim(),
+    objectives: String(body.objectives || '').trim(),
+    output_currency: currency,
+    products_services: String(body.products || body.products_services || '').trim(),
+    competitors,
+    current_platforms: splitItems(body.platforms),
+    rfq_notes: rfqNotes,
+    additional_instructions,
+  };
+  if (attachments) payload.attachments_context = attachments;
+  if (competitorAdsIntel && competitorAdsIntel.length) payload.competitor_ads_intelligence = competitorAdsIntel;
+  if (mode === 'pro') {
+    payload.conversion_tracking    = String(body.conversionTracking || '').trim();
+    payload.cpl                    = String(body.cpl || '').trim();
+    payload.cpa                    = String(body.cpa || '').trim();
+    payload.roas                   = String(body.roas || '').trim();
+    payload.landing_pages          = String(body.landingPages || '').trim();
+    payload.audience_data          = String(body.audienceData || '').trim();
+    payload.historical_performance = String(body.historical || '').trim();
+    payload.creatives              = String(body.creatives || '').trim();
+    payload.google_ads_export      = String(body.googleAds || '').trim();
+    payload.meta_ads_export        = String(body.metaAds || '').trim();
+    payload.ga4_data               = String(body.ga4 || '').trim();
+  }
+
+  const raw = await postUpstream(UPSTREAMS.performanceMarketing, payload);
+  const d = parsePmAnswer(raw);
+  if (!d) return { _failed: true, text: 'The audit did not return a usable result. Please try again.' };
+  // `pm` + `pmMode` drive the bespoke page's rich renderer; `sections` is the
+  // history/chat fallback so a re-opened run still shows something sensible.
+  return { sections: sectionsPerfMarketing(d), pm: d, pmMode: mode };
+}
+
+// Fetch competitor ad intelligence for up to 8 domains — Google paid keywords
+// (default action) + Meta Ad Library (`action:'meta_ads'`) — and bundle it the
+// way the upstream audit prompt expects.
+async function pmFetchCompetitorAdsIntel(competitorsText, country) {
+  const source = pmCountryCode(country);
+  const domains = [...new Set(String(competitorsText).split('\n').map(pmDomainFromLine).filter((d) => d && d.includes('.')))].slice(0, 8);
+  if (!domains.length) return [];
+  const results = await Promise.allSettled(domains.map(async (domain) => {
+    const [kwRes, metaRes] = await Promise.allSettled([
+      postUpstream(UPSTREAMS.competitorAds, { domain, source, limit: 25 }, { timeoutMs: 25000 }),
+      postUpstream(UPSTREAMS.competitorAds, { action: 'meta_ads', domain, source }, { timeoutMs: 25000 }),
+    ]);
+    const kwBody = kwRes.status === 'fulfilled' ? deepBody(kwRes.value) : null;
+    const metaBody = metaRes.status === 'fulfilled' ? deepBody(metaRes.value) : null;
+    const ads = Array.isArray(kwBody?.ads) ? kwBody.ads : [];
+    const metaAds = Array.isArray(metaBody?.meta_ads) ? metaBody.meta_ads : [];
+    if (!ads.length && !metaAds.length) return null;
+    return {
+      domain,
+      top_paid_keywords: ads.slice(0, 25).map((a) => ({ keyword: a.keyword, volume: a.volume, cpc: a.cpc, ad_title: a.snippet_title, ad_description: a.snippet_description })),
+      meta_ads: metaAds.slice(0, 10).map((a) => ({ title: a.title, body: a.body, cta: a.cta, url: a.url })),
+    };
+  }));
+  return results.filter((r) => r.status === 'fulfilled' && r.value).map((r) => r.value);
+}
+
+// ── Free helper: auto-fill the form from the prospect's website ──────────────
+async function pmAutofill(body) {
+  const input = String(body.input || body.url || '').trim();
+  if (!input) return { _noCharge: true, _failed: true, text: 'Enter the website URL first.' };
+  const canonicalUrl = input.startsWith('http') ? input : 'https://' + input;
+
+  // 1) Scrape ourselves (best-effort) so the model has real page content.
+  let scraped = '';
+  try {
+    const s = deepBody(await postUpstream(UPSTREAMS.getHtml, { url: canonicalUrl }, { timeoutMs: 20000 }));
+    scraped = pmExtractText(s?.body ?? s);
+  } catch { /* model will fetch instead */ }
+
+  // 2) Structured profile research (retry a couple of times for valid JSON).
+  let data = null;
+  for (let attempt = 0; attempt < 3 && !data; attempt++) {
+    try {
+      const raw = deepBody(await postUpstream(UPSTREAMS.aiOptimiser, {
+        action: 'strategy_url_research', input, canonicalUrl, _scraped_content: scraped || undefined,
+      }, { timeoutMs: 60000 }));
+      const text = (raw && (raw.result || raw.reply)) || (typeof raw === 'string' ? raw : '');
+      data = pmExtractJson(text);
+    } catch { /* retry */ }
+  }
+  if (!data) return { _noCharge: true, _failed: true, text: "Couldn't read a usable profile from that site — fill the fields in manually." };
+
+  const competitors = Array.isArray(data.top_competitor_domains) ? data.top_competitor_domains.filter(Boolean) : [];
+  // Live SERP competitor enrichment (best-effort) supersedes the AI guess.
+  try {
+    const keywords = [...new Set([
+      ...String(data.seed_keywords || '').split(',').map((s) => s.trim()).filter(Boolean),
+      ...(Array.isArray(data.seo_keywords) ? data.seo_keywords : []),
+    ])];
+    const live = await pmFindCompetitors(keywords, canonicalUrl, String(body.country || 'Singapore'));
+    if (live.length) { competitors.length = 0; competitors.push(...live); }
+  } catch { /* keep AI competitors */ }
+
+  return {
+    _noCharge: true,
+    category: pmFieldText(data.client_profile),
+    audience: pmFieldText(data.target_audience),
+    objectives: pmObjectivesText(data.objectives),
+    marketContext: pmFieldText(data.market_context),
+    competitors,
+  };
+}
+
+// ── Free helper: live SERP competitor discovery ──────────────────────────────
+async function pmDiscoverCompetitors(body) {
+  const keywords = splitItems(body.keywords);
+  const live = await pmFindCompetitors(keywords, String(body.input || body.url || ''), String(body.country || 'Singapore')).catch(() => []);
+  return { _noCharge: true, competitors: live };
+}
+
+async function pmFindCompetitors(keywords, ourUrl, location) {
+  const kws = (keywords || []).map((k) => String(k || '').trim()).filter(Boolean).slice(0, 10);
+  if (!kws.length) return [];
+  const raw = deepBody(await postUpstream(UPSTREAMS.serpCompetitors, {
+    id: 'pm_comp_' + Date.now(), user: 'saas-gateway', keywords: kws, location: location || 'Singapore', language: 'English',
+  }, { timeoutMs: 25000 }));
+  const results = raw && typeof raw === 'object' ? raw : {};
+  const ours = cleanDomain(ourUrl);
+  const GENERIC = ['google.', 'youtube.', 'facebook.', 'instagram.', 'linkedin.', 'reddit.', 'wikipedia.', 'twitter.', 'x.com', 'pinterest.', 'tiktok.', 'amazon.', 'medium.com', 'quora.com', 'yelp.', 'tripadvisor.', 'glassdoor.', 'indeed.', 'github.', 'apple.com', 'microsoft.com', 'yahoo.', 'bing.com', 'shopee.', 'lazada.', 'carousell.'];
+  const rows = [];
+  for (const domain in results) {
+    const base = cleanDomain(domain);
+    if (!base) continue;
+    if (ours && (base.includes(ours) || ours.includes(base))) continue;
+    if (GENERIC.some((g) => base.includes(g))) continue;
+    const count = Object.keys(results[domain] || {}).length;
+    if (count > 0) rows.push({ base, count });
+  }
+  rows.sort((a, b) => b.count - a.count);
+  return rows.slice(0, 6).map((r) => `${r.base} — ranks for ${r.count} of your keyword${r.count === 1 ? '' : 's'}`);
+}
+
+// ── Free helper (Pro): summarise the user's connected ad/analytics accounts ───
+// Pulls live data server-side via the same integration layer the gsc/ga4/ads
+// tools use, and returns text blocks the user drops into the Pro export fields.
+async function pmConnectorsSummary(body) {
+  const providers = Array.isArray(body.providers) && body.providers.length ? body.providers : ['google-ads', 'ga4', 'meta-ads'];
+  const keyFor = { 'google-ads': 'googleAds', ga4: 'ga4', 'meta-ads': 'metaAds' };
+  const out = { _noCharge: true, connected: {} };
+  await Promise.allSettled(providers.map(async (provider) => {
+    const conn = body._integrations?.[provider];
+    out.connected[provider] = !!conn?.connected;
+    if (!conn?.connected) return;
+    try {
+      const live = await fetchIntegrationFor(provider, conn, { range: 'Last 28 days', input: conn.account });
+      if (!live?.rows) return;
+      const text = `${summaryToFindings(live.summary || {})}\nBreakdown:\n${rowsToFindings(live.rows, 20)}`.trim();
+      out[keyFor[provider]] = text;
+    } catch { /* skip this provider */ }
+  }));
+  return out;
+}
+
+// Salvage-aware parse of the perf-marketing lambda's answer (the generator
+// occasionally returns truncated JSON — recover what we can instead of failing).
 function parsePmAnswer(raw) {
   const data = deepBody(raw);
   let answer = data?.answer != null ? data.answer : data;
   if (typeof answer === 'string') {
     let s = answer.trim();
     if (s.startsWith('```')) s = s.replace(/^```[a-z]*\n?/i, '').replace(/```$/, '').trim();
-    try { return JSON.parse(s); } catch { return null; }
+    try { return JSON.parse(s); } catch { return pmSalvageJson(s); }
   }
   return answer && typeof answer === 'object' ? answer : null;
+}
+
+// Recover a usable object from truncated/invalid JSON (port of index.html's
+// pmSalvageJson): strip fences, close open strings/brackets, drop dangling
+// keys/commas, else fall back to the largest closeable prefix.
+function pmSalvageJson(str) {
+  if (typeof str !== 'string') return null;
+  let s = str.trim();
+  if (s.startsWith('```')) s = s.replace(/^```[a-z]*\n?/i, '').replace(/```$/, '').trim();
+  const a = s.search(/[[{]/); if (a > 0) s = s.slice(a);
+  const parse = (x) => { try { return { ok: true, v: JSON.parse(x) }; } catch { return { ok: false }; } };
+  let r = parse(s); if (r.ok) return r.v;
+  r = parse(s.replace(/,(\s*[}\]])/g, '$1')); if (r.ok) return r.v;
+  const close = (frag) => {
+    const stk = []; let inStr = false, esc = false;
+    for (let i = 0; i < frag.length; i++) {
+      const c = frag[i];
+      if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false; continue; }
+      if (c === '"') { inStr = true; continue; }
+      if (c === '{' || c === '[') stk.push(c === '{' ? '}' : ']');
+      else if (c === '}' || c === ']') stk.pop();
+    }
+    let out = frag + (inStr ? '"' : '');
+    out = out.replace(/\s+$/, '');
+    out = out.replace(/,?\s*"(?:[^"\\]|\\.)*"\s*:\s*$/, '');
+    out = out.replace(/[:,]\s*$/, '').replace(/,(\s*[}\]])/g, '$1');
+    for (let i = stk.length - 1; i >= 0; i--) out += stk[i];
+    return out.replace(/,(\s*[}\]])/g, '$1');
+  };
+  r = parse(close(s)); if (r.ok) return r.v;
+  for (let i = s.lastIndexOf('}'); i > 0; i = s.lastIndexOf('}', i - 1)) {
+    r = parse(close(s.slice(0, i + 1)));
+    if (r.ok) return r.v;
+  }
+  return null;
+}
+
+// Extract readable text from a scraped page body (string or {text}/{content}).
+function pmExtractText(body) {
+  if (!body) return '';
+  if (typeof body === 'string') return body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (typeof body === 'object') return pmExtractText(body.text || body.content || body.html || '');
+  return '';
+}
+
+// Coerce the AI research fields (string | array | object) into plain text.
+function pmFieldText(val) {
+  if (!val) return '';
+  if (typeof val === 'string') return val;
+  if (Array.isArray(val)) return val.map(pmFieldText).filter(Boolean).join('. ');
+  if (typeof val === 'object') return val.description || val.text || val.value || val.name || Object.values(val).find((x) => typeof x === 'string') || '';
+  return String(val);
+}
+function pmObjectivesText(v) {
+  if (Array.isArray(v)) return v.map((o) => String(o).replace(/_/g, ' ')).join(', ');
+  return pmFieldText(v);
+}
+
+// Lenient JSON extraction from a model text response (fences / prose wrapped).
+function pmExtractJson(rawText) {
+  if (!rawText || typeof rawText !== 'string') return null;
+  let clean = rawText.trim();
+  if (clean.includes('```')) {
+    const m = clean.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    clean = m ? m[1] : clean.replace(/```(?:json)?/g, '').replace(/```/g, '');
+  }
+  const fb = clean.indexOf('{'), lb = clean.lastIndexOf('}');
+  if (fb === -1 || lb <= fb) return null;
+  return pmSalvageJson(clean.substring(fb, lb + 1));
 }
 
 function sectionsPerfMarketing(d) {
@@ -4081,7 +4537,7 @@ function deepBody(raw) {
 
 // Exposed for unit tests (orchestration is otherwise unreachable without a full
 // authed event). Not used by the handler path.
-export const __test = { callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks };
+export const __test = { callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor };
 
 /**
  * AI endpoints return token usage; convert to actual credits so a tiny caption

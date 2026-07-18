@@ -7,7 +7,7 @@ import { api, ApiError } from '../lib/api.js';
 import ShareResult from '../components/ShareResult.jsx';
 import ReportHtml from '../components/ReportHtml.jsx';
 import { toast } from '../lib/ui.js';
-import { Loader2, Wand2, Plus, X, Microscope, ScanSearch, Compass, AlertTriangle } from 'lucide-react';
+import { Loader2, Wand2, Plus, X, Microscope, ScanSearch, Compass, AlertTriangle, Pencil, Check } from 'lucide-react';
 import { renderSMAScorecard, renderSocialAudit, installSmaGlobals } from '../lib/smaRender.js';
 import { extractFiles } from '../lib/extractFiles.js';
 import { startSocialAuditTour, hasSeen, markSeen } from '../lib/tours.js';
@@ -234,6 +234,12 @@ export default function SocialAudit() {
   // ── Competitors (up to 3) ─────────────────────────────────────────────────
   const [competitors, setCompetitors] = useState([]); // {platform, handle, name, source}
 
+  // ── Social listening ──────────────────────────────────────────────────────
+  const [listenEnabled, setListenEnabled] = useState(true);
+  const [listenKeywords, setListenKeywords] = useState('');
+  const [listenSources, setListenSources] = useState(
+    () => ({ web: true, reddit: true, twitter: true, forums: true }));
+
   // ── Optional context + uploads ────────────────────────────────────────────
   const [calendars, setCalendars] = useState('');
   const [rfq, setRfq] = useState('');
@@ -259,6 +265,7 @@ export default function SocialAudit() {
   const [scorecardHtml, setScorecardHtml] = useState(null);
   const [scaHtml, setScaHtml] = useState(null);
   const [doneJob, setDoneJob] = useState(null); // finished audit → branded share card
+  const [editingOut, setEditingOut] = useState(false); // inline-edit the rendered report before sharing/exporting
   const resultsRef = useRef(null);
 
   // Install the globals the scorecard markup wires via inline onclick.
@@ -477,9 +484,16 @@ export default function SocialAudit() {
           strategy[f.id] = [typed, fromFiles].filter(Boolean).join('\n\n');
         }
       }
+      const social_listening = listenEnabled
+        ? {
+            enabled: true,
+            keywords: listenKeywords.split(',').map((s) => s.trim()).filter(Boolean),
+            sources: Object.entries(listenSources).filter(([, v]) => v).map(([k]) => k),
+          }
+        : { enabled: false };
       const scrape = platforms.length
-        ? { brand_name: brand.trim(), domain: ctx.website, handles, platforms, competitors: comps, extra_context }
-        : { platforms: [] };
+        ? { brand_name: brand.trim(), domain: ctx.website, handles, platforms, competitors: comps, extra_context, social_listening }
+        : { platforms: [], social_listening };
 
       // Hand the whole job to the server and poll it for progress.
       setLoadingText('Starting the audit on our servers…');
@@ -653,6 +667,37 @@ export default function SocialAudit() {
         )}
       </div>
 
+      {/* Social listening */}
+      <div className="card mt-4 p-5" data-tour="sma-listening">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-body">Social listening</h2>
+          <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-body">
+            <input type="checkbox" checked={listenEnabled} disabled={busy}
+              onChange={(e) => setListenEnabled(e.target.checked)} /> Include in audit
+          </label>
+        </div>
+        <p className="mt-1 text-xs text-faint">
+          Scans the open web, blogs, forums &amp; news for brand mentions and reads overall sentiment,
+          then adds Google site-search results from Reddit, X and SG forums.
+        </p>
+        {listenEnabled && (
+          <div className="mt-3">
+            <label className="block text-sm font-medium text-body">Extra terms to track <span className="font-normal text-faint">(optional, comma-separated)</span></label>
+            <input className="field mt-1" value={listenKeywords} disabled={busy}
+              onChange={(e) => setListenKeywords(e.target.value)}
+              placeholder="e.g. product names, campaign hashtags, founder name" />
+            <div className="mt-3 flex flex-wrap gap-4 text-sm text-body">
+              {[['web', 'Web, blogs, forums & news'], ['reddit', 'Reddit'], ['twitter', 'Twitter / X'], ['forums', 'HardwareZone & SG forums']].map(([k, label]) => (
+                <label key={k} className="inline-flex cursor-pointer items-center gap-2">
+                  <input type="checkbox" checked={!!listenSources[k]} disabled={busy}
+                    onChange={(e) => setListenSources((s) => ({ ...s, [k]: e.target.checked }))} /> {label}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Optional context */}
       <div className="card mt-4 p-5" data-tour="sma-context">
         <h2 className="text-sm font-bold uppercase tracking-wide text-body">Optional context</h2>
@@ -729,12 +774,21 @@ export default function SocialAudit() {
       {/* Results — bespoke HTML scorecards (Font Awesome styled, ported 1:1). */}
       <div ref={resultsRef} data-tour="sma-results" className="mt-6 space-y-4">
         {doneJob && (
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setEditingOut((v) => !v)} className={SHARE_BTN}>
+              {editingOut ? <><Check size={14} /> Done editing</> : <><Pencil size={14} /> Edit result</>}
+            </button>
             <ShareResult tool={SHARE_TOOL} out={socialShareOut(doneJob)} project={active} user={user} force snapshot label="Share result" className={SHARE_BTN} />
           </div>
         )}
-        {scorecardHtml && <ReportHtml html={scorecardHtml} className="" />}
-        {scaHtml && <ReportHtml html={scaHtml} className="" />}
+        <div
+          contentEditable={editingOut}
+          suppressContentEditableWarning
+          className={editingOut ? 'rounded-lg outline outline-2 outline-brand-400 outline-offset-4' : ''}
+        >
+          {scorecardHtml && <ReportHtml html={scorecardHtml} className="" />}
+          {scaHtml && <ReportHtml html={scaHtml} className="" />}
+        </div>
       </div>
     </div>
   );
