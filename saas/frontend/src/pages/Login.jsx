@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
+import ThemeToggle from '../components/ThemeToggle.jsx';
 
 // One card, three modes: sign in (Google + email/password), create account, and
 // forgot password. Email/password and Google resolve to the same account.
@@ -133,6 +134,11 @@ export default function Login() {
 
   return (
     <div className="dm-login-bg grid min-h-screen place-items-center bg-gradient-to-b from-brand-50 to-white px-4 dark:from-canvas dark:to-surface">
+      {/* Colour-mode switcher, same cycler as the app shell. Fixed top-right,
+          above the aurora, so signed-out visitors can pick a theme too. */}
+      <div className="fixed right-4 top-4 z-20">
+        <ThemeToggle />
+      </div>
       <div className="relative z-10 w-full max-w-md text-center">
         <div className="dm-login-enter">
           <div className="dm-login-logo mx-auto grid h-14 w-14 place-items-center rounded-2xl text-2xl font-bold text-white">D</div>
