@@ -256,6 +256,29 @@ npm run deploy        # == bash deploy.sh: vite build → zip dist/ →
 > fields/forms/options needs a **frontend** redeploy; gateway/adapter changes need the
 > **backend** deploy. A full tool change usually needs both.
 
+### SPA routing / rewrites (custom rules — the source of truth)
+
+This is a `BrowserRouter` (HTML5-history) SPA, so **every** deep link
+(`/tool/rank-checker`, `/support/…`) and the client-side 404 page
+(`src/pages/NotFound.jsx`) depend on the CDN serving `/index.html` for any
+non-asset path. That rewrite lives in the Amplify **app's custom rules**, *not*
+in the artifact — Amplify (manual/zip deploy) does **not** read the Netlify-style
+`public/_redirects` file (it's kept only for portability). The canonical rules are
+committed at [`frontend/amplify-custom-rules.json`](frontend/amplify-custom-rules.json):
+
+- `/s/<*>` → ShareFn API (public share links).
+- SPA catch-all → `/index.html` (200). The extension **allow-list** in that regex
+  must include every real asset type you serve, or those files get rewritten to
+  HTML — e.g. `webmanifest` is in the list because omitting it made
+  `/manifest.webmanifest` return the index shell and broke PWA install.
+
+Re-apply after any app rebuild / if deep links start 404-ing:
+
+```bash
+aws amplify update-app --app-id d1q0hza133u0y9 --region ap-southeast-1 \
+  --custom-rules file://saas/frontend/amplify-custom-rules.json
+```
+
 Then:
 1. Add your **custom domain** in Amplify → Domain management (managed CloudFront + SSL).
 2. Update the backend `AppOrigin` to the live URL (CORS + Stripe redirects) via a
