@@ -519,7 +519,10 @@ export default function SocialAudit() {
       }
     } catch (e) {
       setScaError('Strategy analysis failed: ' + gateError(e));
+      // 402 = never started (no credits); anything else = the audit failed after
+      // starting, which the backend doesn't bill. Reassure the user either way.
       if (e instanceof ApiError && e.status === 402) toast('Out of credits — top up to finish.', 'error');
+      else toast('Audit didn’t complete — no credits were charged.', 'error');
     } finally {
       setBusy(false);
       setLoadingText('');

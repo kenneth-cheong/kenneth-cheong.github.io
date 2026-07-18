@@ -224,7 +224,10 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
       }
       setOut(res);
       if (typeof res.creditsRemaining === 'number') setCredits(res.creditsRemaining, res.topupRemaining);
-      if (res.creditsUsed > 0) toast(`−${res.creditsUsed} credit${res.creditsUsed > 1 ? 's' : ''} · ${res.creditsRemaining} left`, 'info');
+      // Failed runs are never billed server-side — reassure the user in a toast so
+      // they don't have to read the result card to know their balance is intact.
+      if (res.failed) toast('Run didn’t complete — no credits were charged.', 'error');
+      else if (res.creditsUsed > 0) toast(`−${res.creditsUsed} credit${res.creditsUsed > 1 ? 's' : ''} · ${res.creditsRemaining} left`, 'info');
       saveLastInput(tool.id, vals);
       pushRecent(tool.id);
       // Let the proactive Otter react to a finished run (success vs. empty result).
@@ -239,6 +242,8 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
         });
       } else {
         setOut({ error: e.message });
+        // A thrown run (upstream 5xx / job failure) isn't billed either — say so.
+        toast('Run failed — no credits were charged.', 'error');
         emitRunFinished(tool.name, 'error');
       }
     } finally {
