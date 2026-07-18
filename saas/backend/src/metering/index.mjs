@@ -1724,7 +1724,9 @@ async function seoDiagnosticsRun(body) {
 
   // Full technical report (reuse the forensic renderer).
   const backlinksSource = siteRes?.backlinks != null ? 'DataForSEO' : null;
-  sections.push(...faSections(d, recs, score, sevCounts, backlinksSource));
+  // Embedded under the wizard's own verdict — rename the heading and drop the
+  // duplicate health-score stats (already shown in the Diagnosis block above).
+  sections.push(...faSections(d, recs, score, sevCounts, backlinksSource, { title: 'Technical audit', skipSummary: true }));
 
   // AI executive summary + prioritised next steps.
   const findings = sdxFindingsText(d, recs, bucketCounts, serp, ga4Text, gscText);
@@ -2383,7 +2385,10 @@ function faGeoReadiness(d) {
 }
 
 /** Build the themed `sections` report for the forensic audit. */
-function faSections(d, recs, score, sevCounts, backlinksSource) {
+// `opts.title` renames the report heading and `opts.skipSummary` drops the
+// health-score stat block — both used by SEO Diagnostics, which embeds this
+// technical report under its own verdict rather than as a standalone audit.
+function faSections(d, recs, score, sevCounts, backlinksSource, opts = {}) {
   const dash = '—';
   const scoreTone = score >= 80 ? 'green' : score >= 50 ? 'amber' : 'red';
   const num = (v) => (v == null ? dash : Number(v).toLocaleString());
@@ -2427,14 +2432,14 @@ function faSections(d, recs, score, sevCounts, backlinksSource) {
   ];
 
   const sections = [
-    { type: 'heading', text: `GEO+SEO Forensic Audit — ${d.url}` },
-    { type: 'stats', items: [
+    { type: 'heading', text: `${opts.title || 'GEO+SEO Forensic Audit'} — ${d.url}` },
+    ...(opts.skipSummary ? [] : [{ type: 'stats', items: [
       { label: 'Health score', value: `${score}/100`, tone: scoreTone },
       { label: 'Critical', value: sevCounts.critical, tone: sevCounts.critical ? 'red' : 'green' },
       { label: 'Warning', value: sevCounts.warning, tone: sevCounts.warning ? 'amber' : 'green' },
       { label: 'Opportunity', value: sevCounts.opportunity, tone: sevCounts.opportunity ? 'blue' : 'green' },
       { label: 'Total issues', value: recs.length, tone: recs.length === 0 ? 'green' : recs.length < 5 ? 'amber' : 'red' },
-    ] },
+    ] }]),
     { type: 'heading', text: 'AI Visibility (GEO) readiness' },
     { type: 'stats', items: [{ label: 'GEO readiness', value: `${geo.score}/100`, tone: geo.tone }] },
     { type: 'cards', note: 'How ready your site is to be read and cited by AI assistants (ChatGPT, Perplexity, Google AI Overviews).', items: geo.factors.map((g) => ({ title: g.label, badge: g.ok ? 'Ready' : g.partial ? 'Partial' : 'Gap', badgeTone: g.ok ? 'green' : g.partial ? 'amber' : 'red', body: g.note })) },
