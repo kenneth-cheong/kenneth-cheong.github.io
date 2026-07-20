@@ -231,6 +231,49 @@ unreachable legacy. Its `catch(_){return null}` (mirrored by `_meta_sum_metric` 
 is *why* the rename went unnoticed: an invalid-metric error is indistinguishable
 from "no data". Consider un-swallowing `#100` specifically.
 
+## ⚠️ Competitors: per-platform cap + the OOM behind "cannot load to update" — 2026-07-20 (DEPLOYED)
+Reported by Jing Yi on Singapore Pools: *"can we allow for 4 competitors… it is
+still only showing for first three and only one platform"* — plus *"I tried
+updating the pull but it cannot load to update."* Two independent bugs.
+
+**1. `handle_start` sliced `competitors[:3]` — a flat TOTAL cap.** The frontend's
+`addCompRow` has always enforced **4 PER PLATFORM** (competitor numbers differ by
+platform, so each gets its own set), so the backend silently contradicted the UI.
+Singapore Pools had 4 Instagram + 4 Facebook saved; the slice took the first three
+rows, which happened to all be Instagram — hence "first three and only one
+platform". Now capped per platform via `COMPETITORS_PER_PLATFORM`
+(env `SR_COMPETITORS_PER_PLATFORM`, default 4), matching the form.
+Every capture path funnels through `handle_start` — including the daily cron via
+`_cron_apify_scorecard` — so this is the single choke point.
+Verified: 3 competitors (Instagram only) → **7 across Instagram AND Facebook**.
+
+**2. `Runtime.OutOfMemory` — the function was on 256 MB.** That is the "cannot
+load to update": the capture died mid-run, so the month never refreshed. NOT
+caused by the competitor fix — the daily cron was already OOMing on 2026-07-19
+before any of this. Typical runs use ~152 MB, but a project with 3 platforms ×
+~20 posts plus competitor scrapes peaks far higher; several runs sat at 255/256 MB
+against a 256 MB ceiling. **Memory raised 256 → 1024 MB**; the same Singapore
+Pools capture then peaked at **362 MB** and completed. Lambda CPU scales with
+memory, so it also runs faster. Watch `Max Memory Used` in the REPORT lines if
+projects keep growing.
+
+> Note: one competitor (`facebook.com/SportsTotoMalaysia`) still came back empty.
+> That is a per-page Apify scrape failure, NOT the cap — it is *first* in its
+> platform's list, and Instagram's 4th was captured fine.
+
+## ⚠️ IG `profile_views` needs `metric_type=total_value` — fixed 2026-07-20 (DEPLOYED)
+Found within minutes of `_meta_metric_window` starting to LOG its failures (see
+below) — the log said it outright:
+```
+(#100) The following metrics (profile_views) should be specified with parameter metric_type=total_value
+```
+`_meta_ig_insights` passed `tv` to nearly every metric but not this one, so IG
+profile views were blank on every capture ever taken. One-word fix; Singapore
+Pools July 2026 went `None` → **818**.
+
+**This is the third silent-`None` bug on this Lambda in a fortnight** (FB rename,
+the 30-day cap, now this). The logging is earning its keep — don't remove it.
+
 ## ⚠️ Instagram's 30-day insight window — fixed 2026-07-20 (DEPLOYED)
 `_meta_month_range` spans a whole calendar month, but Graph caps **Instagram**
 insights at 30 days per call:

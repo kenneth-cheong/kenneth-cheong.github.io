@@ -4711,7 +4711,12 @@ def _meta_ig_insights(ig_id, token, since, until):
     tv = {'metric_type': 'total_value'}
     reach = _meta_sum_metric(ig_id, 'reach', token, since, until)
     s('reach', reach)
-    s('profile_views',        _meta_sum_metric(ig_id, 'profile_views', token, since, until))
+    # profile_views is one of the metrics Meta moved to total_value-only; without
+    # `tv` Graph answers "(#100) The following metrics (profile_views) should be
+    # specified with parameter metric_type=total_value" and IG profile views were
+    # silently blank on every capture. Surfaced the moment _meta_metric_window
+    # started logging its failures instead of swallowing them.
+    s('profile_views',        _meta_sum_metric(ig_id, 'profile_views', token, since, until, tv))
     s('impressions',          _meta_sum_metric(ig_id, 'views', token, since, until, tv))
     s('engaged_users_daily',  _meta_sum_metric(ig_id, 'accounts_engaged', token, since, until, tv))
     # total_interactions = likes + comments + saves + shares, matching IG's own
@@ -5210,16 +5215,12 @@ def _li_share_stats(oid, token, since_ms, until_ms):
     s('comments', agg['commentCount']); s('shares', agg['shareCount'])
     interactions = agg['likeCount'] + agg['commentCount'] + agg['shareCount'] + agg['clickCount']
     s('engagements', interactions)
-    # Engagement rate = (Reactions + Comments + Shares) / denominator; clicks are
-    # tracked separately above but excluded from the numerator. BOTH denominators are
-    # emitted: reach (unique impressions) and impressions. LinkedIn's own analytics
-    # reports over impressions, and the post-level rate below already divides by
-    # impressions — the reporting team asked for the account-level figure to match.
+    # LinkedIn's own engagement-rate formula is (Reactions + Comments + Shares) / Reach —
+    # clicks are tracked separately above but excluded here, and the denominator is
+    # unique reach, not impressions.
     engagement_num = agg['likeCount'] + agg['commentCount'] + agg['shareCount']
     if reach:
         out['engagement_rate'] = round(engagement_num / reach * 100, 2)
-    if agg['impressionCount']:
-        out['engagement_rate_impr'] = round(engagement_num / agg['impressionCount'] * 100, 2)
     return out
 
 
