@@ -19,7 +19,7 @@ import { DetailLink } from './CardDetails.jsx';
 // than a placeholder figure, so the wall is honest on a fresh account.
 
 // The tools these cards read.
-export const RESULT_TOOLS = ['forensic-audit', 'ai-discovery', 'ga4'];
+export const RESULT_TOOLS = ['forensic-audit', 'ai-discovery', 'ga4', 'page-speed'];
 
 export default function ResultCards() {
   const { loading, byTool } = useLatestRuns(RESULT_TOOLS);
@@ -28,19 +28,33 @@ export default function ResultCards() {
   const ga4 = byTool['ga4'];
   const s = audit?.result?.summary || null;
 
-  // Page speed is shown from the audit by default, but can be refreshed on its
-  // own (see the Page speed card). `speed` holds the fresher standalone reading
-  // once one has been taken, so the rings update without a full re-audit.
   // Only show the Authority score when the stored run was produced by our own
   // authorityScore(). Audits run before 2026-07-20 hold a third-party suite's
   // authority figure in the same field — showing it under our label would be
   // presenting vendor data as ours. Re-run the audit and it returns.
   const hasAuthority = !!(s && s.authoritySource && s.domainAuthority != null);
 
+  // Page speed comes from whichever reading is NEWEST: the standalone Page Speed
+  // Check when one has been run since the last audit, otherwise the audit's own
+  // figures. `speed` holds an in-session refresh so the rings move immediately;
+  // on the next load the stored page-speed run takes over. Without that second
+  // half a refresh silently reverted to the older audit number on reload, which
+  // reads as the refresh having done nothing.
   const [speed, setSpeed] = useState(null);
-  const ps = speed || (s && s.pageSpeedMobile != null
+  const psRun = byTool['page-speed'];
+  const psSum = psRun?.result?.summary;
+  const psStored = psSum && psSum.pageSpeedMobile != null && (!audit || String(psRun.ts) > String(audit.ts))
+    ? { mobile: psSum.pageSpeedMobile, desktop: psSum.pageSpeedDesktop, ts: psRun.ts, target: psRun.target }
+    : null;
+  const ps = speed || psStored || (s && s.pageSpeedMobile != null
     ? { mobile: s.pageSpeedMobile, desktop: s.pageSpeedDesktop }
     : null);
+  // The card's freshness line should track the reading on screen, not the audit
+  // the numbers used to come from.
+  const speedRun = !audit ? audit
+    : speed ? { ...audit, ts: Date.now() }
+    : psStored ? { ...audit, ts: psStored.ts, target: psStored.target || audit.target }
+    : audit;
 
   if (loading) {
     return (
@@ -75,7 +89,7 @@ export default function ResultCards() {
           numbers in place — it used to redirect to the 50-credit, ~2-minute
           forensic audit, which recomputed thirty unrelated probes to update two
           rings the user was already looking at. */}
-      <Card title="Page speed" toolId="forensic-audit" run={audit} icon={<GaugeIcon size={15} aria-hidden />}
+      <Card title="Page speed" toolId="forensic-audit" run={speedRun} icon={<GaugeIcon size={15} aria-hidden />}
         chip={ps && `${Math.round((ps.mobile + ps.desktop) / 2)} avg`}
         refresh={{
           toolId: 'page-speed',
