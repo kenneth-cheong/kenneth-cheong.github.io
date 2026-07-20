@@ -31,6 +31,7 @@ import re
 import time
 import uuid
 import base64
+import hashlib
 import statistics
 from decimal import Decimal
 from concurrent.futures import ThreadPoolExecutor
@@ -66,6 +67,15 @@ REPORT_DAYS_TABLE     = os.environ.get('REPORT_DAYS_TABLE', 'social_report_days'
 SL_CLIENTS_TABLE   = os.environ.get('SL_CLIENTS_TABLE', 'sl_clients')
 SL_TOPICS_TABLE    = os.environ.get('SL_TOPICS_TABLE', 'sl_topics')
 SL_SNAPSHOTS_TABLE = os.environ.get('SL_SNAPSHOTS_TABLE', 'sl_snapshots')
+# Post thumbnails — every platform hands out SIGNED, EXPIRING CDN URLs
+# (scontent-*.cdninstagram.com / *.fbcdn.net carry an `oe` expiry ~30 days out;
+# TikTok cover_image_url the same). Storing them verbatim means the whole post
+# grid goes blank a few weeks after capture — verified on Homi 2026-07-20:
+# 90/90 stored thumbnails returned 403. So mirror the bytes into S3 once at save
+# time and persist THAT url instead. Public-read, prefix-scoped; the images are
+# already public on the source platform.
+THUMB_BUCKET = os.environ.get('SR_THUMB_BUCKET', 'digimetricsfileupload')
+THUMB_PREFIX = os.environ.get('SR_THUMB_PREFIX', 'social-thumbs/')
 HAIKU_MODEL  = 'claude-haiku-4-5-20251001'
 # Vision-capable model for the content/creative audit (visual style + theme).
 # Sonnet reasons over imagery noticeably better than Haiku; it runs once per
@@ -2588,6 +2598,90 @@ def _strip_fb_reach_er(sc):
     return sc
 
 
+_THUMB_TYPES = {'image/jpeg': 1, 'image/png': 1, 'image/webp': 1, 'image/gif': 1}
+
+
+def _mirror_image(url):
+    """Copy one expiring CDN image into S3 and return the durable public URL.
+
+    Keyed by the source path WITHOUT its query string, so the signature rotating
+    on every pull still resolves to the same object — a re-capture costs one HEAD,
+    not a re-upload. Returns the original url unchanged on ANY failure: mirroring
+    is an enhancement and must never be a reason to lose a thumbnail."""
+    u = str(url or '').strip()
+    if not u.startswith('http'):
+        return url
+    if (THUMB_BUCKET + '.s3.') in u:
+        return u                                   # already mirrored
+    try:
+        key = THUMB_PREFIX + hashlib.sha1(u.split('?', 1)[0].encode('utf-8')).hexdigest()
+        public = 'https://%s.s3.%s.amazonaws.com/%s' % (THUMB_BUCKET, REGION, key)
+        s3 = boto3.client('s3', region_name=REGION)
+        try:
+            s3.head_object(Bucket=THUMB_BUCKET, Key=key)
+            return public                          # mirrored by an earlier capture
+        except Exception:
+            pass
+        r = requests.get(u, timeout=20, headers={
+            'User-Agent': 'Mozilla/5.0 (compatible; DigiMetrics/1.0)'})
+        if r.status_code != 200:
+            return url
+        ctype = (r.headers.get('Content-Type') or '').split(';')[0].strip().lower()
+        body = r.content
+        if ctype not in _THUMB_TYPES or not body or len(body) > 8_000_000:
+            return url
+        # No extension in the key — the stored Content-Type is what browsers read,
+        # and it keeps the key a pure function of the source path.
+        s3.put_object(Bucket=THUMB_BUCKET, Key=key, Body=body, ContentType=ctype,
+                      CacheControl='public, max-age=31536000, immutable')
+        return public
+    except Exception as e:
+        print('thumb mirror failed: %s' % str(e)[:160])
+        return url
+
+
+def _mirror_scorecard_images(sc):
+    """Swap every expiring CDN thumbnail in a scorecard for a durable S3 copy.
+    Covers posts[], top_posts[] and card-level image_urls[] on both platform and
+    competitor cards, so EVERY capture path (Apify scrape, native Meta/LinkedIn/
+    YouTube/TikTok pull, backfill, daily cron) is fixed at the one choke point
+    they all funnel through. Unique URLs are fetched once, concurrently."""
+    if not isinstance(sc, dict):
+        return
+    cards = [c for c in (sc.get('platforms') or []) if isinstance(c, dict)]
+    cards += [c for c in (sc.get('competitors') or []) if isinstance(c, dict)]
+    seen = set()
+    for c in cards:
+        for lst in ('posts', 'top_posts'):
+            for p in (c.get(lst) or []):
+                if isinstance(p, dict) and p.get('image'):
+                    seen.add(p['image'])
+        for u in (c.get('image_urls') or []):
+            if u:
+                seen.add(u)
+    urls = [u for u in seen if str(u).startswith('http')]
+    if not urls:
+        return
+    mapped = {}
+    try:
+        with ThreadPoolExecutor(max_workers=min(8, len(urls))) as ex:
+            for u, new in zip(urls, ex.map(_mirror_image, urls)):
+                if new and new != u:
+                    mapped[u] = new
+    except Exception as e:
+        print('thumb mirror batch failed: %s' % str(e)[:160])
+        return
+    if not mapped:
+        return
+    for c in cards:
+        for lst in ('posts', 'top_posts'):
+            for p in (c.get(lst) or []):
+                if isinstance(p, dict) and mapped.get(p.get('image')):
+                    p['image'] = mapped[p['image']]
+        if c.get('image_urls'):
+            c['image_urls'] = [mapped.get(u, u) for u in c['image_urls']]
+
+
 def report_save_month(body):
     """Persist one captured month: full scorecard + KPI summary + AI recs. Also
     refreshes the project's lightweight month index + latest-KPI snapshot."""
@@ -2603,6 +2697,7 @@ def report_save_month(body):
     scorecard = data.get('scorecard') or {}
     if isinstance(scorecard, dict):
         _strip_fb_reach_er(scorecard)      # invariant: FB has no reach-based ER
+        _mirror_scorecard_images(scorecard)   # thumbnails must outlive the CDN signature
     kpis      = data.get('kpis') or {}
     recs      = data.get('recommendations')
 
@@ -4269,6 +4364,13 @@ _POST_FILL_KEYS = ('image', 'reach', 'impressions', 'interactions', 'reactions',
                    'saves', 'interaction_rate', 'engagement_rate', 'engagement_rate_basis')
 
 
+def _is_expiring_thumb(u):
+    """True for any third-party CDN thumbnail — those carry a signature that dies
+    within weeks. Our own S3 mirror is the only durable form."""
+    s = str(u or '')
+    return s.startswith('http') and (THUMB_BUCKET + '.s3.') not in s
+
+
 def _merge_posts(existing, incoming):
     """Merge a private-insights post list into an existing grid, keeping the best
     of both. Whichever set has MORE thumbnails becomes the base (so a pre-image
@@ -4286,6 +4388,7 @@ def _merge_posts(existing, incoming):
     ex_imgs = sum(1 for p in existing if p.get('image'))
     in_imgs = sum(1 for p in incoming if p.get('image'))
     base, donor = (incoming, existing) if in_imgs > ex_imgs else (existing, incoming)
+    donor_is_fresh = donor is incoming        # `incoming` is always the newer pull
     d_by_ts, d_by_url = {}, {}
     for p in donor:
         k = _to_epoch(p.get('ts'))
@@ -4302,6 +4405,13 @@ def _merge_posts(existing, incoming):
             cur = p.get(k)
             if (cur is None or cur == '') and src.get(k) not in (None, ''):
                 p[k] = src[k]
+        # A stored thumbnail whose CDN signature has expired is worse than no
+        # thumbnail — it renders as a broken tile forever. The fill loop above
+        # can't help: the dead URL is non-empty, so it always "wins". When the
+        # equal-thumbnail tie leaves the STALE side as base, take the fresh
+        # pull's URL instead; _mirror_scorecard_images then makes it permanent.
+        if donor_is_fresh and src.get('image') and _is_expiring_thumb(p.get('image')):
+            p['image'] = src['image']
     return base
 
 
@@ -4454,7 +4564,30 @@ def _meta_resolve(proj, token):
             'pageName': page.get('name'), 'igId': iba.get('id'), 'igName': iba.get('username')}
 
 
-def _meta_sum_metric(node_id, metric, token, since, until, opts=None):
+# Graph rejects any since→until wider than 30 days on Instagram insights:
+#   "(#100) There cannot be more than 30 days (2592000 s) between since and until"
+# _meta_month_range spans a whole calendar month, so every 31-DAY MONTH blew this
+# cap and _meta_sum_metric's bare `except` turned it into None — silently blanking
+# reach/impressions/engagements/saves/likes/comments/shares for Jan, Mar, May, Jul,
+# Aug, Oct and Dec. (Verified live on Homi 2026-07-20: Feb/Apr/Jun/Jul had figures,
+# Jan/Mar/May were empty; the current month only survived because `until` is clamped
+# to now.) FB Page insights has no such cap, which is why FB looked fine throughout.
+_INSIGHTS_MAX_WINDOW = 30 * 86400
+
+
+def _window_chunks(since, until, span):
+    """Tile [since, until) into contiguous chunks no wider than `span`."""
+    out, a = [], int(since)
+    until = int(until)
+    while a < until:
+        b = min(a + span, until)
+        out.append((a, b))
+        a = b
+    return out or [(int(since), int(until))]
+
+
+def _meta_metric_window(node_id, metric, token, since, until, opts=None):
+    """One insights call over a window Graph will actually accept."""
     try:
         params = {'metric': metric, 'period': 'day', 'since': since, 'until': until, 'access_token': token}
         if opts: params.update(opts)
@@ -4468,8 +4601,30 @@ def _meta_sum_metric(node_id, metric, token, since, until, opts=None):
         if not vals:
             return None
         return sum(_num(v.get('value')) or 0 for v in vals)
-    except Exception:
+    except Exception as e:
+        # An invalid-metric #100 is indistinguishable from "no data" to the caller,
+        # which is exactly how the FB rename (2026-07-17) and this 30-day cap both
+        # went unnoticed for months. Leave the None contract alone, but log it.
+        print('meta insight failed: %s %s %s-%s: %s' % (node_id, metric, since, until, str(e)[:160]))
         return None
+
+
+def _meta_sum_metric(node_id, metric, token, since, until, opts=None):
+    """Sum one insight metric over [since, until), splitting the request into
+    ≤30-day chunks so a 31-day month doesn't trip Graph's window cap. Chunks tile
+    the range contiguously and their results are summed, which is identical to the
+    single-call semantics (this always summed the daily rows). Partial success is
+    kept — one dead chunk no longer blanks the whole month."""
+    chunks = _window_chunks(since, until, _INSIGHTS_MAX_WINDOW)
+    if len(chunks) == 1:
+        return _meta_metric_window(node_id, metric, token, since, until, opts)
+    total, got = 0, False
+    for a, b in chunks:
+        v = _meta_metric_window(node_id, metric, token, a, b, opts)
+        if v is not None:
+            total += v
+            got = True
+    return total if got else None
 
 
 def _meta_fb_insights(page_id, token, since, until):
@@ -4865,6 +5020,16 @@ def _meta_card(platform, posts, insights):
         if agg:
             card['reactions_by_type'] = agg
     card.update(insights)
+    # Card-level Reactions: no Meta insight metric reports it, so the only honest
+    # source is the per-post figures. Without this the report showed "Reactions 0"
+    # for Facebook while the reaction-type breakdown underneath said otherwise —
+    # a stale 0 carried in from an older Apify card by _merge_meta_platforms.
+    if card.get('reactions') in (None, 0):
+        tot = sum(n for n in (_num(p.get('reactions')) for p in (posts or [])) if n)
+        if not tot:
+            tot = sum((_num(v) or 0) for v in (card.get('reactions_by_type') or {}).values())
+        if tot:
+            card['reactions'] = tot
     return card
 
 
