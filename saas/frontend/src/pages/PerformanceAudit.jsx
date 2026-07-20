@@ -17,6 +17,48 @@ const TOOL = toolById('perf-marketing');
 const SHARE_TOOL = { id: 'perf-marketing', name: 'Performance Marketing Audit' };
 const SHARE_BTN = 'btn-ghost inline-flex items-center gap-1 text-sm';
 
+// The share modal takes a RESULT ENVELOPE ({ result, runId? }), not the raw tool
+// payload — and public share links for this page are minted from a "snapshot"
+// (a compact stats summary the server persists on the share), because the saved
+// run's payload is bespoke `pm` HTML data with no stats sections to render from.
+// So distil the audit into a handful of headline numbers here; without this the
+// card falls back to a blank "Report ready" tile and minting the public link is
+// rejected as an invalid snapshot.
+const PM_HEALTH_TONE = (h) => {
+  const k = String(h || '').toLowerCase();
+  if (k.includes('critical')) return 'red';
+  if (k.includes('need')) return 'amber';
+  if (k.includes('healthy')) return 'green';
+  return null;
+};
+const PM_STATUS_TONE = (s) => ({ ok: 'green', good: 'green', warning: 'amber', bad: 'red', critical: 'red' })[String(s || '').toLowerCase()] || null;
+
+function pmShareOut(pm, mode) {
+  if (!pm) return null;
+  const items = [];
+  if (mode === 'pro') {
+    if (pm.overall_health) items.push({ label: 'Overall health', value: String(pm.overall_health), tone: PM_HEALTH_TONE(pm.overall_health) });
+    for (const m of (Array.isArray(pm.key_metrics) ? pm.key_metrics : []).slice(0, 3)) {
+      if (m?.label && m?.value != null && String(m.value).trim()) items.push({ label: String(m.label), value: String(m.value), tone: PM_STATUS_TONE(m.status) });
+    }
+    const plan = Array.isArray(pm.action_plan) ? pm.action_plan.length : 0;
+    if (plan) items.push({ label: 'Actions to take', value: String(plan), tone: 'blue' });
+    const causes = Array.isArray(pm.root_causes) ? pm.root_causes.length : 0;
+    if (causes) items.push({ label: 'Root causes found', value: String(causes) });
+  } else {
+    const range = pm.estimated_budget_range || {};
+    if (range.recommended) items.push({ label: `Recommended budget${range.currency ? ` · ${range.currency}` : ''}`, value: String(range.recommended), tone: 'green' });
+    const plats = Array.isArray(pm.platform_recommendations) ? pm.platform_recommendations : [];
+    if (plats.length) items.push({ label: 'Channels recommended', value: String(plats.length) });
+    const wins = Array.isArray(pm.quick_wins) ? pm.quick_wins.length : 0;
+    if (wins) items.push({ label: 'Quick wins', value: String(wins), tone: 'green' });
+    const opps = Array.isArray(pm.opportunities) ? pm.opportunities.length : 0;
+    if (opps) items.push({ label: 'Opportunities', value: String(opps), tone: 'blue' });
+  }
+  if (!items.length) return null;
+  return { result: { sections: [{ type: 'stats', items: items.slice(0, 4) }] } };
+}
+
 // Exact platform names the upstream prompt expects (do not shorten — the model
 // chooses ONLY from this list).
 const PLATFORMS = [
@@ -181,7 +223,7 @@ export default function PerformanceAudit() {
       installPmGlobals();
       setResultHtml(isPro ? renderPerfMarketingPro(d.pm || {}) : renderPerfMarketing(d.pm || {}));
       setRanMode(isPro ? 'pro' : 'starter');
-      setLastRun({ runId: res.runId || null, out: d });
+      setLastRun({ runId: res.runId || null, out: pmShareOut(d.pm, isPro ? 'pro' : 'starter') });
       if (res.creditsUsed > 0) toast(`−${res.creditsUsed} credit${res.creditsUsed > 1 ? 's' : ''} · ${res.creditsRemaining} left`, 'info');
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
     } catch (e) {
@@ -376,7 +418,9 @@ export default function PerformanceAudit() {
             <button type="button" onClick={() => setEditing((v) => !v)} className={SHARE_BTN}>
               {editing ? <><Check size={14} /> Done editing</> : <><Pencil size={14} /> Edit result</>}
             </button>
-            {lastRun.runId && (
+            {/* Shareable whenever we could distil headline numbers — the public
+                link is minted from that snapshot, so it doesn't need a saved run. */}
+            {lastRun.out && (
               <ShareResult tool={SHARE_TOOL} out={lastRun.out} project={active} user={user} force snapshot label="Share result" className={SHARE_BTN} />
             )}
           </div>

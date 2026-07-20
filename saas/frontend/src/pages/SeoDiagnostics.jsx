@@ -277,7 +277,10 @@ export default function SeoDiagnostics() {
         <div ref={resultsRef} className="mt-4 space-y-4">
           {runId && (
             <div className="flex justify-end">
-              <ShareResult tool={SHARE_TOOL} out={result} project={active} user={user} force snapshot label="Share result" className="btn-ghost inline-flex items-center gap-1 text-sm" />
+              {/* `out` is a result ENVELOPE ({ result }), not the raw payload —
+                  passing the payload bare leaves the card blank and makes the
+                  public-link mint post an empty snapshot (rejected as invalid). */}
+              <ShareResult tool={SHARE_TOOL} out={{ result }} project={active} user={user} force snapshot label="Share result" className="btn-ghost inline-flex items-center gap-1 text-sm" />
             </div>
           )}
           {result?.sections ? <ResultSections sections={result.sections} context={{ toolName: 'SEO Diagnostics', domain, target: domain }} /> : <p className="text-dim">No diagnosis yet.</p>}

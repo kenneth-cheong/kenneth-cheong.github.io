@@ -92,7 +92,7 @@ export default function ShareModal({ open, onClose, tool, out, project, user, sn
   const onCreateLink = async () => {
     setLinking(true);
     try { const { url } = await mint(); setShareUrl(url); toast('Public link created', 'success'); }
-    catch { toast('Could not create link', 'error'); }
+    catch (e) { toast(`Could not create link — ${e?.message || 'please try again'}`, 'error'); }
     finally { setLinking(false); }
   };
   const onRevoke = async () => {
