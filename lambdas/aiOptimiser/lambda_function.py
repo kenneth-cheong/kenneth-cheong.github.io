@@ -1555,8 +1555,15 @@ def build_structured_prompt(action, body):
             "If the target is high, add more H2 sections and deeper H3 sub-topics. This is a hard requirement.\n"
         ) if target_wc > 0 else ''
         persona_block = (
-            f"THE OUTLINE MUST BE SPECIFICALLY TAILORED TO THESE PERSONAS:\n{persona_context}\n"
+            "THE OUTLINE MUST BE SPECIFICALLY TAILORED TO THESE PERSONAS "
+            "(internal targeting context only — never name or analyse a persona in the article):\n"
+            f"{persona_context}\n"
         ) if persona_context else ''
+        # Research, compliance, house rules and the classified search intent are
+        # INPUTS to the brief, not a layer applied after the draft exists.
+        editorial_rules  = body.get('editorialRules', '')
+        intent_brief     = body.get('intentBrief', '')
+        compliance_instr = body.get('complianceInstruction', '')
 
         system = (
             "You are an expert SEO content strategist specializing in structured article outlines "
@@ -1565,7 +1572,9 @@ def build_structured_prompt(action, body):
         user = (
             "Generate a structured article outline (H1, H2, H3) for the following topic and keyword.\n"
             f"TARGET PAGE TYPE: {page_type}\n"
+            f"{intent_brief}"
             f"{persona_block}"
+            f"{compliance_instr}\n"
             f"{deep_compare}\n"
             f"PRIORITIZE INCLUDING THESE CHERRY-PICKED TOPICS IDENTIFIED FROM COMPETITOR RESEARCH:\n{selected_topics}\n\n"
             f'TOPIC: "{topic}"\n'
@@ -1580,7 +1589,12 @@ def build_structured_prompt(action, body):
             "with 4-6 relevant questions as H3 sub-items. Do NOT scatter FAQ-style content across other sections.\n"
             "5. The Conclusion/Summary section MUST be the SECOND-TO-LAST H2, appearing right before the FAQ. "
             "Do NOT place any conclusion/wrap-up content in the middle of the outline.\n"
-            "6. Output in a clear, editable text format.\n\n"
+            "6. Output in a clear, editable text format.\n"
+            "7. Every H2 must be unique. Do not plan two sections that cover the same ground, "
+            "and do not plan a second introduction.\n"
+            "8. Plan the article to open with, in this order: H1, Author Bio, Published Date, "
+            "AI Summary, Table of Contents. Do not write those blocks yourself, just leave room for them.\n\n"
+            f"{editorial_rules}\n"
             f'LOCALE: "{locale}"\n'
             "Write content nuanced for this locale: use local spelling, terminology, cultural references, "
             "and units of measurement."
@@ -1604,6 +1618,13 @@ def build_structured_prompt(action, body):
         total_target        = _safe_int(body.get('totalTarget', 0), 0)
         section_index       = _safe_int(body.get('sectionIndex', 0), 0)
         total_sections      = _safe_int(body.get('totalSections', 1), 1) or 1
+        editorial_rules     = body.get('editorialRules', '')
+        intent_brief        = body.get('intentBrief', '')
+        used_headings       = body.get('usedHeadings') or []
+        used_block = (
+            "HEADINGS ALREADY WRITTEN IN THIS ARTICLE (never repeat one, and never write an H1 again):\n"
+            + "\n".join(f"- {h}" for h in used_headings[:60]) + "\n\n"
+        ) if used_headings and section_index > 0 else ''
         wc_block = (
             f"⚠️ MANDATORY WORD COUNT REQUIREMENT: You MUST write AT LEAST {section_target} words for "
             f"this section (section {section_index + 1} of {total_sections}). "
@@ -1626,10 +1647,12 @@ def build_structured_prompt(action, body):
             f'TOPIC: "{topic}"\n'
             f'PRIMARY KEYWORD: "{primary_keyword}"\n'
             f'SECONDARY KEYWORDS: "{secondary_keywords}"\n'
+            f"{intent_brief}"
             f"{compliance_instr}{persona_instruction}\n"
             f"{deep_compare}\n\n"
             f"{wc_block}"
             f"FULL APPROVED OUTLINE (FOR FLOW CONTEXT):\n{outline}\n\n"
+            f"{used_block}"
             "PREVIOUSLY WRITTEN CONTENT (DO NOT REPEAT, USE FOR TRANSITION):\n"
             f"{recent_content or 'None (This is the start of the article)'}\n\n"
             f"CURRENT SECTION TO WRITE:\n{section_header}\n{section_context}\n\n"
@@ -1647,7 +1670,10 @@ def build_structured_prompt(action, body):
             "'Target Word Count', 'Section X of Y', 'Meta Description', 'Slug', or "
             "notes about hitting the word target. These are instructions to you, "
             "not content for the reader — the word count is an internal target and "
-            "must not appear anywhere in your output."
+            "must not appear anywhere in your output.\n"
+            "- Write THIS section only, once. Never restart the article: no H1, no fresh "
+            "introduction to the topic, no heading that already exists in the outline above.\n"
+            f"{editorial_rules}"
         )
         if retry_text:
             user = (
@@ -1663,7 +1689,8 @@ def build_structured_prompt(action, body):
         return system, user
 
     elif action == 'content_polish':
-        full_content = body.get('fullContent', '')
+        full_content    = body.get('fullContent', '')
+        editorial_rules = body.get('editorialRules', '')
         system = (
             "You are an expert editor specializing in harmonizing AI-generated SEO articles "
             "into polished, cohesive content."
@@ -1678,7 +1705,14 @@ def build_structured_prompt(action, body):
             "3. Ensure logical transitions between sections.\n"
             "4. Keep all original information, but refine the formatting (Markdown H1, H2, H3) to be consistent and clean.\n"
             '5. Fix any "frankenstein" characteristics where paragraphs feel disconnected.\n'
-            "6. Return ONLY the final polished Markdown article.\n\n"
+            "6. Merge any section that restarts the article: keep ONE H1 and ONE introduction, "
+            "and if the same H2 appears twice, merge the two blocks into a single section. "
+            "Every H2 in the returned article must be unique.\n"
+            "7. Delete any internal reasoning that leaked into the copy: paragraphs opening with "
+            '"Rationale:", "Reasoning:", "Why this works:", editor notes, or persona analysis.\n'
+            "8. Do not add facts, laws, statistics or regulator names that are not already in the draft.\n"
+            "9. Return ONLY the final polished Markdown article.\n\n"
+            f"{editorial_rules}\n"
             f"RAW ARTICLE CONTENT:\n{full_content}"
         )
         return system, user
