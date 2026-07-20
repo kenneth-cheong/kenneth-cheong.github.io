@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { toolById, tierMeets, CREDIT_COSTS } from '@shared/catalog.mjs';
+import { toolById, tierMeets } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { api, ApiError } from '../lib/api.js';
@@ -54,7 +54,6 @@ export default function SeoDiagnostics() {
   const { user, setCredits } = useAuth();
   const { active } = useProjects();
   const unlocked = TOOL && tierMeets(user.tier, TOOL.minTier);
-  const cost = CREDIT_COSTS[TOOL?.cost] ?? 0;
 
   const [step, setStep] = useState(1);
   const [domain, setDomain] = useState(active?.domain || '');
@@ -269,7 +268,6 @@ export default function SeoDiagnostics() {
               {busy ? <Loader2 size={16} className="animate-spin" /> : <Stethoscope size={16} />}
               {busy ? 'Diagnosing…' : 'Run diagnosis'}
             </button>
-            {cost > 0 && <span className="text-xs text-faint">~{cost} credits</span>}
           </div>
         </div>
       )}

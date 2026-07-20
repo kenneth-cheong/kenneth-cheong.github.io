@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import {
   LayoutGrid, FolderKanban, HeartPulse, TrendingUp, LineChart,
-  CalendarClock, Plug, Settings, Shield, Check, LayoutList,
+  CalendarClock, Plug, Settings, Shield, Check, LayoutList, Coins,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSupportTickets } from '../context/SupportTicketsContext.jsx';
@@ -33,6 +33,9 @@ const NAV_GROUPS = [
   ] },
   { label: 'Setup', items: [
     { to: '/integrations', label: 'Connect data', icon: Plug },
+    // The only surface that prices tools — tool tiles and tool pages stay quiet
+    // about credits so people choose by job, not by cost.
+    { to: '/credit-guide', label: 'Credit guide', icon: Coins },
     { to: '/account', label: 'Settings', icon: Settings },
   ] },
 ];

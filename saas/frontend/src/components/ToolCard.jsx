@@ -1,15 +1,19 @@
 import { Link } from 'react-router-dom';
 import { Lock, ArrowRight } from 'lucide-react';
-import { PLANS, CREDIT_COSTS, CATEGORY_META, tierMeets, etaLabel } from '@shared/catalog.mjs';
+import { PLANS, CATEGORY_META, tierMeets, etaLabel } from '@shared/catalog.mjs';
 import { ToolIcon } from '../lib/icons.jsx';
 import PeekMascot, { CATEGORY_MASCOT } from './PeekMascot.jsx';
 
 // A tool tile, in the approved design (mockups/saas-overview.html .tool-card):
 // a colour-washed illustration header carrying the category's hue, then name,
-// description, cost and a go-arrow that slides on hover. The category hue is
-// handed to the wash as --tc; .dm-tool-illus (src/index.css) does the rest.
+// description and a go-arrow that slides on hover. The category hue is handed
+// to the wash as --tc; .dm-tool-illus (src/index.css) does the rest.
 //
 // Locked tools STAY VISIBLE with a tier pill + lock — never hidden.
+//
+// Deliberately NO per-tool credit cost here. Pricing every tile trained users to
+// shop by price instead of by job. The full cost table lives on its own page
+// (/credit-guide, linked from the rail) for anyone who wants to plan spend.
 
 // Per-theme category hues live in CSS (--cat-*, see index.css) because the right
 // hue depends on the canvas: catalog.mjs's SEO blue is royal's own background.
@@ -24,7 +28,6 @@ const HUE_VAR = {
 
 export default function ToolCard({ tool, userTier, onNavigate }) {
   const unlocked = tierMeets(userTier, tool.minTier);
-  const cost = CREDIT_COSTS[tool.cost] ?? 0;
   const meta = CATEGORY_META[tool.category] || { color: '#64748b' };
   const hue = HUE_VAR[tool.category]
     ? `var(${HUE_VAR[tool.category]}, ${meta.color})`
@@ -66,14 +69,11 @@ export default function ToolCard({ tool, userTier, onNavigate }) {
         <h3 className="text-[13px] font-bold leading-tight text-heading">{tool.name}</h3>
         <p className="flex-1 text-[10.5px] leading-relaxed text-muted">{tool.desc}</p>
         <div className="mt-0.5 flex items-center justify-between gap-2">
-          <span className={`rounded-lg px-2 py-[3px] text-[10px] font-bold ${cost === 0 ? 'bg-pos/15 text-pos' : 'bg-sunken text-dim'}`}>
-            {cost === 0 ? 'Free' : `${cost} credit${cost > 1 ? 's' : ''}`}
-          </span>
           <span className="flex min-w-0 items-center gap-2">
             {tool.slow && <span className="truncate text-[10px] text-faint">~{etaLabel(tool)}</span>}
             {!unlocked && tool.teaser && <span className="truncate text-[10px] font-semibold text-peri">1 free preview</span>}
-            <ArrowRight size={15} aria-hidden className="shrink-0 text-faint transition group-hover:translate-x-0.5 group-hover:text-heading" />
           </span>
+          <ArrowRight size={15} aria-hidden className="shrink-0 text-faint transition group-hover:translate-x-0.5 group-hover:text-heading" />
         </div>
       </div>
     </Link>

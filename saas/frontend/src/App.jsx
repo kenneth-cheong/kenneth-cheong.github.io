@@ -42,6 +42,7 @@ const Pricing = lazyWithReload(() => import('./pages/Pricing.jsx'));
 const Account = lazyWithReload(() => import('./pages/Account.jsx'));
 const Profile = lazyWithReload(() => import('./pages/Profile.jsx'));
 const Usage = lazyWithReload(() => import('./pages/Usage.jsx'));
+const CreditGuide = lazyWithReload(() => import('./pages/CreditGuide.jsx'));
 const Admin = lazyWithReload(() => import('./pages/Admin.jsx'));
 const Support = lazyWithReload(() => import('./pages/Support.jsx'));
 const Integrations = lazyWithReload(() => import('./pages/Integrations.jsx'));
@@ -115,6 +116,7 @@ export default function App() {
           <Route path="/account" element={<Account />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/usage" element={<Usage />} />
+          <Route path="/credit-guide" element={<CreditGuide />} />
           {/* Legacy path — Runs now lives on the merged Projects page. */}
           <Route path="/history" element={<Projects />} />
           <Route path="/schedules" element={<Schedules />} />

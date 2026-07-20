@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AUDIT_TOOLS, toolById, tierMeets, tierRank, CREDIT_COSTS, PLANS } from '@shared/catalog.mjs';
+import { AUDIT_TOOLS, toolById, tierMeets, tierRank, PLANS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { api, ApiError } from '../lib/api.js';
@@ -67,7 +67,7 @@ export default function SiteAudit() {
   // Guided tour: render the finished asana.com example through the real report
   // components, then clear it (and restore the form) on any exit.
   function launchTour() {
-    startSiteAuditTour({ cost, checks: runnable.length }, {
+    startSiteAuditTour({ checks: runnable.length }, {
       preview: () => {
         setUrl(SITE_AUDIT_SAMPLE.url);
         setSteps(runnable.map((a) => ({ id: a.id, label: a.label, name: toolById(a.id)?.name, status: 'done' })));
@@ -89,7 +89,6 @@ export default function SiteAudit() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canTour]);
-  const cost = runnable.reduce((sum, a) => sum + (CREDIT_COSTS[toolById(a.id)?.cost] ?? 0), 0) + (CREDIT_COSTS.ai_short ?? 1);
   const locked = runnable.length === 0;
   // Lowest plan that unlocks any of the audit checks — what the user must reach.
   const neededTier = AUDIT_TOOLS
@@ -102,7 +101,6 @@ export default function SiteAudit() {
   async function run() {
     const site = url.trim();
     if (!site) { setNudge(true); document.getElementById('audit-url')?.focus(); return; }
-    if (!window.confirm(`This runs ${runnable.length} checks on ${site} and builds one report — about ${cost} credits. Continue?`)) return;
 
     setReport(null);
     setRunning(true);
@@ -177,7 +175,7 @@ export default function SiteAudit() {
           <input id="audit-url" value={url} onChange={(e) => { setNudge(false); setUrl(e.target.value); }} placeholder="https://yoursite.com" disabled={running}
             className={`field flex-1${nudge ? ' !border-amber-400 !ring-4 !ring-amber-400/20' : ''}`} />
           <button onClick={run} disabled={running} aria-disabled={running || !url.trim()} data-tour="sha-run" className={`btn-primary ${url.trim() ? '' : 'opacity-60'}`}>
-            {running ? 'Running…' : `Run health check · ${cost} cr`}
+            {running ? 'Running…' : 'Run health check'}
           </button>
         </div>
         {nudge

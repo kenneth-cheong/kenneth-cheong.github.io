@@ -19,7 +19,7 @@
 // ─────────────────────────────────────────────────────────────────────────
 import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
-import { CREDIT_COSTS, PLANS, TOOLS, isSchedulable, etaLabel } from '@shared/catalog.mjs';
+import { PLANS, TOOLS, isSchedulable, etaLabel } from '@shared/catalog.mjs';
 
 // ── driver.js base config (brand-themed via the .dm-tour popover class) ──────
 function run(steps, { onDone } = {}) {
@@ -764,7 +764,6 @@ function fieldHint(field) {
 //                      result on the page (called before the walkthrough starts).
 // `hooks.clear()`    — reset the form and remove the result (called on exit).
 export function startToolTour(tool, fields, hooks = {}) {
-  const cost = CREDIT_COSTS[tool.cost] ?? 0;
   const steps = [];
 
   steps.push({
@@ -772,7 +771,7 @@ export function startToolTour(tool, fields, hooks = {}) {
       title: tool.name,
       description:
         `<p class="dm-ex-lead">${TOOL_INTRO[tool.id] || tool.desc}</p>` +
-        `<p class="dm-ex-note">${tool.category} · ${cost === 0 ? 'free to run' : `${cost} credit${cost > 1 ? 's' : ''} per run`}${tool.slow ? ` · ~${etaLabel(tool)}` : ''}</p>` +
+        `<p class="dm-ex-note">${tool.category}${tool.slow ? ` · ~${etaLabel(tool)}` : ''}</p>` +
         note('We’ve filled the form with a real <b>asana.com</b> example and shown its result below. Nothing is running and <b>no credits are spent</b> while you look around — leaving the tour clears it all.'),
     },
   });
@@ -859,14 +858,13 @@ export function startToolTour(tool, fields, hooks = {}) {
 // genuine run. `hooks.clear()` resets the whole form + both results on exit (Done,
 // ✕, Esc or click-away). Steps whose target isn't on-screen are dropped.
 export function startSocialAuditTour(tool, hooks = {}) {
-  const cost = CREDIT_COSTS[tool.cost] ?? 0;
   const steps = [
     {
       popover: {
         title: 'Social Media Audit',
         description:
           lead('Pulls live numbers from Instagram, TikTok, Facebook, LinkedIn &amp; YouTube — followers, engagement (how much people actually interact), posting habits — then builds the strategy: what to post, where, and what competitors do better.') +
-          `<p class="dm-ex-note">${tool.category} · ${cost} credits per run · ~${etaLabel(tool)} (two phases)</p>` +
+          `<p class="dm-ex-note">${tool.category} · ~${etaLabel(tool)} (two phases)</p>` +
           note('We’ve filled this in with a real <b>asana.com</b> example and rendered the result below — nothing runs and <b>no credits are spent</b> while you look around.'),
       },
     },
@@ -978,14 +976,13 @@ export function startSocialAuditTour(tool, hooks = {}) {
 
 // ── Performance Marketing Audit (bespoke page) ───────────────────────────────
 export function startPerfMarketingTour(tool, hooks = {}) {
-  const cost = CREDIT_COSTS[tool.cost] ?? 0;
   const steps = [
     {
       popover: {
         title: 'Performance Marketing Audit',
         description:
           lead('A paid-media plan for a prospect (<b>Starter</b>) or a full account-level diagnosis from your exported/connected data (<b>Pro</b>).') +
-          `<p class="dm-ex-note">${tool.category} · ${cost} credits per run · ~${etaLabel(tool)}</p>`,
+          `<p class="dm-ex-note">${tool.category} · ~${etaLabel(tool)}</p>`,
       },
     },
     {
@@ -1051,14 +1048,13 @@ export function startPerfMarketingTour(tool, hooks = {}) {
 
 // ── SEO Diagnostics (bespoke 5-step wizard) ──────────────────────────────────
 export function startSeoDiagnosticsTour(tool, hooks = {}) {
-  const cost = CREDIT_COSTS[tool.cost] ?? 0;
   const steps = [
     {
       popover: {
         title: 'SEO Diagnostics',
         description:
           lead('A guided, five-step audit that turns your keywords + site into a <b>prioritised fix list</b>.') +
-          `<p class="dm-ex-note">${tool.category} · ${cost} credits per run · ~${etaLabel(tool)}</p>`,
+          `<p class="dm-ex-note">${tool.category} · ~${etaLabel(tool)}</p>`,
       },
     },
     {
@@ -1131,14 +1127,14 @@ export const SITE_AUDIT_SAMPLE = {
   },
 };
 
-export function startSiteAuditTour({ cost, checks = 3 } = {}, hooks = {}) {
+export function startSiteAuditTour({ checks = 3 } = {}, hooks = {}) {
   const steps = [
     {
       popover: {
         title: 'Site Health Check',
         description:
           lead(`One click runs <b>${checks} specialist checks</b> on your site and turns them into a single plain-English report — a score out of 100 and what to fix first.`) +
-          `<p class="dm-ex-note">About ${cost ?? 'a few'} credits per run · ~1–3 minutes</p>` +
+          `<p class="dm-ex-note">~1–3 minutes</p>` +
           note('We’ve loaded a finished <b>asana.com</b> example below — nothing runs and <b>no credits are spent</b> while you look around.'),
       },
     },

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { toolById, tierMeets, CREDIT_COSTS } from '@shared/catalog.mjs';
+import { toolById, tierMeets } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { api, ApiError } from '../lib/api.js';
@@ -46,7 +46,6 @@ export default function PerformanceAudit() {
   const { user, setCredits } = useAuth();
   const { active } = useProjects();
   const unlocked = TOOL && tierMeets(user.tier, TOOL.minTier);
-  const cost = CREDIT_COSTS[TOOL?.cost] ?? 0;
 
   const [mode, setMode] = useState('starter');
   // Starter inputs
@@ -367,7 +366,6 @@ export default function PerformanceAudit() {
           {busy ? <Loader2 size={16} className="animate-spin" /> : (mode === 'pro' ? <Microscope size={16} /> : <ScanSearch size={16} />)}
           {busy ? (mode === 'pro' ? 'Diagnosing…' : 'Analysing…') : (mode === 'pro' ? 'Run Pro Audit' : 'Generate Opportunity Analysis')}
         </button>
-        {cost > 0 && <span className="text-xs text-faint">~{cost} credits</span>}
       </div>
       {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 

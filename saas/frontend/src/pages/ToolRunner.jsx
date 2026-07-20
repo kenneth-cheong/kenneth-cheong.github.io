@@ -15,8 +15,6 @@ import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLa
 import { startToolTour, sampleResultFor, hasSeen, markSeen } from '../lib/tours.js';
 import { Lock, Compass, Sparkles, AlertTriangle, Clock, ChevronRight, Check, MessageCircleQuestion, ThumbsUp, ThumbsDown, Loader2, Plus } from 'lucide-react';
 
-const CONFIRM_AT = 25; // credits — confirm before running pricey tools
-
 // Tell the proactive assistant a run finished. Status is a coarse read of the
 // payload so triggers can distinguish "here are your results" from "nothing came
 // back" without every tool needing a bespoke shape.
@@ -131,8 +129,9 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   // but if it somehow does, hand off to the page instead of rendering nothing.)
   if (tool.route) { if (embedded) { onClose?.(); navigate(tool.route); return null; } return <Navigate to={tool.route} replace />; }
   const unlocked = tierMeets(user.tier, tool.minTier);
-  // Fan-out aware: rank-checker & friends charge per keyword, so the label and
-  // the confirm dialog must reflect the live input count, not the flat unit.
+  // Only the guided tour's sample result needs a number now — the form itself no
+  // longer prices the run. Fan-out aware so the tour's "used N" matches what a
+  // real run of rank-checker & friends (per-keyword billing) would charge.
   const cost = costPerRun(tool, values);
   const set = (name, v) => { setNudge(false); setValues((s) => ({ ...s, [name]: v })); };
   // Switch GSC sub-tool tab: clear the previous result, seed any new fields'
@@ -198,14 +197,6 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   }
 
   async function run(vals = values) {
-    // Confirm destructive GSC ops (index removal / sitemap delete) before sending.
-    const dw = activeTab?.destructiveWhen;
-    if (dw && (dw.in || []).includes(vals[dw.field])) {
-      const what = activeTab.op === 'indexing' ? 'request removal of these URLs from Google’s index' : 'delete this sitemap from Search Console';
-      if (!window.confirm(`This will ${what}. Continue?`)) return;
-    }
-    const runCost = costPerRun(tool, vals);
-    if (unlocked && runCost >= CONFIRM_AT && !window.confirm(`This run costs ${runCost} credits. Continue?`)) return;
     setBusy(true);
     setOut(null);
     setJob(null);
@@ -332,7 +323,6 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 text-xs text-faint" data-tour="tool-actions">
-            <span>{cost === 0 ? 'Free to run' : `Costs ${cost} credit${cost > 1 ? 's' : ''}`}</span>
             {example && <button type="button" onClick={fillExample} className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Try an example</button>}
             {shown.some((f) => f.required) && <span><span className="text-amber-500">*</span> Required</span>}
           </div>

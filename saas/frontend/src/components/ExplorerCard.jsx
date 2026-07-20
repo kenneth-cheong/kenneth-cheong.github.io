@@ -1,18 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Compass, Check, ArrowRight, Lock, Gift, PartyPopper, ChevronDown, ChevronUp } from 'lucide-react';
-import { explorerProgress, EXPLORER_REWARD, PLANS, CREDIT_COSTS, toolById } from '@shared/catalog.mjs';
+import { explorerProgress, EXPLORER_REWARD, PLANS, toolById } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
 import { getRecent, toast } from '../lib/ui.js';
 import { stepTarget } from '../lib/planner.js';
 import PeekMascot from './PeekMascot.jsx';
-
-const costLabel = (toolId) => {
-  if (!toolId) return 'Free';
-  const c = CREDIT_COSTS[toolById(toolId)?.cost] ?? 0;
-  return c === 0 ? 'Free' : `${c} credit${c > 1 ? 's' : ''}`;
-};
 
 // The Explorer breadth checklist: a guided "try one of everything" tour that
 // steers trial users across every discipline so their feedback covers the whole
@@ -210,7 +204,6 @@ function TaskRow({ task, n, onOpen }) {
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className={`font-semibold ${done ? 'text-muted line-through' : 'text-heading'}`}>{task.label}</span>
-          {task.toolId && <span className="rounded-full bg-sunken px-2 py-0.5 text-[11px] font-semibold text-muted">{costLabel(task.toolId)}</span>}
         </div>
         <p className="mt-0.5 text-sm text-muted">{task.why}</p>
       </div>

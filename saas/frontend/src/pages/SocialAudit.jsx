@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { toolById, tierMeets, CREDIT_COSTS } from '@shared/catalog.mjs';
+import { toolById, tierMeets } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { api, ApiError } from '../lib/api.js';
@@ -217,7 +217,6 @@ export default function SocialAudit() {
   const { user, setCredits } = useAuth();
   const { active } = useProjects();
   const unlocked = TOOL && tierMeets(user.tier, TOOL.minTier);
-  const cost = CREDIT_COSTS[TOOL?.cost] ?? 0;
 
   // ── Brand & campaign ──────────────────────────────────────────────────────
   const [brand, setBrand] = useState('');
@@ -754,7 +753,7 @@ export default function SocialAudit() {
       <div className="mt-5 flex flex-wrap items-center gap-3">
         <button onClick={runAudit} disabled={busy} aria-disabled={busy || !brand.trim()} data-tour="sma-run" className={`btn-primary ${brand.trim() ? '' : 'opacity-60'}`}>
           {busy ? <Loader2 size={16} className="animate-spin" /> : (mode === 'pro' ? <Microscope size={16} /> : <ScanSearch size={16} />)}
-          {busy ? 'Running…' : `Run Audit${mode === 'pro' ? ' (Pro)' : ''} · ${cost} cr`}
+          {busy ? 'Running…' : `Run Audit${mode === 'pro' ? ' (Pro)' : ''}`}
         </button>
         {!busy && !brand.trim() && (
           <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
