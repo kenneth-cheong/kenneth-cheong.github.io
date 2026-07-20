@@ -242,8 +242,12 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
         });
       } else {
         setOut({ error: e.message });
-        // A thrown run (upstream 5xx / job failure) isn't billed either — say so.
-        toast('Run failed — no credits were charged.', 'error');
+        // Most thrown runs (upstream 5xx, hard job failure) genuinely aren't
+        // billed. A background job that outlived its window is the exception:
+        // it may well have finished and charged after we stopped listening, so
+        // claiming otherwise is a lie the user can check against their balance.
+        // The server's message already explains that case — don't talk over it.
+        toast(runMayHaveBeenBilled(e) ? 'Run didn’t come back in time.' : 'Run failed — no credits were charged.', 'error');
         emitRunFinished(tool.name, 'error');
       }
     } finally {
@@ -373,11 +377,21 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   );
 }
 
+// A background run that outran its window (server-side deadline, or our own
+// poll cap) may still have completed and been charged after we stopped
+// listening — so we must not tell the user their credits are intact.
+function runMayHaveBeenBilled(e) {
+  return /took longer than we allow|lost track|continues in the background|taking unusually long/i.test(e?.message || '');
+}
+
 // Poll a background job until it finishes. Transient poll failures are ignored
 // (the job keeps running server-side); a hard cap stops a zombie poll loop —
 // the run itself still completes, lands in History and fires a notification.
 async function pollJob(toolId, jobId, onTick) {
-  const deadline = Date.now() + 12 * 60 * 1000;
+  // Must outlast the server's own deadline (MeteringFn's 900s timeout, minus
+  // the finalizer's 20s self-deadline margin) — otherwise we give up first and
+  // report a failure for a run that was about to report success.
+  const deadline = Date.now() + 16 * 60 * 1000;
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 3500));
     let s = null;

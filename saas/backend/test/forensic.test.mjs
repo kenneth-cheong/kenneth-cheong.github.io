@@ -71,7 +71,7 @@ describe('faSections', () => {
     recs.forEach((r) => { r.severity = faSeverityFor(r); });
     const sev = { critical: 0, warning: 0, opportunity: 0 };
     recs.forEach((r) => sev[r.severity]++);
-    const sections = faSections(d, recs, faComputeHealthScore(d, recs), sev, 'Ahrefs');
+    const sections = faSections(d, recs, faComputeHealthScore(d, recs), sev);
     assertShape(sections);
     // Every finding shows up as a card somewhere.
     const cardTitles = sections.filter((s) => s.type === 'cards').flatMap((s) => s.items.map((it) => it.title));
@@ -86,7 +86,7 @@ describe('faSections', () => {
   });
 
   it('shows a celebratory callout (no table) when there are no issues', () => {
-    const sections = faSections({ ...PERFECT, url: 'https://acme.sg' }, [], 100, { critical: 0, warning: 0, opportunity: 0 }, null);
+    const sections = faSections({ ...PERFECT, url: 'https://acme.sg' }, [], 100, { critical: 0, warning: 0, opportunity: 0 });
     assertShape(sections);
     expect(sections.some((s) => s.type === 'table')).toBe(false);
     expect(sections.some((s) => s.type === 'callout')).toBe(true);

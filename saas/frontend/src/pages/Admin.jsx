@@ -2044,7 +2044,7 @@ function AdminFinances() {
             <ul className="mt-1.5 list-disc space-y-1 pl-4">
               <li><b>Revenue</b> — actual, from Stripe: paid invoices = subscriptions, one-time charges = top-ups. Fees &amp; refunds from Stripe balance transactions. Settled in {rev?.currency || 'SGD'}.</li>
               <li><b>AWS</b> — actual, from Cost Explorer (all services), converted USD→{ccy} at {data.fx?.usdSgd} ({data.fx?.source} rate){cost.aws?.estimated ? '; latest days are AWS estimates' : ''}.</li>
-              <li><b>AI &amp; data COGS</b> — <b>estimated</b>: {fmtNum(cost.cogs?.credits)} credits consumed × US${cost.cogs?.usdPerCredit}/credit (Claude / DeepSeek / DataForSEO / Apify vendor spend). Not a billed figure.</li>
+              <li><b>AI &amp; data COGS</b> — <b>estimated</b>: {fmtNum(cost.cogs?.credits)} credits consumed × US${cost.cogs?.usdPerCredit}/credit (upstream vendor spend). Not a billed figure.</li>
               <li><b>Run-rate MRR</b> — a snapshot of active paid subscribers × plan price, not windowed.</li>
             </ul>
           </div>

@@ -1576,8 +1576,6 @@ async function forensicAuditRun(body) {
     if (siteRes.referring_domains != null) d.refdomains = Number(siteRes.referring_domains);
   }
 
-  const backlinksSource = siteRes?.backlinks != null ? 'DataForSEO' : null;
-
   // 2. Authority Score — our own 0-100 metric (see authorityScore()), never a
   //    third-party suite's proprietary authority number.
   d.da = authorityScore(siteRes);
@@ -1662,7 +1660,7 @@ async function forensicAuditRun(body) {
     pagesCrawled: Array.isArray(sitelinerItems) ? sitelinerItems.length : 0,
   };
 
-  return { sections: faSections(d, recs, score, sevCounts, backlinksSource), summary };
+  return { sections: faSections(d, recs, score, sevCounts), summary };
 }
 
 // ── SEO Diagnostics: guided keyword → fix wizard ──────────────────────────────
@@ -1794,10 +1792,9 @@ async function seoDiagnosticsRun(body) {
   if (serpRows.length) sections.push({ type: 'table', title: `Live SERP landscape · ${loc.location}`, columns: ['Keyword', 'Live position', 'Ranks above you', 'SERP features'], rows: serpRows });
 
   // Full technical report (reuse the forensic renderer).
-  const backlinksSource = siteRes?.backlinks != null ? 'DataForSEO' : null;
   // Embedded under the wizard's own verdict — rename the heading and drop the
   // duplicate health-score stats (already shown in the Diagnosis block above).
-  sections.push(...faSections(d, recs, score, sevCounts, backlinksSource, { title: 'Technical audit', skipSummary: true }));
+  sections.push(...faSections(d, recs, score, sevCounts, { title: 'Technical audit', skipSummary: true }));
 
   // AI executive summary + prioritised next steps.
   const findings = sdxFindingsText(d, recs, bucketCounts, serp, ga4Text, gscText);
@@ -1910,8 +1907,6 @@ async function pageAnalysisRun(body) {
     if (siteRes.referring_domains != null) d.refdomains = Number(siteRes.referring_domains);
   }
 
-  const linkSource = siteRes?.backlinks != null ? 'DataForSEO' : null;
-
   // 2. Authority Score — our own 0-100 metric (see authorityScore()). There is no
   //    page-level equivalent without a third-party suite, so `pa` stays null and
   //    the card below drops out rather than showing an invented number.
@@ -1940,7 +1935,7 @@ async function pageAnalysisRun(body) {
 
   const authority = [
     { label: 'Authority Score', value: d.da ?? dash, tone: daTone(d.da) },
-    { label: 'Backlinks', value: num(d.backlinks) + (linkSource ? ` · ${linkSource}` : ''), tone: 'slate' },
+    { label: 'Backlinks', value: num(d.backlinks), tone: 'slate' },
     { label: 'Referring domains', value: num(d.refdomains), tone: 'slate' },
     // Organic traffic / organic keyword estimates came from a third-party SEO
     // suite and were removed with it — the user's own Search Console (via the
@@ -2453,7 +2448,7 @@ function faGeoReadiness(d) {
 // `opts.title` renames the report heading and `opts.skipSummary` drops the
 // health-score stat block — both used by SEO Diagnostics, which embeds this
 // technical report under its own verdict rather than as a standalone audit.
-function faSections(d, recs, score, sevCounts, backlinksSource, opts = {}) {
+function faSections(d, recs, score, sevCounts, opts = {}) {
   const dash = '—';
   const scoreTone = score >= 80 ? 'green' : score >= 50 ? 'amber' : 'red';
   const num = (v) => (v == null ? dash : Number(v).toLocaleString());
@@ -2490,7 +2485,7 @@ function faSections(d, recs, score, sevCounts, backlinksSource, opts = {}) {
     { label: 'CMS', value: d.cms || dash, tone: 'slate' },
     { label: 'External dup %', value: d.copyscape == null ? dash : `${d.copyscape}%`, tone: copyTone },
     { label: 'Internal dup %', value: d.siteliner == null ? dash : `${d.siteliner}%`, tone: sitelinerTone },
-    { label: 'Backlinks', value: num(d.backlinks) + (backlinksSource ? ` · ${backlinksSource}` : ''), tone: 'slate' },
+    { label: 'Backlinks', value: num(d.backlinks), tone: 'slate' },
     { label: 'Referring domains', value: num(d.refdomains), tone: 'slate' },
     { label: 'Spam score', value: d.spam == null ? dash : `${d.spam}%`, tone: spamTone },
   ];
@@ -3327,6 +3322,24 @@ async function contentWriterGateway(body) {
   return { _noCharge: true, jobId, status: 'starting' };
 }
 
+// Lambda kills an invocation the moment its clock runs out — no catch runs, so
+// the job stays frozen on whatever `running` stage it reached. The browser then
+// polls that stale entry until its own 12-min deadline and reports a failure,
+// even for a run that finished and WAS charged (exactly what happened on
+// 19 Jul: pipeline done at 386s, invocation killed at 450s, user told it failed
+// and billed 27 credits). Race the pipeline against a self-deadline a little
+// before Lambda's so the job always lands in a state the poller can read.
+const CW_DEADLINE = 'CW_DEADLINE';
+function cwDeadlineGuard(context) {
+  const left = typeof context?.getRemainingTimeInMillis === 'function' ? context.getRemainingTimeInMillis() : 0;
+  if (!left) return { promise: new Promise(() => {}), cancel() {} }; // no clock (tests) → never fires
+  let timer = null;
+  const promise = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(CW_DEADLINE)), Math.max(1000, left - 20000));
+  });
+  return { promise, cancel: () => clearTimeout(timer) };
+}
+
 // Background worker: run the (charged) pipeline by re-entering the gateway
 // handler — billing, history and the "run complete" notification all flow
 // through the one canonical path — then store the finished result for the
@@ -3344,7 +3357,10 @@ async function contentWriterFinalize(event, context) {
       headers: {},
       body: JSON.stringify({ ...job.inputs, _cwFinalize: true, _cwJobId: jobId, projectId: job.projectId || undefined }),
     };
-    const resp = await handler(synthetic, context);
+    const guard = cwDeadlineGuard(context);
+    let resp;
+    try { resp = await Promise.race([handler(synthetic, context), guard.promise]); }
+    finally { guard.cancel(); }
     const parsed = JSON.parse(resp?.body || '{}');
     const status = resp?.statusCode || 200;
     if (status === 402) throw new Error('You ran out of credits before this run. Top up and try again — nothing was charged.');
@@ -3362,16 +3378,24 @@ async function contentWriterFinalize(event, context) {
     }, CW_JOB_TTL);
     // The "✅ finished" notification already fired inside handler's saveRun path.
   } catch (e) {
+    // At the deadline the pipeline may already have finished and charged — we
+    // simply lost the race to record it. Never assert "no credits were charged"
+    // here; point at History, which is the one place that knows the truth.
+    const timedOut = e?.message === CW_DEADLINE;
+    const msg = timedOut
+      ? 'This run took longer than we allow, so we lost track of it. Check History in a few minutes — if it finished, the result is there. If it never appears, nothing was charged.'
+      : (e?.message || 'The run failed. No credits were charged.');
+    if (timedOut) console.error('cw_finalize_deadline', jobId);
     await putCache(cwJobKey(jobId), {
-      jobId, status: 'error', error: e?.message || 'The run failed. No credits were charged.',
+      jobId, status: 'error', error: msg,
       finishedAt: new Date().toISOString(),
     }, CW_JOB_TTL).catch(() => {});
     try {
       await addNotification({
         userId: job.userId,
         title: '⚠️ AI Content Optimiser run could not finish',
-        body: (e?.message || 'Please try running it again.').slice(0, 140),
-        link: '/tool/content-writer',
+        body: (timedOut ? 'It ran long — check History; the result may still have landed.' : (e?.message || 'Please try running it again.')).slice(0, 140),
+        link: '/history',
       });
     } catch { /* best-effort */ }
   }
@@ -4515,7 +4539,12 @@ async function socialAuditFinalize(event, context) {
       headers: {},
       body: JSON.stringify(strategyBody),
     };
-    const resp = await handler(synthetic, context);
+    // Same self-deadline as the Content Optimiser: end in a readable state
+    // rather than letting Lambda kill us mid-strategy-step (see cwDeadlineGuard).
+    const guard = cwDeadlineGuard(context);
+    let resp;
+    try { resp = await Promise.race([handler(synthetic, context), guard.promise]); }
+    finally { guard.cancel(); }
     const parsed = JSON.parse(resp?.body || '{}');
     const status = resp?.statusCode || 200;
     if (status === 402) throw new Error('You ran out of credits before the strategy step. Top up and run it again.');

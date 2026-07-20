@@ -561,11 +561,21 @@ Resources:
       Handler: index.handler
       # Long timeout for the Function-URL (slow-tool) path; the API-Gateway path
       # is still capped at the platform's 30s regardless. The background Social
-      # Audit finalizer (a self-invoked async run) also lives within this budget.
-      # 450s (< the Function URL's 15-min cap) gives headroom for the staff
-      # Content Optimiser dual-model A/B run, where two full pipelines (each with
-      # a long rewrite + 8 QA agents) run in parallel and can approach ~5 min.
-      Timeout: 450
+      # Audit and Content Optimiser finalizers (self-invoked async runs) also
+      # live within this budget. 450s was not enough: a real Content Optimiser
+      # optimise run measured 386s, and the staff dual-model A/B run is longer
+      # still, so runs were being killed mid-flight. 900s is the Lambda ceiling
+      # and matches the Function URL's 15-min cap; the finalizer self-deadlines
+      # (see cwDeadlineGuard) well before it, so nothing actually runs this long.
+      Timeout: 900
+      # A timed-out async self-invoke is retried by Lambda by DEFAULT (2 extra
+      # attempts). For the finalizers that means silently RE-RUNNING an already
+      # billable pipeline — one user was charged for a run they were told had
+      # failed, and a slightly different timing would have billed it 2–3×.
+      # These jobs are not idempotent, so never retry: the finalizer's own catch
+      # records the failure and notifies the user.
+      EventInvokeConfig:
+        MaximumRetryAttempts: 0
       Environment:
         Variables:
           GATEWAY_SECRET: '{{resolve:secretsmanager:digimetrics-saas/gateway-secret:SecretString}}'
