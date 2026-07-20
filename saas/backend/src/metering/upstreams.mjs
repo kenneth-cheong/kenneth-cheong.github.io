@@ -19,7 +19,6 @@ export const UPSTREAMS = {
   getImages: 'https://udjdc333m9.execute-api.ap-southeast-1.amazonaws.com/getImages',
   onPageRecommendations: 'https://vwmqqj251d.execute-api.ap-southeast-1.amazonaws.com/onPageRecommendations',
   serpCompetitors: 'https://itzj193chl.execute-api.ap-southeast-1.amazonaws.com/serpCompetitors',
-  ahrefsProxy: 'https://b8cyd5ed90.execute-api.ap-southeast-1.amazonaws.com/new',
   checkContent: 'https://mmyvj7yj11.execute-api.ap-southeast-1.amazonaws.com/checkContent',
   // Content Pillar Framework uses its own Lambda (action 'pillar_framework').
   contentPillar: 'https://j4aca9hcmh.execute-api.ap-southeast-1.amazonaws.com/contentPillar',
@@ -59,9 +58,12 @@ export const UPSTREAMS = {
   // SEO Diagnostics — live SERP landscape lane (who ranks above you per keyword).
   moreSerps: 'https://2wv8kyc8dg.execute-api.ap-southeast-1.amazonaws.com/moreSerps',
   // GEO+SEO Forensic Audit — the same probes index.html's autoFillForensicAudit() fires.
-  // Site data: title/desc/h1-h2/schema/spam/backlinks (DataForSEO on-page snapshot).
+  // Site data: title/desc/h1-h2/schema/spam/backlinks/refdomains/domain_rank —
+  // ALL of it DataForSEO. Third-party SEO suites (whose terms forbid reselling or
+  // repackaging their metrics) were removed on 2026-07-20; authority is now the
+  // Digimetrics Authority Score derived from DataForSEO's domain rank. Do not
+  // reintroduce a suite proxy here.
   forensicSiteData: 'https://9px7sjbyyb.execute-api.ap-southeast-1.amazonaws.com/new',
-  mozAuthority: 'https://a7hptjtc8e.execute-api.ap-southeast-1.amazonaws.com/new',
   pageSpeed: 'https://7vkudwlzhh.execute-api.ap-southeast-1.amazonaws.com/webpageAudit',
   sslCheck: 'https://2kxt49bwp1.execute-api.ap-southeast-1.amazonaws.com/checkSsl',
   gtmetrix: 'https://y5830908vh.execute-api.ap-southeast-1.amazonaws.com/gtmetrix',

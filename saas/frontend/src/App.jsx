@@ -7,7 +7,6 @@ import VerifyEmail from './pages/VerifyEmail.jsx';
 import ResetPassword from './pages/ResetPassword.jsx';
 import Unsubscribe from './pages/Unsubscribe.jsx';
 import Dashboard from './pages/Dashboard.jsx';
-import { Terms, Privacy } from './pages/Legal.jsx';
 import NotFound from './pages/NotFound.jsx';
 
 // Route-level code-splitting — keeps the initial bundle small; heavier pages
@@ -34,6 +33,10 @@ function lazyWithReload(factory) {
   );
 }
 
+// The legal instrument is ~120KB of generated text (36 T&C sections + 20 privacy
+// sections). Almost nobody opens it, so it must not sit in the initial bundle.
+const Terms = lazyWithReload(() => import('./pages/Legal.jsx').then((m) => ({ default: m.Terms })));
+const Privacy = lazyWithReload(() => import('./pages/Legal.jsx').then((m) => ({ default: m.Privacy })));
 const ToolRunner = lazyWithReload(() => import('./pages/ToolRunner.jsx'));
 const Pricing = lazyWithReload(() => import('./pages/Pricing.jsx'));
 const Account = lazyWithReload(() => import('./pages/Account.jsx'));
@@ -74,17 +77,22 @@ export default function App() {
   }
 
   if (!user) {
+    // Suspense is required here, not optional: the legal pages below are lazy
+    // (they carry the ~120KB instrument), and a lazy route with no boundary
+    // above it throws instead of rendering.
     return (
-      <Routes>
-        {/* Legal pages are public — reachable before sign-in. */}
-        <Route path="/legal/terms" element={<Terms />} />
-        <Route path="/legal/privacy" element={<Privacy />} />
-        {/* Email-link landings — must work pre-auth; they auto-log-in on success. */}
-        <Route path="/verify" element={<VerifyEmail />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/unsubscribe" element={<Unsubscribe />} />
-        <Route path="*" element={<Login />} />
-      </Routes>
+      <Suspense fallback={<Loading />}>
+        <Routes>
+          {/* Legal pages are public — reachable before sign-in. */}
+          <Route path="/legal/terms" element={<Terms />} />
+          <Route path="/legal/privacy" element={<Privacy />} />
+          {/* Email-link landings — must work pre-auth; they auto-log-in on success. */}
+          <Route path="/verify" element={<VerifyEmail />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/unsubscribe" element={<Unsubscribe />} />
+          <Route path="*" element={<Login />} />
+        </Routes>
+      </Suspense>
     );
   }
 

@@ -1,25 +1,114 @@
+import { Fragment, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { TERMS_VERSION } from '@shared/catalog.mjs';
+import {
+  TERMS_BLOCKS, PRIVACY_BLOCKS, LEGAL_UPDATED, LEGAL_EFFECTIVE,
+  PLATFORM_OWNER, LICENSEE, LEGAL_ADDRESS, LEGAL_EMAIL, LEGAL_PHONE,
+} from '../lib/legalContent.js';
 
-// Terms of Service + Privacy Policy. These are starter templates covering the
-// standard sections — HAVE A LAWYER REVIEW before relying on them commercially.
-// Rendered both logged-out (public) and logged-in (inside the app shell).
+// Terms and Conditions of Use (Part A) + Privacy Notice (Part B), rendered from
+// the executed legal instrument in lib/legalContent.js. Both are shown
+// logged-out (public) and logged-in (inside the app shell).
+//
+// These used to be hand-written starter templates carrying a banner telling the
+// reader to have a lawyer check them. They are now the real, reviewed document,
+// so the banner is gone and the text is generated rather than authored here —
+// nobody should be editing binding legal wording inside a JSX file.
 
-const UPDATED = '10 July 2026';
-const COMPANY = 'Digimetrics';
-const CONTACT = 'support@mediaone.co';
+// One text block. `x` is either a plain string or bold-aware segments.
+function Text({ x }) {
+  if (typeof x === 'string') return x;
+  return x.map((seg, i) => (seg.b ? <strong key={i}>{seg.s}</strong> : <Fragment key={i}>{seg.s}</Fragment>));
+}
 
-function Shell({ title, children }) {
+const labelOf = (b) => (typeof b.x === 'string' ? b.x : b.x.map((s) => s.s).join(''));
+
+// Slug for the in-page anchors the contents list links to. Section numbers keep
+// these stable across revisions ("12. Subscription Renewal" → "s-12").
+const slugOf = (label) => {
+  const n = /^(\d+)\./.exec(label.trim());
+  return n ? `s-${n[1]}` : null;
+};
+
+// Group consecutive `li` blocks into real lists; everything else maps 1:1.
+function Blocks({ blocks }) {
+  const out = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (b.t === 'li') {
+      const items = [];
+      while (i < blocks.length && blocks[i].t === 'li') items.push(blocks[i++]);
+      i--;
+      out.push(
+        <ul key={`u${i}`}>
+          {items.map((it, j) => <li key={j}><Text x={it.x} /></li>)}
+        </ul>
+      );
+      continue;
+    }
+    if (b.t === 'h1') { out.push(<h2 key={i} className="dm-legal-part"><Text x={b.x} /></h2>); continue; }
+    if (b.t === 'h2') {
+      out.push(<h2 key={i} id={slugOf(labelOf(b)) || undefined}><Text x={b.x} /></h2>);
+      continue;
+    }
+    if (b.t === 'h3') { out.push(<h3 key={i}><Text x={b.x} /></h3>); continue; }
+    out.push(<p key={i}><Text x={b.x} /></p>);
+  }
+  return out;
+}
+
+// Numbered top-level sections, linked. A 36-section instrument is unusable
+// without one — the old templates were short enough not to need it.
+function Contents({ blocks }) {
+  const items = useMemo(
+    () => blocks
+      .filter((b) => b.t === 'h2')
+      .map((b) => ({ label: labelOf(b), id: slugOf(labelOf(b)) }))
+      .filter((x) => x.id),
+    [blocks]
+  );
+  if (items.length < 4) return null;
+  return (
+    <nav aria-label="Contents" className="mt-6 rounded-xl border border-line bg-raised p-4">
+      <h2 className="text-xs font-bold uppercase tracking-wide text-faint">Contents</h2>
+      <ol className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
+        {items.map((s) => (
+          <li key={s.id}>
+            <a href={`#${s.id}`} className="text-sm text-brand-600 dark:text-brand-400 hover:underline">{s.label}</a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  );
+}
+
+function Shell({ title, blocks, intro, other, otherLabel }) {
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
       <Link to="/" className="text-sm text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">← Back</Link>
       <h1 className="mt-4 text-3xl font-bold">{title}</h1>
-      <p className="mt-1 text-sm text-faint">Last updated: {UPDATED} · v{TERMS_VERSION}</p>
-      <div className="prose prose-slate mt-6 max-w-none text-sm leading-relaxed text-body [&_h2]:mt-6 [&_h2]:text-base [&_h2]:font-bold [&_p]:mt-2 [&_ul]:mt-2 [&_ul]:list-disc [&_ul]:pl-5">
-        {children}
+      <p className="mt-1 text-sm text-faint">
+        Last updated: {LEGAL_UPDATED} · Effective: {LEGAL_EFFECTIVE} · v{TERMS_VERSION}
+      </p>
+
+      {/* Who you are actually contracting with — Section 1 of Part A. */}
+      <div className="mt-4 rounded-xl border border-line bg-raised p-4 text-sm text-dim">
+        <p><span className="font-semibold text-body">Platform owner:</span> {PLATFORM_OWNER.name} (UEN {PLATFORM_OWNER.uen})</p>
+        <p className="mt-1"><span className="font-semibold text-body">Authorised licensee &amp; operator:</span> {LICENSEE.name} (UEN {LICENSEE.uen})</p>
+        <p className="mt-1">
+          {LEGAL_ADDRESS} · <a className="text-brand-600 dark:text-brand-400" href={`mailto:${LEGAL_EMAIL}`}>{LEGAL_EMAIL}</a> · {LEGAL_PHONE}
+        </p>
       </div>
-      <p className="mt-8 rounded-lg bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-xs text-amber-700 dark:text-amber-300">
-        This is a template for review and is not legal advice. Please have it reviewed by a qualified lawyer for your jurisdiction.
+
+      {intro}
+      <Contents blocks={blocks} />
+
+      <div className="dm-legal mt-6 max-w-none text-sm leading-relaxed text-body">
+        <Blocks blocks={blocks} />
+      </div>
+
+      <p className="mt-8 text-xs text-faint">
+        See also our <Link className="text-brand-600 dark:text-brand-400" to={other}>{otherLabel}</Link>.
       </p>
     </div>
   );
@@ -27,62 +116,38 @@ function Shell({ title, children }) {
 
 export function Terms() {
   return (
-    <Shell title="Terms of Service">
-      <p>These Terms govern your use of {COMPANY} (the "Service"). By signing in or using the Service you agree to them. If you do not agree, do not use the Service.</p>
-      <h2>1. Accounts</h2>
-      <p>You sign in with Google. You are responsible for activity under your account and for keeping your access secure. You must be at least 18 and provide accurate information.</p>
-      <h2>2. Plans, credits & billing</h2>
-      <p>Paid plans and credit top-ups are billed through Stripe. Monthly plan credits reset each billing cycle and do not roll over; purchased top-up credits roll over. Fees are stated at checkout and are non-refundable except where required by law. You can change or cancel your plan at any time from your account; cancellation takes effect at the end of the current period.</p>
-      <h2>3. Acceptable use</h2>
-      <p>You agree not to misuse the Service, including: reverse engineering, reselling access without permission, scraping, overloading the system, infringing others' rights, or using outputs unlawfully. We may suspend accounts that violate these Terms.</p>
-      <h2>4. Your content & outputs</h2>
-      <p>You retain rights to the inputs you submit. You are responsible for how you use generated outputs. AI-generated results may be inaccurate — verify before relying on them. We may process your inputs to provide and improve the Service.</p>
-      <h2>5. Recommendations are informational only — no professional advice</h2>
-      <p>The Service produces audits, scores, suggestions, action plans, and other recommendations using automated and AI-based methods (collectively, "Recommendations"). Recommendations are provided for general informational purposes only, are generated from data that may be incomplete, outdated, or inaccurate, and do <strong>not</strong> constitute professional, legal, financial, marketing, or business advice. They are not a substitute for your own judgement or that of a qualified professional. You are solely responsible for reviewing, validating, and deciding whether to act on any Recommendation, and for any results, decisions, expenditures, or changes you make in reliance on it. {COMPANY} does not warrant that following any Recommendation will produce any particular outcome (including rankings, traffic, conversions, or revenue) and accepts no responsibility for actions taken, or not taken, based on Recommendations.</p>
-      <h2>6. Third-party services</h2>
-      <p>The Service integrates third parties (e.g. Google Search Console / Analytics / Ads, and AI providers). Your use of those integrations is also subject to their terms.</p>
-      <h2>7. Availability & disclaimers</h2>
-      <p>The Service is provided "as is" without warranties of any kind. We do not guarantee uninterrupted or error-free operation, or any particular result (including rankings, traffic, or revenue).</p>
-      <h2>8. Limitation of liability</h2>
-      <p>To the maximum extent permitted by law, {COMPANY} is not liable for indirect, incidental, or consequential damages, and our total liability is limited to the amount you paid in the 12 months before the claim.</p>
-      <h2>9. Indemnification</h2>
-      <p>You agree to defend, indemnify, and hold harmless {COMPANY}, its affiliates, and their respective officers, directors, employees, and agents from and against any and all claims, demands, liabilities, damages, losses, costs, and expenses (including reasonable legal fees) arising out of or related to: (a) your use of the Service or the outputs and Recommendations it generates; (b) your reliance on, implementation of, or decisions based on any Recommendation; (c) any content or inputs you submit; (d) your violation of these Terms or of any applicable law; or (e) your infringement of any third party's rights. This obligation survives termination of your account and these Terms.</p>
-      <h2>10. Termination</h2>
-      <p>You may stop using the Service and delete your account at any time. We may suspend or terminate access for breach of these Terms.</p>
-      <h2>11. Changes</h2>
-      <p>We may update these Terms; material changes will be notified in-app or by email, and we may require you to re-accept them before continuing to use the Service. Continued use after changes means you accept them.</p>
-      <h2>12. Contact</h2>
-      <p>Questions: <a className="text-brand-600 dark:text-brand-400" href={`mailto:${CONTACT}`}>{CONTACT}</a>. See also our <Link className="text-brand-600 dark:text-brand-400" to="/legal/privacy">Privacy Policy</Link>.</p>
-    </Shell>
+    <Shell
+      title="Terms and Conditions of Use"
+      blocks={TERMS_BLOCKS}
+      other="/legal/privacy"
+      otherLabel="Privacy Notice"
+      intro={
+        <p className="mt-4 text-sm leading-relaxed text-dim">
+          These Terms govern access to and use of the Digimetrics.ai website, software platform,
+          applications, artificial intelligence features, reports, dashboards, integrations, APIs and
+          related services. By creating or using an Account, starting a trial, purchasing a
+          subscription or continuing to use Digimetrics.ai, you agree to be legally bound by them.
+        </p>
+      }
+    />
   );
 }
 
 export function Privacy() {
   return (
-    <Shell title="Privacy Policy">
-      <p>This policy explains what {COMPANY} collects, how we use it, and your rights.</p>
-      <h2>1. What we collect</h2>
-      <ul>
-        <li><strong>Account data:</strong> your name, email and profile photo from Google sign-in.</li>
-        <li><strong>Usage data:</strong> tools you run, inputs/outputs, credit ledger, support tickets, tracked keywords and projects.</li>
-        <li><strong>Billing data:</strong> handled by Stripe; we store a customer reference and invoice metadata, not your full card details.</li>
-        <li><strong>Integrations:</strong> if you connect Google Search Console / Analytics / Ads, we store access tokens (encrypted) to fetch your data on your behalf.</li>
-        <li><strong>Session recordings & analytics:</strong> to understand how the app is used and improve its design, we record anonymised product-usage sessions (mouse movement, clicks, scrolling, and the pages you visit) via Microsoft Clarity. Text you type into fields is masked and not captured. These recordings are used internally for usability and troubleshooting only.</li>
-      </ul>
-      <h2>2. How we use it</h2>
-      <p>To provide the Service, process payments, run the tools you request, provide support, prevent abuse, and meet legal obligations.</p>
-      <h2>3. Sharing</h2>
-      <p>We share data only with processors that run the Service: cloud hosting (AWS), payments (Stripe), product analytics and session recording (Microsoft Clarity), and AI/data providers needed to fulfil a tool you run. We do not sell your personal data.</p>
-      <h2>4. Retention</h2>
-      <p>We keep your data while your account is active. When you delete your account, your data is removed from our systems (some records, such as invoices, may be retained where law requires).</p>
-      <h2>5. Your rights</h2>
-      <p>You can access, export, correct, or delete your data. Use <Link className="text-brand-600 dark:text-brand-400" to="/account">Account → Your data</Link> to export everything we hold or permanently delete your account, or contact us.</p>
-      <h2>6. Security</h2>
-      <p>We use encryption in transit and at rest, scoped access controls, and integration tokens encrypted at rest. No system is perfectly secure, but we work to protect your data.</p>
-      <h2>7. International transfers</h2>
-      <p>Data is processed in AWS (Asia Pacific) and by our processors, which may involve transfers across borders under appropriate safeguards.</p>
-      <h2>8. Contact</h2>
-      <p>Privacy questions or requests: <a className="text-brand-600 dark:text-brand-400" href={`mailto:${CONTACT}`}>{CONTACT}</a>.</p>
-    </Shell>
+    <Shell
+      title="Privacy Notice"
+      blocks={PRIVACY_BLOCKS}
+      other="/legal/terms"
+      otherLabel="Terms and Conditions of Use"
+      intro={
+        <p className="mt-4 text-sm leading-relaxed text-dim">
+          This Notice explains what personal data we collect, how we use and share it, and the rights
+          available to you under the Singapore Personal Data Protection Act and, where applicable, the
+          GDPR. To export or delete your data, use{' '}
+          <Link className="text-brand-600 dark:text-brand-400" to="/account">Account → Your data</Link>.
+        </p>
+      }
+    />
   );
 }

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Stethoscope, TrendingUp, PenLine, LineChart, Sparkles, Swords, BarChart3, ChevronRight, Zap, Search } from 'lucide-react';
 import { GOALS, TOOLS, tierMeets } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
+import { startPlatformTour, markSeen } from '../lib/tours.js';
 
 const GOAL_ICON = { TrendingUp, Stethoscope, PenLine, LineChart, Sparkles, Swords, BarChart3 };
 
@@ -14,17 +15,28 @@ export default function Welcome({ onDone }) {
   const { user, setOnboarding } = useAuth();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
+  const [wantsTour, setWantsTour] = useState(false);
   const first = user.name?.split(' ')[0] || 'there';
   const credits = (user.credits ?? 0).toLocaleString();
 
   // Persist welcomed (+ optional goal) then route. Don't await the network —
-  // the optimistic local patch flips `welcomed` immediately so we never flicker.
+  // the optimistic local patch (and the localStorage mirror behind it) flips
+  // `welcomed` immediately so we never flicker, and never re-ask if the write
+  // fails.
+  //
+  // Also settles the platform tour here. The tour used to be offered by a
+  // separate toast that slid in ~900ms after this dialog closed, which made the
+  // welcome feel like the first of an endless queue. Now it's one checkbox on
+  // this screen: either way the tour is marked seen server-side, so it never
+  // nags again — it stays replayable from the "?" help menu.
   const finish = (goalId, to) => {
     if (busy) return;
     setBusy(true);
-    setOnboarding({ welcomed: true, goal: goalId || null });
+    setOnboarding({ welcomed: true, goal: goalId || null, seenPlatformTour: true });
+    markSeen('platform');
     onDone?.();        // clears any ?welcome=1 force-open so the overlay closes
     navigate(to);
+    if (wantsTour) setTimeout(startPlatformTour, 400); // let the route settle first
   };
 
   const pickGoal = (g) => finish(g.id, g.to || `/?goal=${g.id}`);
@@ -98,9 +110,23 @@ export default function Welcome({ onDone }) {
           })}
         </div>
 
-        <div className="mt-6 flex items-center justify-between">
+        {/* The tour offer, inline — not a second dialog queued behind this one. */}
+        <label className="mt-6 flex cursor-pointer items-center gap-2.5 rounded-xl border border-line p-3 hover:border-brand-300 dark:hover:border-brand-500/40">
+          <input
+            type="checkbox"
+            checked={wantsTour}
+            onChange={(e) => setWantsTour(e.target.checked)}
+            className="h-4 w-4 shrink-0 rounded border-edge text-brand-600 dark:text-brand-400 focus:ring-brand-500"
+          />
+          <span className="text-sm text-body">
+            Show me around first — a 2-minute tour of the essentials.
+            <span className="ml-1 text-muted">You can replay it anytime from the “?” button.</span>
+          </span>
+        </label>
+
+        <div className="mt-5 flex items-center justify-between gap-3">
           <span className="inline-flex items-center gap-1.5 text-xs text-faint"><Zap size={13} aria-hidden /> You can change everything later — nothing here is locked in.</span>
-          <button onClick={() => finish(null, '/')} disabled={busy} className="text-sm font-medium text-muted hover:text-strong disabled:opacity-60">
+          <button onClick={() => finish(null, '/')} disabled={busy} className="shrink-0 text-sm font-medium text-muted hover:text-strong disabled:opacity-60">
             Skip for now →
           </button>
         </div>

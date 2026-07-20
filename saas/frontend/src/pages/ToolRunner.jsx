@@ -366,7 +366,7 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
       )}
 
       {busy && tool.slow && <SlowProgress tool={tool} job={job} />}
-      {out && !busy && <Result out={out} tool={tool} project={active} user={user} onCredits={setCredits} />}
+      {out && !busy && <Result out={out} tool={tool} project={active} user={user} inputs={values} onCredits={setCredits} />}
 
       {modal && <UpgradeModal reason={modal.reason} requiredTier={modal.requiredTier} creditsRemaining={modal.creditsRemaining} creditsNeeded={modal.creditsNeeded} onClose={() => setModal(null)} />}
     </div>
@@ -629,7 +629,7 @@ function EmptyResult({ tool }) {
   );
 }
 
-function Result({ out, tool, project, user, onCredits }) {
+function Result({ out, tool, project, user, inputs, onCredits }) {
   if (out.error) return <FriendlyError message={out.error} tool={tool} />;
   const r = out.result || {};
 
@@ -667,7 +667,20 @@ function Result({ out, tool, project, user, onCredits }) {
 
   // Context handed to each recommendation card so the assistant answers in the
   // tool's frame ("from the X tool, for your site Y") and "Add to plan" links back.
-  const recContext = { toolName: tool.name, domain: project?.domain, route: tool.route || `/tool/${tool.id}` };
+  //
+  // `target` is the URL/domain THIS RUN was actually about, and it matters more
+  // than the project domain: it used to fall back to `project?.domain` alone, so
+  // a user with no project (every new trial account) handed the assistant a
+  // recommendation with no subject attached — which is why "do it for me" on a
+  // missing meta description came back asking for the URL the user had just
+  // typed into the form two clicks earlier.
+  const target = (inputs?.url || inputs?.input || '').trim() || project?.domain || '';
+  const recContext = {
+    toolName: tool.name,
+    domain: project?.domain,
+    target,
+    route: tool.route || `/tool/${tool.id}`,
+  };
 
   return (
     <div className="mt-6" data-tour="tool-result">

@@ -31,7 +31,7 @@ export default function ConsentGate() {
           <span className="text-sm font-semibold uppercase tracking-wide text-faint">Before you continue</span>
         </div>
 
-        <h1 className="mt-4 text-xl font-bold text-heading">Agree to our Terms &amp; Privacy Policy</h1>
+        <h1 className="mt-4 text-xl font-bold text-heading">Agree to our Terms &amp; Privacy Notice</h1>
         <p className="mt-2 text-sm leading-relaxed text-dim">
           Digimetrics produces audits, scores, and AI-generated recommendations for
           information only — they are not professional advice. You are responsible for
@@ -48,9 +48,9 @@ export default function ConsentGate() {
           />
           <span className="text-sm text-body">
             I have read and agree to the{' '}
-            <Link to="/legal/terms" target="_blank" rel="noreferrer" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Terms of Service</Link>{' '}
+            <Link to="/legal/terms" target="_blank" rel="noreferrer" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Terms and Conditions of Use</Link>{' '}
             (including the indemnity for generated recommendations) and the{' '}
-            <Link to="/legal/privacy" target="_blank" rel="noreferrer" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Privacy Policy</Link>.
+            <Link to="/legal/privacy" target="_blank" rel="noreferrer" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Privacy Notice</Link>.
           </span>
         </label>
 

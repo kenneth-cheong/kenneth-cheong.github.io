@@ -663,6 +663,40 @@
   50%      { box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.45); }
 }
 
+/* Momentary "this is the thing you just clicked" highlight. Used when a control
+   in the header scrolls a section far down the page into view (e.g. the "Set a
+   goal" chip → the goal planner) — without it the scroll lands you somewhere
+   with no signal about why. */
+@keyframes dm-flash-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(var(--c-peri) / 0); }
+  35%      { box-shadow: 0 0 0 5px rgb(var(--c-peri) / .35); }
+}
+.dm-flash {
+  border-radius: 1rem;
+  animation: dm-flash-ring 1.6s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dm-flash { animation: none; outline: 2px solid rgb(var(--c-peri) / .6); outline-offset: 4px; }
+}
+
+/* Legal document typography (Terms Part A / Privacy Part B). The instrument runs
+   to ~56 numbered sections across ~180 sub-headings, so the hierarchy has to be
+   readable at a glance: PART rules, then numbered sections, then sub-clauses,
+   then lettered lists. `list-style: none` on the clause lists is deliberate —
+   the source already carries its own "a. / b. / c." lettering, so a marker
+   would double it up. */
+.dm-legal h2 { margin-top: 2rem; font-size: 1rem; font-weight: 700; color: rgb(var(--c-heading)); scroll-margin-top: 5rem; }
+.dm-legal h3 { margin-top: 1.25rem; font-size: .875rem; font-weight: 600; color: rgb(var(--c-strong)); }
+.dm-legal p { margin-top: .5rem; }
+.dm-legal ul { margin-top: .5rem; padding-left: 1.25rem; list-style: none; }
+.dm-legal ul li { margin-top: .25rem; }
+.dm-legal .dm-legal-part {
+  margin-top: 2.5rem; padding-top: 1.25rem; border-top: 1px solid rgb(var(--c-line));
+  font-size: .6875rem; font-weight: 700; letter-spacing: .18em; text-transform: uppercase;
+  color: rgb(var(--c-faint));
+}
+.dm-legal .dm-legal-part:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+
 .dm-main { container-type: inline-size; container-name: dm-main; }
 
 /* Cockpit + results grids. These MUST be container queries, not viewport

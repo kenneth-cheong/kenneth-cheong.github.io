@@ -494,10 +494,12 @@ async function callUpstreamRaw(tool, body) {
   // GEO+SEO Forensic Audit: fan out ~30 probes, score them, build a remediation plan.
   if (tool.id === 'forensic-audit') return forensicAuditRun(body);
   // SEO Diagnostics: guided keyword→fix wizard — technical lanes + SERP landscape
-  // + keyword buckets + AI narrative (SE Ranking excluded; manual keyword entry).
+  // + keyword buckets + AI narrative (manual keyword entry; no third-party suite).
   if (tool.id === 'seo-diagnostics') return seoDiagnosticsRun(body);
   // Page Technical & Domain Analysis: lighter probe fan-out → metric-card grid.
   if (tool.id === 'page-analysis') return pageAnalysisRun(body);
+  // Page Speed Check: mobile + desktop PageSpeed for ONE url. Nothing else.
+  if (tool.id === 'page-speed') return pageSpeedRun(body);
   // AI-visibility is multi-step: derive prompts → verify_mentions → poll snapshot.
   // AI Mentions: are you cited in AI answers? AI Discovery: technical GEO-readiness.
   if (tool.id === 'ai-mentions') return aiVisibilityRun(body);
@@ -1418,6 +1420,76 @@ function pageIssues(p) {
   return n;
 }
 
+// ── Page Speed Check ──────────────────────────────────────────────────────────
+// One URL, two PageSpeed calls (mobile + desktop), nothing else. Exists so the
+// dashboard's Page speed card can refresh ITSELF: its "Re-run" used to open the
+// GEO+SEO Forensic Audit, a 50-credit, ~2-minute, thirty-probe run, just to
+// update two numbers the user was already looking at.
+//
+// Returns `summary` in the same shape the forensic audit's summary uses for
+// these two fields, so the card can merge the result into its stored run without
+// any special-casing on the client.
+async function pageSpeedRun(body) {
+  let target = (body.input || body.url || '').trim();
+  if (!target) throw new Error('A page URL is required.');
+  if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
+  try { new URL(target); } catch { throw new Error('Invalid URL format.'); }
+
+  const withTimeout = (p, ms) =>
+    Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+  const tryJson = (payload, ms) =>
+    withTimeout(postUpstream(UPSTREAMS.pageSpeed, payload), ms).catch(() => null);
+
+  const [psmRes, psdRes] = await Promise.all([
+    tryJson({ url: target }, 55000),
+    tryJson({ url: target, strategy: 'desktop' }, 55000),
+  ]);
+
+  const parsePS = (v) => { if (v == null) return null; const n = parseInt(String(v), 10); return Number.isNaN(n) ? null : n; };
+  const mobile = psmRes ? parsePS(psmRes.pagespeed) : null;
+  const desktop = psdRes ? parsePS(psdRes.pagespeed) : null;
+
+  // Both probes failed → a soft failure, so the gateway surfaces the message and
+  // charges nothing. Credits are for results.
+  if (mobile == null && desktop == null) {
+    return { _failed: true, text: 'Google PageSpeed could not score that URL. Check the page is publicly reachable and try again.' };
+  }
+
+  const tone = (v) => (v == null ? 'slate' : v >= 90 ? 'green' : v >= 50 ? 'amber' : 'red');
+  const dash = '—';
+  return {
+    summary: { pageSpeedMobile: mobile, pageSpeedDesktop: desktop, target },
+    sections: [
+      { type: 'stats', title: 'Google PageSpeed', items: [
+        { label: 'Mobile', value: mobile ?? dash, tone: tone(mobile) },
+        { label: 'Desktop', value: desktop ?? dash, tone: tone(desktop) },
+      ] },
+      { type: 'text', text: `Scored ${target}. 90+ is good, 50–89 needs work, under 50 is poor. These are lab scores — field Core Web Vitals (LCP/INP/CLS) aren’t collected here.` },
+    ],
+  };
+}
+
+// ── Digimetrics Authority Score ───────────────────────────────────────────────
+// Our own 0-100 domain-strength metric. It replaces the third-party suite
+// authority numbers the audit used to proxy in: those vendors' terms forbid
+// reselling or repackaging their metrics, so we can neither store nor display
+// them. This is computed from DataForSEO data we ARE licensed to repackage.
+//
+// Primary input is DataForSEO's backlink `rank` (0-1000), which is already a
+// log-shaped authority signal — a straight /10 rescale keeps its ordering and
+// lands on the 0-100 range users expect. When rank is absent we fall back to a
+// log curve over referring domains (1 ref domain ≈ 0, ~100k ≈ 100), which tracks
+// the same shape closely enough to be useful rather than blank.
+export function authorityScore(siteRes) {
+  const rank = Number(siteRes?.domain_rank);
+  if (Number.isFinite(rank) && rank > 0) return Math.max(0, Math.min(100, Math.round(rank / 10)));
+  const refs = Number(siteRes?.referring_domains);
+  if (Number.isFinite(refs) && refs > 0) {
+    return Math.max(0, Math.min(100, Math.round((Math.log10(refs) / 5) * 100)));
+  }
+  return null;
+}
+
 // ── GEO+SEO Forensic Audit ────────────────────────────────────────────────────
 // Server-side port of index.html's autoFillForensicAudit(): fan out the same
 // ~30 probes in parallel, normalise them into the `d` shape, then reuse the
@@ -1446,7 +1518,7 @@ async function forensicAuditRun(body) {
       .then((r) => (typeof r === 'string' ? r : (r && typeof r.body === 'string' ? r.body : '')))
       .catch(() => '');
 
-  // Kick everything off in parallel. GTmetrix + the internal-duplication crawl
+  // Kick everything off in parallel. The performance grade + the internal-duplication crawl
   // are the long poles; the rest resolve in well under 30s.
   const homeHtmlP = getHtmlBody(rootDomain, 30000);
   const copyscapeP = homeHtmlP.then((html) => {
@@ -1456,17 +1528,15 @@ async function forensicAuditRun(body) {
   });
 
   const [
-    siteRes, mozRes, psmRes, psdRes, sslRes, gtRes, ahrefsRes,
+    siteRes, psmRes, psdRes, sslRes, gtRes,
     homeHtml, robotsBody, llmsBody, llmsFullBody, notFoundBody, httpBody,
     copyscapeRaw, sitelinerItems,
   ] = await Promise.all([
     tryJson(UPSTREAMS.forensicSiteData, { url: baseDomain }, 25000),
-    tryJson(UPSTREAMS.mozAuthority, { domain: baseDomain }, 25000),
     tryJson(UPSTREAMS.pageSpeed, { url: rootDomain }, 60000),
     tryJson(UPSTREAMS.pageSpeed, { url: rootDomain, strategy: 'desktop' }, 60000),
     tryJson(UPSTREAMS.sslCheck, { url: domain }, 20000),
     tryJson(UPSTREAMS.gtmetrix, { url: rootDomain }, 75000),
-    tryJson(UPSTREAMS.ahrefsProxy, { endpoint: 'overview', params: { target: baseDomain } }, 25000),
     homeHtmlP,
     getHtmlBody(rootDomain + '/robots.txt', 20000),
     getHtmlBody(rootDomain + '/llms.txt', 15000),
@@ -1506,15 +1576,11 @@ async function forensicAuditRun(body) {
     if (siteRes.referring_domains != null) d.refdomains = Number(siteRes.referring_domains);
   }
 
-  // Backlinks / ref domains / organic keywords — prefer Ahrefs, fall back to site data.
-  const ah = ahrefsRes?.domain || ahrefsRes || {};
-  if (ah.backlinks != null) d.backlinks = Number(ah.backlinks);
-  if (ah.referring_domains != null) d.refdomains = Number(ah.referring_domains);
-  if (ah.org_keywords != null) d.orgkw = Number(ah.org_keywords);
-  const backlinksSource = (ah.backlinks != null || ah.referring_domains != null) ? 'Ahrefs' : (siteRes?.backlinks != null ? 'DataForSEO' : null);
+  const backlinksSource = siteRes?.backlinks != null ? 'DataForSEO' : null;
 
-  // 2. Moz Domain Authority
-  if (mozRes?.domain_authority != null) d.da = Number(mozRes.domain_authority);
+  // 2. Authority Score — our own 0-100 metric (see authorityScore()), never a
+  //    third-party suite's proprietary authority number.
+  d.da = authorityScore(siteRes);
 
   // 3. PageSpeed (mobile) + sitemap presence
   const parsePS = (v) => { if (v == null) return null; const n = parseInt(String(v), 10); return Number.isNaN(n) ? null : n; };
@@ -1529,7 +1595,7 @@ async function forensicAuditRun(body) {
   // 5. SSL
   if (sslRes) d.ssl = (sslRes.message && String(sslRes.message).toLowerCase().includes('valid')) ? 'pass' : 'fail';
 
-  // 6. GTmetrix grade
+  // 6. Performance grade
   const grade = gtRes?.data?.attributes?.gtmetrix_grade;
   if (grade) d.gtmetrix = grade;
 
@@ -1555,12 +1621,12 @@ async function forensicAuditRun(body) {
     d.https = works ? 'Yes' : (d.ssl === 'pass' ? 'Yes' : 'No');
   }
 
-  // 12. Copyscape (external duplicate %) — postUpstream already unwrapped the envelope.
+  // 12. External duplicate % — postUpstream already unwrapped the envelope.
   if (copyscapeRaw && copyscapeRaw.originality_score !== undefined) {
     d.copyscape = Math.max(0, Math.round(100 - Number(copyscapeRaw.originality_score)));
   }
 
-  // 13. Internal duplication (Siteliner-equivalent) from the crawl
+  // 13. Internal duplication, computed from our own crawl
   if (Array.isArray(sitelinerItems) && sitelinerItems.length) {
     const dup = sitelinerItems.filter((i) => i.duplicate_content === true).length;
     d.siteliner = Math.round((dup / sitelinerItems.length) * 100);
@@ -1594,14 +1660,14 @@ async function forensicAuditRun(body) {
   return { sections: faSections(d, recs, score, sevCounts, backlinksSource), summary };
 }
 
-// ── SEO Diagnostics: guided keyword → fix wizard (SE Ranking excluded) ────────
+// ── SEO Diagnostics: guided keyword → fix wizard ──────────────────────────────
 // The React wizard gathers inputs across five steps (manual domain + keywords,
 // keyword-opportunity bucketing, GA4/GSC context, technical checks, diagnosis);
 // this is the single CHARGED step. It fans out the same technical probes the
 // forensic audit uses (reusing its finding engine + fa* scoring), adds a live
 // SERP-landscape lane (moreSerps), folds in pasted GA4/GSC context, and asks the
 // AI for a prioritised remediation narrative. Returns render-ready `sections`.
-// SE Ranking is deliberately excluded — Step 1 is manual/project-domain entry.
+// No third-party rank-tracking suite is involved — Step 1 is manual/project-domain entry.
 const SDX_BUCKETS = {
   striking:  { label: 'Low-hanging fruit', desc: 'Pos 4-15 — one push to page 1', tone: 'green' },
   declining: { label: 'Declining', desc: 'Dropped 3+ positions', tone: 'red' },
@@ -1773,7 +1839,7 @@ async function sdxSerp(kws, domain, loc) {
 // Compact everything into a findings brief for the AI recommendations pass.
 function sdxFindingsText(d, recs, bucketCounts, serp, ga4Text, gscText) {
   const lines = [];
-  lines.push(`Health score: ${faComputeHealthScore(d, recs)}/100. SSL: ${d.ssl || 'unknown'}. PageSpeed mobile: ${d.psm ?? 'n/a'}, desktop: ${d.psd ?? 'n/a'}. GTmetrix: ${d.gtmetrix || 'n/a'}. Structured data: ${d.structdata || 'n/a'}. Sitemap: ${d.sitemap || 'n/a'}. llms.txt: ${d.llmstxt || 'n/a'}.`);
+  lines.push(`Health score: ${faComputeHealthScore(d, recs)}/100. SSL: ${d.ssl || 'unknown'}. PageSpeed mobile: ${d.psm ?? 'n/a'}, desktop: ${d.psd ?? 'n/a'}. Performance grade: ${d.gtmetrix || 'n/a'}. Structured data: ${d.structdata || 'n/a'}. Sitemap: ${d.sitemap || 'n/a'}. llms.txt: ${d.llmstxt || 'n/a'}.`);
   if (d.backlinks != null || d.spam != null) lines.push(`Backlinks: ${d.backlinks ?? 'n/a'}, referring domains: ${d.refdomains ?? 'n/a'}, spam score: ${d.spam ?? 'n/a'}.`);
   const bk = Object.entries(bucketCounts || {}).filter(([b]) => SDX_BUCKETS[b]).map(([b, n]) => `${SDX_BUCKETS[b].label}: ${n}`);
   if (bk.length) lines.push(`Keyword opportunity buckets — ${bk.join('; ')}.`);
@@ -1787,10 +1853,10 @@ function sdxFindingsText(d, recs, bucketCounts, serp, ga4Text, gscText) {
 
 // ── Page Technical & Domain Analysis ──────────────────────────────────────────
 // The lighter cousin of the forensic audit (index.html's "Domain Analysis"
-// section): fan out a focused set of FAST probes — Moz authority, Ahrefs /
-// DataForSEO link data, PageSpeed (mobile+desktop), SSL and the on-page HTML —
-// then render the agency's "Domain & Page Metrics" card grid. No siteliner crawl
-// or GTmetrix long-pole, no scoring/remediation: just the signals, in one view.
+// section): fan out a focused set of FAST probes — DataForSEO link data and
+// domain rank, PageSpeed (mobile+desktop), SSL and the on-page HTML — then render
+// the "Domain & Page Metrics" card grid. No duplication crawl or performance-grade
+// long-pole, no scoring/remediation: just the signals, in one view.
 async function pageAnalysisRun(body) {
   let target = (body.input || body.url || '').trim();
   if (!target) throw new Error('A website URL is required.');
@@ -1810,13 +1876,11 @@ async function pageAnalysisRun(body) {
       .then((r) => (typeof r === 'string' ? r : (r && typeof r.body === 'string' ? r.body : '')))
       .catch(() => '');
 
-  const [siteRes, mozRes, psmRes, psdRes, sslRes, ahrefsRes, homeHtml] = await Promise.all([
+  const [siteRes, psmRes, psdRes, sslRes, homeHtml] = await Promise.all([
     tryJson(UPSTREAMS.forensicSiteData, { url: baseDomain }, 25000),
-    tryJson(UPSTREAMS.mozAuthority, { domain: baseDomain }, 25000),
     tryJson(UPSTREAMS.pageSpeed, { url: target }, 55000),
     tryJson(UPSTREAMS.pageSpeed, { url: target, strategy: 'desktop' }, 55000),
     tryJson(UPSTREAMS.sslCheck, { url: domain }, 20000),
-    tryJson(UPSTREAMS.ahrefsProxy, { endpoint: 'overview', params: { target: baseDomain } }, 25000),
     getHtmlBody(target, 30000),
   ]);
 
@@ -1841,18 +1905,12 @@ async function pageAnalysisRun(body) {
     if (siteRes.referring_domains != null) d.refdomains = Number(siteRes.referring_domains);
   }
 
-  // Backlinks / ref domains / organic — prefer Ahrefs, fall back to site data.
-  const ah = ahrefsRes?.domain || ahrefsRes || {};
-  if (ah.backlinks != null) d.backlinks = Number(ah.backlinks);
-  if (ah.referring_domains != null) d.refdomains = Number(ah.referring_domains);
-  if (ah.org_keywords != null) d.orgkw = Number(ah.org_keywords);
-  if (ah.org_traffic != null) d.orgtraffic = Number(ah.org_traffic);
-  const linkSource = (ah.backlinks != null || ah.referring_domains != null)
-    ? 'Ahrefs' : (siteRes?.backlinks != null ? 'DataForSEO' : null);
+  const linkSource = siteRes?.backlinks != null ? 'DataForSEO' : null;
 
-  // 2. Moz Domain / Page Authority.
-  if (mozRes?.domain_authority != null) d.da = Number(mozRes.domain_authority);
-  if (mozRes?.page_authority != null) d.pa = Number(mozRes.page_authority);
+  // 2. Authority Score — our own 0-100 metric (see authorityScore()). There is no
+  //    page-level equivalent without a third-party suite, so `pa` stays null and
+  //    the card below drops out rather than showing an invented number.
+  d.da = authorityScore(siteRes);
 
   // 3. PageSpeed (mobile + desktop) — the upstream returns a 0-100 score string.
   const parsePS = (v) => { if (v == null) return null; const n = parseInt(String(v), 10); return Number.isNaN(n) ? null : n; };
@@ -1876,12 +1934,13 @@ async function pageAnalysisRun(body) {
   const readTone = page.readability == null ? 'slate' : page.readability >= 60 ? 'green' : page.readability >= 30 ? 'amber' : 'red';
 
   const authority = [
-    { label: 'Domain Authority', value: d.da ?? dash, tone: daTone(d.da) },
-    { label: 'Page Authority', value: d.pa ?? dash, tone: daTone(d.pa) },
+    { label: 'Authority Score', value: d.da ?? dash, tone: daTone(d.da) },
     { label: 'Backlinks', value: num(d.backlinks) + (linkSource ? ` · ${linkSource}` : ''), tone: 'slate' },
     { label: 'Referring domains', value: num(d.refdomains), tone: 'slate' },
-    { label: 'Organic traffic', value: d.orgtraffic == null ? dash : `${num(d.orgtraffic)}/mo`, tone: 'slate' },
-    { label: 'Organic keywords', value: num(d.orgkw), tone: 'slate' },
+    // Organic traffic / organic keyword estimates came from a third-party SEO
+    // suite and were removed with it — the user's own Search Console (via the
+    // GSC integration) is the accurate source for both, so we point there rather
+    // than showing a permanently empty card.
     { label: 'Spam score', value: d.spam == null ? dash : `${d.spam}%`, tone: spamTone },
   ];
 
@@ -1902,7 +1961,7 @@ async function pageAnalysisRun(body) {
 
   const sections = [
     { type: 'heading', text: `Page Technical & Domain Analysis — ${d.url}` },
-    { type: 'stats', title: 'Domain authority & links', items: authority },
+    { type: 'stats', title: 'Authority & links', items: authority },
     { type: 'stats', title: 'Page technical signals', items: technical },
   ];
   if (d.metatitle || d.metadesc) {
@@ -1913,9 +1972,9 @@ async function pageAnalysisRun(body) {
   }
 
   const summary = {
-    domainAuthority: d.da, pageAuthority: d.pa, backlinks: d.backlinks,
-    referringDomains: d.refdomains, spamScore: d.spam, organicKeywords: d.orgkw,
-    organicTraffic: d.orgtraffic, pageSpeedMobile: d.psm, pageSpeedDesktop: d.psd,
+    domainAuthority: d.da, backlinks: d.backlinks,
+    referringDomains: d.refdomains, spamScore: d.spam,
+    pageSpeedMobile: d.psm, pageSpeedDesktop: d.psd,
     ssl: d.ssl, wordCount: page.words,
   };
 
@@ -1989,7 +2048,7 @@ async function faSitelinerCrawl(url, maxWaitMs) {
   return null;
 }
 
-/** Strip tags/scripts/styles to approximate visible page text (for Copyscape). */
+/** Strip tags/scripts/styles to approximate visible page text (for the duplicate-content check). */
 function faStripHtml(html) {
   return String(html || '')
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -2268,7 +2327,7 @@ function generateForensicRecommendations(d) {
   if (d.ssl === 'fail') add('Invalid SSL Certificate', 'Client to renew SSL certificate', 'ssl');
   if (d.psd !== null && d.psd < 90) add(`Poor Desktop Page Speed (score: ${d.psd})`, 'Developer to minify bloated CSS or JS components and serve images in .webp format to reduce page load time. Additional plugins may be required for cache purposes', 'psd');
   if (d.psm !== null && d.psm < 90) add(`Poor Mobile Page Speed (score: ${d.psm})`, 'Developer to minify bloated CSS or JS components and serve images in .webp format to reduce page load time. Additional plugins may be required for cache purposes', 'psm');
-  if (d.gtmetrix && d.gtmetrix !== 'A') add(`GTmetrix Grade ${d.gtmetrix} (Not Grade A)`, 'Developer to improve the core web vitals', 'gtmetrix');
+  if (d.gtmetrix && d.gtmetrix !== 'A') add(`Performance Grade ${d.gtmetrix} (Not Grade A)`, 'Developer to improve the core web vitals', 'gtmetrix');
   if (d.copyscape !== null && d.copyscape > 15) add(`High Duplicate Content (${d.copyscape}%)`, 'MediaOne can assist with the write up to rephrase the duplicate content', 'copyscape');
   if (d.robots === 'Missing') add('robots.txt Does Not Exist', 'Developer to create robots.txt and add sitemap URL into robots.txt', 'robots');
   if (d.robots === 'Fail') add('robots.txt Missing Sitemap URL', 'Developer to add sitemap URL in robots.txt', 'robots');
@@ -2410,10 +2469,10 @@ function faSections(d, recs, score, sevCounts, backlinksSource, opts = {}) {
 
   const metrics = [
     { label: 'SSL', value: d.ssl === 'pass' ? 'Pass' : d.ssl === 'fail' ? 'Fail' : dash, tone: sslTone },
-    { label: 'Domain Authority', value: d.da ?? dash, tone: daTone },
+    { label: 'Authority Score', value: d.da ?? dash, tone: daTone },
     { label: 'PageSpeed Desktop', value: d.psd ?? dash, tone: psTone(d.psd) },
     { label: 'PageSpeed Mobile', value: d.psm ?? dash, tone: psTone(d.psm) },
-    { label: 'GTmetrix Grade', value: d.gtmetrix || dash, tone: gtTone },
+    { label: 'Performance Grade', value: d.gtmetrix || dash, tone: gtTone },
     { label: 'GA4', value: d.ga4 || dash, tone: ga4Tone },
     { label: 'Sitemap', value: d.sitemap || dash, tone: sitemapTone },
     { label: 'HTTPS Redirect', value: d.https || dash, tone: httpsTone },
@@ -2423,11 +2482,10 @@ function faSections(d, recs, score, sevCounts, backlinksSource, opts = {}) {
     { label: 'llms.txt', value: d.llmstxt || dash, tone: llmTone },
     { label: 'llms-full.txt', value: d.llmsfull || dash, tone: d.llmsfull === 'Present' ? 'green' : d.llmsfull === 'Missing' ? 'red' : 'slate' },
     { label: 'CMS', value: d.cms || dash, tone: 'slate' },
-    { label: 'Copyscape dup %', value: d.copyscape == null ? dash : `${d.copyscape}%`, tone: copyTone },
+    { label: 'External dup %', value: d.copyscape == null ? dash : `${d.copyscape}%`, tone: copyTone },
     { label: 'Internal dup %', value: d.siteliner == null ? dash : `${d.siteliner}%`, tone: sitelinerTone },
     { label: 'Backlinks', value: num(d.backlinks) + (backlinksSource ? ` · ${backlinksSource}` : ''), tone: 'slate' },
     { label: 'Referring domains', value: num(d.refdomains), tone: 'slate' },
-    { label: 'Organic keywords', value: num(d.orgkw), tone: 'slate' },
     { label: 'Spam score', value: d.spam == null ? dash : `${d.spam}%`, tone: spamTone },
   ];
 
@@ -2687,7 +2745,7 @@ function sectionsBacklinks(target, mode, s, refDomains, anchors, backlinks = [],
       { label: 'Broken backlinks', value: n(s.brokenBacklinks), tone: s.brokenBacklinks > 0 ? 'amber' : undefined },
       { label: 'Referring IPs', value: n(s.referringIps) },
     ] },
-    { type: 'text', text: 'Source: DataForSEO. Totals can differ from the Page Technical & Domain Analysis tool (which uses Ahrefs) — providers crawl different link indexes, so treat each as a trend, not an absolute count.' },
+    { type: 'text', text: 'Totals can differ between tools — link indexes are crawled at different times and depths, so treat each figure as a trend, not an absolute count.' },
   ];
   for (const sec of [
     breakdown('Link types', s.types),

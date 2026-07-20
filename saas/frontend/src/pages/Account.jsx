@@ -371,7 +371,7 @@ export default function Account() {
         <h2 className="font-bold">Your data</h2>
         <p className="mt-1 text-sm text-muted">
           Download everything we hold about you, or permanently delete your account. See our{' '}
-          <Link to="/legal/privacy" className="text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Privacy Policy</Link> and{' '}
+          <Link to="/legal/privacy" className="text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Privacy Notice</Link> and{' '}
           <Link to="/legal/terms" className="text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Terms</Link>.
         </p>
         <div className="mt-4 flex flex-wrap gap-3">

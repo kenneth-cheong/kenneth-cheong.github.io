@@ -294,7 +294,13 @@ export const handler = async (event) => {
         telephone: clampStr(body.telephone, 60).trim(),
         email: clampStr(body.email, 200).trim(),
       };
-      const missing = Object.entries(form).filter(([, v]) => !v).map(([k]) => k);
+      // Only name + email are required. Organisation/UEN/telephone were dropped
+      // from the gate on 2026-07-20 (freelancers have no UEN, and employees won't
+      // chase HQ for one) — they're now optional profile fields collected later.
+      // The fields stay in the record shape so existing acceptances, the Admin
+      // Agreements table and the Acceptance Record PDF keep rendering.
+      const REQUIRED = ['name', 'email'];
+      const missing = REQUIRED.filter((k) => !form[k]);
       if (missing.length) return badRequest(`Missing required field(s): ${missing.join(', ')}`);
       if (!isEmail(form.email)) return badRequest('A valid email is required.');
 
@@ -319,9 +325,11 @@ export const handler = async (event) => {
       // The full details ride along as a one-page "Acceptance Record" PDF; the
       // email body itself is a short summary.
       if (firstTime) {
+        // Organisation is optional now, so never render an empty "( )".
+        const who = form.organisation ? `${form.name} (${form.organisation})` : form.name;
         const subject = `Digimetrics Free Trial + NDA accepted — ${form.organisation || form.name}`;
         const text = [
-          `${form.name} (${form.organisation}) accepted the Digimetrics Free Trial + NDA.`,
+          `${who} accepted the Digimetrics Free Trial + NDA.`,
           '',
           `Email: ${form.email}`,
           `Account: ${user.email || '—'}`,
@@ -332,7 +340,7 @@ export const handler = async (event) => {
         ].join('\n');
         const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;color:#0f172a;">`
           + `<h2 style="color:#1d4ed8;margin:0 0 6px;">New Free Trial + NDA acceptance</h2>`
-          + `<p style="color:#475569;margin:0 0 14px;"><b>${form.name}</b> (${form.organisation}) confirmed they are authorised to accept the Digimetrics Free Trial and NDA Terms.</p>`
+          + `<p style="color:#475569;margin:0 0 14px;"><b>${form.name}</b>${form.organisation ? ` (${form.organisation})` : ''} confirmed they are authorised to accept the Digimetrics Free Trial and NDA Terms.</p>`
           + `<p style="color:#475569;margin:0;font-size:14px;">Email: ${form.email}<br>Account: ${user.email || '—'}<br>Accepted at (UTC): ${acceptedAt}<br>NDA version: ${version}</p>`
           + `<p style="color:#64748b;margin:16px 0 0;font-size:13px;">The full proof-of-consent details are in the attached <b>Acceptance Record (PDF)</b>.</p>`
           + `</div>`;

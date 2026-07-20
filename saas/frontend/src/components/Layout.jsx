@@ -21,7 +21,7 @@ import TrialNdaGate from './TrialNdaGate.jsx';
 import FaultReporter from './FaultReporter.jsx';
 import { setUser as setDiagnosticsUser } from '../lib/diagnostics.js';
 import { identify as identifyRecording } from '../lib/analytics.js';
-import { useMediaQuery, needsWelcome, hasAcceptedTerms, hasAcceptedNda } from '../lib/ui.js';
+import { useMediaQuery, needsWelcome, hasAcceptedTerms, hasAcceptedNda, onboardingOf } from '../lib/ui.js';
 import { PLANS } from '@shared/catalog.mjs';
 import { startPlatformTour, hasSeen, markSeen } from '../lib/tours.js';
 import { Menu, HelpCircle, ChevronDown, ChevronLeft, Search } from 'lucide-react';
@@ -66,29 +66,38 @@ export default function Layout({ children }) {
   // Shows automatically for brand-new accounts; `?welcome=1` re-opens it anytime
   // (lets anyone replay the intro — tours were otherwise one-shot).
   const [forceWelcome, setForceWelcome] = useState(() => new URLSearchParams(window.location.search).has('welcome'));
-  // Legal consent comes first: until the user accepts the current Terms version,
-  // the consent gate is shown and the welcome flow / tour are held back so the
-  // two overlays never stack.
+  // ── Onboarding: ONE ask at a time, and never the same ask twice ────────────
+  // This used to be a queue of four consecutive overlays (Terms consent → Free
+  // Trial/NDA → welcome goal picker → tour offer), and because several of the
+  // "seen it" flags were written fire-and-forget, a failed write put the whole
+  // queue back on screen at the NEXT login. Users reported being "forced through
+  // all the onboarding questions repeatedly".
+  //
+  // Now: the two legal acceptances share a single dialog (TrialNdaGate renders
+  // the Terms checkbox via `withTerms`), and the tour offer is folded into the
+  // welcome flow rather than firing as a separate toast behind it. So a brand-new
+  // account sees at most two screens ever — the legal gate, then the welcome —
+  // and a returning user sees none.
   const needsConsent = !!user && !hasAcceptedTerms(user);
-  // Soft-launch Free Trial + NDA gate — shown after base Terms consent, before
-  // the welcome flow, so the overlays never stack.
-  const needsNda = !!user && !needsConsent && !hasAcceptedNda(user);
-  const showWelcome = !needsConsent && !needsNda && (forceWelcome || needsWelcome(user));
+  const needsNda = !!user && !hasAcceptedNda(user);
+  const needsLegal = needsConsent || needsNda;
+  const showWelcome = !needsLegal && (forceWelcome || needsWelcome(user));
 
-  // After the welcome flow is done → OFFER the platform tour instead of
-  // auto-running it. Fourteen steps force-firing on top of a just-dismissed
-  // welcome (plus the auto-opened chat) was overload; a small invitation the
-  // user can accept or wave away respects their pace. Either choice marks the
-  // tour seen (server-side too) so it never nags again — it stays replayable
-  // from the "?" help menu.
+  // The platform tour is OFFERED, never auto-run. The offer now lives inside the
+  // welcome dialog for brand-new accounts (one screen, not a toast stacked behind
+  // it); this toast is only for users who never saw a welcome — e.g. accounts
+  // created before the flow existed. `welcomeShownRef` makes sure the two can
+  // never both appear in the same session.
   const [tourOffer, setTourOffer] = useState(false);
+  const welcomeShownRef = useRef(false);
+  if (showWelcome) welcomeShownRef.current = true;
   useEffect(() => {
-    if (needsConsent || needsNda || showWelcome) return;      // wait until consent + NDA + welcome are done
-    if (hasSeen('platform') || user?.onboarding?.seenPlatformTour) return;
+    if (needsLegal || showWelcome || welcomeShownRef.current) return;
+    if (hasSeen('platform') || onboardingOf(user).seenPlatformTour) return;
     if (window.location.pathname !== '/') return;
     const t = setTimeout(() => { if (!hasSeen('platform')) setTourOffer(true); }, 900);
     return () => clearTimeout(t);
-  }, [showWelcome, needsConsent, needsNda]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [showWelcome, needsLegal]); // eslint-disable-line react-hooks/exhaustive-deps
   const settleTourOffer = (take) => {
     markSeen('platform');
     setOnboarding({ seenPlatformTour: true });
@@ -105,11 +114,11 @@ export default function Layout({ children }) {
   useEffect(() => {
     if (autoLaunchedRef.current) return;
     if (!wide) return;
-    if (needsConsent || needsNda || showWelcome) return;
+    if (needsLegal || showWelcome) return;
     if (localStorage.getItem('dm:chatAutoOpen') === '0') return;
     autoLaunchedRef.current = true;
     setChatOpen(true);
-  }, [wide, needsConsent, needsNda, showWelcome]);
+  }, [wide, needsLegal, showWelcome]);
 
   // Let any page open the assistant (Support CTA) or ask it about something
   // (the right-click "Explain this" menu).
@@ -304,7 +313,7 @@ export default function Layout({ children }) {
       <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} ask={ask} say={say} />
       {/* Proactive Helpful Otter — desktop only (mobile chat is a full-screen sheet
           it shouldn't hijack). Suppressed until the consent/NDA/welcome overlays clear. */}
-      {wide && <ProactiveEngine paused={needsConsent || needsNda || showWelcome} chatOpen={chatOpen} />}
+      {wide && <ProactiveEngine paused={needsLegal || showWelcome} chatOpen={chatOpen} />}
       {/* Floating launcher — desktop only, matching the assistant's own rule
           (on mobile the panel is a full-screen sheet). */}
       {wide && <MontyLauncher open={chatOpen} onOpen={() => setChatOpen(true)} onClose={() => setChatOpen(false)} />}
@@ -318,8 +327,12 @@ export default function Layout({ children }) {
       <ExplainMenu />
       <FaultReporter />
       <Toaster />
-      {needsConsent && <ConsentGate />}
-      {needsNda && <TrialNdaGate />}
+      {/* One legal dialog. A new account needs both acceptances, so the NDA gate
+          carries the Terms checkbox too (`withTerms`). The standalone consent
+          gate is only for the re-consent case: an established user who already
+          accepted the NDA and is being re-prompted by a TERMS_VERSION bump. */}
+      {needsNda && <TrialNdaGate withTerms={needsConsent} />}
+      {needsConsent && !needsNda && <ConsentGate />}
       {showWelcome && <Welcome onDone={() => setForceWelcome(false)} />}
 
       {/* Friendly one-time tour invitation (replaces the old auto-fired tour). */}

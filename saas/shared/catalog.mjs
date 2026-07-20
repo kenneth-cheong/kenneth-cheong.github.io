@@ -13,7 +13,7 @@ export const CURRENCY = { code: 'SGD', symbol: 'S$' };
  * the first-run consent gate re-prompts any user whose accepted version differs,
  * so a bump forces everyone to re-accept. Keep in sync with Legal.jsx's date.
  */
-export const TERMS_VERSION = '2026-06-19';
+export const TERMS_VERSION = '2026-07-25';
 
 /**
  * Soft-launch Free Trial + NDA acceptance version. Independent of TERMS_VERSION:
@@ -115,6 +115,7 @@ export const CREDIT_COSTS = {
   keyword_lookup: 1, // per batch (≤10 keywords) with volume + difficulty
   rank_check: 1, // per keyword × location
   rank_backfill: 3, // per keyword — historical dated SERP snapshots (DataForSEO Labs)
+  page_speed: 1, // one page, mobile + desktop PageSpeed scores
   crawl: 2, // per 10 pages
   backlinks: 5, // per domain report
   page_analysis: 5, // landing page / SEM website analysis
@@ -146,6 +147,7 @@ export function costPerRun(tool, inputs) {
 // not listed falls back to the generic band.
 const TOOL_ETA = {
   'content-check': [10, 45], onpage: [10, 45], 'perf-marketing': [30, 150],
+  'page-speed': [10, 60],
   backlinks: [10, 45], 'ai-discovery': [15, 60], 'page-analysis': [15, 75],
   'landing-audit': [15, 75], 'anchor-cleaner': [15, 75], 'keyword-analysis': [20, 90],
   'llms-txt': [20, 90], 'time-to-rank': [20, 90], 'strategy-engine': [30, 120],
@@ -215,6 +217,14 @@ export const TOOLS = [
     cost: 'page_analysis', upstream: 'forensicSiteData', slow: true,
     desc: 'Quick site health snapshot: domain authority, backlinks, organic traffic, page speed, SSL and on-page technical signals — all in one view.',
     teaser: { reveal: 'summary-only' } },
+  // Deliberately tiny and cheap. It exists so a user who just wants FRESH SPEED
+  // NUMBERS has somewhere to go: before this, the only way to update the
+  // dashboard's Page speed card was to re-run the 50-credit GEO+SEO Forensic
+  // Audit, which takes ~2 minutes and recomputes thirty unrelated probes. The
+  // card's "Re-run" now calls this instead and patches itself in place.
+  { id: 'page-speed', name: 'Page Speed Check', category: 'SEO', minTier: 'free',
+    cost: 'page_speed', upstream: 'pageSpeed', slow: true,
+    desc: 'Google PageSpeed scores for one page, mobile and desktop.' },
   { id: 'competitors', name: 'Competitors Identifier', category: 'SEO', minTier: 'starter',
     cost: 'keyword_lookup', upstream: 'serpCompetitors',
     desc: 'Find who shares your keywords and how you stack up.' },
@@ -476,6 +486,7 @@ export const SIMPLE_NAMES = {
   schema: { name: 'Rich result builder', desc: 'Make your Google listing show extra info (stars, prices…).' },
   'strategy-engine': { name: 'SEO game plan', desc: 'Get a prioritised list of what to do to rank.' },
   'page-analysis': { name: 'Quick site check', desc: 'A fast snapshot of a site’s authority, links, speed and technical health.' },
+  'page-speed': { name: 'How fast is my page?', desc: 'Google’s speed score for one page, on phones and on desktop.' },
   'content-writer': { name: 'Write content', desc: 'Write or improve a page, then auto-check the quality.' },
   pillars: { name: 'Content plan', desc: 'A map of topics and angles to post about.' },
   gsc: { name: 'My Google search stats', desc: 'Clicks, impressions and positions from Google.' },
@@ -519,6 +530,7 @@ export const INTAKE = {
 const TOOL_STAGE = {
   // 1 · research / discovery
   'keyword-analysis': 1, competitors: 1, persona: 1, 'page-analysis': 1,
+  'page-speed': 2,
   // 2 · audit / diagnose
   'technical-seo': 2, 'forensic-audit': 2, 'landing-audit': 2, 'content-check': 2,
   'ai-discovery': 2, 'ai-mentions': 2, backlinks: 2,
@@ -690,10 +702,11 @@ export const GLOSSARY = {
   'Broken backlinks': 'Incoming links that now point to a missing or dead page.',
   'Referring domains': 'The number of different websites that link to you (quality signal).',
   'Referring IPs': 'The number of distinct servers your backlinks come from.',
-  'Domain Authority': 'A 0–100 score estimating how strongly a whole site can rank.',
+  // Our own authority metric. Deliberately NOT named after any SEO suite's
+  // proprietary equivalent — those names are trademarked and their terms forbid
+  // repackaging the underlying number.
+  'Authority Score': 'Our 0–100 estimate of how strongly a whole site can rank, based on the size and quality of its backlink profile.',
   'Domain rank': 'A score estimating how strong and trusted your domain is overall.',
-  'Domain Rating': 'A 0–100 score of how strong your backlink profile is.',
-  'Page Authority': 'A 0–100 score estimating how well a single page can rank.',
   'Spam score': 'How risky or low-quality a site’s link profile looks (higher = worse).',
   'Anchor text': 'The clickable words used in a link pointing to your site.',
   Nofollow: 'A link that tells search engines not to pass ranking credit.',
@@ -718,7 +731,7 @@ export const GLOSSARY = {
   'PageSpeed': 'A 0–100 score for how fast the page loads and responds.',
   'PageSpeed (mobile)': 'A 0–100 speed score for how the page loads on phones.',
   'PageSpeed (desktop)': 'A 0–100 speed score for how the page loads on computers.',
-  'GTmetrix Grade': 'A letter grade (A–F) for the page’s overall loading performance.',
+  'Performance Grade': 'A letter grade (A–F) for the page’s overall loading performance.',
   LCP: 'Largest Contentful Paint — how long until the main content appears (lower is better).',
   CLS: 'Cumulative Layout Shift — how much the page jumps around as it loads (lower is better).',
   INP: 'Interaction to Next Paint — how quickly the page reacts to a tap or click.',
@@ -988,6 +1001,9 @@ export const INPUTS = {
   ],
   'page-analysis': [
     { name: 'input', label: 'Website or page URL', type: 'url', placeholder: 'https://example.com', required: true },
+  ],
+  'page-speed': [
+    { name: 'input', label: 'Page URL', type: 'url', placeholder: 'https://example.com', required: true },
   ],
   backlinks: [
     { name: 'input', label: 'Domain', type: 'text', placeholder: 'example.com', required: true },
@@ -1340,8 +1356,11 @@ export const PROFILE_BONUS = 50; // rollover tokens granted once, on full comple
 
 export const PROFILE_FIELDS = [
   // ── Firmographics ──
+  // Optional: freelancers and solo consultants have no company, and making this
+  // required meant they could never complete the profile — so the nudge never
+  // retired and the completion bonus was unreachable for them.
   { key: 'companyName', label: 'Company name', group: 'firmographics', type: 'text',
-    placeholder: 'Acme Pte Ltd', required: true },
+    placeholder: 'Optional — leave blank if you’re freelance', required: false },
   { key: 'industry', label: 'Industry', group: 'firmographics', type: 'select', required: true,
     options: ['E-commerce', 'SaaS / Technology', 'Professional services', 'Healthcare', 'Education',
       'Real estate', 'Finance / Insurance', 'Travel / Hospitality', 'Manufacturing', 'Retail',
@@ -1374,6 +1393,10 @@ export const PROFILE_FIELDS = [
   // ── Contact & preferences ──
   { key: 'phone', label: 'Phone / WhatsApp', group: 'contact', type: 'text', required: false,
     placeholder: '+65 …' },
+  // Moved off the Free Trial + NDA gate (2026-07-20) — it blocked freelancers and
+  // anyone who'd have to ask HQ for it. Optional, and only surfaced this late.
+  { key: 'uen', label: 'Company registration no. (UEN)', group: 'contact', type: 'text', required: false,
+    placeholder: 'Optional — e.g. 201912345A' },
   { key: 'timezone', label: 'Timezone', group: 'contact', type: 'select', required: true,
     options: ['SGT (UTC+8)', 'MYT (UTC+8)', 'WIB (UTC+7)', 'ICT (UTC+7)', 'IST (UTC+5:30)',
       'GMT (UTC+0)', 'EST (UTC−5)', 'PST (UTC−8)', 'AEST (UTC+10)', 'Other'] },

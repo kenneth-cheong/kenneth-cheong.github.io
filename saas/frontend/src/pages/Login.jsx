@@ -272,7 +272,7 @@ export default function Login() {
         <p className="mt-4 text-xs text-faint">
           By continuing you agree to our{' '}
           <Link to="/legal/terms" className="text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Terms</Link> and{' '}
-          <Link to="/legal/privacy" className="text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Privacy Policy</Link>.
+          <Link to="/legal/privacy" className="text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Privacy Notice</Link>.
         </p>
       </div>
     </div>

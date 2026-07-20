@@ -46,13 +46,46 @@ export function fmtNum(v) {
 }
 
 // ── Onboarding ───────────────────────────────────────────────────────────────
+// Local mirror of the server's onboarding flags.
+//
+// Every "don't ask me again" flag lives server-side (durable, cross-device) and
+// is written by AuthContext.setOnboarding — which is deliberately fire-and-forget
+// and SWALLOWS failures. That's fine for the happy path, but when the write fails
+// (offline, a 5xx, the CORS outage we hit in July) the flag never lands, and the
+// user is dragged through the whole welcome → tour → profile gauntlet again on
+// every single login. That's the "onboarding loop" bug.
+//
+// So we mirror each flag into localStorage the moment it's set and merge the two
+// on read: server wins where it has an answer, the mirror covers the gap while a
+// write is in flight or has failed. Worst case (cleared storage AND a failed
+// write) the user is asked once more — never repeatedly.
+const ONBOARD_MIRROR_KEY = 'dm_onboarding_mirror';
+
+function readMirror() {
+  try { return JSON.parse(localStorage.getItem(ONBOARD_MIRROR_KEY) || '{}') || {}; }
+  catch { return {}; }
+}
+
+/** Merge a patch into the local onboarding mirror. Called by setOnboarding. */
+export function mirrorOnboarding(patch) {
+  if (!patch || typeof patch !== 'object') return;
+  try {
+    localStorage.setItem(ONBOARD_MIRROR_KEY, JSON.stringify({ ...readMirror(), ...patch }));
+  } catch { /* storage full or unavailable — server state is still authoritative */ }
+}
+
+/** The user's onboarding flags, with the local mirror filling any server gaps. */
+export function onboardingOf(user) {
+  return { ...readMirror(), ...(user?.onboarding || {}) };
+}
+
 // Show the first-run welcome only to genuinely new accounts that haven't been
 // welcomed yet. Gating on account age (server `createdAt`) cleanly excludes all
 // existing users — they never created onboarding state, so without this they'd
 // all see the welcome on next load. 24h window catches a real first session.
 const NEW_ACCOUNT_MS = 24 * 60 * 60 * 1000;
 export function needsWelcome(user) {
-  if (!user || user.onboarding?.welcomed) return false;
+  if (!user || onboardingOf(user).welcomed) return false;
   if (!user.createdAt) return false; // legacy account with no timestamp → never new
   const age = Date.now() - new Date(user.createdAt).getTime();
   return Number.isFinite(age) && age >= 0 && age < NEW_ACCOUNT_MS;

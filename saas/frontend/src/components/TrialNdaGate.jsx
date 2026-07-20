@@ -1,38 +1,54 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ShieldCheck, X } from 'lucide-react';
-import { NDA_VERSION } from '@shared/catalog.mjs';
+import { NDA_VERSION, TERMS_VERSION } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import NdaTermsModal from './NdaTermsModal.jsx';
 
-// Soft-launch Free Trial + NDA gate. Shown by Layout to any signed-in trial user
-// who hasn't accepted the current NDA_VERSION (after they've accepted the base
-// Terms). Not dismissible — completing it is required to use the trial. The
-// company form + acceptance are persisted server-side (tied to the account, so
-// it's never re-asked across devices) and tom@mediaone.co is notified.
+// The single legal gate a new trial user passes through. Shown by Layout to any
+// signed-in user who hasn't accepted the current NDA_VERSION. Not dismissible —
+// completing it is required to use the trial. Acceptance is persisted
+// server-side (tied to the account, so it's never re-asked across devices) and
+// tom@mediaone.co is notified.
+//
+// `withTerms` folds the base Terms/Privacy consent INTO this dialog. It used to
+// be a separate, near-identical shield-icon modal (ConsentGate) shown
+// immediately before this one — so a new user faced two consecutive legal
+// dialogs, then the welcome flow, then a tour prompt, then the profile nudge.
+// That pile-up is the "forced through all the onboarding questions" complaint.
+// The two acceptances still get their OWN checkbox (separate agreements need
+// separate assent) and are recorded under their own version flags — they just
+// share one screen and one submit now.
 //
 // `preview` mode (used by Admin → Agreements → "Preview gate") renders the exact
 // same dialog but is dismissible and never submits — staff can see what trial
 // users face without activating anything.
+// Kept deliberately short. This used to demand Name + Organisation + UEN +
+// Telephone + Email, all required — which freelancers can't satisfy (no UEN, no
+// organisation) and employees inside larger companies won't chase HQ for. The
+// gate is the FIRST thing a trial user sees, so every required field here is a
+// signup we lose. Name + Email are prefilled from the account and are all the
+// NDA actually needs to bind; Organisation is offered but optional. UEN and
+// telephone moved to the profile (PROFILE_FIELDS), collected progressively later
+// in the journey via ProfilePrompt.
 const FIELDS = [
-  { key: 'name', label: 'Name', type: 'text', autoComplete: 'name' },
-  { key: 'organisation', label: 'Organisation', type: 'text', autoComplete: 'organization' },
-  { key: 'uen', label: 'UEN', type: 'text', placeholder: 'e.g. 201912345A' },
-  { key: 'telephone', label: 'Telephone', type: 'tel', placeholder: '+65 …', autoComplete: 'tel' },
-  { key: 'email', label: 'Email', type: 'email', autoComplete: 'email' },
+  { key: 'name', label: 'Name', type: 'text', autoComplete: 'name', required: true },
+  { key: 'email', label: 'Email', type: 'email', autoComplete: 'email', required: true },
+  { key: 'organisation', label: 'Company', type: 'text', autoComplete: 'organization',
+    placeholder: 'Optional — leave blank if you’re a freelancer' },
 ];
 
 const validEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((v || '').trim());
 
-export default function TrialNdaGate({ preview = false, onClose }) {
-  const { user, acceptNda } = useAuth();
+export default function TrialNdaGate({ preview = false, withTerms = false, onClose }) {
+  const { user, acceptNda, setOnboarding } = useAuth();
   const [form, setForm] = useState(() => ({
     name: preview ? '' : (user?.name || ''),
-    organisation: '',
-    uen: '',
-    telephone: '',
     email: preview ? '' : (user?.email || ''),
+    organisation: '',
   }));
   const [agreed, setAgreed] = useState(false);
+  const [agreedTerms, setAgreedTerms] = useState(false);
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [serverErr, setServerErr] = useState('');
@@ -48,13 +64,14 @@ export default function TrialNdaGate({ preview = false, onClose }) {
     if (busy) return;
     const errs = {};
     for (const f of FIELDS) {
-      if (!form[f.key].trim()) errs[f.key] = true;
+      if (f.required && !form[f.key].trim()) errs[f.key] = true;
     }
     if (form.email.trim() && !validEmail(form.email)) errs.email = true;
     if (!agreed) errs.agreed = true;
+    if (withTerms && !agreedTerms) errs.agreedTerms = true;
     setErrors(errs);
     if (Object.keys(errs).length) {
-      setServerErr('Please complete all fields and accept the terms.');
+      setServerErr('Please add your name and email, and accept the terms.');
       return;
     }
     setServerErr('');
@@ -64,13 +81,20 @@ export default function TrialNdaGate({ preview = false, onClose }) {
     }
     setBusy(true);
     try {
+      // Record the base Terms consent first. It's a separate agreement with its
+      // own version flag, but it rides the same submit so the user only faces
+      // one screen. AWAITED, unlike the old fire-and-forget ConsentGate write:
+      // when that write silently failed the flag never landed and the consent
+      // dialog came back on every login.
+      if (withTerms) {
+        const saved = await setOnboarding({ acceptedTerms: true, acceptedTermsVersion: TERMS_VERSION });
+        if (!saved) throw new Error('We couldn’t record your acceptance just now. Please check your connection and try again.');
+      }
       await acceptNda({
         accepted: true,
         version: NDA_VERSION,
         name: form.name.trim(),
         organisation: form.organisation.trim(),
-        uen: form.uen.trim(),
-        telephone: form.telephone.trim(),
         email: form.email.trim(),
       });
       // On success the user's onboarding now has acceptedNda → Layout drops the gate.
@@ -99,15 +123,18 @@ export default function TrialNdaGate({ preview = false, onClose }) {
 
         <h1 className="mt-4 text-xl font-bold text-heading">Activate your free trial</h1>
         <p className="mt-2 text-sm leading-relaxed text-dim">
-          Please confirm your details and accept the Free Trial &amp; NDA Terms to activate
-          your 180-day trial. You only need to do this once.
+          Confirm your details and accept the Free Trial &amp; NDA Terms to activate your
+          180-day trial. Two fields, once — we&rsquo;ll ask for anything else later, only if we need it.
         </p>
 
         <div className="mt-5 space-y-3">
           {FIELDS.map((f) => (
             <div key={f.key}>
               <label htmlFor={`nda-${f.key}`} className="mb-1 block text-xs font-semibold text-dim">
-                {f.label} <span className="text-rose-500">*</span>
+                {f.label}{' '}
+                {f.required
+                  ? <span className="text-rose-500" aria-hidden>*</span>
+                  : <span className="font-normal text-faint">(optional)</span>}
               </label>
               <input
                 id={`nda-${f.key}`}
@@ -140,6 +167,26 @@ export default function TrialNdaGate({ preview = false, onClose }) {
             <a href="mailto:tom@mediaone.co" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">tom@mediaone.co</a>.
           </span>
         </label>
+
+        {/* Base Terms/Privacy consent — folded in from what used to be its own
+            separate dialog. Its own checkbox, its own version flag. */}
+        {withTerms && (
+          <label className={`mt-3 flex cursor-pointer items-start gap-3 rounded-xl border p-3 hover:border-brand-300 dark:hover:border-brand-500/40 ${errors.agreedTerms ? 'border-rose-400 bg-rose-50 dark:bg-rose-500/10' : 'border-line'}`}>
+            <input
+              type="checkbox"
+              checked={agreedTerms}
+              onChange={(e) => { setAgreedTerms(e.target.checked); if (errors.agreedTerms) setErrors((x) => ({ ...x, agreedTerms: false })); }}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-edge text-brand-600 dark:text-brand-400 focus:ring-brand-500"
+            />
+            <span className="text-sm leading-relaxed text-body">
+              I have read and agree to the{' '}
+              <Link to="/legal/terms" target="_blank" rel="noreferrer" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Terms and Conditions of Use</Link>{' '}
+              (including the indemnity for generated recommendations) and the{' '}
+              <Link to="/legal/privacy" target="_blank" rel="noreferrer" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Privacy Notice</Link>.
+              Digimetrics&rsquo; audits, scores and AI recommendations are for information only, not professional advice.
+            </span>
+          </label>
+        )}
 
         {serverErr && <p className="mt-3 text-sm text-rose-600 dark:text-rose-400">{serverErr}</p>}
         {notice && <p className="mt-3 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">{notice}</p>}

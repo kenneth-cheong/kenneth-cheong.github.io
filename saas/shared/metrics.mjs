@@ -44,10 +44,10 @@ export const TRACKED_METRICS = {
   'forensic-audit': [
     { key: 'healthScore', field: 'healthScore', label: 'Health score', unit: '', dir: 'up' },
     { key: 'issues', field: 'issues', label: 'Issues', unit: '', dir: 'down' },
-    { key: 'domainAuthority', field: 'domainAuthority', label: 'Domain authority', unit: '', dir: 'up' },
+    { key: 'domainAuthority', field: 'domainAuthority', label: 'Authority score', unit: '', dir: 'up' },
   ],
   'page-analysis': [
-    { key: 'domainAuthority', field: 'domainAuthority', label: 'Domain authority', unit: '', dir: 'up' },
+    { key: 'domainAuthority', field: 'domainAuthority', label: 'Authority score', unit: '', dir: 'up' },
     { key: 'backlinks', field: 'backlinks', label: 'Backlinks', unit: '', dir: 'up' },
     { key: 'spamScore', field: 'spamScore', label: 'Spam score', unit: '%', dir: 'down' },
   ],

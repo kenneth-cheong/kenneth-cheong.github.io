@@ -29,11 +29,32 @@ function ask(text) {
 
 // Compact "where did this come from" line so the assistant answers in context
 // without us having to thread the whole result through.
-function ctxLine({ toolName, domain } = {}) {
+function ctxLine({ toolName, target, domain } = {}) {
   const bits = [];
   if (toolName) bits.push(`from the "${toolName}" tool`);
-  if (domain) bits.push(`for my website ${domain}`);
+  const subject = target || domain;
+  if (subject) bits.push(`for ${subject}`);
   return bits.length ? ` (${bits.join(', ')})` : '';
+}
+
+// The single most-reported break in the journey: a user hits "Do it for me" on
+// something like "your meta description is missing", and the assistant opens by
+// asking which URL — the one they typed into the tool form two clicks ago and
+// which is printed at the top of the very result they clicked from. They then
+// wander off to another tool and never see the generated text at all.
+//
+// So we state the subject explicitly and forbid re-asking for it. `target` is
+// the URL/domain the run was actually about (threaded from ToolRunner), which is
+// the piece that used to go missing whenever the user had no project set up.
+function subjectBlock({ target, domain } = {}) {
+  const subject = target || domain;
+  if (!subject) return '';
+  return (
+    `\n\nThe page/site in question is: ${subject}\n` +
+    `Do NOT ask me which URL, domain, page or site this is about — you already have it above. ` +
+    `If you genuinely cannot proceed without something else, make your best assumption, state the ` +
+    `assumption in one short line, and give me the finished result anyway.`
+  );
 }
 
 export default function RecommendationCard({ card, sectionTitle, context }) {
@@ -44,17 +65,21 @@ export default function RecommendationCard({ card, sectionTitle, context }) {
   const body = card.body || '';
   const where = ctxLine(context);
 
+  const subject = subjectBlock(context);
+
   const how = () => ask(
     `I got this recommendation${where}: "${title}${body ? ` — ${body}` : ''}".\n\n` +
     `I'm new to digital marketing. In plain, simple English (explain any jargon), walk me through EXACTLY how to do this — ` +
     `numbered steps I can follow, where in my website or accounts I'd make each change, and roughly how long it'll take. ` +
-    `If I can't do part of it myself, say so.`,
+    `If I can't do part of it myself, say so.${subject}`,
   );
 
   const doIt = () => ask(
-    `Please help me actually DO this recommendation${where}: "${title}${body ? ` — ${body}` : ''}".\n\n` +
-    `Where you can, produce the finished thing for me right now — e.g. write the copy, meta text, outline, or message I need, ` +
-    `ready to paste in. If you need one or two details from me first, ask them one at a time, then give me the final result.`,
+    `Please help me actually DO this recommendation${where}: "${title}${body ? ` — ${body}` : ''}".${subject}\n\n` +
+    `Produce the FINISHED thing in this reply — the actual copy, meta title/description, outline or message, ` +
+    `ready for me to paste in. Do not ask me clarifying questions first, do not describe what you would write, ` +
+    `and do not tell me you'll come back with it: write it out now. Put the finished text on its own, clearly ` +
+    `separated from any explanation, then add one short line on where to paste it.`,
   );
 
   const addToPlan = () => {

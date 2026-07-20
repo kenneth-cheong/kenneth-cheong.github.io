@@ -248,7 +248,7 @@ export default function SeoDiagnostics() {
       {step === 4 && (
         <div className="card mt-4 p-5">
           <h2 className="text-sm font-bold uppercase tracking-wide text-body">Technical checks</h2>
-          <p className="mt-1 text-xs text-faint">We run PageSpeed, GTmetrix, SSL, on-page (schema/meta/headings), robots/llms.txt, backlinks and a live SERP landscape against your domain, then diagnose.</p>
+          <p className="mt-1 text-xs text-faint">We run page speed, performance grade, SSL, on-page (schema/meta/headings), robots/llms.txt, backlinks and a live SERP landscape against your domain, then diagnose.</p>
           <div className="mt-3">
             <label className="block text-sm font-medium text-body">Depth</label>
             <div className="mt-1 inline-flex overflow-hidden rounded-lg border border-brand-200 dark:border-brand-500/30">
@@ -282,7 +282,7 @@ export default function SeoDiagnostics() {
               <ShareResult tool={SHARE_TOOL} out={result} project={active} user={user} force snapshot label="Share result" className="btn-ghost inline-flex items-center gap-1 text-sm" />
             </div>
           )}
-          {result?.sections ? <ResultSections sections={result.sections} context={{ toolName: 'SEO Diagnostics', domain }} /> : <p className="text-dim">No diagnosis yet.</p>}
+          {result?.sections ? <ResultSections sections={result.sections} context={{ toolName: 'SEO Diagnostics', domain, target: domain }} /> : <p className="text-dim">No diagnosis yet.</p>}
         </div>
       )}
 

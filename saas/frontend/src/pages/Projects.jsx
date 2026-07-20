@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { PLANS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
@@ -30,6 +30,21 @@ function ProjectsSection() {
   const limit = PLANS[user.tier]?.projects ?? 1;
   const atLimit = projects.length >= limit;
 
+  // Arriving from the header's "Start a new project…" → put the cursor in the
+  // form. Without this the page just showed the existing project list and the
+  // user had no idea where to start one. The param is stripped so a refresh
+  // doesn't keep stealing focus.
+  const [params, setParams] = useSearchParams();
+  const formRef = useRef(null);
+  const nameRef = useRef(null);
+  useEffect(() => {
+    if (!params.has('new')) return;
+    const next = new URLSearchParams(params); next.delete('new'); setParams(next, { replace: true });
+    if (atLimit) return;
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    nameRef.current?.focus({ preventScroll: true });
+  }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function add(e) {
     e.preventDefault();
     if (!name.trim() && !domain.trim()) return;
@@ -56,10 +71,10 @@ function ProjectsSection() {
       <h1 className="text-2xl font-bold">Projects</h1>
       <p className="mt-1 text-dim">Group a site's runs and connected data. {projects.length}/{limit} used on your {PLANS[user.tier].name} plan.</p>
 
-      <form onSubmit={add} className="card mt-6 flex flex-wrap items-end gap-3 p-5">
+      <form ref={formRef} onSubmit={add} className="card mt-6 flex flex-wrap items-end gap-3 p-5">
         <label className="block flex-1">
           <span className="text-sm font-medium text-body">Project name</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Storage"
+          <input ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Storage"
             className="mt-1.5 w-full rounded-lg border border-edge p-2.5 text-sm focus:border-brand-500 focus:outline-none" />
         </label>
         <label className="block flex-1">

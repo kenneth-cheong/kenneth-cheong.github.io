@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { api, setToken, setRefreshToken } from '../lib/api.js';
+import { mirrorOnboarding } from '../lib/ui.js';
 
 const AuthCtx = createContext(null);
 export const useAuth = () => useContext(AuthCtx);
@@ -115,14 +116,28 @@ export function AuthProvider({ children }) {
   }, []);
 
   // Persist first-run onboarding state server-side (durable + cross-device) and
-  // optimistically patch the local user so the UI updates immediately. Failures
-  // are swallowed — onboarding is best-effort and must never block the app.
+  // optimistically patch the local user so the UI updates immediately.
+  //
+  // The network write is best-effort and must never block the app — but a
+  // swallowed failure used to mean the "welcomed"/"seenPlatformTour" flags never
+  // landed, so the user was dragged back through the entire onboarding queue at
+  // the next login. We now mirror every patch into localStorage first, and the
+  // ui.js readers merge that mirror over the server state. A failed write costs
+  // cross-device sync, not a repeat interrogation.
+  //
+  // Never rejects (most callers fire-and-forget), but RESOLVES to whether the
+  // server actually took the patch — so the callers that care, like the legal
+  // gate recording Terms acceptance, can await it and react.
   const setOnboarding = useCallback(async (patch) => {
+    mirrorOnboarding(patch);
     setUser((u) => (u ? { ...u, onboarding: { ...(u.onboarding || {}), ...patch } } : u));
     try {
       const { onboarding } = await api.setOnboarding(patch);
       if (onboarding) setUser((u) => (u ? { ...u, onboarding } : u));
-    } catch { /* best-effort; local patch already applied */ }
+      return true;
+    } catch {
+      return false; // local patch + mirror already applied
+    }
   }, []);
 
   // Free Trial + NDA acceptance. Unlike onboarding (best-effort, fire-and-forget),

@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, ShieldCheck, ShieldAlert, Gauge as GaugeIcon, Link2, Bot, LineChart } from 'lucide-react';
-import { toolById } from '@shared/catalog.mjs';
+import { Play, RefreshCw, ShieldCheck, ShieldAlert, Gauge as GaugeIcon, Link2, Bot, LineChart } from 'lucide-react';
+import { CREDIT_COSTS, toolById } from '@shared/catalog.mjs';
+import { api } from '../lib/api.js';
+import { toast } from '../lib/ui.js';
+import { useAuth } from '../context/AuthContext.jsx';
 import { useLatestRuns, ago } from '../lib/latestRuns.js';
 import Modal from './Modal.jsx';
 import ResultSections from './ResultSections.jsx';
@@ -24,6 +27,14 @@ export default function ResultCards() {
   const geo = byTool['ai-discovery'];
   const ga4 = byTool['ga4'];
   const s = audit?.result?.summary || null;
+
+  // Page speed is shown from the audit by default, but can be refreshed on its
+  // own (see the Page speed card). `speed` holds the fresher standalone reading
+  // once one has been taken, so the rings update without a full re-audit.
+  const [speed, setSpeed] = useState(null);
+  const ps = speed || (s && s.pageSpeedMobile != null
+    ? { mobile: s.pageSpeedMobile, desktop: s.pageSpeedDesktop }
+    : null);
 
   if (loading) {
     return (
@@ -51,14 +62,31 @@ export default function ResultCards() {
         )}
       </Card>
 
-      {/* ── Page speed ──────────────────────────────────────────────────── */}
+      {/* ── Page speed ──────────────────────────────────────────────────────
+          The one card with a REFRESH: page speed is the metric people re-check
+          most, and it's cheap to re-measure on its own. `refresh` makes the
+          card's "Re-run" call the 1-credit Page Speed Check and patch these two
+          numbers in place — it used to redirect to the 50-credit, ~2-minute
+          forensic audit, which recomputed thirty unrelated probes to update two
+          rings the user was already looking at. */}
       <Card title="Page speed" toolId="forensic-audit" run={audit} icon={<GaugeIcon size={15} aria-hidden />}
-        chip={s && `${Math.round((s.pageSpeedMobile + s.pageSpeedDesktop) / 2)} avg`}>
-        {s && (
+        chip={ps && `${Math.round((ps.mobile + ps.desktop) / 2)} avg`}
+        refresh={{
+          toolId: 'page-speed',
+          label: 'Refresh speed',
+          apply: (result) => {
+            const sum = result?.summary || {};
+            if (sum.pageSpeedMobile == null && sum.pageSpeedDesktop == null) return null;
+            return { mobile: sum.pageSpeedMobile, desktop: sum.pageSpeedDesktop };
+          },
+        }}
+        onRefreshed={setSpeed}
+      >
+        {ps && (
           <>
             <div className="flex flex-wrap items-center justify-around gap-2 py-2">
-              <Ring value={s.pageSpeedMobile} max={100} label="Mobile" hue={hueFor(s.pageSpeedMobile)} size={92} />
-              <Ring value={s.pageSpeedDesktop} max={100} label="Desktop" hue={hueFor(s.pageSpeedDesktop)} size={92} />
+              <Ring value={ps.mobile} max={100} label="Mobile" hue={hueFor(ps.mobile)} size={92} />
+              <Ring value={ps.desktop} max={100} label="Desktop" hue={hueFor(ps.desktop)} size={92} />
             </div>
             <p className="mt-1 text-[10.5px] text-muted">
               Google PageSpeed scores. (Field Core Web Vitals — LCP/INP/CLS — aren't collected by this tool.)
@@ -69,7 +97,7 @@ export default function ResultCards() {
 
       {/* ── Authority & backlinks ───────────────────────────────────────── */}
       <Card title="Authority" toolId="forensic-audit" run={audit} icon={<Link2 size={15} aria-hidden />}
-        chip={s && `DA ${s.domainAuthority}`}>
+        chip={s && s.domainAuthority != null && `Authority ${s.domainAuthority}`}>
         {s && (
           <>
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
@@ -79,7 +107,9 @@ export default function ResultCards() {
               <span className="text-xs font-semibold text-muted">backlinks</span>
             </div>
             <div className="mt-4 flex flex-col gap-2.5">
-              <Meter label="Domain authority" n={s.domainAuthority} max={100} hue="var(--c-pos)" suffix={`${s.domainAuthority}/100`} />
+              {s.domainAuthority != null && (
+                <Meter label="Authority score" n={s.domainAuthority} max={100} hue="var(--c-pos)" suffix={`${s.domainAuthority}/100`} />
+              )}
               {/* Spam score inverts: lower is better, so the bar stays green until it isn't. */}
               <Meter label="Spam score" n={s.spamScore} max={100} hue={s.spamScore <= 10 ? 'var(--c-pos)' : s.spamScore <= 30 ? 'var(--c-warn)' : 'var(--c-neg)'} suffix={`${s.spamScore}%`} />
             </div>
@@ -138,10 +168,19 @@ export default function ResultCards() {
 
 // Shell: title, freshness, and — when there's no stored run — an honest empty
 // state pointing at the tool instead of a fake number.
-function Card({ title, toolId, run, chip, icon, children }) {
+//
+// `refresh` opts a card into an INLINE update: { toolId, label, apply }. The
+// footer button then runs that (small, cheap) tool against this card's target
+// and hands the result to `apply`, which returns the patch for `onRefreshed`.
+// Without it the footer button just opens the card's own tool, which is right
+// for the heavyweight ones — but was badly wrong for Page speed, where it meant
+// a 50-credit forensic audit to refresh two numbers.
+function Card({ title, toolId, run, chip, icon, refresh, onRefreshed, children }) {
   const has = !!run?.result;
   const navigate = useNavigate();
   const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const { setCredits } = useAuth();
   // With a stored run → clicking the card opens a detail modal with the full run
   // (sections / report), plus a footer link to open the tool and re-run. With no
   // run yet → the card goes straight to the tool to run it the first time.
@@ -151,6 +190,30 @@ function Card({ title, toolId, run, chip, icon, children }) {
   const toolName = toolById(toolId)?.name || title;
   const sections = run?.result?.sections;
   const html = run?.result?.html;
+
+  const refreshTool = refresh && toolById(refresh.toolId);
+  const refreshCost = refreshTool ? (CREDIT_COSTS[refreshTool.cost] ?? 0) : 0;
+
+  // Re-measure just this card. Stays on the page — no navigation, no tool form,
+  // no re-running everything else the original audit happened to cover.
+  async function doRefresh(e) {
+    e.stopPropagation();
+    if (busy || !run?.target) return;
+    setBusy(true);
+    try {
+      const res = await api.runTool(refreshTool.id, { input: run.target, url: run.target }, refreshTool.slow);
+      if (typeof res?.creditsRemaining === 'number') setCredits(res.creditsRemaining, res.topupRemaining);
+      if (res?.failed) { toast('Couldn’t get a fresh reading — no credits were charged.', 'error'); return; }
+      const patch = refresh.apply(res?.result ?? res);
+      if (!patch) { toast('Couldn’t get a fresh reading just now.', 'error'); return; }
+      onRefreshed?.(patch);
+      toast(`${title} updated${res?.creditsUsed ? ` · −${res.creditsUsed} credit${res.creditsUsed > 1 ? 's' : ''}` : ''}`, 'success');
+    } catch (err) {
+      toast(err?.message || 'Refresh failed — no credits were charged.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <>
@@ -175,13 +238,26 @@ function Card({ title, toolId, run, chip, icon, children }) {
           <div className="flex-1">{children}</div>
           <div className="mt-3 flex items-center justify-between gap-2 border-t border-hair pt-2.5">
             <span className="truncate text-[10px] text-faint" title={run.target}>{run.target} · {ago(run.ts)}</span>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); openTool(); }}
-              className="shrink-0 text-[10px] font-bold text-peri hover:underline"
-            >
-              Re-run
-            </button>
+            {refreshTool ? (
+              <button
+                type="button"
+                onClick={doRefresh}
+                disabled={busy}
+                title={`Re-measure ${run.target} without leaving this page — ${refreshCost} credit${refreshCost === 1 ? '' : 's'}`}
+                className="inline-flex shrink-0 items-center gap-1 text-[10px] font-bold text-peri hover:underline disabled:cursor-wait disabled:opacity-60 disabled:no-underline"
+              >
+                <RefreshCw size={11} className={busy ? 'animate-spin' : undefined} aria-hidden />
+                {busy ? 'Checking…' : (refresh.label || 'Refresh')}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); openTool(); }}
+                className="shrink-0 text-[10px] font-bold text-peri hover:underline"
+              >
+                Re-run
+              </button>
+            )}
           </div>
         </>
       ) : (
@@ -211,7 +287,7 @@ function Card({ title, toolId, run, chip, icon, children }) {
         footer={<DetailLink to={`/tool/${toolId}`} primary onClick={() => setShow(false)}>Open {toolName}</DetailLink>}
       >
         {Array.isArray(sections) && sections.length
-          ? <ResultSections sections={sections} />
+          ? <ResultSections sections={sections} context={{ toolName, target: run.target, route: `/tool/${toolId}` }} />
           : html
             ? <ReportHtml html={html} />
             : <div className="dm-result-detail-fallback">{children}</div>}

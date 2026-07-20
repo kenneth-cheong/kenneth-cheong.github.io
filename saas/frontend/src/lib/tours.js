@@ -138,7 +138,7 @@ const SAMPLE_RESULTS = {
     result: {
       source: 'live',
       sections: [
-        callout('Forecast based on asana.com’s current authority (Domain Authority 95) and each keyword’s ranking difficulty. Higher-difficulty terms take longer to reach page one, even for a strong domain.'),
+        callout('Forecast based on asana.com’s current authority (Authority Score 95) and each keyword’s ranking difficulty. Higher-difficulty terms take longer to reach page one, even for a strong domain.'),
       ],
       rows: [
         { Keyword: 'work management', Volume: '720', Difficulty: '21', 'Time to rank': '2–3 months' },
@@ -246,7 +246,7 @@ const SAMPLE_RESULTS = {
       source: 'live',
       sections: [
         stats('Site snapshot · asana.com', [
-          { label: 'Domain authority', value: '95', tone: 'green' },
+          { label: 'Authority score', value: '95', tone: 'green' },
           { label: 'Backlinks', value: '2.9M', tone: 'green' },
           { label: 'Ref. domains', value: '115,922' },
           { label: 'Organic keywords', value: '537,894', tone: 'green' },
@@ -445,7 +445,7 @@ const SAMPLE_RESULTS = {
       source: 'live',
       sections: [
         stats('Health score · asana.com', [
-          { label: 'Health score', value: '82 / 100', tone: 'green' }, { label: 'Domain authority', value: '95', tone: 'green' },
+          { label: 'Health score', value: '82 / 100', tone: 'green' }, { label: 'Authority score', value: '95', tone: 'green' },
           { label: 'Backlinks', value: '2.9M', tone: 'green' }, { label: 'llms.txt', value: 'Missing', tone: 'red' },
         ]),
       ],
@@ -1088,7 +1088,7 @@ export function startSeoDiagnosticsTour(tool, hooks = {}) {
     {
       popover: {
         title: 'Context + technical checks',
-        description: 'Step 3 lets you paste GA4/Search Console data (optional, sharpens the plan). Step 4 runs PageSpeed, GTmetrix, SSL, on-page, robots/llms.txt, backlinks and the live SERP landscape.',
+        description: 'Step 3 lets you paste GA4/Search Console data (optional, sharpens the plan). Step 4 runs page speed, performance grade, SSL, on-page, robots/llms.txt, backlinks and the live SERP landscape.',
       },
     },
     {
