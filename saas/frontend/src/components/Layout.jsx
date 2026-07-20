@@ -78,10 +78,19 @@ export default function Layout({ children }) {
   // welcome flow rather than firing as a separate toast behind it. So a brand-new
   // account sees at most two screens ever — the legal gate, then the welcome —
   // and a returning user sees none.
-  const needsConsent = !!user && !hasAcceptedTerms(user);
-  const needsNda = !!user && !hasAcceptedNda(user);
+  // ...EXCEPT on the legal pages themselves. The gate asks you to agree to the
+  // Terms and Privacy Notice and links to them — but those links land back in
+  // this same Layout, which re-rendered the gate ON TOP of the document, so the
+  // reader got the pop-up again instead of the text they clicked through to
+  // read. You could not read the terms you were being asked to accept.
+  // Reading them is never gated; using the app still is, because every other
+  // route re-renders the gate.
+  const onLegalPage = location.pathname.startsWith('/legal/');
+  const needsConsent = !!user && !hasAcceptedTerms(user) && !onLegalPage;
+  const needsNda = !!user && !hasAcceptedNda(user) && !onLegalPage;
   const needsLegal = needsConsent || needsNda;
-  const showWelcome = !needsLegal && (forceWelcome || needsWelcome(user));
+  // Same reasoning as the gates: nothing overlays a legal document.
+  const showWelcome = !needsLegal && !onLegalPage && (forceWelcome || needsWelcome(user));
 
   // The platform tour is OFFERED, never auto-run. The offer now lives inside the
   // welcome dialog for brand-new accounts (one screen, not a toast stacked behind
@@ -114,11 +123,11 @@ export default function Layout({ children }) {
   useEffect(() => {
     if (autoLaunchedRef.current) return;
     if (!wide) return;
-    if (needsLegal || showWelcome) return;
+    if (needsLegal || showWelcome || onLegalPage) return;   // don't slide over the terms
     if (localStorage.getItem('dm:chatAutoOpen') === '0') return;
     autoLaunchedRef.current = true;
     setChatOpen(true);
-  }, [wide, needsLegal, showWelcome]);
+  }, [wide, needsLegal, showWelcome, onLegalPage]);
 
   // Let any page open the assistant (Support CTA) or ask it about something
   // (the right-click "Explain this" menu).

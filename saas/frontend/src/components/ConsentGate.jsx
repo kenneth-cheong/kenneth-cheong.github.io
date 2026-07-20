@@ -48,8 +48,7 @@ export default function ConsentGate() {
           />
           <span className="text-sm text-body">
             I have read and agree to the{' '}
-            <Link to="/legal/terms" target="_blank" rel="noreferrer" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Terms and Conditions of Use</Link>{' '}
-            (including the indemnity for generated recommendations) and the{' '}
+            <Link to="/legal/terms" target="_blank" rel="noreferrer" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Terms and Conditions of Use</Link>{' '}and the{' '}
             <Link to="/legal/privacy" target="_blank" rel="noreferrer" className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Privacy Notice</Link>.
           </span>
         </label>
