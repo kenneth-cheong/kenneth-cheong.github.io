@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Bug, X, Paperclip, ChevronDown, ChevronRight } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { toast } from '../lib/ui.js';
-import { snapshot, summary } from '../lib/diagnostics.js';
+import { snapshot, summary, isFaultSuppressed } from '../lib/diagnostics.js';
 import { Attachments, uploadFile } from './Attachments.jsx';
 
 const MUTE_KEY = 'dm_fault_muted'; // session: user asked not to auto-popup again
@@ -68,7 +68,9 @@ export default function FaultReporter() {
     const onFault = () => {
       if (open || sessionStorage.getItem(MUTE_KEY)) return;
       clearTimeout(t);
-      t = setTimeout(() => { if (!sessionStorage.getItem(MUTE_KEY)) openPanel(); }, 400);
+      // A failure someone else already turned into a guided fix (e.g. the
+      // "connect your account" widget) must not also throw a bug report at them.
+      t = setTimeout(() => { if (!sessionStorage.getItem(MUTE_KEY) && !isFaultSuppressed()) openPanel(); }, 400);
     };
     window.addEventListener('dm:fault', onFault);
     window.addEventListener('dm:report-fault', openPanel); // manual trigger from elsewhere

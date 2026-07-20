@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Check, AlertTriangle } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { FAMILY_META } from '@shared/catalog.mjs';
+import { RETURN_KEY } from '../components/ConnectPrompt.jsx';
 
 const TOOL_FOR = { gsc: 'gsc', ga4: 'ga4', 'google-ads': 'google-ads', 'meta-ads': 'meta-ads', 'linkedin-ads': 'linkedin-ads' };
 const LABELS = {
@@ -33,6 +34,15 @@ export default function Integrations() {
 
   const justConnected = params.get('connected');
   const oauthError = params.get('error');
+  // OAuth can only land back on this page, so a user sent here by a tool's
+  // connect widget gets a one-click ride back to the run they abandoned.
+  const [returnTo] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem(RETURN_KEY);
+      sessionStorage.removeItem(RETURN_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  });
   useEffect(() => {
     if (justConnected || oauthError) {
       load();
@@ -101,6 +111,13 @@ export default function Integrations() {
       <p className="mt-1 text-dim">
         Connect your ad &amp; analytics accounts to pull your own performance data — free of credits, and queryable by the assistant.
       </p>
+
+      {returnTo?.provider && TOOL_FOR[returnTo.provider] && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 px-4 py-2.5 text-sm text-brand-800 dark:text-brand-300">
+          <span>Pick your account below, then head back to {returnTo.toolName || 'your tool'}.</span>
+          <Link to={`/tool/${TOOL_FOR[returnTo.provider]}`} className="ml-auto font-semibold hover:underline">Back to {returnTo.toolName || 'the tool'} →</Link>
+        </div>
+      )}
 
       {justConnected && <div className="mt-4 flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-500/10 px-4 py-2 text-sm text-green-700 dark:text-green-300"><Check size={15} aria-hidden /> {connectedLabel} connected. Pick an account for each source below.</div>}
       {oauthError && <div className="mt-4 flex items-center gap-2 rounded-lg bg-red-50 dark:bg-red-500/10 px-4 py-2 text-sm text-red-700 dark:text-red-300"><AlertTriangle size={15} aria-hidden /> Sign-in failed. Please try again.</div>}

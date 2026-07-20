@@ -2522,17 +2522,50 @@ function faSections(d, recs, score, sevCounts, opts = {}) {
 // ── Integrations: the user's own connected Google data (GSC / GA4 / Ads) ──────
 // Calls the live Google API with the user's stored OAuth token (refreshing as
 // needed), falling back to seeded data if OAuth isn't configured.
+
+// The client turns `needsConnect` into a "connect your account" widget; the
+// reason picks which one (never linked / expired sign-in / no account chosen).
+// `_noCharge` keeps a setup prompt from ever costing a credit.
+function connectPrompt(tool, reason, text) {
+  return { _noCharge: true, needsConnect: tool.integration, connectReason: reason, text };
+}
+
+// Which upstream failures are really "you're not connected", not a fault.
+function connectReasonOf(message) {
+  const m = String(message || '');
+  if (/\bno (property|site|customer id|account|ad account)\b/i.test(m)) return 'account';
+  if (/not connected/i.test(m)) return 'connect';
+  if (/invalid_grant|token (refresh|exchange)|unauthori[sz]ed|permission denied|\b(401|403)\b/i.test(m)) return 'reconnect';
+  return null;
+}
 async function integrationsRun(tool, body) {
   const conn = body._integrations?.[tool.integration];
   if (!conn?.connected) {
-    return { needsConnect: tool.integration, text: `Connect your ${tool.name} account under Integrations to use this tool.` };
+    return connectPrompt(tool, 'connect', `Connect your ${tool.name} account under Integrations to use this tool.`);
+  }
+  // Signed in, but no property/account picked (and none typed in the form) —
+  // the pull would fail deep inside the API with "no property"; ask up front.
+  if (!conn.account && !body.input) {
+    return connectPrompt(tool, 'account', `Pick which ${tool.name} account this tool should read.`);
   }
   // GSC sub-tools (URL Inspection / Sitemaps / Indexing) — dispatched by gscOp.
   if (tool.integration === 'gsc' && body.gscOp && body.gscOp !== 'insights') return gscOpsRun(body, conn);
-  const live = await fetchIntegrationFor(tool.integration, conn, { ...body, input: body.input || conn.account });
+  let live;
+  try {
+    live = await fetchIntegrationFor(tool.integration, conn, { ...body, input: body.input || conn.account });
+  } catch (e) {
+    // An expired/revoked token or a property we can no longer read is a
+    // connection problem, not a server fault: returning 500 here is what used
+    // to throw the "Report a problem" panel at users who simply hadn't finished
+    // connecting. Hand the client a connect prompt instead.
+    const reason = connectReasonOf(e?.message);
+    if (!reason) throw e;
+    console.log(JSON.stringify({ metric: 'integration_needs_connect', provider: tool.integration, reason, detail: String(e?.message || '').slice(0, 200) }));
+    return connectPrompt(tool, reason, `We couldn’t reach your ${tool.name} account — sign in again to restore access.`);
+  }
   // No seeded fallback: if the live pull didn't return data, prompt a reconnect.
   if (!live?.rows) {
-    return { needsConnect: tool.integration, text: `We couldn’t pull live ${tool.name} data — reconnect your account under Integrations to continue.` };
+    return connectPrompt(tool, 'reconnect', `We couldn’t pull live ${tool.name} data — reconnect your account under Integrations to continue.`);
   }
   // Advanced GAQL: raw query results, shown as a plain flat table (no dashboard).
   if (live.gaql) {

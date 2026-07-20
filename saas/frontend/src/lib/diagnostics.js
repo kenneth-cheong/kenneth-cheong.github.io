@@ -159,6 +159,15 @@ function emitFault(reason) {
   window.dispatchEvent(new CustomEvent('dm:fault', { detail: { reason } }));
 }
 
+// Some failures look hard at the HTTP layer but are really "you haven't
+// connected this account yet" — the caller handles those with a connect widget,
+// so the fault reporter must stay shut. The handler that recognises the failure
+// runs right after the api-error is dispatched, well inside the reporter's
+// open delay, so a short window is enough.
+let suppressUntil = 0;
+export function suppressFault(ms = 3000) { suppressUntil = Date.now() + ms; }
+export function isFaultSuppressed() { return Date.now() < suppressUntil; }
+
 export function init() {
   if (state.started || typeof window === 'undefined') return;
   state.started = true;
@@ -205,4 +214,4 @@ export function init() {
   };
 }
 
-export default { init, setUser, setProject, snapshot, summary, collectFields, recordError, recordBoundaryError, recordToolFailure };
+export default { init, setUser, setProject, snapshot, summary, collectFields, recordError, recordBoundaryError, recordToolFailure, suppressFault, isFaultSuppressed };

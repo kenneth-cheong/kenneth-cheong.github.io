@@ -11,6 +11,8 @@ import ReportHtml from '../components/ReportHtml.jsx';
 import SchemaResult from '../components/SchemaResult.jsx';
 import SortableTable from '../components/SortableTable.jsx';
 import ShareResult from '../components/ShareResult.jsx';
+import ConnectPrompt, { connectReasonFor } from '../components/ConnectPrompt.jsx';
+import { suppressFault } from '../lib/diagnostics.js';
 import InfoTip, { glossaryFor } from '../components/InfoTip.jsx';
 import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
 import { startToolTour, sampleResultFor, hasSeen, markSeen } from '../lib/tours.js';
@@ -234,7 +236,8 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
       saveLastInput(tool.id, vals);
       pushRecent(tool.id);
       // Let the proactive Otter react to a finished run (success vs. empty result).
-      emitRunFinished(tool.name, runStatusOf(res));
+      // A connect prompt isn't a finished run — the widget is doing the talking.
+      if (!res.result?.needsConnect) emitRunFinished(tool.name, runStatusOf(res));
     } catch (e) {
       if (e instanceof ApiError && (e.status === 402 || e.status === 403)) {
         setModal({
@@ -243,6 +246,11 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
           creditsRemaining: e.payload.creditsRemaining,
           creditsNeeded: e.payload.creditsNeeded,
         });
+      } else if (tool.integration && connectReasonFor(e.message)) {
+        // A missing/expired connection isn't a bug — don't show an error card
+        // and don't let the fault reporter ambush them. Ask them to connect.
+        suppressFault();
+        setOut({ result: { needsConnect: tool.integration, connectReason: connectReasonFor(e.message) } });
       } else {
         setOut({ error: e.message });
         // Most thrown runs (upstream 5xx, hard job failure) genuinely aren't
@@ -372,7 +380,7 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
       )}
 
       {busy && tool.slow && <SlowProgress tool={tool} job={job} />}
-      {out && !busy && <Result out={out} tool={tool} project={active} user={user} inputs={values} onCredits={setCredits} />}
+      {out && !busy && <Result out={out} tool={tool} project={active} user={user} inputs={values} onCredits={setCredits} onRetry={() => run()} />}
 
       {modal && <UpgradeModal reason={modal.reason} requiredTier={modal.requiredTier} creditsRemaining={modal.creditsRemaining} creditsNeeded={modal.creditsNeeded} onClose={() => setModal(null)} />}
 
@@ -694,16 +702,22 @@ function EmptyResult({ tool }) {
   );
 }
 
-function Result({ out, tool, project, user, inputs, onCredits }) {
-  if (out.error) return <FriendlyError message={out.error} tool={tool} />;
+function Result({ out, tool, project, user, inputs, onCredits, onRetry }) {
+  // A connection that isn't set up yet reads as an error at the transport layer
+  // but is really a setup step — route it to the connect widget either way.
+  const errReason = out.error && tool.integration ? connectReasonFor(out.error) : null;
+  if (out.error && !errReason) return <FriendlyError message={out.error} tool={tool} />;
   const r = out.result || {};
 
-  if (r.needsConnect) {
+  if (r.needsConnect || errReason) {
     return (
-      <div className="card mt-6 p-6 text-center">
-        <p className="text-dim">{r.text || 'Connect your account to use this tool.'}</p>
-        <Link to="/integrations" className="btn-primary mt-3 inline-block">Connect your account →</Link>
-      </div>
+      <ConnectPrompt
+        provider={r.needsConnect || tool.integration}
+        reason={r.connectReason || errReason || 'connect'}
+        toolName={tool.name}
+        text={r.text}
+        onReady={onRetry}
+      />
     );
   }
 
