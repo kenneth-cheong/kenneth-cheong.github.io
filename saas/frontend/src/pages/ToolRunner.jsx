@@ -5,6 +5,7 @@ import { api, ApiError } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import UpgradeModal from '../components/UpgradeModal.jsx';
+import Modal from '../components/Modal.jsx';
 import ResultSections from '../components/ResultSections.jsx';
 import ReportHtml from '../components/ReportHtml.jsx';
 import SchemaResult from '../components/SchemaResult.jsx';
@@ -85,6 +86,8 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   const [nudge, setNudge] = useState(false); // highlight missing required fields after an incomplete run attempt
   const [out, setOut] = useState(!embedded && location.state?.result ? { result: location.state.result, runId: location.state.runId } : null);
   const [modal, setModal] = useState(null);
+  // Pending destructive Search Console op, awaiting an explicit yes.
+  const [confirmOp, setConfirmOp] = useState(null);
   const [showAdv, setShowAdv] = useState(false); // reveal collapsed optional fields on long forms
   const shownRef = useRef([]); // latest visible fields, for the auto-started tour
 
@@ -196,7 +199,16 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
     });
   }
 
-  async function run(vals = values) {
+  async function run(vals = values, { confirmed = false } = {}) {
+    // Index removal and sitemap deletion act on the user's real Search Console
+    // property the moment we send them, and nothing in this app can undo either.
+    // Gate them behind an explicit yes that SHOWS what's about to be sent — the
+    // old browser confirm() only described the action in the abstract.
+    const dw = activeTab?.destructiveWhen;
+    if (!confirmed && dw && (dw.in || []).includes(vals[dw.field])) {
+      setConfirmOp({ vals, op: activeTab.op });
+      return;
+    }
     setBusy(true);
     setOut(null);
     setJob(null);
@@ -363,7 +375,56 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
       {out && !busy && <Result out={out} tool={tool} project={active} user={user} inputs={values} onCredits={setCredits} />}
 
       {modal && <UpgradeModal reason={modal.reason} requiredTier={modal.requiredTier} creditsRemaining={modal.creditsRemaining} creditsNeeded={modal.creditsNeeded} onClose={() => setModal(null)} />}
+
+      <DestructiveOpModal
+        pending={confirmOp}
+        onCancel={() => setConfirmOp(null)}
+        onConfirm={() => { const p = confirmOp; setConfirmOp(null); run(p.vals, { confirmed: true }); }}
+      />
     </div>
+  );
+}
+
+// Confirmation for the two Search Console ops we can't take back. Deliberately
+// lists the exact URLs being sent: "delete this sitemap" is easy to agree to
+// when you've forgotten which sitemap is in the box.
+function DestructiveOpModal({ pending, onCancel, onConfirm }) {
+  const removing = pending?.op === 'indexing';
+  const urls = String(pending?.vals?.urls || '').split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+  const sitemap = String(pending?.vals?.sitemapUrl || '').trim();
+  const targets = removing ? urls : (sitemap ? [sitemap] : []);
+
+  return (
+    <Modal
+      open={!!pending}
+      onClose={onCancel}
+      tag="CONFIRM"
+      labelledBy="dm-destructive-title"
+      title={removing ? 'Remove from Google’s index?' : 'Delete this sitemap?'}
+      footer={
+        <>
+          <button type="button" onClick={onCancel} className="btn-ghost px-4 py-2 text-sm" data-autofocus>Cancel</button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="btn px-4 py-2 text-sm bg-red-600 text-white shadow-sm hover:bg-red-700"
+          >
+            {removing ? `Remove ${targets.length || ''} URL${targets.length === 1 ? '' : 's'}`.trim() : 'Delete sitemap'}
+          </button>
+        </>
+      }
+    >
+      <p className="text-sm text-body">
+        {removing
+          ? 'Google stops showing these pages in search results. Undoing it means requesting indexing again and waiting for a recrawl — this app can’t reverse it.'
+          : 'Search Console stops tracking this sitemap and the URLs it lists. You can submit the same sitemap again afterwards, but its history goes.'}
+      </p>
+      {targets.length > 0 && (
+        <ul className="max-h-48 overflow-y-auto rounded-xl border border-line bg-sunken p-3 text-xs text-muted">
+          {targets.map((t) => <li key={t} className="truncate py-0.5">{t}</li>)}
+        </ul>
+      )}
+    </Modal>
   );
 }
 
