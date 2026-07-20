@@ -44,10 +44,15 @@ export const TRACKED_METRICS = {
   'forensic-audit': [
     { key: 'healthScore', field: 'healthScore', label: 'Health score', unit: '', dir: 'up' },
     { key: 'issues', field: 'issues', label: 'Issues', unit: '', dir: 'down' },
-    { key: 'domainAuthority', field: 'domainAuthority', label: 'Authority score', unit: '', dir: 'up' },
+    // Authority score is gated on `authoritySource`. Runs stored before
+    // 2026-07-20 hold a third-party suite's authority number under this same
+    // field; charting those against our own score would draw a continuous
+    // trend line across two incompatible metrics, and would keep displaying
+    // vendor data we removed. Only runs stamped by authorityScore() qualify.
+    { key: 'domainAuthority', field: 'domainAuthority', label: 'Authority score', unit: '', dir: 'up', requires: 'authoritySource' },
   ],
   'page-analysis': [
-    { key: 'domainAuthority', field: 'domainAuthority', label: 'Authority score', unit: '', dir: 'up' },
+    { key: 'domainAuthority', field: 'domainAuthority', label: 'Authority score', unit: '', dir: 'up', requires: 'authoritySource' },
     { key: 'backlinks', field: 'backlinks', label: 'Backlinks', unit: '', dir: 'up' },
     { key: 'spamScore', field: 'spamScore', label: 'Spam score', unit: '%', dir: 'down' },
   ],
@@ -112,6 +117,11 @@ export function extractMetrics(toolId, result) {
   if (!defs || !summary || typeof summary !== 'object') return [];
   const out = [];
   for (const d of defs) {
+    // `requires` gates a metric on a provenance marker in the summary. Runs
+    // stored before that marker existed are silently skipped rather than
+    // charted, because the number they hold was produced a different way and
+    // isn't comparable — see the Authority score note in TRACKED_METRICS.
+    if (d.requires && !summary[d.requires]) continue;
     const value = toMetricNumber(summary[d.field]);
     if (value == null) continue;
     out.push({ key: d.key, label: d.label, unit: d.unit, dir: d.dir, value });

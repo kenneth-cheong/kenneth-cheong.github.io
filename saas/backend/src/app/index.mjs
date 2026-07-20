@@ -32,7 +32,7 @@ import Stripe from 'stripe';
 // account isn't billed). Null when no key is configured.
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
 import { sendEmail, sendRawEmail, sendSmtpEmail, sendNotice, smtpConfigured, SUPPORT_INBOX, noticeFrom } from '../lib/email.mjs';
-import { buildAcceptancePdf } from '../lib/pdf.mjs';
+import { buildAcceptancePdf, ENTITY_ATTRIBUTION } from '../lib/pdf.mjs';
 import { isStaff, accountBlocked } from '../lib/admin.mjs';
 import { ok, badRequest, unauthorized, forbidden, paymentRequired, tooManyRequests, serverError, parseBody, claims, preflight, isEmail, clampStr } from '../lib/http.mjs';
 import { rateLimit, APP_LIMITS } from '../lib/ratelimit.mjs';
@@ -317,6 +317,10 @@ export const handler = async (event) => {
         acceptedNdaVersion: version,
         acceptedNdaIp: ip,
         acceptedNdaUserAgent: userAgent,
+        // Freeze how the operating entity was described at acceptance time, so a
+        // later correction never rewrites an already-signed record (Admin
+        // re-renders these PDFs on demand from stored data).
+        acceptedNdaAttribution: ENTITY_ATTRIBUTION,
         nda: form,
       });
 
@@ -351,6 +355,7 @@ export const handler = async (event) => {
             formName: form.name, organisation: form.organisation, uen: form.uen,
             telephone: form.telephone, formEmail: form.email,
             accountEmail: user.email, acceptedAt, ip, userAgent, version,
+            attribution: ENTITY_ATTRIBUTION,
           });
         } catch (e) { console.warn('nda_pdf_failed', e.message); }
 

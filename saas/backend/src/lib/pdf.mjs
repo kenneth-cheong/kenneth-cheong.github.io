@@ -18,10 +18,24 @@ const M = 56; // page margin
  *   accountEmail, acceptedAt, ip, userAgent, version }
  * @returns {Promise<Uint8Array>} the PDF bytes
  */
+// How the operating entity is described on the record. Correct as of the
+// 25 July 2026 Terms: Apsolute.ai Pte Ltd OWNS Digimetrics; MediaOne is the
+// authorised licensee and operator. The record used to call MediaOne the
+// "owner/operator", which those Terms contradict.
+export const ENTITY_ATTRIBUTION =
+  'MediaOne Business Group Pte Ltd — authorised licensee and operator of Digimetrics (owned by Apsolute.ai Pte Ltd)';
+// Wording used before that correction. Acceptances signed under it are RE-RENDERED
+// on demand by Admin -> Agreements, so they must keep the text that was live when
+// the user actually accepted — a proof-of-consent record that silently rewrites
+// itself is not proof of anything.
+export const LEGACY_ENTITY_ATTRIBUTION =
+  'MediaOne Business Group Pte Ltd — owner/operator of Digimetrics';
+
 export async function buildAcceptancePdf(r) {
+  const attribution = r.attribution || LEGACY_ENTITY_ATTRIBUTION;
   const doc = await PDFDocument.create();
   doc.setTitle('Digimetrics Free Trial + NDA — Acceptance Record');
-  doc.setAuthor('Digimetrics (MediaOne Business Group Pte Ltd)');
+  doc.setAuthor('Digimetrics (Apsolute.ai Pte Ltd)');
   doc.setSubject('Electronic acceptance record / proof of consent');
 
   const page = doc.addPage(A4);
@@ -87,7 +101,7 @@ export async function buildAcceptancePdf(r) {
   page.drawText(note2, { x: M, y, size: 8.5, font, color: MUTED });
 
   // Footer
-  page.drawText('MediaOne Business Group Pte Ltd — owner/operator of Digimetrics', {
+  page.drawText(attribution, {
     x: M, y: M - 8, size: 8, font, color: MUTED,
   });
 

@@ -87,7 +87,10 @@ export async function buildUserContext(user) {
   lines.push(`- Monthly allowance: ${plan.monthlyCredits} credits/cycle (unused monthly credits expire; top-ups roll over)`);
   if (user.periodEnd) lines.push(`- Plan renews / resets on: ${fmtDate(user.periodEnd)}`);
   if (user.tier === 'free') lines.push('- On the free plan — upgrade on the Pricing page for more credits and features.');
-  lines.push('- Top-ups available from S$15 (300 credits) on the Account page; they never expire.');
+  // Wording tracks Terms §8.3: top-ups survive the monthly reset but are valid
+  // for 12 months from purchase. Never tell a user they "never expire" — the
+  // Terms are the binding document and they say otherwise.
+  lines.push('- Top-ups available from S$15 (300 credits) on the Account page; they roll over past the monthly reset and stay valid for 12 months from purchase.');
 
   const conns = user.integrations || {};
   const intg = Object.keys(conns).map((p) => integrationSummary(p, conns[p].account)).filter(Boolean);

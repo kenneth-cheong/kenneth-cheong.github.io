@@ -32,11 +32,11 @@ export default function Usage() {
           in the credit meter's hover card — invisible on touch screens). */}
       <p className="mt-1.5 text-sm text-dim">
         Credits are what tool runs cost — most runs cost 1–5, big audits more. Monthly credits reset
-        {renews ? ` on ${renews}` : ' each billing cycle'} and don’t carry over; top-up credits never expire.
+        {renews ? ` on ${renews}` : ' each billing cycle'} and don’t carry over; top-up credits roll over and stay valid for 12 months from purchase.
       </p>
       <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat label="Credits left" value={user.credits.toLocaleString()}
-          sub={topup > 0 ? `incl. ${topup.toLocaleString()} top-up (never expires)` : null}
+          sub={topup > 0 ? `incl. ${topup.toLocaleString()} top-up (valid 12 months)` : null}
           tip="Credits available to spend right now. Each tool run costs a few credits." />
         <Stat label="Spent this cycle" value={spent.toLocaleString()} tip="Credits you've used since your allowance last reset this billing cycle." />
         <Stat label="Monthly allowance" value={plan.monthlyCredits.toLocaleString()}

@@ -31,6 +31,12 @@ export default function ResultCards() {
   // Page speed is shown from the audit by default, but can be refreshed on its
   // own (see the Page speed card). `speed` holds the fresher standalone reading
   // once one has been taken, so the rings update without a full re-audit.
+  // Only show the Authority score when the stored run was produced by our own
+  // authorityScore(). Audits run before 2026-07-20 hold a third-party suite's
+  // authority figure in the same field — showing it under our label would be
+  // presenting vendor data as ours. Re-run the audit and it returns.
+  const hasAuthority = !!(s && s.authoritySource && s.domainAuthority != null);
+
   const [speed, setSpeed] = useState(null);
   const ps = speed || (s && s.pageSpeedMobile != null
     ? { mobile: s.pageSpeedMobile, desktop: s.pageSpeedDesktop }
@@ -97,7 +103,7 @@ export default function ResultCards() {
 
       {/* ── Authority & backlinks ───────────────────────────────────────── */}
       <Card title="Authority" toolId="forensic-audit" run={audit} icon={<Link2 size={15} aria-hidden />}
-        chip={s && s.domainAuthority != null && `Authority ${s.domainAuthority}`}>
+        chip={hasAuthority && `Authority ${s.domainAuthority}`}>
         {s && (
           <>
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
@@ -107,12 +113,17 @@ export default function ResultCards() {
               <span className="text-xs font-semibold text-muted">backlinks</span>
             </div>
             <div className="mt-4 flex flex-col gap-2.5">
-              {s.domainAuthority != null && (
+              {hasAuthority && (
                 <Meter label="Authority score" n={s.domainAuthority} max={100} hue="var(--c-pos)" suffix={`${s.domainAuthority}/100`} />
               )}
               {/* Spam score inverts: lower is better, so the bar stays green until it isn't. */}
               <Meter label="Spam score" n={s.spamScore} max={100} hue={s.spamScore <= 10 ? 'var(--c-pos)' : s.spamScore <= 30 ? 'var(--c-warn)' : 'var(--c-neg)'} suffix={`${s.spamScore}%`} />
             </div>
+            {!hasAuthority && (
+              <p className="mt-3 text-[10.5px] text-muted">
+                Authority score isn’t shown for this run — how we calculate it changed. Re-run the audit to get it.
+              </p>
+            )}
           </>
         )}
       </Card>

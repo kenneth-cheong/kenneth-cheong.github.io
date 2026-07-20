@@ -1647,6 +1647,11 @@ async function forensicAuditRun(body) {
     warning: sevCounts.warning,
     opportunity: sevCounts.opportunity,
     domainAuthority: d.da,
+    // Provenance marker. Runs stored before 2026-07-20 carry a third-party
+    // suite's authority number in `domainAuthority`; without this stamp the UI
+    // and the trend series can't tell the two apart and would relabel vendor
+    // data as ours. Absent marker => the reader hides the number.
+    authoritySource: d.da == null ? null : 'digimetrics',
     pageSpeedMobile: d.psm,
     pageSpeedDesktop: d.psd,
     ssl: d.ssl,
@@ -1972,7 +1977,8 @@ async function pageAnalysisRun(body) {
   }
 
   const summary = {
-    domainAuthority: d.da, backlinks: d.backlinks,
+    domainAuthority: d.da, authoritySource: d.da == null ? null : 'digimetrics',
+    backlinks: d.backlinks,
     referringDomains: d.refdomains, spamScore: d.spam,
     pageSpeedMobile: d.psm, pageSpeedDesktop: d.psd,
     ssl: d.ssl, wordCount: page.words,

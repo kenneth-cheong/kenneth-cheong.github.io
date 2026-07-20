@@ -199,7 +199,8 @@ export default function TrialNdaGate({ preview = false, withTerms = false, onClo
           {busy ? 'Activating…' : 'Accept and Activate Free Trial'}
         </button>
         <p className="mt-3 text-center text-xs text-faint">
-          MediaOne Business Group Pte Ltd — owner/operator of Digimetrics.
+          MediaOne Business Group Pte Ltd — authorised licensee and operator of Digimetrics,
+          owned by Apsolute.ai Pte Ltd.
         </p>
       </div>
 

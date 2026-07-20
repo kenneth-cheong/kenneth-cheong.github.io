@@ -39,7 +39,7 @@ import { isAdmin, isStaff, ACCOUNT_STATUSES } from '../lib/admin.mjs';
 import { amplifyUsage, amplifyAccessLogs } from '../lib/platform-usage.mjs';
 import { financeReport } from '../lib/finances.mjs';
 import { sendEmail } from '../lib/email.mjs';
-import { buildAcceptancePdf } from '../lib/pdf.mjs';
+import { buildAcceptancePdf, ENTITY_ATTRIBUTION } from '../lib/pdf.mjs';
 import { putBroadcastImage } from '../lib/s3.mjs';
 import { signUnsubToken } from '../lib/jwt.mjs';
 import { ok, badRequest, unauthorized, serverError, json, parseBody, claims, isEmail, clampStr } from '../lib/http.mjs';
@@ -90,6 +90,7 @@ export const handler = async (event) => {
       ip: '203.0.113.10',
       userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       version: NDA_VERSION,
+      attribution: ENTITY_ATTRIBUTION,   // the sample shows today's wording
     });
     return ok({ filename: `Digimetrics-NDA-Acceptance-SAMPLE.pdf`, base64: Buffer.from(pdf).toString('base64') });
   }
@@ -103,6 +104,10 @@ export const handler = async (event) => {
       telephone: nda.telephone, formEmail: nda.email, accountEmail: u.email,
       acceptedAt: u.onboarding.acceptedNdaAt, ip: u.onboarding.acceptedNdaIp,
       userAgent: u.onboarding.acceptedNdaUserAgent, version: u.onboarding.acceptedNdaVersion,
+      // Replay the wording that was live when THIS user accepted. Undefined for
+      // pre-correction acceptances, which buildAcceptancePdf maps to the legacy
+      // text — the record renders as it was signed, not as we'd word it today.
+      attribution: u.onboarding.acceptedNdaAttribution,
     });
     const safeOrg = (nda.organisation || nda.name || 'trial-user').replace(/[^a-z0-9]+/gi, '-').slice(0, 40);
     return ok({ filename: `Digimetrics-NDA-Acceptance-${safeOrg}.pdf`, base64: Buffer.from(pdf).toString('base64') });

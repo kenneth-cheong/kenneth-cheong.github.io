@@ -259,7 +259,7 @@ export default function Account() {
       <div className="card mt-4 p-5">
         <h2 className="font-bold">Need more credits?</h2>
         <p className="mt-1 text-sm text-muted">
-          One-time top-ups for when you run low mid-cycle. Top-up credits <strong>roll over</strong> — they don't expire at renewal.
+          One-time top-ups for when you run low mid-cycle. Top-up credits <strong>roll over</strong> — they don't expire at renewal, and stay valid for 12 months from purchase.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           {TOPUP_PACKS.map((pack) => (

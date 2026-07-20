@@ -41,8 +41,8 @@ export default function UpgradeModal({ reason, requiredTier, creditsRemaining, c
             <h3 className="mt-2 text-xl font-bold">Out of credits</h3>
             <p className="mt-1 text-sm text-dim">
               {typeof creditsNeeded === 'number' && typeof creditsRemaining === 'number'
-                ? `This run needs ${creditsNeeded} credits — you have ${creditsRemaining}. Top up to keep going; top-up credits roll over.`
-                : `You've used this month's credits. Top up now — top-up credits roll over (they don't expire at renewal).`}
+                ? `This run needs ${creditsNeeded} credits — you have ${creditsRemaining}. Top up to keep going; top-up credits roll over (valid 12 months).`
+                : `You've used this month's credits. Top up now — top-up credits roll over (they don't expire at renewal; valid 12 months from purchase).`}
             </p>
 
             <div className="mt-4 grid gap-2 sm:grid-cols-3">

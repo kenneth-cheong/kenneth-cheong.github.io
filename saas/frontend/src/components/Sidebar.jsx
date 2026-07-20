@@ -153,7 +153,7 @@ export default function Sidebar({ open, onNavigate, onOpenChat }) {
         <div>
           <div className="dm-sb-bar"><i style={{ width: `${pct}%` }} /></div>
           <p className="mt-2 text-xs text-muted">
-            {topup > 0 && <>Includes <b className="text-heading">{topup.toLocaleString()}</b> top-up credits that roll over. </>}
+            {topup > 0 && <>Includes <b className="text-heading">{topup.toLocaleString()}</b> top-up credits that roll over (valid 12 months). </>}
             {renews ? <>Monthly credits renew {renews}.</> : <>Credits renew each billing period.</>}
           </p>
         </div>
