@@ -305,6 +305,10 @@ export const handler = async (event) => {
       if (!isEmail(form.email)) return badRequest('A valid email is required.');
 
       const version = clampStr(body.version, 20) || 'unversioned';
+      // Set when the base Terms/Privacy consent rode this same submit (the
+      // combined gate a new user sees). Recorded on the acceptance so the PDF
+      // lists every document agreed to, not just the NDA.
+      const termsVersion = clampStr(body.termsVersion, 20) || null;
       const acceptedAt = new Date().toISOString();
       // Proof-of-consent record (per the NDA's Electronic Acceptance section):
       // capture IP + device/browser alongside the account/org details + version.
@@ -321,6 +325,7 @@ export const handler = async (event) => {
         // later correction never rewrites an already-signed record (Admin
         // re-renders these PDFs on demand from stored data).
         acceptedNdaAttribution: ENTITY_ATTRIBUTION,
+        ...(termsVersion ? { acceptedTermsWithNdaVersion: termsVersion } : {}),
         nda: form,
       });
 
@@ -356,6 +361,7 @@ export const handler = async (event) => {
             telephone: form.telephone, formEmail: form.email,
             accountEmail: user.email, acceptedAt, ip, userAgent, version,
             attribution: ENTITY_ATTRIBUTION,
+            termsVersion: termsVersion || user.onboarding?.acceptedTermsVersion || null,
           });
         } catch (e) { console.warn('nda_pdf_failed', e.message); }
 

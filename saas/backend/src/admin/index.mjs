@@ -34,7 +34,7 @@ import {
   scanAllUsers,
   creditsConsumed,
 } from '../lib/dynamo.mjs';
-import { PLANS, NDA_VERSION } from '../../../shared/catalog.mjs';
+import { PLANS, NDA_VERSION, TERMS_VERSION } from '../../../shared/catalog.mjs';
 import { isAdmin, isStaff, ACCOUNT_STATUSES } from '../lib/admin.mjs';
 import { amplifyUsage, amplifyAccessLogs } from '../lib/platform-usage.mjs';
 import { financeReport } from '../lib/finances.mjs';
@@ -91,6 +91,7 @@ export const handler = async (event) => {
       userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       version: NDA_VERSION,
       attribution: ENTITY_ATTRIBUTION,   // the sample shows today's wording
+      termsVersion: TERMS_VERSION,       // ...and today's Terms/Privacy version
     });
     return ok({ filename: `Digimetrics-NDA-Acceptance-SAMPLE.pdf`, base64: Buffer.from(pdf).toString('base64') });
   }
@@ -108,6 +109,7 @@ export const handler = async (event) => {
       // pre-correction acceptances, which buildAcceptancePdf maps to the legacy
       // text — the record renders as it was signed, not as we'd word it today.
       attribution: u.onboarding.acceptedNdaAttribution,
+      termsVersion: u.onboarding.acceptedTermsWithNdaVersion || u.onboarding.acceptedTermsVersion || null,
     });
     const safeOrg = (nda.organisation || nda.name || 'trial-user').replace(/[^a-z0-9]+/gi, '-').slice(0, 40);
     return ok({ filename: `Digimetrics-NDA-Acceptance-${safeOrg}.pdf`, base64: Buffer.from(pdf).toString('base64') });

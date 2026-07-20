@@ -96,6 +96,10 @@ export default function TrialNdaGate({ preview = false, withTerms = false, onClo
         name: form.name.trim(),
         organisation: form.organisation.trim(),
         email: form.email.trim(),
+        // When the Terms/Privacy consent rode this same submit, tell the server
+        // which version, so the Acceptance Record lists every document the user
+        // agreed to rather than the NDA alone.
+        ...(withTerms ? { termsVersion: TERMS_VERSION } : {}),
       });
       // On success the user's onboarding now has acceptedNda → Layout drops the gate.
     } catch (e) {

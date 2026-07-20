@@ -62,6 +62,35 @@ export async function buildAcceptancePdf(r) {
   page.drawText(intro2, { x: M, y, size: 9.5, font, color: MUTED });
   y -= 30;
 
+  // Documents accepted. A new user accepts the base Terms and Conditions of Use
+  // and the Privacy Notice in the SAME submit as the NDA, so a record naming
+  // only the NDA understates what was agreed. `termsVersion` is absent for
+  // acceptances taken before the two were combined — those list the NDA alone,
+  // which is what actually happened.
+  if (r.termsVersion) {
+    page.drawText('Documents accepted', { x: M, y, size: 11, font: bold, color: INK });
+    y -= 16;
+    const docs = [
+      `1.  Digimetrics Free Trial and Non-Disclosure Agreement (version ${r.version})`,
+      `2.  Terms and Conditions of Use (version ${r.termsVersion})`,
+      `3.  Privacy Notice (version ${r.termsVersion})`,
+    ];
+    for (const d of docs) {
+      page.drawText(d, { x: M + 6, y, size: 9.5, font, color: INK });
+      y -= 14;
+    }
+    y -= 4;
+    for (const ln of wrap(
+      'Items 2 and 3 form one instrument, published at platform.digimetrics.ai/legal/terms '
+      + 'and /legal/privacy. Its full text is not reproduced here; the version above identifies '
+      + 'the exact wording in force when this acceptance was recorded. Item 1 is reproduced in '
+      + 'full from the next page.', font, 8.5, width - 2 * M - 6)) {
+      page.drawText(ln, { x: M + 6, y, size: 8.5, font, color: MUTED });
+      y -= 11;
+    }
+    y -= 16;
+  }
+
   const rows = [
     ['Name', r.formName],
     ['Organisation', r.organisation],
@@ -71,6 +100,7 @@ export async function buildAcceptancePdf(r) {
     ['Account', r.accountEmail || '—'],
     ['Accepted at (UTC)', r.acceptedAt],
     ['NDA version', r.version],
+    ...(r.termsVersion ? [['Terms / Privacy version', r.termsVersion]] : []),
     ['IP address', r.ip || '—'],
     ['Device / browser', r.userAgent || '—'],
   ];

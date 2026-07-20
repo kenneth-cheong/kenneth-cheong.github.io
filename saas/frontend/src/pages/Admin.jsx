@@ -481,7 +481,12 @@ function AdminAgreements() {
           </table>
         </div>
       )}
-      {previewGate && <TrialNdaGate preview onClose={() => setPreviewGate(false)} />}
+      {/* `withTerms` matches what a genuinely NEW user faces: they have accepted
+          neither the NDA nor the base Terms, so their gate carries both
+          checkboxes. Without it staff were previewing a dialog nobody actually
+          sees — the NDA-only variant only appears for an existing user whose
+          Terms consent is already on file. */}
+      {previewGate && <TrialNdaGate preview withTerms onClose={() => setPreviewGate(false)} />}
     </div>
   );
 }
