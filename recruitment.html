@@ -684,6 +684,48 @@
             color: #fb7185;
         }
 
+        .interview-card .interview-notes {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 14px;
+        }
+
+        .interview-card .notes-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--secondary);
+        }
+
+        .interview-card .notes-content {
+            font-size: 0.85rem;
+            color: var(--text);
+            line-height: 1.5;
+            background: rgba(15, 23, 42, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 12px;
+            min-height: 40px;
+            transition: border-color 0.2s;
+        }
+
+        .interview-card .notes-content:hover {
+            border-color: rgba(99, 102, 241, 0.4);
+        }
+
+        .interview-card .notes-content:focus {
+            outline: none;
+            border-color: var(--secondary);
+        }
+
+        .interview-card .notes-content:empty:before {
+            content: attr(data-placeholder);
+            color: var(--text-dim);
+            opacity: 0.7;
+        }
+
         .interview-card .card-footer {
             margin-top: auto;
             padding-top: 16px;
@@ -4071,12 +4113,12 @@
         }
 
         function getStatusOptions(currentStatus) {
-            const statuses = ['No Action', 'Invited', 'Scheduled', 'Interviewed', 'Shortlisted', 'Offered', 'Rejected'];
+            const statuses = ['No Action', 'Invited', 'Scheduled', 'Interviewed', 'Shortlisted', 'Offered', 'Hired', 'Rejected'];
             return statuses.map(s => `<option value="${s}" ${s === currentStatus ? 'selected' : ''}>${s}</option>`).join('');
         }
 
         /* ===== Per-column header filters (job-details + repository tables) ===== */
-        const STATUS_LIST = ['No Action', 'Invited', 'Scheduled', 'Interviewed', 'Shortlisted', 'Offered', 'Rejected'];
+        const STATUS_LIST = ['No Action', 'Invited', 'Scheduled', 'Interviewed', 'Shortlisted', 'Offered', 'Hired', 'Rejected'];
 
         const columnFilters = {
             candidateTable: { name: '', job: '', dateFrom: '', dateTo: '', score: '', bestFit: '', interviewerScore: '', pendingBy: '', status: '' },
@@ -6711,10 +6753,15 @@
                                 <div class="guideline-content">${row.bad}</div>
                             </div>
                         </div>
+                        <div class="interview-notes">
+                            <span class="notes-label"><i class="fas fa-pen"></i> Interviewer Notes</span>
+                            <div class="notes-content" contenteditable="true" data-placeholder="Add your notes / feedback…"
+                                 onblur="setJobQuestionNote('${row.id}', this.innerText)">${escNote((cand.jobNotes && cand.jobNotes[row.id]) || '')}</div>
+                        </div>
                         <div class="card-footer">
                             <div class="rating-stars">
                                 ${[1, 2, 3, 4, 5].map(v => `
-                                    <span class="star ${v <= rating ? 'active' : ''}" 
+                                    <span class="star ${v <= rating ? 'active' : ''}"
                                           onclick="setJobQuestionRating('${row.id}', ${v})">★</span>
                                 `).join('')}
                             </div>
@@ -6740,6 +6787,11 @@
                                 <span class="guideline-label"><i class="fas fa-exclamation-triangle"></i> Red Flags</span>
                                 <div class="guideline-content" contenteditable="true" onblur="updateCustomGuideContent(${idx}, 'bad', this.innerText)">${row.bad}</div>
                             </div>
+                        </div>
+                        <div class="interview-notes">
+                            <span class="notes-label"><i class="fas fa-pen"></i> Interviewer Notes</span>
+                            <div class="notes-content" contenteditable="true" data-placeholder="Add your notes / feedback…"
+                                 onblur="updateCustomGuideContent(${idx}, 'note', this.innerText)">${escNote(row.note || '')}</div>
                         </div>
                         <div class="card-footer">
                             <div class="rating-stars">
@@ -6908,6 +6960,24 @@
             });
             renderCandidates();
             filterCandidatesRepo();
+        }
+
+        // Escape freeform interviewer notes before injecting into card HTML.
+        function escNote(s) {
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        // Persist per-candidate interviewer notes for a shared job question.
+        async function setJobQuestionNote(qId, value) {
+            const cand = state.candidates.find(c => String(c.id) === String(editingCandId));
+            if (!cand) return;
+
+            if (!cand.jobNotes) cand.jobNotes = {};
+            const newVal = (value || '').trim();
+            if ((cand.jobNotes[qId] || '') === newVal) return;
+
+            cand.jobNotes[qId] = newVal;
+            await persistenceApiCall('upsert_candidate', { id: cand.id, jobNotes: cand.jobNotes });
         }
 
         async function updateInterviewerScore(candId, score) {
