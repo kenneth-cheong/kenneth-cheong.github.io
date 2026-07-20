@@ -8,7 +8,10 @@
 // import would make the (pure) template renderers untestable off-Lambda.
 import { PLANS } from '../../../shared/catalog.mjs';
 
-const WEBSITE_URL = 'https://digimetrics.ai';
+// The footer link (and the fallback when APP_ORIGIN is unset) points at the app
+// itself, not the marketing domain — every reader of this email already has an
+// account, so the useful destination is the platform.
+const WEBSITE_URL = 'https://platform.digimetrics.ai';
 
 // Read at call time, not module load: the value is only meaningful once the
 // Lambda env is populated, and tests need to vary it.

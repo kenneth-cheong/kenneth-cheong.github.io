@@ -40,10 +40,13 @@ describe('welcome email placeholder substitution', () => {
     expect(welcomeEmailText({})).toContain('Hi there,');
   });
 
-  it('substitutes dashboard_url with APP_ORIGIN and website_url with the marketing site', () => {
+  it('substitutes dashboard_url with APP_ORIGIN and website_url with the platform domain', () => {
     const html = welcomeEmailHtml({ email: 'a@b.co' });
     expect(html).toContain(`href="${ORIGIN}"`);
-    expect(html).toContain('href="https://digimetrics.ai"');
+    // Footer link, shown without the scheme.
+    expect(html).toContain('>platform.digimetrics.ai</a>');
+    // Never the bare marketing domain — readers already have an account.
+    expect(html).not.toContain('href="https://digimetrics.ai"');
     expect(welcomeEmailText({ email: 'a@b.co' })).toContain(`Log in to your dashboard: ${ORIGIN}`);
   });
 
@@ -52,9 +55,9 @@ describe('welcome email placeholder substitution', () => {
     expect(welcomeEmailHtml({})).toContain('href="https://platform.digimetrics.ai"');
   });
 
-  it('falls back to the marketing site when APP_ORIGIN is unset', () => {
+  it('falls back to the platform domain when APP_ORIGIN is unset', () => {
     delete process.env.APP_ORIGIN;
-    expect(welcomeEmailText({})).toContain('Log in to your dashboard: https://digimetrics.ai');
+    expect(welcomeEmailText({})).toContain('Log in to your dashboard: https://platform.digimetrics.ai');
   });
 
   it('quotes the credit allowance from the catalog, not a hardcoded number', () => {
