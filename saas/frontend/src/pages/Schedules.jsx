@@ -2,9 +2,9 @@
 // each period against the previous one. Recurring runs fire server-side (the
 // hourly schedules cron), land in history tagged with the schedule, and show up
 // here with period-over-period deltas.
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Clock, Play, Trash2, Pencil, Plus, Pause, ChevronDown, ChevronRight, TrendingUp, TrendingDown, Minus, X } from 'lucide-react';
+import { Clock, Play, Trash2, Pencil, Plus, Pause, ChevronDown, ChevronRight, TrendingUp, TrendingDown, Minus, X, Loader2 } from 'lucide-react';
 import { api } from '../lib/api.js';
 import { toast } from '../lib/ui.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -325,6 +325,9 @@ export default function Schedules() {
   const [modal, setModal] = useState(null); // { editing? , prefill? }
   const [expanded, setExpanded] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  const [queuedId, setQueuedId] = useState(null); // schedule whose manual run is in flight
+  const pollTimers = useRef([]);
+  useEffect(() => () => pollTimers.current.forEach(clearTimeout), []);
 
   const load = useCallback(async () => {
     try {
@@ -347,9 +350,20 @@ export default function Schedules() {
     catch (e) { toast(e?.message || 'Could not update.', 'error'); }
     finally { setBusyId(null); }
   }
+  // "Run now" fires the tool asynchronously, so nothing on the row changes when
+  // the call returns — which read as a dead button. Mark the row as queued and
+  // re-poll the list so the status badge / run count catch up on their own.
   async function runNow(s) {
     setBusyId(s.scheduleId);
-    try { await api.runScheduleNow(s.scheduleId); toast('Run queued — it’ll appear in history shortly.', 'success'); }
+    try {
+      await api.runScheduleNow(s.scheduleId);
+      toast('Run started — the result lands in your history when it finishes.', 'success');
+      setQueuedId(s.scheduleId);
+      for (const ms of [8000, 25000, 60000]) {
+        const t = setTimeout(() => { load(); if (ms === 60000) setQueuedId((q) => (q === s.scheduleId ? null : q)); }, ms);
+        pollTimers.current.push(t);
+      }
+    }
     catch (e) { toast(e?.message || 'Could not run now.', 'error'); }
     finally { setBusyId(null); }
   }
@@ -417,17 +431,34 @@ export default function Schedules() {
                 <div className="flex items-center gap-2">
                   <span className="truncate font-medium text-heading">{s.name}</span>
                   <StatusBadge s={s} />
+                  {queuedId === s.scheduleId && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 dark:bg-brand-500/10 px-2 py-0.5 text-xs text-brand-700 dark:text-brand-300">
+                      <Loader2 size={11} className="animate-spin" aria-hidden /> Running now
+                    </span>
+                  )}
                 </div>
                 <div className="mt-0.5 text-xs text-muted">
                   {s.toolName} · {describeSchedule(s)} · next {fmtWhen(s.nextRunAt)}
                   {s.runCount ? ` · ${s.runCount} run${s.runCount === 1 ? '' : 's'}` : ''}
                 </div>
               </div>
-              <div className="flex items-center gap-1">
-                <button className="btn-ghost !px-2 !py-1.5" title="Run now" disabled={busyId === s.scheduleId} onClick={() => runNow(s)}><Play size={15} /></button>
-                <button className="btn-ghost !px-2 !py-1.5" title={s.enabled ? 'Pause' : 'Resume'} disabled={busyId === s.scheduleId} onClick={() => toggle(s)}>{s.enabled ? <Pause size={15} /> : <Play size={15} />}</button>
-                <button className="btn-ghost !px-2 !py-1.5" title="Edit" onClick={() => setModal({ editing: s })}><Pencil size={15} /></button>
-                <button className="btn-ghost !px-2 !py-1.5 text-rose-600 dark:text-rose-400" title="Delete" disabled={busyId === s.scheduleId} onClick={() => remove(s)}><Trash2 size={15} /></button>
+              {/* On a phone the actions wrap onto their own line — squeezed
+                  beside the name they crushed it to one word per line. */}
+              <div className="flex w-full items-center justify-end gap-1 sm:w-auto">
+                {/* "Run now" and "Resume" were both bare play triangles side by
+                    side — indistinguishable without hovering for a tooltip. The
+                    one-off run carries a label; only the pause/resume toggle
+                    keeps the play glyph, so a triangle always means "the
+                    schedule is paused". */}
+                <button
+                  className="btn-ghost gap-1.5 !px-2.5 !py-1.5 text-xs" title="Run this schedule once, right now"
+                  aria-label="Run now" disabled={busyId === s.scheduleId} onClick={() => runNow(s)}
+                >
+                  <Play size={14} aria-hidden /> Run now
+                </button>
+                <button className="btn-ghost !px-2 !py-1.5" title={s.enabled ? 'Pause schedule' : 'Resume schedule'} aria-label={s.enabled ? 'Pause schedule' : 'Resume schedule'} disabled={busyId === s.scheduleId} onClick={() => toggle(s)}>{s.enabled ? <Pause size={15} aria-hidden /> : <Play size={15} aria-hidden />}</button>
+                <button className="btn-ghost !px-2 !py-1.5" title="Edit" aria-label="Edit schedule" onClick={() => setModal({ editing: s })}><Pencil size={15} aria-hidden /></button>
+                <button className="btn-ghost !px-2 !py-1.5 text-rose-600 dark:text-rose-400" title="Delete" aria-label="Delete schedule" disabled={busyId === s.scheduleId} onClick={() => remove(s)}><Trash2 size={15} aria-hidden /></button>
               </div>
             </div>
             {expanded === s.scheduleId && <ComparePanel scheduleId={s.scheduleId} />}
