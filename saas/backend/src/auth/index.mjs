@@ -24,6 +24,7 @@ import {
 } from '../lib/jwt.mjs';
 import { hashPassword, verifyPassword, isValidPassword } from '../lib/password.mjs';
 import { sendNotice } from '../lib/email.mjs';
+import { sendWelcomeEmail } from '../lib/welcome-email.mjs';
 import { PLANS } from '../../../shared/catalog.mjs';
 import { ok, badRequest, unauthorized, forbidden, tooManyRequests, parseBody, isEmail, isUsername, clampStr } from '../lib/http.mjs';
 import { rateLimit, AUTH_LIMITS } from '../lib/ratelimit.mjs';
@@ -193,10 +194,13 @@ async function handleGoogle({ idToken }, meta = {}) {
       freeCreditsGranted: true,
       stripeCustomerId: null,
       periodEnd: null,
+      welcomedAt: now,
       createdAt: now,
       updatedAt: now,
     };
     await putUser(user);
+    // Onboarding email — the account is usable from this moment (credits granted).
+    await sendWelcomeEmail(user);
   } else if (user.picture !== payload.picture || user.name !== payload.name) {
     // Returning user → keep name/photo in sync with Google (also backfills
     // accounts created before `picture` was captured).
@@ -299,6 +303,9 @@ async function handleVerify({ token }, meta = {}) {
     delete patch.pendingPasswordHash;
   }
   patch.emailVerified = true;
+  // Welcome the account exactly once, at the moment it first becomes usable.
+  // Read before the grant below flips the flag.
+  const welcome = patch.freeCreditsGranted === false && !patch.welcomedAt;
   // Grant the free-tier allowance exactly once, only for accounts created via
   // signup (freeCreditsGranted === false). Linked/Google accounts already have
   // their balance and never carry this flag, so they're never re-granted.
@@ -306,7 +313,9 @@ async function handleVerify({ token }, meta = {}) {
     patch.credits = PLANS.free.monthlyCredits;
     patch.freeCreditsGranted = true;
   }
+  if (welcome) patch.welcomedAt = patch.updatedAt;
   await putUser(patch);
+  if (welcome) await sendWelcomeEmail(patch);
 
   const finalUser = await applyProvision(patch, patch.email);
   if (accountBlocked(finalUser)) return forbidden({ error: 'account_suspended', status: finalUser.status });
