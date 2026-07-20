@@ -33,9 +33,6 @@ const NAV_GROUPS = [
   ] },
   { label: 'Setup', items: [
     { to: '/integrations', label: 'Connect data', icon: Plug },
-    // The only surface that prices tools — tool tiles and tool pages stay quiet
-    // about credits so people choose by job, not by cost.
-    { to: '/credit-guide', label: 'Credit guide', icon: Coins },
     { to: '/account', label: 'Settings', icon: Settings },
   ] },
 ];
@@ -104,8 +101,21 @@ export default function Sidebar({ open, onNavigate, onOpenChat }) {
         )}
       </nav>
 
+      {/* The only surface that prices tools — tool tiles and tool pages stay quiet
+          about credits so people choose by job, not by cost. It sits with the
+          credits block rather than in the nav groups, and reads smaller than a
+          nav row: it's a lookup you reach for occasionally, not a destination. */}
+      <NavLink
+        to="/credit-guide"
+        onClick={onNavigate}
+        className={({ isActive }) => `dm-sb-mini ${isActive ? 'dm-sb-mini-on' : ''}`}
+      >
+        <Coins size={14} aria-hidden className="shrink-0" />
+        <span className="truncate">Credit guide</span>
+      </NavLink>
+
       {/* Credits — the mockup's .sb-credits block. Same numbers CreditMeter shows. */}
-      <Link to="/usage" data-tour="credits" className="dm-sb-credits" onClick={onNavigate}>
+      <Link to="/usage" data-tour="credits" className="dm-sb-credits !mt-1" onClick={onNavigate}>
         <div className="mb-2 flex justify-between text-[11px] font-semibold text-muted">
           <span>AI Credits</span>
           <b className={low ? 'text-warn' : 'text-heading'}>{total.toLocaleString()} left</b>
