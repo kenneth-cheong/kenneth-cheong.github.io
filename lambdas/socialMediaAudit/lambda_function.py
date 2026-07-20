@@ -76,6 +76,10 @@ SL_SNAPSHOTS_TABLE = os.environ.get('SL_SNAPSHOTS_TABLE', 'sl_snapshots')
 # already public on the source platform.
 THUMB_BUCKET = os.environ.get('SR_THUMB_BUCKET', 'digimetricsfileupload')
 THUMB_PREFIX = os.environ.get('SR_THUMB_PREFIX', 'social-thumbs/')
+# Competitor scrapes are billed per Apify run, so they're capped — but PER
+# PLATFORM, not in total (each platform is benchmarked separately, so a flat
+# total cap starves every platform after the first).
+COMPETITORS_PER_PLATFORM = int(os.environ.get('SR_COMPETITORS_PER_PLATFORM', '4'))
 HAIKU_MODEL  = 'claude-haiku-4-5-20251001'
 # Vision-capable model for the content/creative audit (visual style + theme).
 # Sonnet reasons over imagery noticeably better than Haiku; it runs once per
@@ -357,11 +361,19 @@ def handle_start(body):
                 runs[p] = {'handle': handle, 'role': 'client', **entry}
 
     # Competitors run the same actors (capped to keep cost predictable) — launched
-    # concurrently for the same reason.
+    # concurrently for the same reason. The cap is PER PLATFORM, matching the
+    # frontend's competitor form: a flat [:3] slice silently dropped every
+    # competitor after the third overall, so a client tracking 3 competitors on
+    # Facebook never got their Instagram or LinkedIn set captured at all.
     comp_runs = []
     comp_to_start = []
-    for c in competitors[:3]:
-        p = (c.get('platform') or '').strip()
+    _comp_seen = {}
+    for c in competitors:
+        _cp = (c.get('platform') or '').strip()
+        _comp_seen[_cp] = _comp_seen.get(_cp, 0) + 1
+        if _comp_seen[_cp] > COMPETITORS_PER_PLATFORM:
+            continue
+        p = _cp
         handle = (c.get('handle') or '').strip()
         actor = ACTORS.get(p)
         if not (p and handle and actor):
@@ -5198,12 +5210,16 @@ def _li_share_stats(oid, token, since_ms, until_ms):
     s('comments', agg['commentCount']); s('shares', agg['shareCount'])
     interactions = agg['likeCount'] + agg['commentCount'] + agg['shareCount'] + agg['clickCount']
     s('engagements', interactions)
-    # LinkedIn's own engagement-rate formula is (Reactions + Comments + Shares) / Reach —
-    # clicks are tracked separately above but excluded here, and the denominator is
-    # unique reach, not impressions.
+    # Engagement rate = (Reactions + Comments + Shares) / denominator; clicks are
+    # tracked separately above but excluded from the numerator. BOTH denominators are
+    # emitted: reach (unique impressions) and impressions. LinkedIn's own analytics
+    # reports over impressions, and the post-level rate below already divides by
+    # impressions — the reporting team asked for the account-level figure to match.
     engagement_num = agg['likeCount'] + agg['commentCount'] + agg['shareCount']
     if reach:
         out['engagement_rate'] = round(engagement_num / reach * 100, 2)
+    if agg['impressionCount']:
+        out['engagement_rate_impr'] = round(engagement_num / agg['impressionCount'] * 100, 2)
     return out
 
 
