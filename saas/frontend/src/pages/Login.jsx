@@ -143,7 +143,15 @@ export default function Login() {
         <div className="dm-login-enter">
           <div className="dm-login-logo mx-auto grid h-14 w-14 place-items-center rounded-2xl text-2xl font-bold text-white">D</div>
           <h1 className="mt-6 text-3xl font-bold">Digimetrics</h1>
-          <p className="mt-2 text-dim">SEO, AI content & AI-visibility tools for solo marketers.</p>
+          {/* Tagline is the emotive hero line; the descriptor below it stays the
+              plain-English "what this is". Hairlines flank it so it reads as a
+              mark rather than another sentence. */}
+          <div className="dm-tagline-row mt-4">
+            <span className="dm-tagline-rule" aria-hidden="true" />
+            <p className="dm-tagline">Prepare to do great things</p>
+            <span className="dm-tagline-rule dm-tagline-rule-r" aria-hidden="true" />
+          </div>
+          <p className="mt-2 text-sm text-dim">SEO, AI content & AI-visibility tools for solo marketers.</p>
           {showCreditsBadge && (
             <div className="mt-3">
               <span className="dm-login-badge"><GiftIcon /> 30 free credits to start</span>

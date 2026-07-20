@@ -611,6 +611,53 @@
     box-shadow: 0 10px 22px -8px rgb(37 99 235 / .55), 0 1px 0 rgb(255 255 255 / .35) inset;
   }
 
+  /* Tagline — small-caps brand line under the wordmark, gradient-filled in the
+     same three hues as the aurora behind it. The gradient is oversized and
+     drifts, so the fill breathes without anything moving on screen. */
+  .dm-tagline-row { @apply flex items-center justify-center gap-3; }
+  .dm-tagline {
+    @apply text-[13px] font-semibold uppercase;
+    letter-spacing: .18em;
+    background-image: linear-gradient(96deg,
+      rgb(var(--glow-a)) 0%, rgb(var(--glow-b)) 30%, rgb(var(--glow-c)) 55%,
+      rgb(var(--glow-b)) 78%, rgb(var(--glow-a)) 100%);
+    background-size: 220% 100%;
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+    animation: dm-tagline-drift 9s ease-in-out infinite;
+  }
+  /* Royal carries `.dark`, so it inherits the dark glow trio — but those hues
+     are tuned to read on a near-black canvas, not on royal's blue one, where
+     the blue stops drop to ~2.7:1. Lift the whole ramp toward white here. */
+  .royal .dm-tagline {
+    background-image: linear-gradient(96deg,
+      rgb(191 209 255) 0%, rgb(226 232 255) 30%, rgb(153 246 228) 55%,
+      rgb(226 232 255) 78%, rgb(191 209 255) 100%);
+    -webkit-background-clip: text; background-clip: text;
+  }
+  .royal .dm-tagline-rule { background: linear-gradient(90deg, transparent, rgb(226 232 255 / .40)); }
+
+  /* Hairlines fade *away* from the words on each side. */
+  .dm-tagline-rule {
+    height: 1px; width: clamp(18px, 8vw, 42px); flex: none;
+    background: linear-gradient(90deg, transparent, rgb(var(--glow-b) / .45));
+  }
+  .dm-tagline-rule-r { transform: scaleX(-1); }
+  /* Narrow phones: the tracked-out line wraps to two, which strands the
+     hairlines beside the first row. Tighten it back onto one line instead. */
+  @media (max-width: 420px) {
+    .dm-tagline { @apply text-[11px]; letter-spacing: .11em; }
+    .dm-tagline-row { @apply gap-2; }
+  }
+
+  @keyframes dm-tagline-drift {
+    0%, 100% { background-position: 0% 50%; }
+    50%      { background-position: 100% 50%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dm-tagline { animation: none !important; background-position: 0% 50%; }
+  }
+
   /* Free-credits badge — a soft brand pill with an icon; gives the conversion
      hook real visual weight. */
   .dm-login-badge {
