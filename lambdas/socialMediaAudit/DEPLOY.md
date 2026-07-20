@@ -231,6 +231,67 @@ unreachable legacy. Its `catch(_){return null}` (mirrored by `_meta_sum_metric` 
 is *why* the rename went unnoticed: an invalid-metric error is indistinguishable
 from "no data". Consider un-swallowing `#100` specifically.
 
+## ⚠️ Instagram's 30-day insight window — fixed 2026-07-20 (DEPLOYED)
+`_meta_month_range` spans a whole calendar month, but Graph caps **Instagram**
+insights at 30 days per call:
+```
+(#100) There cannot be more than 30 days (2592000 s) between since and until
+```
+`_meta_sum_metric`'s bare `except` turned that into `None`, so **every 31-day
+month** (Jan, Mar, May, Jul, Aug, Oct, Dec) silently stored NO IG reach,
+impressions, engagements, saves, likes, comments or shares. Facebook Page
+insights has no such cap — which is exactly why the gap looked random rather
+than systematic, and why it survived this long.
+
+Diagnosed on Homi 2026-07-20: Feb/Apr/Jun 2026 had figures, Jan/Mar/May were
+empty, and the CURRENT month only ever worked because `until` is clamped to
+`now` (so it's <30 days until month-end — it would have started failing the
+moment anyone re-pulled it in August).
+
+Fix: `_meta_sum_metric` tiles the range into ≤30-day chunks via `_window_chunks`
+and sums them. Semantics are unchanged (it always summed the daily rows), months
+of ≤30 days still make exactly one call, and one dead chunk no longer blanks the
+whole month. `_meta_metric_window` now `print`s the failure instead of swallowing
+it — an invalid-metric `#100` being indistinguishable from "no data" is what hid
+both this AND the 2026-07-17 FB rename.
+
+**Lesson (third time on this Lambda): never let a Graph failure return `None`
+silently.** Log it, then diff two months that should look alike.
+
+## ⚠️ Post thumbnails now mirrored to S3 — added 2026-07-20 (DEPLOYED)
+Every platform hands out **signed, expiring** CDN URLs — `scontent-*.cdninstagram.com`
+and `*.fbcdn.net` carry an `oe` expiry ~30 days out, TikTok's `cover_image_url`
+likewise. Storing them verbatim meant the post grid turned into broken tiles a
+few weeks after capture: on Homi 2026-07-20, **90 of 90** stored thumbnails
+returned `403` (one carried `oe=6A443D5C` = 2026-06-30, 20 days dead).
+
+- `_mirror_image` copies the bytes into **`s3://digimetricsfileupload/social-thumbs/`**
+  and returns the durable public URL. Key = `sha1(source_url_without_query)`, so
+  the rotating signature still resolves to the same object and a re-capture costs
+  one `HEAD`, not a re-upload. No extension — the stored `Content-Type` is what
+  browsers read. Any failure returns the ORIGINAL url (never lose a thumbnail).
+- `_mirror_scorecard_images` walks `posts[]`, `top_posts[]` and `image_urls[]` on
+  platform **and** competitor cards, and is called from `report_save_month` — the
+  one choke point every capture path funnels through (Apify scrape, native
+  Meta/LinkedIn/YouTube/TikTok pull, backfill, daily cron).
+- `_merge_posts` also had to change: on an **equal-thumbnail-count tie** it kept
+  `existing` as base, so a re-pull's fresh URLs were discarded and the dead ones
+  survived forever. It now takes the fresh pull's image whenever the base's is a
+  non-mirrored (i.e. expiring) URL — see `_is_expiring_thumb`.
+
+**Infra (already applied, ap-southeast-1):**
+- Role `socialMediaAudit-role` inline policy **`sma-thumb-s3`** → `s3:PutObject`
+  + `s3:GetObject` on `arn:aws:s3:::digimetricsfileupload/social-thumbs/*`.
+- Bucket policy on `digimetricsfileupload` gained sid **`PublicReadSocialThumbs`**
+  (`s3:GetObject`, `Principal:"*"`, that prefix only). The images are already
+  public on the source platform. Override with env `SR_THUMB_BUCKET` /
+  `SR_THUMB_PREFIX`.
+
+**Back-filling old months:** re-run `report_backfill_meta` per month — Meta's
+media list still returns the posts, so they come back with fresh URLs which then
+get mirrored. Done for Homi across all 12 months (90/90 mirrored, verified 200 +
+`image/jpeg` from the public URL). Anything never re-pulled keeps its dead URL.
+
 ## Expanded metrics + "Audience & Insights" tab — added 2026-07-04 (DEPLOYED)
 New scalar metrics + demographic/discovery **breakdowns**, shown in a new
 "Audience & insights" tab in the report UI (index.html `SR`).
