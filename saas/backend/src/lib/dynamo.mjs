@@ -817,17 +817,34 @@ export async function saveRunFeedback(userId, runId, { rating, note = '' }) {
   return true;
 }
 
+// MUST page. A Query stops at 1MB of data READ FROM THE TABLE, and the 1MB is
+// measured BEFORE `ProjectionExpression` is applied — so the slim projection
+// below saves bandwidth but buys no extra rows. Run items carry the full
+// `result` payload (~12KB average), which means a single Query returns only
+// ~65-80 rows no matter what `Limit` says, then quietly stops. This truncated
+// silently for everyone with real history: an account with 439 runs saw 65 on
+// the Runs page ("Every tool run is saved here"), ProjectDetail filters this
+// same list client-side so older projects looked empty, and exportAllUserData
+// asks for 1000 — a GDPR export that returned 15% of the data with no
+// indication. Keep reading pages until `limit` rows are actually in hand.
 export async function listRuns(userId, limit = 100) {
-  const { Items } = await ddb.send(new QueryCommand({
-    TableName: TABLES.runs,
-    KeyConditionExpression: 'userId = :u',
-    ExpressionAttributeValues: { ':u': userId },
-    // Slim projection for the list — omit the full `result` + `inputs` payloads.
-    ProjectionExpression: 'userId, runId, tool, toolName, preview, target, creditsUsed, projectId, ts',
-    ScanIndexForward: false,
-    Limit: limit,
-  }));
-  return Items || [];
+  const items = [];
+  let started;
+  do {
+    const { Items, LastEvaluatedKey } = await ddb.send(new QueryCommand({
+      TableName: TABLES.runs,
+      KeyConditionExpression: 'userId = :u',
+      ExpressionAttributeValues: { ':u': userId },
+      // Slim projection for the list — omit the full `result` + `inputs` payloads.
+      ProjectionExpression: 'userId, runId, tool, toolName, preview, target, creditsUsed, projectId, ts',
+      ScanIndexForward: false,
+      Limit: limit - items.length,
+      ExclusiveStartKey: started,
+    }));
+    items.push(...(Items || []));
+    started = LastEvaluatedKey;
+  } while (started && items.length < limit);
+  return items.slice(0, limit);
 }
 
 export async function getRun(userId, runId) {

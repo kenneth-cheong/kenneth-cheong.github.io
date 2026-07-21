@@ -34,7 +34,8 @@ export default function ProjectDetail() {
 
   useEffect(() => {
     if (!projectId) return;
-    api.runs().then((d) => setRuns((d.runs || []).filter((r) => r.projectId === projectId))).catch(() => setRuns([]));
+    // Filtered client-side, so a short page would hide an older project's runs.
+    api.runs(500).then((d) => setRuns((d.runs || []).filter((r) => r.projectId === projectId))).catch(() => setRuns([]));
     api.tracking(projectId).then((d) => setTracked(d.tracked || [])).catch(() => setTracked([]));
   }, [projectId]);
 

@@ -34,7 +34,8 @@ export default function History({ embedded = false }) {
   const projName = (id) => projects.find((p) => p.projectId === id)?.name;
 
   useEffect(() => {
-    api.runs().then((d) => setRuns(d.runs || [])).catch(() => setRuns([]));
+    // Ask for the full history — this page tells the user every run is here.
+    api.runs(500).then((d) => setRuns(d.runs || [])).catch(() => setRuns([]));
   }, []);
 
   const visible = useMemo(() => {

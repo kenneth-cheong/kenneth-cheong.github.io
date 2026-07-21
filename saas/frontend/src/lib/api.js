@@ -259,7 +259,9 @@ export const api = {
   conversations: () => call('/chat/conversations'),
   conversation: (id) => call(`/chat/conversations/${encodeURIComponent(id)}`),
   deleteConversation: (id) => call('/chat/conversations/delete', { method: 'POST', body: { conversationId: id } }),
-  runs: () => call('/me/runs'),
+  // No limit → the newest 100 (enough for the dashboard widgets). The Runs
+  // page passes one, since it promises the user their full history.
+  runs: (limit) => call(`/me/runs${limit ? `?limit=${limit}` : ''}`),
   run: (runId) => call(`/me/runs/${encodeURIComponent(runId)}`),
   // Server-rendered share card (PNG Blob). Authed like any /me route, so we
   // fetch it with the bearer token rather than putting it in an <img src>.

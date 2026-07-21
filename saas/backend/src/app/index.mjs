@@ -598,7 +598,13 @@ export const handler = async (event) => {
     }
 
     // ── Run history ─────────────────────────────────────────────────────────
-    if (method === 'GET' && path.endsWith('/me/runs')) return ok({ runs: await listRuns(user.userId, 100) });
+    // The dashboard widgets only need the newest handful, but the Runs page
+    // claims to show everything — let it ask for the lot rather than silently
+    // cutting a long history off at 100.
+    if (method === 'GET' && path.endsWith('/me/runs')) {
+      const limit = Math.min(Number((event.queryStringParameters || {}).limit) || 100, 500);
+      return ok({ runs: await listRuns(user.userId, limit) });
+    }
     if (method === 'GET' && path.includes('/me/runs/')) {
       const run = await getRun(user.userId, seg(path, '/me/runs/'));
       return run ? ok({ run }) : badRequest('Run not found');
