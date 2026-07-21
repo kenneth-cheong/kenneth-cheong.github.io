@@ -134,7 +134,12 @@ function sanitizePlan(raw) {
   } : null)).filter((s) => s && (s.toolId || s.action));
   const done = {};
   if (raw.done && typeof raw.done === 'object') {
-    for (const k of Object.keys(raw.done).slice(0, 40)) if (raw.done[k]) done[clampStr(k, 40)] = true;
+    // Keyed by toolId, so both bounds have to match the ids above rather than the
+    // 40 they used to share: a `rec:` id runs to 52 chars, and clamping the KEY at
+    // 40 renamed the tick on any recommendation titled longer than ~36 characters —
+    // it came back unticked on the next sync. 60 keys, not 40, for the same reason:
+    // steps + locked + extras can total 50, so a full plan lost its last ticks.
+    for (const k of Object.keys(raw.done).slice(0, 60)) if (raw.done[k]) done[clampStr(k, 60)] = true;
   }
   return {
     goals: strs(raw.goals, 8, 40),
