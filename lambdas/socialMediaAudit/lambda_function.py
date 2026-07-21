@@ -25,6 +25,7 @@ DynamoDB tables (region ap-southeast-1):
 See DEPLOY.md in this folder for the create-infra commands.
 """
 
+import html as html_lib
 import json
 import os
 import re
@@ -76,6 +77,10 @@ SL_SNAPSHOTS_TABLE = os.environ.get('SL_SNAPSHOTS_TABLE', 'sl_snapshots')
 # already public on the source platform.
 THUMB_BUCKET = os.environ.get('SR_THUMB_BUCKET', 'digimetricsfileupload')
 THUMB_PREFIX = os.environ.get('SR_THUMB_PREFIX', 'social-thumbs/')
+# Post permalinks are served the share-preview markup only to something that
+# looks like a browser; a bare library UA gets a login wall instead.
+_BROWSER_UA = ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 '
+               '(KHTML, like Gecko) Chrome/124.0 Safari/537.36')
 # Competitor scrapes are billed per Apify run, so they're capped — but PER
 # PLATFORM, not in total (each platform is benchmarked separately, so a flat
 # total cap starves every platform after the first).
@@ -256,6 +261,8 @@ def lambda_handler(event, context):
             return _resp(200, report_save_month(body))
         if action == 'report_get_month':
             return _resp(200, report_get_month(body))
+        if action == 'report_fix_thumbs':
+            return _resp(200, report_fix_thumbs(body))
         if action == 'report_save_recs':
             return _resp(200, report_save_recs(body))
         if action == 'report_backfill_platform_kpis':
@@ -2767,6 +2774,78 @@ def _mirror_image(url):
         return url
 
 
+_OG_IMAGE_RE = re.compile(
+    r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', re.I)
+_OG_IMAGE_RE2 = re.compile(
+    r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']', re.I)
+
+
+def _og_image(page_url):
+    """The og:image a public post permalink advertises, or ''.
+
+    LinkedIn's own share preview points at a media.licdn.com URL signed with
+    e=2147483647 — i.e. never expires — and the page renders for a logged-out
+    fetch. That makes it the only way back to a thumbnail once the API's signed
+    URL has died, and it works for posts far outside the API's ~50-post window.
+    LinkedIn's generic brand logo (static.licdn.com/aero-…) is what it serves
+    when a post has no media of its own, so treat that as no image."""
+    u = str(page_url or '')
+    if not u.startswith('http'):
+        return ''
+    try:
+        r = requests.get(u, timeout=20, headers={'User-Agent': _BROWSER_UA})
+        if r.status_code != 200 or not r.text:
+            return ''
+        m = _OG_IMAGE_RE.search(r.text) or _OG_IMAGE_RE2.search(r.text)
+        img = html_lib.unescape(m.group(1)).strip() if m else ''
+        if not img.startswith('http') or 'static.licdn.com' in img:
+            return ''
+        return img
+    except Exception:
+        return ''
+
+
+def _rescue_dead_thumbs(sc):
+    """Last-resort thumbnail repair, run AFTER _mirror_scorecard_images.
+
+    Anything the mirror left on a third-party CDN could not be fetched — an
+    expired signature — and will render as a broken tile forever; a post with no
+    image at all renders as a type placeholder. Both are recoverable from the
+    post's public permalink via og:image, so re-derive those and mirror the
+    result. Scoped to LinkedIn: its post pages are readable logged-out, while
+    Meta/TikTok permalinks are not. Bounded work — only broken posts are
+    fetched — and every failure simply leaves the post as it was."""
+    if not isinstance(sc, dict):
+        return 0
+    targets = []
+    for c in (sc.get('platforms') or []):
+        if not isinstance(c, dict) or c.get('platform') != 'linkedin':
+            continue
+        for lst in ('posts', 'top_posts'):
+            for p in (c.get(lst) or []):
+                if not isinstance(p, dict) or not p.get('url'):
+                    continue
+                if not p.get('image') or _is_expiring_thumb(p.get('image')):
+                    targets.append(p)
+    if not targets:
+        return 0
+    fixed = 0
+    try:
+        with ThreadPoolExecutor(max_workers=min(4, len(targets))) as ex:
+            found = list(ex.map(lambda p: _og_image(p.get('url')), targets))
+        for p, img in zip(targets, found):
+            if not img:
+                continue
+            mirrored = _mirror_image(img)
+            # Only worth taking if it's durable, or if there was nothing before.
+            if not _is_expiring_thumb(mirrored) or not p.get('image'):
+                p['image'] = mirrored
+                fixed += 1
+    except Exception as e:
+        print('thumb rescue failed: %s' % str(e)[:160])
+    return fixed
+
+
 def _mirror_scorecard_images(sc):
     """Swap every expiring CDN thumbnail in a scorecard for a durable S3 copy.
     Covers posts[], top_posts[] and card-level image_urls[] on both platform and
@@ -2825,6 +2904,7 @@ def report_save_month(body):
     if isinstance(scorecard, dict):
         _strip_fb_reach_er(scorecard)      # invariant: FB has no reach-based ER
         _mirror_scorecard_images(scorecard)   # thumbnails must outlive the CDN signature
+        _rescue_dead_thumbs(scorecard)        # …and whatever the mirror couldn't fetch
     kpis      = data.get('kpis') or {}
     recs      = data.get('recommendations')
 
@@ -3464,6 +3544,54 @@ def report_get_month(body):
             'recommendations': _dec(it.get('recommendations')),
             'recs_block': _dec(it.get('recs_block')),
             'savedAt': it.get('savedAt'), 'savedBy': it.get('savedBy')}
+
+def report_fix_thumbs(body):
+    """Repair the stored thumbnails of ONE month, in place.
+
+    Months captured before the S3 mirror existed still point at signed CDN URLs
+    that have since expired, so their post grids render as broken tiles. This
+    re-runs the mirror (rescuing anything still fetchable) and then the og:image
+    rescue (for the rest), and writes the scorecard back — touching nothing else
+    on the item, so KPIs, recommendations and tags are untouched. Idempotent: a
+    month whose thumbnails are already on S3 does no network work at all."""
+    pid   = (body.get('projectId') or (body.get('data') or {}).get('projectId') or '').strip()
+    month = (body.get('month') or (body.get('data') or {}).get('month') or '').strip()
+    if not pid or not re.match(r'^\d{4}-\d{2}$', month):
+        raise RuntimeError('Need projectId + month (YYYY-MM).')
+    it = _rmonths().get_item(Key={'projectId': pid, 'month': month}).get('Item')
+    if not it:
+        raise RuntimeError('No data captured for that month.')
+    sc = it.get('scorecard')
+    if isinstance(sc, str):
+        try: sc = json.loads(sc)
+        except ValueError: sc = {}
+    if not isinstance(sc, dict):
+        return {'ok': False, 'month': month, 'error': 'unreadable scorecard'}
+
+    def _thumb_state(scorecard):
+        durable = broken = 0
+        for c in (scorecard.get('platforms') or []):
+            for p in (c.get('posts') or []) if isinstance(c, dict) else []:
+                img = p.get('image') if isinstance(p, dict) else None
+                if img and not _is_expiring_thumb(img):
+                    durable += 1
+                elif not img or _is_expiring_thumb(img):
+                    broken += 1
+        return durable, broken
+
+    before = _thumb_state(sc)
+    _mirror_scorecard_images(sc)
+    _rescue_dead_thumbs(sc)
+    after = _thumb_state(sc)
+    if after[0] > before[0]:
+        _rmonths().update_item(
+            Key={'projectId': pid, 'month': month},
+            UpdateExpression='SET scorecard = :s',
+            ExpressionAttributeValues={':s': _serialize_scorecard(sc)})
+    return {'ok': True, 'month': month,
+            'durable_before': before[0], 'durable_after': after[0],
+            'still_missing': after[1]}
+
 
 def report_save_recs(body):
     """Persist the AI 'Channel recommendations' block for a month WITHOUT touching
@@ -4508,14 +4636,29 @@ def _is_expiring_thumb(u):
     return s.startswith('http') and (THUMB_BUCKET + '.s3.') not in s
 
 
+def _post_text_key(p):
+    """A stable identity for the same post across two captures: the opening run
+    of its caption, stripped to letters and digits. Timestamps and permalinks
+    both fail as keys between a public scrape and a native pull — LinkedIn dates
+    a post by createdAt while the scrape reads the published date (weeks apart on
+    a scheduled post), and the scrape's /posts/…-activity-123… permalink carries
+    a different URN from the API's urn:li:ugcPost:456. The caption is the same
+    text in both. '' when the post is too short to identify safely."""
+    t = str(p.get('caption') or p.get('text') or '')
+    t = re.sub(r'\{hashtag\|\\?#\|([^}]*)\}', r'#\1', t)     # LinkedIn's escaped hashtags
+    t = re.sub(r'[^a-z0-9]+', ' ', t.lower()).strip()
+    return t[:60] if len(t) >= 25 else ''
+
+
 def _merge_posts(existing, incoming):
     """Merge a private-insights post list into an existing grid, keeping the best
     of both. Whichever set has MORE thumbnails becomes the base (so a pre-image
     legacy/private capture is upgraded to the imaged one, while a richer public
     Apify grid is preserved); the other set then donates any per-post metric the
     base is missing (e.g. reach, which the imaged pull may not return for an old
-    month). Posts are matched by timestamp first, then URL — permalink formats
-    differ between captures, but created_time is stable for the same post."""
+    month). Posts are matched by URL, then timestamp, then CAPTION — permalink
+    formats and post dates BOTH differ between captures (see _post_text_key), so
+    the caption is usually the only key that actually connects the two sets."""
     existing = existing or []
     incoming = incoming or []
     if not incoming:
@@ -4526,7 +4669,7 @@ def _merge_posts(existing, incoming):
     in_imgs = sum(1 for p in incoming if p.get('image'))
     base, donor = (incoming, existing) if in_imgs > ex_imgs else (existing, incoming)
     donor_is_fresh = donor is incoming        # `incoming` is always the newer pull
-    d_by_ts, d_by_url = {}, {}
+    d_by_ts, d_by_url, d_by_text = {}, {}, {}
     for p in donor:
         k = _to_epoch(p.get('ts'))
         if k is not None:
@@ -4534,8 +4677,12 @@ def _merge_posts(existing, incoming):
         u = p.get('url')
         if u:
             d_by_url.setdefault(u, p)
+        tk = _post_text_key(p)
+        if tk:
+            d_by_text.setdefault(tk, p)
     for p in base:
-        src = d_by_url.get(p.get('url')) or d_by_ts.get(_to_epoch(p.get('ts')))
+        src = (d_by_url.get(p.get('url')) or d_by_ts.get(_to_epoch(p.get('ts')))
+               or d_by_text.get(_post_text_key(p)))
         if not src:
             continue
         for k in _POST_FILL_KEYS:
@@ -5580,7 +5727,11 @@ def _li_posts(oid, token, since, until):
     post's media URN. Degrades to [] if r_organization_social isn't granted."""
     au = 'urn:li:organization:' + oid
     def _created(p):
-        return p.get('createdAt') or p.get('publishedAt') or p.get('firstPublishedAt')
+        # PUBLISHED time, not createdAt: a post drafted or scheduled ahead of time
+        # carries a createdAt weeks before it went live, which both files it under
+        # the wrong month and disagrees with the date the public scrape recorded.
+        return (p.get('publishedAt') or p.get('firstPublishedAt')
+                or p.get('createdAt'))
     els, seen, start, PAGE, MAX = [], set(), 0, 50, 250
     try:
         while start < MAX:
