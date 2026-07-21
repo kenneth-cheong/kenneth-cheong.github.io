@@ -4452,6 +4452,36 @@ def report_save_tags(body):
         ExpressionAttributeValues={':t': _enc(tagged), ':u': _now_iso(), ':w': _who(body)})
     return {'ok': True, 'tagged_posts': _dec(_enc(tagged))}
 
+def _rec_platform_blocks(blocks, plat_keys):
+    """Pin the model's per-platform recommendation blocks back onto the platform
+    keys the report actually has. The model is asked to echo the key verbatim but
+    still returns 'Facebook' or 'Meta / Facebook' now and then, so match loosely,
+    drop anything that matches nothing (never invent a platform the report can't
+    render) and keep the report's own platform order rather than the model's."""
+    if not isinstance(blocks, list):
+        return []
+    by_key = {}
+    for b in blocks:
+        if not isinstance(b, dict):
+            continue
+        raw = str(b.get('platform') or '').strip().lower()
+        key = next((k for k in plat_keys
+                    if k.lower() == raw or (raw and (k.lower() in raw or raw in k.lower()))), None)
+        if not key or key in by_key:        # unknown, or a duplicate second block
+            continue
+        by_key[key] = {
+            'platform': key,
+            'wins': [str(x) for x in (b.get('wins') or []) if x],
+            'concerns': [str(x) for x in (b.get('concerns') or []) if x],
+            'recommendations': [
+                {'title': str(r.get('title') or ''), 'detail': str(r.get('detail') or ''),
+                 'priority': str(r.get('priority') or 'medium').lower()}
+                for r in (b.get('recommendations') or []) if isinstance(r, dict)],
+            'next_month_focus': [str(x) for x in (b.get('next_month_focus') or []) if x],
+        }
+    return [by_key[k] for k in plat_keys if k in by_key]
+
+
 def report_recommend(body):
     """Client-ready monthly recommendations from this month's KPIs vs last month,
     the per-platform metrics, tagged-post performance and competitor benchmark.
@@ -4531,8 +4561,16 @@ def report_recommend(body):
             for k, v in bd.items() if v}
     if audience:
         facts['audience_breakdowns'] = audience
+    # Platform keys exactly as the report knows them ('facebook', 'instagram', …).
+    # The model is told to echo these verbatim so the frontend can match each
+    # returned block back to a platform row (and to its icon/colour/label).
+    plat_keys = [str(p.get('platform')) for p in platforms if p.get('platform')]
+    # The block is split per platform: one shared headline, then a full
+    # wins/concerns/actions/focus set for each platform. `wins` and friends are
+    # kept at the top level too — empty here, but they are what pre-split saved
+    # blocks carry, and the report still renders those as a single combined set.
     fallback = {
-        'headline': 'Monthly performance captured.',
+        'headline': 'Monthly performance captured.', 'platforms': [],
         'wins': [], 'concerns': [], 'recommendations': [], 'next_month_focus': [],
     }
     if not api_key:
@@ -4541,24 +4579,32 @@ def report_recommend(body):
         "You are a senior social media account manager writing the recommendations "
         "section of a MONTHLY client report. Given the data (real metrics, this "
         "month vs last month, the client's own tagged priority posts and competitor "
-        "benchmarks), write a concise, client-facing analysis. Respond with STRICT "
-        "JSON only, no prose, matching:\n"
-        '{"headline":"one punchy sentence on the month",'
-        '"wins":["2-4 concrete wins, cite the numbers/deltas"],'
-        '"concerns":["1-3 honest concerns or declines"],'
+        "benchmarks), write a concise, client-facing analysis, SPLIT PER PLATFORM. "
+        "Respond with STRICT JSON only, no prose, matching:\n"
+        '{"headline":"one punchy sentence on the month overall, across all platforms",'
+        '"platforms":[{"platform":"<platform key copied verbatim from the data>",'
+        '"wins":["2-3 concrete wins on THIS platform, cite the numbers/deltas"],'
+        '"concerns":["1-2 honest concerns or declines on THIS platform"],'
         '"recommendations":[{"title":"...","detail":"1-2 sentences, specific & actionable","priority":"high|medium|low"}],'
-        '"next_month_focus":["2-3 priorities for next month"]}\n'
-        "Ground every point in the numbers. Reference platforms by name. If tagged "
+        '"next_month_focus":["1-3 priorities for THIS platform next month"]}]}\n'
+        "Emit exactly one `platforms` entry for EACH of these platforms, in this "
+        "order, copying the key verbatim: " + (', '.join(plat_keys) or '(none)') + ". "
+        "Never merge two platforms into one entry and never invent a platform that "
+        "is not in that list. Everything inside an entry must be about that "
+        "platform only — no cross-platform points, and no repeating the same "
+        "generic advice under every platform. Only the headline speaks to the "
+        "account as a whole.\n"
+        "Ground every point in the numbers. If tagged "
         "posts are present, comment on what made them work and how to repeat it. "
         "If `audience_breakdowns` is present, work in WHO the audience is (age, "
         "gender, location, seniority) and HOW they discover the content (traffic "
         "sources) — e.g. tailor content/timing to the dominant segment. "
         "If `competitors` is present, explicitly compare the brand against them: "
         "posting volume, reactions, comments, shares, total engagement and "
-        "engagement rate, plus share of voice where given. Compare WITHIN a "
-        "platform (never across — an Instagram account and a Facebook Page are not "
-        "comparable), name who leads on what, and say what the brand should copy or "
-        "counter. Competitor reach and impressions are not obtainable for accounts "
+        "engagement rate, plus share of voice where given. Only ever cite a "
+        "competitor under its OWN platform (an Instagram account and a Facebook "
+        "Page are not comparable), name who leads on what, and say what the brand "
+        "should copy or counter. Competitor reach and impressions are not obtainable for accounts "
         "we don't own, so never claim or estimate them. "
         "Keep it plain-English for a non-marketer client.\n\nDATA:\n"
         + json.dumps(facts, default=str)[:24000]
@@ -4567,13 +4613,17 @@ def report_recommend(body):
         r = requests.post('https://api.anthropic.com/v1/messages',
                           headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01',
                                    'content-type': 'application/json'},
-                          json={'model': HAIKU_MODEL, 'max_tokens': 1800,
+                          # Four platforms' worth of wins/concerns/actions/focus is
+                          # roughly four times the old single block — at 1800 the
+                          # JSON was cut mid-object and every run fell back.
+                          json={'model': HAIKU_MODEL, 'max_tokens': 5000,
                                 'messages': [{'role': 'user', 'content': prompt}]},
                           timeout=60)
         txt = ''.join(b.get('text', '') for b in (r.json().get('content') or [])
                       if b.get('type') == 'text')
         txt = re.sub(r'^```[a-z]*\n?|```$', '', txt.strip()).strip()
         out = json.loads(txt)
+        out['platforms'] = _rec_platform_blocks(out.get('platforms'), plat_keys)
         return {'recommendations_block': {**fallback, **out}, 'ai': True}
     except Exception as e:
         return {'recommendations_block': fallback, 'ai': False, 'error': str(e)[:200]}
