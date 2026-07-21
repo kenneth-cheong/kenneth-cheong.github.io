@@ -3,6 +3,7 @@ import { ListChecks, Wand2, Target, Check, Sparkles } from 'lucide-react';
 import { usePlan } from '../context/PlanContext.jsx';
 import { recStep } from '../lib/planner.js';
 import { toast } from '../lib/ui.js';
+import InlineAnswer from './InlineAnswer.jsx';
 
 // An actionable recommendation. The data tools return prioritised "do this next"
 // cards (see aiRecommendations / competitor_insights in the metering gateway),
@@ -12,8 +13,11 @@ import { toast } from '../lib/ui.js';
 //   • How do I do this?  → the assistant explains it as plain-English steps
 //   • Do it for me       → the assistant drafts the actual fix/output (credits)
 //   • Add to plan        → drops it into the sticky cross-device checklist
-// The first two reuse the same `dm:ask` event the right-click "Explain" menu
-// fires (Layout listens → opens Monty → sends the prompt). No backend change.
+// "How do I do this?" opens Monty via the same `dm:ask` event the right-click
+// "Explain" menu fires, because an explanation is a conversation you follow up
+// on. "Do it for me" does NOT: its output is a deliverable you paste, so it
+// streams into the report itself (InlineAnswer) rather than into a 400px drawer
+// two clicks away from the thing it's about. No backend change either way.
 //
 // Rendered by ResultSections for `cards` items that carry a `body` (real
 // recommendations / insights); barePct "opportunity" cards keep the plain look.
@@ -100,6 +104,7 @@ export function bulkPrompts(cards, context) {
 export function BulkRecActions({ cards, context }) {
   const plan = usePlan();
   const [addedAll, setAddedAll] = useState(false);
+  const [writing, setWriting] = useState(false);
   if (!cards || cards.length < 2) return null;
 
   const { count, how, doIt } = bulkPrompts(cards, context);
@@ -114,22 +119,25 @@ export function BulkRecActions({ cards, context }) {
   const btn = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors';
 
   return (
-    <div className="dm-no-print mb-3 flex flex-wrap items-center gap-1.5 rounded-xl border border-brand-100 dark:border-brand-500/25 bg-brand-50/60 dark:bg-brand-500/10 px-3 py-2.5">
-      <Sparkles size={15} className="shrink-0 text-brand-500" aria-hidden />
-      <span className="mr-1 text-sm text-body">Don’t do these one by one —</span>
-      <button onClick={() => ask(doIt)} title="Monty drafts every recommendation in one reply (uses AI credits)" className={`${btn} bg-brand-600 text-white hover:bg-brand-700`}>
-        <Wand2 size={14} aria-hidden /> Do all {count} for me
-      </button>
-      <button onClick={() => ask(how)} title="Monty explains every recommendation step by step (uses AI credits)" className={`${btn} bg-surface text-body hover:bg-sunken`}>
-        <ListChecks size={14} aria-hidden /> Explain all {count}
-      </button>
-      <button
-        onClick={addAllToPlan}
-        disabled={addedAll}
-        className={`${btn} ${addedAll ? 'cursor-default bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'text-muted hover:bg-surface'}`}
-      >
-        {addedAll ? <><Check size={14} aria-hidden /> All added</> : <><Target size={14} aria-hidden /> Add all to plan</>}
-      </button>
+    <div className="mb-3">
+      <div className="dm-no-print flex flex-wrap items-center gap-1.5 rounded-xl border border-brand-100 dark:border-brand-500/25 bg-brand-50/60 dark:bg-brand-500/10 px-3 py-2.5">
+        <Sparkles size={15} className="shrink-0 text-brand-500" aria-hidden />
+        <span className="mr-1 text-sm text-body">Don’t do these one by one —</span>
+        <button onClick={() => setWriting(true)} disabled={writing} title="Drafts every recommendation, right here in the report (uses AI credits)" className={`${btn} bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-60`}>
+          <Wand2 size={14} aria-hidden /> Do all {count} for me
+        </button>
+        <button onClick={() => ask(how)} title="Monty explains every recommendation step by step (uses AI credits)" className={`${btn} bg-surface text-body hover:bg-sunken`}>
+          <ListChecks size={14} aria-hidden /> Explain all {count}
+        </button>
+        <button
+          onClick={addAllToPlan}
+          disabled={addedAll}
+          className={`${btn} ${addedAll ? 'cursor-default bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'text-muted hover:bg-surface'}`}
+        >
+          {addedAll ? <><Check size={14} aria-hidden /> All added</> : <><Target size={14} aria-hidden /> Add all to plan</>}
+        </button>
+      </div>
+      {writing && <InlineAnswer prompt={doIt} title={`All ${count} — drafted`} onClose={() => setWriting(false)} />}
     </div>
   );
 }
@@ -137,6 +145,7 @@ export function BulkRecActions({ cards, context }) {
 export default function RecommendationCard({ card, sectionTitle, context }) {
   const plan = usePlan();
   const [added, setAdded] = useState(false);
+  const [writing, setWriting] = useState(false);
 
   const title = card.title || 'Recommendation';
   const body = card.body || '';
@@ -151,12 +160,12 @@ export default function RecommendationCard({ card, sectionTitle, context }) {
     `If I can't do part of it myself, say so.${subject}`,
   );
 
-  const doIt = () => ask(
+  const doItPrompt = (
     `Please help me actually DO this recommendation${where}: "${title}${body ? ` — ${body}` : ''}".${subject}\n\n` +
     `Produce the FINISHED thing in this reply — the actual copy, meta title/description, outline or message, ` +
     `ready for me to paste in. Do not ask me clarifying questions first, do not describe what you would write, ` +
     `and do not tell me you'll come back with it: write it out now. Put the finished text on its own, clearly ` +
-    `separated from any explanation, then add one short line on where to paste it.`,
+    `separated from any explanation, then add one short line on where to paste it.`
   );
 
   const addToPlan = () => {
@@ -181,7 +190,7 @@ export default function RecommendationCard({ card, sectionTitle, context }) {
         <button onClick={how} title="Monty explains it step by step (uses AI credits)" className={`${btn} bg-sunken text-body hover:bg-overlay`}>
           <ListChecks size={14} aria-hidden /> How do I do this?
         </button>
-        <button onClick={doIt} title="The assistant drafts it for you (uses AI credits)" className={`${btn} bg-brand-600 text-white hover:bg-brand-700`}>
+        <button onClick={() => setWriting(true)} disabled={writing} title="Drafts it for you, right here (uses AI credits)" className={`${btn} bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-60`}>
           <Wand2 size={14} aria-hidden /> Do it for me
         </button>
         <button
@@ -192,6 +201,8 @@ export default function RecommendationCard({ card, sectionTitle, context }) {
           {added ? <><Check size={14} aria-hidden /> Added to plan</> : <><Target size={14} aria-hidden /> Add to plan</>}
         </button>
       </div>
+
+      {writing && <InlineAnswer prompt={doItPrompt} title={`Drafted: ${title}`} onClose={() => setWriting(false)} />}
     </div>
   );
 }
