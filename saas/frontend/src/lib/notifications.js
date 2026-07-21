@@ -34,6 +34,11 @@ export function kindOf(n) {
   if (n?.kind && NOTIF_KINDS.some((k) => k.key === n.kind)) return n.kind;
   if (n?.ticketId) return 'support';
   if (/^\/runs?\//.test(n?.link || '') || n?.link === '/history') return 'run';
+  // Rank-movement pings from the tracking cron carry `/tracking` and a title
+  // that may be a celebration rather than a warning — classify by where they
+  // point, so pre-`kind` rows land in the same bucket as new ones.
+  if (n?.link === '/tracking') return 'alert';
+  if (n?.link === '/schedules') return 'schedule';
   if (/^(⚠️|⏸️|❌)/.test(n?.title || '')) return 'alert';
   return 'announcement';
 }
