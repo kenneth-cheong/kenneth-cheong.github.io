@@ -3832,7 +3832,7 @@ html[data-theme="dark"] [data-tooltip]::before{background:#1a1f3c}
         </div>
 
         <header>
-            <h1><svg class="otter-mascot" viewBox="0 0 48 48" fill="none" width="30" height="30" style="flex-shrink:0" role="img" aria-label="Monty"><clipPath id="otterHeadClip"><circle cx="24" cy="24" r="24"/></clipPath><g clip-path="url(#otterHeadClip)"><circle cx="24" cy="24" r="24" fill="#e8f0ff"/><image href="assets/monty.jpg" x="-12.52" y="-11.48" width="73.04" height="73.04"/><path d="M8.4 20 Q24 -1 39.6 20" stroke="#2563eb" stroke-width="2.6" fill="none" stroke-linecap="round"/><ellipse cx="8.4" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><ellipse cx="39.6" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><path d="M8.4 24 Q5.5 31 16 32.2" stroke="#2563eb" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="16.3" cy="32.2" r="1.5" fill="#2563eb"/></g></svg> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2991</span></h1>
+            <h1><svg class="otter-mascot" viewBox="0 0 48 48" fill="none" width="30" height="30" style="flex-shrink:0" role="img" aria-label="Monty"><clipPath id="otterHeadClip"><circle cx="24" cy="24" r="24"/></clipPath><g clip-path="url(#otterHeadClip)"><circle cx="24" cy="24" r="24" fill="#e8f0ff"/><image href="assets/monty.jpg" x="-12.52" y="-11.48" width="73.04" height="73.04"/><path d="M8.4 20 Q24 -1 39.6 20" stroke="#2563eb" stroke-width="2.6" fill="none" stroke-linecap="round"/><ellipse cx="8.4" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><ellipse cx="39.6" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><path d="M8.4 24 Q5.5 31 16 32.2" stroke="#2563eb" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="16.3" cy="32.2" r="1.5" fill="#2563eb"/></g></svg> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.3005</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -12223,7 +12223,13 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     // runs — without it every gateway error read as "Unknown Claude error".
                     let errorMsg = data.error || data.message || `Request failed (HTTP ${statusCode})`;
                     if (statusCode === 413 || /request too long|content length exceeded/i.test(String(data.message || ''))) {
-                        errorMsg = 'This conversation is too large to send (over the 6 MB request limit) — usually a big image or scanned PDF. Start a new chat, or remove the attachments, then try again.';
+                        // Name the real size and the biggest field: the previous copy blamed
+                        // attachments, which sent us hunting the wrong thing when a user hit
+                        // this with nothing attached at all.
+                        const _p = window._cbLastPayload || {};
+                        const _mb = _p.sentBytes ? (_p.sentBytes / 1048576).toFixed(2) + ' MB' : 'unknown size';
+                        const _big = (_p.top && _p.top[0]) ? ` Largest part: ${_p.top[0].field} (${(_p.top[0].bytes / 1048576).toFixed(2)} MB).` : '';
+                        errorMsg = `The server rejected this message as too large (it was ${_mb}).${_big} Start a new chat and try again — this has been logged for the team.`;
                     } else if (statusCode === 504 || /endpoint request timed out/i.test(String(data.message || ''))) {
                         errorMsg = 'That question took too long for one turn (the server caps a single answer at about 3 minutes). Try narrowing it, or split it into two questions.';
                     }
@@ -12241,7 +12247,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                             errorMsg += `: ${data.detail}`;
                         }
                     }
-                    window.DMError && DMError.report({ function: 'claude_chat_with_tools', inputs: (typeof messagesPayload !== 'undefined' && messagesPayload.length ? messagesPayload[messagesPayload.length - 1] : ''), error: errorMsg, apiResponse: (typeof raw !== 'undefined' ? raw : data) });
+                    window.DMError && DMError.report({ function: 'claude_chat_with_tools', inputs: { lastTurn: (typeof messagesPayload !== 'undefined' && messagesPayload.length ? messagesPayload[messagesPayload.length - 1] : ''), payload: window._cbLastPayload || null, httpStatus: res.status }, error: errorMsg, apiResponse: (typeof raw !== 'undefined' ? raw : data) });
                     throw new Error(errorMsg);
                 }
 
@@ -13323,11 +13329,26 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
             return (typeof TextEncoder !== 'undefined') ? new TextEncoder().encode(json).length : json.length;
         }
 
+        // Per-field byte census, biggest first. Recorded on every send so a 413 can name
+        // the field that caused it instead of us guessing from the outside — the last
+        // occurrence was un-diagnosable because nothing measured what actually went out.
+        function cbPayloadCensus(body) {
+            const parts = Object.keys(body || {}).map(k => {
+                let b = 0;
+                try { b = cbPayloadBytes(JSON.stringify(body[k]) || ''); } catch (e) { b = -1; }
+                return { field: k, bytes: b };
+            });
+            parts.sort((a, b) => b.bytes - a.bytes);
+            return parts.filter(p => p.bytes > 1024).slice(0, 6);
+        }
+
         // Shrinks `body` in place if it's oversized, tells the user what was dropped,
         // and returns the serialized payload ready to hand to fetch().
         function cbSerializeChatPayload(body) {
             let json = JSON.stringify(body);
-            if (cbPayloadBytes(json) <= CB_PAYLOAD_BYTE_LIMIT) return json;
+            // Always record what we're about to send — the 413 handler reads this.
+            window._cbLastPayload = { bytes: cbPayloadBytes(json), top: cbPayloadCensus(body) };
+            if (window._cbLastPayload.bytes <= CB_PAYLOAD_BYTE_LIMIT) return json;
 
             let dropped = 0;
             const fits = () => { json = JSON.stringify(body); return cbPayloadBytes(json) <= CB_PAYLOAD_BYTE_LIMIT; };
@@ -13353,13 +13374,47 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 dropped++;
             }
 
+            // 3) Still over with every image gone — so the bulk is text this time. Shed the
+            //    oldest turns (the newest is the question being asked), then the volatile
+            //    context block, then finally truncate the newest turn itself. Steps 1-2 alone
+            //    were not a ceiling: they gave up once the images ran out and sent anyway,
+            //    which is how an oversized body still reached the gateway.
+            while (!fits() && (body.messages || []).length > 1) {
+                body.messages.shift();
+                dropped++;
+            }
+            if (!fits() && Array.isArray(body.system) && body.system.length > 1) {
+                // system[0] is the cached instruction block; system[1] is the synced context.
+                body.system = body.system.slice(0, 1);
+                dropped++;
+            }
+            // 5) One turn is oversized all by itself. Halve its text until it fits — a single
+            //    byte-budget guess lands just over the line, because JSON escaping and the
+            //    "truncated" marker are not in the estimate.
+            const TRUNC_NOTE = '\n…[truncated to fit the request size limit]';
+            for (let pass = 0; !fits() && (body.messages || []).length && pass < 40; pass++) {
+                const last = body.messages[body.messages.length - 1];
+                const cut = s => s.slice(0, Math.max(500, Math.floor((s.length - TRUNC_NOTE.length) * 0.6))) + TRUNC_NOTE;
+                if (Array.isArray(last.content)) {
+                    const longest = last.content
+                        .filter(b => b && b.type === 'text' && typeof b.text === 'string')
+                        .sort((a, b) => b.text.length - a.text.length)[0];
+                    if (!longest || longest.text.length <= 500 + TRUNC_NOTE.length) break;
+                    longest.text = cut(longest.text);
+                } else if (typeof last.content === 'string' && last.content.length > 500 + TRUNC_NOTE.length) {
+                    last.content = cut(last.content);
+                } else break;
+                if (pass === 0) dropped++;
+            }
+
             fits(); // final re-serialize so `json` matches the shrunken body
             if (dropped) {
-                console.warn(`[CHAT] Payload over ${CB_PAYLOAD_BYTE_LIMIT} bytes — dropped ${dropped} image(s), now ${cbPayloadBytes(json)}`);
+                console.warn(`[CHAT] Payload over ${CB_PAYLOAD_BYTE_LIMIT} bytes — shed ${dropped} item(s), now ${cbPayloadBytes(json)}`, window._cbLastPayload.top);
                 try {
-                    showToast(`This chat was too large to send, so ${dropped} image${dropped > 1 ? 's were' : ' was'} left out. Start a new chat if the reply looks off.`, 'error', 8000);
+                    showToast(`This chat was too large to send, so the oldest parts were left out. Start a new chat if the reply looks off.`, 'error', 8000);
                 } catch (e) { /* the toast is best-effort — never block the send */ }
             }
+            window._cbLastPayload.sentBytes = cbPayloadBytes(json);
             return json;
         }
 
