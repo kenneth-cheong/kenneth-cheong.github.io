@@ -328,13 +328,12 @@ export const api = {
   // GA4: metrics compatible with the chosen breakdown dimension (null = allow all).
   ga4Compatibility: (dimension, signal) => call(`/integrations/ga4/compatibility?dimension=${encodeURIComponent(dimension || '')}`, { signal, background: true }),
   // single:true → auth a different account for just this source (not the whole family).
-  authorizeIntegration: (provider, { single = false } = {}) =>
-    call(`/integrations/authorize?provider=${encodeURIComponent(provider)}${single ? '&single=1' : ''}`),
+  // scope:'family' → started from the family card, so the consent refreshes the
+  // family instead of switching on a source the user disconnected on purpose.
+  authorizeIntegration: (provider, { single = false, scope = '' } = {}) =>
+    call(`/integrations/authorize?provider=${encodeURIComponent(provider)}${single ? '&single=1' : ''}${scope ? `&scope=${encodeURIComponent(scope)}` : ''}`),
   connectIntegration: (provider, account, connected = true) =>
     call('/integrations/connect', { method: 'POST', body: { provider, account, connected } }),
-  // Per-source disconnect: clears this source's chosen account but keeps the shared family sign-in.
-  clearIntegrationAccount: (provider) =>
-    call('/integrations/connect', { method: 'POST', body: { provider, account: '', connected: true, clearAccount: true } }),
   // Admin
   adminUsers: () => call('/admin/users'),
   // Free Trial + NDA agreements collected in-app (replaces the email notification).

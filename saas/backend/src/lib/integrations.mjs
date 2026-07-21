@@ -38,6 +38,32 @@ export function providersInFamilyOf(provider) {
   return FAMILY_PROVIDERS[familyOf(provider)] || (provider ? [provider] : []);
 }
 
+/**
+ * Which sources a finished consent may switch on.
+ *
+ * The first sign-in connects the whole family — that's the promise on the
+ * connect card ("one sign-in connects Search Console, Analytics & Ads"). But
+ * once part of a family is connected, a source that ISN'T is disconnected on
+ * purpose, and re-consenting must never quietly hand its access back. So:
+ *   • single      → only the source being re-pointed at another account
+ *   • nothing live→ the whole family (first connect)
+ *   • family card → refresh exactly what's already connected
+ *   • source-led  → what's already connected, plus the source that asked
+ *
+ * @param provider the source that started the consent
+ * @param single   the consent was scoped to that one source
+ * @param scope    'family' when started from the family card
+ * @param existing the user's current integrations map
+ */
+export function consentTargets({ provider, single = false, scope = '', existing = {} }) {
+  const famIds = providersInFamilyOf(provider);
+  const live = famIds.filter((id) => existing[id]?.connected);
+  if (single) return [provider];
+  if (!live.length) return famIds;
+  if (scope === 'family') return live;
+  return [...new Set([provider, ...live])];
+}
+
 /** Is this provider's OAuth wired up on this deployment (env vars present)? */
 export function connectorConfigured(provider) {
   const m = connectorFor(provider);

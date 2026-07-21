@@ -24,7 +24,7 @@ import { normaliseSchedule, nextRunAt } from '../../../shared/schedule.mjs';
 import { compareRuns } from '../../../shared/metrics.mjs';
 import { buildChatSystem } from '../lib/assistant.mjs';
 import { integrationSummary } from '../../../shared/connectors.mjs';
-import { connectorConfigured, providersInFamilyOf, familyOf, authorizeUrl, exchangeCodeFor, listAccountsFor, detectAccountFor, detectEmailFor, ga4CompatibleMetrics } from '../lib/integrations.mjs';
+import { connectorConfigured, consentTargets, familyOf, authorizeUrl, exchangeCodeFor, listAccountsFor, detectAccountFor, detectEmailFor, ga4CompatibleMetrics } from '../lib/integrations.mjs';
 import { signOAuthState, verifyOAuthState } from '../lib/jwt.mjs';
 import { putAttachment, signTicketAttachments, deleteUserAttachments } from '../lib/s3.mjs';
 import Stripe from 'stripe';
@@ -955,9 +955,12 @@ export const handler = async (event) => {
       const provider = (event.queryStringParameters || {}).provider;
       // single=1 → connect a different account for just this source, not the whole family.
       const single = (event.queryStringParameters || {}).single === '1';
+      // scope=family → started from the family card, so it refreshes the family
+      // rather than switching on the one source that asked. See oauthCallback.
+      const scope = (event.queryStringParameters || {}).scope === 'family' ? 'family' : '';
       if (!INTEGRATIONS.some((p) => p.id === provider)) return badRequest('Unknown provider.');
       if (!connectorConfigured(provider)) return badRequest('This integration is not configured on this deployment.');
-      return ok({ url: authorizeUrl(provider, signOAuthState(user.userId, provider, single), oauthRedirectUri(event)) });
+      return ok({ url: authorizeUrl(provider, signOAuthState(user.userId, provider, single, scope), oauthRedirectUri(event)) });
     }
     if (method === 'POST' && path.endsWith('/integrations/connect')) {
       // Used for disconnect, per-source account-clear, or to set/override the account id for a provider.
@@ -991,16 +994,17 @@ async function oauthCallback(event) {
     if (tok.expires_in) tokens.expiresAt = Date.now() + Number(tok.expires_in) * 1000;
     if (tok.scope) tokens.scope = tok.scope;
 
-    // By default one consent connects every source in the provider's family
-    // (Google's sign-in grants GSC + GA4 + Ads). A `single` state scopes it to
-    // just the one source, so a user can auth a different Google account per tool.
-    const targets = st.single ? [provider] : providersInFamilyOf(provider);
     // Which account this consent signed in as — shown per-source in the UI.
     const email = tok.access_token ? await detectEmailFor(provider, tok.access_token) : '';
     // Preserve any account the user already picked; only auto-pick a default for
     // a source that doesn't have one yet. For a single-source re-auth we clear it
     // first — the old account id may belong to the previously-signed-in account.
     const existing = (await getUser(st.sub))?.integrations || {};
+
+    // One consent connects the whole family the first time (Google's sign-in
+    // grants GSC + GA4 + Ads), but never resurrects a source the user has since
+    // disconnected — see consentTargets.
+    const targets = consentTargets({ provider, single: st.single, scope: st.scope, existing });
     for (const pid of targets) {
       let account = st.single ? '' : (existing[pid]?.account || '');
       if (!account && tok.access_token) account = await detectAccountFor(pid, tok.access_token);

@@ -68,7 +68,7 @@ export default function Integrations() {
   async function connectFamily(fam) {
     setBusy(fam.id);
     try {
-      const { url } = await api.authorizeIntegration(fam.meta.authVia || fam.sources[0]?.id);
+      const { url } = await api.authorizeIntegration(fam.meta.authVia || fam.sources[0]?.id, { scope: 'family' });
       window.location.href = url;
     } catch (e) {
       setBusy('');
@@ -93,12 +93,13 @@ export default function Integrations() {
       alert(e.message || 'Could not start sign-in.');
     }
   }
-  // Per-source disconnect: clears just this tool's selected account, keeping the
-  // shared family sign-in so the user can re-pick without re-consenting.
+  // Per-source disconnect: revokes this source's access outright — its stored
+  // token is dropped, so the tool can no longer list or pull anything. The other
+  // sources in the family (GA4, Ads) keep their own sign-in.
   async function disconnectSource(fam, p) {
-    if (!window.confirm(`Disconnect ${p.name}? This clears its selected account but keeps your ${fam.meta.label || 'account'} sign-in.`)) return;
+    if (!window.confirm(`Disconnect ${p.name}? It will lose access to your data until you connect it again. Your other ${shortName(fam)} sources stay connected.`)) return;
     setBusy(p.id);
-    try { await api.clearIntegrationAccount(p.id); await load(); }
+    try { await api.connectIntegration(p.id, '', false); await load(); }
     finally { setBusy(''); }
   }
 
@@ -154,34 +155,49 @@ export default function Integrations() {
               {/* Per-source account selectors (each independent) */}
               {isConn && (
                 <div className="mt-3 space-y-3">
-                  {fam.sources.map((p) => (
+                  {fam.sources.map((p) => {
+                    // A source can be disconnected on its own while the rest of the
+                    // family stays signed in — then it shows nothing but a way back in.
+                    const srcConn = !!connected[p.id]?.connected;
+                    return (
                     <div key={p.id} className="card p-4">
                       <div className="flex flex-wrap items-center gap-3">
                         <div className="grid h-8 w-8 place-items-center rounded-lg bg-sunken text-xs font-bold text-muted">{fam.meta.icon || '•'}</div>
                         <div className="min-w-0 flex-1">
                           <div className="font-semibold">{p.name}</div>
                           <div className="text-sm text-muted">{p.blurb}</div>
-                          {connected[p.id]?.email && (
+                          {srcConn && connected[p.id]?.email && (
                             <div className="mt-0.5 truncate text-xs text-faint">Signed in as {connected[p.id].email}</div>
                           )}
                         </div>
-                        {connected[p.id]?.account
-                          ? <span className="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-500/15 px-2 py-0.5 text-xs font-semibold text-green-700 dark:text-green-300"><Check size={12} aria-hidden /> Active</span>
-                          : <span className="rounded-full bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">Pick an account</span>}
-                        <Link to={`/tool/${TOOL_FOR[p.id]}`} className="btn-ghost px-3 py-1.5 text-sm">Open tool</Link>
-                        {/* Only families with >1 source (Google) benefit from a per-source login;
-                            for single-source families the family Reconnect already covers it. */}
-                        {fam.sources.length > 1 && (
-                          <button onClick={() => connectSource(p)} disabled={busy === p.id} className="text-sm text-muted hover:text-brand-600 dark:hover:text-brand-400">{busy === p.id ? '…' : 'Different account'}</button>
-                        )}
-                        {connected[p.id]?.account && (
-                          <button onClick={() => disconnectSource(fam, p)} disabled={busy === p.id} className="text-sm text-muted hover:text-red-600 dark:hover:text-red-400">Disconnect</button>
+                        {!srcConn
+                          ? <span className="rounded-full bg-sunken px-2 py-0.5 text-xs font-semibold text-muted">Not connected</span>
+                          : connected[p.id]?.account
+                            ? <span className="inline-flex items-center gap-1 rounded-full bg-green-100 dark:bg-green-500/15 px-2 py-0.5 text-xs font-semibold text-green-700 dark:text-green-300"><Check size={12} aria-hidden /> Active</span>
+                            : <span className="rounded-full bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300">Pick an account</span>}
+                        {!srcConn ? (
+                          <button onClick={() => connectSource(p)} disabled={busy === p.id} className="btn-primary px-3 py-1.5 text-sm">{busy === p.id ? '…' : `Connect ${p.name}`}</button>
+                        ) : (
+                          <>
+                            <Link to={`/tool/${TOOL_FOR[p.id]}`} className="btn-ghost px-3 py-1.5 text-sm">Open tool</Link>
+                            {/* Only families with >1 source (Google) benefit from a per-source login;
+                                for single-source families the family Reconnect already covers it. */}
+                            {fam.sources.length > 1 && (
+                              <button onClick={() => connectSource(p)} disabled={busy === p.id} className="text-sm text-muted hover:text-brand-600 dark:hover:text-brand-400">{busy === p.id ? '…' : 'Different account'}</button>
+                            )}
+                            <button onClick={() => disconnectSource(fam, p)} disabled={busy === p.id} className="text-sm text-muted hover:text-red-600 dark:hover:text-red-400">Disconnect</button>
+                          </>
                         )}
                       </div>
-                      <PullHealth pull={lastPull[p.id]} />
-                      <AccountPicker provider={p.id} current={connected[p.id]?.account} onSaved={load} />
+                      {srcConn && (
+                        <>
+                          <PullHealth pull={lastPull[p.id]} since={connected[p.id]?.connectedAt} onReconnect={() => (fam.sources.length > 1 ? connectSource(p) : connectFamily(fam))} />
+                          <AccountPicker provider={p.id} current={connected[p.id]?.account} onSaved={load} />
+                        </>
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -217,18 +233,25 @@ function ago(iso) {
 
 // Health of the most recent pull for this source — surfaces "data flowing" vs
 // "no data" / "failed" so a selected-but-broken source is obvious.
-function PullHealth({ pull }) {
+// `since` is when this source was (re)connected: a pull from before that says
+// nothing about the connection you have now, so it's dropped rather than left
+// accusing a freshly-signed-in account of failing.
+function PullHealth({ pull, since, onReconnect }) {
   const m = {
     ok: { dot: 'bg-green-500', text: 'Data flowing', cls: 'text-muted' },
     empty: { dot: 'bg-amber-500', text: 'Last pull returned no data', cls: 'text-amber-700 dark:text-amber-300' },
-    issue: { dot: 'bg-red-500', text: 'Last pull failed — try Reconnect', cls: 'text-red-600 dark:text-red-400' },
+    issue: { dot: 'bg-red-500', text: 'Last pull failed', cls: 'text-red-600 dark:text-red-400', fix: true },
   }[pull?.status];
   if (!m) return null;
+  if (since && pull.at && new Date(pull.at) < new Date(since)) return null;
   return (
-    <div className="mt-2 flex items-center gap-1.5 text-xs">
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
       <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} aria-hidden />
       <span className={m.cls}>{m.text}</span>
       {pull.at && <span className="text-slate-300">· {ago(pull.at)}</span>}
+      {m.fix && onReconnect && (
+        <button onClick={onReconnect} className="font-medium text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Sign in again</button>
+      )}
     </div>
   );
 }

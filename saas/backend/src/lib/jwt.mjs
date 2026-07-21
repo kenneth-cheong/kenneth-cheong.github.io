@@ -31,8 +31,11 @@ export function verify(token) {
 // callback back to the user who started it).
 // `single: true` scopes the consent to just this one source (a per-source
 // "different account" re-auth); otherwise the callback connects the whole family.
-export function signOAuthState(userId, provider, single = false) {
-  return jwt.sign({ sub: userId, provider, single: !!single, typ: 'oauth' }, SECRET, { expiresIn: '15m', issuer: 'digimetrics-saas' });
+// `scope: 'family'` marks a consent started from the family card ("Connect /
+// Reconnect your Google account") rather than from one source — the callback
+// uses it to decide which sources the consent may switch on.
+export function signOAuthState(userId, provider, single = false, scope = '') {
+  return jwt.sign({ sub: userId, provider, single: !!single, scope: scope || '', typ: 'oauth' }, SECRET, { expiresIn: '15m', issuer: 'digimetrics-saas' });
 }
 export function verifyOAuthState(token) {
   const t = jwt.verify(token, SECRET, { issuer: 'digimetrics-saas' });

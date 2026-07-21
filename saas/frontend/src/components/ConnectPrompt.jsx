@@ -97,9 +97,12 @@ function ConnectBody({ provider, reason, label, fam, famName, copy, text, toolNa
     setBusy(true);
     try {
       // Per-source auth for a re-pick ('account'), family consent otherwise —
-      // one Google sign-in covers Search Console, Analytics and Ads.
+      // one Google sign-in covers Search Console, Analytics and Ads. Either way
+      // we name the source that asked, not the family's authVia: the consent URL
+      // is identical across a family, and the callback needs to know which source
+      // to switch on when the rest of the family is already connected.
       const single = reason === 'account';
-      const { url } = await api.authorizeIntegration(single ? provider : fam.authVia || provider, { single });
+      const { url } = await api.authorizeIntegration(provider, { single });
       try { sessionStorage.setItem(RETURN_KEY, JSON.stringify({ provider, toolName: toolName || label })); } catch { /* private mode */ }
       window.location.href = url;
     } catch (e) {
