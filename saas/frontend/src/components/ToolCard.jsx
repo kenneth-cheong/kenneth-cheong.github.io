@@ -2,12 +2,11 @@ import { Link } from 'react-router-dom';
 import { Lock, ArrowRight } from 'lucide-react';
 import { PLANS, CATEGORY_META, tierMeets, etaLabel } from '@shared/catalog.mjs';
 import { ToolIcon } from '../lib/icons.jsx';
-import PeekMascot, { CATEGORY_MASCOT } from './PeekMascot.jsx';
 
-// A tool tile, in the approved design (mockups/saas-overview.html .tool-card):
-// a colour-washed illustration header carrying the category's hue, then name,
-// description and a go-arrow that slides on hover. The category hue is handed
-// to the wash as --tc; .dm-tool-illus (src/index.css) does the rest.
+// A tool tile: a photo header carrying the category's hue — glyph top-left,
+// tool name across the bottom — then the description and a go-arrow that
+// slides on hover. The category hue is handed to the wash as --tc;
+// .dm-tool-illus (src/index.css) does the rest.
 //
 // Locked tools STAY VISIBLE with a tier pill + lock — never hidden.
 //
@@ -45,28 +44,30 @@ export default function ToolCard({ tool, userTier, onNavigate }) {
       className={`card card-hover group relative flex flex-col overflow-hidden ${unlocked ? '' : 'border-dashed'}`}
     >
       <div className="dm-tool-illus">
-        <ToolIcon tool={tool} className="dm-tool-glyph text-white" />
-        {/* Tier lock rides on the wash, where it reads against any category hue. */}
-        {!unlocked && (
-          <span className="absolute right-2 top-2 flex items-center gap-1 rounded-full bg-black/35 px-2 py-0.5 text-[10px] font-bold uppercase text-white backdrop-blur-sm">
-            <Lock size={10} aria-hidden /> {PLANS[tool.minTier].name}
-          </span>
-        )}
+        {/* Decoration: one Unsplash photo per tool, blended into the hue. Empty
+            alt + a silent failure — a missing file must never break the tile. */}
+        <img
+          src={`/tool-art/${tool.id}.webp`}
+          alt=""
+          aria-hidden
+          loading="lazy"
+          decoding="async"
+          className="dm-tool-photo"
+          onError={(e) => { e.currentTarget.style.display = 'none'; }}
+        />
+        <div className="flex items-start justify-between gap-2">
+          <ToolIcon tool={tool} className="dm-tool-glyph text-white" />
+          {/* Tier lock rides on the wash, where it reads against any hue. */}
+          {!unlocked && (
+            <span className="flex items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-bold uppercase text-white backdrop-blur-sm">
+              <Lock size={10} aria-hidden /> {PLANS[tool.minTier].name}
+            </span>
+          )}
+        </div>
+        <h3 className="dm-tool-name">{tool.name}</h3>
       </div>
 
-      {/* The category's mascot breaks the frame — it sits on the illustration's
-          bottom edge and PROTRUDES down into the card body (like the mockup's
-          105%-tall banner figure), waving the user in. A card child (not an illus
-          child) so the wash's overflow-hidden doesn't clip it; it pops up a touch
-          on card hover. Decorative (aria-hidden inside PeekMascot). */}
-      <PeekMascot
-        name={CATEGORY_MASCOT[tool.category]}
-        width={62}
-        className="dm-tool-peek absolute right-2 top-[54px] z-[1]"
-      />
-
       <div className="flex flex-1 flex-col gap-1.5 p-3.5">
-        <h3 className="text-[13px] font-bold leading-tight text-heading">{tool.name}</h3>
         <p className="flex-1 text-[10.5px] leading-relaxed text-muted">{tool.desc}</p>
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <span className="flex min-w-0 items-center gap-2">

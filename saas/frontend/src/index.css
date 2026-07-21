@@ -530,50 +530,59 @@
   .dm-sb-monty { @apply mt-1.5 flex items-center gap-2.5 rounded-xl p-2.5 transition-colors hover:bg-raised; }
 
   /* ── Tool tile ────────────────────────────────────────────────────────────
-     The mockup's illustrated catalog card (.tool-card / .tool-illus): a short
-     colour-washed header carrying the category's hue, two decorative cut
-     circles, and a white glyph. The hue arrives per-card as --tc (inline
-     style, from CATEGORY_META.color); --e-illus-to is the theme's fade-out. */
+     The catalog card's photo header: the category's hue as a diagonal wash,
+     a per-tool Unsplash photo blended into it (public/tool-art/<id>.webp,
+     see tool-art/credits.json), then the glyph and the tool's name in white.
+     The hue arrives per-card as --tc (inline style, from CATEGORY_META.color);
+     --e-illus-to is the theme's fade-out. The photo is decoration only — it
+     sits at low opacity under a scrim, so the title reads on every theme. */
   .dm-tool-illus {
     position: relative;
     display: flex;
-    height: 86px;
-    align-items: center;
-    justify-content: center;
+    height: 104px;
+    flex-direction: column;
+    justify-content: space-between;
     overflow: hidden;
-    background: linear-gradient(150deg, var(--tc, theme('colors.brand.600')), var(--e-illus-to));
+    padding: 14px 14px 12px;
+    background: linear-gradient(135deg, var(--tc, theme('colors.brand.600')), var(--e-illus-to));
   }
-  .dm-tool-illus::before {
-    content: ''; position: absolute; top: -28px; right: -20px;
-    height: 82px; width: 82px; border-radius: 9999px;
-    background: rgba(255, 255, 255, .14);
+  /* The photo. `luminosity` keeps only the image's light and shade and takes
+     its colour from the wash behind, so 33 unrelated stock photos still read as
+     one set — and the category's hue stays the loudest thing on the tile. */
+  .dm-tool-photo {
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+    opacity: .45;
+    mix-blend-mode: luminosity;
   }
+  /* Scrim under the title — photos vary wildly in where they're bright. */
   .dm-tool-illus::after {
-    content: ''; position: absolute; bottom: -16px; left: 16px;
-    height: 46px; width: 46px; border-radius: 9999px;
-    border: 2px solid rgba(255, 255, 255, .18);
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(6, 10, 40, .55), transparent 62%);
   }
-  .dm-tool-illus > svg {
-    position: relative;
-    filter: drop-shadow(0 2px 5px rgba(0, 0, 0, .3));
-  }
+  /* Lift the glyph/title above the photo and its scrim — but NOT the photo
+     itself, which must keep the `absolute` set above (a bare `> *` here would
+     out-cascade it and drop the image back into the flex flow). */
+  .dm-tool-illus > :not(.dm-tool-photo) { position: relative; z-index: 1; }
   /* Per-tool Font Awesome glyph — sized + shadowed like the old SVG icon. */
   .dm-tool-glyph {
-    position: relative;
-    font-size: 27px;
+    font-size: 21px;
     line-height: 1;
-    filter: drop-shadow(0 2px 5px rgba(0, 0, 0, .3));
+    filter: drop-shadow(0 2px 5px rgba(0, 0, 0, .45));
   }
-  /* The category mascot peeking in the tool tile's wash: a soft shadow so it
-     lifts off the gradient, and a small pop-up when the card is hovered. */
-  .dm-tool-peek {
-    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, .28));
-    transition: transform .2s cubic-bezier(.2, .7, .3, 1);
+  .dm-tool-name {
+    @apply text-[13px] font-bold leading-tight text-white;
+    text-shadow: 0 1px 6px rgba(0, 0, 0, .55);
   }
-  .card:hover .dm-tool-peek { transform: translateY(-4px); }
+  /* A slow drift on hover, so the photo feels alive without moving the text. */
+  .dm-tool-photo { transition: transform .4s cubic-bezier(.2, .7, .3, 1), opacity .3s ease; }
+  .card:hover .dm-tool-photo { transform: scale(1.07); opacity: .58; }
   @media (prefers-reduced-motion: reduce) {
-    .dm-tool-peek { transition: none !important; }
-    .card:hover .dm-tool-peek { transform: none !important; }
+    .dm-tool-photo { transition: none !important; }
+    .card:hover .dm-tool-photo { transform: none !important; }
   }
   /* ── Monty peeking over the login card ───────────────────────────────────
      Monty is drawn leaning on a ledge, so the sprite's bottom edge IS that
