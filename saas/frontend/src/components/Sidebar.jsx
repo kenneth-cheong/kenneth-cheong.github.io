@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Link, useNavigate } from 'react-router-dom';
+import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutGrid, FolderKanban, HeartPulse, TrendingUp, LineChart,
-  CalendarClock, Plug, Settings, Shield, Check, LayoutList, Coins,
+  CalendarClock, Plug, Settings, Shield, Check, LayoutList, Coins, ChevronRight,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSupportTickets } from '../context/SupportTicketsContext.jsx';
-import { PLANS, TOOLS, tierMeets } from '@shared/catalog.mjs';
+import { PLANS, TOOLS, CATEGORIES, CATEGORY_META, tierMeets } from '@shared/catalog.mjs';
 import Logo from './Logo.jsx';
 import Mascot from './Mascot.jsx';
 import Modal from './Modal.jsx';
@@ -28,7 +28,10 @@ const NAV_GROUPS = [
     { to: '/performance', label: 'Traffic', icon: LineChart },
   ] },
   { label: 'Work', items: [
-    { to: '/tools', label: 'Tools', icon: LayoutList, tour: 'tools', badge: TOOLS.length },
+    // Tools expands into the disciplines — each sub-row filters the catalogue to
+    // that one discipline (/tools?category=…), so you can go straight to the SEO
+    // shelf without scrolling past everything else.
+    { to: '/tools', label: 'Tools', icon: LayoutList, tour: 'tools', badge: TOOLS.length, subs: CATEGORIES },
     { to: '/projects', label: 'Projects', icon: FolderKanban, tour: 'nav-/projects' },
     { to: '/schedules', label: 'Schedules', icon: CalendarClock, tour: 'nav-/schedules' },
   ] },
@@ -42,7 +45,15 @@ export default function Sidebar({ open, onNavigate, onOpenChat }) {
   const { user } = useAuth();
   const { unanswered } = useSupportTickets();
   const navigate = useNavigate();
+  const location = useLocation();
   const [planOpen, setPlanOpen] = useState(false);
+  // The discipline sub-menu opens itself while you're on the Tools page, and
+  // stays wherever you last put it once you touch the chevron.
+  const [subsPinned, setSubsPinned] = useState(null);
+  const onTools = location.pathname === '/tools';
+  const subsOpen = subsPinned === null ? onTools : subsPinned;
+  const setSubsOpen = (v) => setSubsPinned(v);
+  const activeCategory = onTools ? new URLSearchParams(location.search).get('category') : null;
   // Let any page trigger the rail's actions: "explore tools" now navigates to the
   // Tools page (it used to open a modal); the upgrade pitch opens the plan popup.
   // Same window-event idiom as dm:open-chat.
@@ -82,12 +93,43 @@ export default function Sidebar({ open, onNavigate, onOpenChat }) {
             {group.label && (
               <span className="px-3 pb-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-faint">{group.label}</span>
             )}
-            {group.items.map(({ to, label, icon: Icon, end, tour, badge }) => (
-              <NavLink key={to} to={to} end={end} data-tour={tour} onClick={onNavigate} className={item}>
-                <Icon size={18} aria-hidden className="dm-sb-ico shrink-0" />
-                <span className="truncate">{label}</span>
-                {badge ? <span className="dm-sb-badge">{badge}</span> : null}
-              </NavLink>
+            {group.items.map(({ to, label, icon: Icon, end, tour, badge, subs }) => (
+              <div key={to} className="flex flex-col gap-[3px]">
+                <NavLink to={to} end={end} data-tour={tour} onClick={onNavigate} className={item}>
+                  <Icon size={18} aria-hidden className="dm-sb-ico shrink-0" />
+                  <span className="truncate">{label}</span>
+                  {badge ? <span className="dm-sb-badge">{badge}</span> : null}
+                  {subs && (
+                    // Stops at the chevron: expanding the disciplines shouldn't
+                    // also navigate you away from wherever you are.
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      aria-label={subsOpen ? 'Collapse disciplines' : 'Expand disciplines'}
+                      aria-expanded={subsOpen}
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSubsOpen(!subsOpen); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); setSubsOpen(!subsOpen); } }}
+                      className={`${badge ? '-ml-1' : 'ml-auto'} grid h-5 w-5 shrink-0 place-items-center rounded-md text-faint transition-colors hover:bg-overlay hover:text-strong`}
+                    >
+                      <ChevronRight size={14} aria-hidden className={`transition-transform ${subsOpen ? 'rotate-90' : ''}`} />
+                    </span>
+                  )}
+                </NavLink>
+                {subs && subsOpen && subs.map((c) => (
+                  <NavLink
+                    key={c}
+                    to={`/tools?category=${encodeURIComponent(c)}`}
+                    onClick={onNavigate}
+                    className={`dm-sb-sub ${activeCategory === c ? 'dm-sb-sub-on' : ''}`}
+                  >
+                    <span className="dm-sb-dot" style={{ background: CATEGORY_META[c]?.color || 'currentColor' }} aria-hidden />
+                    <span className="truncate">{c}</span>
+                    <span className="ml-auto text-[10px] font-bold text-faint">
+                      {TOOLS.filter((t) => t.category === c).length}
+                    </span>
+                  </NavLink>
+                ))}
+              </div>
             ))}
           </div>
         ))}
