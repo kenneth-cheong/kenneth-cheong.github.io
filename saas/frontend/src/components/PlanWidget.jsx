@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Target, PartyPopper } from 'lucide-react';
 import { usePlan } from '../context/PlanContext.jsx';
+import { usePlanStripDismissed } from '../lib/planStrip.js';
 
 // The header's plan chip. An ACTIVE plan is owned by the full-width strip under
 // the nav (PlanBreadcrumb) — which already carries the progress, the next step, a
@@ -9,12 +10,14 @@ import { usePlan } from '../context/PlanContext.jsx';
 //
 //   • no plan yet  → a "Set a goal" CTA (the platform tour anchors on this)
 //   • plan complete → a quiet celebration + a way back to set a new goal
+//   • strip dismissed → a "Show plan" chip that brings it back
 //
 // Anything else → null, and the strip speaks for the plan.
 export default function PlanWidget() {
   const { hasPlan, progress } = usePlan();
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const [stripDismissed, setStripDismissed] = usePlanStripDismissed();
 
   // Go to the dashboard if we aren't there, then bring the planner into view.
   // The rAF/timeout dance covers the case where the dashboard is still mounting
@@ -57,6 +60,23 @@ export default function PlanWidget() {
         className="hidden items-center gap-1.5 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 px-2.5 py-1.5 text-sm font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-500/15 sm:inline-flex"
       >
         <Target size={16} aria-hidden /><span className="hidden md:inline">Set a goal</span>
+      </button>
+    );
+  }
+
+  // Strip hidden for the session → this is the only plan affordance left in the
+  // nav, so it becomes the way back. Without it the ✕ read as permanent: the
+  // flag lives in sessionStorage, so even a reload wouldn't undo it.
+  if (!progress.complete && stripDismissed) {
+    return (
+      <button
+        onClick={() => setStripDismissed(false)}
+        data-tour="plan-widget"
+        title="Show the plan strip again"
+        aria-label="Show plan"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 px-2.5 py-1.5 text-sm font-semibold text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-500/15"
+      >
+        <Target size={16} aria-hidden /><span className="hidden md:inline">Show plan</span>
       </button>
     );
   }

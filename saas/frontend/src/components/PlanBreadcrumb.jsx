@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Target, Check, ArrowRight, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { usePlan } from '../context/PlanContext.jsx';
-import { stepTarget, stepLabel } from '../lib/planner.js';
+import { startStep, stepLabel } from '../lib/planner.js';
+import { usePlanStripDismissed } from '../lib/planStrip.js';
 
 // A slim, full-width progress strip that sits under the top nav on EVERY page,
 // including the dashboard — so the plan's "what next" is a constant anchor no
@@ -11,26 +12,20 @@ import { stepTarget, stepLabel } from '../lib/planner.js';
 //
 // Hidden only where it would be noise: once the plan is complete, when there's
 // no plan, and after a per-session dismiss — so a user who wants it gone gets a
-// quiet app back until next visit.
-const SS_KEY = 'dm:planStripDismissed';
-
+// quiet app back until next visit. The dismiss is recoverable: it flips a shared
+// flag (see lib/planStrip.js) that makes the header show a "Show plan" chip, so
+// hiding the strip is never a one-way door.
 export default function PlanBreadcrumb() {
   const { hasPlan, plan, progress, isStepDone } = usePlan();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [expanded, setExpanded] = useState(false);
-  const [dismissed, setDismissed] = useState(() => {
-    try { return sessionStorage.getItem(SS_KEY) === '1'; } catch { return false; }
-  });
-
-  const dismiss = () => {
-    setDismissed(true);
-    try { sessionStorage.setItem(SS_KEY, '1'); } catch { /* ignore */ }
-  };
+  const [dismissed, setDismissed] = usePlanStripDismissed();
 
   if (dismissed || !hasPlan || progress.complete) return null;
 
   const { done, total, pct, next } = progress;
-  const go = (item) => navigate(stepTarget(item).to);
+  const go = (item) => startStep(item, { navigate, pathname });
 
   return (
     <div className="border-t border-hair bg-brand-50/60 dark:bg-brand-500/[0.07]">
@@ -75,9 +70,9 @@ export default function PlanBreadcrumb() {
           </button>
 
           <button
-            onClick={dismiss}
+            onClick={() => setDismissed(true)}
             className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-faint hover:bg-brand-100 dark:hover:bg-brand-500/15 hover:text-dim"
-            title="Hide until next visit"
+            title="Hide it — bring it back with “Show plan” in the top bar"
             aria-label="Hide plan strip"
           >
             <X size={15} aria-hidden />
