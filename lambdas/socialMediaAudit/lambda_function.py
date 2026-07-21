@@ -1653,7 +1653,25 @@ CA_PAGE_TYPES = ['ecommerce', 'news', 'blogs', 'message-boards', 'organization']
 LISTEN_SITES = {
     'reddit':  ('site:reddit.com',                  'Reddit'),
     'twitter': ('(site:twitter.com OR site:x.com)', 'Twitter / X'),
-    'forums':  ('site:forums.hardwarezone.com.sg',  'HardwareZone & SG forums'),
+    'forums':  ('(site:forums.hardwarezone.com.sg OR site:sgtalk.org '
+                'OR site:reddit.com/r/singapore)', 'Forums'),
+    # Platforms Content Analysis doesn't index natively. Each expression is
+    # parenthesised so it groups correctly when AND-ed with the term group —
+    # without the parens Google mis-scopes the query to the first site only.
+    'linkedin':  ('site:linkedin.com',              'LinkedIn'),
+    'tumblr':    ('site:tumblr.com',                'Tumblr'),
+    'youtube':   ('site:youtube.com',               'YouTube'),
+    'facebook':  ('site:facebook.com',              'Facebook'),
+    'instagram': ('site:instagram.com',             'Instagram'),
+    'tiktok':    ('site:tiktok.com',                'TikTok'),
+    'qq':        ('(site:qq.com OR site:zhihu.com OR site:weibo.com)',
+                                                    'QQ & Chinese social'),
+    'reviews':   ('(site:trustpilot.com OR site:g2.com OR site:yelp.com '
+                  'OR site:tripadvisor.com OR site:glassdoor.com)',
+                                                    'Review sites'),
+    'news':      ('(site:straitstimes.com OR site:channelnewsasia.com '
+                  'OR site:businesstimes.com.sg OR site:todayonline.com)',
+                                                    'News'),
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1871,6 +1889,31 @@ def _sl_corpus_summary(terms, page_types):
         'categories': sorted(cats.items(), key=lambda kv: kv[1], reverse=True)[:15],
         'top_domains': sorted(domains.items(), key=lambda kv: kv[1], reverse=True)[:10],
     }
+
+
+def _sl_search_volume(terms, countries, language='English'):
+    """Google search volume for the tracked terms — the "Search volume" metric,
+    which is demand-side and completely separate from mention volume. Scoped to
+    the first selected market (Google Ads reports volume per location, and
+    summing locations would double-count anyone searching from both)."""
+    if not terms:
+        return {}
+    loc = SL_COUNTRY_LOC.get((countries or ['SG'])[0], 'Singapore')
+    d = _sl_post('keywords_data/google_ads/search_volume/live',
+                 [{'keywords': terms[:20], 'location_name': loc,
+                   'language_name': language}], timeout=30)
+    items = ((d.get('tasks') or [{}])[0].get('result')) or []
+    rows, total = [], 0
+    for it in items:
+        v = it.get('search_volume')
+        if v is None:
+            continue
+        total += v
+        rows.append({'keyword': it.get('keyword'), 'volume': v,
+                     'cpc': it.get('cpc'), 'competition': it.get('competition'),
+                     'monthly': it.get('monthly_searches') or []})
+    rows.sort(key=lambda r: r['volume'], reverse=True)
+    return {'location': loc, 'total': total, 'keywords': rows}
 
 
 def _sl_trends(terms, page_types, date_from, date_to, group='day'):
@@ -4701,6 +4744,16 @@ def sl_get_topic_report(body):
         for k, v in (cur.get('by_platform') or {}).items()}
     out['countries_available'] = [{'code': c, 'name': n} for c, n, _ in SL_COUNTRIES]
     out['days_captured_previous'] = len(prows)
+    # Demand-side, not mention-derived: how many people SEARCH these terms, as
+    # opposed to how many talk about them. Live rather than snapshotted because
+    # Google Ads reports a rolling monthly average, not a daily figure — storing
+    # it per day and summing would be the same corpus-multiplying mistake.
+    try:
+        topic_countries = next((r.get('countries') for r in (rows or prows)
+                                if r.get('countries')), [])
+        out['search_volume'] = _sl_search_volume(terms, topic_countries)
+    except Exception:
+        out['search_volume'] = {}
     return out
 
 
