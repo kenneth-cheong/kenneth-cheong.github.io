@@ -3832,7 +3832,7 @@ html[data-theme="dark"] [data-tooltip]::before{background:#1a1f3c}
         </div>
 
         <header>
-            <h1><svg class="otter-mascot" viewBox="0 0 48 48" fill="none" width="30" height="30" style="flex-shrink:0" role="img" aria-label="Monty"><clipPath id="otterHeadClip"><circle cx="24" cy="24" r="24"/></clipPath><g clip-path="url(#otterHeadClip)"><circle cx="24" cy="24" r="24" fill="#e8f0ff"/><image href="assets/monty.jpg" x="-12.52" y="-11.48" width="73.04" height="73.04"/><path d="M8.4 20 Q24 -1 39.6 20" stroke="#2563eb" stroke-width="2.6" fill="none" stroke-linecap="round"/><ellipse cx="8.4" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><ellipse cx="39.6" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><path d="M8.4 24 Q5.5 31 16 32.2" stroke="#2563eb" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="16.3" cy="32.2" r="1.5" fill="#2563eb"/></g></svg> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2967</span></h1>
+            <h1><svg class="otter-mascot" viewBox="0 0 48 48" fill="none" width="30" height="30" style="flex-shrink:0" role="img" aria-label="Monty"><clipPath id="otterHeadClip"><circle cx="24" cy="24" r="24"/></clipPath><g clip-path="url(#otterHeadClip)"><circle cx="24" cy="24" r="24" fill="#e8f0ff"/><image href="assets/monty.jpg" x="-12.52" y="-11.48" width="73.04" height="73.04"/><path d="M8.4 20 Q24 -1 39.6 20" stroke="#2563eb" stroke-width="2.6" fill="none" stroke-linecap="round"/><ellipse cx="8.4" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><ellipse cx="39.6" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><path d="M8.4 24 Q5.5 31 16 32.2" stroke="#2563eb" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="16.3" cy="32.2" r="1.5" fill="#2563eb"/></g></svg> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2978</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -12149,7 +12149,7 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     signal: _chatAbortController.signal,
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
+                    body: cbSerializeChatPayload({
                         action: 'claude_chat_with_tools',
                         progress_id: progressId,
                         system: systemBlocks,
@@ -12186,9 +12186,17 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     })
                 });
 
-                const raw = await res.json();
+                // Read as text first: API Gateway's own rejections (413, throttling) never
+                // carry our `error` field and aren't always JSON — over 10 MB the 413 body is
+                // plain text, which would otherwise blow up here as a bare JSON parse error.
+                const rawText = await res.text();
+                let raw;
+                try { raw = JSON.parse(rawText); }
+                catch (e) { raw = { message: rawText.slice(0, 300) || `HTTP ${res.status}` }; }
                 const statusCode = raw.statusCode || res.status;
-                const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
+                let data;
+                try { data = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw); }
+                catch (e) { data = { error: String(raw.body).slice(0, 300) }; }
 
                 // Check for nested Anthropic errors in the body
                 if (data.error && typeof data.error === 'object') {
@@ -12197,8 +12205,13 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 }
 
                 if (statusCode !== 200 || data.error) {
-                    // Extract more detailed error info if available
-                    let errorMsg = data.error || "Unknown Claude error";
+                    // Extract more detailed error info if available. `data.message` is what
+                    // API Gateway returns when it rejects the request before the Lambda ever
+                    // runs — without it every gateway error read as "Unknown Claude error".
+                    let errorMsg = data.error || data.message || `Request failed (HTTP ${statusCode})`;
+                    if (statusCode === 413 || /request too long|content length exceeded/i.test(String(data.message || ''))) {
+                        errorMsg = 'This conversation is too large to send (over the 6 MB request limit) — usually a big image or scanned PDF. Start a new chat, or remove the attachments, then try again.';
+                    }
                     if (data.detail) {
                         try {
                             const detailObj = JSON.parse(data.detail);
@@ -13278,6 +13291,61 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 _chatAbortController = null;
             }
             showTyping(false);
+        }
+
+        // ── Hard 6 MB request ceiling ────────────────────────────────────────────
+        // API Gateway invokes the Lambda synchronously, which caps the request body at
+        // 6 MB. Anything over comes back as a 413 {"message":"Request Too Long"} raised
+        // by the gateway *before* the Lambda runs — so it carries no `error` field and
+        // used to surface as the useless "Unknown Claude error". The PAYLOAD_CHAR_LIMIT
+        // guard upstream can't catch it: it measures only `history` and only shortens
+        // text blocks, so base64 image blocks sail straight past (one scanned PDF adds
+        // up to 8 full-page PNGs). Shed images here, oldest first, until the real
+        // serialized body fits.
+        const CB_PAYLOAD_BYTE_LIMIT = 5 * 1024 * 1024; // ~1 MB of headroom under the cap
+
+        function cbPayloadBytes(json) {
+            return (typeof TextEncoder !== 'undefined') ? new TextEncoder().encode(json).length : json.length;
+        }
+
+        // Shrinks `body` in place if it's oversized, tells the user what was dropped,
+        // and returns the serialized payload ready to hand to fetch().
+        function cbSerializeChatPayload(body) {
+            let json = JSON.stringify(body);
+            if (cbPayloadBytes(json) <= CB_PAYLOAD_BYTE_LIMIT) return json;
+
+            let dropped = 0;
+            const fits = () => { json = JSON.stringify(body); return cbPayloadBytes(json) <= CB_PAYLOAD_BYTE_LIMIT; };
+
+            // 1) deepseek_images — the base64 is only needed for images the Lambda hasn't
+            //    stored yet; an id-only entry still resolves server-side, so it goes first.
+            for (const img of (body.deepseek_images || [])) {
+                if (fits()) break;
+                if (img.b64) { delete img.b64; dropped++; }
+            }
+
+            // 2) Image blocks in the messages, oldest turn first — the newest turn is what
+            //    the user is actually asking about, so it gives up its images last.
+            const shots = [];
+            (body.messages || []).forEach(m => {
+                if (Array.isArray(m.content)) m.content.forEach((b, i) => { if (b && b.type === 'image') shots.push([m, i]); });
+            });
+            for (const [msg, i] of shots) {
+                if (fits()) break;
+                const note = { type: 'text', text: '[An image attached here was too large to send and had to be omitted.]' };
+                if (msg.content[i].cache_control) note.cache_control = msg.content[i].cache_control; // keep the prefix cacheable
+                msg.content[i] = note;
+                dropped++;
+            }
+
+            fits(); // final re-serialize so `json` matches the shrunken body
+            if (dropped) {
+                console.warn(`[CHAT] Payload over ${CB_PAYLOAD_BYTE_LIMIT} bytes — dropped ${dropped} image(s), now ${cbPayloadBytes(json)}`);
+                try {
+                    showToast(`This chat was too large to send, so ${dropped} image${dropped > 1 ? 's were' : ' was'} left out. Start a new chat if the reply looks off.`, 'error', 8000);
+                } catch (e) { /* the toast is best-effort — never block the send */ }
+            }
+            return json;
         }
 
         // One automatic retry on network-level failures (offline blip, DNS, reset).

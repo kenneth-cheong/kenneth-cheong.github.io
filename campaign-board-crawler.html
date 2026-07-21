@@ -7231,12 +7231,20 @@ ${JSON.stringify(contextData)}${focusNote}`;
                     })
                 });
 
-                const raw = await res.json();
+                // Read as text first: API Gateway's own rejections (413, throttling) never
+                // carry our `error` field and aren't always JSON.
+                const rawText = await res.text();
+                let raw;
+                try { raw = JSON.parse(rawText); }
+                catch (e) { raw = { message: rawText.slice(0, 300) || `HTTP ${res.status}` }; }
                 const data = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw);
 
-                if (data.error || (raw.statusCode && raw.statusCode !== 200)) {
-                    window.DMError && DMError.report({ function: 'claude_chat_with_tools', inputs: text, error: (data.error || "Unknown Claude error"), apiResponse: raw });
-                    throw new Error(data.error || "Unknown Claude error");
+                if (data.error || res.status !== 200 || (raw.statusCode && raw.statusCode !== 200)) {
+                    // `data.message` is the gateway's own wording (e.g. "Request Too Long");
+                    // without it every pre-Lambda rejection read as "Unknown Claude error".
+                    const errorMsg = data.error || data.message || `Request failed (HTTP ${raw.statusCode || res.status})`;
+                    window.DMError && DMError.report({ function: 'claude_chat_with_tools', inputs: text, error: errorMsg, apiResponse: raw });
+                    throw new Error(errorMsg);
                 }
 
                 const reply = data.reply || '';
