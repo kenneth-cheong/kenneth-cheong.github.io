@@ -263,6 +263,8 @@ def lambda_handler(event, context):
             return _resp(200, report_get_month(body))
         if action == 'report_fix_thumbs':
             return _resp(200, report_fix_thumbs(body))
+        if action == 'report_backfill_splits':
+            return _resp(200, report_backfill_splits(body))
         if action == 'report_save_recs':
             return _resp(200, report_save_recs(body))
         if action == 'report_backfill_platform_kpis':
@@ -4052,6 +4054,161 @@ def report_fix_thumbs(body):
     return {'ok': True, 'month': month,
             'durable_before': before[0], 'durable_after': after[0],
             'still_missing': after[1]}
+
+
+_SPLIT_KEYS = ('organic_impressions', 'paid_impressions',
+               'organic_engagement_rate', 'paid_engagement_rate')
+
+
+def _backfill_month_splits(proj, month, token, meta, force=False):
+    """Add the organic/paid split to ONE already-saved month, in place.
+
+    Writes ONLY the four split keys onto the Meta platform cards of the stored
+    scorecard. Every other field — impressions, reach, posts, thumbnails, tags,
+    kpis, recommendations — is left exactly as captured, so a backfill can never
+    rewrite history with today's numbers. Idempotent: a card that already has the
+    split does no network work unless `force`.
+
+    The month's `kpis` blob is deliberately NOT recomputed. The split is only ever
+    read off the scorecard (aggregateRange rebuilds its rows client-side), so
+    touching kpis would be risk without benefit.
+
+    Returns a short status string for the run log."""
+    it = _rmonths().get_item(Key={'projectId': proj['projectId'], 'month': month}).get('Item')
+    if not it:
+        return 'no month row'
+    sc = it.get('scorecard')
+    if isinstance(sc, str):
+        try: sc = json.loads(sc)
+        except ValueError: sc = None
+    if not isinstance(sc, dict):
+        return 'unreadable scorecard'
+    cards = {c.get('platform'): c for c in (sc.get('platforms') or []) if isinstance(c, dict)}
+    todo = [p for p in ('instagram', 'facebook')
+            if cards.get(p) and (force or not any(k in cards[p] for k in _SPLIT_KEYS))]
+    if not todo:
+        return 'already split'
+
+    since, until = _meta_month_range(month)
+    tv = {'metric_type': 'total_value'}
+    wrote = []
+
+    if 'facebook' in todo and meta.get('pageId'):
+        d = _meta_split_metric(meta['pageId'], 'page_media_view', meta['pageToken'],
+                               since, until, 'is_from_ads')
+        if d:
+            card = cards['facebook']
+            # '0'/'1' are organic/paid. A bucket Meta omits is genuinely zero, and
+            # the two sum to the card's existing impressions total.
+            card['organic_impressions'] = int(d.get('0') or 0)
+            card['paid_impressions']    = int(d.get('1') or 0)
+            wrote.append('fb')
+
+    if 'instagram' in todo and meta.get('igId'):
+        def _split(metric):
+            d = _meta_split_metric(meta['igId'], metric, meta['pageToken'],
+                                   since, until, 'media_product_type', tv)
+            if not d:
+                return None, None
+            paid = _num(d.get('AD')) or 0
+            return sum(v for k, v in d.items() if k != 'AD'), paid
+        card = cards['instagram']
+        oi, pi = _split('views')
+        if oi is not None:
+            card['organic_impressions'] = int(oi)
+            card['paid_impressions']    = int(pi)
+        oint, pint = _split('total_interactions')
+        orch, prch = _split('reach')
+        # Per bucket, never by subtraction: the reach buckets each count uniques
+        # within themselves, so organic ≠ total − paid.
+        if orch:
+            card['organic_engagement_rate'] = round((oint or 0) / orch * 100, 2)
+        if prch:
+            card['paid_engagement_rate'] = round((pint or 0) / prch * 100, 2)
+        if oi is not None or orch:
+            wrote.append('ig')
+
+    if not wrote:
+        return 'no data returned'
+    _rmonths().update_item(
+        Key={'projectId': proj['projectId'], 'month': month},
+        UpdateExpression='SET scorecard = :s',
+        ExpressionAttributeValues={':s': _serialize_scorecard(sc)})
+    return 'wrote ' + '+'.join(wrote)
+
+
+def report_backfill_splits(body):
+    """Backfill the organic/paid split across saved months.
+
+    Months captured before 2026-07-21 have no split, so their reports show dashes
+    in the Organic/Paid columns. Meta serves both breakdowns for historical windows
+    (probed: Facebook returns them ~23 months back), so this re-fetches JUST the
+    split and merges it in — see _backfill_month_splits for the additive contract.
+
+    Only Instagram and Facebook are touched. LinkedIn's figures are already
+    organic-only by definition, and TikTok/YouTube/Xiaohongshu have no split to
+    fetch — those stay dashes until someone types them in.
+
+    data: {projectId?, sinceMonth?='YYYY-MM' floor, force?, maxSeconds?}
+    Omit projectId to sweep every project. Time-boxed so a big sweep returns a
+    resumable report instead of dying on the Lambda timeout — re-invoke to
+    continue, since months already done are skipped for free.
+    Intended to be called directly via `lambda invoke`, not through the API."""
+    data  = body.get('data') or body
+    only  = (data.get('projectId') or '').strip()
+    floor = (data.get('sinceMonth') or '').strip()
+    force = bool(data.get('force'))
+    budget = float(data.get('maxSeconds') or 600)
+    t0 = time.time()
+
+    if only:
+        it = _rprojects().get_item(Key={'projectId': only}).get('Item')
+        projs = [it] if it else []
+    else:
+        projs, resp = [], _rprojects().scan()
+        projs.extend(resp.get('Items') or [])
+        while resp.get('LastEvaluatedKey'):
+            resp = _rprojects().scan(ExclusiveStartKey=resp['LastEvaluatedKey'])
+            projs.extend(resp.get('Items') or [])
+
+    out, done, skipped, failed, timed_out = [], 0, 0, 0, False
+    for raw in projs:
+        proj = _dec(raw)
+        pid  = proj.get('projectId')
+        months = sorted({m.get('month') for m in (proj.get('months') or [])
+                         if isinstance(m, dict) and m.get('month')})
+        if floor:
+            months = [m for m in months if m >= floor]
+        if not pid or not months:
+            continue
+        token = ((proj.get('connections') or {}).get('meta') or {}).get('token') or META_ACCESS_TOKEN
+        meta  = _meta_resolve(proj, token) if token else None
+        if not meta:
+            out.append({'project': proj.get('name') or pid, 'months': len(months),
+                        'result': 'no Meta connection — skipped'})
+            skipped += len(months)
+            continue
+        rows = []
+        for m in months:
+            if time.time() - t0 > budget:
+                timed_out = True
+                break
+            try:
+                r = _backfill_month_splits(proj, m, token, meta, force)
+            except Exception as e:
+                r = 'error: ' + str(e)[:120]
+                failed += 1
+            if r.startswith('wrote'):
+                done += 1
+            elif r == 'already split':
+                skipped += 1
+            rows.append({'month': m, 'result': r})
+        out.append({'project': proj.get('name') or pid, 'rows': rows})
+        if timed_out:
+            break
+    return {'ok': True, 'written': done, 'skipped': skipped, 'failed': failed,
+            'timed_out': timed_out, 'elapsed': round(time.time() - t0, 1),
+            'projects': out}
 
 
 def report_save_recs(body):
