@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ListChecks, Wand2, Target, Check } from 'lucide-react';
+import { ListChecks, Wand2, Target, Check, Sparkles } from 'lucide-react';
 import { usePlan } from '../context/PlanContext.jsx';
 import { recStep } from '../lib/planner.js';
 import { toast } from '../lib/ui.js';
@@ -54,6 +54,83 @@ function subjectBlock({ target, domain } = {}) {
     `Do NOT ask me which URL, domain, page or site this is about — you already have it above. ` +
     `If you genuinely cannot proceed without something else, make your best assumption, state the ` +
     `assumption in one short line, and give me the finished result anyway.`
+  );
+}
+
+// One line per recommendation for the bulk prompts. `title` alone is often a
+// bare category ("grammar", "readability"), so the body carries the substance.
+const recLine = (c, i) => `${i + 1}. ${c.title || 'Recommendation'}${c.badge ? ` [${c.badge}]` : ''}${c.body ? ` — ${c.body}` : ''}`;
+
+// Working through 20+ findings one message at a time is the thing users bounce
+// off, so the section header offers "do the whole list in one go". We cap the
+// list: past this the prompt bloats and the model starts skimping on the tail.
+// (Same reason the per-card flow stays — it's how you redo just one.)
+const BULK_MAX = 20;
+
+export function bulkPrompts(cards, context) {
+  const items = cards.slice(0, BULK_MAX);
+  const where = ctxLine(context);
+  const subject = subjectBlock(context);
+  const list = items.map(recLine).join('\n');
+  const dropped = cards.length - items.length;
+  const tail = dropped > 0 ? `\n\n(There are ${dropped} more beyond these — I'll ask separately.)` : '';
+
+  return {
+    count: items.length,
+    how: (
+      `I got these ${items.length} recommendations${where}:\n\n${list}${tail}\n\n` +
+      `I'm new to digital marketing. In plain, simple English (explain any jargon), walk me through EXACTLY how to do ` +
+      `each one. Keep them in the same order and number them the same way, and under each give me numbered steps I can ` +
+      `follow, where in my website or accounts I'd make the change, and roughly how long it'll take. If I can't do part ` +
+      `of one myself, say so. Cover every item — don't stop early or summarise the rest.${subject}`
+    ),
+    doIt: (
+      `Please help me actually DO all ${items.length} of these recommendations${where}:\n\n${list}${tail}${subject}\n\n` +
+      `Produce the FINISHED thing for EVERY item in this reply — the actual copy, meta title/description, outline or ` +
+      `message, ready for me to paste in. Keep them in the same order and number them the same way. Do not ask me ` +
+      `clarifying questions first, do not describe what you would write, and do not tell me you'll come back with it: ` +
+      `write it out now. For each item put the finished text on its own, clearly separated from any explanation, then ` +
+      `add one short line on where to paste it. Work through the whole list — do not stop early or skip any item.`
+    ),
+  };
+}
+
+// Section-level companion to the per-card actions: does the entire list in a
+// single assistant message (one charge, one answer) instead of N round-trips.
+export function BulkRecActions({ cards, context }) {
+  const plan = usePlan();
+  const [addedAll, setAddedAll] = useState(false);
+  if (!cards || cards.length < 2) return null;
+
+  const { count, how, doIt } = bulkPrompts(cards, context);
+
+  const addAllToPlan = () => {
+    if (addedAll || !plan?.addStep) return;
+    cards.forEach((c) => plan.addStep(recStep({ title: c.title, why: c.body, to: context?.route })));
+    setAddedAll(true);
+    toast(`Added ${cards.length} to your plan`, 'success');
+  };
+
+  const btn = 'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors';
+
+  return (
+    <div className="dm-no-print mb-3 flex flex-wrap items-center gap-1.5 rounded-xl border border-brand-100 dark:border-brand-500/25 bg-brand-50/60 dark:bg-brand-500/10 px-3 py-2.5">
+      <Sparkles size={15} className="shrink-0 text-brand-500" aria-hidden />
+      <span className="mr-1 text-sm text-body">Don’t do these one by one —</span>
+      <button onClick={() => ask(doIt)} title="Monty drafts every recommendation in one reply (uses AI credits)" className={`${btn} bg-brand-600 text-white hover:bg-brand-700`}>
+        <Wand2 size={14} aria-hidden /> Do all {count} for me
+      </button>
+      <button onClick={() => ask(how)} title="Monty explains every recommendation step by step (uses AI credits)" className={`${btn} bg-surface text-body hover:bg-sunken`}>
+        <ListChecks size={14} aria-hidden /> Explain all {count}
+      </button>
+      <button
+        onClick={addAllToPlan}
+        disabled={addedAll}
+        className={`${btn} ${addedAll ? 'cursor-default bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'text-muted hover:bg-surface'}`}
+      >
+        {addedAll ? <><Check size={14} aria-hidden /> All added</> : <><Target size={14} aria-hidden /> Add all to plan</>}
+      </button>
+    </div>
   );
 }
 

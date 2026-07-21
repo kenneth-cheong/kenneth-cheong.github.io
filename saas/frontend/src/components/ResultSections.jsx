@@ -4,7 +4,7 @@ import SortableTable from './SortableTable.jsx';
 import ReportHtml from './ReportHtml.jsx';
 import { copyText, toast } from '../lib/ui.js';
 import InfoTip, { glossaryFor } from './InfoTip.jsx';
-import RecommendationCard from './RecommendationCard.jsx';
+import RecommendationCard, { BulkRecActions } from './RecommendationCard.jsx';
 import { useEffect, useState } from 'react';
 import { Check, X, Info, TrendingUp, TrendingDown, ChevronRight } from 'lucide-react';
 
@@ -69,9 +69,12 @@ function Section({ s, context }) {
       // Cards that carry a `body` are real recommendations/insights → give them
       // the actionable card (How / Do it for me / Add to plan). Cards without a
       // body (ranked "opportunity" cards: lines + barPct + meta) stay plain.
+      // Two or more actionable ones also get a bulk row above the list, so a
+      // 12-issue report isn't 12 separate trips to the assistant.
       return (
         <Block title={s.title}>
           {s.note && <p className="-mt-1 mb-3 text-sm text-muted">{s.note}</p>}
+          <BulkRecActions cards={(s.items || []).filter((c) => c && c.body)} context={context} />
           <div className="space-y-2.5">
             {s.items.map((c, i) => (c && c.body
               ? <RecommendationCard key={i} card={c} sectionTitle={s.title} context={context} />
