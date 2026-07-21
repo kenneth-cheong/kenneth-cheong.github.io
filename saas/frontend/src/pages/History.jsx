@@ -87,6 +87,9 @@ export default function History({ embedded = false }) {
       render: (r) => <span className="whitespace-nowrap text-brand-500">{opening === r.runId ? '…' : 'Open →'}</span> },
   ];
 
+  // Paged + filterable: a real account reaches several hundred runs, which as
+  // one flat list is unusable and buries the newest rows the moment you sort.
+  // Newest-first by default, matching what the server returns.
   const Table = ({ rows }) => (
     <SortableTable
       columns={columns}
@@ -94,6 +97,10 @@ export default function History({ embedded = false }) {
       rowKey={(r) => r.runId}
       onRowClick={(r) => open(r.runId)}
       maxHeight="none"
+      pageSize={25}
+      defaultSort={{ key: 'ts', dir: -1 }}
+      filterable
+      exportName="runs"
     />
   );
 

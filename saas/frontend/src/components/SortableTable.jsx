@@ -16,6 +16,10 @@ import InfoTip, { glossaryFor } from './InfoTip.jsx';
 //   tip?: string              // header tooltip (defaults to a GLOSSARY match)
 // }]
 // If `columns` is omitted, they're inferred from the keys of the first row.
+//
+// `pageSize` (opt-in) pages the table; filter → sort → page, in that order, so
+// sorting always reorders the whole set rather than just the visible page.
+// `defaultSort` ({key, dir}) seeds the initial order.
 const humanise = (k) => String(k).replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 const toNum = (v) => parseFloat(String(v ?? '').replace(/[^0-9.-]/g, ''));
 
@@ -31,6 +35,8 @@ export default function SortableTable({
   stickyFirstCol = false, // opt-in: horizontal scroll with a pinned first column
   filterable = false, // opt-in: a search box that filters rows across all columns
   exportName, // opt-in: when set, a CSV download button (filename base) appears
+  pageSize = 0, // opt-in: rows per page (0 = show everything, the default)
+  defaultSort, // opt-in: {key, dir} to sort by on first render (dir: 1 asc, -1 desc)
 }) {
   const cols = useMemo(() => {
     const base = columns || Object.keys(rows[0] || {}).map((k) => ({ key: k }));
@@ -40,8 +46,9 @@ export default function SortableTable({
     });
   }, [columns, rows]);
 
-  const [sort, setSort] = useState({ key: null, dir: 1 });
+  const [sort, setSort] = useState(defaultSort ? { dir: 1, ...defaultSort } : { key: null, dir: 1 });
   const [q, setQ] = useState('');
+  const [page, setPage] = useState(0);
   const accessorOf = (c) => c.accessor || ((row) => row[c.key]);
 
   const isNumeric = (c) => {
@@ -76,9 +83,22 @@ export default function SortableTable({
     });
   }, [filtered, sort, cols]);
 
+  // Paging is applied LAST — after filter and sort — so sorting always reorders
+  // the whole result set and then shows page 1 of it. Sorting only the current
+  // page would be a lie: "sort by credits" would surface the biggest run on this
+  // page, not the biggest run.
+  const pageCount = pageSize > 0 ? Math.max(1, Math.ceil(sorted.length / pageSize)) : 1;
+  const current = Math.min(page, pageCount - 1); // stay in range when rows shrink
+  const visible = pageSize > 0 ? sorted.slice(current * pageSize, current * pageSize + pageSize) : sorted;
+
+  // Any change to what's being paged sends you back to the first page —
+  // otherwise filtering a 400-row list while on page 12 shows an empty table.
+  const reset = () => setPage(0);
+
   const onSort = (c) => {
     if (c.sortable === false) return;
     setSort((s) => ({ key: c.key, dir: s.key === c.key ? -s.dir : 1 }));
+    reset();
   };
 
   // Export the CURRENTLY VISIBLE rows (filtered + sorted) to CSV.
@@ -98,7 +118,7 @@ export default function SortableTable({
         <div className="mb-2 flex items-center gap-2">
           {filterable && (
             <input
-              value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter rows…"
+              value={q} onChange={(e) => { setQ(e.target.value); reset(); }} placeholder="Filter rows…"
               className="w-full max-w-xs rounded-lg border border-edge px-2.5 py-1.5 text-sm focus:border-brand-500 focus:outline-none"
             />
           )}
@@ -114,12 +134,18 @@ export default function SortableTable({
               <th
                 key={c.key}
                 onClick={() => onSort(c)}
-                className={`sticky top-0 z-10 border-b border-line bg-raised px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted ${c.align === 'right' ? 'text-right' : ''} ${c.sortable === false ? '' : 'cursor-pointer select-none hover:text-body'} ${stickyFirstCol ? 'whitespace-nowrap' : ''} ${stickyFirstCol && ci === 0 ? 'sticky left-0 z-20' : ''}`}
+                title={c.sortable === false ? undefined : `Sort by ${c.label}`}
+                aria-sort={sort.key === c.key ? (sort.dir > 0 ? 'ascending' : 'descending') : undefined}
+                className={`group sticky top-0 z-10 border-b border-line bg-raised px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted ${c.align === 'right' ? 'text-right' : ''} ${c.sortable === false ? '' : 'cursor-pointer select-none hover:text-body'} ${stickyFirstCol ? 'whitespace-nowrap' : ''} ${stickyFirstCol && ci === 0 ? 'sticky left-0 z-20' : ''}`}
               >
                 <span className={`inline-flex items-center gap-1 ${c.align === 'right' ? 'flex-row-reverse' : ''}`}>
                   {c.label}
                   {c.tip && <InfoTip text={c.tip} size={12} />}
-                  {sort.key === c.key && <span className="text-brand-500" aria-hidden>{sort.dir > 0 ? '▲' : '▼'}</span>}
+                  {sort.key === c.key
+                    ? <span className="text-brand-500" aria-hidden>{sort.dir > 0 ? '▲' : '▼'}</span>
+                    // Columns gave no hint that they were clickable until after
+                    // you'd already sorted one — surface it on hover.
+                    : c.sortable !== false && <span className="opacity-0 transition-opacity group-hover:opacity-60" aria-hidden>↕</span>}
                 </span>
               </th>
             ))}
@@ -129,7 +155,12 @@ export default function SortableTable({
           {rows.length === 0 && emptyText && (
             <tr><td colSpan={cols.length} className="px-3 py-8 text-center text-faint">{emptyText}</td></tr>
           )}
-          {sorted.map((row, i) => (
+          {visible.map((row, pi) => {
+            // Absolute index across all pages — a page-local one would collide
+            // as a fallback key, and any `render` that numbers rows would
+            // restart at 1 on every page.
+            const i = current * (pageSize || 0) + pi;
+            return (
             <tr
               key={rowKey ? rowKey(row, i) : i}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
@@ -144,10 +175,31 @@ export default function SortableTable({
                 </td>
               ))}
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
       </div>
+      {pageSize > 0 && sorted.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted tabular-nums">
+            {(current * pageSize + 1).toLocaleString()}–{Math.min((current + 1) * pageSize, sorted.length).toLocaleString()} of {sorted.length.toLocaleString()}
+          </span>
+          {pageCount > 1 && (
+            <div className="ml-auto flex items-center gap-1">
+              <button onClick={() => setPage(current - 1)} disabled={current === 0}
+                className="rounded-md border border-edge px-2.5 py-1 font-medium text-dim enabled:hover:bg-raised disabled:opacity-40">
+                ‹ Prev
+              </button>
+              <span className="px-1.5 text-muted tabular-nums">Page {current + 1} of {pageCount}</span>
+              <button onClick={() => setPage(current + 1)} disabled={current >= pageCount - 1}
+                className="rounded-md border border-edge px-2.5 py-1 font-medium text-dim enabled:hover:bg-raised disabled:opacity-40">
+                Next ›
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }
