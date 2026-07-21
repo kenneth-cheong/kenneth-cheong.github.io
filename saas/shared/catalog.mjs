@@ -13,10 +13,12 @@ export const CURRENCY = { code: 'SGD', symbol: 'S$' };
  * the first-run consent gate re-prompts any user whose accepted version differs,
  * so a bump forces everyone to re-accept. Keep in sync with Legal.jsx's date.
  */
-// .2 — the named payment processor changed from Stripe to Airwallex. That's a
-// material change to who handles card data, so everyone re-accepts. The
-// effective DATE is unchanged (these terms hadn't taken effect yet).
-export const TERMS_VERSION = '2026-07-25.2';
+// The .2 bump (payment processor Stripe → Airwallex) is staged but NOT live: it
+// re-prompts every user with terms naming Airwallex as the card processor, and
+// the Airwallex billing backend is not deployed yet, so those terms would be
+// factually wrong in the gap. Restore it to '.2' in the same change that ships
+// src/billing/index.mjs + lib/airwallex.mjs — not before.
+export const TERMS_VERSION = '2026-07-25';
 
 /**
  * Soft-launch Free Trial + NDA acceptance version. Independent of TERMS_VERSION:
