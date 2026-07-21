@@ -278,9 +278,14 @@ export const api = {
   deleteSchedule: (scheduleId) => call('/me/schedules/delete', { method: 'POST', body: { scheduleId } }),
   runScheduleNow: (scheduleId) => call('/me/schedules/run-now', { method: 'POST', body: { scheduleId } }),
   scheduleCompare: (scheduleId) => call(`/me/schedules/${encodeURIComponent(scheduleId)}/compare`),
-  // Notifications
-  notifications: () => call('/me/notifications'),
-  markNotificationsRead: () => call('/me/notifications/read', { method: 'POST' }),
+  // Notifications — the bell takes the default page, the Notifications page
+  // asks for the full history. No ids on /read marks EVERYTHING read.
+  notifications: (limit) => call(`/me/notifications${limit ? `?limit=${limit}` : ''}`),
+  markNotificationsRead: (notifIds, read = true) =>
+    call('/me/notifications/read', { method: 'POST', body: notifIds?.length ? { notifIds, read } : {} }),
+  deleteNotifications: (notifIds) =>
+    call('/me/notifications/delete', { method: 'POST', body: { notifIds: [].concat(notifIds) } }),
+  clearNotifications: () => call('/me/notifications/clear', { method: 'POST' }),
   // Support tickets (threaded + attachments)
   tickets: () => call('/support/tickets'),
   ticket: (ticketId) => call(`/support/tickets/${encodeURIComponent(ticketId)}`),

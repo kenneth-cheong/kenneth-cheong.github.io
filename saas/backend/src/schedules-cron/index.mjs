@@ -85,6 +85,7 @@ export const handler = async () => {
         title: `⏸️ Scheduled ${tool.name} skipped`,
         body: `Not enough credits (${cost} needed). Top up to resume this schedule.`,
         link: '/schedules',
+        kind: 'schedule',
       }).catch(() => {});
       skipped++;
       continue;

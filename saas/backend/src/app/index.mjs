@@ -7,7 +7,8 @@ import {
   saveConversation, listConversations, getConversation, deleteConversation,
   createTicket, getTicket, addTicketMessage, setTicketStatus, listTickets, listAllTickets,
   setIntegration, redactIntegrations,
-  addNotification, listNotifications, markNotificationsRead, deleteNotification, clearNotifications,
+  addNotification, listNotifications, markNotificationsRead, setNotificationsRead,
+  deleteNotification, deleteNotifications, clearNotifications,
   createProject, listProjects, deleteProject,
   addTracked, listTracked, countTracked, removeTracked, appendSnapshot, mergeSnapshots,
   listMetrics,
@@ -40,6 +41,14 @@ import { rateLimit, APP_LIMITS } from '../lib/ratelimit.mjs';
 const APP_ORIGIN = process.env.APP_ORIGIN || '';
 const redirect = (url) => ({ statusCode: 302, headers: { Location: url }, body: '' });
 const seg = (path, after) => decodeURIComponent((path.split(after)[1] || '').split('/')[0] || '');
+
+// Notification routes take either one `notifId` or a `notifIds` array (the
+// Notifications page's bulk actions). Capped so one request can't fan out into
+// an unbounded pile of writes.
+const notifIdsFrom = (body) => [...new Set(
+  [...(Array.isArray(body?.notifIds) ? body.notifIds : []), ...(body?.notifId ? [body.notifId] : [])]
+    .map((x) => String(x || '').trim()).filter(Boolean),
+)].slice(0, 300);
 
 // ── Scheduled runs helpers ───────────────────────────────────────────────────
 // Fire a tool run through the metering gateway exactly as the schedules cron
@@ -796,12 +805,23 @@ export const handler = async (event) => {
     }
 
     // ── Notifications ─────────────────────────────────────────────────────────
-    if (method === 'GET' && path.endsWith('/me/notifications')) return ok({ notifications: await listNotifications(user.userId) });
-    if (method === 'POST' && path.endsWith('/me/notifications/read')) { await markNotificationsRead(user.userId); return ok({ ok: true }); }
+    if (method === 'GET' && path.endsWith('/me/notifications')) {
+      // The bell wants the recent few; the Notifications page asks for the lot.
+      const limit = Math.min(Number((event.queryStringParameters || {}).limit) || 50, 300);
+      return ok({ notifications: await listNotifications(user.userId, limit) });
+    }
+    // No ids → mark everything read ("Mark all as read"). With ids → flip just
+    // those rows, so a single item can also be marked read (or back to unread).
+    if (method === 'POST' && path.endsWith('/me/notifications/read')) {
+      const ids = notifIdsFrom(body);
+      if (!ids.length) return ok({ ok: true, marked: await markNotificationsRead(user.userId) });
+      return ok({ ok: true, marked: await setNotificationsRead(user.userId, ids, body.read !== false) });
+    }
     if (method === 'POST' && path.endsWith('/me/notifications/delete')) {
-      if (!body.notifId) return badRequest('notifId is required.');
-      await deleteNotification(user.userId, String(body.notifId));
-      return ok({ ok: true });
+      const ids = notifIdsFrom(body);
+      if (!ids.length) return badRequest('notifId is required.');
+      if (ids.length === 1) { await deleteNotification(user.userId, ids[0]); return ok({ ok: true, removed: 1 }); }
+      return ok({ ok: true, removed: await deleteNotifications(user.userId, ids) });
     }
     if (method === 'POST' && path.endsWith('/me/notifications/clear')) {
       return ok({ ok: true, removed: await clearNotifications(user.userId) });

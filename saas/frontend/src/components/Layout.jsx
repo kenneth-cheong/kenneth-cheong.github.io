@@ -33,6 +33,7 @@ const menuNav = [
   { to: '/account', label: 'Account & billing' },
   { to: '/integrations', label: 'Connect your data' },
   { to: '/profile', label: 'Profile' },
+  { to: '/notifications', label: 'Notifications' },
   { to: '/usage', label: 'Credits & usage' },
   { to: '/pricing', label: 'Plans & pricing' },
   { to: '/support', label: 'Support' },

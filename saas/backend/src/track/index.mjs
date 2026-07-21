@@ -48,7 +48,7 @@ export const handler = async () => {
       if (prev !== null) {
         const alert = rankAlert(t.keyword, t.domain, prev, position);
         if (alert) {
-          await addNotification({ userId: t.userId, title: alert.title, body: alert.body, link: '/tracking' });
+          await addNotification({ userId: t.userId, title: alert.title, body: alert.body, link: '/tracking', kind: 'alert' });
           alerts++;
         }
       }

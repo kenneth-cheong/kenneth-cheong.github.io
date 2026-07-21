@@ -56,6 +56,8 @@ const PerformanceAudit = lazyWithReload(() => import('./pages/PerformanceAudit.j
 const SeoDiagnostics = lazyWithReload(() => import('./pages/SeoDiagnostics.jsx'));
 const Schedules = lazyWithReload(() => import('./pages/Schedules.jsx'));
 const Tools = lazyWithReload(() => import('./pages/Tools.jsx'));
+const Notifications = lazyWithReload(() => import('./pages/Notifications.jsx'));
+const OpenRun = lazyWithReload(() => import('./pages/OpenRun.jsx'));
 
 const Loading = () => <div className="grid min-h-[40vh] place-items-center text-faint">Loading…</div>;
 
@@ -119,6 +121,10 @@ export default function App() {
           <Route path="/credit-guide" element={<CreditGuide />} />
           {/* Legacy path — Runs now lives on the merged Projects page. */}
           <Route path="/history" element={<Projects />} />
+          {/* Deep link to one saved result — what "X finished" notifications
+              point at. Resolves the run, then hands off to the tool view. */}
+          <Route path="/runs/:runId" element={<OpenRun />} />
+          <Route path="/notifications" element={<Notifications />} />
           <Route path="/schedules" element={<Schedules />} />
           <Route path="/support" element={<Support />} />
           <Route path="/support/:ticketId" element={<Support />} />

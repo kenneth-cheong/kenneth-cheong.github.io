@@ -227,13 +227,16 @@ export const handler = async (event, context) => {
       // In-platform "run complete" ping — the notification bell polls these so a
       // user who navigated away still learns the result is ready. Best-effort;
       // skip soft failures (the message there is the result, not a completion).
+      // Links straight at the saved run (/runs/:runId re-opens it in the tool),
+      // so the click lands on the result instead of a history list to hunt through.
       if (!softFailed) {
         try {
           await addNotification({
             userId: user.userId,
             title: `✅ ${tool.name} finished`,
             body: runNotificationPreview(tool, payload),
-            link: '/history',
+            link: runId ? `/runs/${encodeURIComponent(runId)}` : '/history',
+            kind: 'run',
           });
         } catch (e) { console.error('notify_run_failed', tool.id, e.message); }
       }
@@ -3429,6 +3432,7 @@ async function contentWriterFinalize(event, context) {
         title: '⚠️ AI Content Optimiser run could not finish',
         body: (timedOut ? 'It ran long — check History; the result may still have landed.' : (e?.message || 'Please try running it again.')).slice(0, 140),
         link: '/history',
+        kind: 'alert',
       });
     } catch { /* best-effort */ }
   }
@@ -4608,6 +4612,7 @@ async function socialAuditFinalize(event, context) {
         title: '⚠️ Social Audit could not finish',
         body: (e?.message || 'Please try running it again.').slice(0, 140),
         link: '/social-audit',
+        kind: 'alert',
       });
     } catch { /* best-effort */ }
   }

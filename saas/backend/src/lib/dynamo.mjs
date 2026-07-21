@@ -1206,11 +1206,19 @@ export async function scanOpenTickets() {
 // ── In-platform notifications ────────────────────────────────────────────────
 // `link` is an optional in-app path (e.g. "/pricing") the bell navigates to on
 // click — used by broadcast notifications that aren't tied to a support ticket.
-export async function addNotification({ userId, title, body, ticketId, link }) {
+// `kind` classifies the row for the Notifications page filter ('run' | 'support'
+// | 'alert' | 'schedule' | 'announcement'); rows written before it existed are
+// classified client-side from their shape, so it's safe to omit.
+export async function addNotification({ userId, title, body, ticketId, link, kind }) {
   const ts = new Date().toISOString();
   await ddb.send(new PutCommand({
     TableName: TABLES.notifications,
-    Item: { userId, notifId: `${ts}#${rid()}`, title, body: body || '', ticketId: ticketId || null, link: link || null, read: false, ts },
+    Item: {
+      userId, notifId: `${ts}#${rid()}`, title, body: body || '',
+      ticketId: ticketId || null, link: link || null,
+      kind: kind || (ticketId ? 'support' : 'announcement'),
+      read: false, ts,
+    },
   }));
 }
 
@@ -1231,6 +1239,22 @@ export async function deleteNotification(userId, notifId) {
     TableName: TABLES.notifications,
     Key: { userId, notifId },
   }));
+}
+
+// Remove a specific set of notifications (the Notifications page's bulk delete).
+// Batched in chunks of 25 — the BatchWrite service limit — and deduped so a
+// repeated id can't push a chunk over the cap. Returns the count deleted.
+export async function deleteNotifications(userId, notifIds) {
+  const ids = [...new Set((notifIds || []).map(String).filter(Boolean))];
+  for (let i = 0; i < ids.length; i += 25) {
+    const chunk = ids.slice(i, i + 25);
+    await ddb.send(new BatchWriteCommand({
+      RequestItems: {
+        [TABLES.notifications]: chunk.map((notifId) => ({ DeleteRequest: { Key: { userId, notifId } } })),
+      },
+    }));
+  }
+  return ids.length;
 }
 
 // Clear all of a user's notifications ("clear all"). Pages the partition and
@@ -1263,25 +1287,52 @@ export async function clearNotifications(userId) {
   return removed;
 }
 
+// Flip specific rows to read/unread (the per-row "Mark as read" and the
+// Notifications page's bulk action). `read` is reserved — alias it.
+export async function setNotificationsRead(userId, notifIds, read = true) {
+  const ids = [...new Set((notifIds || []).map(String).filter(Boolean))];
+  await Promise.all(ids.map((notifId) => ddb.send(new UpdateCommand({
+    TableName: TABLES.notifications, Key: { userId, notifId },
+    UpdateExpression: 'SET #read = :v',
+    // Don't resurrect a row the user deleted a moment ago: an Update on a
+    // missing key would silently re-create it as a bare {userId, notifId, read}.
+    ConditionExpression: 'attribute_exists(notifId)',
+    ExpressionAttributeNames: { '#read': 'read' },
+    ExpressionAttributeValues: { ':v': !!read },
+  })).catch(() => { /* already gone — nothing to mark */ })));
+  return ids.length;
+}
+
+// "Mark all as read" — pages the whole partition rather than a single Query,
+// because DynamoDB applies `Limit` BEFORE the filter: one capped call returns
+// only the unread rows that happen to fall in the first page, so older unread
+// items would keep the badge lit no matter how often the user clicked.
 export async function markNotificationsRead(userId) {
   // `read` is a DynamoDB reserved word — it MUST be aliased via
   // ExpressionAttributeNames in both the filter and the update, otherwise the
   // service rejects the request with a 400 ValidationException.
-  const { Items } = await ddb.send(new QueryCommand({
-    TableName: TABLES.notifications,
-    KeyConditionExpression: 'userId = :u',
-    FilterExpression: '#read = :f',
-    ExpressionAttributeNames: { '#read': 'read' },
-    ExpressionAttributeValues: { ':u': userId, ':f': false },
-    Limit: 100,
-  }));
-  await Promise.all((Items || []).map((n) => ddb.send(new UpdateCommand({
-    TableName: TABLES.notifications, Key: { userId, notifId: n.notifId },
-    UpdateExpression: 'SET #read = :t',
-    ExpressionAttributeNames: { '#read': 'read' },
-    ExpressionAttributeValues: { ':t': true },
-  }))));
-  return (Items || []).length;
+  let started;
+  let marked = 0;
+  do {
+    const { Items, LastEvaluatedKey } = await ddb.send(new QueryCommand({
+      TableName: TABLES.notifications,
+      KeyConditionExpression: 'userId = :u',
+      FilterExpression: '#read = :f',
+      ProjectionExpression: 'notifId',
+      ExpressionAttributeNames: { '#read': 'read' },
+      ExpressionAttributeValues: { ':u': userId, ':f': false },
+      ExclusiveStartKey: started,
+    }));
+    await Promise.all((Items || []).map((n) => ddb.send(new UpdateCommand({
+      TableName: TABLES.notifications, Key: { userId, notifId: n.notifId },
+      UpdateExpression: 'SET #read = :t',
+      ExpressionAttributeNames: { '#read': 'read' },
+      ExpressionAttributeValues: { ':t': true },
+    }))));
+    marked += (Items || []).length;
+    started = LastEvaluatedKey;
+  } while (started);
+  return marked;
 }
 
 // ── Integrations connection state (stored on the user record) ────────────────
