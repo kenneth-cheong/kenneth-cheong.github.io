@@ -108,7 +108,6 @@ export default function SeoDiagnostics() {
       const d = res.result || {};
       if (d._failed || !d.sections) { setError(d.text || 'The diagnosis did not return a usable result. Please try again.'); return; }
       setResult(d); setRunId(res.runId || null); setStep(5);
-      if (res.creditsUsed > 0) toast(`−${res.creditsUsed} credit${res.creditsUsed > 1 ? 's' : ''} · ${res.creditsRemaining} left`, 'info');
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
     } catch (e) {
       if (e instanceof ApiError && e.status === 402) { setError('Out of credits — top up to run the diagnosis.'); toast('Out of credits.', 'error'); }

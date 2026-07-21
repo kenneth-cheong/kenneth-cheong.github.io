@@ -232,7 +232,7 @@ function Card({ title, toolId, run, chip, icon, refresh, onRefreshed, children }
       const patch = refresh.apply(res?.result ?? res);
       if (!patch) { toast('Couldn’t get a fresh reading just now.', 'error'); return; }
       onRefreshed?.(patch);
-      toast(`${title} updated${res?.creditsUsed ? ` · −${res.creditsUsed} credit${res.creditsUsed > 1 ? 's' : ''}` : ''}`, 'success');
+      toast(`${title} updated`, 'success');
     } catch (err) {
       toast(err?.message || 'Refresh failed — no credits were charged.', 'error');
     } finally {

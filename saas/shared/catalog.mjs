@@ -182,6 +182,41 @@ export function etaTypical(tool) {
   return b ? Math.round((b[0] + b[1]) / 2) : 90;
 }
 
+// ── Progress checklist wording ───────────────────────────────────────────────
+// The waiting screen used to say "Crunching the numbers" for every slow tool —
+// nonsense for a tool that crawls a site and writes a text file, and it makes
+// the wait feel generic. Say what THIS tool is actually doing: per-tool wording
+// first, then a per-category default, then the numeric one for data tools.
+const RUN_STEPS = {
+  'llms-txt': ['Sending your request', 'Crawling your site', 'Checking AI readiness', 'Writing your llms.txt'],
+  'geo-onpage': ['Sending your request', 'Reading your page', 'Checking how AI reads it', 'Writing the rewrites'],
+  'forensic-audit': ['Sending your request', 'Crawling your site', 'Running the checks', 'Scoring and prioritising'],
+  'ai-discovery': ['Sending your request', 'Crawling your site', 'Testing AI readiness', 'Compiling the findings'],
+  'ai-mentions': ['Sending your request', 'Asking the AI engines', 'Reading their answers', 'Compiling the findings'],
+  'technical-seo': ['Sending your request', 'Crawling your pages', 'Running the checks', 'Compiling the results'],
+  'content-writer': ['Sending your brief', 'Researching the topic', 'Writing the draft', 'Running the QA agents'],
+  'content-check': ['Sending your copy', 'Reading your references', 'Checking the copy', 'Writing up the fixes'],
+  persona: ['Sending your request', 'Reading your site', 'Building the personas', 'Writing them up'],
+  'sem-copy': ['Sending your request', 'Reading your site', 'Writing the ad copy', 'Polishing the variants'],
+  'media-plan': ['Sending your brief', 'Sizing the audience', 'Splitting the budget', 'Writing the plan'],
+  'landing-audit': ['Sending your request', 'Loading the page', 'Judging the experience', 'Writing up the fixes'],
+  'time-to-rank': ['Sending your keywords', 'Checking the SERPs', 'Estimating the timelines', 'Compiling the results'],
+  'social-audit': ['Sending your request', 'Reading the profiles', 'Analysing the content', 'Writing the audit'],
+};
+const CATEGORY_STEPS = {
+  Content: ['Sending your request', 'Reading your inputs', 'Writing the draft', 'Polishing the result'],
+  'AI Visibility': ['Sending your request', 'Reading your site', 'Checking AI visibility', 'Compiling the findings'],
+};
+const GENERIC_STEPS = ['Sending your request', 'Reaching the data sources', 'Crunching the numbers', 'Compiling the results'];
+
+/** The 4 checklist lines shown while a slow tool runs. */
+export function runSteps(tool) {
+  const id = typeof tool === 'string' ? tool : tool?.id;
+  if (RUN_STEPS[id]) return RUN_STEPS[id];
+  const cat = typeof tool === 'object' ? tool?.category : TOOLS.find((t) => t.id === id)?.category;
+  return CATEGORY_STEPS[cat] || GENERIC_STEPS;
+}
+
 // ── Tool registry ───────────────────────────────────────────────────────────
 // `minTier`     — lowest plan that unlocks the tool fully.
 // `cost`        — key into CREDIT_COSTS (what one run charges).
@@ -944,6 +979,17 @@ const GSC_COUNTRY_OPTIONS = [
   { value: 'bra', label: 'Brazil' }, { value: 'mex', label: 'Mexico' }, { value: 'zaf', label: 'South Africa' },
 ];
 
+// Fields that carry the same `group` key are drawn inside one titled block
+// instead of as a run of loose boxes. Use it where the boxes are ALTERNATIVES —
+// the form can't say "required" on any of them, so the block header is the only
+// thing telling the user one of them is the actual job.
+export const FIELD_GROUPS = {
+  'content-source': {
+    title: 'How do you want to give us the content?',
+    hint: 'Any one of these is enough — whichever is easiest.',
+  },
+};
+
 export const INPUTS = {
   'keyword-analysis': [
     { name: 'mode', label: 'What do you want to do?', type: 'segmented',
@@ -1069,16 +1115,25 @@ export const INPUTS = {
       hint: 'Optimise runs a gap analysis and rewrites your copy to fill the gaps, then QAs the improved draft. Write turns a topic into a full article (outline → sections → polish).' },
     { name: 'models', label: 'Generate with', type: 'multiselect', options: ['Haiku', 'DeepSeek'], default: 'Haiku', staffOnly: true,
       hint: 'Staff only — pick one or both models. Choosing both runs the full research + generation pipeline through each and shows the drafts side by side so you can compare quality. (Two models = double the AI cost.)' },
+    // `primary` on all three: none can be `required` (any ONE of URL / paste /
+    // upload is enough), and without the flag the auto-collapse buries the paste
+    // and upload boxes in "advanced options" — leaving the URL as the only
+    // visible way to hand over content. `group` then draws the three of them as
+    // one "pick any one" block so the paste/upload routes aren't just three
+    // unlabelled boxes the eye slides past.
     { name: 'url', label: 'Page URL — we’ll fetch the content for you', type: 'url', placeholder: 'https://example.com/page-to-improve',
-      showWhen: { field: 'mode', in: ['Optimise existing content'] },
+      showWhen: { field: 'mode', in: ['Optimise existing content'] }, primary: true,
+      group: 'content-source', groupLabel: 'Link to the live page',
       help: 'Paste the page address and we pull its text automatically — no copy-pasting. Or paste the content below instead.' },
-    { name: 'input', label: 'Content (or topic if writing new)', type: 'textarea',
+    { name: 'input', label: 'Content (or topic if writing new)', type: 'textarea', primary: true,
+      group: 'content-source', groupLabel: 'Paste the content',
       placeholder: 'Paste content to optimise (or leave blank if you gave a URL above), or a topic to write about…',
       hint: 'Give a URL above, paste the content here, or upload a draft below.' },
     // Not every draft is published yet — upload fills the `input` field above so
     // the backend contract is unchanged (it only ever sees text).
     { name: 'inputFile', label: '…or upload a draft', type: 'file', fills: 'input',
-      accept: '.docx,.pdf,.txt,.md',
+      accept: '.docx,.pdf,.txt,.md', primary: true,
+      group: 'content-source', groupLabel: 'Upload a file',
       showWhen: { field: 'mode', in: ['Optimise existing content'] },
       help: 'Not published yet? Upload the Word doc, PDF or text file and we read the text straight into the Content box. The file stays in your browser.' },
     { name: 'keyword', label: 'Target keyword', type: 'text', placeholder: 'e.g. project management software' },

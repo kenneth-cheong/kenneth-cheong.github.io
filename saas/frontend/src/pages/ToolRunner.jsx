@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useParams, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
-import { toolById, inputsFor, tabsFor, exampleFor, CREDIT_COSTS, costPerRun, etaLabel, etaTypical, PLANS, tierMeets, isSchedulable, scheduleLimits } from '@shared/catalog.mjs';
+import { toolById, inputsFor, tabsFor, exampleFor, CREDIT_COSTS, costPerRun, etaLabel, etaTypical, runSteps, PLANS, tierMeets, isSchedulable, scheduleLimits, FIELD_GROUPS } from '@shared/catalog.mjs';
 import { api, ApiError } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
@@ -86,6 +86,7 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   const [values, setValues] = useState(seedValues);
   const [busy, setBusy] = useState(false);
   const [job, setJob] = useState(null); // live server-side progress for async-job tools
+  const [reconciling, setReconciling] = useState(false); // lost the connection — checking whether the run finished anyway
   const [nudge, setNudge] = useState(false); // highlight missing required fields after an incomplete run attempt
   const [out, setOut] = useState(!embedded && location.state?.result ? { result: location.state.result, runId: location.state.runId } : null);
   const [modal, setModal] = useState(null);
@@ -96,9 +97,13 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   const [suggesting, setSuggesting] = useState(null); // field name whose "AI suggest" is in flight
   const suggestCache = useRef({ key: '', data: null }); // one crawl per source URL, shared by every suggestible field
   const shownRef = useRef([]); // latest visible fields, for the auto-started tour
+  // Fields the user has typed in. The project-domain effect below must not
+  // overwrite these: someone auditing a different site typed their address in and
+  // watched every tool re-fill itself with their existing project's domain.
+  const editedRef = useRef(new Set());
 
   // Reset the form + result when navigating between tools (same route component).
-  useEffect(() => { setTab(0); setValues(seedValues()); setNudge(false); setOut(!embedded && location.state?.result ? { result: location.state.result, runId: location.state.runId } : null); /* eslint-disable-next-line */ }, [toolId]);
+  useEffect(() => { setTab(0); editedRef.current = new Set(); setValues(seedValues()); setNudge(false); setOut(!embedded && location.state?.result ? { result: location.state.result, runId: location.state.runId } : null); /* eslint-disable-next-line */ }, [toolId]);
 
   // The active project often loads AFTER first render, so the initial seed can
   // miss the domain and fall back to a stale value. Once the project's domain is
@@ -111,7 +116,7 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
       const next = { ...v };
       for (const f of fields) {
         const p = siteDefault(f);
-        if (p && p !== v[f.name]) next[f.name] = p;
+        if (p && p !== v[f.name] && !editedRef.current.has(f.name)) next[f.name] = p;
       }
       return next;
     });
@@ -142,7 +147,7 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   // longer prices the run. Fan-out aware so the tour's "used N" matches what a
   // real run of rank-checker & friends (per-keyword billing) would charge.
   const cost = costPerRun(tool, values);
-  const set = (name, v) => { setNudge(false); setValues((s) => ({ ...s, [name]: v })); };
+  const set = (name, v) => { editedRef.current.add(name); setNudge(false); setValues((s) => ({ ...s, [name]: v })); };
   // Switch GSC sub-tool tab: clear the previous result, seed any new fields'
   // defaults, but keep shared values (e.g. the selected property) across tabs.
   function selectTab(i) {
@@ -156,6 +161,24 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   const missing = shown.filter((f) => f.required && !String(values[f.name] || '').trim());
   const ready = missing.length === 0;
   const isMissing = (f) => nudge && missing.includes(f);
+
+  // Monty's [[tool:…]] chip hands off with `autorun` — it can't run tools itself,
+  // so the chip has to finish the job rather than dropping the user on a form and
+  // calling it "running it for you". Only auto-start when the form is genuinely
+  // complete; otherwise leave it filled in and let them press the button, since
+  // this spends credits.
+  const autoRanRef = useRef(false);
+  useEffect(() => {
+    if (!location.state?.autorun || autoRanRef.current || embedded || busy || out) return;
+    if (missing.length) { setNudge(true); return; }
+    autoRanRef.current = true;
+    // Drop the flag from history first: a back-navigation or refresh must not
+    // silently spend credits a second time.
+    navigate(location.pathname, { replace: true, state: { values: location.state.values } });
+    run();
+    // eslint-disable-next-line
+  }, [location.state, missing.length]);
+
 
   // Run was clicked without the required fields → don't disable silently. Light up
   // the empty required fields in amber and scroll to the first one (matches the
@@ -173,7 +196,10 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   // optional ones visible, and tuck the rest behind an "Advanced options" toggle.
   // Fields flagged `advanced` in the catalog (raw GAQL, expert knobs) collapse
   // even on short forms — they should never sit in a beginner's first view.
-  const optionalShown = shown.filter((f) => !f.required);
+  // `primary` is the escape hatch: a box that IS the job but isn't technically
+  // required (the Optimiser takes a URL *or* pasted text *or* an upload, so none
+  // of the three can be `required`) must never end up hidden behind the toggle.
+  const optionalShown = shown.filter((f) => !f.required && !f.primary);
   const collapseForm = shown.length >= 8 && optionalShown.length >= 5;
   const advSet = new Set([
     ...(collapseForm ? optionalShown.slice(2) : []),
@@ -181,7 +207,35 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   ]);
   const primaryFields = shown.filter((f) => !advSet.has(f));
   const advancedFields = shown.filter((f) => advSet.has(f));
+  // Boxes one "AI suggest" pass can draft. Several of them → one shared button,
+  // which sits above the first of them wherever that lands (an "advanced" box
+  // included — otherwise a collapsed form would hide the button entirely).
+  const suggestGroup = unlocked ? shown.filter((f) => f.suggest) : [];
+  const suggestAnchor = suggestGroup.length > 1
+    ? (primaryFields.find((f) => f.suggest) || advancedFields.find((f) => f.suggest))
+    : null;
   const example = exampleFor(tool.id);
+  // Consecutive fields sharing a catalog `group` render as one titled block
+  // ("How do you want to give us the content?") with "or" between them. A group
+  // that ends up with a single visible field (the others hidden by `showWhen`)
+  // falls back to a plain field — a one-item "pick any one of these" box lies.
+  const groupRuns = (list) => list.reduce((runs, f) => {
+    const last = runs[runs.length - 1];
+    if (f.group && last && last.group === f.group) last.fields.push(f);
+    else runs.push({ group: f.group, fields: [f] });
+    return runs;
+  }, []);
+  // One crawl fills every suggestible box, so several buttons that all do the
+  // same thing is just noise: show a single one above the first of them instead.
+  // Tools with one such box keep the button on that box's own label.
+  const renderField = (f, opts = {}) => (
+    <>
+      {f === suggestAnchor && <SuggestStrip busy={suggesting === '*'} onClick={() => suggestField(suggestAnchor, suggestGroup)} />}
+      <Field field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} setValue={set} autoFocus={opts.autoFocus} provider={tool.integration} values={values}
+        invalid={isMissing(f)} labelOverride={opts.grouped ? f.groupLabel : null}
+        onSuggest={unlocked && f.suggest && suggestGroup.length === 1 ? () => suggestField(f) : null} suggesting={suggesting === f.name} />
+    </>
+  );
 
   function fillExample() {
     if (!example) return;
@@ -195,7 +249,10 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   // drafts every suggestible field in one free pass; we cache that pass per
   // source URL so the second and third buttons fill instantly, and the user is
   // always left with editable text rather than a committed run.
-  async function suggestField(f) {
+  // `group` (set when a tool has several suggestible boxes) makes ONE button
+  // serve all of them: same single crawl, every box filled from it. `f` is then
+  // just the first box — the one whose source field and options we go by.
+  async function suggestField(f, group = null) {
     // `suggest` is either `true` (defaults) or `{ from, label, append }`.
     const opt = typeof f.suggest === 'object' && f.suggest ? f.suggest : {};
     const srcName = opt.from || f.suggestFrom || 'input';
@@ -207,7 +264,7 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
       toast('Enter your website URL first, then AI suggest.', 'info');
       return;
     }
-    setSuggesting(f.name);
+    setSuggesting(group ? '*' : f.name);
     try {
       // `append` fields (SEM keywords) feed their own current value back in as
       // seeds, so the answer changes every click — caching would defeat both the
@@ -223,6 +280,24 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
         data = res.result || {};
         if (data.text && !data[f.name]) throw new Error(data.text); // soft failure (unreachable site, bad JSON)
         if (!opt.append) suggestCache.current = { key: cacheKey, data };
+      }
+      // One button, several boxes: fill each one the pass came back with, but
+      // never overwrite something the user typed — their words win.
+      if (group) {
+        let filled = 0, kept = 0;
+        for (const g of group) {
+          const gv = data[g.name];
+          const gText = (Array.isArray(gv) ? gv.join(g.type === 'tags' ? ', ' : '\n') : String(gv || '')).trim();
+          if (!gText) continue;
+          if (String(values[g.name] || '').trim()) { kept++; continue; }
+          set(g.name, gText);
+          filled++;
+        }
+        if (!filled && !kept) throw new Error(data.text || "Couldn't draft anything from that site.");
+        toast(filled
+          ? `Drafted ${filled} box${filled > 1 ? 'es' : ''} from your site${kept ? ` (kept what you'd already written)` : ''} — edit anything before you run.`
+          : 'You’ve already filled these in — clear a box to draft it again.', filled ? 'success' : 'info');
+        return;
       }
       const v = data[f.name];
       const joiner = f.type === 'tags' ? ', ' : '\n'; // TagInput stores a comma list
@@ -294,6 +369,7 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
     setBusy(true);
     setOut(null);
     setJob(null);
+    const startedAt = Date.now();
     try {
       let res = await api.runTool(tool.id, { ...vals, gscOp: activeTab?.op, url: vals.url || vals.input, projectId: activeId || undefined }, tool.slow);
       // Async job tools (content-writer): the first response is just a job id —
@@ -311,8 +387,9 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
       if (typeof res.creditsRemaining === 'number') setCredits(res.creditsRemaining, res.topupRemaining);
       // Failed runs are never billed server-side — reassure the user in a toast so
       // they don't have to read the result card to know their balance is intact.
+      // A SUCCESSFUL run says nothing about credits: the deduction lands on the
+      // sidebar meter, and announcing the price of every result reads as nagging.
       if (res.failed) toast('Run didn’t complete — no credits were charged.', 'error');
-      else if (res.creditsUsed > 0) toast(`−${res.creditsUsed} credit${res.creditsUsed > 1 ? 's' : ''} · ${res.creditsRemaining} left`, 'info');
       saveLastInput(tool.id, vals);
       pushRecent(tool.id);
       // Let the proactive Otter react to a finished run (success vs. empty result).
@@ -331,6 +408,30 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
         // and don't let the fault reporter ambush them. Ask them to connect.
         suppressFault();
         setOut({ result: { needsConnect: tool.integration, connectReason: connectReasonFor(e.message) } });
+      } else if (connectionLost(e)) {
+        // Don't declare a failure we can't actually see. The run may well have
+        // finished server-side; go and look before saying anything, and keep the
+        // fault reporter off the user's back while we do.
+        suppressFault(RECONCILE_WINDOW_MS + 5000);
+        setReconciling(true);
+        let adopted = null;
+        try { adopted = await reconcileRun(tool.id, startedAt, { windowMs: RECONCILE_WINDOW_MS }); }
+        finally { setReconciling(false); }
+        if (adopted?.result) {
+          setOut({ result: adopted.result, runId: adopted.runId });
+          saveLastInput(tool.id, vals);
+          pushRecent(tool.id);
+          toast('Your connection dropped, but the run finished — here are the results.', 'success');
+          emitRunFinished(tool.name, runStatusOf({ result: adopted.result }));
+        } else if (adopted) {
+          // We know it completed (and was charged) but couldn't load the payload.
+          setOut({ error: 'Your connection dropped mid-run. The run finished and is saved — open it from History.', billed: true });
+          toast('Run finished, but we couldn’t load it here.', 'info');
+        } else {
+          setOut({ error: 'We lost the connection to this run and couldn’t find a finished result. If it did complete, it’ll be in History and you’ll have a notification.', billed: true });
+          toast('Lost connection to this run.', 'error');
+          emitRunFinished(tool.name, 'error');
+        }
       } else {
         setOut({ error: e.message });
         // Most thrown runs (upstream 5xx, hard job failure) genuinely aren't
@@ -407,9 +508,12 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
           a wall — there is nothing here they can fill in that would work. */}
       <div className={`card ${gate.blocked ? 'hidden' : ''} ${embedded ? 'mt-3' : tabs ? 'mt-4' : 'mt-6'} p-5`}>
         <div className="space-y-4">
-          {primaryFields.map((f, i) => (
-            <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} setValue={set} autoFocus={i === 0} provider={tool.integration} values={values} invalid={isMissing(f)}
-              onSuggest={unlocked && f.suggest ? () => suggestField(f) : null} suggesting={suggesting === f.name} />
+          {groupRuns(primaryFields).map((run) => (
+            run.fields.length > 1 ? (
+              <FieldGroup key={run.group} meta={FIELD_GROUPS[run.group]} fields={run.fields} render={renderField} />
+            ) : (
+              <div key={run.fields[0].name}>{renderField(run.fields[0], { autoFocus: run.fields[0] === primaryFields[0] })}</div>
+            )
           ))}
           {advancedFields.length > 0 && (
             <div className="border-t border-hair pt-3">
@@ -421,9 +525,12 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
               </button>
               {showAdv && (
                 <div className="mt-4 space-y-4">
-                  {advancedFields.map((f) => (
-                    <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} setValue={set} provider={tool.integration} values={values}
-                      onSuggest={unlocked && f.suggest ? () => suggestField(f) : null} suggesting={suggesting === f.name} />
+                  {groupRuns(advancedFields).map((run) => (
+                    run.fields.length > 1 ? (
+                      <FieldGroup key={run.group} meta={FIELD_GROUPS[run.group]} fields={run.fields} render={renderField} />
+                    ) : (
+                      <div key={run.fields[0].name}>{renderField(run.fields[0])}</div>
+                    )
                   ))}
                 </div>
               )}
@@ -468,7 +575,20 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
         />
       )}
 
-      {busy && tool.slow && <SlowProgress tool={tool} job={job} />}
+      {/* Reconciling outranks the normal progress UI: the staged checklist would
+          keep implying we're in touch with the run when we've actually lost it. */}
+      {busy && reconciling && (
+        <div className="card mt-5 flex items-start gap-3 p-4">
+          <Loader2 size={18} className="mt-0.5 shrink-0 animate-spin text-brand-600 dark:text-brand-400" aria-hidden />
+          <div>
+            <p className="text-sm font-semibold text-strong">Lost connection — checking whether your run finished</p>
+            <p className="mt-1 text-sm text-muted">
+              Runs complete on our servers even if your browser drops off, so this usually comes back with your results. Hang on a moment.
+            </p>
+          </div>
+        </div>
+      )}
+      {busy && !reconciling && tool.slow && <SlowProgress tool={tool} job={job} />}
       {out && !busy && <Result out={out} tool={tool} project={active} user={user} inputs={values} onCredits={setCredits} onRetry={() => run()} />}
 
       {modal && <UpgradeModal reason={modal.reason} requiredTier={modal.requiredTier} creditsRemaining={modal.creditsRemaining} creditsNeeded={modal.creditsNeeded} onClose={() => setModal(null)} />}
@@ -532,6 +652,55 @@ function runMayHaveBeenBilled(e) {
   return /took longer than we allow|lost track|continues in the background|taking unusually long/i.test(e?.message || '');
 }
 
+// How long to keep looking for a run whose response never came back. Comfortably
+// past the slowest tool's typical window without stranding the user forever.
+const RECONCILE_WINDOW_MS = 3 * 60 * 1000;
+
+// Did we lose the CONNECTION, rather than get told the run failed? The metering
+// Function URL is BUFFERED with a 900s Lambda timeout: nothing reaches the
+// browser until the handler returns, and the handler saves the run + fires the
+// "✅ finished" notification whether or not we're still listening. So a dropped
+// socket or an edge-level 5xx says nothing about the run's fate — the answer is
+// in History, not in this error.
+function connectionLost(e) {
+  if (e?.name === 'AbortError') return false;
+  if (e instanceof ApiError) return e.status === 0 || e.status === 502 || e.status === 503 || e.status === 504;
+  // A background job that outran our poll window is the same situation: the run
+  // kept going without us.
+  if (runMayHaveBeenBilled(e)) return true;
+  // A raw fetch rejection (offline, DNS, CORS, connection reset) is a TypeError.
+  // Deliberately narrow — a bug in our own code must surface as a bug, not send
+  // the user into a three-minute wait for a run that was never started.
+  return e instanceof TypeError;
+}
+
+// Find the run the server completed while we weren't listening. Users hit this
+// twice on Keyword Analysis: the frontend showed no response and threw up the
+// Report-a-problem modal, while /history and the notification both said the run
+// had finished — and it had been billed. Poll our own run list for one this tool
+// started after we sent the request, then adopt it as the result.
+async function reconcileRun(toolId, sinceMs, { windowMs = 3 * 60 * 1000 } = {}) {
+  const deadline = Date.now() + windowMs;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 4000));
+    let runs;
+    // `background: true` keeps these polls out of the fault reporter — we're
+    // already handling one failure and don't want to compound it.
+    try { runs = (await api.runs(15))?.runs; } catch { continue; }
+    // 5s of slack: the run's `ts` is stamped server-side, so a little clock skew
+    // either way shouldn't lose us the very run we're looking for.
+    const hit = (runs || []).find((r) => r.tool === toolId && new Date(r.ts).getTime() >= sinceMs - 5000);
+    if (!hit) continue;
+    // The list projection omits `result` — fetch the full record to render it.
+    try {
+      const { run } = await api.run(hit.runId);
+      if (run) return { result: run.result || {}, runId: hit.runId, creditsUsed: hit.creditsUsed };
+    } catch { /* fall through — we know it exists, just couldn't load it */ }
+    return { runId: hit.runId, incomplete: true };
+  }
+  return null;
+}
+
 // Poll a background job until it finishes. Transient poll failures are ignored
 // (the job keeps running server-side); a hard cap stops a zombie poll loop —
 // the run itself still completes, lands in History and fires a notification.
@@ -560,7 +729,7 @@ async function pollJob(toolId, jobId, onTick) {
 // "almost there" and then sat still, reading as stuck). Past the typical window
 // we say so honestly instead of looping the same message.
 function SlowProgress({ tool, job }) {
-  const steps = ['Sending your request', 'Reaching the data sources', 'Crunching the numbers', 'Compiling the results'];
+  const steps = runSteps(tool); // per-tool wording — a crawl-and-write tool is not "crunching numbers"
   const TYPICAL = etaTypical(tool); // seconds — this tool's measured midpoint
   const range = etaLabel(tool) || '30–150s';
   const [sec, setSec] = useState(0);
@@ -740,9 +909,24 @@ function TldrText({ text }) {
   );
 }
 
+// Did this run actually take a website address? The three "likely causes" below
+// are all URL-shaped, and a user who pasted their own copy into the Content
+// Optimiser was told to check that their website address loads — advice with no
+// relationship to what they did. Read the real inputs rather than assuming.
+function ranAgainstUrl(inputs) {
+  return Object.entries(inputs || {}).some(([k, v]) => (
+    typeof v === 'string' && v.trim() && (/^(url|domain|website|site|target)$/i.test(k) || /^https?:\/\//i.test(v.trim()))
+  ));
+}
+
 // Backend/exception strings are not layman copy ("fetch failed", "502"). Show a
 // calm card with likely causes and ways forward instead of red raw text.
-function FriendlyError({ message, tool }) {
+//
+// `billed` means we know the run may have completed and been charged (a dropped
+// connection, or a background job that outlived our window). Saying "no credits
+// were wasted" there is a claim the user can disprove from their own balance.
+function FriendlyError({ message, tool, inputs, billed }) {
+  const urlRun = ranAgainstUrl(inputs);
   const askMonty = () => {
     window.dispatchEvent(new CustomEvent('dm:ask', {
       detail: { text: `I ran the "${tool.name}" tool and got this error: "${message}". In plain English, what does it mean and what should I try?` },
@@ -751,22 +935,38 @@ function FriendlyError({ message, tool }) {
   return (
     <div className="card mt-6 p-6">
       <div className="flex items-center gap-2 font-semibold text-heading">
-        <AlertTriangle size={18} className="text-amber-500" aria-hidden /> That run didn’t work
+        <AlertTriangle size={18} className="text-amber-500" aria-hidden />
+        {billed ? 'We lost track of that run' : 'That run didn’t work'}
       </div>
       <p className="mt-2 text-sm text-dim">
-        No credits were wasted on failed runs. This usually comes down to one of these:
+        {billed
+          ? 'It may still have finished on our servers after your browser lost contact — check the two places below before running it again, so you don’t pay twice.'
+          : 'No credits were wasted on failed runs. This usually comes down to one of these:'}
       </p>
-      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-dim">
-        <li>A typo in the website address — check it loads in a new tab.</li>
-        <li>The data source being briefly busy — trying again in a minute often fixes it.</li>
-        <li>A very new or very small site with no data yet.</li>
-      </ul>
+      {!billed && (
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-dim">
+          {urlRun && <li>A typo in the website address — check it loads in a new tab.</li>}
+          <li>The data source being briefly busy — trying again in a minute often fixes it.</li>
+          {urlRun
+            ? <li>A very new or very small site with no data yet.</li>
+            : <li>Input the tool couldn’t work with — try shortening it, or removing any unusual formatting.</li>}
+        </ul>
+      )}
+      {/* Named destinations, as links. The copy used to tell people to "check
+          Notifications and History" — History has no nav entry at all and
+          Notifications only lives behind the bell, so both were unfindable. */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
+        <Link to="/history" className="btn-ghost inline-flex items-center gap-1.5 text-sm">
+          <Clock size={15} aria-hidden /> Check History
+        </Link>
+        <Link to="/notifications" className="btn-ghost inline-flex items-center gap-1.5 text-sm">
+          <MessageCircleQuestion size={15} aria-hidden /> Notifications
+        </Link>
         <button type="button" onClick={askMonty} className="btn-ghost inline-flex items-center gap-1.5 text-sm">
           <MessageCircleQuestion size={15} aria-hidden /> Ask Monty for help
         </button>
-        <span className="text-xs text-faint">Technical detail: {message}</span>
       </div>
+      <p className="mt-3 text-xs text-faint">Technical detail: {message}</p>
     </div>
   );
 }
@@ -795,7 +995,7 @@ function Result({ out, tool, project, user, inputs, onCredits, onRetry }) {
   // A connection that isn't set up yet reads as an error at the transport layer
   // but is really a setup step — route it to the connect widget either way.
   const errReason = out.error && tool.integration ? connectReasonFor(out.error) : null;
-  if (out.error && !errReason) return <FriendlyError message={out.error} tool={tool} />;
+  if (out.error && !errReason) return <FriendlyError message={out.error} tool={tool} inputs={inputs} billed={out.billed} />;
   const r = out.result || {};
 
   if (r.needsConnect || errReason) {
@@ -854,9 +1054,9 @@ function Result({ out, tool, project, user, inputs, onCredits, onRetry }) {
     <div className="mt-6" data-tour="tool-result">
       <div className="dm-no-print mb-2 flex items-center gap-2">
         {r.source === 'live' && <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 dark:bg-green-500/15 px-2 py-0.5 text-xs font-semibold text-green-700 dark:text-green-300"><span className="inline-block h-1.5 w-1.5 rounded-full bg-green-600" aria-hidden /> Live data</span>}
-        {typeof out.creditsUsed === 'number' && out.creditsUsed > 0 && (
-          <span className="text-xs text-faint">used {out.creditsUsed} · {out.creditsRemaining} left</span>
-        )}
+        {/* No credit tally on a result. The moment someone reads their findings
+            is the wrong moment to bill-shame them; the sidebar meter and the
+            Usage page already carry the balance for anyone who wants it. */}
         {hasContent && (
           <div className="ml-auto flex items-center gap-1.5">
             <button onClick={explain} title={`Discuss these results with Monty — ask follow-up questions (${CREDIT_COSTS.ai_chat ?? 2} credits per message)`}
@@ -1105,7 +1305,7 @@ function KeywordAnalysisResult({ rows: initialRows, timeRank, tool, onCredits })
     if (!todo.length || running) return;
     setRunning(true);
     setPending(new Set(todo));
-    let used = 0, denied = false;
+    let done = 0, denied = false;
     await pool(todo, 4, async (kw) => {
       const src = rows.find((r) => r.keyword === kw) || {};
       try {
@@ -1116,7 +1316,7 @@ function KeywordAnalysisResult({ rows: initialRows, timeRank, tool, onCredits })
         const ttr = res.result?.timeToRank ?? 'N/A';
         setRows((rs) => rs.map((r) => r.keyword === kw ? { ...r, timeToRank: ttr } : r));
         if (typeof res.creditsRemaining === 'number') onCredits(res.creditsRemaining, res.topupRemaining);
-        used += res.creditsUsed || 0;
+        done++;
       } catch (e) {
         if (e instanceof ApiError && (e.status === 402 || e.status === 403)) denied = true;
         setRows((rs) => rs.map((r) => r.keyword === kw ? { ...r, timeToRank: 'N/A' } : r));
@@ -1126,7 +1326,7 @@ function KeywordAnalysisResult({ rows: initialRows, timeRank, tool, onCredits })
     });
     setSelected(new Set());
     setRunning(false);
-    if (used) toast(`−${used} credit${used > 1 ? 's' : ''} · time to rank for ${todo.length} keyword${todo.length > 1 ? 's' : ''}`, 'info');
+    if (done) toast(`Time to rank estimated for ${done} keyword${done > 1 ? 's' : ''}.`, 'info');
     if (denied) toast('Ran out of credits before finishing — the rest weren’t estimated.', 'error');
   }
 
@@ -1593,7 +1793,51 @@ function FileField({ field, onFill }) {
   );
 }
 
-function Field({ field, value, onChange, autoFocus, provider, values, invalid, setValue, onSuggest, suggesting }) {
+// The single "AI suggest" for a form with several suggestible boxes. Sits above
+// the first of them and reads as covering the group, rather than three identical
+// buttons that each trigger the same one crawl.
+function SuggestStrip({ busy, onClick }) {
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-faint">
+      <span>Not sure what to write?</span>
+      <button type="button" disabled={busy} onClick={onClick}
+        className="inline-flex items-center gap-1 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 px-2 py-1 text-xs font-medium text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-500/20 disabled:opacity-60">
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Sparkles className="h-3.5 w-3.5" aria-hidden />}
+        {busy ? 'Drafting…' : 'AI suggest'}
+      </button>
+      <span>fills the boxes below from your site — free, and yours to edit.</span>
+    </div>
+  );
+}
+
+// Alternative inputs (link / paste / upload) drawn as ONE block: a heading that
+// says only one of them is needed, and an "or" rule between each. Loose boxes
+// with no framing read as three more things to fill in, so people did the first
+// one — the URL — and never noticed the other two ways in.
+function FieldGroup({ meta, fields, render }) {
+  return (
+    <fieldset className="rounded-xl border border-line bg-black/[0.02] dark:bg-white/[0.02] p-4">
+      {meta?.title && (
+        <legend className="px-1.5 text-sm font-semibold text-body">{meta.title}</legend>
+      )}
+      {meta?.hint && <p className="-mt-0.5 mb-3 text-xs text-faint">{meta.hint}</p>}
+      {fields.map((f, i) => (
+        <div key={f.name}>
+          {i > 0 && (
+            <div className="my-3 flex items-center gap-3" aria-hidden>
+              <span className="h-px flex-1 bg-line" />
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-faint">or</span>
+              <span className="h-px flex-1 bg-line" />
+            </div>
+          )}
+          {render(f, { grouped: true })}
+        </div>
+      ))}
+    </fieldset>
+  );
+}
+
+function Field({ field, value, onChange, autoFocus, provider, values, invalid, setValue, onSuggest, suggesting, labelOverride }) {
   const base = `field mt-1.5${invalid ? ' !border-amber-400 !ring-4 !ring-amber-400/20' : ''}`;
   // Plain-English help on the label itself: an explicit `help` string from the
   // catalog wins, else fall back to the glossary (same matching as result tips).
@@ -1602,7 +1846,7 @@ function Field({ field, value, onChange, autoFocus, provider, values, invalid, s
     <label className={`block ${invalid ? '-ml-3 rounded-lg border-l-2 border-amber-400 bg-amber-50/50 dark:bg-amber-500/10 pl-3' : ''}`} data-tour-field={field.name}>
       <span className="flex items-start justify-between gap-3 text-sm font-medium text-body">
         <span>
-          {field.label}{field.required && <span className={invalid ? 'font-bold text-amber-600 dark:text-amber-400' : 'text-amber-500'}> *</span>}
+          {labelOverride || field.label}{field.required && <span className={invalid ? 'font-bold text-amber-600 dark:text-amber-400' : 'text-amber-500'}> *</span>}
           {tip && <InfoTip text={tip} className="ml-1" />}
         </span>
         {onSuggest && (

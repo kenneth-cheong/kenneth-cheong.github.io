@@ -224,7 +224,6 @@ export default function PerformanceAudit() {
       setResultHtml(isPro ? renderPerfMarketingPro(d.pm || {}) : renderPerfMarketing(d.pm || {}));
       setRanMode(isPro ? 'pro' : 'starter');
       setLastRun({ runId: res.runId || null, out: pmShareOut(d.pm, isPro ? 'pro' : 'starter') });
-      if (res.creditsUsed > 0) toast(`−${res.creditsUsed} credit${res.creditsUsed > 1 ? 's' : ''} · ${res.creditsRemaining} left`, 'info');
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
     } catch (e) {
       setError('Could not generate the analysis: ' + gateError(e));
