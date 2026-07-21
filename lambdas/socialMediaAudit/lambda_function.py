@@ -4178,16 +4178,65 @@ def report_recommend(body):
     Strict-JSON Haiku call (fast, single round-trip, well under the gateway timeout)."""
     data = body.get('data') or body
     api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
+
+    # Competitors arrive with every scraped post attached — captions, hashtags and
+    # image URLs. On a client tracking 4 competitors per platform that block alone
+    # measured ~117KB against the ~168KB payload, so the character budget below cut
+    # the prompt off INSIDE `platforms` and the model received zero competitor data
+    # (and malformed JSON). Roll each competitor up into the same period totals the
+    # report's "Brand vs competitors" table shows, so the narrative compares
+    # like-for-like at a fraction of the size.
+    def _comp_row(c):
+        posts = c.get('posts') or c.get('top_posts') or []
+        def _tot(*keys):
+            t = 0
+            for p in posts:
+                if not isinstance(p, dict):
+                    continue
+                for k in keys:                      # first key present wins
+                    if p.get(k) is not None:
+                        t += _num(p.get(k)) or 0
+                        break
+            return t or None
+        reactions, comments = _tot('reactions', 'likes'), _tot('comments')
+        shares = _tot('shares', 'saves')
+        eng = (reactions or 0) + (comments or 0) + (shares or 0)
+        er, followers = c.get('engagement_rate'), _num(c.get('followers'))
+        if er is None and followers and posts:
+            er = round(eng / len(posts) / followers * 100, 2)
+        return {
+            'name': c.get('name') or c.get('handle'), 'platform': c.get('platform'),
+            'followers': c.get('followers'), 'posts': len(posts) or None,
+            'reactions': reactions, 'comments': comments, 'shares': shares,
+            'total_engagement': eng or None, 'engagement_rate': er,
+            'posts_per_week': c.get('posts_per_week'),
+            'top_hashtags': (c.get('top_hashtags') or [])[:8],
+        }
+    competitors = [_comp_row(c) for c in (data.get('competitors') or [])
+                   if isinstance(c, dict)]
+
+    # `platforms` carries the same per-post ballast. Keep the scalar metrics the
+    # narrative actually cites; `breakdowns` is summarised into audience_breakdowns
+    # just below, so it is dropped here rather than sent twice.
+    def _plat_row(p):
+        return {k: v for k, v in p.items()
+                if k != 'breakdowns' and not isinstance(v, (list, dict))}
+    platforms = [_plat_row(p) for p in (data.get('platforms') or [])
+                 if isinstance(p, dict)]
+
+    # Competitor context sits ahead of the bulkier optional keys so that if the
+    # budget is ever hit again, it is the tail that goes — not the comparison.
     facts = {
         'brand':        data.get('brand') or data.get('name') or 'the brand',
         'month':        data.get('month'),
         'previous_month': data.get('previous_month'),
         'kpis_this_month':     data.get('kpis') or {},
         'kpis_previous_month': data.get('prev_kpis') or {},
-        'platforms':    data.get('platforms') or [],
-        'competitors':  data.get('competitors') or [],
-        'tagged_posts': data.get('tagged_posts') or [],
         'goals':        data.get('goals') or '',
+        'competitors':  competitors,
+        'benchmark_share_of_voice': (data.get('benchmark') or {}).get('share_of_voice') or {},
+        'platforms':    platforms,
+        'tagged_posts': data.get('tagged_posts') or [],
     }
     # Compact audience/demographic + discovery summary from any breakdowns the
     # platform cards carry, so the narrative can speak to WHO the audience is and
@@ -4224,8 +4273,15 @@ def report_recommend(body):
         "If `audience_breakdowns` is present, work in WHO the audience is (age, "
         "gender, location, seniority) and HOW they discover the content (traffic "
         "sources) — e.g. tailor content/timing to the dominant segment. "
+        "If `competitors` is present, explicitly compare the brand against them: "
+        "posting volume, reactions, comments, shares, total engagement and "
+        "engagement rate, plus share of voice where given. Compare WITHIN a "
+        "platform (never across — an Instagram account and a Facebook Page are not "
+        "comparable), name who leads on what, and say what the brand should copy or "
+        "counter. Competitor reach and impressions are not obtainable for accounts "
+        "we don't own, so never claim or estimate them. "
         "Keep it plain-English for a non-marketer client.\n\nDATA:\n"
-        + json.dumps(facts, default=str)[:16000]
+        + json.dumps(facts, default=str)[:24000]
     )
     try:
         r = requests.post('https://api.anthropic.com/v1/messages',
