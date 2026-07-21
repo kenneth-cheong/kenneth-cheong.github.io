@@ -194,7 +194,9 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   // source URL so the second and third buttons fill instantly, and the user is
   // always left with editable text rather than a committed run.
   async function suggestField(f) {
-    const srcName = f.suggestFrom || 'input';
+    // `suggest` is either `true` (defaults) or `{ from, label, append }`.
+    const opt = typeof f.suggest === 'object' && f.suggest ? f.suggest : {};
+    const srcName = opt.from || f.suggestFrom || 'input';
     const src = String(values[srcName] || '').trim();
     if (!src) {
       setNudge(true);
@@ -205,19 +207,37 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
     }
     setSuggesting(f.name);
     try {
+      // `append` fields (SEM keywords) feed their own current value back in as
+      // seeds, so the answer changes every click — caching would defeat both the
+      // expansion and the "click again for more" behaviour. Everyone else shares
+      // one crawl per source URL, so the 2nd and 3rd buttons fill instantly.
       const cacheKey = `${tool.id}|${src}`;
-      let data = suggestCache.current.key === cacheKey ? suggestCache.current.data : null;
+      let data = !opt.append && suggestCache.current.key === cacheKey ? suggestCache.current.data : null;
       if (!data) {
-        const res = await api.runTool(tool.id, { action: 'suggest', input: src }, tool.slow);
+        // Send the rest of the form too: market, language and ad format decide
+        // what a good keyword even is, and the seeds are what we expand from.
+        const res = await api.runTool(tool.id, { ...values, action: 'suggest', input: src }, tool.slow);
         if (typeof res?.creditsRemaining === 'number') setCredits(res.creditsRemaining, res.topupRemaining);
         data = res.result || {};
         if (data.text && !data[f.name]) throw new Error(data.text); // soft failure (unreachable site, bad JSON)
-        suggestCache.current = { key: cacheKey, data };
+        if (!opt.append) suggestCache.current = { key: cacheKey, data };
       }
       const v = data[f.name];
-      const text = (Array.isArray(v) ? v.join('\n') : String(v || '')).trim();
+      const joiner = f.type === 'tags' ? ', ' : '\n'; // TagInput stores a comma list
+      let text = (Array.isArray(v) ? v.join(joiner) : String(v || '')).trim();
       if (!text) { toast('Nothing worth suggesting for this one — write it yourself.', 'info'); return; }
+      const added = Array.isArray(v) ? v.length : 0;
+      // Keep what they already typed — a suggestion adds to their list, never
+      // replaces it (the backend already deduped against these seeds).
+      const prior = opt.append ? String(values[f.name] || '').trim() : '';
+      if (prior) text = prior.replace(/[,\s]+$/, '') + joiner + text;
       set(f.name, text);
+      if (opt.append) {
+        toast(added
+          ? `Added ${added} keyword${added > 1 ? 's' : ''} — remove any that don’t fit.`
+          : 'Keywords added — remove any that don’t fit.', 'success');
+        return;
+      }
       // The pass also returns whatever context fields it could infer (GEO
       // On-Page: brand / industry / audience). Fill only the ones still empty —
       // anything the user typed themselves is theirs, and stays.
@@ -1582,7 +1602,7 @@ function Field({ field, value, onChange, autoFocus, provider, values, invalid, s
             title="Read my site and draft this for me — you can edit it before running"
             className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 px-2 py-1 text-xs font-medium text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-500/20 disabled:opacity-60">
             {suggesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Sparkles className="h-3.5 w-3.5" aria-hidden />}
-            {suggesting ? 'Drafting…' : 'AI suggest'}
+            {suggesting ? 'Drafting…' : (field.suggest?.label || 'AI suggest')}
           </button>
         )}
       </span>

@@ -2426,6 +2426,173 @@ async function personaSuggest(body) {
   return { _noCharge: true, manual };
 }
 
+// ── SEM Ad Copy: draft the keywords box from the site (or from seeds) ────────
+// Today the keyword box sends people out of the platform to some other AI to
+// think of keywords, and they come back with generic head terms. Two cases, one
+// button: with seeds we EXPAND them (the classic "auto suggest"); with an empty
+// box we derive keywords from the site itself — which is the common case, since
+// the URL is already required above and most users arrive without a seed list.
+// Targeting matters more than volume here: these go straight into ad copy, so we
+// ask for terms with commercial intent in the market/language already selected.
+// Free (`_noCharge`) and fully editable — chips can be removed before running.
+async function semCopySuggest(body) {
+  const src = String(body.input || body.url || '').trim();
+  if (!src) return { _noCharge: true, _failed: true, text: 'Enter your website URL first, then auto-suggest.' };
+
+  const seeds = String(body.keywords || body.seed || '')
+    .split(/[\n,]+/).map((s) => s.trim()).filter(Boolean).slice(0, 20);
+  const country = String(body.country || '').trim() || 'the target market';
+  const language = String(body.language || '').trim() || 'English';
+  const format = String(body.format || '').trim();
+
+  // The field is a required URL, but accept a bare brand name too — the user
+  // asked for this to work off "website OR brand name", and a name is still
+  // enough for the model to reason about (no crawl, just weaker grounding).
+  const looksUrl = /^https?:\/\//i.test(src) || /^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(src);
+  let brandContext = '', label = src;
+  if (looksUrl) {
+    let u;
+    try { u = new URL(/^https?:\/\//i.test(src) ? src : 'https://' + src); }
+    catch { return { _noCharge: true, _failed: true, text: 'That website URL does not look valid.' }; }
+    const rootDomain = u.origin;
+    label = u.hostname.replace(/^www\./, '');
+    // Same two-step fetch as personaSuggest: renderer first, direct fetch after.
+    let html = await Promise.race([
+      postUpstream(UPSTREAMS.getHtml, { url: rootDomain }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 20000)),
+    ]).then((r) => (typeof r === 'string' ? r : (r && typeof r.body === 'string' ? r.body : ''))).catch(() => '');
+    if (!html || html.length < 200) html = await directFetchHtml(rootDomain, 12000);
+    // A dead crawl is not fatal here: the brand name alone still yields usable
+    // keywords, so degrade to the name rather than refusing the whole thing.
+    if (html && html.length >= 200) {
+      const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || label).replace(/\s+/g, ' ').trim();
+      const metaDesc = (html.match(/<meta[^>]+name=["']description["'][^>]*content=["']([^"']*)["']/i)?.[1] || '').trim();
+      const links = extractSiteLinks(html, label, rootDomain).slice(0, 25).map((l) => l.label).join(', ');
+      const text = html
+        .replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 5000);
+      brandContext = `Website: ${rootDomain}\nPage title: ${title}` +
+        (metaDesc ? `\nMeta description: ${metaDesc}` : '') +
+        (links ? `\nMain navigation / pages: ${links}` : '') +
+        `\nHomepage copy:\n${text}`;
+    } else {
+      brandContext = `Website: ${rootDomain} (the page could not be read — infer from the domain name alone).`;
+    }
+  } else {
+    brandContext = `The advertiser is the brand "${src.slice(0, 200)}". No website was given — infer what they sell from the brand name.`;
+  }
+
+  const userPrompt =
+    `Output ONLY strict JSON (no markdown fences, no prose). You are suggesting keywords for a paid search / social ad campaign` +
+    (format ? ` (${format} ads)` : '') + ` targeting ${country}, in ${language}.\n` +
+    `${brandContext}\n\n` +
+    (seeds.length
+      ? `The advertiser already listed these seed keywords — EXPAND on them: ${seeds.join(', ')}.\n` +
+        `Return closely related terms they have NOT already listed (variants, buyer-intent modifiers, adjacent services). Do not repeat a seed back.\n`
+      : `The advertiser gave no seed keywords — derive them from what the business actually sells.\n`) +
+    `Return JSON of shape: {"keywords": string[]}.` +
+    ` Rules: 12 keywords, each 2-5 words, lowercase, written in ${language} the way a real buyer in ${country} would search.` +
+    ` Favour commercial intent (what someone types when ready to buy or compare) over broad informational phrases.` +
+    ` Ground every keyword in a product or service the brand genuinely offers — never invent an offering.` +
+    ` No brand names of competitors, no duplicates, no single generic words like "software" or "services".`;
+
+  let j = null;
+  try {
+    const raw = await postUpstream(UPSTREAMS.aiOptimiser, { action: 'content_freeform', userPrompt });
+    let s = aiText(raw).trim();
+    if (s.startsWith('```')) s = s.replace(/^```[a-z]*\n?/i, '').replace(/```$/, '').trim();
+    j = JSON.parse(s);
+  } catch { j = null; }
+  if (!j || typeof j !== 'object') {
+    return { _noCharge: true, _failed: true, text: "Couldn't suggest keywords for that — add them yourself." };
+  }
+
+  // Dedupe case-insensitively against what the user already has, so expanding a
+  // seed list never hands back chips they are looking at.
+  const have = new Set(seeds.map((s) => s.toLowerCase()));
+  const keywords = (Array.isArray(j.keywords) ? j.keywords : String(j.keywords || '').split(/[\n,]+/))
+    .map((k) => String(k).trim().replace(/^[-•*]\s*/, ''))
+    .filter((k) => k && k.length <= 80)
+    .filter((k) => { const lc = k.toLowerCase(); if (have.has(lc)) return false; have.add(lc); return true; })
+    .slice(0, 12);
+  if (!keywords.length) {
+    return { _noCharge: true, _failed: true, text: "Couldn't suggest keywords for that — add them yourself." };
+  }
+  return { _noCharge: true, keywords };
+}
+
+// ── GEO On-Page: draft the target prompts from the page itself ──────────────
+// "Target prompts" is the field that stops people: it's required, it's the one
+// input they can't lift off their own site, and getting it wrong wastes the
+// run. So read the exact page they pasted and propose the three questions it
+// could realistically be cited for — plus the brand / industry / audience the
+// form asks for next, which are all readable from the same page. Free
+// (`_noCharge`); keys match the catalog field names so the form fills itself.
+async function geoOnPageSuggest(body) {
+  let target = String(body.input || body.url || '').trim();
+  if (!target) return { _noCharge: true, _failed: true, text: 'Enter the page URL first.' };
+  if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
+  let u;
+  try { u = new URL(target); } catch { return { _noCharge: true, _failed: true, text: 'That page URL does not look valid.' }; }
+  const host = u.hostname.replace(/^www\./, '');
+
+  // Note this crawls the TARGET PAGE, not the homepage: the prompts have to be
+  // ones this specific page can answer. Renderer first, direct fetch as fallback.
+  let html = await Promise.race([
+    postUpstream(UPSTREAMS.getHtml, { url: target }),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 20000)),
+  ]).then((r) => (typeof r === 'string' ? r : (r && typeof r.body === 'string' ? r.body : ''))).catch(() => '');
+  if (!html || html.length < 200) html = await directFetchHtml(target, 12000);
+  if (!html || html.length < 200) {
+    return { _noCharge: true, _failed: true, text: `Could not read ${target} — check the URL is public, or write the prompts yourself.` };
+  }
+
+  const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || host).replace(/\s+/g, ' ').trim();
+  const metaDesc = (html.match(/<meta[^>]+name=["']description["'][^>]*content=["']([^"']*)["']/i)?.[1] || '').trim();
+  const headings = [...html.matchAll(/<h[12][^>]*>([\s\S]*?)<\/h[12]>/gi)]
+    .map((m) => m[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter(Boolean).slice(0, 15).join(' | ');
+  const text = html
+    .replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 5000);
+
+  const userPrompt =
+    `Output ONLY strict JSON (no markdown fences, no prose). You are pre-filling a GEO (Generative Engine Optimisation) tool for the page ${target}.\n` +
+    `Page title: ${title}` + (metaDesc ? `\nMeta description: ${metaDesc}` : '') +
+    (headings ? `\nHeadings: ${headings}` : '') + `\nPage copy:\n${text}\n\n` +
+    `Return JSON of shape: {"prompts": string[], "brand": string, "industry": string, "audience": string}.` +
+    ` "prompts" = exactly 3 questions a real buyer would type into ChatGPT, Perplexity or Google's AI Overview where THIS page deserves to be the cited answer.` +
+    ` Write them the way a person actually asks (8-16 words), make each one distinct, keep them commercially useful (comparisons, "best X for Y", how to choose),` +
+    ` and do not stuff the brand name in unless the page is genuinely about the brand itself.` +
+    ` "brand" = the brand or company name. "industry" = its niche in a few words. "audience" = who the page is written for.` +
+    ` Ground everything in what the page actually says; return "" for anything you cannot support.`;
+
+  let j = null;
+  try {
+    const raw = await postUpstream(UPSTREAMS.aiOptimiser, { action: 'content_freeform', userPrompt });
+    let s = aiText(raw).trim();
+    if (s.startsWith('```')) s = s.replace(/^```[a-z]*\n?/i, '').replace(/```$/, '').trim();
+    j = JSON.parse(s);
+  } catch { j = null; }
+  if (!j || typeof j !== 'object') {
+    return { _noCharge: true, _failed: true, text: "Couldn't draft prompts for that page — write them yourself." };
+  }
+
+  const prompts = (Array.isArray(j.prompts) ? j.prompts : String(j.prompts || '').split('\n'))
+    // The model sometimes numbers or bullets them despite the instruction.
+    .map((s) => String(s).replace(/^\s*(?:\d+[.)]|[-*])\s*/, '').trim())
+    .filter(Boolean).slice(0, 3);
+  if (!prompts.length) return { _noCharge: true, _failed: true, text: "Couldn't draft prompts for that page — write them yourself." };
+  const str = (v, n) => String(v || '').trim().slice(0, n);
+  return {
+    _noCharge: true,
+    prompts: prompts.join('\n'),
+    brand: str(j.brand, 80),
+    industry: str(j.industry, 80),
+    audience: str(j.audience, 120),
+  };
+}
+
 /** Ask the AI to organise crawled links into sections + write summary/prompts. */
 async function llmsAiPlan(title, rootDomain, metaDesc, links) {
   const list = links.slice(0, 40).map((l) => `${l.label} | ${l.url}`).join('\n');

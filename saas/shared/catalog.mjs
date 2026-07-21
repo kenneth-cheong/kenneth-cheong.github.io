@@ -1242,8 +1242,13 @@ export const INPUTS = {
     { name: 'country', label: 'Country', type: 'select', options: COUNTRIES, default: 'Singapore',
       hint: 'The target market for this ad copy.' },
     { name: 'language', label: 'Language', type: 'select', options: LLM_LANGUAGES, default: 'English' },
+    // `suggest` puts an "Auto-suggest keywords" button on the box: with seeds it
+    // expands them, with an empty box it derives keywords from the Website URL
+    // above — so nobody has to leave the platform for another AI to think of
+    // keywords, which is what they were doing.
     { name: 'keywords', label: 'Keywords to include', type: 'tags', placeholder: 'e.g. project management software, team collaboration',
-      hint: 'Optional. Keywords the ad copy should naturally incorporate where relevant.' },
+      hint: 'Optional. Keywords the ad copy should naturally incorporate where relevant.',
+      suggest: { from: 'input', label: 'Auto-suggest keywords', append: true } },
     { name: 'tone', label: 'Tone', type: 'select', options: ['Professional', 'Friendly', 'Bold', 'Urgent', 'Salesy'], default: 'Professional' },
   ],
 
