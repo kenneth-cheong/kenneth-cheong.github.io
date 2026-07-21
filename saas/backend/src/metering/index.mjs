@@ -160,7 +160,15 @@ export const handler = async (event, context) => {
     }
   } catch (err) {
     console.error('upstream_error', tool.id, err);
-    return serverError('The tool backend failed. No credits were charged.');
+    // A connection problem that reached us as a throw is still a setup step, not
+    // a fault. The 500 below is opaque by design (it never leaks upstream
+    // detail), so the client can't tell the two apart — and a 500 is exactly
+    // what auto-opens "Report a problem". Answer with the connect widget
+    // instead, for any integration path that throws rather than returning one.
+    const reason = tool.integration ? connectReasonOf(err?.message) : null;
+    if (!reason) return serverError('The tool backend failed. No credits were charged.');
+    console.log(JSON.stringify({ metric: 'integration_needs_connect', provider: tool.integration, reason, detail: String(err?.message || '').slice(0, 200) }));
+    result = connectPrompt(tool, reason, `We couldn’t reach your ${tool.name} account — sign in again to restore access.`);
   }
 
   // ── Soft-failure gate (spec §6.2–6.4): some upstreams return HTTP 200 with an
@@ -2875,7 +2883,7 @@ async function integrationsRun(tool, body) {
     return connectPrompt(tool, 'account', `Pick which ${tool.name} account this tool should read.`);
   }
   // GSC sub-tools (URL Inspection / Sitemaps / Indexing) — dispatched by gscOp.
-  if (tool.integration === 'gsc' && body.gscOp && body.gscOp !== 'insights') return gscOpsRun(body, conn);
+  if (tool.integration === 'gsc' && body.gscOp && body.gscOp !== 'insights') return gscOpsRun(tool, body, conn);
   let live;
   try {
     live = await fetchIntegrationFor(tool.integration, conn, { ...body, input: body.input || conn.account });
@@ -2931,7 +2939,7 @@ const AI_INTEGRATION_CTX = {
 // Dispatch + format the GSC sub-tools. integration_pull cost is 0, so these are
 // free like the main pull. Destructive ops (indexing removal, sitemap delete)
 // are gated by a client-side confirm before they reach here.
-async function gscOpsRun(body, conn) {
+async function gscOpsRun(tool, body, conn) {
   try {
     if (body.gscOp === 'inspect') {
       const { rows, count } = await gscInspect(conn, body);
@@ -2952,6 +2960,15 @@ async function gscOpsRun(body, conn) {
     }
     return { text: 'Unknown Search Console operation.' };
   } catch (e) {
+    // These ops swallow their errors into a callout so a bad URL doesn't fail the
+    // whole run - but a "gsc 403" callout left a user with a revoked token or no
+    // property staring at a result they can't act on. Route a connection failure
+    // to the connect widget, exactly as the insights pull does.
+    const reason = connectReasonOf(e.message);
+    if (reason) {
+      console.log(JSON.stringify({ metric: 'integration_needs_connect', provider: 'gsc', reason, op: body.gscOp, detail: String(e.message || '').slice(0, 200) }));
+      return connectPrompt(tool, reason, `We couldn\u2019t reach your ${tool.name} account \u2014 sign in again to restore access.`);
+    }
     return { sections: [{ type: 'callout', text: `\u26a0 ${e.message}` }] };
   }
 }
@@ -4996,7 +5013,7 @@ function deepBody(raw) {
 
 // Exposed for unit tests (orchestration is otherwise unreachable without a full
 // authed event). Not used by the handler path.
-export const __test = { callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor };
+export const __test = { connectReasonOf, callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor };
 
 /**
  * AI endpoints return token usage; convert to actual credits so a tiny caption
