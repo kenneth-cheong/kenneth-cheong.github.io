@@ -33,8 +33,8 @@ export default function UpgradeModal({ reason, requiredTier, creditsRemaining, c
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4" onClick={onClose}>
-      <div className="card w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="dm-sheet w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
         {outOfCredits ? (
           <>
             <Zap size={32} className="text-brand-600 dark:text-brand-400" aria-hidden />

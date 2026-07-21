@@ -132,8 +132,8 @@ function ScheduleModal({ editing, prefill, limits, projects, onClose, onSaved })
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4" onClick={onClose}>
-      <div className="card max-h-[90vh] w-full max-w-lg overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="dm-sheet max-h-[90vh] w-full max-w-lg overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-heading">{editing ? 'Edit schedule' : 'New schedule'}</h2>
           <button className="text-faint hover:text-dim" onClick={onClose} aria-label="Close"><X size={20} /></button>
@@ -450,11 +450,18 @@ export default function Schedules() {
                     one-off run carries a label; only the pause/resume toggle
                     keeps the play glyph, so a triangle always means "the
                     schedule is paused". */}
+                {/* The POST returns almost immediately and the tool then runs
+                    server-side, so the button has to own the wait itself: it
+                    spins while the call is in flight and stays spinning (and
+                    disabled, so the run can't be fired twice) for as long as the
+                    row is marked queued. */}
                 <button
                   className="btn-ghost gap-1.5 !px-2.5 !py-1.5 text-xs" title="Run this schedule once, right now"
-                  aria-label="Run now" disabled={busyId === s.scheduleId} onClick={() => runNow(s)}
+                  aria-label="Run now" disabled={busyId === s.scheduleId || queuedId === s.scheduleId} onClick={() => runNow(s)}
                 >
-                  <Play size={14} aria-hidden /> Run now
+                  {busyId === s.scheduleId || queuedId === s.scheduleId
+                    ? <><Loader2 size={14} className="animate-spin" aria-hidden /> {queuedId === s.scheduleId ? 'Running…' : 'Starting…'}</>
+                    : <><Play size={14} aria-hidden /> Run now</>}
                 </button>
                 <button className="btn-ghost !px-2 !py-1.5" title={s.enabled ? 'Pause schedule' : 'Resume schedule'} aria-label={s.enabled ? 'Pause schedule' : 'Resume schedule'} disabled={busyId === s.scheduleId} onClick={() => toggle(s)}>{s.enabled ? <Pause size={15} aria-hidden /> : <Play size={15} aria-hidden />}</button>
                 <button className="btn-ghost !px-2 !py-1.5" title="Edit" aria-label="Edit schedule" onClick={() => setModal({ editing: s })}><Pencil size={15} aria-hidden /></button>

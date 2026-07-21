@@ -9,6 +9,23 @@ import { themeReport } from '../lib/reportTheme.js';
 // `beforeprint` rather than the Print button so Cmd+P and the browser menu are
 // covered too, and `size: landscape` (not `A4 landscape`) so it changes the
 // orientation without overriding the user's paper size.
+// A table cell ignores max-height, so the Media Plan's prose cells can't be
+// capped directly — one ~480-character "Target Audience" blob would otherwise
+// set the height of the whole row. Move each cell's content into a .mp-cell
+// wrapper the CSS can cap, and keep the full text on `title` so nothing is lost
+// (the cap scrolls in place, and print releases it entirely). Idempotent: the
+// markup is re-created whenever `html` changes, so this re-runs on every render.
+function wrapProseCells(root) {
+  root?.querySelectorAll('td.mp-wrap').forEach((td) => {
+    if (td.firstElementChild?.classList?.contains('mp-cell')) return;
+    const cell = document.createElement('div');
+    cell.className = 'mp-cell';
+    cell.title = td.textContent.trim();
+    while (td.firstChild) cell.appendChild(td.firstChild);
+    td.appendChild(cell);
+  });
+}
+
 const LANDSCAPE_ID = 'dm-print-landscape';
 function useLandscapeWhenWide(ref, html) {
   useEffect(() => {
@@ -42,6 +59,7 @@ export default function ReportHtml({ html, className = 'dm-report max-w-none tex
   useLayoutEffect(() => {
     // isDarkTheme(), not `=== 'dark'` — royal is a dark canvas too, and reports
     // arrive as light-themed inline-styled HTML that needs normalizing there.
+    wrapProseCells(ref.current);
     themeReport(ref.current, isDarkTheme());
   });
   useLandscapeWhenWide(ref, html);
