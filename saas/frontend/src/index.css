@@ -969,12 +969,22 @@ select:focus-visible,
   }
   header, aside, nav, form, .dm-no-print { display: none !important; }
   /* The media plan's 20-column grid is a 1900px horizontal scroller on screen;
-     paper can't scroll, so let it reflow to the page width instead of clipping
-     everything past the first few columns. */
-  .dm-report .mp-exec-wrap { overflow: visible !important; }
-  .dm-report table.mp-exec-table { min-width: 0 !important; width: 100% !important; font-size: 8px !important; }
+     paper can't scroll, so it has to reflow to the sheet. `width:100%` alone is
+     NOT enough — a table can't shrink below its min-content width, so the last
+     few columns simply fell off the right edge. What makes it fit: the sheet is
+     flipped to landscape (injected by ReportHtml, since @page can't be selected
+     by content) and the four prose columns are pinned to a share of the width so
+     they don't collapse into one-word-per-line towers while the figures overflow.
+     Verified with headless Chrome at both A4 and Letter landscape. */
+  .dm-report .mp-exec-wrap { overflow: visible !important; border: 0 !important; }
+  .dm-report table.mp-exec-table { min-width: 0 !important; width: 100% !important; font-size: 7.5px !important; }
   .dm-report table.mp-exec-table th,
-  .dm-report table.mp-exec-table td { white-space: normal !important; min-width: 0 !important; padding: 4px 5px !important; }
+  .dm-report table.mp-exec-table td { min-width: 0 !important; padding: 3px 4px !important; }
+  /* Headers wrap between words; break-word (not `anywhere`) so only a word that
+     can't fit alone is split — `anywhere` shredded them into "Ca mp aig n". */
+  .dm-report table.mp-exec-table th { white-space: normal !important; overflow-wrap: break-word !important; }
+  /* Figures keep `nowrap` from the screen rules so no amount is ever split. */
+  .dm-report table.mp-exec-table td.mp-wrap { width: 10% !important; white-space: normal !important; overflow-wrap: break-word !important; }
   [style*="margin-right"] { margin-right: 0 !important; }
   .card { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
   body { background: #fff !important; }
