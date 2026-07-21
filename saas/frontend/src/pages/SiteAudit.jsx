@@ -1,15 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Link } from 'react-router-dom';
 import { AUDIT_TOOLS, toolById, tierMeets, tierRank, PLANS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
-import { api, ApiError } from '../lib/api.js';
 import ShareResult from '../components/ShareResult.jsx';
-import { toast, markStepDone } from '../lib/ui.js';
+import PrintBrand, { PdfButton } from '../components/PdfExport.jsx';
+import * as auditRun from '../lib/siteAuditRun.js';
 import { startSiteAuditTour, SITE_AUDIT_SAMPLE, hasSeen, markSeen } from '../lib/tours.js';
 import { Check, Loader2, AlertTriangle, ChevronRight, Compass } from 'lucide-react';
 
-const RUN_URL = import.meta.env.VITE_RUN_URL || '';
 const SHARE_TOOL = { id: 'site-audit', name: 'Site Health Check' };
 const SHARE_BTN = 'btn-ghost inline-flex items-center gap-1 text-sm';
 
@@ -25,21 +24,6 @@ function auditShareOut(report) {
   return { result: { sections: [{ type: 'stats', items }] } };
 }
 
-// Compact text summary of a heterogeneous tool result, for the AI synthesiser.
-function summarize(result) {
-  if (!result) return '';
-  if (result.text) return String(result.text).slice(0, 3000);
-  if (Array.isArray(result.sections)) {
-    return result.sections.map((s) => {
-      const head = s.title ? `${s.title}: ` : '';
-      const body = JSON.stringify(s.items ?? s.rows ?? s.value ?? s.text ?? s).slice(0, 500);
-      return head + body;
-    }).join('\n').slice(0, 4000);
-  }
-  if (Array.isArray(result.rows)) return JSON.stringify(result.rows.slice(0, 15)).slice(0, 3000);
-  return JSON.stringify(result).slice(0, 2000);
-}
-
 const SCORE_TONE = (n) => (n >= 80 ? { ring: '#16a34a', text: 'text-green-600 dark:text-green-400', label: 'Healthy' }
   : n >= 50 ? { ring: '#f59e0b', text: 'text-amber-600 dark:text-amber-400', label: 'Needs work' }
   : { ring: '#dc2626', text: 'text-red-600 dark:text-red-400', label: 'Needs attention' });
@@ -47,19 +31,20 @@ const SCORE_TONE = (n) => (n >= 80 ? { ring: '#16a34a', text: 'text-green-600 da
 export default function SiteAudit() {
   const { user, setCredits } = useAuth();
   const { active } = useProjects();
-  const [url, setUrl] = useState(active?.domain ? (/^https?:\/\//.test(active.domain) ? active.domain : `https://${active.domain.replace(/^https?:\/\//, '')}`) : '');
-  const [steps, setSteps] = useState(null); // [{id,label,status}]
-  const [report, setReport] = useState(null);
-  const [running, setRunning] = useState(false);
+  // The run lives outside this component so navigating away mid-check doesn't
+  // discard it — see lib/siteAuditRun.js. Re-mounting re-attaches to it.
+  const { url, steps, report, running } = useSyncExternalStore(auditRun.subscribe, auditRun.getSnapshot);
   const [nudge, setNudge] = useState(false); // highlight the empty URL field after an incomplete run attempt
-
-  // Prefill the site from the active project once it loads (it may arrive after mount).
-  useEffect(() => {
-    if (!url && active?.domain) setUrl(/^https?:\/\//.test(active.domain) ? active.domain : `https://${active.domain.replace(/^https?:\/\//, '')}`);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
+  const reportRef = useRef(null); // the subtree the PDF export prints
 
   const projectUrl = () => (active?.domain ? (/^https?:\/\//.test(active.domain) ? active.domain : `https://${active.domain.replace(/^https?:\/\//, '')}`) : '');
+
+  // Prefill the site from the active project once it loads (it may arrive after
+  // mount). Never clobber a URL the user typed or one a run is already using.
+  useEffect(() => {
+    if (!url && !running && !report && active?.domain) auditRun.setUrl(projectUrl());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, url, running, report]);
 
   // Which audit tools this tier can actually run; others are skipped.
   const runnable = AUDIT_TOOLS.filter((a) => { const t = toolById(a.id); return t && tierMeets(user.tier, t.minTier); });
@@ -68,12 +53,12 @@ export default function SiteAudit() {
   // components, then clear it (and restore the form) on any exit.
   function launchTour() {
     startSiteAuditTour({ checks: runnable.length }, {
-      preview: () => {
-        setUrl(SITE_AUDIT_SAMPLE.url);
-        setSteps(runnable.map((a) => ({ id: a.id, label: a.label, name: toolById(a.id)?.name, status: 'done' })));
-        setReport(SITE_AUDIT_SAMPLE.report);
-      },
-      clear: () => { setUrl(projectUrl()); setSteps(null); setReport(null); },
+      preview: () => auditRun.preview({
+        url: SITE_AUDIT_SAMPLE.url,
+        steps: runnable.map((a) => ({ id: a.id, label: a.label, name: toolById(a.id)?.name, status: 'done' })),
+        report: SITE_AUDIT_SAMPLE.report,
+      }),
+      clear: () => auditRun.clear(projectUrl()),
     });
   }
 
@@ -98,45 +83,12 @@ export default function SiteAudit() {
   const neededPlan = PLANS[neededTier]?.name || 'a paid';
   const currentPlan = PLANS[user.tier]?.name || user.tier;
 
-  async function run() {
+  function run() {
     const site = url.trim();
     if (!site) { setNudge(true); document.getElementById('audit-url')?.focus(); return; }
-
-    setReport(null);
-    setRunning(true);
-    const init = runnable.map((a) => ({ id: a.id, label: a.label, name: toolById(a.id)?.name, status: 'running' }));
-    setSteps(init);
-    const setStatus = (id, status) => setSteps((s) => s.map((x) => (x.id === id ? { ...x, status } : x)));
-
-    // Run the checks in parallel; each charges its own credits + may be slow.
-    const results = await Promise.all(runnable.map(async (a) => {
-      const t = toolById(a.id);
-      try {
-        // Always prefer the Function URL (180s) for audit checks — several take
-        // longer than the 30s API-Gateway cap, which would 504 the browser while
-        // the Lambda finishes (and still charges). RUN_URL routes around that.
-        const resp = await api.runTool(a.id, a.input(site), !!RUN_URL);
-        if (typeof resp.creditsRemaining === 'number') setCredits(resp.creditsRemaining, resp.topupRemaining);
-        const r = resp.result || {};
-        if (r.error || r.needsConnect) { setStatus(a.id, 'fail'); return null; }
-        setStatus(a.id, 'done');
-        return { tool: a.id, name: t.name, text: summarize(r) };
-      } catch { setStatus(a.id, 'fail'); return null; }
-    }));
-
-    const good = results.filter(Boolean);
-    if (!good.length) { toast('All checks failed — please try again.', 'error'); setRunning(false); return; }
-
-    try {
-      const { report, creditsRemaining, topupRemaining } = await api.auditSynthesize(site, good);
-      if (typeof creditsRemaining === 'number') setCredits(creditsRemaining, topupRemaining);
-      setReport(report);
-      markStepDone('audit'); // ticks the "Run a site health check" setup step
-    } catch (e) {
-      toast(e instanceof ApiError && e.status === 402 ? 'Out of credits for the summary — top up to finish.' : (e.message || 'Could not build the report.'), 'error');
-    } finally {
-      setRunning(false);
-    }
+    // Deliberately not awaited: the run belongs to the store, not to this
+    // component, so it keeps going if the user navigates away mid-check.
+    auditRun.start({ site, runnable, onCredits: setCredits });
   }
 
   if (locked) {
@@ -172,7 +124,7 @@ export default function SiteAudit() {
           Your website<span className="text-amber-500"> *</span>
         </label>
         <div className="mt-1.5 flex flex-wrap gap-3">
-          <input id="audit-url" value={url} onChange={(e) => { setNudge(false); setUrl(e.target.value); }} placeholder="https://yoursite.com" disabled={running}
+          <input id="audit-url" value={url} onChange={(e) => { setNudge(false); auditRun.setUrl(e.target.value); }} placeholder="https://yoursite.com" disabled={running}
             className={`field flex-1${nudge ? ' !border-amber-400 !ring-4 !ring-amber-400/20' : ''}`} />
           <button onClick={run} disabled={running} aria-disabled={running || !url.trim()} data-tour="sha-run" className={`btn-primary ${url.trim() ? '' : 'opacity-60'}`}>
             {running ? 'Running…' : 'Run health check'}
@@ -202,10 +154,12 @@ export default function SiteAudit() {
       )}
 
       {report && (
-        <div data-tour="sha-report">
-          <div className="mt-6 -mb-2 flex justify-end">
+        <div ref={reportRef} data-tour="sha-report">
+          <div className="dm-no-print mt-6 -mb-2 flex justify-end gap-2">
+            <PdfButton targetRef={reportRef} className={SHARE_BTN} />
             <ShareResult tool={SHARE_TOOL} out={auditShareOut(report)} project={active} user={user} force snapshot label="Share result" className={SHARE_BTN} />
           </div>
+          <PrintBrand title="Site Audit" project={active} user={user} />
           <Report report={report} />
         </div>
       )}

@@ -78,6 +78,10 @@ export function pmApplyInteractive(){
 }
 
 // Dependency-free SVG doughnut for the channel mix. segs: [{name,pct,color}].
+// The uncovered track is a bare `stroke` ATTRIBUTE, which reportTheme's
+// dark-mode pass never sees (it only walks inline style=""), so a light track
+// stayed glaring white on the dark canvas. A translucent slate reads correctly
+// against both surfaces without needing to be themed at all.
 function pmDoughnut(segs){
   const R = 52, C = 2 * Math.PI * R, cx = 60, cy = 60, sw = 16;
   let acc = 0;
@@ -88,7 +92,7 @@ function pmDoughnut(segs){
     return ring;
   }).join('');
   return `<svg viewBox="0 0 120 120" width="180" height="180" role="img" aria-label="Channel budget split">
-      <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="#eef2ff" stroke-width="${sw}"></circle>
+      <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="rgba(100,116,139,0.28)" stroke-width="${sw}"></circle>
       ${rings}
     </svg>`;
 }

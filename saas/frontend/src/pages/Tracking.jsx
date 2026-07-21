@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import LineChart from '../components/LineChart.jsx';
 import ShareResult from '../components/ShareResult.jsx';
+import PrintBrand, { PdfButton } from '../components/PdfExport.jsx';
 import { api } from '../lib/api.js';
 import { toast, downloadCsv, markStepDone } from '../lib/ui.js';
 import { startTrackingTour, TRACKING_SAMPLE, hasSeen, markSeen } from '../lib/tours.js';
@@ -182,7 +183,7 @@ export default function Tracking() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="dm-no-print flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Keyword tracking</h1>
           <p className="mt-1 text-dim">
@@ -193,6 +194,7 @@ export default function Tracking() {
           {tracked.length > 0 && (
             <>
               <button onClick={exportCsv} className="btn-ghost text-sm">Export CSV</button>
+              <PdfButton className={SHARE_BTN} />
               <button onClick={() => setConfirmBackfill(true)} disabled={backfilling} className="btn-ghost text-sm">{backfilling ? 'Backfilling…' : 'Backfill history'}</button>
               <button onClick={refreshAll} disabled={refreshing} className="btn-ghost text-sm">{refreshing ? 'Refreshing…' : 'Refresh positions'}</button>
               <ShareResult tool={SHARE_TOOL} out={shareOut} project={active} user={user} force snapshot label="Share" className={SHARE_BTN} />
@@ -210,6 +212,8 @@ export default function Tracking() {
           )}
         </div>
       </div>
+
+      {tracked.length > 0 && <PrintBrand title="Keyword Tracking" project={active} user={user} />}
 
       {limit === 0 ? (
         <div className="card mt-6 p-6 text-center">

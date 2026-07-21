@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { api, ApiError } from '../lib/api.js';
 import ShareResult from '../components/ShareResult.jsx';
+import PrintBrand, { PdfButton } from '../components/PdfExport.jsx';
 import ReportHtml from '../components/ReportHtml.jsx';
 import { toast } from '../lib/ui.js';
 import { Loader2, Wand2, Plus, X, Microscope, ScanSearch, Compass, AlertTriangle, Pencil, Check } from 'lucide-react';
@@ -801,13 +802,15 @@ export default function SocialAudit() {
       {/* Results — bespoke HTML scorecards (Font Awesome styled, ported 1:1). */}
       <div ref={resultsRef} data-tour="sma-results" className="mt-6 space-y-4">
         {doneJob && (
-          <div className="flex justify-end gap-2">
+          <div className="dm-no-print flex justify-end gap-2">
             <button type="button" onClick={() => setEditingOut((v) => !v)} className={SHARE_BTN}>
               {editingOut ? <><Check size={14} /> Done editing</> : <><Pencil size={14} /> Edit result</>}
             </button>
+            <PdfButton targetRef={resultsRef} className={SHARE_BTN} />
             <ShareResult tool={SHARE_TOOL} out={socialShareOut(doneJob)} project={active} user={user} force snapshot label="Share result" className={SHARE_BTN} />
           </div>
         )}
+        {(scorecardHtml || scaHtml) && <PrintBrand title="Social Media Audit" project={active} user={user} />}
         <div
           contentEditable={editingOut}
           suppressContentEditableWarning

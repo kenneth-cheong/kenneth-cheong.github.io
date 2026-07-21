@@ -70,10 +70,14 @@ function Contents({ blocks }) {
   if (items.length < 4) return null;
   return (
     <nav aria-label="Contents" className="mt-6 rounded-xl border border-line bg-raised p-4">
-      <h2 className="text-xs font-bold uppercase tracking-wide text-faint">Contents</h2>
-      <ol className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
+      <h2 className="text-xs font-bold uppercase tracking-wide text-muted">Contents</h2>
+      {/* Multi-COLUMN, not a 2-col grid. A grid lays items out left-to-right, so
+          the numbering ran 1,2 / 3,4 across the rows and the eye had to zigzag
+          between columns to follow the sequence. Columns flow top-to-bottom and
+          only then wrap to the next column, so 1..n reads straight down. */}
+      <ol className="mt-2 gap-x-6 sm:columns-2">
         {items.map((s) => (
-          <li key={s.id}>
+          <li key={s.id} className="break-inside-avoid py-0.5">
             <a href={`#${s.id}`} className="text-sm text-brand-600 dark:text-brand-400 hover:underline">{s.label}</a>
           </li>
         ))}

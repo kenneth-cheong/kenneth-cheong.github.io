@@ -75,8 +75,12 @@ export default function Profile() {
         Tell us a bit about you and your business so we can tailor recommendations.
       </p>
 
-      {/* Progress + reward banner */}
-      <div className="card mt-6 p-5">
+      {/* Progress + reward banner. Pinned: the form runs well past a screenful,
+          and once "{done} of {total} answered" scrolled away users lost track of
+          how much was left (and of the bonus they were working toward). Offset
+          clears Layout's own sticky header (z-20), and sits below it in z so the
+          two never fight. */}
+      <div className="card sticky top-[61px] z-10 mt-6 bg-surface/95 p-5 backdrop-blur">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
             <p className="font-semibold">

@@ -30,8 +30,12 @@
   --c-strong: 30 41 59;      /* slate-800 — strong text                */
   --c-body: 51 65 85;        /* slate-700 — default body text          */
   --c-dim: 71 85 105;        /* slate-600 — secondary text             */
-  --c-muted: 100 116 139;    /* slate-500 — tertiary text              */
-  --c-faint: 148 163 184;    /* slate-400 — icons / placeholders       */
+  --c-muted: 100 116 139;    /* slate-500 — tertiary text  4.76:1 AA   */
+  /* NON-TEXT ONLY — icons, placeholders, disabled. Was slate-400, which is
+     2.56:1 on white and fails even the 3:1 non-text bar; the usability audit
+     flagged it site-wide. Lightest legal value here is ~slate-450. Anything a
+     user has to READ belongs on --c-muted or darker. */
+  --c-faint: 124 139 161;    /* icons / placeholders       3.46:1      */
   --c-line: 226 232 240;     /* slate-200 — default border             */
   --c-hair: 241 245 249;     /* slate-100 — hairline divider           */
   --c-edge: 203 213 225;     /* slate-300 — input border (stronger)    */
@@ -84,8 +88,10 @@
   --c-strong: 234 240 255;
   --c-body: 219 227 255;
   --c-dim: 201 211 251;
-  --c-muted: 182 194 247;    /* #b6c2f7 */
-  --c-faint: 136 149 226;    /* #8895e2 */
+  /* Shared by dark AND royal. Measured against royal's CARD fill (#2c3fd9),
+     which is the tighter of the two backgrounds these sit on. */
+  --c-muted: 199 208 250;    /* #c7d0fa — lowest legal TEXT   4.90:1 AA */
+  --c-faint: 176 187 240;    /* #b0bbf0 — NON-TEXT only       3.98:1    */
   --c-line: 51 58 96;        /* white .16 blended                      */
   --c-hair: 36 44 85;        /* white .10 blended                      */
   --c-edge: 65 72 108;       /* white .22 blended                      */
@@ -137,9 +143,15 @@
   --c-raised: 54 72 219;     /* white .12                              */
   --c-sunken: 50 68 218;     /* white .10                              */
   --c-overlay: 68 84 221;    /* white .18                              */
-  --c-line: 64 80 221;       /* white .16                              */
-  --c-hair: 50 68 218;       /* white .10                              */
-  --c-edge: 77 93 223;       /* white .22                              */
+  /* Royal's fills are nearly the same blue as the canvas — a card is 1.16:1
+     against the page behind it — so the BORDER is doing all the work of saying
+     "this is a separate window", and at white .16 it was only 1.65:1 against
+     the canvas. That is the audit's "overlay windows don't stand out from the
+     background". Fills stay as the mockup drew them; the delineation gets
+     stronger instead, which lifts every card, panel and popover at once. */
+  --c-line: 107 121 228;     /* white .30 — 2.26:1 vs canvas           */
+  --c-hair: 64 80 221;       /* white .16 — subtle in-card divider     */
+  --c-edge: 133 144 233;     /* white .42 — 2.95:1 vs canvas           */
 }
 
 @layer base {
@@ -915,9 +927,16 @@ select:focus-visible,
    tables/cards) are left completely untouched — we only polish what's bare. */
 .dm-report { line-height: 1.6; color: #334155; }
 .dm-report > * + * { margin-top: 12px; }
-.dm-report h2:not([style]) { font-size: 18px; font-weight: 700; color: #0f172a; margin: 18px 0 8px; letter-spacing: -.01em; }
-.dm-report h3:not([style]), .dm-report h4:not([style]) { font-weight: 700; color: #0f172a; margin: 16px 0 8px; padding-left: 10px; border-left: 3px solid #3b82f6; line-height: 1.3; }
-.dm-report h4:not([style]) { font-size: 14px; }
+/* Headings need markedly MORE space above than below, so they group with the
+   text they introduce instead of floating between two blocks. The old 18px/16px
+   top margins were barely above the 12px generic block gap, so a heading read as
+   just another paragraph and got skipped — the audit hit this on the SEO
+   analysis page but it applies to every report. */
+.dm-report h2:not([style]) { font-size: 19px; font-weight: 700; color: #0f172a; margin: 34px 0 10px; letter-spacing: -.01em; }
+.dm-report h3:not([style]), .dm-report h4:not([style]) { font-size: 15px; font-weight: 700; color: #0f172a; margin: 26px 0 8px; padding-left: 10px; border-left: 3px solid #3b82f6; line-height: 1.3; }
+.dm-report h4:not([style]) { font-size: 14px; margin-top: 20px; }
+/* …but not above the first thing in the report, where it just adds dead space. */
+.dm-report > :first-child { margin-top: 0; }
 .dm-report p:not([style]) { margin: 8px 0; }
 .dm-report ul:not([style]), .dm-report ol:not([style]) { margin: 8px 0; padding-left: 20px; }
 .dm-report li:not([style]) { margin: 4px 0; }
@@ -985,9 +1004,11 @@ select:focus-visible,
 .dm-report summary::marker { content: ''; }
 .dm-report details > summary:hover { background: #f8fafc; border-radius: 10px; }
 .dm-report pre code { background: none; padding: 0; }
+@media screen {
 .dark .dm-report details > summary:hover { background: #172234; }
 .dark .dm-report code:not(pre code) { background: #1e293b !important; color: #e2e8f0; }
 .dark .dm-report blockquote { border-left-color: #334155 !important; color: #94a3b8 !important; }
+}
 @media (max-width: 640px) { .dm-report .persona-body { grid-template-columns: 1fr; } }
 
 /* Social scorecard metric "i" tooltips (injected HTML → native-title based, so
@@ -998,8 +1019,9 @@ select:focus-visible,
 .sma-tip:hover { opacity: 1; }
 @media print { .sma-tip { display: none !important; } }
 
-/* White-label report header — hidden on screen, shown only when printing. */
-.dm-print-header { display: none; }
+/* White-label report header + footer — hidden on screen, shown only when
+   printing (see components/PdfExport.jsx). */
+.dm-print-header, .dm-print-footer { display: none; }
 
 /* Print just the result: hide chrome (header, chat, toasts, forms). */
 @media print {
@@ -1045,10 +1067,43 @@ select:focus-visible,
   [style*="margin-right"] { margin-right: 0 !important; }
   .card { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
   body { background: #fff !important; }
-  .dm-print-header { display: block !important; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0; }
+  .dm-print-header {
+    display: flex !important; align-items: flex-start; justify-content: space-between; gap: 16px;
+    margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #e2e8f0;
+  }
   .dm-print-header .dm-ph-brand { font-size: 18px; font-weight: 700; color: #0f172a; }
   .dm-print-header .dm-ph-title { font-size: 13px; color: #334155; margin-top: 2px; }
   .dm-print-header .dm-ph-meta { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+  /* The logo is an <img>, not a CSS background, so it survives the default
+     "background graphics: off" in Chrome's print dialog — a background-image
+     lockup came out blank for anyone who never touched that checkbox. */
+  .dm-print-header .dm-ph-logo { width: 128px; height: auto; flex: none; }
+
+  /* Running footer. `fixed` is what makes Chrome repeat it on every sheet;
+     the body padding below reserves the strip so the last lines of a long
+     report don't print underneath it. */
+  .dm-print-footer {
+    display: flex !important; position: fixed; left: 0; right: 0; bottom: 0;
+    justify-content: space-between; gap: 12px;
+    padding: 6px 2px; border-top: 1px solid #e2e8f0; background: #fff;
+    font-size: 9px; color: #94a3b8;
+  }
+  body { padding-bottom: 26px !important; }
+
+  /* Export scoping: PdfExport marks the report and its ancestor chain, and
+     everything hanging off that chain is hidden. Page-shape agnostic, so a
+     tool page that lays its inputs out in some new way still exports clean. */
+  body.dm-printing .dm-print-path > *:not(.dm-print-path):not(.dm-print-root) { display: none !important; }
+  /* Margins and centring on the ancestors would otherwise squeeze the report
+     into the column it occupied on screen. */
+  /* `display:block` matters as much as the margins: main is a flex ITEM in the
+     app shell, and a flex item with `width:auto` shrinks to fit-content — the
+     report printed in a ~55% column down the left of the sheet. Only one child
+     of each path element survives, so flattening the layout is safe. */
+  body.dm-printing .dm-print-path:not(body) {
+    display: block !important; float: none !important;
+    margin: 0 !important; padding: 0 !important; max-width: none !important; width: auto !important;
+  }
 }
 
 /* ── Dark-mode overrides for the raw-CSS blocks above ─────────────────────
@@ -1082,6 +1137,9 @@ select:focus-visible,
 
 /* Server-rendered report HTML (.dm-report) — only the bare (:not([style]))
    elements were styled for light; mirror that scoping for dark. */
+/* Screen-only: paper is always light, and these out-specify the light base
+   rules above — unscoped, a royal-theme user's PDF came out pale grey. */
+@media screen {
 .dark .dm-report { color: #cbd5e1; }
 .dark .dm-report h2:not([style]), .dark .dm-report h3:not([style]), .dark .dm-report h4:not([style]) { color: #f1f5f9; }
 .dark .dm-report strong:not([style]) { color: #f1f5f9; }
@@ -1113,6 +1171,7 @@ select:focus-visible,
 .dark .dm-report .persona-section p, .dark .dm-report .persona-rationale p,
 .dark .dm-report .persona-section li { color: #cbd5e1; }
 .dark .dm-report .persona-rationale { background: #0b1120; border-top-color: #1e293b; }
+}
 
 /* Bare form controls (textarea/select/text inputs) that don't opt into
    .field/.dm-select fall back to the user-agent WHITE background — wrong in

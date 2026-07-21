@@ -250,7 +250,11 @@ export const api = {
       : call('/run/social-audit', { method: 'POST', body: payload }),
   checkout: (tier, interval) => call('/billing/checkout', { method: 'POST', body: { tier, interval } }),
   topup: (packId) => call('/billing/topup', { method: 'POST', body: { packId } }),
-  portal: () => call('/billing/portal', { method: 'POST' }),
+  // Airwallex has no hosted customer portal, so "manage billing" is these three
+  // routes rather than one redirect.
+  paymentMethod: () => call('/billing/payment-method', { method: 'POST' }),
+  changePlan: (tier, interval) => call('/billing/subscription/change', { method: 'POST', body: { tier, interval } }),
+  cancelPlan: (atPeriodEnd = true) => call('/billing/subscription/cancel', { method: 'POST', body: { atPeriodEnd } }),
   invoices: () => call('/billing/invoices'),
   // In-app features: assistant chat, run history, support, integrations.
   chat: (messages, conversationId, context) => call('/chat', { method: 'POST', body: { messages, conversationId, context } }),
@@ -374,7 +378,7 @@ export const api = {
     const qs = p.toString();
     return call(`/admin/platform/access-logs${qs ? `?${qs}` : ''}`);
   },
-  // Finances balance sheet (Stripe revenue vs AWS + estimated COGS, in SGD).
+  // Finances balance sheet (Airwallex revenue vs AWS + estimated COGS, in SGD).
   adminFinances: ({ from, to } = {}) => {
     const p = new URLSearchParams();
     if (from) p.set('from', from);

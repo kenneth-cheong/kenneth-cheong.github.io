@@ -7,6 +7,7 @@ import { useProjects } from '../context/ProjectContext.jsx';
 import MetricChart from '../components/MetricChart.jsx';
 import InfoTip, { glossaryFor } from '../components/InfoTip.jsx';
 import ShareResult from '../components/ShareResult.jsx';
+import PrintBrand, { PdfButton } from '../components/PdfExport.jsx';
 import { api } from '../lib/api.js';
 import { toast, downloadCsv } from '../lib/ui.js';
 import { startPerformanceTour, PERFORMANCE_SAMPLE, hasSeen, markSeen } from '../lib/tours.js';
@@ -140,7 +141,7 @@ export default function Performance() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="dm-no-print flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Performance</h1>
           <p className="mt-1 text-dim">
@@ -151,6 +152,7 @@ export default function Performance() {
           {metrics.length > 0 && (
             <>
               <button onClick={exportCsv} className="btn-ghost text-sm">Export CSV</button>
+              <PdfButton className={SHARE_BTN} />
               <ShareResult tool={SHARE_TOOL} out={shareOut} project={active} user={null} force snapshot label="Share" className={SHARE_BTN} />
             </>
           )}
@@ -166,6 +168,8 @@ export default function Performance() {
           )}
         </div>
       </div>
+
+      {metrics.length > 0 && <PrintBrand title="Performance" project={active} user={null} />}
 
       {!activeId ? (
         <div className="card mt-6 p-6 text-center">

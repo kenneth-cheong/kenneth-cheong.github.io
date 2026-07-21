@@ -23,7 +23,10 @@ const NAV_GROUPS = [
     { to: '/', label: 'Home', icon: LayoutGrid, end: true, tour: 'nav-/' },
   ] },
   { label: 'Insights', items: [
-    { to: '/audit', label: 'Site Health', icon: HeartPulse, tour: 'nav-monitor' },
+    // "Site Health Check" in full — the page, the share card and every mention
+    // elsewhere use the full name, and the clipped rail label read as a third,
+    // separate feature alongside the GEO+SEO Forensic Audit.
+    { to: '/audit', label: 'Site Health Check', icon: HeartPulse, tour: 'nav-monitor' },
     { to: '/tracking', label: 'Rankings', icon: TrendingUp },
     { to: '/performance', label: 'Traffic', icon: LineChart },
   ] },

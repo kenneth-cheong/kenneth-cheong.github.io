@@ -23,7 +23,7 @@ const fire = (name, detail) => window.dispatchEvent(new CustomEvent(name, detail
 const PAGES = [
   { label: 'Home', hint: 'Dashboard', to: '/', icon: Home },
   { label: 'Projects', hint: 'Your sites', to: '/projects', icon: FolderKanban },
-  { label: 'Site Health', hint: 'Audit', to: '/audit', icon: HeartPulse },
+  { label: 'Site Health Check', hint: 'Audit', to: '/audit', icon: HeartPulse },
   { label: 'Rank Tracking', to: '/tracking', icon: TrendingUp },
   { label: 'Performance', hint: 'GSC · GA4 · Ads', to: '/performance', icon: LineChart },
   { label: 'Schedules', hint: 'Automated runs', to: '/schedules', icon: CalendarClock },

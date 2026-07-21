@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles, X, Minus } from 'lucide-react';
 import {
@@ -48,6 +48,19 @@ export default function ProfilePrompt() {
 
   const { done, total } = profileProgress(profile);
   const pct = total ? Math.round((done / total) * 100) : 0;
+
+  // This card and Monty both live in the bottom-right corner, and Monty's panel
+  // (z-79) and launcher (z-80) both outrank it — so when they overlapped, the
+  // card's buttons were unreachable rather than merely ugly. Two halves to the
+  // fix: step aside entirely while the panel is open, and on md+ (where the
+  // launcher exists at all) sit ABOVE the launcher rather than under it.
+  const [chatOpen, setChatOpen] = useState(() => document.documentElement.dataset.chatOpen === '1');
+  useEffect(() => {
+    const onState = (e) => setChatOpen(!!e.detail?.open);
+    window.addEventListener('dm:chat-state', onState);
+    return () => window.removeEventListener('dm:chat-state', onState);
+  }, []);
+  if (chatOpen) return null;
 
   // Gone for good only once there's nothing left to ask (complete + rewarded);
   // otherwise a live snooze is the only thing that hides it, and it expires.
@@ -102,7 +115,7 @@ export default function ProfilePrompt() {
     return (
       <button
         onClick={expand}
-        className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full border border-brand-200 dark:border-brand-500/30 bg-surface px-4 py-2.5 text-sm font-semibold text-brand-800 dark:text-brand-300 shadow-lg hover:bg-brand-50 dark:hover:bg-brand-500/10"
+        className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full border border-brand-200 dark:border-brand-500/30 bg-surface px-4 py-2.5 text-sm font-semibold text-brand-800 dark:text-brand-300 shadow-lg hover:bg-brand-50 dark:hover:bg-brand-500/10 md:bottom-[96px]"
       >
         <Sparkles size={16} aria-hidden /> Finish profile
         <span className="tabular-nums text-brand-600 dark:text-brand-400">{done}/{total}</span>
@@ -111,7 +124,7 @@ export default function ProfilePrompt() {
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-40 w-[calc(100vw-2.5rem)] max-w-sm rounded-xl border border-brand-200 dark:border-brand-500/30 bg-surface p-5 shadow-2xl">
+    <div className="fixed bottom-5 right-5 z-40 w-[calc(100vw-2.5rem)] max-w-sm rounded-xl border border-brand-200 dark:border-brand-500/30 bg-surface p-5 shadow-2xl md:bottom-[96px]">
       <div className="flex items-start justify-between gap-3">
         <h2 className="flex items-center gap-1.5 font-semibold text-brand-800 dark:text-brand-300">
           <Sparkles size={16} aria-hidden /> Complete your profile &amp; earn {PROFILE_BONUS} credits

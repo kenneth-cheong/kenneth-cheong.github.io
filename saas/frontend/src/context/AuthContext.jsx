@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { api, setToken, setRefreshToken } from '../lib/api.js';
 import { mirrorOnboarding } from '../lib/ui.js';
 
@@ -78,11 +78,28 @@ export function AuthProvider({ children }) {
     return () => window.removeEventListener('dm:session-expired', onExpired);
   }, []);
 
+  // Lowest balance any in-flight spend has reported. Kept in a ref (not state)
+  // so several responses landing in the same tick compare against each other
+  // rather than against the last committed render.
+  const spentFloor = useRef(null);
+  useEffect(() => { spentFloor.current = typeof user?.credits === 'number' ? user.credits : null; }, [user?.credits]);
+
   // Let any component patch the credit balance after a tool run. Takes the total
   // spendable (`credits`) and optionally the top-up remainder so the monthly vs
   // top-up split stays exact without waiting for the next /me. Mirrors the new
   // balance to localStorage so other open tabs adopt it via the storage listener.
+  //
+  // Every caller is reporting a SPEND, and a spend can never raise the balance.
+  // Parallel runs — the Site Health check fires three tools at once — resolve in
+  // arrival order, not charge order, so a `creditsRemaining` computed before its
+  // siblings were billed can land last and undo their deductions. That is how
+  // the meter was seen ticking *upward* mid-run. Holding the lowest reading
+  // makes arrival order irrelevant. Genuine increases (monthly refill, top-up
+  // purchase) come through refresh()/`/me`, which sets `user` directly.
   const setCredits = useCallback((credits, topupCredits) => {
+    if (typeof credits !== 'number' || !Number.isFinite(credits)) return;
+    if (typeof spentFloor.current === 'number' && credits > spentFloor.current) return;
+    spentFloor.current = credits;
     setUser((u) => {
       if (!u) return u;
       const next = { ...u, credits };
@@ -103,6 +120,10 @@ export function AuthProvider({ children }) {
       try {
         const { credits, topupCredits } = JSON.parse(e.newValue);
         if (typeof credits !== 'number') return;
+        // Broadcasts carry spends too, so the same floor applies — a slow
+        // sibling tab must not push this tab's meter back up.
+        if (typeof spentFloor.current === 'number' && credits > spentFloor.current) return;
+        spentFloor.current = credits;
         setUser((u) => {
           if (!u) return u;
           const next = { ...u, credits };

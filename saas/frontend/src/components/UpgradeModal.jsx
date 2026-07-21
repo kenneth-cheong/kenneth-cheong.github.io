@@ -6,7 +6,7 @@ import { Unlock, Zap, Check } from 'lucide-react';
 // Shown when the backend returns 403 (tier_locked) or 402 (insufficient_credits).
 // On 402 we LEAD with one-time credit top-ups (instant, and they roll over) and
 // offer a plan upgrade as the secondary path; on 403 it's an upgrade-only unlock
-// prompt. Both buttons redirect to Stripe Checkout (or the mock success redirect).
+// prompt. Both buttons redirect to the hosted Checkout (or the mock success redirect).
 export default function UpgradeModal({ reason, requiredTier, creditsRemaining, creditsNeeded, onClose }) {
   const outOfCredits = reason === 'insufficient_credits';
   const plan = PLANS[requiredTier || 'pro'];
@@ -16,7 +16,7 @@ export default function UpgradeModal({ reason, requiredTier, creditsRemaining, c
     setBusy('upgrade');
     try {
       const { url } = await api.checkout(plan.id, 'monthly');
-      window.location.href = url; // Stripe Checkout (or mock success redirect)
+      window.location.href = url; // hosted Checkout (or mock success redirect)
     } finally {
       setBusy(null);
     }
@@ -26,7 +26,7 @@ export default function UpgradeModal({ reason, requiredTier, creditsRemaining, c
     setBusy(packId);
     try {
       const { url } = await api.topup(packId);
-      window.location.href = url; // one-time Stripe payment → webhook grants credits
+      window.location.href = url; // one-time payment → webhook grants credits
     } finally {
       setBusy(null);
     }

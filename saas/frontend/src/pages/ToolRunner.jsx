@@ -11,10 +11,12 @@ import ReportHtml from '../components/ReportHtml.jsx';
 import SchemaResult from '../components/SchemaResult.jsx';
 import SortableTable from '../components/SortableTable.jsx';
 import ShareResult from '../components/ShareResult.jsx';
+import PrintBrand, { PdfButton } from '../components/PdfExport.jsx';
 import ConnectPrompt, { connectReasonFor } from '../components/ConnectPrompt.jsx';
 import { useIntegrationGate, IntegrationGate } from '../components/IntegrationGate.jsx';
 import { suppressFault } from '../lib/diagnostics.js';
 import InfoTip, { glossaryFor } from '../components/InfoTip.jsx';
+import SearchableSelect from '../components/SearchableSelect.jsx';
 import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
 import { startToolTour, sampleResultFor, hasSeen, markSeen } from '../lib/tours.js';
 import { Lock, Compass, Sparkles, AlertTriangle, Clock, ChevronRight, Check, MessageCircleQuestion, ThumbsUp, ThumbsDown, Loader2, Plus } from 'lucide-react';
@@ -749,35 +751,60 @@ function SlowProgress({ tool, job }) {
   if (job) {
     const p = job.progress;
     const pct = p && p.total ? Math.round((p.done / p.total) * 100) : null;
+    // Results the server has already finished. The Optimiser produces the
+    // competitor research ~100s in and the draft ~400s in, so holding them back
+    // until the QA agents finish means several minutes of staring at a spinner.
+    const partial = Array.isArray(job.partial) ? job.partial : [];
     return (
-      <div className="card mt-6 p-6">
-        <div className="flex items-center gap-3">
-          <span className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-          <span className="font-medium text-body">{job.stage || 'Starting'}…</span>
-          <span className="ml-auto text-xs tabular-nums text-faint">{sec}s</span>
-        </div>
-        {pct != null && (
-          <div className="mt-4">
-            <div className="h-2 overflow-hidden rounded-full bg-sunken">
-              <div className="h-full rounded-full bg-gradient-to-r from-brand-400 to-brand-600 transition-all" style={{ width: `${Math.max(3, pct)}%` }} />
+      <>
+        <div className="card mt-6 p-6">
+          <div className="flex items-center gap-3">
+            <span className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+            <span className="font-medium text-body">{job.stage || 'Starting'}…</span>
+            <span className="ml-auto text-xs tabular-nums text-faint">{sec}s</span>
+          </div>
+          {pct != null && (
+            <div className="mt-4">
+              <div className="h-2 overflow-hidden rounded-full bg-sunken">
+                <div className="h-full rounded-full bg-gradient-to-r from-brand-400 to-brand-600 transition-all" style={{ width: `${Math.max(3, pct)}%` }} />
+              </div>
+              <div className="mt-1.5 text-xs tabular-nums text-muted">{p.done}/{p.total} QA agents finished</div>
             </div>
-            <div className="mt-1.5 text-xs tabular-nums text-muted">{p.done}/{p.total} QA agents finished</div>
+          )}
+          <p className="mt-4 text-sm text-dim">
+            This run finishes on our servers even if you close the tab — you’ll get a notification, and the result lands in History.
+          </p>
+        </div>
+        {partial.length > 0 && (
+          <div className="mt-6">
+            <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-500" aria-hidden />
+              Results so far — still working
+            </p>
+            <ResultSections sections={partial} />
           </div>
         )}
-        <p className="mt-4 text-sm text-dim">
-          This run finishes on our servers even if you close the tab — you’ll get a notification, and the result lands in History.
-        </p>
-      </div>
+      </>
     );
   }
 
   const i = Math.min(Math.floor((sec / TYPICAL) * steps.length), steps.length - 1);
   return (
     <div className="card mt-6 p-6">
+      {/* ONE spinner only — it lives on the active row of the list below, which
+          is where the eye already is. A second spinner up here ran the same
+          animation at a different diameter, which reads as two things spinning
+          at two speeds. A determinate bar carries the overall progress instead,
+          matching the async-job card above. */}
       <div className="flex items-center gap-3">
-        <span className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
         <span className="font-medium text-body">{steps[i]}…</span>
-        <span className="ml-auto text-xs tabular-nums text-faint">{sec}s · usually {range}</span>
+        <span className="ml-auto text-xs tabular-nums text-muted">{sec}s · usually {range}</span>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-sunken">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-brand-400 to-brand-600 transition-all"
+          style={{ width: `${Math.max(3, Math.round(((i + 1) / steps.length) * 100))}%` }}
+        />
       </div>
       <ul className="mt-4 space-y-2">
         {steps.map((s, k) => (
@@ -852,52 +879,6 @@ function sectionsToText(sections) {
 // First tabular section, for the CSV button.
 function firstTable(sections) { return (sections || []).find((s) => s.type === 'table' && s.rows && s.rows.length); }
 
-function PrintHeader({ tool, project, user }) {
-  const brand = project?.name || (user?.email ? user.email.split('@')[0] : 'Digimetrics');
-  const target = project?.domain;
-  const date = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-  return (
-    <div className="dm-print-header">
-      <div className="dm-ph-brand">{brand}</div>
-      <div className="dm-ph-title">{tool.name}{target ? ` · ${target}` : ''}</div>
-      <div className="dm-ph-meta">Generated {date} · Digimetrics</div>
-    </div>
-  );
-}
-
-// Free plain-English summary, auto-fetched for every real run (runId present —
-// the guided tour's sample results skip it). Cached per run so re-renders and
-// remounts never refetch. Fails silently: the raw result is still on screen.
-const tldrCache = new Map();
-function TldrPanel({ tool, r, runId }) {
-  const [state, setState] = useState(() => tldrCache.get(runId) || { loading: true, text: '' });
-  useEffect(() => {
-    let alive = true;
-    const hit = tldrCache.get(runId);
-    if (hit) { setState(hit); return undefined; }
-    setState({ loading: true, text: '' });
-    api.explainResult(tool.name, copyableOf(r).slice(0, 5000))
-      .then((d) => { const s = { loading: false, text: String(d.summary || '').trim() }; tldrCache.set(runId, s); if (alive) setState(s); })
-      .catch(() => { const s = { loading: false, text: '' }; tldrCache.set(runId, s); if (alive) setState(s); });
-    return () => { alive = false; };
-    // eslint-disable-next-line
-  }, [runId]);
-  if (!state.loading && !state.text) return null;
-  return (
-    <div className="dm-no-print mb-4 rounded-xl border border-brand-200 dark:border-brand-500/30 bg-brand-50/60 dark:bg-brand-500/10 p-4">
-      <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-brand-700 dark:text-brand-300">
-        <Sparkles size={13} aria-hidden /> What this means — in plain English
-      </div>
-      {state.loading ? (
-        <div className="mt-2.5 space-y-1.5" aria-label="Writing your summary…">
-          {[92, 78, 60].map((w) => <div key={w} className="h-3 animate-pulse rounded bg-brand-100 dark:bg-brand-500/20" style={{ width: `${w}%` }} />)}
-        </div>
-      ) : (
-        <TldrText text={state.text} />
-      )}
-    </div>
-  );
-}
 
 // Light renderer for the explainer reply: paragraphs + the fixed labels bolded.
 // (The upstream returns plain text / light markdown; we don't ship a full
@@ -998,6 +979,8 @@ function EmptyResult({ tool }) {
 }
 
 function Result({ out, tool, project, user, inputs, onCredits, onRetry }) {
+  // The exact subtree the PDF export prints — the result card and nothing else.
+  const printRef = useRef(null);
   // A connection that isn't set up yet reads as an error at the transport layer
   // but is really a setup step — route it to the connect widget either way.
   const errReason = out.error && tool.integration ? connectReasonFor(out.error) : null;
@@ -1079,14 +1062,14 @@ function Result({ out, tool, project, user, inputs, onCredits, onRetry }) {
               ? <ResultBtn onClick={() => downloadCsv(r.rows, `${tool.id}.csv`)}>CSV</ResultBtn>
               : sectionTable && <ResultBtn onClick={() => downloadCsv(sectionTable.rows, `${tool.id}.csv`)}>CSV</ResultBtn>}
             <ResultBtn onClick={() => copyText(copyableOf(r))}>Copy</ResultBtn>
-            <ResultBtn onClick={() => window.print()}>Print</ResultBtn>
+            <PdfButton targetRef={printRef} />
             <ShareResult tool={tool} out={out} project={project} user={user} />
           </div>
         )}
       </div>
 
-      <div className="card p-5">
-        <PrintHeader tool={tool} project={project} user={user} />
+      <div ref={printRef} className="card p-5">
+        <PrintBrand title={tool.name} project={project} user={user} />
         {out.failed && (
           <div className="dm-no-print mb-4 rounded-lg bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-800 dark:text-amber-300">
             This run didn’t complete — no credits were charged.
@@ -1629,101 +1612,6 @@ function AccountField({ provider, value, onChange, placeholder }) {
               </button>
             )) : <div className="px-3 py-2 text-sm text-faint">No matches.</div>}
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// A <select> replacement with a type-to-filter search box, for long option
-// lists (locations, languages, schema types). Keyboard: ↑/↓ to move, Enter to
-// pick, Esc to close. Falls back to the same look as native `.field` selects.
-function SearchableSelect({ options, value, onChange, autoFocus }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const [active, setActive] = useState(0);
-  const rootRef = useRef(null);
-  const searchRef = useRef(null);
-  const listRef = useRef(null);
-
-  // Accept plain strings or {value,label} pairs (labels searched, values stored).
-  const norm = useMemo(() => options.map((o) => (typeof o === 'string' ? { value: o, label: o } : o)), [options]);
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return q ? norm.filter((o) => o.label.toLowerCase().includes(q)) : norm;
-  }, [norm, query]);
-
-  // Close on outside click.
-  useEffect(() => {
-    if (!open) return undefined;
-    const onDocClick = (e) => { if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, [open]);
-
-  // When opening, focus the search box and reset to the current selection.
-  useEffect(() => {
-    if (!open) return;
-    setQuery('');
-    const i = norm.findIndex((o) => o.value === value);
-    setActive(i >= 0 ? i : 0);
-    requestAnimationFrame(() => searchRef.current?.focus());
-  }, [open, norm, value]);
-
-  // Keep the active option scrolled into view.
-  useEffect(() => {
-    if (!open) return;
-    listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
-  }, [active, open]);
-
-  const pick = (opt) => { onChange(opt.value); setOpen(false); };
-  const selectedLabel = norm.find((o) => o.value === value)?.label || value;
-
-  const onKeyDown = (e) => {
-    if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(a + 1, filtered.length - 1)); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
-    else if (e.key === 'Enter') { e.preventDefault(); if (filtered[active]) pick(filtered[active]); }
-    else if (e.key === 'Escape') { e.preventDefault(); setOpen(false); }
-  };
-
-  return (
-    <div ref={rootRef} className="relative mt-1.5">
-      <button
-        type="button" autoFocus={autoFocus}
-        onClick={() => setOpen((o) => !o)}
-        className="field dm-select flex w-full items-center pr-9 text-left"
-      >
-        <span className="truncate">{selectedLabel || 'Select…'}</span>
-      </button>
-      {open && (
-        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-line bg-surface shadow-lift">
-          <div className="border-b border-hair p-1.5">
-            <input
-              ref={searchRef} type="text" value={query}
-              onChange={(e) => { setQuery(e.target.value); setActive(0); }}
-              onKeyDown={onKeyDown}
-              placeholder="Search…"
-              className="w-full rounded-md border border-line bg-raised px-2.5 py-1.5 text-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/10"
-            />
-          </div>
-          <ul ref={listRef} className="max-h-60 overflow-y-auto py-1" role="listbox">
-            {filtered.length === 0 ? (
-              <li className="px-3 py-2 text-sm text-faint">No matches</li>
-            ) : filtered.map((opt, i) => (
-              <li key={opt.value}>
-                <button
-                  type="button" data-active={i === active}
-                  onMouseEnter={() => setActive(i)} onClick={() => pick(opt)}
-                  className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-sm ${
-                    i === active ? 'bg-brand-50 dark:bg-brand-500/10 text-brand-700 dark:text-brand-300' : 'text-body'
-                  }`}
-                >
-                  <span className="truncate">{opt.label}</span>
-                  {opt.value === value && <span className="text-brand-600 dark:text-brand-400">✓</span>}
-                </button>
-              </li>
-            ))}
-          </ul>
         </div>
       )}
     </div>

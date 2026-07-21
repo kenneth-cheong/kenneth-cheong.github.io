@@ -1,16 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { toolById, tierMeets } from '@shared/catalog.mjs';
+import { toolById, tierMeets, LOCATIONS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { api, ApiError } from '../lib/api.js';
 import ResultSections from '../components/ResultSections.jsx';
+import SearchableSelect from '../components/SearchableSelect.jsx';
 import ShareResult from '../components/ShareResult.jsx';
+import PrintBrand, { PdfButton } from '../components/PdfExport.jsx';
 import { toast } from '../lib/ui.js';
 import { startSeoDiagnosticsTour, hasSeen, markSeen } from '../lib/tours.js';
 import { Loader2, ArrowRight, ArrowLeft, Stethoscope, Compass } from 'lucide-react';
 
-const SDX_LOCATIONS = ['Global', 'Singapore', 'Malaysia', 'Indonesia', 'Thailand', 'Vietnam', 'Philippines', 'Hong Kong', 'Australia', 'India', 'United States', 'United Kingdom', 'Canada', 'United Arab Emirates'];
+// Locations come from the shared catalog rather than a list of this page's own.
+// The local list carried 14 markets and no European country except the UK, so
+// anyone targeting Europe had to pick "Global" — which is not the same audience.
+// The catalog list is the one that's been smoke-tested against the upstreams.
 const SDX_LANGUAGES = ['English', 'Chinese', 'Malay', 'Indonesian', 'Thai', 'Vietnamese', 'Tagalog', 'Hindi'];
 
 const TOOL = toolById('seo-diagnostics');
@@ -171,9 +176,7 @@ export default function SeoDiagnostics() {
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-sm font-medium text-body">Location</label>
-              <select className="field mt-1 cursor-pointer" value={location} onChange={(e) => setLocation(e.target.value)}>
-                {SDX_LOCATIONS.map((l) => <option key={l} value={l}>{l}</option>)}
-              </select>
+              <SearchableSelect options={LOCATIONS} value={location} onChange={setLocation} />
             </div>
             <div>
               <label className="block text-sm font-medium text-body">Language</label>
@@ -275,13 +278,15 @@ export default function SeoDiagnostics() {
       {step === 5 && (
         <div ref={resultsRef} className="mt-4 space-y-4">
           {runId && (
-            <div className="flex justify-end">
+            <div className="dm-no-print flex justify-end gap-2">
+              <PdfButton targetRef={resultsRef} className="btn-ghost inline-flex items-center gap-1 text-sm" />
               {/* `out` is a result ENVELOPE ({ result }), not the raw payload —
                   passing the payload bare leaves the card blank and makes the
                   public-link mint post an empty snapshot (rejected as invalid). */}
               <ShareResult tool={SHARE_TOOL} out={{ result }} project={active} user={user} force snapshot label="Share result" className="btn-ghost inline-flex items-center gap-1 text-sm" />
             </div>
           )}
+          {result?.sections && <PrintBrand title="SEO Diagnostics" subtitle={domain} project={active} user={user} />}
           {result?.sections ? <ResultSections sections={result.sections} context={{ toolName: 'SEO Diagnostics', domain, target: domain }} /> : <p className="text-dim">No diagnosis yet.</p>}
         </div>
       )}

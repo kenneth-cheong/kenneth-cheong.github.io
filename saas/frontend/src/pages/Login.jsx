@@ -46,9 +46,10 @@ export default function Login() {
   // Render the Google Sign-In button and wire its credential to our auth.
   // The SDK is loaded async+defer so it may not be ready when this component
   // mounts — attach a load listener as a fallback so the button always renders.
-  // Re-runs when we return to the sign-in view (the container only exists then).
+  // Re-runs when the view changes (the container only exists outside 'forgot',
+  // and the button's own label switches between sign-in and sign-up).
   useEffect(() => {
-    if (mode !== 'signin') return;
+    if (mode === 'forgot') return;
     const init = () => {
       if (!window.google || !btnRef.current) return;
       window.google.accounts.id.initialize({
@@ -64,7 +65,14 @@ export default function Login() {
           }
         },
       });
-      window.google.accounts.id.renderButton(btnRef.current, { theme: 'outline', size: 'large', width: 280 });
+      window.google.accounts.id.renderButton(btnRef.current, {
+        theme: 'outline',
+        size: 'large',
+        width: 280,
+        // Same credential either way — loginWithGoogle provisions an account on
+        // first use — but the label should match the form the user is looking at.
+        text: mode === 'signup' ? 'signup_with' : 'signin_with',
+      });
     };
 
     if (window.google) {
@@ -237,7 +245,7 @@ export default function Login() {
 
           {/* Google is always available. Show the "or" divider only when it sits
               under the password form. */}
-          {mode === 'signin' && (
+          {mode !== 'forgot' && (
             <>
               {pwAuth && (
                 <div className="my-4 flex items-center gap-3 text-xs text-faint">

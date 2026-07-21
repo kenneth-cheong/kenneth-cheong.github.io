@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useProjects } from '../context/ProjectContext.jsx';
 import { api, ApiError } from '../lib/api.js';
 import ShareResult from '../components/ShareResult.jsx';
+import PrintBrand, { PdfButton } from '../components/PdfExport.jsx';
 import ReportHtml from '../components/ReportHtml.jsx';
 import { toast } from '../lib/ui.js';
 import { Loader2, Wand2, Microscope, ScanSearch, X, Plus, Pencil, Check, PlugZap, Compass } from 'lucide-react';
@@ -413,10 +414,11 @@ export default function PerformanceAudit() {
       {/* Results */}
       <div ref={resultsRef} className="mt-6 space-y-4">
         {resultHtml && lastRun && (
-          <div className="flex justify-end gap-2">
+          <div className="dm-no-print flex justify-end gap-2">
             <button type="button" onClick={() => setEditing((v) => !v)} className={SHARE_BTN}>
               {editing ? <><Check size={14} /> Done editing</> : <><Pencil size={14} /> Edit result</>}
             </button>
+            <PdfButton targetRef={resultsRef} className={SHARE_BTN} />
             {/* Shareable whenever we could distil headline numbers — the public
                 link is minted from that snapshot, so it doesn't need a saved run. */}
             {lastRun.out && (
@@ -424,6 +426,7 @@ export default function PerformanceAudit() {
             )}
           </div>
         )}
+        {resultHtml && <PrintBrand title="Performance Marketing Audit" project={active} user={user} />}
         {resultHtml && (
           <div contentEditable={editing} suppressContentEditableWarning
             className={editing ? 'rounded-lg outline outline-2 outline-brand-400 outline-offset-4' : ''}>

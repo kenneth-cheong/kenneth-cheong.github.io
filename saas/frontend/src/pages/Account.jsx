@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams, useLocation } from 'react-router-dom';
-import { PartyPopper, Zap } from 'lucide-react';
+import { PartyPopper, Zap, CreditCard } from 'lucide-react';
 import { PLANS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
 import { toast } from '../lib/ui.js';
 import TopupPacks from '../components/TopupPacks.jsx';
+import PrintBrand, { printReport } from '../components/PdfExport.jsx';
 
 export default function Account() {
   const { user, refresh, logout } = useAuth();
@@ -14,6 +15,9 @@ export default function Account() {
   const [busy, setBusy] = useState(false);
   const [docs, setDocs] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [exportFmt, setExportFmt] = useState('csv'); // csv leads: the readable default
+  const [pdfData, setPdfData] = useState(null);
+  const pdfRef = useRef(null);
   const [confirmDel, setConfirmDel] = useState(false);
   const [delText, setDelText] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -24,13 +28,15 @@ export default function Account() {
   const [emailBusy, setEmailBusy] = useState(false);
   const [uname, setUname] = useState(user.username || '');
   const [unameBusy, setUnameBusy] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const plan = PLANS[user.tier];
   // The current device's session id lives in the refresh token (decode locally).
   const currentSid = (() => {
     try { return JSON.parse(atob((localStorage.getItem('dm_refresh') || '').split('.')[1])).sid; } catch { return null; }
   })();
 
-  // Returning from Stripe Checkout / top-up → pull the fresh tier + credits.
+  // Returning from hosted Checkout / top-up → pull the fresh tier + credits.
   useEffect(() => {
     if (params.get('checkout') === 'success' || params.get('topup') === 'success') refresh();
   }, [params, refresh]);
@@ -87,27 +93,85 @@ export default function Account() {
     finally { setEmailBusy(false); }
   }
 
-  async function openPortal() {
+  // Airwallex has no hosted customer portal, so card updates run through a
+  // SETUP-mode checkout: same hosted redirect, saves a new payment source
+  // against the existing customer.
+  async function updateCard() {
     setBusy(true);
     try {
-      const { url } = await api.portal();
+      const { url } = await api.paymentMethod();
       window.location.href = url;
-    } finally {
-      setBusy(false);
+    } catch (e) { toast(e.message, 'error'); setBusy(false); }
+  }
+
+  async function cancelSubscription() {
+    setCancelling(true);
+    try {
+      await api.cancelPlan(true); // at period end — they keep what they paid for
+      toast('Subscription cancelled. You keep your plan until the end of the billing period.', 'success');
+      setConfirmCancel(false);
+      await refresh();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setCancelling(false); }
+  }
+
+  // The export used to be JSON-only, which most people cannot open — let alone
+  // read. JSON stays (it's the only lossless one, and the one a GDPR request
+  // actually wants), but it's no longer the only choice.
+  //
+  // The payload is a profile object plus eight arrays of different shapes, so
+  // "one spreadsheet" can't hold it. CSV therefore writes one titled block per
+  // section, which is what Excel/Sheets open natively — no library, and no .xlsx
+  // writer to keep in step with the schema.
+  function toCsv(data) {
+    const esc = (v) => {
+      if (v == null) return '';
+      const s = typeof v === 'object' ? JSON.stringify(v) : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const out = [`Digimetrics data export,${esc(data.exportedAt)}`, ''];
+    // Profile is a single object — emit it as field/value pairs, not a 1-row table.
+    out.push('PROFILE', 'Field,Value');
+    for (const [k, v] of Object.entries(data.profile || {})) out.push(`${esc(k)},${esc(v)}`);
+    for (const [name, rows] of Object.entries(data)) {
+      if (!Array.isArray(rows)) continue;
+      out.push('', name.toUpperCase());
+      if (!rows.length) { out.push('(none)'); continue; }
+      // Union the keys: rows of the same kind don't always carry the same fields.
+      const cols = [...new Set(rows.flatMap((r) => Object.keys(r || {})))];
+      out.push(cols.map(esc).join(','));
+      for (const r of rows) out.push(cols.map((c) => esc(r?.[c])).join(','));
     }
+    return out.join('\n');
+  }
+
+  function download(text, ext, type) {
+    const url = URL.createObjectURL(new Blob([text], { type }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `digimetrics-data-${new Date().toISOString().slice(0, 10)}.${ext}`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
   }
 
   async function exportData() {
     setExporting(true);
     try {
       const data = await api.exportData();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `digimetrics-data-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(url);
+      if (exportFmt === 'json') {
+        download(JSON.stringify(data, null, 2), 'json', 'application/json');
+      } else if (exportFmt === 'csv') {
+        // BOM so Excel detects UTF-8 and doesn't mangle non-ASCII names.
+        download('﻿' + toCsv(data), 'csv', 'text/csv;charset=utf-8');
+      } else {
+        // PDF goes through the browser's own print-to-PDF (same path as tool
+        // reports). The summary node is screen-hidden but `print:block`, so it
+        // only exists on the printed page; React has to commit it before the
+        // print dialog can capture it, hence the paint wait.
+        setPdfData(data);
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        printReport(pdfRef.current);
+      }
     } catch (e) { toast(e.message, 'error'); }
     finally { setExporting(false); }
   }
@@ -140,6 +204,11 @@ export default function Account() {
       {params.get('topup') === 'success' && (
         <div className="mt-4 flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-500/10 px-4 py-3 text-sm text-green-800 dark:text-green-300">
           <Zap size={16} aria-hidden /> Top-up successful — credits added to your balance.
+        </div>
+      )}
+      {params.get('card') === 'updated' && (
+        <div className="mt-4 flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-500/10 px-4 py-3 text-sm text-green-800 dark:text-green-300">
+          <CreditCard size={16} aria-hidden /> Payment method updated — future invoices will use it.
         </div>
       )}
 
@@ -197,17 +266,42 @@ export default function Account() {
             </p>
           </div>
         </div>
-        <div className="mt-5 flex gap-3">
+        <div className="mt-5 flex flex-wrap gap-3">
           <Link to="/pricing" className="btn-primary">Change plan</Link>
           {user.hasSubscription && (
-            <button onClick={openPortal} disabled={busy} className="btn-ghost">
-              {busy ? '…' : 'Manage billing'}
-            </button>
+            <>
+              <button onClick={updateCard} disabled={busy} className="btn-ghost">
+                {busy ? '…' : 'Update payment method'}
+              </button>
+              {!confirmCancel && (
+                <button onClick={() => setConfirmCancel(true)} className="btn-ghost text-muted">
+                  Cancel subscription
+                </button>
+              )}
+            </>
           )}
         </div>
-        {user.hasSubscription && (
+
+        {confirmCancel && (
+          <div className="mt-4 rounded-lg bg-amber-50 dark:bg-amber-500/10 p-4">
+            <p className="text-sm text-amber-900 dark:text-amber-200">
+              Cancel your {plan.name} subscription? You'll keep {plan.name} until the end of the
+              current billing period, then move to Free. Top-up credits you've bought stay yours.
+            </p>
+            <div className="mt-3 flex gap-3">
+              <button onClick={cancelSubscription} disabled={cancelling} className="btn-primary">
+                {cancelling ? '…' : 'Yes, cancel'}
+              </button>
+              <button onClick={() => setConfirmCancel(false)} disabled={cancelling} className="btn-ghost">
+                Keep my plan
+              </button>
+            </div>
+          </div>
+        )}
+
+        {user.hasSubscription && !confirmCancel && (
           <p className="mt-3 text-xs text-faint">
-            Manage billing opens the Stripe Customer Portal — update card, download invoices, or cancel.
+            Change plan switches immediately and prorates your next invoice. Invoices are listed below.
           </p>
         )}
       </div>
@@ -292,6 +386,8 @@ export default function Account() {
             type="button"
             role="switch"
             aria-checked={emailOptOut === false}
+            aria-label="Product-update emails"
+            title={emailOptOut === false ? 'Product-update emails are on — click to turn off' : 'Product-update emails are off — click to turn on'}
             disabled={emailBusy || emailOptOut === null}
             onClick={() => toggleEmailPref(!emailOptOut)}
             className={`relative mt-1 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition disabled:opacity-50 ${emailOptOut === false ? 'bg-brand-600' : 'bg-overlay'}`}
@@ -299,12 +395,6 @@ export default function Account() {
             <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${emailOptOut === false ? 'translate-x-5' : 'translate-x-1'}`} />
           </button>
         </div>
-        {emailOptOut !== null && (
-          <p className="mt-3 text-sm font-medium">
-            Product-update emails:{' '}
-            <span className={emailOptOut === false ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted'}>{emailOptOut === false ? 'On' : 'Off'}</span>
-          </p>
-        )}
       </div>
 
       {/* ── Data access requests (consent-gated admin access) ──────────── */}
@@ -345,13 +435,72 @@ export default function Account() {
           <Link to="/legal/privacy" className="text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Privacy Notice</Link> and{' '}
           <Link to="/legal/terms" className="text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300">Terms</Link>.
         </p>
-        <div className="mt-4 flex flex-wrap gap-3">
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <label className="sr-only" htmlFor="export-fmt">Export format</label>
+          <select
+            id="export-fmt"
+            value={exportFmt}
+            onChange={(e) => setExportFmt(e.target.value)}
+            className="field dm-select w-auto cursor-pointer py-2"
+            title="Choose a file format"
+          >
+            <option value="csv">Spreadsheet (.csv)</option>
+            <option value="pdf">Readable summary (PDF)</option>
+            <option value="json">Complete data (.json)</option>
+          </select>
           <button onClick={exportData} disabled={exporting} className="btn-ghost">{exporting ? 'Preparing…' : 'Export my data'}</button>
           <button onClick={signOutEverywhere} disabled={revoking} className="btn-ghost">{revoking ? 'Signing out…' : 'Sign out everywhere'}</button>
           <button onClick={() => { setDelText(''); setConfirmDel(true); }} className="rounded-lg border border-red-200 dark:border-red-500/30 px-4 py-2 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10">Delete account</button>
         </div>
-        <p className="mt-2 text-xs text-faint">“Sign out everywhere” ends sessions on all your other devices.</p>
+        <p className="mt-2 text-xs text-muted">
+          CSV opens in Excel or Google Sheets. The PDF is a readable summary; JSON is the
+          complete record, including fields the other two leave out.
+          {' '}“Sign out everywhere” ends sessions on all your other devices.
+        </p>
       </div>
+
+      {/* Print-only: hidden on screen, revealed by the print stylesheet, so the
+          browser's own Save-as-PDF gets a readable document instead of a dump. */}
+      {pdfData && (
+        <div ref={pdfRef} className="hidden print:block">
+          <PrintBrand title="Your Digimetrics data" subtitle={`Exported ${new Date(pdfData.exportedAt).toLocaleString()}`} user={user} />
+          <div className="dm-report">
+            <h2>Profile</h2>
+            <table>
+              <tbody>
+                {Object.entries(pdfData.profile || {})
+                  .filter(([, v]) => v != null && typeof v !== 'object')
+                  .map(([k, v]) => (
+                    <tr key={k}><td><b>{k}</b></td><td>{String(v)}</td></tr>
+                  ))}
+              </tbody>
+            </table>
+            {Object.entries(pdfData)
+              .filter(([, rows]) => Array.isArray(rows))
+              .map(([name, rows]) => (
+                <section key={name}>
+                  <h2>{name.charAt(0).toUpperCase() + name.slice(1)} ({rows.length})</h2>
+                  {rows.length === 0 ? <p>None.</p> : (
+                    <table>
+                      <thead>
+                        <tr>{[...new Set(rows.flatMap((r) => Object.keys(r || {})))].slice(0, 6).map((c) => <th key={c}>{c}</th>)}</tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((r, i) => (
+                          <tr key={i}>
+                            {[...new Set(rows.flatMap((x) => Object.keys(x || {})))].slice(0, 6).map((c) => (
+                              <td key={c}>{typeof r?.[c] === 'object' ? JSON.stringify(r[c]) : String(r?.[c] ?? '')}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </section>
+              ))}
+          </div>
+        </div>
+      )}
 
       {confirmDel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !deleting && setConfirmDel(false)}>

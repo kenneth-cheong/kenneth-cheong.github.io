@@ -1834,8 +1834,8 @@ function fmtWhen(iso) {
 const RANGE_PRESETS = [['1', '24h'], ['7', '7 days'], ['30', '30 days'], ['90', '90 days']];
 
 // ── Finances (balance sheet: cost vs revenue) ────────────────────────────────
-// Company P&L for a window: Stripe revenue vs AWS spend + an ESTIMATED AI/data
-// COGS line, reconciled into SGD. Revenue is authoritative (Stripe); AWS is
+// Company P&L for a window: Airwallex revenue vs AWS spend + an ESTIMATED AI/data
+// COGS line, reconciled into SGD. Revenue is authoritative (Airwallex); AWS is
 // authoritative (Cost Explorer, USD→SGD); COGS is an estimate from credits
 // consumed and labelled as such.
 function AdminFinances() {
@@ -1895,7 +1895,7 @@ function AdminFinances() {
       <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300">
         <Info size={13} className="mt-0.5 shrink-0" />
         <span>
-          Each load runs one <b>AWS Cost Explorer</b> query (~US$0.01) plus a few read-only Stripe calls. Revenue and AWS spend are actual figures; the <b>AI &amp; data COGS</b> line is an estimate (see notes below).
+          Each load runs one <b>AWS Cost Explorer</b> query (~US$0.01) plus a few read-only Airwallex calls. Revenue and AWS spend are actual figures; the <b>AI &amp; data COGS</b> line is an estimate (see notes below).
         </span>
       </p>
 
@@ -1928,7 +1928,15 @@ function AdminFinances() {
                     <LedgerRow label="Subscriptions" value={money(rev.subscriptions)} />
                     <LedgerRow label="Top-ups" value={money(rev.topups)} />
                     <LedgerRow label="Gross revenue" value={money(rev.gross)} strong border />
-                    <LedgerRow label="Stripe fees" value={`− ${money(rev.fees)}`} muted />
+                    {/* Fees come from a separate Airwallex call that can fail on
+                        its own. `fees: null` means "we don't know", NOT zero —
+                        say so rather than quietly understating cost. */}
+                    <LedgerRow
+                      label="Processing fees"
+                      value={rev.feesAvailable === false ? '—' : `− ${money(rev.fees)}`}
+                      sub={rev.feesAvailable === false ? 'Unavailable — net revenue excludes fees' : ''}
+                      muted
+                    />
                     <LedgerRow label="Refunds" value={`− ${money(rev.refunds)}`} muted />
                     <LedgerRow label="Net revenue" value={money(rev.net)} strong border />
                   </tbody>
@@ -2042,7 +2050,7 @@ function AdminFinances() {
           <div className="mt-4 rounded-xl border border-line bg-raised p-4 text-xs text-muted">
             <p className="font-semibold text-dim">How these numbers are built</p>
             <ul className="mt-1.5 list-disc space-y-1 pl-4">
-              <li><b>Revenue</b> — actual, from Stripe: paid invoices = subscriptions, one-time charges = top-ups. Fees &amp; refunds from Stripe balance transactions. Settled in {rev?.currency || 'SGD'}.</li>
+              <li><b>Revenue</b> — actual, from Airwallex: paid invoices with a subscription = subscriptions, without one = top-ups. Refunds from credit notes; processing fees from the financial-transactions ledger. Settled in {rev?.currency || 'SGD'}.</li>
               <li><b>AWS</b> — actual, from Cost Explorer (all services), converted USD→{ccy} at {data.fx?.usdSgd} ({data.fx?.source} rate){cost.aws?.estimated ? '; latest days are AWS estimates' : ''}.</li>
               <li><b>AI &amp; data COGS</b> — <b>estimated</b>: {fmtNum(cost.cogs?.credits)} credits consumed × US${cost.cogs?.usdPerCredit}/credit (upstream vendor spend). Not a billed figure.</li>
               <li><b>Run-rate MRR</b> — a snapshot of active paid subscribers × plan price, not windowed.</li>

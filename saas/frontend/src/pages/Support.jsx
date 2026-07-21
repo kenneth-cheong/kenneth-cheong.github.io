@@ -116,7 +116,9 @@ function TicketList() {
               <div className="text-xs text-faint">{t.id}{t.category ? ` · ${t.category}` : ''} · {new Date(t.lastActivityAt || t.ts).toLocaleString()}</div>
             </div>
             {statusPill(t.status)}
-            <span className="text-brand-500">Open →</span>
+            {/* "View", not "Open" — an open ticket rendered "open  Open →", so the
+                action read as a second status. */}
+            <span className="text-brand-500">View →</span>
           </Link>
         ))}
       </div>

@@ -5,7 +5,7 @@
 // agree on both sides, but the BACKEND is always the authority that enforces.
 // ─────────────────────────────────────────────────────────────────────────
 
-/** Billing currency — prices below and all Stripe Prices are created in SGD. */
+/** Billing currency — prices below and all Airwallex Prices are created in SGD. */
 export const CURRENCY = { code: 'SGD', symbol: 'S$' };
 
 /**
@@ -13,7 +13,10 @@ export const CURRENCY = { code: 'SGD', symbol: 'S$' };
  * the first-run consent gate re-prompts any user whose accepted version differs,
  * so a bump forces everyone to re-accept. Keep in sync with Legal.jsx's date.
  */
-export const TERMS_VERSION = '2026-07-25';
+// .2 — the named payment processor changed from Stripe to Airwallex. That's a
+// material change to who handles card data, so everyone re-accepts. The
+// effective DATE is unchanged (these terms hadn't taken effect yet).
+export const TERMS_VERSION = '2026-07-25.2';
 
 /**
  * Soft-launch Free Trial + NDA acceptance version. Independent of TERMS_VERSION:
@@ -36,7 +39,7 @@ export function tierMeets(userTier, requiredTier) {
 }
 
 // ── Subscription plans ─────────────────────────────────────────────────────
-// `stripePriceId` values are filled in from env at runtime on the backend; the
+// Airwallex Price IDs are filled in from env at runtime on the backend; the
 // frontend only needs display data. `monthlyCredits` is the allowance granted
 // on each successful invoice (the billing-cycle anchor, not a cron).
 export const PLANS = {
@@ -64,7 +67,10 @@ export const PLANS = {
     maxSchedules: 3,
     scheduleFreqs: ['weekly', 'monthly'], // no daily — protects the monthly credit budget
     blurb: 'For solo marketers shipping content + SEO.',
-    highlights: ['500 credits / month (≈ 100 AI articles or 500 keyword checks)', '3 projects', 'Full SEO Toolkit', 'Full AI Content Studio', '25 tracked keywords', '3 scheduled runs'],
+    // Article counts track CREDIT_COSTS.ai_long_research (8), not ai_long — the
+    // Content Optimiser now researches the live SERP on every run. Re-do the
+    // arithmetic here if that key ever moves.
+    highlights: ['500 credits / month (≈ 62 researched AI articles or 500 keyword checks)', '3 projects', 'Full SEO Toolkit', 'Full AI Content Studio', '25 tracked keywords', '3 scheduled runs'],
   },
   pro: {
     id: 'pro',
@@ -77,7 +83,7 @@ export const PLANS = {
     scheduleFreqs: ['daily', 'weekly', 'monthly'],
     popular: true,
     blurb: 'The serious operator plan. AI Visibility + ad integrations.',
-    highlights: ['2,000 credits / month (≈ 400 AI articles or 40 deep site audits)', '10 projects', 'AI Visibility (GEO) suite', 'Google / Meta / GA4 integrations', '250 tracked keywords', '15 scheduled runs (daily)'],
+    highlights: ['2,000 credits / month (≈ 250 researched AI articles or 40 deep site audits)', '10 projects', 'AI Visibility (GEO) suite', 'Google / Meta / GA4 integrations', '250 tracked keywords', '15 scheduled runs (daily)'],
   },
   expert: {
     id: 'expert',
@@ -89,7 +95,7 @@ export const PLANS = {
     maxSchedules: 50,
     scheduleFreqs: ['daily', 'weekly', 'monthly'],
     blurb: 'Agencies-of-one and power users.',
-    highlights: ['6,000 credits / month (≈ 1,200 AI articles or 120 deep site audits)', '25 projects', 'White-label PDF export', 'API access', '1,000 tracked keywords', '50 scheduled runs (daily)'],
+    highlights: ['6,000 credits / month (≈ 750 researched AI articles or 120 deep site audits)', '25 projects', 'White-label PDF export', 'API access', '1,000 tracked keywords', '50 scheduled runs (daily)'],
   },
 };
 
@@ -112,6 +118,12 @@ export function topupById(id) {
 export const CREDIT_COSTS = {
   ai_short: 1, // caption, reply, schema, alt text, pillar
   ai_long: 5, // article write/optimise, strategy, persona set, media plan
+  // ai_long PLUS a live competitor-research pass (SERP fan-out → per-competitor
+  // topic extraction → AI topic pick). ~11 extra LLM calls and a DataForSEO SERP
+  // call on top of the writer. Deliberately its OWN key: `ai_long` is shared by
+  // a dozen tools that do no research, and raising it would overcharge all of
+  // them. This is a FLOOR — reconcileCost still bills real token spend above it.
+  ai_long_research: 8,
   keyword_lookup: 1, // per batch (≤10 keywords) with volume + difficulty
   rank_check: 1, // per keyword × location
   rank_backfill: 3, // per keyword — historical dated SERP snapshots (DataForSEO Labs)
@@ -153,7 +165,10 @@ const TOOL_ETA = {
   'llms-txt': [20, 90], 'time-to-rank': [20, 90], 'strategy-engine': [30, 120],
   'technical-seo': [30, 150], 'geo-onpage': [40, 150], persona: [45, 150],
   'seo-diagnostics': [60, 210],
-  'content-writer': [30, 180], 'forensic-audit': [60, 210], 'media-plan': [60, 210],
+  // Competitor research (SERP → 10 parallel topic pulls) adds ~60–90s ahead of
+  // the writer, so the band moved up with it rather than leaving users watching
+  // a "done by now" estimate tick past.
+  'content-writer': [60, 300], 'forensic-audit': [60, 210], 'media-plan': [60, 210],
   'social-audit': [45, 180], 'ai-mentions': [120, 300],
 };
 const GENERIC_ETA = [30, 150];
@@ -194,7 +209,7 @@ const RUN_STEPS = {
   'ai-discovery': ['Sending your request', 'Crawling your site', 'Testing AI readiness', 'Compiling the findings'],
   'ai-mentions': ['Sending your request', 'Asking the AI engines', 'Reading their answers', 'Compiling the findings'],
   'technical-seo': ['Sending your request', 'Crawling your pages', 'Running the checks', 'Compiling the results'],
-  'content-writer': ['Sending your brief', 'Researching the topic', 'Writing the draft', 'Running the QA agents'],
+  'content-writer': ['Sending your brief', 'Researching the competitors', 'Writing the draft', 'Running the QA agents'],
   'content-check': ['Sending your copy', 'Reading your references', 'Checking the copy', 'Writing up the fixes'],
   persona: ['Sending your request', 'Reading your site', 'Building the personas', 'Writing them up'],
   'sem-copy': ['Sending your request', 'Reading your site', 'Writing the ad copy', 'Polishing the variants'],
@@ -276,8 +291,8 @@ export const TOOLS = [
     cost: 'ai_short', upstream: 'aiOptimiser',
     desc: 'Platform-tuned captions for IG / LinkedIn / FB / TikTok.' },
   { id: 'content-writer', name: 'AI Content Optimiser', category: 'Content', minTier: 'starter',
-    cost: 'ai_long', upstream: 'aiOptimiser', slow: true,
-    desc: 'Write from a topic (outline → sections → polish) or rewrite existing copy to close content gaps, then run up to 18 QA agents (you pick the depth) — with AI-Links, a suggested meta title/description and a readability score.' },
+    cost: 'ai_long_research', upstream: 'aiOptimiser', slow: true,
+    desc: 'Researches who currently ranks for your keyword, then writes from a topic (outline → sections → polish) or rewrites existing copy to close content gaps, then runs up to 18 QA agents (you pick the depth) — with AI-Links, a suggested meta title/description and a readability score.' },
   { id: 'content-check', name: 'Content Checker', category: 'Content', minTier: 'starter',
     cost: 'ai_long', upstream: 'checkContent', slow: true,
     desc: 'Grammar, readability, keyword, compliance & brand-guide checks.' },
@@ -302,7 +317,9 @@ export const TOOLS = [
     desc: 'Rewrite content to get picked up + cited by AI tools.' },
   { id: 'forensic-audit', name: 'GEO+SEO Forensic Audit', category: 'AI Visibility', minTier: 'pro',
     cost: 'forensic_audit', upstream: 'dataforseoCrawler', slow: true,
-    desc: 'Deep SEO + GEO audit: SSL, speed, backlinks, structured data, llms.txt, AI-bot access & more — with a health score and prioritised fix list.',
+    // Says up front how it differs from the one-click Site Health Check, which
+    // also returns a "health score" — testers couldn't tell the two apart.
+    desc: 'The deep version of the Site Health Check: a full crawl covering SSL, speed, backlinks, structured data, llms.txt, AI-bot access & more, with a prioritised fix list.',
     teaser: { reveal: 'summary-only' } },
 
   // ── Ads & Strategy ────────────────────────────────────────────────────────
@@ -889,7 +906,9 @@ export function toolById(id) {
 // which only feeds LLM tools.)
 // Alphabetical so the dropdowns scan top-to-bottom; 'Global' is pinned first as
 // it is an app-special "worldwide" option, not a country.
-const LOCATIONS = [
+// Exported: the dedicated tool pages (SEO Diagnostics) build their own forms
+// rather than going through inputsFor(), and must offer the same markets.
+export const LOCATIONS = [
   'Global',
   'Argentina', 'Australia', 'Austria', 'Bangladesh', 'Belgium', 'Brazil',
   'Bulgaria', 'Canada', 'Chile', 'China', 'Colombia', 'Croatia', 'Czechia',
@@ -1142,8 +1161,18 @@ export const INPUTS = {
       help: 'The country you’re writing for — spelling, examples and the legal/compliance check follow it.' },
     { name: 'language', label: 'Language', type: 'select', options: LANGUAGES, default: 'English' },
     { name: 'wordCount', label: 'Target word count (optional)', type: 'number', advanced: true,
-      help: 'Leave blank to let the AI decide. Setting a target makes each section meet a hard minimum length.',
+      help: 'Leave blank and we use the median length of the pages currently ranking for your keyword. Setting a target makes each section meet a hard minimum length.',
       showWhen: { field: 'mode', in: ['Write a new draft'] } },
+    // Needs a keyword to have anything to search for — the backend skips the
+    // research pass (and says so) when the keyword is blank, whatever this says.
+    { name: 'competitorResearch', label: 'Research the pages that currently rank', type: 'segmented', advanced: true,
+      options: ['On', 'Off'],
+      optionDesc: {
+        On: 'We read the top-ranking pages first so the draft covers what they cover.',
+        Off: 'Skip straight to writing — faster, but the draft is unbriefed.',
+      },
+      default: 'On',
+      help: 'Pulls the live search results for your target keyword, extracts the topics each ranking page covers, and briefs the writer with the ones you need to beat them. Adds about a minute.' },
     { name: 'webVerify', label: 'Verify facts against the live web', type: 'segmented', advanced: true,
       options: ['Off', 'On'],
       optionDesc: {

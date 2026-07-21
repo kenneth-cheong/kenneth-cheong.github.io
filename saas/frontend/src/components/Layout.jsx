@@ -120,15 +120,34 @@ export default function Layout({ children }) {
   // stacks on them. Desktop only — the panel sits beside content there, whereas
   // on mobile it's a full-screen sheet that would take over the whole app.
   // Users can opt out via the assistant's settings (dm:chatAutoOpen = '0').
+  //
+  // NOT on a first-login session. Welcome hands off to the platform tour, and an
+  // assistant panel sliding in over it gave new users two competing "start here"
+  // routes at once (and a third window on an already-busy dashboard). The same
+  // welcomeShownRef that keeps the tour OFFER out of a welcome session gates this
+  // too. Nothing is lost by staying shut: while closed the launcher still shows
+  // its "Ask Monty anything" pill, ping and badge, so the assistant stays the
+  // obvious next thing to try once the tour is done.
   const autoLaunchedRef = useRef(false);
   useEffect(() => {
     if (autoLaunchedRef.current) return;
     if (!wide) return;
     if (needsLegal || showWelcome || onLegalPage) return;   // don't slide over the terms
+    if (welcomeShownRef.current || tourOffer) return;       // first login: tour leads, chat waits
     if (localStorage.getItem('dm:chatAutoOpen') === '0') return;
     autoLaunchedRef.current = true;
     setChatOpen(true);
-  }, [wide, needsLegal, showWelcome, onLegalPage]);
+  }, [wide, needsLegal, showWelcome, onLegalPage, tourOffer]);
+
+  // Broadcast the assistant's open/closed state. Components that share Monty's
+  // bottom-right corner need to yield while the panel is up; the ones Layout
+  // renders itself (ProactiveEngine, PlanPeek) take it as a prop, but
+  // ProfilePrompt is page-scoped (Dashboard renders it, and it should stay
+  // dashboard-only), so it subscribes to this instead of being hoisted up here.
+  useEffect(() => {
+    document.documentElement.dataset.chatOpen = chatOpen ? '1' : '0';
+    window.dispatchEvent(new CustomEvent('dm:chat-state', { detail: { open: chatOpen } }));
+  }, [chatOpen]);
 
   // Let any page open the assistant (Support CTA) or ask it about something
   // (the right-click "Explain this" menu).
@@ -171,6 +190,26 @@ export default function Layout({ children }) {
             {/* Nav, credits and Monty now live in the rail; the header keeps only
                 what's contextual (which project) or global (alerts, account). */}
             <ProjectSelector />
+
+            {/* Global search sits in the CENTRE of the bar, on its own. It used
+                to live in the right-hand cluster wedged between the help menu and
+                the avatar, which read as one more account control and got
+                overlooked. Search is a global action, not a personal one — the
+                right cluster stays reserved for notifications, help, theme and
+                account so that grouping means something. */}
+            <div className="hidden flex-1 justify-center px-4 lg:flex">
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('dm:open-command'))}
+                className="flex w-full max-w-md items-center gap-2 rounded-lg border border-line bg-sunken py-1.5 pl-3 pr-2 text-sm text-muted hover:border-brand-300 hover:bg-surface hover:text-dim dark:hover:border-brand-500/40"
+                title="Search everything (⌘K)"
+                aria-label="Open command palette"
+              >
+                <Search size={15} aria-hidden />
+                <span className="text-[13px]">Search tools, projects and runs</span>
+                <kbd className="ml-auto rounded border border-line px-1 py-0.5 text-[10px] font-semibold">⌘K</kbd>
+              </button>
+            </div>
+
             <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
               <PlanWidget />
               <NotificationBell />
@@ -209,17 +248,8 @@ export default function Layout({ children }) {
                 )}
               </div>
 
-              {/* ⌘K search — opens the command palette (also bound globally). */}
-              <button
-                onClick={() => window.dispatchEvent(new CustomEvent('dm:open-command'))}
-                className="hidden items-center gap-2 rounded-lg border border-line bg-surface py-1.5 pl-2.5 pr-2 text-sm text-faint hover:border-brand-300 hover:text-dim dark:hover:border-brand-500/40 lg:flex"
-                title="Search everything (⌘K)"
-                aria-label="Open command palette"
-              >
-                <Search size={15} aria-hidden />
-                <span className="text-[13px]">Search</span>
-                <kbd className="rounded border border-line px-1 py-0.5 text-[10px] font-semibold">⌘K</kbd>
-              </button>
+              {/* Below `lg` there's no room for the centred search bar, so it
+                  collapses to this icon. */}
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent('dm:open-command'))}
                 className="grid h-9 w-9 place-items-center rounded-lg hover:bg-sunken lg:hidden"

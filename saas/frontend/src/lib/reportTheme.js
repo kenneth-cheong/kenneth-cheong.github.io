@@ -83,6 +83,27 @@ function lightenText(rgb) {
   return hslStr(h, Math.min(s, 0.75), 0.78);               // saturated dark → light of same hue
 }
 
+// A gradient fill lives in background-image, not background-color, so the
+// backgroundColor path above never sees it — and a callout painted with
+// `background:linear-gradient(...)` would keep its light surface while its dark
+// text got lightened, i.e. light-on-light. Darken each colour stop in place with
+// the same luminance rule; stops that are already dark (or unparseable, e.g.
+// named colours) are left untouched, and a gradient of only those is skipped
+// entirely so we never rewrite a style we didn't actually change.
+const COLOR_STOP = /#[0-9a-f]{3,8}\b|rgba?\([^)]*\)/gi;
+function darkenGradient(str) {
+  let changed = false;
+  const out = str.replace(COLOR_STOP, (m) => {
+    const rgb = parseColor(m);
+    if (!rgb) return m;
+    const v = darkenBg(rgb);
+    if (!v) return m;
+    changed = true;
+    return v;
+  });
+  return changed ? out : null;
+}
+
 function darkenBorder(rgb) {
   const [, , l] = rgbToHsl(...rgb);
   return l < 0.5 ? null : '#334155';
@@ -104,6 +125,10 @@ export function themeReport(root, dark) {
       const st = el.style;
       const bg = parseColor(st.backgroundColor);
       if (bg) { const v = darkenBg(bg); if (v) st.backgroundColor = v; }
+      if (st.backgroundImage.includes('gradient')) {
+        const v = darkenGradient(st.backgroundImage);
+        if (v) st.backgroundImage = v;
+      }
       const col = parseColor(st.color);
       if (col) { const v = lightenText(col); if (v) st.color = v; }
       BORDER_SIDES.forEach((p) => {

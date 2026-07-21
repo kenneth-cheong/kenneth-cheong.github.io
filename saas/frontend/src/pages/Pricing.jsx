@@ -3,12 +3,13 @@ import { Check } from 'lucide-react';
 import { PLANS, tierRank, CURRENCY } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
+import { toast } from '../lib/ui.js';
 import TopupPacks from '../components/TopupPacks.jsx';
 
 const ORDER = ['free', 'starter', 'pro', 'expert'];
 
 export default function Pricing() {
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
   const [interval, setInterval] = useState('monthly');
   const [busy, setBusy] = useState(null);
 
@@ -16,8 +17,19 @@ export default function Pricing() {
     if (tier === 'free' || tier === user.tier) return;
     setBusy(tier);
     try {
+      // Already subscribed → switch the existing subscription in place so
+      // Airwallex prorates. Sending them through checkout again would open a
+      // SECOND subscription and bill them twice.
+      if (user.hasSubscription) {
+        await api.changePlan(tier, interval);
+        toast(`Switched to ${PLANS[tier].name}. Your next invoice is prorated.`, 'success');
+        await refresh();
+        return;
+      }
       const { url } = await api.checkout(tier, interval);
       window.location.href = url;
+    } catch (e) {
+      toast(e.message, 'error');
     } finally {
       setBusy(null);
     }
@@ -50,9 +62,18 @@ export default function Pricing() {
           const price = interval === 'annual' ? Math.round(p.priceMonthly * 0.8) : p.priceMonthly;
           return (
             <div key={id} className={`card flex flex-col p-5 ${p.popular ? 'ring-2 ring-brand-500' : ''}`}>
-              {p.popular && <span className="mb-2 w-fit rounded-full bg-brand-600 px-2 py-0.5 text-xs font-bold text-white">MOST POPULAR</span>}
+              {/* The badge and the blurb both used to change the height of what
+                  sits above the price, so the prices didn't line up across the
+                  row. Reserve a badge slot on every card, and hold the blurb to
+                  two lines, so every price starts at the same offset. */}
+              <span
+                aria-hidden={!p.popular}
+                className={`mb-2 w-fit rounded-full px-2 py-0.5 text-xs font-bold ${p.popular ? 'bg-brand-600 text-white' : 'invisible'}`}
+              >
+                MOST POPULAR
+              </span>
               <h3 className="text-lg font-bold">{p.name}</h3>
-              <p className="mt-1 text-sm text-muted">{p.blurb}</p>
+              <p className="mt-1 min-h-[2.5rem] text-sm text-muted">{p.blurb}</p>
               <div className="mt-4">
                 <span className="text-3xl font-bold">{CURRENCY.symbol}{price}</span>
                 <span className="text-sm text-muted">/mo</span>
