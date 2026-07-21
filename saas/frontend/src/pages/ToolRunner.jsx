@@ -80,6 +80,12 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
       const p = siteDefault(f);
       if (f.name in (fromHistory || {})) return [f.name, fromHistory[f.name]];
       if (p) return [f.name, p];
+      // Staff-only switches never carry over. The content optimiser's "Generate
+      // with" is the reason: tick Haiku AND DeepSeek once to compare quality and
+      // last-input silently re-ticked both on every run afterwards — doubling the
+      // AI cost and the runtime indefinitely, with nothing on screen to say so.
+      // A power-user toggle should be a per-run decision, not a sticky one.
+      if (f.staffOnly) return [f.name, f.default ?? ''];
       return [f.name, last[f.name] ?? f.default ?? ''];
     }));
   };

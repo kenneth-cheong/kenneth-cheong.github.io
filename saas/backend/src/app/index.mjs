@@ -96,6 +96,15 @@ function parseJsonLoose(s) {
   try { return JSON.parse(t.slice(a, b + 1)); } catch { return null; }
 }
 
+/** A plan step's `to` is client-supplied and gets fed straight to navigate() on
+ *  the way back out, so only same-app absolute paths are allowed through: no
+ *  scheme, and no "//host" (protocol-relative, which navigates off-site). */
+function internalRoute(v) {
+  const s = clampStr(v, 200);
+  if (!s || s[0] !== '/' || s[1] === '/' || s.includes('://')) return null;
+  return s;
+}
+
 // Bound the beginner "north-star" plan before persisting it on the user record
 // (stored under onboarding.plan). Purely defensive: clamps sizes/strings and
 // keeps only known fields so a client can't write arbitrary/oversized blobs.
@@ -103,12 +112,25 @@ function sanitizePlan(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const strs = (arr, n, len) => (Array.isArray(arr) ? arr : []).slice(0, n).map((x) => clampStr(x, len)).filter(Boolean);
   const items = (arr, n) => (Array.isArray(arr) ? arr : []).slice(0, n).map((s) => (s && typeof s === 'object' ? {
-    ...(s.toolId ? { toolId: clampStr(s.toolId, 40) } : {}),
+    // 60, not 40: recStep ids are `rec:` + a 48-char slug. Clamping to 40 cut
+    // them mid-slug, so the id that came back no longer matched the one the
+    // client had — breaking add-dedupe and the done[] map (a ticked
+    // recommendation could re-appear unticked after a sync).
+    ...(s.toolId ? { toolId: clampStr(s.toolId, 60) } : {}),
     ...(s.action ? { action: clampStr(s.action, 40) } : {}),
-    ...(s.label ? { label: clampStr(s.label, 60) } : {}),
+    // 80 to match recStep's own label clamp — a shorter cap here truncated every
+    // recommendation title on the first sync back from the server.
+    ...(s.label ? { label: clampStr(s.label, 80) } : {}),
     why: clampStr(s.why, 200),
     ...(s.quickWin ? { quickWin: true } : {}),
     ...(s.locked ? { locked: true } : {}),
+    // `to` and `manual` are what make a recommendation step usable: without the
+    // route its "Start →" falls back to the dashboard (a no-op click for anyone
+    // already there), and without `manual` it can never be ticked off, because
+    // localStepDone can't detect a synthetic "rec:…" id. Dropping them here made
+    // every added recommendation dead on the next plan sync.
+    ...(internalRoute(s.to) ? { to: internalRoute(s.to) } : {}),
+    ...(s.manual ? { manual: true } : {}),
   } : null)).filter((s) => s && (s.toolId || s.action));
   const done = {};
   if (raw.done && typeof raw.done === 'object') {

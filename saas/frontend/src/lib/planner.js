@@ -15,6 +15,12 @@ const ACTION_ROUTES = {
   'connect-google': '/integrations',
 };
 
+// The dashboard is mounted at "/" (App.jsx). "/dashboard" is NOT a route — it
+// falls through to NotFound, so every fallback below must use this constant.
+// A previous fix for the "/tool/rec:…" dead link sent users to "/dashboard"
+// instead, which was just a different dead end.
+const HOME = '/';
+
 /**
  * Where a plan step should navigate. Tools open their runner (honouring a
  * bespoke `route` like /social-audit); ToolRunner then auto-prefills the site
@@ -23,12 +29,37 @@ const ACTION_ROUTES = {
  */
 export function stepTarget({ toolId, action, to }) {
   if (to) return { to };                 // ad-hoc steps carry an explicit route
-  if (action) return { to: ACTION_ROUTES[action] || '/dashboard' };
+  if (action) return { to: ACTION_ROUTES[action] || HOME };
   const t = toolById(toolId);
   // Ad-hoc recommendation steps have a synthetic id ("rec:…") and any unknown id
   // isn't a real tool — never build `/tool/rec:…`, which is a dead NotFound route
   // (a user hit exactly this when the step's `to` was lost across a plan sync).
-  return { to: t ? (t.route || `/tool/${toolId}`) : '/dashboard' };
+  return { to: t ? (t.route || `/tool/${toolId}`) : HOME };
+}
+
+/**
+ * Act on a plan step. Navigation alone isn't enough: a recommendation step
+ * ("rec:…") resolves to the page it came from — often the one you're already on,
+ * and for the docked plan panel that's the dashboard nearly every time. Users
+ * reported "Start → doesn't go anywhere" and "the arrow doesn't start anything",
+ * which is precisely a navigate() to the current route.
+ *
+ * So when the target is where we already are, hand the step to Monty instead —
+ * that's the actual "start this" action for something with no tool behind it.
+ */
+export function startStep(item, { navigate, pathname }) {
+  const { to } = stepTarget(item);
+  if (to && to !== pathname) { navigate(to); return; }
+
+  const label = stepLabel(item);
+  const why = item?.why ? ` The reason it's on my plan: "${item.why}".` : '';
+  window.dispatchEvent(new CustomEvent('dm:ask', {
+    detail: {
+      text: `Let's do this step from my plan: "${label}".${why}\n\n`
+        + `Walk me through it in plain English, and where you can produce the actual thing I need `
+        + `(the copy, the list, the settings to change), write it out in full in this reply.`,
+    },
+  }));
 }
 
 // ── Ad-hoc "recommendation" steps ─────────────────────────────────────────────
@@ -44,7 +75,7 @@ export function recStep({ title, why, to }) {
     label: String(title || 'Recommendation').slice(0, 80),
     why: String(why || '').replace(/\s+/g, ' ').trim().slice(0, 140),
     manual: true,
-    to: to || '/dashboard',
+    to: to || HOME,
   };
 }
 

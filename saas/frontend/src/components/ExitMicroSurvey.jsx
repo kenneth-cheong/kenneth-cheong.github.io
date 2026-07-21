@@ -23,19 +23,51 @@ const REASONS = [
   'Pricing',
 ];
 
+// Tapping a reason used to only tint the chip: users read the card as Monty (it
+// shares his corner) and expected the answer to start a conversation — "nothing
+// happens" was the single most-reported thing about this card. So every reason
+// also hands off to Monty with a prompt that asks for the help that reason
+// implies, phrased in the user's voice so his reply lands as an answer to them.
+const HELP_PROMPTS = {
+  'Too complex': 'I’m finding this a bit complex. Give me the simplest possible starting point — one tool, what you need from me, and what I’ll get back.',
+  'Not sure where to start': 'I’m not sure where to start. Ask me for my website, then recommend the first tool I should run, why it’s the right first step, and walk me through it.',
+  'Missing a feature I need': 'I can’t find the feature I need. Ask me what I’m trying to achieve, then tell me whether something here already covers it and point me at the closest tool.',
+  'Just browsing': 'I’m just looking around. Give me a quick tour of what this can do for a site like mine, and suggest one thing worth trying right now.',
+  Pricing: 'I have questions about pricing. Explain the plans and how AI credits get spent, then help me work out which plan fits the way I’d use this.',
+};
+
+// Same event the "Explain this" menu and recommendation cards use: Layout hears
+// it, opens Monty and sends the prompt. No backend change.
+function ask(text) {
+  window.dispatchEvent(new CustomEvent('dm:ask', { detail: { text } }));
+}
+
 export default function ExitMicroSurvey() {
   const { user, setOnboarding } = useAuth();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
   const firedRef = useRef(false);
+  const nudgeActive = useRef(false);
 
   const alreadyDone = !!user.onboarding?.surveyDone?.exit;
   const snoozed = sessionStorage.getItem(SNOOZE_KEY) === '1';
   // Low engagement = hasn't really used the product yet. Active users are exempt.
   const lowEngagement = getRecent().length < 2;
   const eligible = !alreadyDone && !snoozed && lowEngagement;
+
+  // Yield to (and hide behind) a live proactive nudge — we fire on the same idle
+  // window as Monty's dashboard nudge, so without this the two can stack.
+  useEffect(() => {
+    const onNudge = (e) => {
+      nudgeActive.current = !!e.detail?.active;
+      if (nudgeActive.current) setOpen(false);
+    };
+    window.addEventListener('dm:nudge-active', onNudge);
+    return () => window.removeEventListener('dm:nudge-active', onNudge);
+  }, []);
 
   // Idle watcher: (re)arm a timer that fires once after IDLE_MS of no interaction.
   useEffect(() => {
@@ -44,7 +76,7 @@ export default function ExitMicroSurvey() {
     const arm = () => {
       clearTimeout(timer);
       if (firedRef.current) return;
-      timer = setTimeout(() => { if (!firedRef.current) { firedRef.current = true; setOpen(true); } }, IDLE_MS);
+      timer = setTimeout(() => { if (!firedRef.current && !nudgeActive.current) { firedRef.current = true; setOpen(true); } }, IDLE_MS);
     };
     const events = ['mousemove', 'keydown', 'scroll', 'click', 'touchstart'];
     events.forEach((e) => window.addEventListener(e, arm, { passive: true }));
@@ -56,14 +88,34 @@ export default function ExitMicroSurvey() {
 
   const dismiss = () => { setOpen(false); sessionStorage.setItem(SNOOZE_KEY, '1'); };
 
+  // One place to post an answer. The backend keys responses by kind and lets the
+  // latest win, so a reason banked on tap is safely replaced by the fuller
+  // reason + comment if they go on to press Send.
+  async function record(answers) {
+    await api.submitSurvey('exit', answers);
+    setSent(true);
+    setOnboarding({ surveyDone: { ...(user.onboarding?.surveyDone || {}), exit: true } });
+  }
+
+  // Tapping a reason: bank the answer straight away (they may never press Send
+  // now that Monty has their attention — we must not trade the response away for
+  // the hand-off) and hand the matching prompt to Monty. The card stays put so
+  // they can still add a comment; it sits clear of the assistant panel.
+  function pick(r) {
+    if (reason === r) { setReason(''); return; }
+    setReason(r);
+    ask(HELP_PROMPTS[r] || r);
+    record({ reason: r, comment: comment.trim() }).catch(() => { /* Send is still there to retry */ });
+  }
+
   async function send() {
     if ((!reason && !comment.trim()) || busy) return;
     setBusy(true);
     try {
-      await api.submitSurvey('exit', { reason, comment: comment.trim() });
+      // Nothing new since the tap already banked it — don't post (and alert) twice.
+      if (!sent || comment.trim()) await record({ reason, comment: comment.trim() });
       setOpen(false);
       sessionStorage.setItem(SNOOZE_KEY, '1');
-      setOnboarding({ surveyDone: { ...(user.onboarding?.surveyDone || {}), exit: true } });
       toast('Thanks — that’s really useful to know.', 'success');
     } catch {
       toast('Couldn’t send that just now — please try again.', 'error');
@@ -73,14 +125,21 @@ export default function ExitMicroSurvey() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-line bg-surface p-4 shadow-xl dark:shadow-black/40">
+    // Bottom-LEFT, squared off and unbranded on purpose: in the bottom-right it
+    // was mistaken for Monty (the launcher, his nudge and the plan peek all live
+    // in that corner), so people expected a chip tap to start a chat. Over here
+    // it reads as a form — and it stays visible when the assistant panel opens.
+    <div className="fixed bottom-4 left-4 z-50 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-line bg-raised p-4 shadow-lg dark:shadow-black/40">
       <div className="flex items-start gap-2.5">
-        <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400">
+        <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-sunken text-dim">
           <HelpCircle size={17} aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-faint">Quick question</p>
           <p className="text-sm font-semibold text-heading">Before you go — what’s getting in the way?</p>
-          <p className="mt-0.5 text-xs text-muted">One tap helps us fix it. No wrong answers.</p>
+          <p className="mt-0.5 text-xs text-muted">
+            {sent ? 'Thanks — noted. Monty’s picking it up in the chat.' : 'One tap helps us fix it, and Monty will help you with it.'}
+          </p>
         </div>
         <button onClick={dismiss} title="Dismiss" className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-faint hover:bg-sunken hover:text-dim">
           <X size={15} aria-hidden />
@@ -91,7 +150,7 @@ export default function ExitMicroSurvey() {
         {REASONS.map((r) => (
           <button
             key={r}
-            onClick={() => setReason((cur) => (cur === r ? '' : r))}
+            onClick={() => pick(r)}
             aria-pressed={reason === r}
             className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 transition ${reason === r ? 'bg-brand-600 text-white ring-brand-600' : 'bg-surface text-dim ring-line hover:bg-raised'}`}
           >

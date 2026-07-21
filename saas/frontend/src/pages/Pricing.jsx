@@ -3,6 +3,7 @@ import { Check } from 'lucide-react';
 import { PLANS, tierRank, CURRENCY } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
+import TopupPacks from '../components/TopupPacks.jsx';
 
 const ORDER = ['free', 'starter', 'pro', 'expert'];
 
@@ -72,6 +73,12 @@ export default function Pricing() {
             </div>
           );
         })}
+      </div>
+
+      {/* Not everyone comparing plans wants to change plan — some just need
+          credits now. Offer that here rather than only on /account. */}
+      <div className="mx-auto mt-8 max-w-3xl">
+        <TopupPacks title="Just need more credits?" className="card p-5" />
       </div>
     </div>
   );

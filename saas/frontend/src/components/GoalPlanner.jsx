@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   TrendingUp, Stethoscope, PenLine, LineChart, Sparkles, Swords, BarChart3,
   Check, ArrowRight, ArrowUp, Lock, Wand2, Plug, RotateCcw, PartyPopper,
@@ -11,7 +11,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { usePlan } from '../context/PlanContext.jsx';
 import { api } from '../lib/api.js';
 import { getRecent, toast } from '../lib/ui.js';
-import { enrichPathway, stepTarget, stepLabel } from '../lib/planner.js';
+import { enrichPathway, startStep, stepLabel } from '../lib/planner.js';
 
 const GOAL_ICON = { TrendingUp, Stethoscope, PenLine, LineChart, Sparkles, Swords, BarChart3 };
 
@@ -19,6 +19,7 @@ export default function GoalPlanner({ initialGoal }) {
   const { user, setCredits, setOnboarding } = useAuth();
   const { plan, hasPlan, setPlan, clearPlan, progress } = usePlan();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   const [editing, setEditing] = useState(false);
   const [goals, setGoals] = useState([]);
@@ -72,7 +73,9 @@ export default function GoalPlanner({ initialGoal }) {
   function startEdit() { setGoals(plan?.goals || []); setHave(plan?.have || []); setFreeText(plan?.freeText || ''); setEditing(true); }
   function reset() { clearPlan(); setEditing(false); setGoals([]); setHave([]); setFreeText(''); }
 
-  const go = (item) => navigate(stepTarget(item).to);
+  // Steps that resolve to this very page hand off to Monty rather than
+  // re-navigating to nowhere — see startStep.
+  const go = (item) => startStep(item, { navigate, pathname });
 
   // ── Intake ──────────────────────────────────────────────────────────────────
   if (showIntake) {

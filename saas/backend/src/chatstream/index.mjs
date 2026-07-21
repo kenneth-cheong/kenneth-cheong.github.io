@@ -11,6 +11,13 @@ import { CREDIT_COSTS } from '../../../shared/catalog.mjs';
 const KEY = process.env.ANTHROPIC_KEY;
 const MODEL = 'claude-haiku-4-5';
 const COST = CREDIT_COSTS.ai_chat ?? 2;
+// The system prompt tells Monty that deliverables override the length rule and to
+// "write the full deliverable out". At 700 this was unsatisfiable: a "Do it for
+// me" on something like "expand this page to 2,500 words" ran out of tokens and
+// the stream simply stopped mid-sentence, which users reported as Monty
+// "stopping abruptly". Chat is billed flat (ai_chat), so this trades a higher
+// worst-case output cost for replies that actually finish.
+const MAX_TOKENS = 2000;
 const clamp = (s, n) => String(s ?? '').slice(0, n);
 const aws = globalThis.awslambda;
 
@@ -55,11 +62,12 @@ export const handler = aws.streamifyResponse(async (event, responseStream) => {
     headers: { 'Content-Type': 'text/plain; charset=utf-8', 'x-conversation-id': conversationId },
   });
   let full = '';
+  let truncated = false;
   try {
     const upstream = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({ model: MODEL, max_tokens: 700, stream: true, system, messages: msgs }),
+      body: JSON.stringify({ model: MODEL, max_tokens: MAX_TOKENS, stream: true, system, messages: msgs }),
     });
     if (!upstream.ok || !upstream.body) {
       console.error('anthropic_status', upstream.status);
@@ -86,7 +94,17 @@ export const handler = aws.streamifyResponse(async (event, responseStream) => {
           full += ev.delta.text;
           rs.write(ev.delta.text);
         }
+        // Every non-text event used to be dropped, so a length cut-off was
+        // indistinguishable from a finished reply — the text just stopped and the
+        // UI showed it as complete. Say so instead, and tell the user how to get
+        // the rest, since we can't continue the message ourselves.
+        if (ev.type === 'message_delta' && ev.delta?.stop_reason === 'max_tokens') truncated = true;
       }
+    }
+    if (truncated) {
+      const note = '\n\n---\n*That reply hit my length limit, so it stops mid-way. Reply “continue” and I’ll pick up from where I left off.*';
+      full += note;
+      rs.write(note);
     }
     rs.end();
   } catch (e) {

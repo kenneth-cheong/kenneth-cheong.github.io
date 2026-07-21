@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Target, Check, ArrowRight, ChevronDown, ChevronUp, PartyPopper } from 'lucide-react';
 import { usePlan } from '../context/PlanContext.jsx';
-import { stepTarget, stepLabel } from '../lib/planner.js';
+import { startStep, stepLabel } from '../lib/planner.js';
 
 // Persist the expand/collapse choice so the panel doesn't fight the user. Starts
 // COLLAPSED — the assistant is a chat first, so the docked plan stays a single
@@ -36,11 +36,13 @@ function MiniRing({ done, total }) {
 export default function PlanPanelCard() {
   const { hasPlan, plan, progress, isStepDone, toggleDone } = usePlan();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [expanded, setExpanded] = useState(() => localStorage.getItem(LS_KEY) === '1');
   const toggle = () => setExpanded((e) => { const n = !e; localStorage.setItem(LS_KEY, n ? '1' : '0'); return n; });
   // Navigate WITHOUT closing the panel — it's docked, and "keep both" means the
-  // plan should stay put while the user works through a step.
-  const goStep = (item) => navigate(stepTarget(item).to);
+  // plan should stay put while the user works through a step. Steps that resolve
+  // to the current page go to Monty instead of nowhere (see startStep).
+  const goStep = (item) => startStep(item, { navigate, pathname });
 
   // No plan yet → a quiet, tappable nudge to set one.
   if (!hasPlan) {

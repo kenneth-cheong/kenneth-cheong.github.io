@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, X } from 'lucide-react';
 import { usePlan } from '../context/PlanContext.jsx';
 import Mascot from './Mascot.jsx';
-import { stepTarget, stepLabel } from '../lib/planner.js';
+import { startStep, stepLabel } from '../lib/planner.js';
 
 // A once-per-session peek out of the closed Monty launcher: "next up in your
 // plan …". It surfaces the plan through Monty WITHOUT taking any room in the
@@ -59,7 +59,7 @@ export default function PlanPeek({ chatOpen }) {
   if (!show || !next) return null;
 
   const dismiss = () => setShow(false);
-  const goNext = () => { setShow(false); navigate(stepTarget(next).to); };
+  const goNext = () => { setShow(false); startStep(next, { navigate, pathname }); };
 
   return (
     <div className="fixed bottom-[100px] right-[26px] z-[70] w-72 origin-bottom-right motion-safe:animate-pop-from-corner">

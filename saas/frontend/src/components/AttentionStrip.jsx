@@ -1,9 +1,9 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Trophy, Zap, Target, Plug } from 'lucide-react';
 import { PLANS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { usePlan } from '../context/PlanContext.jsx';
-import { stepLabel, stepTarget } from '../lib/planner.js';
+import { stepLabel, startStep } from '../lib/planner.js';
 
 // The approved design's attention strip (mockup .attn): a row of "here's what
 // changed / what needs you" cards above the stats.
@@ -14,6 +14,8 @@ import { stepLabel, stepTarget } from '../lib/planner.js';
 export default function AttentionStrip({ tracked, googleConnected, onUpgrade }) {
   const { user } = useAuth();
   const { hasPlan, progress } = usePlan();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
 
   const max = PLANS[user.tier].monthlyCredits;
   const left = user.credits || 0;
@@ -66,7 +68,9 @@ export default function AttentionStrip({ tracked, googleConnected, onUpgrade }) 
       title: `Up next: ${stepLabel(progress.next)}`,
       detail: `${progress.done} of ${progress.total} steps done`,
       cta: 'Open',
-      to: stepTarget(progress.next).to,
+      // onClick, not `to`: this strip lives on the dashboard, and plan steps
+      // often resolve back to the dashboard — a Link there is a dead click.
+      onClick: () => startStep(progress.next, { navigate, pathname }),
     });
   }
 

@@ -21,6 +21,7 @@ import { toast } from '../lib/ui.js';
 // The example option hides once an example project exists, so it can't be
 // double-created, and both hide at the plan's project limit (with a nudge).
 const NEW = '__new';
+const NONE = '__none';
 const EXAMPLE = '__example';
 const MANAGE = '__manage';
 
@@ -65,6 +66,7 @@ export default function ProjectSelector() {
     if (v === MANAGE) navigate('/projects');
     else if (v === NEW) startNew();
     else if (v === EXAMPLE) startExample();
+    else if (v === NONE) { setActive(null); toast('Tools won’t pre-fill a site now — type any address you like.', 'info'); }
     else setActive(v);
   };
 
@@ -79,7 +81,7 @@ export default function ProjectSelector() {
 
   return (
     <select
-      value={activeId || ''}
+      value={activeId || NONE}
       onChange={onChange}
       disabled={busy}
       data-tour="project-selector"
@@ -88,6 +90,13 @@ export default function ProjectSelector() {
     >
       <optgroup label="Your projects">
         {projects.map((p) => <option key={p.projectId} value={p.projectId}>{p.name}</option>)}
+      </optgroup>
+      {/* An explicit way out. Someone auditing a different site was stuck with
+          every tool pre-filled for their one existing project and no way to
+          deselect it — and on the free tier's 1-project limit they couldn't add
+          the site they actually wanted either. */}
+      <optgroup label="Or">
+        <option value={NONE}>No project — just exploring</option>
       </optgroup>
       <optgroup label="Add">
         <option value={NEW}>+ Start a new project…</option>

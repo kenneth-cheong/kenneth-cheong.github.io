@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
 import SortableTable from '../components/SortableTable.jsx';
 import InfoTip from '../components/InfoTip.jsx';
+import TopupPacks from '../components/TopupPacks.jsx';
 
 export default function Usage() {
   const { user } = useAuth();
@@ -43,6 +44,10 @@ export default function Usage() {
           sub={renews ? `resets ${renews}` : null}
           tip="Fresh credits your plan grants at the start of each billing cycle. Unused monthly credits don't carry over." />
       </div>
+
+      {/* Buying sits next to the balance that prompts it — above the ledger,
+          which can run long enough to bury anything under it. */}
+      <TopupPacks className="card mt-6 p-5" />
 
       <div className="card mt-6 overflow-hidden">
         <SortableTable

@@ -136,7 +136,7 @@ export default function ChatDrawer({ open, onClose, ask, say }) {
   const { active, activeId } = useProjects();
   const navigate = useNavigate();
   const location = useLocation();
-  const go = (path) => { onClose?.(); navigate(path); };
+  const go = (path, state) => { onClose?.(); navigate(path, state ? { state } : undefined); };
 
   async function trackKeyword(kw) {
     if (!activeId || !active?.domain) { toast('Create a project with a domain first to track keywords.', 'info'); go('/projects'); return; }
@@ -161,7 +161,23 @@ export default function ChatDrawer({ open, onClose, ask, say }) {
         {label}
       </button>
     );
-    if (type === 'tool') { const t = toolById(raw.trim()); return t ? chip(t.name, () => go(t.route || `/tool/${t.id}`)) : null; }
+    // [[tool:id]] — the hand-off Monty uses in place of running anything itself.
+    // It cannot: the chat call sends no tool definitions, so any "let me run that
+    // for you, one moment" is a hallucination that never lands (users waited for
+    // output that was never coming). So this chip has to BE the run: open the
+    // tool, carry over anything Monty was given, and start it. `[[tool:id|url=…]]`
+    // passes field values; without them the runner still pre-fills as usual.
+    if (type === 'tool') {
+      const [id, ...rest] = raw.split('|');
+      const t = toolById(id.trim());
+      if (!t) return null;
+      const values = {};
+      for (const pair of rest) {
+        const eq = pair.indexOf('=');
+        if (eq > 0) values[pair.slice(0, eq).trim()] = pair.slice(eq + 1).trim();
+      }
+      return chip(`Run ${t.name}`, () => go(t.route || `/tool/${t.id}`, { values, autorun: true }));
+    }
     if (type === 'go') { const [path, label] = raw.split('|'); return chip(label?.trim() || path.trim(), () => go(path.trim())); }
     if (type === 'ask') {
       // [[ask:Label]] sends "Label"; [[ask:Label|the text to send]] sends the text.
@@ -234,6 +250,11 @@ export default function ChatDrawer({ open, onClose, ask, say }) {
     setMsgs(next);
     setDraft('');
     setBusy(true);
+    // Re-stick to the bottom for every send. Without this, someone who scrolled
+    // up earlier in the session gets their answer streamed in below the fold with
+    // no auto-scroll — the "Monty starts generating but it's hard to find" report.
+    // Asking is an explicit request for the answer, so follow it.
+    stickRef.current = true;
 
     // ── Streaming path (token-by-token) — falls back to buffered chat on error. ──
     if (chatStreamAvailable) {
@@ -436,10 +457,10 @@ export default function ChatDrawer({ open, onClose, ask, say }) {
       {/* Header — the mockup's .mc-head: avatar, name, and a live status line.
           The panel is a fixed 384px now, so the old `width >= 460` gate on the
           cost pill could never be true; it moved into the status line instead. */}
-      <div className="flex items-center gap-3 border-b border-line px-4 py-3.5 text-white">
+      <div className="flex items-center gap-3 border-b border-line px-4 py-3.5">
         {mascot && <Mascot size={40} className="shrink-0" title="Monty, your assistant" />}
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-bold leading-tight">Monty</div>
+          <div className="text-sm font-bold leading-tight text-strong">Monty</div>
           <div className="mt-0.5 flex items-center gap-1.5 text-[10px] font-semibold text-muted">
             <span className="h-[7px] w-[7px] shrink-0 rounded-full bg-pos" style={{ boxShadow: '0 0 0 3px rgb(var(--c-pos) / .22)' }} aria-hidden />
             AI concierge · {COST} credit{COST === 1 ? '' : 's'} / message
@@ -453,16 +474,16 @@ export default function ChatDrawer({ open, onClose, ask, say }) {
             onClick={toggleProTips}
             role="switch"
             aria-checked={proTips}
-            className={`rounded p-1 hover:bg-white/10 hover:text-white ${proTips ? 'text-slate-300' : 'text-amber-300'}`}
+            className={`rounded p-1 hover:bg-overlay hover:text-strong ${proTips ? 'text-muted' : 'text-amber-600 dark:text-amber-300'}`}
             title={proTips ? 'Monty prompts are ON — click to stop Monty starting chats' : 'Monty prompts are OFF — click to let Monty offer tips'}
             aria-label={proTips ? 'Turn off Monty prompts' : 'Turn on Monty prompts'}
           >
             {proTips ? <Bell size={18} aria-hidden /> : <BellOff size={18} aria-hidden />}
           </button>
-          <button onClick={newChat} className="rounded p-1 text-slate-300 hover:bg-white/10 hover:text-white" title="New chat" aria-label="New chat"><Plus size={18} aria-hidden /></button>
-          <button onClick={() => (view === 'history' ? setView('chat') : openHistory())} className={`rounded p-1 hover:bg-white/10 hover:text-white ${view === 'history' ? 'text-white' : 'text-slate-300'}`} title="History" aria-label="History"><History size={18} aria-hidden /></button>
-          <button onClick={() => setView((v) => (v === 'settings' ? 'chat' : 'settings'))} className={`rounded p-1 hover:bg-white/10 hover:text-white ${view === 'settings' ? 'text-white' : 'text-slate-300'}`} title="Settings" aria-label="Settings"><Settings size={18} aria-hidden /></button>
-          <button onClick={onClose} className="rounded p-1 text-slate-300 hover:bg-white/10 hover:text-white" title="Close" aria-label="Close"><X size={18} aria-hidden /></button>
+          <button onClick={newChat} className="rounded p-1 text-muted hover:bg-overlay hover:text-strong" title="New chat" aria-label="New chat"><Plus size={18} aria-hidden /></button>
+          <button onClick={() => (view === 'history' ? setView('chat') : openHistory())} className={`rounded p-1 hover:bg-overlay hover:text-strong ${view === 'history' ? 'text-strong' : 'text-muted'}`} title="History" aria-label="History"><History size={18} aria-hidden /></button>
+          <button onClick={() => setView((v) => (v === 'settings' ? 'chat' : 'settings'))} className={`rounded p-1 hover:bg-overlay hover:text-strong ${view === 'settings' ? 'text-strong' : 'text-muted'}`} title="Settings" aria-label="Settings"><Settings size={18} aria-hidden /></button>
+          <button onClick={onClose} className="rounded p-1 text-muted hover:bg-overlay hover:text-strong" title="Close" aria-label="Close"><X size={18} aria-hidden /></button>
         </div>
       </div>
 
@@ -548,9 +569,9 @@ export default function ChatDrawer({ open, onClose, ask, say }) {
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium text-strong">{c.title || 'Conversation'}</div>
                       <div className="truncate text-xs text-faint">{c.preview || `${c.msgCount} messages`}</div>
-                      <div className="mt-0.5 text-[11px] text-slate-300">{ago(c.updatedAt)}</div>
+                      <div className="mt-0.5 text-[11px] text-faint">{ago(c.updatedAt)}</div>
                     </div>
-                    <span onClick={(e) => removeConversation(e, c.conversationId)} className="shrink-0 rounded p-1 text-slate-300 opacity-0 hover:text-red-600 dark:hover:text-red-400 group-hover:opacity-100" title="Delete" role="button" aria-label="Delete conversation"><Trash2 size={15} aria-hidden /></span>
+                    <span onClick={(e) => removeConversation(e, c.conversationId)} className="shrink-0 rounded p-1 text-faint opacity-0 hover:text-red-600 dark:hover:text-red-400 group-hover:opacity-100" title="Delete" role="button" aria-label="Delete conversation"><Trash2 size={15} aria-hidden /></span>
                   </button>
                 </li>
               ))}

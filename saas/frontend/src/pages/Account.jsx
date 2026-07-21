@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams, useLocation } from 'react-router-dom';
 import { PartyPopper, Zap } from 'lucide-react';
-import { PLANS, TOPUP_PACKS, CURRENCY } from '@shared/catalog.mjs';
+import { PLANS } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
 import { toast } from '../lib/ui.js';
+import TopupPacks from '../components/TopupPacks.jsx';
 
 export default function Account() {
   const { user, refresh, logout } = useAuth();
   const [params] = useSearchParams();
   const location = useLocation();
   const [busy, setBusy] = useState(false);
-  const [topupBusy, setTopupBusy] = useState(null);
   const [docs, setDocs] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -85,16 +85,6 @@ export default function Account() {
     try { await api.setEmailPrefs(nextOptOut); toast(nextOptOut ? 'Unsubscribed from product updates.' : 'Subscribed to product updates.', 'success'); }
     catch (e) { setEmailOptOut(!nextOptOut); toast(e.message, 'error'); }
     finally { setEmailBusy(false); }
-  }
-
-  async function buyTopup(packId) {
-    setTopupBusy(packId);
-    try {
-      const { url } = await api.topup(packId);
-      window.location.href = url;
-    } finally {
-      setTopupBusy(null);
-    }
   }
 
   async function openPortal() {
@@ -222,6 +212,11 @@ export default function Account() {
         )}
       </div>
 
+      {/* ── Credit top-ups (overage) ──────────────────────────────────────
+          Above the invoice list: someone reading their credit balance should
+          see the way to buy more without scrolling past their receipts. */}
+      <TopupPacks />
+
       {/* ── Invoices & receipts ───────────────────────────────────────── */}
       <div id="billing" className="card mt-4 scroll-mt-20 p-5">
         <h2 className="font-bold">Invoices &amp; receipts</h2>
@@ -253,30 +248,6 @@ export default function Account() {
             ))}
           </div>
         )}
-      </div>
-
-      {/* ── Credit top-ups (overage) ──────────────────────────────────── */}
-      <div className="card mt-4 p-5">
-        <h2 className="font-bold">Need more credits?</h2>
-        <p className="mt-1 text-sm text-muted">
-          One-time top-ups for when you run low mid-cycle. Top-up credits <strong>roll over</strong> — they don't expire at renewal, and stay valid for 12 months from purchase.
-        </p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          {TOPUP_PACKS.map((pack) => (
-            <div key={pack.id} className={`rounded-lg border p-4 text-center ${pack.popular ? 'border-brand-400 bg-brand-50 dark:bg-brand-500/10' : 'border-line'}`}>
-              {pack.popular && <span className="mb-1 inline-block rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-bold text-white">BEST VALUE</span>}
-              <p className="text-lg font-bold">{pack.credits.toLocaleString()} credits</p>
-              <p className="text-sm text-muted">{CURRENCY.symbol}{pack.price}</p>
-              <button
-                onClick={() => buyTopup(pack.id)}
-                disabled={topupBusy === pack.id}
-                className="btn-ghost mt-3 w-full"
-              >
-                {topupBusy === pack.id ? '…' : 'Buy'}
-              </button>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* ── Active devices (concurrent-session cap) ────────────────────── */}
