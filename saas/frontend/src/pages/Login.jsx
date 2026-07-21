@@ -151,7 +151,7 @@ export default function Login() {
             <p className="dm-tagline">Prepare to do great things</p>
             <span className="dm-tagline-rule dm-tagline-rule-r" aria-hidden="true" />
           </div>
-          <p className="mt-2 text-sm text-dim">SEO, AI content & AI-visibility tools for solo marketers.</p>
+          <p className="mt-2 text-sm text-dim">Audit, plan, and improve every way people find you.</p>
           {showCreditsBadge && (
             <div className="mt-3">
               <span className="dm-login-badge"><GiftIcon /> 30 free credits to start</span>
