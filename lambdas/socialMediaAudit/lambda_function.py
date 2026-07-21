@@ -3366,6 +3366,10 @@ def report_save_month(body):
     scorecard = data.get('scorecard') or {}
     if isinstance(scorecard, dict):
         _strip_fb_reach_er(scorecard)      # invariant: FB has no reach-based ER
+        # Every write funnels through here — cron capture, the manual "Capture
+        # this month", each native backfill — so it's the one place that can keep
+        # the LinkedIn grid honest no matter which path produced it.
+        _trim_linkedin_posts_to_month(scorecard, month)
         _mirror_scorecard_images(scorecard)   # thumbnails must outlive the CDN signature
         _rescue_dead_thumbs(scorecard)        # …and whatever the mirror couldn't fetch
     kpis      = data.get('kpis') or {}
@@ -4187,8 +4191,21 @@ def _backfill_month_posts(proj, month, token, meta, force=False):
         return 'already has post metrics'
     if not meta or not meta.get('pageId'):
         return 'no fb page resolved'
+    targets = stored if force else missing
 
     since, until = _meta_month_range(month)
+    # A scorecard routinely holds posts published OUTSIDE its month: a public
+    # Apify capture sweeps in whatever the page had recently, so Singapore Pools'
+    # July card carries ten May/June posts — and those are exactly the ones still
+    # missing metrics, because the native pull that would have filled them only
+    # ever covered July. Widen the window to span what we are actually trying to
+    # fill, or they can never match. Capped at 400 days so one stray timestamp
+    # can't turn a month into a year-long pull; the posts edge is limit=50, so an
+    # over-wide window would push the oldest posts out of reach anyway.
+    stamps = [t for t in (_to_epoch(p.get('ts')) for p in targets if isinstance(p, dict)) if t]
+    if stamps:
+        since = max(min(since, int(min(stamps)) - 86400), until - 400 * 86400)
+        until = min(max(until, int(max(stamps)) + 86400), int(time.time()))
     fresh = _meta_fb_posts(meta['pageId'], meta.get('pageToken') or token, since, until)
     if not fresh:
         return 'no data returned'
@@ -4201,7 +4218,6 @@ def _backfill_month_posts(proj, month, token, meta, force=False):
         if k:
             by_text.setdefault(k, f)
 
-    targets = stored if force else missing
     filled = 0
     for p in targets:
         if not isinstance(p, dict):
@@ -4219,7 +4235,7 @@ def _backfill_month_posts(proj, month, token, meta, force=False):
         if got:
             filled += 1
     if not filled:
-        return 'no match for ' + str(len(targets)) + ' post(s)'
+        return 'no match for %d post(s) among %d fetched' % (len(targets), len(fresh))
     _rmonths().update_item(
         Key={'projectId': proj['projectId'], 'month': month},
         UpdateExpression='SET scorecard = :s',
@@ -5873,15 +5889,21 @@ def _is_expiring_thumb(u):
 
 
 def _post_text_key(p):
-    """A stable identity for the same post across two captures: the opening run
+    r"""A stable identity for the same post across two captures: the opening run
     of its caption, stripped to letters and digits. Timestamps and permalinks
     both fail as keys between a public scrape and a native pull — LinkedIn dates
     a post by createdAt while the scrape reads the published date (weeks apart on
     a scheduled post), and the scrape's /posts/…-activity-123… permalink carries
     a different URN from the API's urn:li:ugcPost:456. The caption is the same
-    text in both. '' when the post is too short to identify safely."""
+    text in both — but only once LinkedIn's own markup is decoded back to the
+    plain text a scraper sees: hashtags arrive as {hashtag|\#|Name} and @-mentions
+    as @[Display Name](urn:li:organization:123). Leaving the mention markup in
+    place buried a URN inside the first 60 characters, so every post that tags
+    another page failed to match its scraped twin and silently lost its private
+    metrics. '' when the post is too short to identify safely."""
     t = str(p.get('caption') or p.get('text') or '')
     t = re.sub(r'\{hashtag\|\\?#\|([^}]*)\}', r'#\1', t)     # LinkedIn's escaped hashtags
+    t = re.sub(r'@\[([^\]]*)\]\((?:urn:)[^)]*\)', r'\1', t)  # …and its @-mention markup
     t = re.sub(r'[^a-z0-9]+', ' ', t.lower()).strip()
     return t[:60] if len(t) >= 25 else ''
 
@@ -5933,6 +5955,44 @@ def _merge_posts(existing, incoming):
         if donor_is_fresh and src.get('image') and _is_expiring_thumb(p.get('image')):
             p['image'] = src['image']
     return base
+
+
+def _trim_linkedin_posts_to_month(sc, month):
+    """Drop LinkedIn grid posts that were published OUTSIDE the month they're
+    filed under, and report how many went.
+
+    The public Apify company-posts actor returns the page's last ~20 posts
+    regardless of the period being captured, so a mid-July capture files April,
+    May and June posts under July. Those posts can never gain private metrics —
+    the native pull for July only ever asks LinkedIn about July — so they sit in
+    the grid forever showing "Impressions —" and they skew the month's post-level
+    averages. Facebook keeps its strays and backfills them instead (see
+    _backfill_month_posts); LinkedIn can't, because the /posts finder is the only
+    way back to them and it's already month-scoped.
+
+    Only the displayed grid is trimmed. Card-level scalars (impressions, reach,
+    engagements…) come from LinkedIn's own period-scoped share statistics, not
+    from this list, so no stored KPI moves. Posts with no usable timestamp are
+    always kept — an unknown date is not evidence of a wrong one."""
+    if not isinstance(sc, dict) or not re.match(r'^\d{4}-\d{2}$', str(month or '')):
+        return 0
+    since, until = _meta_month_range(month)
+    dropped = 0
+    for c in (sc.get('platforms') or []):
+        if not isinstance(c, dict) or c.get('platform') != 'linkedin':
+            continue
+        posts = c.get('posts')
+        if not isinstance(posts, list):
+            continue
+        keep = []
+        for p in posts:
+            e = _to_epoch(p.get('ts')) if isinstance(p, dict) else None
+            if e is not None and not (since <= e < until):
+                dropped += 1
+                continue
+            keep.append(p)
+        c['posts'] = keep
+    return dropped
 
 
 def _merge_meta_platforms(sc, meta_platforms):
