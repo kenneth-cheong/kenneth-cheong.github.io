@@ -5,7 +5,8 @@ import ReportHtml from './ReportHtml.jsx';
 import { copyText, toast } from '../lib/ui.js';
 import InfoTip, { glossaryFor } from './InfoTip.jsx';
 import RecommendationCard from './RecommendationCard.jsx';
-import { Check, X, Info, TrendingUp, TrendingDown } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Check, X, Info, TrendingUp, TrendingDown, ChevronRight } from 'lucide-react';
 
 // Themed renderer for the structured `sections` result format. Turns the raw
 // section data (stats / lists / tables / cards / code …) into a polished,
@@ -78,6 +79,8 @@ function Section({ s, context }) {
           </div>
         </Block>
       );
+    case 'accordion':
+      return <AccordionSection s={s} />;
     case 'table':
       return <TableSection s={s} />;
     case 'code':
@@ -253,6 +256,84 @@ function Card({ c }) {
       )}
       {(c.lines || []).map((l, i) => <div key={i} className="text-[13px] text-dim">{l.label && <strong className="text-body">{l.label}: </strong>}{l.value}</div>)}
       {c.body && <p className="mt-1 text-sm leading-relaxed text-dim">{c.body}</p>}
+    </div>
+  );
+}
+
+// ── Accordion (e.g. the Content Optimiser's per-agent QA checks) ─────────────
+// Many independent analyses that each carry a long write-up. Rendered open they
+// merge into one unbroken column, so the surface is score + verdict and the
+// detail opens on demand. Printing expands everything.
+function AccordionSection({ s }) {
+  const items = (s.items || []).filter(Boolean);
+  const [open, setOpen] = useState(() => new Set());
+  const allOpen = open.size === items.length && items.length > 0;
+  const toggleAll = () => setOpen(allOpen ? new Set() : new Set(items.map((_, i) => i)));
+  useEffect(() => {
+    const expand = () => setOpen(new Set(items.map((_, i) => i)));
+    window.addEventListener('beforeprint', expand);
+    return () => window.removeEventListener('beforeprint', expand);
+  }, [items.length]);
+  if (!items.length) return null;
+  return (
+    <div>
+      <div className="mb-3 flex items-center gap-2">
+        {s.title && (
+          <h4 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-body">
+            <span className="h-3.5 w-1 rounded-full bg-brand-500" aria-hidden /> {s.title}
+          </h4>
+        )}
+        <button type="button" onClick={toggleAll} className="dm-no-print ml-auto shrink-0 rounded-md border border-line bg-surface px-2 py-0.5 text-xs font-medium text-dim hover:text-brand-600 dark:hover:text-brand-400">
+          {allOpen ? 'Collapse all' : 'Expand all'}
+        </button>
+      </div>
+      {s.note && <p className="-mt-1 mb-3 text-sm text-muted">{s.note}</p>}
+      <div className="space-y-2">
+        {items.map((it, i) => (
+          <AccordionRow key={i} it={it} open={open.has(i)} onToggle={() => setOpen((prev) => {
+            const next = new Set(prev);
+            if (next.has(i)) next.delete(i); else next.add(i);
+            return next;
+          })} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AccordionRow({ it, open, onToggle }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-line bg-surface">
+      <button
+        type="button" onClick={onToggle} aria-expanded={open}
+        className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors hover:bg-sunken/60"
+      >
+        <ChevronRight size={15} aria-hidden className={`shrink-0 text-faint transition-transform ${open ? 'rotate-90' : ''}`} />
+        <strong className="min-w-0 flex-1 truncate text-strong">{it.title}</strong>
+        {it.group && <span className="hidden shrink-0 rounded-full bg-sunken px-2 py-0.5 text-[11px] font-medium text-muted sm:inline">{it.group}</span>}
+        {it.meta && <span className="shrink-0 text-xs text-muted">{it.meta}</span>}
+        {it.badge && <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${BADGE[it.badgeTone] || BADGE.slate}`}>{it.badge}</span>}
+      </button>
+      {open && (
+        <div className="border-t border-hair px-3.5 py-3">
+          {it.summary && <p className="text-sm leading-relaxed text-dim">{it.summary}</p>}
+          {!!(it.lines || []).length && (
+            <ul className={`space-y-1.5 text-sm ${it.summary ? 'mt-3' : ''}`}>
+              {it.lines.map((l, i) => (
+                <li key={i} className="flex gap-2.5">
+                  <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-brand-400" aria-hidden />
+                  <span className="text-dim">{l.label && <strong className="uppercase text-[11px] tracking-wide text-body">{l.label} </strong>}{l.value}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {it.html && (
+            <div className="mt-3 max-h-[420px] overflow-auto rounded-lg border border-line bg-sunken/40 p-3">
+              <ReportHtml html={it.html} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -3449,26 +3449,78 @@ function stripEditorialMeta(md) {
 // already HTML and bypasses this (sanitised separately).
 function mdToHtml(md) {
   const inline = (t) => esc(t)
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (m, txt, href) => `<a href="${href}" target="_blank" rel="noopener">${txt}</a>`)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s"']+)\)/g, (m, txt, href) => `<a href="${href}" target="_blank" rel="noopener">${txt}</a>`)
+    .replace(/`([^`]+)`/g, '<code style="background:#f1f5f9;border-radius:4px;padding:1px 5px;font-size:.92em">$1</code>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    .replace(/(^|[\s(])\*([^*\n]+)\*(?=$|[\s.,;:)])/g, '$1<em>$2</em>')
+    .replace(/~~([^~]+)~~/g, '<del>$1</del>');
+  // A pipe row splits on unescaped "|", dropping the leading/trailing empties.
+  const cells = (line) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
+  const isDivider = (line) => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/.test(line);
+  const isRow = (line) => line.includes('|');
+
+  const lines = String(md || '').split('\n');
   const out = [];
   let list = null;
   const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
-  for (const raw of String(md || '').split('\n')) {
-    const line = raw.replace(/\s+$/, '');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].replace(/\s+$/, '');
+
+    // Fenced code block — swallow to the closing fence so its contents are never
+    // re-interpreted as markdown.
+    const fence = line.match(/^\s*```+\s*([\w-]*)\s*$/);
+    if (fence) {
+      closeList();
+      const buf = [];
+      while (++i < lines.length && !/^\s*```+\s*$/.test(lines[i])) buf.push(lines[i]);
+      out.push(`<pre style="margin:10px 0;padding:10px 12px;background:#0f172a;color:#e2e8f0;border-radius:8px;overflow:auto;font-size:12.5px;line-height:1.5"><code>${esc(buf.join('\n'))}</code></pre>`);
+      continue;
+    }
+
+    // GFM pipe table — only when the next line is the |---|---| divider, so a
+    // stray sentence containing a pipe doesn't become a one-cell table.
+    if (isRow(line) && i + 1 < lines.length && isDivider(lines[i + 1])) {
+      closeList();
+      const head = cells(line);
+      i += 1; // skip the divider
+      const body = [];
+      while (i + 1 < lines.length && isRow(lines[i + 1]) && lines[i + 1].trim()) body.push(cells(lines[++i]));
+      // No inline styles: .dm-report's table rules (light + dark) then apply.
+      const th = head.map((c) => `<th>${inline(c)}</th>`).join('');
+      const rows = body.map((r) => `<tr>${head.map((_, c) => `<td>${inline(r[c] || '')}</td>`).join('')}</tr>`).join('');
+      out.push(`<table><thead><tr>${th}</tr></thead><tbody>${rows}</tbody></table>`);
+      continue;
+    }
+
     if (!line.trim()) { closeList(); continue; }
-    const h = line.match(/^(#{1,6})\s+(.+)$/);
+
+    // Thematic break — the models emit "---" as a section separator constantly.
+    if (/^\s*([-*_])\s*(\1\s*){2,}$/.test(line)) { closeList(); out.push('<hr style="border:0;border-top:1px solid #e2e8f0;margin:14px 0">'); continue; }
+
+    const h = line.match(/^(#{1,6})\s+(.+?)\s*#*$/);
     if (h) { closeList(); const lv = Math.min(6, h[1].length); out.push(`<h${lv} style="margin:14px 0 6px;font-weight:700">${inline(h[2])}</h${lv}>`); continue; }
-    const ul = line.match(/^\s*[-*]\s+(.+)$/);
+
+    const quote = line.match(/^\s*>\s?(.*)$/);
+    if (quote) { closeList(); out.push(`<blockquote style="margin:8px 0;padding:2px 0 2px 12px;border-left:3px solid #cbd5e1;color:#475569">${inline(quote[1])}</blockquote>`); continue; }
+
+    const ul = line.match(/^\s*[-*+]\s+(.+)$/);
     const ol = line.match(/^\s*\d+[.)]\s+(.+)$/);
-    if (ul) { if (list !== 'ul') { closeList(); out.push('<ul style="margin:6px 0;padding-left:20px">'); list = 'ul'; } out.push(`<li>${inline(ul[1])}</li>`); continue; }
-    if (ol) { if (list !== 'ol') { closeList(); out.push('<ol style="margin:6px 0;padding-left:20px">'); list = 'ol'; } out.push(`<li>${inline(ol[1])}</li>`); continue; }
+    if (ul) { if (list !== 'ul') { closeList(); out.push('<ul style="margin:6px 0;padding-left:22px;list-style:disc">'); list = 'ul'; } out.push(`<li>${inline(ul[1])}</li>`); continue; }
+    if (ol) { if (list !== 'ol') { closeList(); out.push('<ol style="margin:6px 0;padding-left:22px;list-style:decimal">'); list = 'ol'; } out.push(`<li>${inline(ol[1])}</li>`); continue; }
     closeList();
     out.push(`<p style="margin:8px 0;line-height:1.6">${inline(line.trim())}</p>`);
   }
   closeList();
   return out.join('\n');
+}
+/** Trim long agent prose to a length cap WITHOUT slicing mid-sentence — the old
+ *  hard `.slice(2000)` visibly cut words in half in the report. */
+function mdTrim(md, max) {
+  const s = String(md || '');
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max);
+  const at = Math.max(cut.lastIndexOf('\n\n'), cut.lastIndexOf('. '), cut.lastIndexOf('\n'));
+  return `${(at > max * 0.5 ? cut.slice(0, at + 1) : cut).trim()}\n\n*(trimmed)*`;
 }
 // Defang untrusted AI-generated HTML (the add_links output) before it lands in
 // the report: drop script/style/iframe, on* handlers and javascript: URLs.
@@ -3861,28 +3913,40 @@ function sectionsOptimiser(view) {
   if (draftHtml) sections.push({ type: 'html', title: writing ? 'Your draft' : 'Optimised draft', html: draftHtml });
   if (gapSummary) sections.push({ type: 'html', title: 'Content-gap analysis', html: mdToHtml(gapSummary.slice(0, 3000)) });
 
-  const cards = results.map(({ a, parsed: p }) => {
-    if (p.error) return { title: a.label, badge: 'failed', badgeTone: 'red', lines: [{ value: p.error }] };
-    const lines = (Array.isArray(p.findings) ? p.findings : []).slice(0, 6).map((f) => ({
-      label: typeof f === 'string' ? '' : (String(f.severity || '').toLowerCase() || ''),
-      value: typeof f === 'string' ? f : [f.issue || f.title || '', f.fix ? `→ ${f.fix}` : ''].filter(Boolean).join(' '),
-    }));
-    return {
-      title: a.label,
-      badge: p.score != null ? `${p.score}/10` : (lines.length ? `${lines.length} finding${lines.length === 1 ? '' : 's'}` : 'ok'),
-      badgeTone: p.score != null ? (Number(p.score) >= 7 ? 'green' : Number(p.score) >= 5 ? 'amber' : 'red') : 'blue',
-      lines: lines.length ? lines : (p.summary ? [{ value: p.summary }] : []),
-    };
+  // One collapsed row per agent. Every check used to dump its findings AND its
+  // full long-form report straight into the page, so eight agents read as one
+  // unbroken wall — score first, detail on demand.
+  const GROUP_LABEL = { verify: 'Quality check', research: 'Research', structure: 'Deliverable' };
+  const ORDER = { verify: 0, research: 1, structure: 2 };
+  const items = results
+    .slice()
+    .sort((x, y) => (ORDER[x.a.group] ?? 9) - (ORDER[y.a.group] ?? 9))
+    .map(({ a, parsed: p }) => {
+      if (p.error) return { title: a.label, group: GROUP_LABEL[a.group] || '', badge: 'failed', badgeTone: 'red', summary: p.error };
+      const lines = (Array.isArray(p.findings) ? p.findings : []).map((f) => ({
+        label: typeof f === 'string' ? '' : (String(f.severity || '').toLowerCase() || ''),
+        value: typeof f === 'string' ? f : [f.issue || f.title || '', f.fix ? `→ ${f.fix}` : ''].filter(Boolean).join(' '),
+      })).filter((l) => l.value);
+      const n = lines.length;
+      return {
+        title: a.label,
+        group: GROUP_LABEL[a.group] || '',
+        badge: p.score != null ? `${p.score}/10` : (n ? `${n} finding${n === 1 ? '' : 's'}` : 'ok'),
+        badgeTone: p.score != null ? (Number(p.score) >= 7 ? 'green' : Number(p.score) >= 5 ? 'amber' : 'red') : 'blue',
+        meta: n ? `${n} finding${n === 1 ? '' : 's'}` : '',
+        summary: p.summary || '',
+        lines,
+        // The agent's own write-up (tables, headings, examples) — rendered, not
+        // dumped as raw markdown, and only once the reader opens the row.
+        html: p.content && String(p.content).trim().length > 80 ? mdToHtml(mdTrim(String(p.content), 12000)) : '',
+      };
+    });
+  sections.push({
+    type: 'accordion',
+    title: `Quality checks — ${results.length} agents`,
+    note: 'Each agent reviewed the draft independently. Open a row to see its findings and full write-up.',
+    items,
   });
-  sections.push({ type: 'cards', title: `QA agent findings — ${results.length} agents`, items: cards });
-
-  // Deliverable-style agent output (FAQs, ToC/TL;DR, schema recommendations)
-  // renders as its own readable block instead of dying inside a card.
-  for (const { a, parsed: p } of results) {
-    if (a.group === 'structure' && p && !p.error && p.content && String(p.content).trim().length > 80) {
-      sections.push({ type: 'html', title: a.label, html: mdToHtml(String(p.content).slice(0, 6000)) });
-    }
-  }
   return sections;
 }
 
@@ -4010,18 +4074,31 @@ function parseAgentResult(raw) {
 }
 
 function renderOptimiser({ writing, draftHtml, wordCount, flesch, meta, gapSummary, linkCount, results }) {
+  // Each agent is a self-contained, collapsed card: score + one-line verdict on
+  // the surface, findings and the agent's own write-up behind a disclosure. Open
+  // by default they merged into a single unreadable column.
   const card = (label, p) => {
     if (p.error) return `<div style="border:1px solid #fecaca;border-radius:10px;padding:12px;margin:8px 0;background:#fef2f2"><strong>${esc(label)}</strong> — <span style="color:#b91c1c">${esc(p.error)}</span></div>`;
-    const score = p.score != null ? `<span style="background:#eef2ff;color:#4f46e5;border-radius:999px;padding:1px 8px;font-size:11px;margin-left:6px">score ${esc(p.score)}</span>` : '';
-    const findings = Array.isArray(p.findings) && p.findings.length
-      ? `<ul style="margin:6px 0 0;padding-left:18px">${p.findings.map((f) => `<li>${esc(typeof f === 'string' ? f : (f.issue || f.title || JSON.stringify(f)))}${f && f.fix ? ` — <span style="color:#475569">${esc(f.fix)}</span>` : ''}</li>`).join('')}</ul>`
+    const n = Array.isArray(p.findings) ? p.findings.length : 0;
+    const sc = p.score != null ? Number(p.score) : null;
+    const tone = sc == null ? ['#eef2ff', '#4f46e5'] : sc >= 7 ? ['#dcfce7', '#166534'] : sc >= 5 ? ['#fef9c3', '#854d0e'] : ['#fee2e2', '#991b1b'];
+    const score = sc != null ? `<span style="background:${tone[0]};color:${tone[1]};border-radius:999px;padding:1px 8px;font-size:11px;font-weight:700">${esc(p.score)}/10</span>` : '';
+    const findings = n
+      ? `<ul style="margin:10px 0 0;padding-left:20px;list-style:disc;color:#334155;font-size:13px">${p.findings.map((f) => `<li style="margin:4px 0">${esc(typeof f === 'string' ? f : (f.issue || f.title || JSON.stringify(f)))}${f && f.fix ? ` — <span style="color:#475569">${esc(f.fix)}</span>` : ''}</li>`).join('')}</ul>`
       : '';
-    // Agent content is markdown (## headings, **bold**, lists) — render it, don't
-    // dump the raw source (mdToHtml escapes first, so it's XSS-safe).
-    const detail = p.content ? `<div style="color:#334155;margin-top:6px;font-size:13px">${mdToHtml(p.content.slice(0, 2000))}</div>` : '';
-    return `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:8px 0">
-      <div><strong>${esc(label)}</strong>${score}</div>
-      ${p.summary ? `<p style="color:#475569;margin:6px 0">${esc(p.summary)}</p>` : ''}${findings}${detail}</div>`;
+    // Agent content is markdown (## headings, tables, **bold**, lists) — render
+    // it, don't dump the raw source (mdToHtml escapes first, so it's XSS-safe).
+    const detail = p.content && p.content.trim().length > 80
+      ? `<div style="color:#334155;margin-top:10px;padding-top:10px;border-top:1px dashed #e2e8f0;font-size:13px">${mdToHtml(mdTrim(p.content, 8000))}</div>`
+      : '';
+    const body = `${p.summary ? `<p style="color:#475569;margin:8px 0 0;font-size:13px">${esc(p.summary)}</p>` : ''}${findings}${detail}`;
+    return `<details style="border:1px solid #e2e8f0;border-radius:10px;margin:8px 0;background:#fff">
+      <summary style="cursor:pointer;padding:10px 12px;display:flex;align-items:center;gap:8px;list-style:none">
+        <strong style="flex:1 1 auto;min-width:0;color:#0f172a">${esc(label)}</strong>
+        ${n ? `<span style="color:#64748b;font-size:12px">${n} finding${n === 1 ? '' : 's'}</span>` : ''}${score}
+      </summary>
+      <div style="padding:0 12px 12px">${body || '<p style="color:#64748b;margin:8px 0 0;font-size:13px">No issues raised.</p>'}</div>
+    </details>`;
   };
 
   const chip = (txt, bg, fg) => `<span style="background:${bg};color:${fg};border-radius:999px;padding:2px 10px;font-size:12px;margin:0 6px 6px 0;display:inline-block">${esc(txt)}</span>`;
@@ -4048,7 +4125,7 @@ function renderOptimiser({ writing, draftHtml, wordCount, flesch, meta, gapSumma
     : `<div style="margin:0 0 12px">${metaRow}</div>`;
 
   const gapBlock = gapSummary
-    ? `<details style="margin:0 0 16px"><summary style="cursor:pointer;font-weight:700">Content-gap analysis</summary><div style="white-space:pre-wrap;color:#334155;font-size:13px;margin-top:8px">${esc(gapSummary.slice(0, 3000))}</div></details>`
+    ? `<details style="margin:0 0 16px"><summary style="cursor:pointer;font-weight:700">Content-gap analysis</summary><div style="color:#334155;font-size:13px;margin-top:8px">${mdToHtml(mdTrim(gapSummary, 4000))}</div></details>`
     : '';
 
   return `${draftBlock}${gapBlock}<h3 style="margin:0 0 6px;font-weight:700">QA agent findings <span style="font-weight:400;color:#64748b">— ${results.length} agents</span></h3>${results.map((r) => card(r.a.label, r.parsed)).join('')}`;

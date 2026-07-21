@@ -63,5 +63,17 @@ export default function ReportHtml({ html, className = 'dm-report max-w-none tex
     themeReport(ref.current, isDarkTheme());
   });
   useLandscapeWhenWide(ref, html);
+  // A closed <details> prints as just its summary, and CSS can't force it open —
+  // so expand them all before the sheet is generated (collapsed cards keep the
+  // on-screen report scannable, the PDF still has to be complete).
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const expand = () => el.querySelectorAll('details:not([open])').forEach((d) => { d.open = true; d.dataset.dmAutoOpen = '1'; });
+    const restore = () => el.querySelectorAll('details[data-dm-auto-open]').forEach((d) => { d.open = false; delete d.dataset.dmAutoOpen; });
+    window.addEventListener('beforeprint', expand);
+    window.addEventListener('afterprint', restore);
+    return () => { window.removeEventListener('beforeprint', expand); window.removeEventListener('afterprint', restore); };
+  }, [html]);
   return <div ref={ref} className={className} dangerouslySetInnerHTML={{ __html: html }} />;
 }
