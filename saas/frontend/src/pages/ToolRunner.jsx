@@ -12,6 +12,7 @@ import SchemaResult from '../components/SchemaResult.jsx';
 import SortableTable from '../components/SortableTable.jsx';
 import ShareResult from '../components/ShareResult.jsx';
 import ConnectPrompt, { connectReasonFor } from '../components/ConnectPrompt.jsx';
+import { useIntegrationGate, IntegrationGate } from '../components/IntegrationGate.jsx';
 import { suppressFault } from '../lib/diagnostics.js';
 import InfoTip, { glossaryFor } from '../components/InfoTip.jsx';
 import { toast, copyText, downloadCsv, fmtNum, pushRecent, saveLastInput, loadLastInput } from '../lib/ui.js';
@@ -91,6 +92,7 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   // Pending destructive Search Console op, awaiting an explicit yes.
   const [confirmOp, setConfirmOp] = useState(null);
   const [showAdv, setShowAdv] = useState(false); // reveal collapsed optional fields on long forms
+  const gate = useIntegrationGate(tool.integration); // integration tools: no connection = no run
   const [suggesting, setSuggesting] = useState(null); // field name whose "AI suggest" is in flight
   const suggestCache = useRef({ key: '', data: null }); // one crawl per source URL, shared by every suggestible field
   const shownRef = useRef([]); // latest visible fields, for the auto-started tour
@@ -286,6 +288,9 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
       setConfirmOp({ vals, op: activeTab.op });
       return;
     }
+    // Nothing to run against until they've signed in — re-open the connect
+    // widget rather than spend a round-trip to be told the same thing.
+    if (gate.blocked) { gate.reopen(); return; }
     setBusy(true);
     setOut(null);
     setJob(null);
@@ -377,6 +382,10 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
         </div>
       )}
 
+      {/* Not connected yet: the connect widget opens over the page, and the card
+          it leaves behind keeps the fix one click away. */}
+      <IntegrationGate gate={gate} tool={tool} />
+
       {/* GSC sub-tool tabs (URL Inspection / Sitemaps / Indexing), like index.html. */}
       {tabs && (
         <div className="mt-5 flex flex-wrap gap-1 border-b border-line">
@@ -393,7 +402,10 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
         </div>
       )}
 
-      <div className={`card ${embedded ? 'mt-3' : tabs ? 'mt-4' : 'mt-6'} p-5`}>
+      {/* Blocked on a connection: hide the form outright. Leaving a Property box
+          and a Run button on screen is what made people type an ID and run into
+          a wall — there is nothing here they can fill in that would work. */}
+      <div className={`card ${gate.blocked ? 'hidden' : ''} ${embedded ? 'mt-3' : tabs ? 'mt-4' : 'mt-6'} p-5`}>
         <div className="space-y-4">
           {primaryFields.map((f, i) => (
             <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} setValue={set} autoFocus={i === 0} provider={tool.integration} values={values} invalid={isMissing(f)}
