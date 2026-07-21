@@ -52,7 +52,6 @@
   --e-card: rgb(var(--c-surface));
   --e-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --e-radius: 1rem;          /* card radius — royal opens this to 20px */
-  --e-illus-to: rgba(15, 23, 42, .45);   /* tool-tile wash fade-out */
   --e-rail: rgb(var(--c-surface));        /* sidebar fill */
   /* Popup panel fill (modals, the assistant panel, ⌘K). A soft light source in
      the top-left over the surface — enough depth that a large panel reads as a
@@ -109,7 +108,6 @@
   --e-card: linear-gradient(180deg, var(--e-card-hi), var(--e-card-lo));
   --e-shadow: 0 24px 50px -24px rgba(4, 10, 80, .55);
   --e-radius: 20px;
-  --e-illus-to: rgba(9, 13, 54, .55);
   --e-rail: linear-gradient(180deg, rgba(11, 19, 82, .72), rgba(8, 13, 60, .85));
   /* Layered rather than a two-stop blue: a cool light source spilling in from
      the top-left, a faint teal catch on the top-right (the brand's accent), then
@@ -533,9 +531,9 @@
      The catalog card's photo header: the category's hue as a diagonal wash,
      a per-tool Unsplash photo blended into it (public/tool-art/<id>.webp,
      see tool-art/credits.json), then the glyph and the tool's name in white.
-     The hue arrives per-card as --tc (inline style, from CATEGORY_META.color);
-     --e-illus-to is the theme's fade-out. The photo is decoration only — it
-     sits at low opacity under a scrim, so the title reads on every theme. */
+     The hue arrives per-card as --tc (inline style, from CATEGORY_META.color).
+     The photo is decoration only — it sits at low opacity under a scrim, so
+     the title reads on every theme. */
   .dm-tool-illus {
     position: relative;
     display: flex;
@@ -544,7 +542,14 @@
     justify-content: space-between;
     overflow: hidden;
     padding: 14px 14px 12px;
-    background: linear-gradient(135deg, var(--tc, theme('colors.brand.600')), var(--e-illus-to));
+    /* The wash used to fade the hue into a near-black, which made a wall of
+       33 tiles read heavy. It now fades into WHITE instead — same hue, lit from
+       the top-left — and the title keeps its contrast from the scrim below
+       rather than from a dark gradient. Plain rgba, not color-mix: this ships
+       to every browser the app supports. */
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, .42)),
+      var(--tc, theme('colors.brand.600'));
   }
   /* The photo. `luminosity` keeps only the image's light and shade and takes
      its colour from the wash behind, so 33 unrelated stock photos still read as
@@ -555,13 +560,16 @@
     height: 100%;
     width: 100%;
     object-fit: cover;
-    opacity: .45;
+    opacity: .42;
     mix-blend-mode: luminosity;
+    filter: brightness(1.12);
   }
-  /* Scrim under the title — photos vary wildly in where they're bright. */
+  /* Scrim under the title — photos vary wildly in where they're bright, and on
+     the lighter washes (Strategy's amber, Content's green) white type needs a
+     darkened band. Held to the bottom third so the header still reads light. */
   .dm-tool-illus::after {
     content: ''; position: absolute; inset: 0;
-    background: linear-gradient(to top, rgba(6, 10, 40, .55), transparent 62%);
+    background: linear-gradient(to top, rgba(6, 10, 40, .58), rgba(6, 10, 40, .12) 52%, transparent 76%);
   }
   /* Lift the glyph/title above the photo and its scrim — but NOT the photo
      itself, which must keep the `absolute` set above (a bare `> *` here would
@@ -1050,7 +1058,7 @@ select:focus-visible,
     --c-pos: 22 163 74; --c-neg: 220 38 38; --c-warn: 217 119 6;
     --c-peri: 79 70 229; --c-cta: 37 99 235; --c-cta-ink: 255 255 255;
     --e-card: #fff; --e-shadow: none; --e-radius: 1rem;
-    --e-illus-to: rgba(15, 23, 42, .45); --e-rail: #fff; --e-modal: #fff;
+    --e-rail: #fff; --e-modal: #fff;
   }
   header, aside, nav, form, .dm-no-print { display: none !important; }
   /* The media plan's 20-column grid is a 1900px horizontal scroller on screen;
