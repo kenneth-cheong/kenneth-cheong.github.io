@@ -300,6 +300,8 @@ def lambda_handler(event, context):
         if action == 'report_extract_pdf':
             return _resp(200, report_extract_pdf(body))
         # ── Social Listening Report: standalone clients/topics/snapshots ─────
+        if action == 'sl_countries':
+            return _resp(200, sl_countries(body))
         if action == 'sl_list_clients':
             return _resp(200, sl_list_clients(body))
         if action == 'sl_save_client':
@@ -314,6 +316,8 @@ def lambda_handler(event, context):
             return _resp(200, sl_delete_topic(body))
         if action == 'sl_pull_topic':
             return _resp(200, sl_pull_topic(body))
+        if action == 'sl_pull_status':
+            return _resp(200, sl_pull_status(body))
         if action == 'sl_get_topic_report':
             return _resp(200, sl_get_topic_report(body))
         if action == 'sl_cron_snapshot_all':
@@ -1651,6 +1655,420 @@ LISTEN_SITES = {
     'twitter': ('(site:twitter.com OR site:x.com)', 'Twitter / X'),
     'forums':  ('site:forums.hardwarezone.com.sg',  'HardwareZone & SG forums'),
 }
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Social Listening Report — country scoping
+# ──────────────────────────────────────────────────────────────────────────────
+# The markets the Listening Report can be filtered to. `code` is the ISO country
+# the DataForSEO `country` field carries on each item; `location` is the
+# DataForSEO location_name the Google SERP layer needs (different vocabulary —
+# SERP wants a location name, Content Analysis wants an ISO code).
+SL_COUNTRIES = [
+    ('SG', 'Singapore',   'Singapore'),
+    ('ID', 'Indonesia',   'Indonesia'),
+    ('MY', 'Malaysia',    'Malaysia'),
+    ('AU', 'Australia',   'Australia'),
+    ('TH', 'Thailand',    'Thailand'),
+    ('VN', 'Vietnam',     'Vietnam'),
+    ('PH', 'Philippines', 'Philippines'),
+    ('BN', 'Brunei',      'Brunei'),
+    ('KH', 'Cambodia',    'Cambodia'),
+    ('MM', 'Myanmar',     'Myanmar'),
+    ('NZ', 'New Zealand', 'New Zealand'),
+    ('HK', 'Hong Kong',   'Hong Kong'),
+    ('TW', 'Taiwan',      'Taiwan'),
+    ('JP', 'Japan',       'Japan'),
+    ('KR', 'South Korea', 'South Korea'),
+    ('IN', 'India',       'India'),
+]
+SL_COUNTRY_NAME = {c: n for c, n, _ in SL_COUNTRIES}
+SL_COUNTRY_LOC  = {c: l for c, _, l in SL_COUNTRIES}
+
+
+def sl_countries(body=None):
+    """Surfaced to the frontend so the country picker and the backend can never
+    drift out of sync (the same mistake the tool-finder's five-place sync made)."""
+    return {'countries': [{'code': c, 'name': n} for c, n, _ in SL_COUNTRIES]}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# DataForSEO Content Analysis — the corpus layer
+#
+# TRAP, verified live against the API on 2026-07-21: content_analysis/summary/live
+# and content_analysis/phrase_trends/live BOTH accept a `filters` array, return
+# "Ok.", and then SILENTLY IGNORE IT — a country=SG filter returns byte-identical
+# totals to no filter at all. Only content_analysis/search/live actually filters.
+# So every country-scoped number below is derived from search/live, and the
+# summary/trends endpoints are only ever used for GLOBAL (all-country) figures.
+# Do not "simplify" this by passing filters to summary/trends; it fails silently.
+# ──────────────────────────────────────────────────────────────────────────────
+_SL_EMOTIONS = ('anger', 'happiness', 'love', 'sadness', 'share', 'fun')
+
+
+def _sl_dfs_headers():
+    auth = os.environ.get('DATAFORSEO_AUTH')
+    return {'Authorization': auth, 'Content-Type': 'application/json'} if auth else None
+
+
+def _sl_post(path, payload, timeout=45):
+    headers = _sl_dfs_headers()
+    if not headers:
+        return {}
+    try:
+        r = requests.post(f'{DFS_BASE}/{path}', headers=headers, timeout=timeout,
+                          json=payload)
+        return r.json() or {}
+    except (requests.exceptions.RequestException, ValueError):
+        return {}
+
+
+def _sl_term_group(terms):
+    """Content Analysis has no boolean OR (verified: "Nike OR Adidas" returns
+    fewer hits than either alone), so callers issue one request per term and we
+    sum. This just normalises/caps the term list."""
+    out, seen = [], set()
+    for t in terms or []:
+        t = (t or '').strip()
+        if t and t.lower() not in seen:
+            seen.add(t.lower())
+            out.append(t)
+    return out[:5]
+
+
+def _sl_country_volume(terms, countries, page_types):
+    """TRUE mention volume per country for `terms`, via the only endpoint that
+    honours filters. One call per (term, country); returns the summed corpus
+    total_count per country — NOT a count of the items we fetched."""
+    out = {}
+    if not countries:
+        return out
+
+    def _one(term, cc):
+        d = _sl_post('content_analysis/search/live',
+                     [{'keyword': term, 'page_type': page_types,
+                       'search_mode': 'one_per_domain', 'limit': 1,
+                       'filters': [['country', '=', cc]]}])
+        res = (((d.get('tasks') or [{}])[0].get('result')) or [{}])[0] or {}
+        return cc, (res.get('total_count') or 0)
+
+    jobs = [(t, cc) for t in terms for cc in countries]
+    if not jobs:
+        return out
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        for cc, n in ex.map(lambda a: _one(*a), jobs):
+            out[cc] = out.get(cc, 0) + n
+    return out
+
+
+def _sl_feed(terms, countries, page_types, lang_code, limit=25):
+    """The mention feed. When countries are selected we fetch per country so the
+    feed honours the filter; otherwise one unfiltered pass. Each item keeps its
+    own sentiment + emotion scores, country, language and author, which is what
+    makes the per-country sentiment/emotion/author breakdowns possible at all
+    (summary/live can't be filtered, so those must be computed from items)."""
+    scopes = countries or [None]
+
+    def _one(term, cc):
+        req = {'keyword': term, 'page_type': page_types,
+               'search_mode': 'one_per_domain', 'limit': limit,
+               'order_by': ['content_info.date_published,desc'],
+               'filters': [['language', '=', lang_code]]}
+        if cc:
+            # DataForSEO rejects a bare list-of-lists as an implicit AND, so the
+            # two conditions must be joined with an explicit 'and' token.
+            req['filters'] = [['language', '=', lang_code], 'and', ['country', '=', cc]]
+        d = _sl_post('content_analysis/search/live', [req])
+        res = (((d.get('tasks') or [{}])[0].get('result')) or [{}])[0] or {}
+        return res.get('items') or []
+
+    jobs = [(t, cc) for t in terms for cc in scopes]
+    raw = []
+    if jobs:
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            for items in ex.map(lambda a: _one(*a), jobs):
+                raw.extend(items)
+
+    feed, seen = [], set()
+    for it in raw:
+        url = it.get('url')
+        if not url or url in seen:
+            continue
+        ci = it.get('content_info') or {}
+        title = ci.get('title') or ci.get('main_title') or ''
+        if _mostly_non_latin(title) or _is_promo_noise(it.get('domain'), title):
+            continue
+        seen.add(url)
+        pt = it.get('page_types')
+        emo = ci.get('sentiment_connotations') or {}
+        feed.append({
+            'url': url,
+            'domain': it.get('domain'),
+            'title': (title or url or '')[:160],
+            'snippet': (ci.get('snippet') or ci.get('highlighted_text') or '')[:400],
+            'date': ci.get('date_published'),
+            'sentiment': _ca_dominant_sentiment(ci),
+            'emotions': {k: emo.get(k) for k in _SL_EMOTIONS if emo.get(k) is not None},
+            'country': it.get('country'),
+            'language': it.get('language') or ci.get('language'),
+            'author': ci.get('author'),
+            'domain_rank': it.get('domain_rank'),
+            'categories': ci.get('text_category') or it.get('page_category') or [],
+            'page_type': (pt[0] if isinstance(pt, list) and pt else it.get('page_type')),
+            'source': 'web',
+        })
+    feed.sort(key=lambda m: str(m.get('date') or ''), reverse=True)
+    return feed
+
+
+def _sl_corpus_summary(terms, page_types):
+    """GLOBAL (un-filterable) corpus figures: total volume, sentiment, emotions,
+    country map, language map, page-type map, category map. Summed across terms."""
+    def _one(term):
+        d = _sl_post('content_analysis/summary/live',
+                     [{'keyword': term, 'page_type': page_types,
+                       'positive_connotation_threshold': 0.4,
+                       'sentiments_connotation_threshold': 0.4}])
+        return (((d.get('tasks') or [{}])[0].get('result')) or [{}])[0] or {}
+
+    results = []
+    if terms:
+        with ThreadPoolExecutor(max_workers=5) as ex:
+            results = list(ex.map(_one, terms))
+
+    total = 0
+    sent = {'positive': 0, 'negative': 0, 'neutral': 0}
+    emo = {k: 0 for k in _SL_EMOTIONS}
+    by_country, by_lang, by_type, cats, domains = {}, {}, {}, {}, {}
+    for res in results:
+        total += res.get('total_count') or 0
+        for k, v in (res.get('connotation_types') or {}).items():
+            if k in sent and isinstance(v, (int, float)):
+                sent[k] += v
+        for k, v in (res.get('sentiment_connotations') or {}).items():
+            if k in emo and isinstance(v, (int, float)):
+                emo[k] += v
+        for k, v in (res.get('countries') or {}).items():
+            by_country[k] = by_country.get(k, 0) + (v or 0)
+        for k, v in (res.get('languages') or {}).items():
+            by_lang[k] = by_lang.get(k, 0) + (v or 0)
+        for k, v in (res.get('page_types') or {}).items():
+            by_type[k] = by_type.get(k, 0) + (v or 0)
+        for d in (res.get('top_domains') or []):
+            if isinstance(d, dict) and d.get('domain'):
+                domains[d['domain']] = domains.get(d['domain'], 0) + (d.get('count') or 0)
+        for c in (res.get('text_categories') or []):
+            ids = c.get('category')
+            if isinstance(ids, list):
+                for cid in ids:
+                    cats[cid] = cats.get(cid, 0) + (c.get('count') or 0)
+    return {
+        'total_mentions': total,
+        'sentiment': sent,
+        'emotions': emo,
+        'by_country': by_country,
+        'by_language': by_lang,
+        'by_page_type': by_type,
+        'categories': sorted(cats.items(), key=lambda kv: kv[1], reverse=True)[:15],
+        'top_domains': sorted(domains.items(), key=lambda kv: kv[1], reverse=True)[:10],
+    }
+
+
+def _sl_trends(terms, page_types, date_from, date_to, group='day'):
+    """True per-day corpus series (volume, sentiment, emotions) from
+    phrase_trends/live. Global only — see the filters trap above. This is what
+    backfills history for a topic that was only just created; our own daily
+    snapshots carry the country-scoped series."""
+    def _one(term):
+        d = _sl_post('content_analysis/phrase_trends/live',
+                     [{'keyword': term, 'page_type': page_types,
+                       'date_from': date_from, 'date_to': date_to,
+                       'date_group': group}], timeout=60)
+        return (d.get('tasks') or [{}])[0].get('result') or []
+
+    merged = {}
+    rows = []
+    if terms:
+        with ThreadPoolExecutor(max_workers=5) as ex:
+            for res in ex.map(_one, terms):
+                rows.extend(res)
+    for r in rows:
+        day = r.get('date')
+        if not day:
+            continue
+        slot = merged.setdefault(day, {
+            'date': day, 'total_mentions': 0,
+            'sentiment': {'positive': 0, 'negative': 0, 'neutral': 0},
+            'emotions': {k: 0 for k in _SL_EMOTIONS}})
+        slot['total_mentions'] += r.get('total_count') or 0
+        for k, v in (r.get('connotation_types') or {}).items():
+            if k in slot['sentiment'] and isinstance(v, (int, float)):
+                slot['sentiment'][k] += v
+        for k, v in (r.get('sentiment_connotations') or {}).items():
+            if k in slot['emotions'] and isinstance(v, (int, float)):
+                slot['emotions'][k] += v
+    return [merged[d] for d in sorted(merged)]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Social Listening — the Apify social layer (reach / impressions / authors)
+#
+# DataForSEO's corpus has no audience data at all: `social_metrics` is null on
+# every item and there are no follower counts, so reach, impressions, author
+# reach and author mention share are simply not derivable from it. Apify's
+# keyword-search actors DO carry them (verified live 2026-07-21: apidojo's
+# tweet-scraper returns viewCount per tweet and author.followers per author).
+#
+# COST is the constraint, not capability. Bronze per-result prices:
+#   X $0.0004  ·  Instagram $0.0023  ·  TikTok $0.0030  ·  Reddit $0.0038
+# At 100 results/topic/day across 4 platforms that is ~$142/mo — ~5x the $29
+# plan. So X (by far the cheapest and the richest for reach) runs DAILY and the
+# other three run WEEKLY, which lands at ~$25/mo. Anything that changes these
+# caps or cadences changes the monthly bill roughly linearly — check the plan
+# before raising them.
+# ──────────────────────────────────────────────────────────────────────────────
+SL_APIFY_CAP = int(os.environ.get('SL_APIFY_CAP', '100'))   # results/topic/platform/pull
+SL_WEEKLY_DOW = 0                                           # Monday, in SGT
+
+SL_SOCIAL_ACTORS = {
+    'x':         ('apidojo~tweet-scraper',           'X (Twitter)', 'daily'),
+    'instagram': ('apify~instagram-hashtag-scraper', 'Instagram',   'weekly'),
+    'tiktok':    ('clockworks~tiktok-scraper',       'TikTok',      'weekly'),
+    'reddit':    ('trudax~reddit-scraper-lite',      'Reddit',      'weekly'),
+}
+
+
+def _sl_social_input(platform, terms, cap):
+    """Keyword-SEARCH input per actor (not the profile-scrape inputs _build_input
+    builds — listening searches a term, it doesn't crawl a known handle)."""
+    if platform == 'x':
+        return {'searchTerms': terms, 'maxItems': cap, 'sort': 'Latest'}
+    if platform == 'instagram':
+        # hashtag scraper wants bare tags, so strip spaces/# from each term
+        tags = [re.sub(r'[^0-9A-Za-z]', '', t) for t in terms]
+        return {'hashtags': [t for t in tags if t], 'resultsLimit': cap}
+    if platform == 'tiktok':
+        return {'searchQueries': terms, 'resultsPerPage': cap,
+                'shouldDownloadVideos': False, 'shouldDownloadCovers': False}
+    if platform == 'reddit':
+        return {'searches': terms, 'maxItems': cap, 'sort': 'new',
+                'skipComments': True, 'skipUserPosts': True}
+    return {}
+
+
+def _sl_norm_social(platform, it):
+    """Normalise one actor row into the shared mention shape. Actors disagree on
+    field names, so every read goes through _g with the known aliases."""
+    if not isinstance(it, dict):
+        return None
+    a = it.get('author') or it.get('authorMeta') or it.get('owner') or {}
+    if not isinstance(a, dict):
+        a = {}
+    followers = _g(a, 'followers', 'followersCount', 'fans', 'followerCount',
+                   default=None) or _g(it, 'followers', 'followersCount', default=None)
+    url = _g(it, 'url', 'twitterUrl', 'postPage', 'webVideoUrl', 'link', default=None)
+    text = _g(it, 'fullText', 'text', 'caption', 'title', 'body', default='') or ''
+    hashtags = []
+    ents = it.get('entities') or {}
+    for h in (ents.get('hashtags') or it.get('hashtags') or []):
+        tag = h.get('text') if isinstance(h, dict) else h
+        if tag:
+            hashtags.append(str(tag).lstrip('#').lower())
+    links = []
+    for u in (ents.get('urls') or []):
+        eu = u.get('expanded_url') or u.get('url') if isinstance(u, dict) else u
+        if eu:
+            links.append(eu)
+    if not hashtags:
+        hashtags = [w.lstrip('#').lower() for w in re.findall(r'#\w+', text)]
+    return {
+        'platform': platform,
+        'url': url,
+        'title': (text or '')[:160],
+        'snippet': (text or '')[:400],
+        'author': _g(a, 'userName', 'name', 'nickName', 'username', default=None)
+                  or _g(it, 'username', 'authorName', default=None),
+        'author_url': _g(a, 'twitterUrl', 'url', 'profileUrl', default=None),
+        'followers': followers,
+        # X reports true impressions; the others don't expose any impression
+        # metric, so `views` stays None there rather than being faked from plays.
+        'views': _g(it, 'viewCount', 'playCount', 'videoViewCount', default=None),
+        'likes': _g(it, 'likeCount', 'diggCount', 'likes', 'score', default=None),
+        'shares': _g(it, 'retweetCount', 'shareCount', 'shares', default=None),
+        'comments': _g(it, 'replyCount', 'commentCount', 'comments',
+                       'numberOfComments', default=None),
+        'date': _g(it, 'createdAt', 'created_at', 'createTimeISO', 'date',
+                   'postedAt', default=None),
+        'language': _g(it, 'lang', 'language', default=None),
+        'hashtags': hashtags[:12],
+        'links': links[:8],
+        'source': platform,
+    }
+
+
+def _sl_social_pull(terms, platforms, cap=None):
+    """Run the selected actors concurrently and collect normalised mentions.
+    Best-effort per platform: one actor failing leaves its slot empty rather
+    than sinking the whole snapshot."""
+    cap = cap or SL_APIFY_CAP
+    out = {}
+    if not APIFY_TOKEN or not terms:
+        return out
+    started = {}
+    for p in platforms:
+        spec = SL_SOCIAL_ACTORS.get(p)
+        if not spec:
+            continue
+        run = _apify_start(spec[0], _sl_social_input(p, terms, cap))
+        if run:
+            started[p] = {'run_id': run['id'], 'dataset_id': run.get('defaultDatasetId'),
+                          'label': spec[1]}
+    if not started:
+        return out
+
+    deadline = time.time() + min(CRON_MAX_WAIT_SECS, 420)
+    pending = set(started)
+    while pending and time.time() < deadline:
+        for p in list(pending):
+            st = _apify_status(started[p]['run_id'])
+            if st in ('SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'):
+                pending.discard(p)
+        if pending:
+            time.sleep(10)
+
+    for p, ent in started.items():
+        items = _apify_items(ent['dataset_id'])
+        posts, seen = [], set()
+        for it in items:
+            m = _sl_norm_social(p, it)
+            if not m or not m.get('url') or m['url'] in seen:
+                continue
+            seen.add(m['url'])
+            posts.append(m)
+            if len(posts) >= cap:
+                break
+        out[p] = {'label': ent['label'], 'posts': posts,
+                  'timed_out': p in pending, 'pulled': _now_iso()}
+    return out
+
+
+def _sl_due_platforms(topic, today=None):
+    """Which Apify platforms to pull today. X every day; the expensive three only
+    on SL_WEEKLY_DOW, so the weekly cadence is deterministic rather than drifting
+    with whenever the cron happened to fire."""
+    wanted = topic.get('social') or list(SL_SOCIAL_ACTORS)
+    day = today or _sgt_date()
+    try:
+        dow = datetime.strptime(day, '%Y-%m-%d').weekday()
+    except Exception:
+        dow = SL_WEEKLY_DOW
+    due = []
+    for p in wanted:
+        spec = SL_SOCIAL_ACTORS.get(p)
+        if not spec:
+            continue
+        if spec[2] == 'daily' or dow == SL_WEEKLY_DOW:
+            due.append(p)
+    return due
 
 
 def _ca_lang_code(language):
@@ -3969,6 +4387,14 @@ def sl_save_topic(body):
         'location': (data.get('location') or existing.get('location') or client.get('location') or 'Singapore').strip(),
         'language': (data.get('language') or existing.get('language') or 'English').strip(),
         'sources':  data.get('sources') if data.get('sources') is not None else existing.get('sources', ['web', 'reddit', 'twitter', 'forums']),
+        # Markets to scope the report to. Empty = worldwide (no country filter),
+        # which is also what every pre-schema-2 topic implicitly was.
+        'countries': [c for c in (data.get('countries')
+                                  if data.get('countries') is not None
+                                  else existing.get('countries', []))
+                      if c in SL_COUNTRY_NAME],
+        # Apify platforms to pull. Defaults to all four; X is daily, the rest weekly.
+        'social':   data.get('social') if data.get('social') is not None else existing.get('social', list(SL_SOCIAL_ACTORS)),
         'active':   bool(data.get('active')) if data.get('active') is not None else bool(existing.get('active', True)),
         'created':    existing.get('created') or now,
         'created_by': existing.get('created_by') or who,
@@ -4027,31 +4453,142 @@ def _sl_snapshot_topic(cid, tid, who):
     result = fetch_social_listening(brand, client.get('domain', ''),
                                     location=topic.get('location') or 'Singapore',
                                     language=topic.get('language') or 'English', cfg=cfg)
+
+    # ---- schema-2 enrichment: country scoping + audience metrics ----------
+    # Everything below is best-effort and additive: if DataForSEO or Apify is
+    # down, the v1 fields above still populate and the report still renders.
+    terms = _sl_term_group([brand] + list(topic.get('keywords') or []))
+    countries = [c for c in (topic.get('countries') or []) if c in SL_COUNTRY_NAME]
+    lang_code = _ca_lang_code(topic.get('language') or 'English')
+    today = _sgt_date()
+
+    corpus, country_volume, feed, social = {}, {}, [], {}
+    try:
+        corpus = _sl_corpus_summary(terms, CA_PAGE_TYPES)
+    except Exception:
+        pass
+    try:
+        country_volume = _sl_country_volume(terms, countries, CA_PAGE_TYPES)
+    except Exception:
+        pass
+    try:
+        feed = _sl_feed(terms, countries, CA_PAGE_TYPES, lang_code)[:120]
+    except Exception:
+        pass
+    try:
+        due = _sl_due_platforms(topic, today)
+        social = _sl_social_pull(terms, due) if due else {}
+    except Exception:
+        social = {}
+
+    # Trim before writing: a topic with 4 platforms x 100 posts plus a 120-item
+    # web feed can exceed DynamoDB's 400KB item ceiling, which fails the whole
+    # put_item — the same ceiling that silently broke Monthly Social Reports
+    # when a corrupted email bloated the row. Cap posts per platform and keep
+    # snippets short; the report only ever renders a top-N of these anyway.
+    for slot in social.values():
+        slot['posts'] = (slot.get('posts') or [])[:60]
+        for p in slot['posts']:
+            p['snippet'] = (p.get('snippet') or '')[:240]
+
     now = _now_iso()
     item = {
-        'topicId': tid, 'date': _sgt_date(), 'clientId': cid,
+        'topicId': tid, 'date': today, 'clientId': cid, 'schema': 2,
         'total_mentions': (result.get('summary') or {}).get('total_mentions'),
         'sentiment': (result.get('summary') or {}).get('sentiment') or {},
         'mentions': result.get('mentions') or [],
         'platforms': result.get('platforms') or {},
         'note': result.get('note'),
+        # schema 2
+        'countries': countries,
+        'corpus': corpus,
+        # TRUE per-country corpus volume for THIS day. phrase_trends can't be
+        # filtered by country, so stitching these daily rows together is the
+        # only way to get a country-scoped volume-over-time series at all.
+        'country_volume': country_volume,
+        'feed': feed,
+        'social': social,
         'savedAt': now, 'savedBy': who,
         'ttl': int(time.time()) + SL_SNAPSHOT_TTL_SECS,
     }
-    _slsnapshots().put_item(Item=_enc(item))
+    try:
+        _slsnapshots().put_item(Item=_enc(item))
+    except Exception:
+        # Last-resort shrink: drop the bulky raw feeds but keep every aggregate,
+        # so an oversized day still contributes to trends instead of vanishing.
+        item['feed'] = item['feed'][:20]
+        for slot in (item.get('social') or {}).values():
+            slot['posts'] = (slot.get('posts') or [])[:10]
+        item['oversized'] = True
+        _slsnapshots().put_item(Item=_enc(item))
     return item
 
 
+SL_PULL_STALE_SECS = 20 * 60   # a "running" marker older than this = the run died
+
+
 def sl_pull_topic(body):
-    """Manual "Pull now" — same effect as the nightly cron hitting this one topic,
-    used both to see data immediately after adding a topic and to refresh on demand."""
+    """Manual "Pull now" — queues the same work the nightly cron does.
+
+    ASYNC BY NECESSITY: this used to run the pull inline and return the snapshot,
+    which worked while the pull was a handful of DataForSEO calls. Waiting on
+    Apify actor runs pushed it past API Gateway's HARD 30-SECOND integration
+    timeout (verified: the endpoint returns {"message":"Endpoint request timed
+    out"} while the Lambda keeps running to completion behind it). The Lambda's
+    own timeout is 900s, so the work is fine — only the synchronous HTTP reply
+    is not. So: drop a "running" marker, self-invoke, return immediately, and
+    let the frontend poll sl_pull_status."""
     data = body.get('data') or body
     cid = (data.get('clientId') or '').strip()
     tid = (data.get('topicId') or '').strip()
     if not cid or not tid:
         raise RuntimeError('Missing clientId or topicId.')
-    item = _sl_snapshot_topic(cid, tid, _who(body))
-    return {'ok': True, 'snapshot': _dec(item)}
+    who = _who(body)
+    today = _sgt_date()
+    existing = _slsnapshots().get_item(Key={'topicId': tid, 'date': today}).get('Item')
+    started = int(time.time())
+    if existing and (existing.get('pull_status') == 'running') and \
+       (started - int(existing.get('pull_started') or 0)) < SL_PULL_STALE_SECS:
+        return {'ok': True, 'queued': False, 'already_running': True}
+    # Marker only — merged into the existing row so a re-pull never destroys the
+    # day's already-captured data while the new run is in flight.
+    _slsnapshots().update_item(
+        Key={'topicId': tid, 'date': today},
+        UpdateExpression=('SET pull_status = :s, pull_started = :t, clientId = :c, '
+                          '#ttl = if_not_exists(#ttl, :x)'),
+        ExpressionAttributeNames={'#ttl': 'ttl'},
+        ExpressionAttributeValues={':s': 'running', ':t': started, ':c': cid,
+                                   ':x': started + SL_SNAPSHOT_TTL_SECS})
+    _self_invoke({'action': 'sl_cron_snapshot_one', 'clientId': cid,
+                  'topicId': tid, 'who': who})
+    return {'ok': True, 'queued': True, 'date': today}
+
+
+def sl_pull_status(body):
+    """Polled by the frontend after sl_pull_topic. Reports whether today's pull
+    is still running, finished, or died mid-flight (a stale marker)."""
+    data = body.get('data') or body
+    tid = (data.get('topicId') or '').strip()
+    if not tid:
+        raise RuntimeError('Missing topicId.')
+    row = _dec(_slsnapshots().get_item(
+        Key={'topicId': tid, 'date': _sgt_date()}).get('Item') or {})
+    if not row:
+        return {'status': 'none'}
+    st = row.get('pull_status')
+    age = int(time.time()) - int(row.get('pull_started') or 0)
+    if st == 'running':
+        return {'status': 'stalled' if age > SL_PULL_STALE_SECS else 'running',
+                'seconds': age}
+    return {
+        'status': 'done',
+        'savedAt': row.get('savedAt'),
+        'mentions': len(row.get('feed') or row.get('mentions') or []),
+        'social': {k: len(v.get('posts') or [])
+                   for k, v in (row.get('social') or {}).items()},
+        'total_mentions': (row.get('corpus') or {}).get('total_mentions')
+                          or row.get('total_mentions'),
+    }
 
 
 def sl_get_topic_report(body):
@@ -4116,7 +4653,7 @@ def sl_get_topic_report(body):
     top_sites = [{'domain': d, 'count': c} for d, c in
                  sorted(site_counts.items(), key=lambda kv: kv[1], reverse=True)[:8]]
 
-    return {
+    out = {
         'topicId': tid, 'start': start, 'end': end,
         # "Mentions captured", not "Total mentions" — content_analysis/search/live
         # caps at 20 items/term, so this is a floor on real volume, not the true
@@ -4128,6 +4665,330 @@ def sl_get_topic_report(body):
         'platforms': platforms,
         'days_captured': len(rows),
     }
+
+    # ---- schema 2: the full metric set + previous-period comparison --------
+    span = (_sl_d(end) - _sl_d(start)).days + 1
+    p_end   = _sl_s(_sl_d(start) - timedelta(days=1))
+    p_start = _sl_s(_sl_d(start) - timedelta(days=span))
+    presp = _slsnapshots().query(
+        KeyConditionExpression=Key('topicId').eq(tid) & Key('date').between(p_start, p_end))
+    prows = sorted(_dec(presp.get('Items', [])), key=lambda r: str(r.get('date') or ''))
+
+    # TRUE per-day volume comes from phrase_trends, NOT from the stored daily
+    # snapshots. CRITICAL, and easy to get wrong: content_analysis/summary/live
+    # and search/live both return total_count = the size of the WHOLE matching
+    # corpus, not that day's new mentions. Summing seven daily snapshots of it
+    # reports seven times the corpus (observed: 11,063,231 for a topic whose
+    # corpus is ~2.7M). phrase_trends is the only endpoint whose total_count is
+    # genuinely per-day, so period volume and every over-time series derive from
+    # it. It also backfills history for days we never snapshotted.
+    terms = _sl_report_terms(tid, rows or prows)
+    cur_trend  = _sl_trends(terms, CA_PAGE_TYPES, start, end) if terms else []
+    prev_trend = _sl_trends(terms, CA_PAGE_TYPES, p_start, p_end) if terms else []
+
+    cur  = _sl_aggregate(rows, cur_trend)
+    prev = _sl_aggregate(prows, prev_trend)
+
+    out['metrics'] = cur
+    out['previous'] = prev
+    out['previous_range'] = {'start': p_start, 'end': p_end}
+    out['change'] = {k: _sl_pct_change(cur['kpis'].get(k), prev['kpis'].get(k))
+                     for k in cur['kpis']}
+    # Per-platform benchmark vs the previous period, which the platform table
+    # renders as an up/down column rather than a bare current-period count.
+    out['platform_change'] = {
+        k: _sl_pct_change(v, (prev.get('by_platform') or {}).get(k))
+        for k, v in (cur.get('by_platform') or {}).items()}
+    out['countries_available'] = [{'code': c, 'name': n} for c, n, _ in SL_COUNTRIES]
+    out['days_captured_previous'] = len(prows)
+    return out
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Social Listening — report aggregation
+# ──────────────────────────────────────────────────────────────────────────────
+def _sl_d(s):
+    return datetime.strptime(s, '%Y-%m-%d')
+
+
+def _sl_s(d):
+    return d.strftime('%Y-%m-%d')
+
+
+def _sl_pct_change(cur, prev):
+    """None (not 0) when there's no comparable base, so the UI can show "—"
+    instead of a meaningless +100% on a topic's first period."""
+    try:
+        cur = float(cur or 0); prev = float(prev or 0)
+    except (TypeError, ValueError):
+        return None
+    if not prev:
+        return None
+    return round((cur - prev) / prev * 100, 1)
+
+
+_SL_DT_FORMATS = ('%Y-%m-%d %H:%M:%S %z', '%Y-%m-%dT%H:%M:%S%z',
+                  '%a %b %d %H:%M:%S %z %Y', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d')
+
+
+def _sl_parse_dt(s):
+    """Tolerant timestamp parse — DataForSEO emits "2026-02-03 21:19:39 +00:00"
+    while X emits "Mon Jul 20 23:38:31 +0000 2026". Returns an SGT-shifted naive
+    datetime, or None. DataForSEO occasionally emits absurd years (a real "6827"
+    was observed), so anything implausible is discarded rather than plotted."""
+    if not s:
+        return None
+    txt = str(s).strip().replace('+00:00', '+0000')
+    for fmt in _SL_DT_FORMATS:
+        try:
+            dt = datetime.strptime(txt, fmt)
+        except ValueError:
+            continue
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        dt = dt + timedelta(hours=8)
+        return dt if 2000 <= dt.year <= 2100 else None
+    return None
+
+
+def _sl_report_terms(tid, rows):
+    """Recover a topic's search terms for the report-time trends call. The
+    snapshot rows carry clientId, which with topicId is the topics-table key."""
+    cid = next((r.get('clientId') for r in rows if r.get('clientId')), None)
+    if not cid:
+        return []
+    topic = _dec(_sltopics().get_item(Key={'clientId': cid, 'topicId': tid}).get('Item') or {})
+    client = _dec(_slclients().get_item(Key={'clientId': cid}).get('Item') or {})
+    if not topic:
+        return []
+    brand = client.get('name') or topic.get('name') or ''
+    return _sl_term_group([brand] + list(topic.get('keywords') or []))
+
+
+def _sl_shares(counts):
+    """Normalise a cumulative distribution to fractions summing to 1."""
+    tot = sum(v or 0 for v in counts.values())
+    return {k: (v or 0) / tot for k, v in counts.items()} if tot else {}
+
+
+def _sl_aggregate(rows, trend_rows=None):
+    """Fold a set of daily snapshots into one period's metrics. Handles both
+    schema 1 (pre-country-filter) and schema 2 rows, so a range that straddles
+    the upgrade still aggregates instead of erroring.
+
+    `trend_rows` is the phrase_trends per-day series and is the ONLY valid
+    source of period volume — see the note in sl_get_topic_report. The stored
+    snapshots contribute the things trends cannot: the mention feed, authors,
+    reach, impressions, hashtags and the country/language/platform SHAPE."""
+    trend_rows = trend_rows or []
+    kpis = {'total_mentions': 0, 'mentions_captured': 0, 'reach': 0,
+            'impressions': 0, 'unique_authors': 0, 'engagements': 0,
+            'positive': 0, 'negative': 0, 'neutral': 0, 'net_sentiment': None}
+    trend, emo_trend = [], []
+    by_country, by_language, by_platform, by_category = {}, {}, {}, {}
+    by_social = {}
+    emotions = {k: 0 for k in _SL_EMOTIONS}
+    authors, hashtags, links, domains = {}, {}, {}, {}
+    heat = {}
+    seen, feed = set(), []
+    words = {}
+
+    # ---- period volume + every over-time series, from phrase_trends ----
+    for r in trend_rows:
+        day_sent = {k: (r.get('sentiment') or {}).get(k) or 0
+                    for k in ('positive', 'negative', 'neutral')}
+        day_emo = {k: (r.get('emotions') or {}).get(k) or 0 for k in _SL_EMOTIONS}
+        kpis['total_mentions'] += r.get('total_mentions') or 0
+        for k, v in day_sent.items():
+            kpis[k] += v
+        for k, v in day_emo.items():
+            emotions[k] += v
+        trend.append({'date': r.get('date'), 'total_mentions': r.get('total_mentions') or 0,
+                      'sentiment': day_sent, 'net_sentiment': _sl_net(day_sent)})
+        emo_trend.append({'date': r.get('date'), 'emotions': day_emo})
+
+    # ---- distribution SHAPE, from the most recent snapshot ----
+    # These corpus maps are cumulative, so the newest one is used as-is for its
+    # proportions and then scaled to the period's true volume. Summing them
+    # across days would multiply the corpus by the number of days.
+    latest = rows[-1] if rows else {}
+    lcorpus = latest.get('corpus') or {}
+    cvol = latest.get('country_volume') or {}
+    total = kpis['total_mentions']
+    cshare = _sl_shares(cvol or (lcorpus.get('by_country') or {}))
+    by_country = {k: int(round(v * total)) for k, v in cshare.items() if v}
+    for k, v in _sl_shares(lcorpus.get('by_language') or {}).items():
+        if v:
+            by_language[k] = int(round(v * total))
+    for k, v in _sl_shares(lcorpus.get('by_page_type') or {}).items():
+        if v:
+            by_platform[k] = int(round(v * total))
+    for cid, v in _sl_shares(dict(lcorpus.get('categories') or [])).items():
+        if v:
+            by_category[cid] = int(round(v * total))
+    # Top sites stay on the corpus scale (a true ranking of where mentions
+    # appear). The feed loop below deliberately does NOT add to these — mixing
+    # a corpus count with a +1-per-captured-item tally would compare two
+    # different scales in one table.
+    for dom, n in (lcorpus.get('top_domains') or []):
+        domains[dom] = n
+    corpus_domains = set(domains)
+
+    for row in rows:
+        # Web feed + social posts share one deduped mention list, so "unique
+        # authors" and the heatmap span both sources rather than just one.
+        rowfeed = list(row.get('feed') or row.get('mentions') or [])
+        for slot in (row.get('social') or {}).values():
+            rowfeed.extend(slot.get('posts') or [])
+        for m in rowfeed:
+            url = m.get('url')
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            feed.append(m)
+
+    for m in feed:
+        src = m.get('source') or 'web'
+        if src != 'web':
+            # Social platforms are a COUNT OF CAPTURED POSTS, capped by
+            # SL_APIFY_CAP — not a corpus estimate like the web page types. They
+            # therefore live in their own map so no chart ever puts "1.6M
+            # ecommerce pages" and "60 tweets" on the same axis.
+            by_social[src] = by_social.get(src, 0) + 1
+        a = (m.get('author') or '').strip()
+        if a:
+            slot = authors.setdefault(a, {'author': a, 'mentions': 0, 'followers': 0,
+                                          'url': m.get('author_url'),
+                                          'platform': src})
+            slot['mentions'] += 1
+            slot['followers'] = max(slot['followers'], int(m.get('followers') or 0))
+        for h in (m.get('hashtags') or []):
+            hashtags[h] = hashtags.get(h, 0) + 1
+        for u in (m.get('links') or []):
+            links[u] = links.get(u, 0) + 1
+        dom = m.get('domain')
+        if dom and not corpus_domains:
+            domains[dom] = domains.get(dom, 0) + 1
+        v = m.get('views')
+        if isinstance(v, (int, float)):
+            kpis['impressions'] += int(v)
+        for f in ('likes', 'shares', 'comments'):
+            n = m.get(f)
+            if isinstance(n, (int, float)):
+                kpis['engagements'] += int(n)
+        lang = m.get('language')
+        if lang and not by_language:
+            by_language[lang] = by_language.get(lang, 0) + 1
+        dt = _sl_parse_dt(m.get('date'))
+        if dt:
+            heat['%d-%d' % (dt.weekday(), dt.hour)] = heat.get('%d-%d' % (dt.weekday(), dt.hour), 0) + 1
+        for w in _sl_words(m.get('title'), m.get('snippet')):
+            words[w] = words.get(w, 0) + 1
+
+    # Reach = distinct authors' follower counts, summed once per author. Summing
+    # per POST would multiply-count the same audience for a prolific author,
+    # which is how listening tools overstate reach.
+    kpis['reach'] = sum(a['followers'] for a in authors.values())
+    kpis['unique_authors'] = len(authors)
+    kpis['mentions_captured'] = len(feed)
+    kpis['net_sentiment'] = _sl_net({k: kpis[k] for k in ('positive', 'negative', 'neutral')})
+
+    top = lambda d, n: [{'key': k, 'count': v} for k, v in
+                        sorted(d.items(), key=lambda kv: kv[1], reverse=True)[:n]]
+    author_rows = sorted(authors.values(), key=lambda a: (-a['mentions'], -a['followers']))[:25]
+    tot_auth_mentions = sum(a['mentions'] for a in authors.values()) or 1
+    for a in author_rows:
+        a['share'] = round(a['mentions'] / tot_auth_mentions * 100, 1)
+
+    return {
+        'kpis': kpis,
+        'trend': trend,
+        'emotion_trend': emo_trend,
+        'emotions': emotions,
+        'by_country': by_country,
+        'by_language': by_language,
+        'by_platform': by_platform,
+        'by_social': by_social,
+        'categories': _sl_category_names(by_category),
+        'top_domains': top(domains, 12),
+        'top_authors': author_rows,
+        'top_hashtags': top(hashtags, 20),
+        'top_urls': top(links, 15),
+        'word_cloud': top(words, 60),
+        'heatmap': heat,
+        'feed': feed[:250],
+    }
+
+
+def _sl_net(sent):
+    """Net sentiment = (positive - negative) / total, as a percentage."""
+    tot = sum((sent.get(k) or 0) for k in ('positive', 'negative', 'neutral'))
+    if not tot:
+        return None
+    return round(((sent.get('positive') or 0) - (sent.get('negative') or 0)) / tot * 100, 1)
+
+
+_SL_STOPWORDS = set('''a an and are as at be but by for from has have he her his how i if in
+is it its of on or our she that the their them they this to was we were what when where which
+who will with you your about after all also any been can could do does did had more most no
+not now one out over said say says so some such than then there these those too up use very
+via want way well were will would just like get got new news via amp http https com www rt'''.split())
+
+
+def _sl_words(*texts):
+    """Word-cloud tokens. Stopword-filtered and length-bounded; hashtags keep
+    their tag form so #brandname doesn't fragment into a bare word."""
+    out = []
+    for t in texts:
+        if not t:
+            continue
+        for w in re.findall(r'#?[A-Za-z][A-Za-z0-9\'-]{2,}', str(t).lower()):
+            if w.lstrip('#') in _SL_STOPWORDS or len(w) > 24:
+                continue
+            out.append(w)
+    return out
+
+
+_SL_CAT_CACHE = {}
+
+
+def _sl_category_names(counts):
+    """Turn DataForSEO numeric category ids into names for the topic wheel.
+    The id->name list is ~3,200 rows and static, so it's fetched once per warm
+    container; if the lookup fails the wheel still renders with bare ids."""
+    if not counts:
+        return []
+    if not _SL_CAT_CACHE:
+        try:
+            headers = _sl_dfs_headers()
+            if headers:
+                r = requests.get(f'{DFS_BASE}/content_analysis/categories',
+                                 headers=headers, timeout=25)
+                for c in ((r.json().get('tasks') or [{}])[0].get('result') or []):
+                    if c.get('category_code'):
+                        _SL_CAT_CACHE[int(c['category_code'])] = c.get('category_name')
+        except (requests.exceptions.RequestException, ValueError, KeyError):
+            pass
+    # Some ids DataForSEO returns in text_category are absent from every
+    # published taxonomy (verified 2026-07-21: 10137 and 12014 resolve in
+    # neither content_analysis/categories nor dataforseo_labs/categories, and
+    # they're often the single largest bucket). Showing a client "Category
+    # 10137" is noise, but dropping them would silently understate the wheel —
+    # so they collapse into one honest "Unclassified" slice.
+    rows, unknown = [], 0
+    for cid, n in sorted(counts.items(), key=lambda kv: kv[1], reverse=True):
+        try:
+            name = _SL_CAT_CACHE.get(int(cid))
+        except (TypeError, ValueError):
+            name = None
+        if name:
+            rows.append({'id': cid, 'name': name, 'count': n})
+        else:
+            unknown += n
+    rows = rows[:20]
+    if unknown:
+        rows.append({'id': None, 'name': 'Unclassified', 'count': unknown})
+    return rows
 
 
 def sl_cron_snapshot_all(body):
@@ -4156,7 +5017,9 @@ def sl_cron_snapshot_one(body):
     tid = (body.get('topicId') or '').strip()
     if not cid or not tid:
         raise RuntimeError('Missing clientId or topicId.')
-    item = _sl_snapshot_topic(cid, tid, 'daily-cron@auto')
+    # `who` is set when a user pressed "Pull now" (sl_pull_topic self-invokes
+    # this); absent when the EventBridge schedule fired it.
+    item = _sl_snapshot_topic(cid, tid, body.get('who') or 'daily-cron@auto')
     return {'ok': True, 'snapshot': item}
 
 
