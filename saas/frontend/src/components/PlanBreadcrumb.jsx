@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Target, Check, ArrowRight, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { usePlan } from '../context/PlanContext.jsx';
-import { startStep, stepLabel } from '../lib/planner.js';
+import { stepTarget, stepLabel } from '../lib/planner.js';
 import { usePlanStripDismissed } from '../lib/planStrip.js';
 
 // A slim, full-width progress strip that sits under the top nav on EVERY page,
@@ -18,14 +18,13 @@ import { usePlanStripDismissed } from '../lib/planStrip.js';
 export default function PlanBreadcrumb() {
   const { hasPlan, plan, progress, isStepDone } = usePlan();
   const navigate = useNavigate();
-  const { pathname } = useLocation();
   const [expanded, setExpanded] = useState(false);
   const [dismissed, setDismissed] = usePlanStripDismissed();
 
   if (dismissed || !hasPlan || progress.complete) return null;
 
   const { done, total, pct, next } = progress;
-  const go = (item) => startStep(item, { navigate, pathname });
+  const go = (item) => navigate(stepTarget(item).to);
 
   return (
     <div className="border-t border-hair bg-brand-50/60 dark:bg-brand-500/[0.07]">
