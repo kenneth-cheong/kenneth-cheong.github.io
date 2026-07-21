@@ -5208,19 +5208,23 @@ def _li_share_stats(oid, token, since_ms, until_ms):
     def s(k, v):
         if v:
             out[k] = v
-    s('impressions', agg['impressionCount'])
+    impressions = agg['impressionCount'] or None
+    s('impressions', impressions)
     reach = agg['uniqueImpressionsCount'] or None
     s('reach', reach); s('page_reach', reach)
     s('clicks', agg['clickCount']); s('likes', agg['likeCount'])
     s('comments', agg['commentCount']); s('shares', agg['shareCount'])
     interactions = agg['likeCount'] + agg['commentCount'] + agg['shareCount'] + agg['clickCount']
     s('engagements', interactions)
-    # LinkedIn's own engagement-rate formula is (Reactions + Comments + Shares) / Reach —
-    # clicks are tracked separately above but excluded here, and the denominator is
-    # unique reach, not impressions.
-    engagement_num = agg['likeCount'] + agg['commentCount'] + agg['shareCount']
-    if reach:
-        out['engagement_rate'] = round(engagement_num / reach * 100, 2)
+    # LinkedIn's own engagement rate is engagements / IMPRESSIONS — clicks count as
+    # engagements and the denominator is impressions, not unique reach (LinkedIn
+    # prioritises impressions, and that's what its native analytics reports). This
+    # used to divide reactions+comments+shares by reach, which read far lower than
+    # the client's own LinkedIn dashboard. Emitted as engagement_rate_impr (like
+    # Facebook) so the label says which denominator it used; Instagram keeps
+    # engagement_rate over reach, which is Instagram's own definition.
+    if impressions and 0 < interactions <= impressions:
+        out['engagement_rate_impr'] = round(interactions / impressions * 100, 2)
     return out
 
 
