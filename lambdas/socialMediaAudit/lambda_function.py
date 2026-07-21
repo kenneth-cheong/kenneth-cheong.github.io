@@ -178,6 +178,10 @@ METRIC_AGG = {
     'video_views':'sum','avg_video_views':'avg','avg_watch_time':'avg',
     'video_frequency':'avg','full_video_watch_rate':'avg','posts_per_week':'sum',
     'avg_likes':'avg',
+    # Organic / paid splits — the same roll-up kind as the metric they split.
+    'organic_page_views':'sum','paid_page_views':'sum',
+    'organic_engagement_rate':'avg','paid_engagement_rate':'avg',
+    'view_through_rate':'avg','organic_view_through_rate':'avg','paid_view_through_rate':'avg',
 }
 
 CORS = {
@@ -3705,8 +3709,18 @@ def report_extract_pdf(body):
         '"video_views":number|null,"avg_video_views":number|null,'
         '"avg_watch_time":number|null,"video_frequency":number|null,'
         '"full_video_watch_rate":number|null,"posts_per_week":number|null,'
-        '"avg_likes":number|null}],'
+        '"avg_likes":number|null,"page_views":number|null,'
+        '"organic_page_views":number|null,"paid_page_views":number|null,'
+        '"organic_engagement_rate":number|null,"paid_engagement_rate":number|null,'
+        '"view_through_rate":number|null,"organic_view_through_rate":number|null,'
+        '"paid_view_through_rate":number|null}],'
         '"notes":"one line on anything ambiguous, or empty"}\n'
+        "Organic vs paid: many exports show a Total / Organic / Paid (or "
+        "Sponsored / Promoted / Boosted) split for impressions, page views, "
+        "engagement rate and view-through rate — capture all three when they are "
+        "shown, and leave the organic/paid keys null when the export only gives a "
+        "single blended number. view_through_rate = video views over impressions, "
+        "a percent number. "
         "Field meaning: reach=Reach (daily); page_reach=total Page Reach; "
         "engagement_rate / engagement_rate (reach) is a percent number (0.61 means "
         "0.61); frequency is a multiplier (e.g. 0.99); profile_views=Channel profile "
@@ -4750,6 +4764,49 @@ def _meta_sum_metric(node_id, metric, token, since, until, opts=None):
     return total if got else None
 
 
+def _meta_split_metric(node_id, metric, token, since, until, breakdown, opts=None):
+    """One insight metric split by a breakdown → {bucket: total}, summed over the
+    daily rows and over the ≤30-day chunks _meta_sum_metric uses. None when the
+    call fails or the breakdown came back empty.
+
+    Two response shapes, because Facebook and Instagram disagree:
+      • FB Page insights repeats each day's row once per bucket and tags it with
+        the breakdown name as a top-level key (values:[{value, is_from_ads:'1'}]).
+      • IG returns total_value.breakdowns[].results[].dimension_values.
+    A bucket with nothing in it is simply absent from the response — Meta only
+    returns non-zero breakdown rows — so a missing key means zero, not an error.
+
+    PROBED LIVE 2026-07-21 (Catch Of The Day SG, June 2026), because the docs and
+    a previous pass here disagreed. Facebook CAN split impressions after all:
+    page_media_view + breakdown=is_from_ads → organic 3,594 / paid 114,666. What
+    it cannot split is engagement or reach — page_post_engagements and
+    page_total_media_view_unique silently IGNORE the breakdown and hand back
+    untagged rows, which is why only impressions is split on the FB card."""
+    out, got = {}, False
+    o = dict(opts or {}); o['breakdown'] = breakdown
+    for a, b in _window_chunks(since, until, _INSIGHTS_MAX_WINDOW):
+        try:
+            params = {'metric': metric, 'period': 'day', 'since': a, 'until': b, 'access_token': token}
+            params.update(o)
+            rows = (_meta_get('/' + node_id + '/insights', params).get('data') or [])
+        except Exception as e:
+            print('meta split failed: %s %s/%s: %s' % (node_id, metric, breakdown, str(e)[:160]))
+            continue
+        if not rows:
+            continue
+        row = rows[0]
+        for res in ((row.get('total_value') or {}).get('breakdowns') or []):
+            for r in (res.get('results') or []):
+                vals = r.get('dimension_values') or []
+                if vals:
+                    out[str(vals[0])] = out.get(str(vals[0]), 0) + (_num(r.get('value')) or 0); got = True
+        for v in (row.get('values') or []):
+            if breakdown in v:
+                k = str(v[breakdown])
+                out[k] = out.get(k, 0) + (_num(v.get('value')) or 0); got = True
+    return out if got else None
+
+
 def _meta_fb_insights(page_id, token, since, until):
     """Facebook Page insights for the month.
 
@@ -4788,6 +4845,14 @@ def _meta_fb_insights(page_id, token, since, until):
         if v is not None: out[k] = v
     impressions = _meta_sum_metric(page_id, 'page_media_view', token, since, until)
     s('impressions', impressions)
+    # Organic vs paid impressions — the one split Facebook still gives us. '1' is
+    # ad-driven, '0' is organic; the two add up to the untagged total, so this is a
+    # genuine decomposition (unlike reach, where a person reached by both an ad and
+    # a post would be counted twice).
+    fb_split = _meta_split_metric(page_id, 'page_media_view', token, since, until, 'is_from_ads')
+    if fb_split:
+        s('organic_impressions', fb_split.get('0'))
+        s('paid_impressions',    fb_split.get('1'))
     s('reach', _meta_sum_metric(page_id, 'page_total_media_view_unique', token, since, until))
     # page_post_engagements = reactions + comments + shares + clicks on Page posts,
     # matching the Brandwatch FB interaction-rate formula's numerator directly.
@@ -4836,6 +4901,29 @@ def _meta_ig_insights(ig_id, token, since, until):
     s('engagements', engagements)
     if reach and engagements is not None:
         s('engagement_rate', round(engagements / reach * 100, 2))
+    # ── Organic vs paid ──────────────────────────────────────────────────────
+    # Instagram has no organic/paid flag; media_product_type is the de facto
+    # split — AD is promoted, POST/REEL/CAROUSEL_CONTAINER/STORY are organic.
+    # Probed live 2026-07-21: works on views, total_interactions and reach.
+    # Impressions decompose additively. Engagement rate does NOT — it is computed
+    # per bucket (bucket interactions / bucket reach), because the reach buckets
+    # each count uniques within themselves; someone reached by both an ad and a
+    # post is in both, so they don't sum to the account's unique reach and
+    # organic ≠ total − paid here.
+    def _split(metric):
+        d = _meta_split_metric(ig_id, metric, token, since, until, 'media_product_type', tv)
+        if not d:
+            return None, None
+        paid = _num(d.get('AD')) or 0
+        return sum(v for k, v in d.items() if k != 'AD'), paid
+    org_impr, paid_impr = _split('views')
+    s('organic_impressions', org_impr); s('paid_impressions', paid_impr)
+    org_int, paid_int = _split('total_interactions')
+    org_reach, paid_reach = _split('reach')
+    if org_reach:
+        s('organic_engagement_rate', round((org_int or 0) / org_reach * 100, 2))
+    if paid_reach:
+        s('paid_engagement_rate', round((paid_int or 0) / paid_reach * 100, 2))
     s('likes',                _meta_sum_metric(ig_id, 'likes', token, since, until, tv))
     s('comments',             _meta_sum_metric(ig_id, 'comments', token, since, until, tv))
     s('shares',               _meta_sum_metric(ig_id, 'shares', token, since, until, tv))
