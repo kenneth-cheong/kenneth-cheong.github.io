@@ -3832,7 +3832,7 @@ html[data-theme="dark"] [data-tooltip]::before{background:#1a1f3c}
         </div>
 
         <header>
-            <h1><svg class="otter-mascot" viewBox="0 0 48 48" fill="none" width="30" height="30" style="flex-shrink:0" role="img" aria-label="Monty"><clipPath id="otterHeadClip"><circle cx="24" cy="24" r="24"/></clipPath><g clip-path="url(#otterHeadClip)"><circle cx="24" cy="24" r="24" fill="#e8f0ff"/><image href="assets/monty.jpg" x="-12.52" y="-11.48" width="73.04" height="73.04"/><path d="M8.4 20 Q24 -1 39.6 20" stroke="#2563eb" stroke-width="2.6" fill="none" stroke-linecap="round"/><ellipse cx="8.4" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><ellipse cx="39.6" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><path d="M8.4 24 Q5.5 31 16 32.2" stroke="#2563eb" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="16.3" cy="32.2" r="1.5" fill="#2563eb"/></g></svg> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2989</span></h1>
+            <h1><svg class="otter-mascot" viewBox="0 0 48 48" fill="none" width="30" height="30" style="flex-shrink:0" role="img" aria-label="Monty"><clipPath id="otterHeadClip"><circle cx="24" cy="24" r="24"/></clipPath><g clip-path="url(#otterHeadClip)"><circle cx="24" cy="24" r="24" fill="#e8f0ff"/><image href="assets/monty.jpg" x="-12.52" y="-11.48" width="73.04" height="73.04"/><path d="M8.4 20 Q24 -1 39.6 20" stroke="#2563eb" stroke-width="2.6" fill="none" stroke-linecap="round"/><ellipse cx="8.4" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><ellipse cx="39.6" cy="20.5" rx="2.7" ry="4" fill="#2563eb" stroke="#173a8a" stroke-width="0.5"/><path d="M8.4 24 Q5.5 31 16 32.2" stroke="#2563eb" stroke-width="1.8" fill="none" stroke-linecap="round"/><circle cx="16.3" cy="32.2" r="1.5" fill="#2563eb"/></g></svg> <span id="headerTitle">Digimetrics Chatbot</span> <span id="appVersion" style="font-size:0.72rem; font-weight:600; color:rgba(255,255,255,0.55); letter-spacing:0.5px; margin-left:6px; align-self:flex-end; padding-bottom:3px; flex-shrink:0;">v1.0.2991</span></h1>
             <div class="controls">
                 <!-- Unified Status Bar (Compact) -->
                 <div class="unified-status-bar" id="unifiedStatusBar">
@@ -12198,6 +12198,19 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                 try { data = typeof raw.body === 'string' ? JSON.parse(raw.body) : (raw.body || raw); }
                 catch (e) { data = { error: String(raw.body).slice(0, 300) }; }
 
+                // A Lambda *function* error (timeout, out-of-memory) is not a normal return:
+                // it comes back with an X-Amz-Function-Error header, and this integration has
+                // a single `200` response with no selectionPattern, so API Gateway passes it
+                // through as HTTP 200 carrying {errorMessage, errorType} and NO statusCode.
+                // Both checks below would then miss it and we'd render an empty bot bubble.
+                if (data && data.errorMessage && !data.reply) {
+                    const _fnErr = String(data.errorMessage);
+                    const _timedOut = /timed out/i.test(_fnErr) || /timeout/i.test(String(data.errorType || ''));
+                    throw new Error(_timedOut
+                        ? 'That question took too long for one turn (the server caps a single answer at about 3 minutes). Try narrowing it, or split it into two questions.'
+                        : `Server error: ${_fnErr.slice(0, 200)}`);
+                }
+
                 // Check for nested Anthropic errors in the body
                 if (data.error && typeof data.error === 'object') {
                     const errMsg = data.error.message || JSON.stringify(data.error);
@@ -12211,6 +12224,8 @@ Keep it clean and easy to copy-paste: no second-person "you", concise bullets, s
                     let errorMsg = data.error || data.message || `Request failed (HTTP ${statusCode})`;
                     if (statusCode === 413 || /request too long|content length exceeded/i.test(String(data.message || ''))) {
                         errorMsg = 'This conversation is too large to send (over the 6 MB request limit) — usually a big image or scanned PDF. Start a new chat, or remove the attachments, then try again.';
+                    } else if (statusCode === 504 || /endpoint request timed out/i.test(String(data.message || ''))) {
+                        errorMsg = 'That question took too long for one turn (the server caps a single answer at about 3 minutes). Try narrowing it, or split it into two questions.';
                     }
                     if (data.detail) {
                         try {
