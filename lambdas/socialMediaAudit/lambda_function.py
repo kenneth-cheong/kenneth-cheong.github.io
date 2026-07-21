@@ -5246,10 +5246,29 @@ def _li_follower_gains(oid, token, since_ms, until_ms):
     return {'followers_increase': total, 'net_new_followers': total, 'followers_growth_30d': total}
 
 
+def _li_video_thumb(urn, token, _cache):
+    """Resolve a urn:li:video:… to its cover still. The Videos API hands back a
+    ready-to-use media.licdn.com `thumbnail` URL — LinkedIn generates one even
+    when the poster never uploaded a custom cover — so video posts get a real
+    thumbnail instead of the type placeholder. '' on any failure."""
+    if not urn or not isinstance(urn, str) or ':video:' not in urn:
+        return ''
+    if urn in _cache:
+        return _cache[urn]
+    url = ''
+    try:
+        d = _li_get('/videos/' + quote(urn, safe=''), token) or {}
+        url = d.get('thumbnail') or ''
+    except Exception:
+        url = ''
+    _cache[urn] = url
+    return url
+
+
 def _li_image_url(urn, token, _cache):
     """Resolve a urn:li:image:… to a displayable media.licdn.com download URL
     (cached per pull to avoid re-fetching a repeated asset). '' on any failure
-    or for non-image URNs (e.g. video), which fall back to a placeholder."""
+    or for non-image URNs (e.g. video) — see _li_video_thumb for those."""
     if not urn or not isinstance(urn, str) or ':image:' not in urn:
         return ''
     if urn in _cache:
@@ -5273,7 +5292,14 @@ def _li_content_media(content, token, _cache):
     if isinstance(media, dict):
         mid = media.get('id') or ''
         typ = 'video' if isinstance(mid, str) and ':video:' in mid else 'image'
-        return _li_image_url(media.get('id') or media.get('thumbnail'), token, _cache), typ
+        if typ == 'video':
+            # `id` is the video URN, so the old `id or thumbnail` never reached
+            # the thumbnail and every video came back coverless. Try the post's
+            # own thumbnail URN first (free — already in this payload), then pay
+            # for a Videos API lookup on the video URN.
+            return (_li_image_url(media.get('thumbnail'), token, _cache)
+                    or _li_video_thumb(mid, token, _cache)), typ
+        return _li_image_url(mid or media.get('thumbnail'), token, _cache), typ
     multi = content.get('multiImage')
     if isinstance(multi, dict):
         for im in (multi.get('images') or []):
