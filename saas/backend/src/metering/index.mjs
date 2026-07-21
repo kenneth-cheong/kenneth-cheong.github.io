@@ -45,7 +45,18 @@ import { rateLimit, RUN_LIMITS } from '../lib/ratelimit.mjs';
 // How many free "teaser" runs a locked tool allows per user per month.
 const TEASER_RUNS_PER_MONTH = 1;
 
+// Absolute epoch-ms this invocation must be finished by, captured at handler
+// entry so optional deep-in-the-stack stages (cwDeepCompare) can ask "does this
+// still fit?" without threading `context` through six call layers. Lambda runs
+// one event at a time per container, so a module-scoped value can never be read
+// by a different invocation. Infinity when there's no clock (unit tests).
+let INVOCATION_DEADLINE_AT = 0;
+const msRemaining = () => (INVOCATION_DEADLINE_AT ? Math.max(0, INVOCATION_DEADLINE_AT - Date.now()) : Infinity);
+
 export const handler = async (event, context) => {
+  if (typeof context?.getRemainingTimeInMillis === 'function') {
+    INVOCATION_DEADLINE_AT = Date.now() + context.getRemainingTimeInMillis();
+  }
   // Background self-invocation (InvocationType: Event) — finalize an async
   // Social Audit independently of any browser tab. Not an HTTP event, so it must
   // branch BEFORE any CORS/auth/rate-limit handling.
@@ -1117,10 +1128,6 @@ function sectionsOnpage(url, recs, extraction, contentRows) {
 async function geoOnpageRun(body) {
   // Free helper: "AI suggest" on the required target-prompts box — reads the
   // page and drafts the prompts (+ brand / industry / audience). Never charged.
-  // It lives HERE, not in callUpstreamRaw's suggest block with persona/sem-copy:
-  // this tool is dispatched to its own runner earlier in that chain, so a guard
-  // down there never runs and every "AI suggest" click fired a full 90s, 5-credit
-  // analysis instead.
   if (String(body.action || '').trim() === 'suggest') return geoOnPageSuggest(body);
   const a = ADAPTERS['geo-onpage'];
   const raw = await postUpstream(UPSTREAMS.geoOnPageAnalysis, a.request(body));
@@ -3557,8 +3564,8 @@ function parseOutlineSections(outline) {
 
 /** postUpstream + fold the aiOptimiser call's real token usage into `acc`
  *  ({in, out, calls}) so the run can be metered on actual work, not a flat fee. */
-async function postOptimiser(url, payload, acc) {
-  const raw = await postUpstream(url, payload);
+async function postOptimiser(url, payload, acc, opts) {
+  const raw = await postUpstream(url, payload, opts);
   if (acc) {
     const d = deepBody(raw);
     const u = (d && typeof d === 'object' && d.usage) || {};
@@ -3569,12 +3576,247 @@ async function postOptimiser(url, payload, acc) {
   return raw;
 }
 
+// ── Content Optimiser: live competitor research ──────────────────────────────
+// index.html runs this interactively — SERP fan-out draws a grid of competitor
+// cards and the user ticks the topics they want covered. There is no grid here,
+// so it runs headless ahead of the draft and fills the three parameters the
+// aiOptimiser Lambda has always accepted but that this gateway sent empty:
+// `selectedTopics`, `targetWordCount` and (Phase 2) `deepCompareContext`.
+// No prompt work is involved — the Lambda already knows what to do with them.
+const CW_RESEARCH_URLS = 10;   // competitors we actually read (SERP returns ~20)
+const CW_FALLBACK_TOPICS = 12; // when the AI picker fails, take the top N by consensus
+// The picker is generous — a live run on "project management software" returned
+// 23 topics from 88 candidates. index.html can afford that because a human then
+// prunes the list; here it goes straight into the outline, and 23 topics across
+// a ~2,350-word target is ~100 words each: a listicle of stubs. Cap it so the
+// draft covers the important topics properly instead of all of them thinly.
+const CW_MAX_TOPICS = 15;
+
+/** Sum a gptTopicsPerUrl topic map ({topic: wordCount}) into a page word count. */
+function cwTopicWords(topics) {
+  return Object.values(topics || {}).reduce((n, v) => n + (Number(v) || 0), 0);
+}
+
+/** Median competitor length, rounded to the nearest 50 — the same rule as
+ *  index.html's calculateTargetWordCount. Median, not mean: one 8,000-word
+ *  outlier pillar page shouldn't drag every draft up with it. */
+function cwMedianWordTarget(counts) {
+  const nums = counts.filter((n) => n > 0).sort((a, b) => a - b);
+  if (!nums.length) return 0;
+  return Math.round(nums[Math.floor(nums.length / 2)] / 50) * 50;
+}
+
+/** SERP → per-competitor topic extraction → AI topic pick. Never throws: every
+ *  stage degrades to "no research" with a `skipped` reason we show the user,
+ *  because an unbriefed draft is still a usable draft. */
+async function cwResearch({ keyword, location, language, pageType, secondaryArr, jobId, usage }) {
+  const none = (skipped) => ({ topics: [], wordTarget: 0, competitors: [], skipped });
+  if (!keyword) return none('we had no target keyword to search for');
+
+  await cwStage(jobId, { stage: 'Finding the pages that rank for your keyword' });
+  let urls = [];
+  try {
+    const raw = deepBody(await postUpstream(UPSTREAMS.moreSerps, {
+      keyword, language, location,
+      page_types: pageType && !/^any$/i.test(pageType) ? pageType : 'any',
+      limit: 20,
+      // 30s (copied from sdxSerp) is NOT enough here: measured 29s and 46s on
+      // back-to-back live calls for the same keyword, so the shorter timeout
+      // was killing the whole research pass roughly half the time.
+    }, { timeoutMs: 120000 }));
+    urls = Object.values(raw && typeof raw === 'object' ? raw : {})
+      .map((r) => r && r.url).filter(Boolean).slice(0, CW_RESEARCH_URLS);
+  } catch { return none('the search-results lookup failed'); }
+  if (!urls.length) return none('no ranking pages came back for this keyword and market');
+
+  const stageLabel = `Reading ${urls.length} ranking pages`;
+  await cwStage(jobId, { stage: stageLabel, progress: { done: 0, total: urls.length } });
+  let done = 0;
+  const pages = await Promise.all(urls.map((u) =>
+    postOptimiser(UPSTREAMS.gptTopicsPerUrl, { url: u, keyword }, usage)
+      .then((raw) => {
+        const d = deepBody(raw);
+        const topics = d && d[u] && d[u].topics;
+        return topics && Object.keys(topics).length ? { url: u, topics } : null;
+      })
+      .catch(() => null) // one blocked competitor must not sink the research pass
+      .then((r) => {
+        done += 1;
+        cwStage(jobId, { stage: stageLabel, progress: { done, total: urls.length } }).catch(() => {});
+        return r;
+      })
+  ));
+
+  const good = pages.filter(Boolean);
+  if (!good.length) return none("we couldn't read any of the ranking pages");
+
+  const freq = new Map();
+  for (const p of good) {
+    for (const t of Object.keys(p.topics)) {
+      const k = String(t).trim();
+      if (k) freq.set(k, (freq.get(k) || 0) + 1);
+    }
+  }
+  const allTopics = [...freq.entries()].map(([topic, frequency]) => ({ topic, frequency }));
+  const competitors = good.map((p) => ({ url: p.url, words: cwTopicWords(p.topics), topicCount: Object.keys(p.topics).length }));
+  const wordTarget = cwMedianWordTarget(competitors.map((c) => c.words));
+
+  let topics = [];
+  if (allTopics.length) {
+    await cwStage(jobId, { stage: 'Picking the topics your draft has to cover' });
+    try {
+      const d = deepBody(await postOptimiser(UPSTREAMS.aiTopicPicker, {
+        primary_keyword: keyword, secondary_keywords: secondaryArr, all_topics: allTopics, location,
+      }, usage));
+      topics = Array.isArray(d && d.selected_topics) ? d.selected_topics.filter(Boolean).map(String) : [];
+    } catch { /* fall through to consensus ranking */ }
+  }
+  // The picker is the ONLY thing choosing topics here — index.html can fall back
+  // on a human ticking boxes, we can't. So a failed pick must not silently
+  // un-brief the writer: take the topics the most competitors agreed on.
+  if (!topics.length) {
+    topics = allTopics.sort((a, b) => b.frequency - a.frequency).slice(0, CW_FALLBACK_TOPICS).map((t) => t.topic);
+  }
+  return { topics: topics.slice(0, CW_MAX_TOPICS), wordTarget, competitors, skipped: '' };
+}
+
+// ── Content Optimiser: Deep Compare (Optimise mode only) ─────────────────────
+// deepContentCompare needs a page of YOURS to compare against, so unlike the
+// research pass above it cannot run in Write mode — there is no target URL. It
+// is also the slowest call in the agency stack: index.html tells users to expect
+// `competitors × 30 + 30` seconds, i.e. ~3 minutes for five. That makes it the
+// one stage that can plausibly push a run past the Lambda deadline, so it is
+// gated on remaining time and skipped (loudly) rather than risking the draft.
+const CW_DEEP_COMPARE_URLS = 5;
+const CW_DEEP_COMPARE_MS = 210000;      // hard cap on the call itself (5 × 30 + 30, + margin)
+const CW_DEEP_COMPARE_RESERVE_MS = 420000; // writer + QA agents still to come (measured 386s)
+
+// [key, heading] for the five issue tables deepContentCompare returns. Each row
+// is {issue, competitor_approach, target_gap, fix}.
+const CW_DC_TABLES = [
+  ['eeat_trust_signals', 'E-E-A-T & trust signals'],
+  ['topical_authority', 'Topical authority & content clusters'],
+  ['competitive_differentiation', 'Competitive differentiation & SERP positioning'],
+  ['technical_schema_seo', 'Technical & schema SEO'],
+  ['audience_targeting', 'Audience targeting & reader psychology'],
+];
+
+/** Flatten the Deep Compare payload into a prompt-sized brief. index.html dumps
+ *  raw JSON.stringify into the prompt; that carries punctuation the model has to
+ *  pay for and parse, so this writes prose-ish lines and caps the total — an
+ *  over-long context here silently crowds out the draft itself. */
+function cwDeepCompareBrief(data) {
+  const lines = [];
+  for (const [key, heading] of CW_DC_TABLES) {
+    const rows = Array.isArray(data?.[key]) ? data[key] : [];
+    if (!rows.length) continue;
+    lines.push('', `${heading.toUpperCase()}:`);
+    for (const r of rows.slice(0, 6)) {
+      lines.push(`- ${r.issue || ''}${r.target_gap ? ` — we lack: ${r.target_gap}` : ''}${r.fix ? ` — fix: ${r.fix}` : ''}`);
+      // What the ranking pages actually do about it — the model needs something
+      // to emulate, not just a list of our own shortcomings. Truncated because
+      // these run long and 20 of them would eat the whole context budget.
+      if (r.competitor_approach) lines.push(`  competitors: ${String(r.competitor_approach).slice(0, 200)}`);
+    }
+  }
+  return lines.join('\n').trim().slice(0, 12000);
+}
+
+/** The ranked "do this first" list. deepContentCompare DOES define a
+ *  `priority_action_plan`, but a live run on a real page returned all five issue
+ *  tables and no plan at all — index.html renders that block conditionally, so
+ *  the gap was invisible there. Derive one when it's missing, taking the top row
+ *  from each dimension before the second row of any, so a single dimension with
+ *  many findings can't crowd out the other four. */
+function cwDeepComparePlan(data, limit = 8) {
+  const given = Array.isArray(data?.priority_action_plan) ? data.priority_action_plan : [];
+  if (given.length) return given.slice(0, limit);
+
+  const tables = CW_DC_TABLES
+    .map(([key, heading]) => [heading, Array.isArray(data?.[key]) ? data[key] : []])
+    .filter(([, rows]) => rows.length);
+  const out = [];
+  const depth = Math.max(0, ...tables.map(([, rows]) => rows.length));
+  for (let i = 0; i < depth && out.length < limit; i++) {
+    for (const [heading, rows] of tables) {
+      if (out.length >= limit) break;
+      const r = rows[i];
+      if (!r || !(r.fix || r.issue)) continue;
+      // NOT expected_outcome: the issue is what's wrong, not what fixing it
+      // achieves — putting it after an arrow would read backwards.
+      out.push({ priority: out.length + 1, action: r.fix || r.issue, expected_outcome: '', effort: '', dimension: heading });
+    }
+  }
+  return out;
+}
+
+/** Compare the user's own page against the top competitors. Returns
+ *  `{ brief, plan, skipped }`; never throws. */
+async function cwDeepCompare({ targetUrl, competitors, keyword, jobId, usage, researchSkipped = '' }) {
+  const none = (skipped) => ({ brief: '', plan: [], skipped });
+  if (!targetUrl) return none('');    // Write mode / pasted text — not applicable, say nothing
+  // If the research pass didn't run, it has ALREADY told the user why. Adding a
+  // second callout here would read as two separate failures instead of one.
+  if (researchSkipped) return none('');
+  if (!competitors.length) return none('we had no competitor pages to compare against');
+
+  const need = CW_DEEP_COMPARE_MS + CW_DEEP_COMPARE_RESERVE_MS;
+  if (msRemaining() < need) {
+    return none('there wasn’t enough time left in this run to also compare your page against them');
+  }
+
+  const urls = competitors.map((c) => c.url).filter((u) => u !== targetUrl).slice(0, CW_DEEP_COMPARE_URLS);
+  if (!urls.length) return none('we had no competitor pages to compare against');
+
+  await cwStage(jobId, { stage: `Comparing your page against ${urls.length} competitors` });
+  try {
+    const d = deepBody(await postOptimiser(UPSTREAMS.deepContentCompare, {
+      target_url: targetUrl, competitor_urls: urls, keyword,
+    }, usage, { timeoutMs: CW_DEEP_COMPARE_MS }));
+    // The Lambda surfaces its own failures as {error}; don't turn that into an
+    // empty-but-successful brief the writer would treat as "nothing to fix".
+    if (!d || typeof d !== 'object' || d.error) return none(d?.error ? `the comparison failed (${d.error})` : 'the comparison returned nothing usable');
+    const brief = cwDeepCompareBrief(d);
+    if (!brief.trim()) return none('the comparison returned no findings');
+    return { brief, plan: cwDeepComparePlan(d), skipped: '' };
+  } catch (e) {
+    return none(`the comparison didn’t finish (${e.message})`);
+  }
+}
+
+// A measured optimise run with research + Deep Compare landed at 669s against a
+// 880s self-deadline — and that was the DEFAULT 8-agent depth. "Full audit" is
+// 18 agents, which would be killed mid-flight, throwing away the draft with it.
+// So the QA suite is trimmed to what the remaining time can actually pay for.
+const CW_AGENT_WAVE = 8;            // agents that run as one parallel wave
+const CW_AGENT_WAVE_MS = 200000;    // wall-clock for a wave (the per-call cap is 170s)
+
+/** Keep as much of the QA suite as still fits. Verify agents survive first —
+ *  they're what catch factual and legal problems; research and structure are
+ *  enrichment. Never trims below one wave: a run with no checks isn't a result. */
+function cwFitAgents(agents, left = msRemaining()) {
+  if (left === Infinity) return { agents, trimmed: 0 }; // no clock (local/tests)
+  const wavesNeeded = Math.ceil(agents.length / CW_AGENT_WAVE);
+  if (left >= wavesNeeded * CW_AGENT_WAVE_MS) return { agents, trimmed: 0 };
+  const wavesAfforded = Math.max(1, Math.floor(left / CW_AGENT_WAVE_MS));
+  const keep = wavesAfforded * CW_AGENT_WAVE;
+  if (keep >= agents.length) return { agents, trimmed: 0 };
+  const ORDER = { verify: 0, research: 1, structure: 2 };
+  const kept = agents.slice()
+    .sort((a, b) => (ORDER[a.group] ?? 9) - (ORDER[b.group] ?? 9))
+    .slice(0, keep);
+  return { agents: kept, trimmed: agents.length - kept.length };
+}
+
 /** Single-call fallback article (the previous behaviour). */
-async function freeformDraft(url, { topic, keyword, secondaryArr, settings, provider, usage }) {
+async function freeformDraft(url, { topic, keyword, secondaryArr, settings, provider, usage, selectedTopics = [] }) {
+  const mustCover = selectedTopics.length
+    ? ` Make sure the article covers these subjects, which the pages currently ranking for this keyword all address: ${selectedTopics.join('; ')}.`
+    : '';
   const raw = await postOptimiser(url, {
     action: 'content_freeform', provider,
-    userPrompt: `Write a focused, SEO-friendly article about: "${topic}". Use clear H2/H3 headings, a short intro, scannable sections and a brief conclusion. Primary keyword: ${keyword || topic}.`,
-    personaContext: {}, selectedTopics: [], primary_keyword: keyword, secondary_keywords: secondaryArr,
+    userPrompt: `Write a focused, SEO-friendly article about: "${topic}". Use clear H2/H3 headings, a short intro, scannable sections and a brief conclusion. Primary keyword: ${keyword || topic}.${mustCover}`,
+    personaContext: {}, selectedTopics, primary_keyword: keyword, secondary_keywords: secondaryArr,
     compliance_guidelines: [], settings,
   }, usage);
   return stripEditorialMeta(aiText(raw));
@@ -3583,17 +3825,17 @@ async function freeformDraft(url, { topic, keyword, secondaryArr, settings, prov
 /** Write flow: outline → sections (parallel) → polish. Sections are written
  *  concurrently and the polish pass harmonises flow — keeps the one-shot run
  *  inside the gateway budget. Falls back to a single freeform draft on failure. */
-async function writeArticle(url, { topic, keyword, secondaryArr, settings, provider, usage, wordTarget }) {
+async function writeArticle(url, { topic, keyword, secondaryArr, settings, provider, usage, wordTarget, selectedTopics = [] }) {
   const secondary = secondaryArr.join(', ');
   const target = Math.max(0, Number(wordTarget) || 0);
   let outline = '';
   try {
     outline = aiText(await postOptimiser(url, {
       action: 'content_outline', provider, topic, keyword, pageTypeContext: settings.pageType,
-      personaContext: {}, deepCompareContext: '', selectedTopics: [], targetWordCount: target, locale: settings.locale,
+      personaContext: {}, deepCompareContext: '', selectedTopics, targetWordCount: target, locale: settings.locale,
     }, usage));
   } catch { /* fall back to freeform */ }
-  if (!outline || !outline.trim()) return freeformDraft(url, { topic, keyword, secondaryArr, settings, provider, usage });
+  if (!outline || !outline.trim()) return freeformDraft(url, { topic, keyword, secondaryArr, settings, provider, usage, selectedTopics });
 
   const sections = parseOutlineSections(outline).slice(0, 7); // cap for time budget
   // A real word target re-enables the Lambda's per-section hard minimum (it was
@@ -3609,7 +3851,7 @@ async function writeArticle(url, { topic, keyword, secondaryArr, settings, provi
     }, usage).then((raw) => stripEditorialMeta(aiText(raw))).catch(() => '')
   ));
   let full = written.filter(Boolean).join('\n\n');
-  if (!full.trim()) return freeformDraft(url, { topic, keyword, secondaryArr, settings, provider, usage });
+  if (!full.trim()) return freeformDraft(url, { topic, keyword, secondaryArr, settings, provider, usage, selectedTopics });
 
   try {
     const polished = stripEditorialMeta(aiText(await postOptimiser(url, { action: 'content_polish', provider, fullContent: full, settings }, usage)));
@@ -3620,19 +3862,19 @@ async function writeArticle(url, { topic, keyword, secondaryArr, settings, provi
 
 /** Optimise flow: gap analysis → rewrite applying the gaps. Returns the improved
  *  draft (empty if the rewrite failed) plus the gap summary for display. */
-async function optimiseExisting(url, { content, keyword, settings, provider, usage }) {
+async function optimiseExisting(url, { content, keyword, settings, provider, usage, selectedTopics = [], deepCompareContext = '' }) {
   let gap = '';
   try {
     gap = aiText(await postOptimiser(url, {
       action: 'content_gap', provider, pageTypeContext: settings.pageType, personaContext: {},
-      deepCompareContext: '', selectedTopics: [], keyword, editorContent: content, settings,
+      deepCompareContext, selectedTopics, keyword, editorContent: content, settings,
     }, usage));
   } catch { /* no gap analysis */ }
   let rewrite = '';
   if (gap && gap.trim()) {
     try {
       rewrite = aiText(await postOptimiser(url, {
-        action: 'content_rewrite', provider, personaContext: {}, selectedTopics: [], keyword,
+        action: 'content_rewrite', provider, personaContext: {}, selectedTopics, keyword,
         suggestions: gap, originalContent: content, settings,
       }, usage));
       rewrite = stripEditorialMeta((rewrite || '').replace(/```(?:markdown)?\s*/gi, '').replace(/```\s*$/g, '').trim());
@@ -3706,6 +3948,50 @@ async function cwStage(jobId, patch) {
   if (job && job.status !== 'done' && job.status !== 'error') {
     await putCache(cwJobKey(jobId), { ...job, status: 'running', ...patch }, CW_JOB_TTL).catch(() => {});
   }
+}
+
+// ── Live partial results ─────────────────────────────────────────────────────
+// The pipeline finishes real, showable artifacts long before it finishes the run
+// — competitors at ~100s, the priority list at ~280s, the draft at ~400s — but
+// the browser used to see nothing but a stage string until ~500s. cwPublish
+// pushes a snapshot of the sections-so-far onto the SAME job the poller already
+// reads, so the page fills in as work lands.
+//
+// Two deliberate choices:
+//  · It renders through sectionsOptimiser, the same function that builds the
+//    final result, so the in-progress view can never disagree with the finished
+//    one. That's why every section in there is conditional.
+//  · Each write carries the WHOLE snapshot, never a delta. cwStage is
+//    read-modify-write and the per-agent ticks overlap, so concurrent writes can
+//    lose each other; with snapshots a lost write self-heals on the next one,
+//    whereas a lost append would drop that section for good.
+const CW_PUBLISH_MIN_GAP_MS = 2000; // poller runs every 3.5s — finer is pure churn
+
+/** Build a publisher bound to one job. Returns a no-op when there's no job to
+ *  write to (sync runs, tests) or when several models are racing — two pipelines
+ *  publishing into one job would flip the page between their drafts. */
+function cwPublisher(jobId, enabled = true) {
+  if (!jobId || !enabled) return () => {};
+  let last = 0;
+  let inflight = null;
+  return (view, { force = false } = {}) => {
+    const now = Date.now();
+    if (!force && now - last < CW_PUBLISH_MIN_GAP_MS) return inflight || Promise.resolve();
+    last = now;
+    let partial;
+    try { partial = sectionsOptimiser(view); } catch { return Promise.resolve(); }
+    // Progress reporting must never be able to fail the run that's producing it.
+    inflight = cwStage(jobId, { partial }).catch(() => {});
+    return inflight;
+  };
+}
+
+/** A blank view the partial renderer can consume before anything has run. */
+function cwEmptyView(writing, research, deep) {
+  return {
+    writing, draftHtml: '', wordCount: 0, flesch: 0, meta: null, gapSummary: '',
+    linkCount: 0, results: [], research, deep, wordTarget: 0,
+  };
 }
 
 async function contentWriterGateway(body) {
@@ -3859,19 +4145,58 @@ async function contentOptimiserRun(body) {
       : 'Paste some content to optimise (or give us the page URL) — no credits were charged.' };
   }
 
+  // Only a single-model run streams partials — see cwPublisher.
+  const publish = cwPublisher(body._jobId, models.length === 1);
+
+  // Competitor research runs ONCE for the whole run, not once per model: it's
+  // provider-independent, and a staff dual-model A/B would otherwise pay for
+  // the SERP + 10 page reads twice and could brief the two drafts differently,
+  // making the comparison meaningless.
+  const researchUsage = { in: 0, out: 0, calls: 0 };
+  const research = /^off/i.test(String(body.competitorResearch || 'On'))
+    ? { topics: [], wordTarget: 0, competitors: [], skipped: 'you turned competitor research off' }
+    : await cwResearch({
+      keyword: (body.keyword || '').trim(),
+      location: (body.location || 'Singapore').trim(),
+      language: (body.language || 'English').trim(),
+      pageType: body.pageType,
+      secondaryArr: splitItems(body.secondary),
+      jobId: body._jobId, // renamed from _cwJobId on the way in — see contentWriterGateway
+      usage: researchUsage,
+    });
+
+  // First real content the user sees — competitors read + the briefed topics,
+  // roughly 400s before the finished run would have shown them anything.
+  await publish(cwEmptyView(writing, research, { brief: '', plan: [], skipped: '' }), { force: true });
+
+  // Deep Compare needs a page of the user's OWN to compare against, so it is
+  // Optimise-mode-only and only when they gave us a URL (pasted text has no
+  // address to fetch). Like research, it runs once for the whole run.
+  const deep = (!writing && (body.url || '').trim())
+    ? await cwDeepCompare({
+      targetUrl: String(body.url).trim(),
+      competitors: research.competitors,
+      researchSkipped: research.skipped,
+      keyword: (body.keyword || '').trim(),
+      jobId: body._jobId,
+      usage: researchUsage,
+    })
+    : { brief: '', plan: [], skipped: '' };
+  if (deep.plan.length || deep.skipped) await publish(cwEmptyView(writing, research, deep), { force: true });
+
   // Each selected model runs the full pipeline. Distinct providers hit distinct
   // vendor rate limits, so running both in parallel adds little wall-clock.
   const runs = await Promise.all(models.map(async (key) => ({
     key, label: OPTIMISER_MODELS[key].label,
-    view: await runOptimiserPipeline(url, body, OPTIMISER_MODELS[key].provider),
+    view: await runOptimiserPipeline(url, body, OPTIMISER_MODELS[key].provider, research, deep, publish),
   })));
 
   // Meter on the real token spend across every call in every pipeline
-  // (reconcileCost picks this up; the flat ai_long cost is the floor).
+  // (reconcileCost picks this up; the flat ai_long_research cost is the floor).
   const totalUsage = runs.reduce((t, r) => ({
     input_tokens: t.input_tokens + (r.view.usage?.in || 0),
     output_tokens: t.output_tokens + (r.view.usage?.out || 0),
-  }), { input_tokens: 0, output_tokens: 0 });
+  }), { input_tokens: researchUsage.in, output_tokens: researchUsage.out });
 
   if (runs.length === 1) {
     const view = runs[0].view;
@@ -3892,26 +4217,88 @@ async function contentOptimiserRun(body) {
  *  old self-rendered HTML blob that had no theming, filtering or plan hooks.
  *  renderOptimiser stays for the staff model-comparison + old history rows. */
 function sectionsOptimiser(view) {
-  const { writing, draftHtml, wordCount, flesch, meta, gapSummary, linkCount, results } = view;
+  const { writing, draftHtml, wordCount, flesch, meta, gapSummary, linkCount, results, wordTarget } = view;
+  const research = view.research || { topics: [], competitors: [], skipped: '' };
+  const deep = view.deep || { brief: '', plan: [], skipped: '' };
   const scores = results.map((r) => r.parsed && r.parsed.score).filter((s) => s != null && !isNaN(Number(s)));
   const avg = scores.length ? Math.round((scores.reduce((s, v) => s + Number(v), 0) / scores.length) * 10) / 10 : null;
   const failed = results.filter((r) => r.parsed && r.parsed.error).length;
 
   const sections = [{
-    type: 'stats', title: writing ? 'Draft · at a glance' : 'Optimised draft · at a glance',
+    // When the rewrite didn't land, `content` is still the user's ORIGINAL copy
+    // — so these numbers describe their existing page. Calling that "Optimised
+    // draft · at a glance" tells them we improved something we didn't touch.
+    type: 'stats',
+    title: draftHtml ? (writing ? 'Draft · at a glance' : 'Optimised draft · at a glance')
+      : (writing ? 'At a glance' : 'Your current page · at a glance'),
+    // Every stat is conditional so this same function can render a HALF-FINISHED
+    // run for the live progress view (see cwPublish) — "Words 0 · Readability
+    // 0 · Checks run 0" would read as a broken result, not a pending one.
     items: [
-      { label: 'Words', value: wordCount },
-      { label: 'Readability', value: `${flesch} · ${fleschLabel(flesch)}`, tone: flesch >= 60 ? 'green' : flesch >= 50 ? 'amber' : 'red' },
+      wordCount ? { label: 'Words', value: wordCount } : null,
+      wordCount ? { label: 'Readability', value: `${flesch} · ${fleschLabel(flesch)}`, tone: flesch >= 60 ? 'green' : flesch >= 50 ? 'amber' : 'red' } : null,
       avg != null ? { label: 'QA score', value: `${avg}/10`, tone: avg >= 7 ? 'green' : avg >= 5 ? 'amber' : 'red' } : null,
       linkCount ? { label: 'AI links', value: linkCount, tone: 'blue' } : null,
-      { label: 'Checks run', value: results.length, tone: failed ? 'amber' : 'slate' },
+      results.length ? { label: 'Checks run', value: results.length, tone: failed ? 'amber' : 'slate' } : null,
+      research.competitors.length ? { label: 'Competitors read', value: research.competitors.length, tone: 'blue' } : null,
     ].filter(Boolean),
   }];
   if (failed) sections.push({ type: 'callout', text: `${failed} of ${results.length} QA agents didn't finish — their cards below show the error. The rest of the run is unaffected.` });
+  // Dropping checks to beat the clock is a real reduction in what was paid for —
+  // it gets said out loud, not buried in a smaller agent count.
+  if (view.agentsTrimmed > 0) {
+    sections.push({ type: 'callout', text: `This run was going to exceed our time limit, so we ran the ${results.length} most important checks and skipped ${view.agentsTrimmed}. The ones that matter most for accuracy and compliance were kept. Re-run at a lighter depth for the full set.` });
+  }
+  // A gap analysis with no rewrite is a legitimate half-result, but it must not
+  // be mistaken for an optimised page — the numbers above are the ORIGINAL copy.
+  if (!writing && !draftHtml && gapSummary) {
+    sections.push({ type: 'callout', text: 'The rewrite didn’t finish, so this run gives you the gap analysis and quality checks against your existing copy — the page itself hasn’t been rewritten. Re-running usually completes it.' });
+  }
+  // Say plainly when the draft went out unbriefed — otherwise a research-free
+  // run is indistinguishable from a researched one, which is exactly the kind
+  // of silent downgrade that makes people distrust the number above.
+  if (research.skipped) {
+    sections.push({ type: 'callout', text: `Written without competitor research — ${research.skipped}. The draft is still fully QA'd, but it wasn't briefed against the pages that currently rank.` });
+  }
+  // Same rule for Deep Compare: a run that quietly dropped the head-to-head is
+  // not the same product as one that did it. `skipped: ''` means "not
+  // applicable" (Write mode / pasted text) and stays silent.
+  if (deep.skipped) {
+    sections.push({ type: 'callout', text: `We couldn't compare your page head-to-head against the competitors — ${deep.skipped}. The gap analysis below still ran on the topics they cover.` });
+  }
+  if (deep.plan.length) {
+    sections.push({
+      type: 'list',
+      title: `Fix these first — your page vs the ones outranking it (${deep.plan.length})`,
+      note: 'From a head-to-head comparison of your page against the top results, spread across trust, topical authority, differentiation, technical SEO and audience fit.',
+      items: deep.plan.map((p) => [
+        p.priority != null ? `[${p.priority}]` : '',
+        p.dimension ? `${p.dimension} —` : '',
+        mdTrim(String(p.action || ''), 320),
+        p.expected_outcome ? `→ ${p.expected_outcome}` : '',
+        p.effort ? `(${p.effort} effort)` : '',
+      ].filter(Boolean).join(' ')),
+    });
+  }
   if (meta && (meta.title || meta.desc)) {
     sections.push({
       type: 'list', title: 'Suggested meta',
       items: [meta.title ? `Title: ${meta.title}` : '', meta.desc ? `Description: ${meta.desc}` : ''].filter(Boolean),
+    });
+  }
+  // What the writer was actually briefed with — the evidence behind the draft,
+  // and the answer to "why did it cover that?".
+  if (research.topics.length) {
+    const med = cwMedianWordTarget(research.competitors.map((c) => c.words));
+    sections.push({
+      type: 'list',
+      title: `Topics your competitors cover — briefed into the draft (${research.topics.length})`,
+      note: [
+        `Taken from the ${research.competitors.length} page${research.competitors.length === 1 ? '' : 's'} ranking for your keyword`,
+        med ? `median length ${med.toLocaleString()} words` : '',
+        wordTarget ? `target used ${wordTarget.toLocaleString()}` : '',
+      ].filter(Boolean).join(' · ') + '.',
+      items: research.topics,
     });
   }
   if (draftHtml) sections.push({ type: 'html', title: writing ? 'Your draft' : 'Optimised draft', html: draftHtml });
@@ -3945,24 +4332,36 @@ function sectionsOptimiser(view) {
         html: p.content && String(p.content).trim().length > 80 ? mdToHtml(mdTrim(String(p.content), 12000)) : '',
       };
     });
-  sections.push({
-    type: 'accordion',
-    title: `Quality checks — ${results.length} agents`,
-    note: 'Each agent reviewed the draft independently. Open a row to see its findings and full write-up.',
-    items,
-  });
+  if (items.length) {
+    // While streaming, `agentsTotal` is the number still to come — without it a
+    // half-done run reads as "Quality checks — 3 agents", i.e. a shallow run
+    // rather than a partial one.
+    const total = Math.max(results.length, Number(view.agentsTotal) || 0);
+    sections.push({
+      type: 'accordion',
+      title: results.length < total
+        ? `Quality checks — ${results.length} of ${total} agents`
+        : `Quality checks — ${results.length} agents`,
+      note: 'Each agent reviewed the draft independently. Open a row to see its findings and full write-up.',
+      items,
+    });
+  }
   return sections;
 }
 
 /** Run the whole optimise/write + QA pipeline once, through a single provider. */
-async function runOptimiserPipeline(url, body, provider) {
+async function runOptimiserPipeline(url, body, provider, research = { topics: [], wordTarget: 0, competitors: [], skipped: '' }, deep = { brief: '', plan: [], skipped: '' }, publish = () => {}) {
   const settings = aiContentSettings(body);
   const keyword = (body.keyword || '').trim();
   const secondaryArr = splitItems(body.secondary);
   const writing = /write/i.test(body.mode || '');
   const location = (body.location || 'Singapore').trim();
   const language = (body.language || 'English').trim();
-  const wordTarget = Math.max(0, Math.min(6000, Number(body.wordCount) || 0));
+  // An explicit user target always wins; otherwise fall back to the median
+  // length of the pages that actually rank (0 = let the AI decide, as before).
+  const askedTarget = Math.max(0, Math.min(6000, Number(body.wordCount) || 0));
+  const wordTarget = askedTarget || Math.min(6000, research.wordTarget || 0);
+  const selectedTopics = research.topics || [];
   const usage = { in: 0, out: 0, calls: 0 }; // real token spend across every call
 
   let content = (body.input || '').trim();
@@ -3970,11 +4369,11 @@ async function runOptimiserPipeline(url, body, provider) {
   let gapSummary = '';
   if (writing) {
     await cwStage(body._jobId, { stage: 'Writing the draft (outline → sections → polish)' });
-    draft = await writeArticle(url, { topic: content, keyword, secondaryArr, settings, provider, usage, wordTarget });
+    draft = await writeArticle(url, { topic: content, keyword, secondaryArr, settings, provider, usage, wordTarget, selectedTopics });
     if (draft) content = draft;
   } else if (content) {
     await cwStage(body._jobId, { stage: 'Analysing content gaps & rewriting' });
-    const opt = await optimiseExisting(url, { content, keyword, settings, provider, usage });
+    const opt = await optimiseExisting(url, { content, keyword, settings, provider, usage, selectedTopics, deepCompareContext: deep.brief });
     gapSummary = opt.gap;
     if (opt.rewrite) { draft = opt.rewrite; content = opt.rewrite; }
   }
@@ -3992,17 +4391,34 @@ async function runOptimiserPipeline(url, body, provider) {
   }
 
   const grp = body.analysis || '';
-  const agents = /^Full/i.test(grp) ? OPTIMISER_AGENTS
+  const asked = /^Full/i.test(grp) ? OPTIMISER_AGENTS
     : /^Research/i.test(grp) ? OPTIMISER_AGENTS.filter((a) => a.group === 'research')
     : /^Structure/i.test(grp) ? OPTIMISER_AGENTS.filter((a) => a.group === 'structure')
     : OPTIMISER_AGENTS.filter((a) => a.group === 'verify');
+  // Better to return a draft with 8 of 18 checks than to be killed at the
+  // deadline and return nothing at all.
+  const { agents, trimmed: agentsTrimmed } = cwFitAgents(asked);
 
   const flesch = calculateFlesch(content);
   const wordCount = content.split(/\s+/).filter(Boolean).length;
+
+  // The draft is the payoff — show it the moment it exists rather than holding
+  // it hostage to the QA agents, which take another minute or two.
+  const liveView = {
+    writing, draftHtml: linkedHtml || (draft ? mdToHtml(draft) : ''), wordCount, flesch,
+    meta, gapSummary, linkCount: linkedHtml ? (linkedHtml.match(/<a\s+[^>]*href=/gi) || []).length : 0,
+    results: [], research, deep, wordTarget, agentsTrimmed,
+  };
+  await publish(liveView, { force: true });
+  liveView.agentsTotal = agents.length; // so a partial accordion says "3 of 8", not "3"
+
   const context = {
     flow: writing ? 'new' : 'optimise', keyword, secondary: secondaryArr.join(', '),
     topic: writing ? (body.input || '').trim() : '', location, language,
-    content, pageType: settings.pageType, compliance: '', personas: '', selectedTopics: '',
+    // selectedTopics is a STRING here (the agent prompts interpolate it), unlike
+    // the array the content_* actions take.
+    content, pageType: settings.pageType, compliance: '', personas: '',
+    selectedTopics: selectedTopics.join(', '),
     wordCount, flesch, fleschLabel: fleschLabel(flesch),
     brandTone: settings.brandTone, jurisdictions: settings.jurisdictions, readingLevel: settings.readingLevel,
   };
@@ -4024,6 +4440,11 @@ async function runOptimiserPipeline(url, body, provider) {
         agentsDone += 1;
         // Fire-and-forget progress write — the browser's status poll reads it.
         cwStage(body._jobId, { stage: `Running ${agents.length} QA agents`, progress: { done: agentsDone, total: agents.length } }).catch(() => {});
+        // …and let the finished check appear in the accordion straight away.
+        // Throttled inside cwPublisher, so a burst of parallel agents finishing
+        // together produces one write, not eighteen.
+        liveView.results.push(r);
+        publish(liveView);
         return r;
       });
 
@@ -4040,7 +4461,7 @@ async function runOptimiserPipeline(url, body, provider) {
 
   const draftHtml = linkedHtml || (draft ? mdToHtml(draft) : '');
   const linkCount = linkedHtml ? (linkedHtml.match(/<a\s+[^>]*href=/gi) || []).length : 0;
-  return { writing, draftHtml, wordCount, flesch, meta, gapSummary, linkCount, results, usage };
+  return { writing, draftHtml, wordCount, flesch, meta, gapSummary, linkCount, results, usage, research, deep, wordTarget, agentsTrimmed };
 }
 
 /** Render two (or more) model runs side by side for staff quality comparison. */
@@ -5094,7 +5515,7 @@ function deepBody(raw) {
 
 // Exposed for unit tests (orchestration is otherwise unreachable without a full
 // authed event). Not used by the handler path.
-export const __test = { connectReasonOf, callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor };
+export const __test = { cwDeepCompareBrief, cwDeepComparePlan, cwMedianWordTarget, cwPublisher, cwEmptyView, cwFitAgents, OPTIMISER_AGENTS, connectReasonOf, callUpstream, crawlRun, aiVisibilityRun, backlinksRun, strategyEngineRun, contentOptimiserRun, contentWriterGateway, sectionsOptimiser, reconcileCost, contentCheckRun, timeToRankRun, anchorCleanerRun, perfMarketingRun, socialAuditRun, parseScaAnswer, schemaRun, keywordAnalysisRun, kwRows, cleanDomain, classifyAnchor, difficultyToTime, parseAgentResult, parsePrompts, brandPrompts, pageIssues, LOC_NAME, clampInt, sectionsChecker, sectionsAnchors, sectionsBacklinks, sectionsPerfMarketing, generateForensicRecommendations, faSeverityFor, faComputeHealthScore, faSections, faParseHomeHtml, faParseRobots, faValidTxt, faStripHtml, buildLlmsTxt, buildLlmsFull, extractSiteLinks, pmSalvageJson, parsePmAnswer, sdxBucketFor };
 
 /**
  * AI endpoints return token usage; convert to actual credits so a tiny caption
@@ -5104,7 +5525,7 @@ export const __test = { connectReasonOf, callUpstream, crawlRun, aiVisibilityRun
  * (multi-stage writer + QA agents), so it meters at a tenth of the single-call
  * rate — a default 8-agent run lands on the advertised flat 5, while a Full
  * 18-agent audit reconciles to roughly 2–3× that instead of 60+. Keeps the
- * "500 credits ≈ 100 AI articles" plan promise true for normal runs while
+ * "500 credits ≈ 62 researched AI articles" plan promise true for normal runs while
  * finally making deeper runs cost more than shallow ones.
  */
 const TOKENS_PER_CREDIT = { 'content-writer': 10000 };

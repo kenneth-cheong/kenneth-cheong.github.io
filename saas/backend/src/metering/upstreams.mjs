@@ -56,7 +56,18 @@ export const UPSTREAMS = {
   keywordsForSite: 'https://ei6xj9x2rd.execute-api.ap-southeast-1.amazonaws.com/keywordsForSite',
   geoOnPageAnalysis: 'https://fhan3l5vta.execute-api.ap-southeast-1.amazonaws.com/geoOnPageAnalysis',
   // SEO Diagnostics — live SERP landscape lane (who ranks above you per keyword).
+  // Also the first stage of the Content Optimiser's competitor research.
   moreSerps: 'https://2wv8kyc8dg.execute-api.ap-southeast-1.amazonaws.com/moreSerps',
+  // Content Optimiser competitor research: per-competitor topic + word-count
+  // extraction, then an LLM pass that picks which topics our draft must cover.
+  // index.html drives these interactively (the competitor grid); here they run
+  // headless before the draft so `selectedTopics` / `targetWordCount` arrive
+  // populated instead of empty. See cwResearch().
+  gptTopicsPerUrl: 'https://u24f9208q0.execute-api.ap-southeast-1.amazonaws.com/gptTopicsPerUrl',
+  aiTopicPicker: 'https://mv0yv43k5d.execute-api.ap-southeast-1.amazonaws.com/aiTopicPicker',
+  // Optimise-mode only: compares the user's OWN page against the ranking ones.
+  // Slow (~30s per competitor) — see cwDeepCompare's time gate.
+  deepContentCompare: 'https://8bbhravqn2.execute-api.ap-southeast-1.amazonaws.com/deepContentCompare',
   // GEO+SEO Forensic Audit — the same probes index.html's autoFillForensicAudit() fires.
   // Site data: title/desc/h1-h2/schema/spam/backlinks/refdomains/domain_rank —
   // ALL of it DataForSEO. Third-party SEO suites (whose terms forbid reselling or
