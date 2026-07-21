@@ -542,9 +542,6 @@ async function callUpstreamRaw(tool, body) {
   // the site (or expands the seeds they already typed) for the chosen market.
   // Never charged; the real ad-copy run still goes through the adapter below.
   if (tool.id === 'sem-copy' && String(body.action || '').trim() === 'suggest') return semCopySuggest(body);
-  // GEO On-Page: same free pass on the target-prompts box (plus the brand /
-  // industry / audience context it can read off the page).
-  if (tool.id === 'geo-onpage' && String(body.action || '').trim() === 'suggest') return geoOnPageSuggest(body);
 
   const url = UPSTREAMS[tool.upstream];
   if (!url) throw new Error(`No upstream URL for ${tool.upstream}`);
@@ -1118,6 +1115,13 @@ function sectionsOnpage(url, recs, extraction, contentRows) {
 // The upstream returns JSON (not HTML), so the pass-through adapter dumped the
 // whole object as a text blob. Render the 5-part report + assets as sections.
 async function geoOnpageRun(body) {
+  // Free helper: "AI suggest" on the required target-prompts box — reads the
+  // page and drafts the prompts (+ brand / industry / audience). Never charged.
+  // It lives HERE, not in callUpstreamRaw's suggest block with persona/sem-copy:
+  // this tool is dispatched to its own runner earlier in that chain, so a guard
+  // down there never runs and every "AI suggest" click fired a full 90s, 5-credit
+  // analysis instead.
+  if (String(body.action || '').trim() === 'suggest') return geoOnPageSuggest(body);
   const a = ADAPTERS['geo-onpage'];
   const raw = await postUpstream(UPSTREAMS.geoOnPageAnalysis, a.request(body));
   const data = unwrapBody(raw);
