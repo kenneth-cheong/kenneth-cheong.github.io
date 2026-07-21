@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// One-shot: create the SGD Stripe products + monthly/annual prices, then write
+// One-shot: create the USD Stripe products + monthly/annual prices, then write
 // each Price ID into SSM Parameter Store where template.yaml reads them.
 //
 //   STRIPE_SECRET_KEY=sk_test_xxx AWS_REGION=ap-southeast-1 node scripts/setup-stripe.mjs
@@ -29,7 +29,7 @@ for (const id of PAID) {
 
   const monthly = await stripe.prices.create({
     product: product.id,
-    currency: CURRENCY.code.toLowerCase(), // sgd
+    currency: CURRENCY.code.toLowerCase(), // usd
     unit_amount: plan.priceMonthly * 100,
     recurring: { interval: 'month' },
     metadata: { tier: id, interval: 'monthly' },

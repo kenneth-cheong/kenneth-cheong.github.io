@@ -3,13 +3,15 @@
 //   • Revenue  — authoritative, from Stripe. Paid invoices = subscription
 //                revenue; succeeded non-invoice charges = one-time top-ups.
 //                Balance transactions supply Stripe processing fees + refunds.
-//                Stripe settles in SGD (our billing currency) so revenue is
+//                Stripe settles in USD (our billing currency) so revenue is
 //                already in the reporting currency — no conversion.
 //   • AWS      — authoritative, from Cost Explorer (ALL services, not just
-//                Amplify). USD, converted to SGD at USD_SGD_RATE.
+//                Amplify). Natively USD.
 //   • AI/data  — an ESTIMATE, not a billed figure: credits consumed in the
 //     COGS      window × COGS_USD_PER_CREDIT (what one credit of Claude / DeepSeek
-//                / DataForSEO / Apify work costs us). Converted USD→SGD.
+//                / DataForSEO / Apify work costs us). Natively USD.
+//
+// Every leg is USD, so nothing is FX-converted — the whole sheet is one currency.
 //
 // Gross profit = net revenue − (AWS + estimated COGS). The COGS line is flagged
 // `estimated: true` end-to-end so the UI can label it honestly.
@@ -18,13 +20,10 @@
 // build, provided by the nodejs20 runtime), so it's imported dynamically here.
 
 import Stripe from 'stripe';
-import { PLANS } from '../../../shared/catalog.mjs';
+import { CURRENCY, PLANS } from '../../../shared/catalog.mjs';
 
 const DAY = 86400000;
-const REPORT_CCY = 'SGD';
-// USD→SGD for the AWS + COGS cost side. Env-overridable so the rate can track
-// reality without a code change; sensible default otherwise.
-const USD_SGD = Number(process.env.USD_SGD_RATE) || 1.35;
+const REPORT_CCY = CURRENCY.code;
 // What one consumed credit actually costs us in vendor spend (USD). The catalog
 // targets 1 credit ≈ US$0.01–0.015 underlying; midpoint default.
 const COGS_USD_PER_CREDIT = Number(process.env.COGS_USD_PER_CREDIT) || 0.012;
@@ -44,38 +43,35 @@ export async function financeReport({ from, to, users = [], consumed = { credits
     awsCost(from, to).catch((e) => ({ error: e.message })),
   ]);
 
-  // Cost side, everything normalised to SGD.
-  const awsSgd = aws.error ? 0 : round2(aws.usd * USD_SGD);
+  // Cost side — AWS and COGS are already USD, the reporting currency.
+  const awsCostUsd = aws.error ? 0 : round2(aws.usd);
   const cogsUsd = round2((consumed.credits || 0) * COGS_USD_PER_CREDIT);
-  const cogsSgd = round2(cogsUsd * USD_SGD);
-  const totalCostSgd = round2(awsSgd + cogsSgd);
+  const totalCost = round2(awsCostUsd + cogsUsd);
 
   const netRevenue = revenue.error ? 0 : revenue.net;
-  const grossProfit = round2(netRevenue - totalCostSgd);
+  const grossProfit = round2(netRevenue - totalCost);
   const marginPct = netRevenue > 0 ? grossProfit / netRevenue : null;
 
   return {
     currency: REPORT_CCY,
     range: { from: from.toISOString(), to: to.toISOString() },
-    fx: { usdSgd: USD_SGD, source: process.env.USD_SGD_RATE ? 'configured' : 'default' },
     revenue,
     mrr: monthlyRunRate(users),
     cost: {
       aws: aws.error
-        ? { error: aws.error, sgd: 0 }
-        : { usd: aws.usd, sgd: awsSgd, granularity: aws.granularity, byService: aws.byService, estimated: aws.estimated },
+        ? { error: aws.error, usd: 0 }
+        : { usd: aws.usd, granularity: aws.granularity, byService: aws.byService, estimated: aws.estimated },
       cogs: {
         credits: consumed.credits || 0,
         usdPerCredit: COGS_USD_PER_CREDIT,
         usd: cogsUsd,
-        sgd: cogsSgd,
         byTool: consumed.byTool || [],
         truncated: !!consumed.truncated,
         estimated: true,
       },
-      totalSgd: totalCostSgd,
+      total: totalCost,
     },
-    profit: { grossProfitSgd: grossProfit, marginPct },
+    profit: { grossProfit, marginPct },
   };
 }
 
@@ -86,7 +82,7 @@ async function stripeRevenue(from, to) {
   const lte = Math.ceil(to.getTime() / 1000);
 
   // Subscriptions: paid invoices in the window (amount actually collected).
-  let subsCents = 0, ccy = 'sgd', i = 0;
+  let subsCents = 0, ccy = REPORT_CCY.toLowerCase(), i = 0;
   for await (const inv of stripe.invoices.list({ created: { gte, lte }, status: 'paid', limit: 100 })) {
     subsCents += inv.amount_paid || 0;
     ccy = inv.currency || ccy;
@@ -114,7 +110,7 @@ async function stripeRevenue(from, to) {
   const fees = d(feeCents);
   const refunds = d(refundCents);
   return {
-    currency: (ccy || 'sgd').toUpperCase(),
+    currency: (ccy || REPORT_CCY).toUpperCase(),
     subscriptions: d(subsCents),
     topups: d(topupCents),
     gross,

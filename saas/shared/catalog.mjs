@@ -5,8 +5,8 @@
 // agree on both sides, but the BACKEND is always the authority that enforces.
 // ─────────────────────────────────────────────────────────────────────────
 
-/** Billing currency — prices below and all Airwallex Prices are created in SGD. */
-export const CURRENCY = { code: 'SGD', symbol: 'S$' };
+/** Billing currency — prices below and all Airwallex Prices are created in USD. */
+export const CURRENCY = { code: 'USD', symbol: 'US$' };
 
 /**
  * Terms/Privacy version. Bump this whenever the legal text materially changes —

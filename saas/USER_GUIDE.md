@@ -47,12 +47,12 @@ If you run low, the app warns you at 80% and again at 100%, and offers you the c
 
 ## 3. The plans
 
-| Plan | Price (SGD/mo) | Credits/mo | Projects | Tracked keywords | What you get |
+| Plan | Price (USD/mo) | Credits/mo | Projects | Tracked keywords | What you get |
 |---|---|---|---|---|---|
-| **Free** | S$0 | 30 | 1 | 0 | Try real tools, results capped. Caption generator, basic keyword + rank checks. |
-| **Starter** | S$39 | 500 | 3 | 25 | Full SEO Toolkit + full AI Content Studio. |
-| **Pro** ⭐ | S$109 | 2,000 | 10 | 250 | Everything in Starter **plus** AI Visibility (GEO), Google/Analytics/Ads integrations, smarter AI model. |
-| **Expert** | S$199 | 6,000 | 25 | 1,000 | Everything, plus white-label PDF export, API access, priority AI queue. |
+| **Free** | US$0 | 30 | 1 | 0 | Try real tools, results capped. Caption generator, basic keyword + rank checks. |
+| **Starter** | US$39 | 500 | 3 | 25 | Full SEO Toolkit + full AI Content Studio. |
+| **Pro** ⭐ | US$109 | 2,000 | 10 | 250 | Everything in Starter **plus** AI Visibility (GEO), Google/Analytics/Ads integrations, smarter AI model. |
+| **Expert** | US$199 | 6,000 | 25 | 1,000 | Everything, plus white-label PDF export, API access, priority AI queue. |
 
 - **Monthly credits reset** each billing cycle (they don't roll over).
 - **Top-up packs** (one-off) *do* roll over — handy if you have a busy month. Buy them from the **Pricing** or **Account** page.

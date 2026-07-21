@@ -1,6 +1,6 @@
 # Deployment runbook — Digimetrics SaaS on AWS
 
-End-to-end, in order. Region: **ap-southeast-1** (Singapore). Currency: **SGD**.
+End-to-end, in order. Region: **ap-southeast-1** (Singapore). Currency: **USD**.
 Everything lives in one AWS account; nothing on GitHub Pages.
 
 Prerequisites: AWS CLI configured, **Node 20+** (the build needs Node 20 on PATH —
@@ -32,7 +32,7 @@ existing OAuth 2.0 Client (`1080212071394-…apps.googleusercontent.com`):
 cd saas/backend
 npm install
 
-# Creates SGD products + monthly/annual prices and writes Price IDs to SSM.
+# Creates USD products + monthly/annual prices and writes Price IDs to SSM.
 STRIPE_SECRET_KEY=sk_test_xxx AWS_REGION=ap-southeast-1 node scripts/setup-stripe.mjs
 ```
 

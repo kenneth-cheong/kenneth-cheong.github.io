@@ -182,7 +182,7 @@ export const handler = async (event) => {
 
   // ── Finances (balance sheet: cost vs revenue) ──────────────────────────────
   // Company-level P&L for the window: Stripe revenue vs AWS spend + an estimated
-  // AI/data COGS line, reconciled into SGD. Like the platform + usage routes,
+  // AI/data COGS line, all in USD. Like the platform + usage routes,
   // this is operational/business metadata (no user's private content), so it's
   // staff-visible. Each load runs one Cost Explorer query (~US$0.01) + a few
   // Stripe list calls.

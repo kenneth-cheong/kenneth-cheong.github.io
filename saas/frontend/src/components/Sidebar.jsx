@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSupportTickets } from '../context/SupportTicketsContext.jsx';
-import { PLANS, TOOLS, CATEGORIES, CATEGORY_META, tierMeets } from '@shared/catalog.mjs';
+import { PLANS, TOOLS, CATEGORIES, CATEGORY_META, CURRENCY, tierMeets } from '@shared/catalog.mjs';
 import Logo from './Logo.jsx';
 import Mascot from './Mascot.jsx';
 import Modal from './Modal.jsx';
@@ -223,7 +223,7 @@ export default function Sidebar({ open, onNavigate, onOpenChat }) {
                 <Check size={15} className="mt-0.5 shrink-0 text-pos" aria-hidden />
                 <div className="min-w-0">
                   <div className="text-sm font-bold text-heading">
-                    {p.name} · {p.priceMonthly ? `$${p.priceMonthly}/mo` : 'Free'}
+                    {p.name} · {p.priceMonthly ? `${CURRENCY.symbol}${p.priceMonthly}/mo` : 'Free'}
                     <span className="ml-2 font-semibold text-muted">{p.monthlyCredits.toLocaleString()} credits</span>
                   </div>
                   <p className="mt-0.5 text-xs text-muted">{p.blurb}</p>

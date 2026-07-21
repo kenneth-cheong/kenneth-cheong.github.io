@@ -5,7 +5,7 @@
 import { listProjects, listTracked, listRuns } from './dynamo.mjs';
 import { isStaff } from './admin.mjs';
 import { retrieveKb } from './kb.mjs';
-import { CREDIT_COSTS, PLANS, TOOLS, toolById, inputsFor, tabsFor, exampleFor } from '../../../shared/catalog.mjs';
+import { CREDIT_COSTS, CURRENCY, PLANS, TOOLS, TOPUP_PACKS, toolById, inputsFor, tabsFor, exampleFor } from '../../../shared/catalog.mjs';
 import { integrationSummary } from '../../../shared/connectors.mjs';
 
 export const TOOL_CATALOG = TOOLS
@@ -84,7 +84,7 @@ export async function buildUserContext(user) {
   const lines = [];
   lines.push('ACCOUNT');
   lines.push(`- Name: ${user.name || '—'} (${user.email || '—'})`);
-  lines.push(`- Plan: ${plan.name}${plan.priceMonthly ? ` (S$${plan.priceMonthly}/mo)` : ' (free)'}`);
+  lines.push(`- Plan: ${plan.name}${plan.priceMonthly ? ` (${CURRENCY.symbol}${plan.priceMonthly}/mo)` : ' (free)'}`);
   lines.push(`- Member since: ${fmtDate(user.createdAt)}`);
   if (isStaff(user)) lines.push('- Role: admin');
 
@@ -96,7 +96,8 @@ export async function buildUserContext(user) {
   // Wording tracks Terms §8.3: top-ups survive the monthly reset but are valid
   // for 12 months from purchase. Never tell a user they "never expire" — the
   // Terms are the binding document and they say otherwise.
-  lines.push('- Top-ups available from S$15 (300 credits) on the Account page; they roll over past the monthly reset and stay valid for 12 months from purchase.');
+  const smallest = TOPUP_PACKS.reduce((a, p) => (p.price < a.price ? p : a), TOPUP_PACKS[0]);
+  lines.push(`- Top-ups available from ${CURRENCY.symbol}${smallest.price} (${smallest.credits} credits) on the Account page; they roll over past the monthly reset and stay valid for 12 months from purchase.`);
 
   const conns = user.integrations || {};
   const intg = Object.keys(conns).map((p) => integrationSummary(p, conns[p].account)).filter(Boolean);

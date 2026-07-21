@@ -378,7 +378,7 @@ export const api = {
     const qs = p.toString();
     return call(`/admin/platform/access-logs${qs ? `?${qs}` : ''}`);
   },
-  // Finances balance sheet (Airwallex revenue vs AWS + estimated COGS, in SGD).
+  // Finances balance sheet (Airwallex revenue vs AWS + estimated COGS, in USD).
   adminFinances: ({ from, to } = {}) => {
     const p = new URLSearchParams();
     if (from) p.set('from', from);

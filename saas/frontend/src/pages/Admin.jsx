@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { FileText, MonitorPlay, RefreshCw, Info } from 'lucide-react';
 import TrendChart from '../components/TrendChart.jsx';
-import { PLANS, TIER_ORDER, PROACTIVE_EVENTS, PROACTIVE_TOKENS, DEFAULT_PROACTIVE } from '@shared/catalog.mjs';
+import { PLANS, TIER_ORDER, CURRENCY, PROACTIVE_EVENTS, PROACTIVE_TOKENS, DEFAULT_PROACTIVE } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSupportTickets } from '../context/SupportTicketsContext.jsx';
 import { api } from '../lib/api.js';
@@ -1835,9 +1835,9 @@ const RANGE_PRESETS = [['1', '24h'], ['7', '7 days'], ['30', '30 days'], ['90', 
 
 // ── Finances (balance sheet: cost vs revenue) ────────────────────────────────
 // Company P&L for a window: Airwallex revenue vs AWS spend + an ESTIMATED AI/data
-// COGS line, reconciled into SGD. Revenue is authoritative (Airwallex); AWS is
-// authoritative (Cost Explorer, USD→SGD); COGS is an estimate from credits
-// consumed and labelled as such.
+// COGS line, all in USD (revenue, AWS and COGS are natively USD, so nothing is
+// FX-converted). Revenue is authoritative (Airwallex); AWS is authoritative
+// (Cost Explorer); COGS is an estimate from credits consumed, labelled as such.
 function AdminFinances() {
   const [days, setDays] = useState('30');
   const [custom, setCustom] = useState({ from: '', to: '' });
@@ -1859,7 +1859,7 @@ function AdminFinances() {
   };
   useEffect(load, [days, custom.from, custom.to]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const ccy = data?.currency || 'SGD';
+  const ccy = data?.currency || CURRENCY.code;
   const rev = data?.revenue;
   const cost = data?.cost;
   const profit = data?.profit;
@@ -1944,21 +1944,21 @@ function AdminFinances() {
               )}
             </Panel>
 
-            <Panel title="Costs (SGD)">
+            <Panel title={`Costs (${ccy})`}>
               <table className="w-full text-sm">
                 <tbody>
                   <LedgerRow
                     label="AWS infrastructure"
-                    value={cost.aws?.error ? '—' : money(cost.aws?.sgd)}
-                    sub={cost.aws?.error ? cost.aws.error : (cost.aws?.usd != null ? `${fmtMoney(cost.aws.usd, 'USD')} × ${data.fx?.usdSgd} FX` : '')}
+                    value={cost.aws?.error ? '—' : money(cost.aws?.usd)}
+                    sub={cost.aws?.error ? cost.aws.error : 'Cost Explorer, all services'}
                   />
                   <LedgerRow
                     label="AI & data COGS"
-                    value={money(cost.cogs?.sgd)}
+                    value={money(cost.cogs?.usd)}
                     tag="est."
                     sub={`${fmtNum(cost.cogs?.credits)} credits × US$${cost.cogs?.usdPerCredit}/credit`}
                   />
-                  <LedgerRow label="Total cost" value={money(cost.totalSgd)} strong border />
+                  <LedgerRow label="Total cost" value={money(cost.total)} strong border />
                 </tbody>
               </table>
             </Panel>
@@ -1969,13 +1969,13 @@ function AdminFinances() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="text-xs font-medium uppercase tracking-wide text-faint">Gross profit ({ccy})</div>
-                <div className={`mt-0.5 text-3xl font-bold tabular-nums ${profit?.grossProfitSgd >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                  {money(profit?.grossProfitSgd)}
+                <div className={`mt-0.5 text-3xl font-bold tabular-nums ${profit?.grossProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {money(profit?.grossProfit)}
                 </div>
               </div>
               <div className="text-right text-sm text-slate-300">
                 <div>Net revenue {revErr ? '—' : money(rev.net)}</div>
-                <div>− Total cost {money(cost.totalSgd)}</div>
+                <div>− Total cost {money(cost.total)}</div>
                 <div className="mt-1 font-semibold text-white">Margin {profit?.marginPct == null ? '—' : fmtPct(profit.marginPct)}</div>
               </div>
             </div>
@@ -2037,7 +2037,7 @@ function AdminFinances() {
                     <tr key={r.tool} className="border-b border-hair">
                       <td className="py-1.5 font-mono text-xs">{r.tool}</td>
                       <td className="py-1.5 text-right tabular-nums text-muted">{fmtNum(r.credits)} credits</td>
-                      <td className="py-1.5 text-right tabular-nums">{money(round2(r.credits * cost.cogs.usdPerCredit * (data.fx?.usdSgd || 1)))}</td>
+                      <td className="py-1.5 text-right tabular-nums">{money(round2(r.credits * cost.cogs.usdPerCredit))}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -2050,8 +2050,8 @@ function AdminFinances() {
           <div className="mt-4 rounded-xl border border-line bg-raised p-4 text-xs text-muted">
             <p className="font-semibold text-dim">How these numbers are built</p>
             <ul className="mt-1.5 list-disc space-y-1 pl-4">
-              <li><b>Revenue</b> — actual, from Airwallex: paid invoices with a subscription = subscriptions, without one = top-ups. Refunds from credit notes; processing fees from the financial-transactions ledger. Settled in {rev?.currency || 'SGD'}.</li>
-              <li><b>AWS</b> — actual, from Cost Explorer (all services), converted USD→{ccy} at {data.fx?.usdSgd} ({data.fx?.source} rate){cost.aws?.estimated ? '; latest days are AWS estimates' : ''}.</li>
+              <li><b>Revenue</b> — actual, from Airwallex: paid invoices with a subscription = subscriptions, without one = top-ups. Refunds from credit notes; processing fees from the financial-transactions ledger. Settled in {rev?.currency || CURRENCY.code}.</li>
+              <li><b>AWS</b> — actual, from Cost Explorer (all services), natively in {ccy} so no FX conversion{cost.aws?.estimated ? '; latest days are AWS estimates' : ''}.</li>
               <li><b>AI &amp; data COGS</b> — <b>estimated</b>: {fmtNum(cost.cogs?.credits)} credits consumed × US${cost.cogs?.usdPerCredit}/credit (upstream vendor spend). Not a billed figure.</li>
               <li><b>Run-rate MRR</b> — a snapshot of active paid subscribers × plan price, not windowed.</li>
             </ul>
@@ -2330,8 +2330,9 @@ function fmtNum(n) {
   return v.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
 function fmtPct(f) { return `${((Number(f) || 0) * 100).toFixed(1)}%`; }
-// Currency with a sign-aware negative (−S$5.00, not S$-5.00). SGD → "S$", else code.
-function fmtMoney(n, ccy = 'SGD') {
+// Currency with a sign-aware negative (−US$5.00, not US$-5.00). Known codes get
+// their symbol, anything else falls back to the bare code.
+function fmtMoney(n, ccy = CURRENCY.code) {
   const v = Number(n) || 0;
   const sym = ccy === 'SGD' ? 'S$' : ccy === 'USD' ? 'US$' : `${ccy} `;
   const body = `${sym}${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

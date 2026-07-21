@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams, useLocation } from 'react-router-dom';
 import { PartyPopper, Zap, CreditCard } from 'lucide-react';
-import { PLANS } from '@shared/catalog.mjs';
+import { PLANS, CURRENCY } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
 import { toast } from '../lib/ui.js';
@@ -538,7 +538,7 @@ function ago(iso) {
 
 function money(amountCents, currency) {
   try {
-    return ((amountCents || 0) / 100).toLocaleString(undefined, { style: 'currency', currency: (currency || 'sgd').toUpperCase() });
+    return ((amountCents || 0) / 100).toLocaleString(undefined, { style: 'currency', currency: (currency || CURRENCY.code).toUpperCase() });
   } catch {
     return `${((amountCents || 0) / 100).toFixed(2)} ${(currency || '').toUpperCase()}`;
   }

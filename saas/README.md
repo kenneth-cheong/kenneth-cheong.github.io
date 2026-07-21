@@ -16,7 +16,7 @@ saas/
 │   ├── template.yaml      The stack (digimetrics-saas, ap-southeast-1)
 │   ├── scripts/
 │   │   ├── build.mjs      esbuild bundler → .build/<fn>/ (run before deploy)
-│   │   └── setup-stripe.mjs   Creates SGD products/prices, writes Price IDs to SSM
+│   │   └── setup-stripe.mjs   Creates USD products/prices, writes Price IDs to SSM
 │   └── src/               9 Lambdas (one dir each) + lib/ shared helpers — see below
 └── frontend/              React + Vite + Tailwind (manual-deploy to Amplify Hosting)
 ```
