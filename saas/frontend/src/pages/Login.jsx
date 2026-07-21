@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { api } from '../lib/api.js';
 import ThemeToggle from '../components/ThemeToggle.jsx';
+import Logo from '../components/Logo.jsx';
 
 // One card, three modes: sign in (Google + email/password), create account, and
 // forgot password. Email/password and Google resolve to the same account.
@@ -141,8 +142,7 @@ export default function Login() {
       </div>
       <div className="relative z-10 w-full max-w-md text-center">
         <div className="dm-login-enter">
-          <div className="dm-login-logo mx-auto grid h-14 w-14 place-items-center rounded-2xl text-2xl font-bold text-white">D</div>
-          <h1 className="mt-6 text-3xl font-bold">Digimetrics</h1>
+          <Logo className="mx-auto" width={260} />
           {/* Tagline is the emotive hero line; the descriptor below it stays the
               plain-English "what this is". Hairlines flank it so it reads as a
               mark rather than another sentence. */}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Stethoscope, TrendingUp, PenLine, LineChart, Sparkles, Swords, BarChart3, ChevronRight, Zap, Search } from 'lucide-react';
 import { GOALS, TOOLS, tierMeets } from '@shared/catalog.mjs';
 import { useAuth } from '../context/AuthContext.jsx';
+import Logo from './Logo.jsx';
 import { startPlatformTour, markSeen } from '../lib/tours.js';
 
 const GOAL_ICON = { TrendingUp, Stethoscope, PenLine, LineChart, Sparkles, Swords, BarChart3 };
@@ -58,8 +59,8 @@ export default function Welcome({ onDone }) {
     <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center">
       <div className="my-8 w-full max-w-2xl rounded-2xl border border-line bg-surface p-6 shadow-2xl sm:p-8">
         <div className="flex items-center gap-2 text-brand-600 dark:text-brand-400">
-          <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand-600 text-lg font-bold text-white">D</span>
-          <span className="text-sm font-semibold uppercase tracking-wide text-faint">Welcome to Digimetrics</span>
+          <Logo width={140} />
+          <span className="text-sm font-semibold uppercase tracking-wide text-faint">Welcome</span>
         </div>
 
         <h1 className="mt-4 text-2xl font-bold text-heading">Hi {first} — let’s get you a quick win.</h1>

@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import Layout from './components/Layout.jsx';
+import Logo from './components/Logo.jsx';
 import Login from './pages/Login.jsx';
 import VerifyEmail from './pages/VerifyEmail.jsx';
 import ResetPassword from './pages/ResetPassword.jsx';
@@ -68,7 +69,7 @@ export default function App() {
     return (
       <div role="status" aria-label="Loading Digimetrics" className="grid min-h-screen place-items-center bg-gradient-to-b from-brand-50 to-white dark:from-canvas dark:to-surface">
         <div className="flex flex-col items-center gap-4">
-          <div className="grid h-12 w-12 animate-pulse place-items-center rounded-2xl bg-brand-600 text-2xl font-bold text-white shadow-sm">D</div>
+          <Logo className="animate-pulse" width={180} />
           <div className="flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-400 [animation-delay:-0.2s]" />
             <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-400 [animation-delay:-0.1s]" />

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import Logo from '../components/Logo.jsx';
 
 // Landing page for the password-reset link (/reset-password?token=…). Sets the
 // new password, then auto-logs-in.
@@ -32,7 +33,7 @@ export default function ResetPassword() {
   return (
     <div className="grid min-h-screen place-items-center bg-gradient-to-b from-brand-50 to-white px-4 dark:from-canvas dark:to-surface">
       <div className="w-full max-w-md text-center">
-        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand-600 text-2xl font-bold text-white">D</div>
+        <Logo className="mx-auto" width={200} />
         <h1 className="mt-6 text-2xl font-bold">Choose a new password</h1>
 
         <div className="card mt-8 p-6 text-left">

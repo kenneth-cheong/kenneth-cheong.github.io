@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import Logo from '../components/Logo.jsx';
 
 // Landing page for the email-confirmation link (/verify?token=…). Confirms the
 // address, then auto-logs-in and drops the user on the dashboard.
@@ -32,7 +33,7 @@ export default function VerifyEmail() {
   return (
     <div className="grid min-h-screen place-items-center bg-gradient-to-b from-brand-50 to-white px-4 dark:from-canvas dark:to-surface">
       <div className="card w-full max-w-md p-8 text-center">
-        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand-600 text-2xl font-bold text-white">D</div>
+        <Logo className="mx-auto" width={200} />
         {status === 'working' ? (
           <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted">
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-edge border-t-brand-600" />

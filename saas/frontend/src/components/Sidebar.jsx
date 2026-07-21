@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../context/AuthContext.jsx';
 import { useSupportTickets } from '../context/SupportTicketsContext.jsx';
 import { PLANS, TOOLS, tierMeets } from '@shared/catalog.mjs';
+import Logo from './Logo.jsx';
 import Mascot from './Mascot.jsx';
 import Modal from './Modal.jsx';
 
@@ -72,9 +73,7 @@ export default function Sidebar({ open, onNavigate, onOpenChat }) {
     <aside className={`dm-sidebar ${open ? 'dm-sidebar-open' : ''}`} aria-label="Main navigation">
       <Link to="/" onClick={onNavigate} className="mb-2 flex items-center gap-2.5 px-2 pb-4 pt-1">
         <span className="dm-brand-dot" aria-hidden />
-        <b className="text-[13px] font-bold tracking-[0.2em] text-heading">
-          DIGI<span className="text-pos">METRICS</span>
-        </b>
+        <Logo width={148} />
       </Link>
 
       <nav className="flex flex-1 flex-col gap-[3px]">
