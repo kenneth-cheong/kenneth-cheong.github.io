@@ -4137,6 +4137,96 @@ def _backfill_month_splits(proj, month, token, meta, force=False):
     return 'wrote ' + '+'.join(wrote)
 
 
+_POST_METRIC_KEYS = ('reach', 'interactions', 'interaction_rate',
+                     'reactions_by_type', 'views')
+
+
+def _backfill_month_posts(proj, month, token, meta, force=False):
+    """Recover per-post Facebook metrics for ONE already-saved month, in place.
+
+    Months captured before the 2026-07-17 fb413a25 fix stored their posts BARE:
+    the dead `post_impressions_unique` sat in the same comma-separated metric
+    list as the live ones, and Graph rejects the whole call if any single metric
+    in that list is invalid, so every per-post figure came back empty. Measured
+    2026-07-21 across 14 FB clients: only 31% of stored posts carry reach (82%
+    for 2026-07 against ~20-30% for every earlier month). Without this, the
+    Audience tab's Facebook card and the report's Post Format table are thin for
+    all of history. Meta still serves insights for months-old posts — proved live
+    on Marina One 2026-06, where all 14 posts went 0 → 14 with reach.
+
+    Same additive contract as _backfill_month_splits: writes ONLY the per-post
+    metric keys, and only onto posts already stored. Card-level figures, kpis,
+    captions, timestamps, thumbnails and tags are left exactly as captured, so a
+    month already sent to a client keeps the numbers it was sent with.
+
+    Deliberately NOT via _merge_posts: that picks whichever post set carries more
+    thumbnails as its base, which would swap the S3-mirrored images back to
+    fbcdn URLs that expire in ~2 weeks. Field-level donation avoids that.
+
+    Facebook only — the bug was in _meta_fb_post_metrics; Instagram posts stored
+    their metrics fine throughout.
+
+    Idempotent: a month whose stored posts all carry reach does no network work
+    unless `force`. Returns a short status string for the run log."""
+    it = _rmonths().get_item(Key={'projectId': proj['projectId'], 'month': month}).get('Item')
+    if not it:
+        return 'no month row'
+    sc = it.get('scorecard')
+    if isinstance(sc, str):
+        try: sc = json.loads(sc)
+        except ValueError: sc = None
+    if not isinstance(sc, dict):
+        return 'unreadable scorecard'
+    card = next((c for c in (sc.get('platforms') or [])
+                 if isinstance(c, dict) and c.get('platform') == 'facebook'), None)
+    if not card or not isinstance(card.get('posts'), list) or not card['posts']:
+        return 'no fb posts stored'
+    stored = card['posts']
+    missing = [p for p in stored if isinstance(p, dict) and p.get('reach') is None]
+    if not missing and not force:
+        return 'already has post metrics'
+    if not meta or not meta.get('pageId'):
+        return 'no fb page resolved'
+
+    since, until = _meta_month_range(month)
+    fresh = _meta_fb_posts(meta['pageId'], meta.get('pageToken') or token, since, until)
+    if not fresh:
+        return 'no data returned'
+    by_url, by_text = {}, {}
+    for f in fresh:
+        u = f.get('url')
+        if u:
+            by_url.setdefault(u, f)
+        k = _post_text_key(f)
+        if k:
+            by_text.setdefault(k, f)
+
+    targets = stored if force else missing
+    filled = 0
+    for p in targets:
+        if not isinstance(p, dict):
+            continue
+        f = by_url.get(p.get('url')) or by_text.get(_post_text_key(p))
+        if not f:
+            continue
+        got = False
+        for k in _POST_METRIC_KEYS:
+            v = f.get(k)
+            if v is None or (p.get(k) is not None and not force):
+                continue
+            p[k] = v
+            got = True
+        if got:
+            filled += 1
+    if not filled:
+        return 'no match for ' + str(len(targets)) + ' post(s)'
+    _rmonths().update_item(
+        Key={'projectId': proj['projectId'], 'month': month},
+        UpdateExpression='SET scorecard = :s',
+        ExpressionAttributeValues={':s': _serialize_scorecard(sc)})
+    return 'wrote posts x' + str(filled)
+
+
 def report_backfill_splits(body):
     """Backfill the organic/paid split across saved months.
 
@@ -4149,16 +4239,30 @@ def report_backfill_splits(body):
     organic-only by definition, and TikTok/YouTube/Xiaohongshu have no split to
     fetch — those stay dashes until someone types them in.
 
-    data: {projectId?, sinceMonth?='YYYY-MM' floor, force?, maxSeconds?}
+    `what` selects which filler(s) run over each month — both share this sweep
+    because both are the same job: re-fetch one narrow slice of a saved month and
+    merge it in without disturbing anything else.
+      'splits' (default) — organic/paid, _backfill_month_splits
+      'posts'            — per-post FB metrics, _backfill_month_posts
+      'both'             — splits then posts
+
+    data: {projectId?, sinceMonth?='YYYY-MM' floor, force?, maxSeconds?, what?}
     Omit projectId to sweep every project. Time-boxed so a big sweep returns a
     resumable report instead of dying on the Lambda timeout — re-invoke to
     continue, since months already done are skipped for free.
-    Intended to be called directly via `lambda invoke`, not through the API."""
+    Intended to be called directly via `lambda invoke`, not through the API —
+    the HTTP API gives up at 30s while the Lambda keeps running and still writes,
+    so an API caller cannot tell a finished month from a dropped one."""
     data  = body.get('data') or body
     only  = (data.get('projectId') or '').strip()
     floor = (data.get('sinceMonth') or '').strip()
     force = bool(data.get('force'))
     budget = float(data.get('maxSeconds') or 600)
+    what  = (data.get('what') or 'splits').strip().lower()
+    if what not in ('splits', 'posts', 'both'):
+        raise RuntimeError("what must be 'splits', 'posts' or 'both'.")
+    fillers = ([] if what == 'posts' else [_backfill_month_splits]) + \
+              ([] if what == 'splits' else [_backfill_month_posts])
     t0 = time.time()
 
     if only:
@@ -4193,16 +4297,19 @@ def report_backfill_splits(body):
             if time.time() - t0 > budget:
                 timed_out = True
                 break
-            try:
-                r = _backfill_month_splits(proj, m, token, meta, force)
-            except Exception as e:
-                r = 'error: ' + str(e)[:120]
-                failed += 1
-            if r.startswith('wrote'):
-                done += 1
-            elif r == 'already split':
-                skipped += 1
-            rows.append({'month': m, 'result': r})
+            parts = []
+            for fill in fillers:
+                try:
+                    r = fill(proj, m, token, meta, force)
+                except Exception as e:
+                    r = 'error: ' + str(e)[:120]
+                    failed += 1
+                if r.startswith('wrote'):
+                    done += 1
+                elif r in ('already split', 'already has post metrics'):
+                    skipped += 1
+                parts.append(r)
+            rows.append({'month': m, 'result': ' | '.join(parts)})
         out.append({'project': proj.get('name') or pid, 'rows': rows})
         if timed_out:
             break
