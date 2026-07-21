@@ -900,6 +900,25 @@ select:focus-visible,
 .dm-report table:not([style]) tbody tr:first-child td { border-top: 0; }
 .dm-report table:not([style]) tbody tr:hover { background: #f8fafc; }
 
+/* Media Plan execution grid — the generator emits a 20-column per-campaign
+   table wrapped in .mp-exec-wrap, with .mp-wrap on the prose cells (objective,
+   audience, creative, structure) and .mp-total on the footer row. It carries no
+   inline styles, so the generic rules above were squeezing 20 columns into the
+   card width and wrapping every cell into an unreadable stack. Restore the
+   agency treatment: a horizontal scroller around a fixed-width table whose
+   numeric cells never wrap. These sit AFTER the generic block and match its
+   specificity (`table.mp-exec-table` == `table:not([style])`), so source order
+   is what makes them win — keep them here. */
+.dm-report .mp-exec-wrap { width: 100%; overflow-x: auto; margin: 14px 0; border: 1px solid #e2e8f0; border-radius: 8px; -webkit-overflow-scrolling: touch; }
+.dm-report table.mp-exec-table { width: auto; min-width: 1900px; border-collapse: collapse; border: 0; border-radius: 0; margin: 0; font-size: 12px; }
+.dm-report table.mp-exec-table th,
+.dm-report table.mp-exec-table td { padding: 8px 10px; border: 1px solid #e8edf3; vertical-align: top; text-align: left; white-space: nowrap; }
+.dm-report table.mp-exec-table th { position: sticky; top: 0; z-index: 2; background: #1a3a6b; color: #fff; text-transform: none; letter-spacing: 0; font-weight: 600; font-size: 11px; line-height: 1.3; white-space: normal; min-width: 90px; }
+.dm-report table.mp-exec-table td.mp-wrap { white-space: normal; min-width: 160px; }
+.dm-report table.mp-exec-table tbody tr:nth-child(even) { background: #f7f9fc; }
+.dm-report table.mp-exec-table tbody tr:hover { background: #eef2f8; }
+.dm-report table.mp-exec-table tbody tr.mp-total td { font-weight: 700; background: #eef2f8; border-top: 2px solid #1a3a6b; }
+
 /* Persona Generator — the generator emits semantic .persona-* classes, so turn
    each into a proper card: name + age-badge header, full-width bio, and the
    remaining attributes in a tidy two-column grid, with a tinted rationale foot. */
@@ -949,6 +968,13 @@ select:focus-visible,
     --e-illus-to: rgba(15, 23, 42, .45); --e-rail: #fff; --e-modal: #fff;
   }
   header, aside, nav, form, .dm-no-print { display: none !important; }
+  /* The media plan's 20-column grid is a 1900px horizontal scroller on screen;
+     paper can't scroll, so let it reflow to the page width instead of clipping
+     everything past the first few columns. */
+  .dm-report .mp-exec-wrap { overflow: visible !important; }
+  .dm-report table.mp-exec-table { min-width: 0 !important; width: 100% !important; font-size: 8px !important; }
+  .dm-report table.mp-exec-table th,
+  .dm-report table.mp-exec-table td { white-space: normal !important; min-width: 0 !important; padding: 4px 5px !important; }
   [style*="margin-right"] { margin-right: 0 !important; }
   .card { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
   body { background: #fff !important; }
@@ -997,6 +1023,19 @@ select:focus-visible,
 .dark .dm-report table:not([style]) th { background: #1e293b; color: #94a3b8; border-bottom-color: #334155; }
 .dark .dm-report table:not([style]) td { border-top-color: #172234; color: #cbd5e1; }
 .dark .dm-report table:not([style]) tbody tr:hover { background: #172234; }
+
+/* Media Plan execution grid (dark). Same source-order rule as the light block:
+   equal specificity with the `:not([style])` rules above, so these must stay
+   after them. The navy header already reads on dark, so only the surrounding
+   greys change. */
+.dark .dm-report .mp-exec-wrap { border-color: #1e293b; }
+.dark .dm-report table.mp-exec-table th,
+.dark .dm-report table.mp-exec-table td { border-color: #1e293b; }
+.dark .dm-report table.mp-exec-table th { background: #1a3a6b; color: #fff; }
+.dark .dm-report table.mp-exec-table td { color: #cbd5e1; }
+.dark .dm-report table.mp-exec-table tbody tr:nth-child(even) { background: #101d33; }
+.dark .dm-report table.mp-exec-table tbody tr:hover { background: #172234; }
+.dark .dm-report table.mp-exec-table tbody tr.mp-total td { background: #16243c; border-top-color: #3b6bb0; color: #f1f5f9; }
 
 /* Persona Generator cards */
 .dark .dm-report .persona-card { border-color: #1e293b; background: #0f172a; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
