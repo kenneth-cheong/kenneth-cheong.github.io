@@ -395,6 +395,48 @@ export function renderSMAScorecard(d){
                     </div>`);
             }
 
+            // Competitor analysis — who each competitor IS (what they do, sell,
+            // target, how they position) and what they TALK ABOUT (topics owned,
+            // pillars, messaging/tone, how they engage). The tables below cover
+            // performance; this covers the qualitative half of the audit.
+            const cprofs = arr(d.competitor_profiles).filter(p=>p && (p.what_they_do || p.positioning || p.messaging_tone || arr(p.content_pillars).length));
+            if(cprofs.length){
+                const pfLabel = t=>`<div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;">${t}</div>`;
+                const pfText  = (t,v)=>v?`<div style="margin-bottom:10px;">${pfLabel(t)}<div style="font-size:12.5px;color:#374151;line-height:1.55;">${esc(v)}</div></div>`:'';
+                const pfChips = (t,items,bg,col)=>arr(items).length?`<div style="margin-bottom:10px;">${pfLabel(t)}${chips(items,bg,col)}</div>`:'';
+                const pfList  = (t,items,color)=>arr(items).length?`<div style="margin-bottom:10px;">${pfLabel(t)}${bullets(items,color,'fa-chevron-right')}</div>`:'';
+                const pblocks = cprofs.map(p=>{
+                    const icons = arr(p.platforms).map(pl=>`<i class="fab ${platformIcon(pl)}" style="color:${platformColor(pl)};font-size:14px;"></i>`).join('');
+                    const conf = {high:'#16a34a',medium:'#d97706',low:'#dc2626'}[String(p.confidence||'').toLowerCase()];
+                    return `<div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin-bottom:12px;">
+                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+                            <div style="font-weight:700;font-size:13.5px;color:#1e293b;">${esc(p.name||'Competitor')}</div>
+                            <span style="display:inline-flex;gap:7px;align-items:center;">${icons}</span>
+                            ${conf?`<span style="margin-left:auto;background:${conf}14;color:${conf};font-size:10px;font-weight:700;padding:2px 9px;border-radius:10px;text-transform:uppercase;letter-spacing:.4px;">${esc(p.confidence)} confidence</span>`:''}
+                        </div>
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:18px;">
+                            <div>
+                                <div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#4f46e5;margin-bottom:10px;"><i class="fas fa-building"></i> Brand overview</div>
+                                ${pfText('What they do', p.what_they_do)}
+                                ${pfChips('Products &amp; services', p.products_services, '#eef2ff', '#4338ca')}
+                                ${pfText('Target audience', p.target_audience)}
+                                ${pfText('Positioning', p.positioning)}
+                                ${pfList('Key differentiators', p.differentiators, '#4f46e5')}
+                            </div>
+                            <div>
+                                <div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#0891b2;margin-bottom:10px;"><i class="fas fa-comments"></i> Content &amp; conversation</div>
+                                ${pfChips('Conversations they own', p.topics_owned, '#ecfeff', '#0e7490')}
+                                ${pfChips('Content pillars &amp; themes', p.content_pillars, '#f0fdf4', '#15803d')}
+                                ${pfText('Messaging &amp; tone of voice', p.messaging_tone)}
+                                ${pfText('How they engage their audience', p.audience_engagement)}
+                            </div>
+                        </div>
+                    </div>`;
+                }).join('');
+                html += card('Competitor analysis','fa-id-card-clip',
+                    `<div style="font-size:12px;color:#64748b;margin-bottom:14px;">Who each competitor is — what they do, sell, target and stand for — and the conversations, pillars, messaging and engagement style behind their social. Inferred from their bios, captions, hashtags and account metrics.</div>${pblocks}`);
+            }
+
             // What competitors are doing
             const compsWithContent = arr(d.competitors).filter(c=>arr(c.top_posts).length || (c.content_mix && (c.content_mix.video||c.content_mix.image||c.content_mix.carousel)) || arr(c.top_hashtags).length);
             if(compsWithContent.length){

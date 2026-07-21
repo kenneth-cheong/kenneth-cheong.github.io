@@ -88,6 +88,10 @@ VISION_MODEL = os.environ.get('SMA_VISION_MODEL', 'claude-sonnet-4-6')
 MAX_CREATIVE_IMAGES   = 21    # images fetched + sent to the vision model (brand)
 MAX_CREATIVE_IMAGES_COMP = 12 # fewer per competitor — keeps the concurrent calls fast
 MAX_CREATIVE_CAPTIONS = 21    # captions sent as text context
+# Qualitative competitor profiles (who they are + what they talk about). One
+# call per competitor BRAND, not per platform, so the cap counts brands.
+MAX_COMPETITOR_PROFILES = int(os.environ.get('SR_COMPETITOR_PROFILES', '6'))
+MAX_PROFILE_CAPTIONS    = 12  # captions per platform fed into the profile call
 JOB_TTL_SECS   = 6 * 3600
 # Don't let one slow/stuck scraper gate the whole audit: once we've waited this
 # long and at least one source is ready, finalize with whatever completed (the
@@ -970,6 +974,7 @@ def handle_finalize(body):
 
         competitor_metrics = []
         comp_creative_jobs = []   # (entry, name, platform, full_metrics) for creative eval
+        comp_profile_src   = {}   # brand name -> [(platform, full_metrics)] for the profile
         for c in comp_runs:
             m, src = _metrics_for(c['platform'], c)
             entry = {
@@ -988,6 +993,9 @@ def handle_finalize(body):
             if src != 'empty' and (m.get('captions') or m.get('image_urls')):
                 m['found'] = True   # _analyze_creative skips entries without it
                 comp_creative_jobs.append((entry, c.get('name') or c.get('handle'), c['platform'], m))
+            if src != 'empty' and (m.get('captions') or m.get('bio')):
+                comp_profile_src.setdefault(
+                    c.get('name') or c.get('handle') or 'Competitor', []).append((c['platform'], m))
 
         # Brand-health + social-listening both hit DataForSEO; fetch concurrently.
         # Listening is opt-in (frontend sets enabled) so daily cron captures skip it.
@@ -1010,12 +1018,22 @@ def handle_finalize(body):
             comp_futs = [(entry, ex.submit(_analyze_creative, name, {plat: cm}, '',
                                            MAX_CREATIVE_IMAGES_COMP))
                          for (entry, name, plat, cm) in comp_creative_jobs]
+            prof_futs = [ex.submit(_analyze_competitor_profile, nm, srcs, _loc)
+                         for nm, srcs in list(comp_profile_src.items())[:MAX_COMPETITOR_PROFILES]]
             creative = brand_fut.result()
             for entry, fut in comp_futs:
                 try:
                     entry['creative'] = fut.result()
                 except Exception:
                     entry['creative'] = None
+            competitor_profiles = []
+            for fut in prof_futs:
+                try:
+                    prof = fut.result()
+                except Exception:
+                    prof = None
+                if prof:
+                    competitor_profiles.append(prof)
             content_sentiment = sent_fut.result()
 
         # Benchmark block (Share of Voice / format mix / word cloud / sentiment).
@@ -1024,7 +1042,8 @@ def handle_finalize(body):
             benchmark['content_sentiment'] = content_sentiment
 
         scorecard    = _narrate(brand, client_metrics, competitor_metrics, brand_health,
-                                indicators, extra_ctx, creative=creative)
+                                indicators, extra_ctx, creative=creative,
+                                competitor_profiles=competitor_profiles)
         scorecard.update({
             'platforms': [_platform_card(p, m) for p, m in client_metrics.items()],
             'indicators': indicators,
@@ -1033,6 +1052,7 @@ def handle_finalize(body):
             'creative': creative,
             'benchmark': benchmark,
             'competitors': [c for c in competitor_metrics if c.get('followers') is not None],
+            'competitor_profiles': competitor_profiles,
             'native_sources': native_sources,
             'native_month': native_month if native_pid else '',
         })
@@ -2381,15 +2401,102 @@ def _analyze_creative(brand, client_metrics, extra_context='', max_images=None):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Competitor profile — the qualitative half of a competitor analysis
+# ──────────────────────────────────────────────────────────────────────────────
+# The scrape answers how a competitor PERFORMS. A consultant's competitor
+# analysis also has to answer who they ARE (what they do, what they sell, who
+# they target, how they position) and what they TALK ABOUT (topics they own,
+# content pillars, messaging/tone, how they engage their audience).
+#
+# One call per competitor BRAND rather than per platform: the overview is
+# platform-agnostic, so per-platform calls would double the cost and risk two
+# contradicting descriptions of the same company.
+def _analyze_competitor_profile(name, sources, location=''):
+    """`sources` is a list of (platform, full metrics dict) for ONE competitor
+    brand. Returns a profile dict, or None when there's no key / nothing to read."""
+    api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
+    if not api_key:
+        return None
+
+    platforms, bios, caption_lines, hashtags, stats = [], [], [], [], []
+    for plat, m in sources:
+        platforms.append(plat)
+        if m.get('bio'):
+            bios.append(f'[{plat}] {m["bio"]}')
+        for cap in (m.get('captions') or [])[:MAX_PROFILE_CAPTIONS]:
+            caption_lines.append(f'[{plat}] {cap}')
+        hashtags += (m.get('top_hashtags') or [])
+        stats.append({'platform': plat, 'followers': m.get('followers'),
+                      'engagement_rate': m.get('engagement_rate'),
+                      'posts_per_week': m.get('posts_per_week'),
+                      'avg_likes': m.get('avg_likes'),
+                      'avg_comments': m.get('avg_comments'),
+                      'content_mix': m.get('content_mix')})
+    if not caption_lines and not bios:
+        return None
+
+    prompt = (
+        f"You are a senior competitive strategist profiling the competitor brand "
+        f"\"{name}\"" + (f" (market: {location})" if location else "") + ". You have their social "
+        "profile bios, recent post captions, top hashtags and account metrics. "
+        "Infer a competitor profile covering BOTH who the brand is and what it "
+        "talks about.\n\n"
+        "COVER EXACTLY:\n"
+        "A. BRAND OVERVIEW — what the brand does; the products/services it offers; "
+        "   who it targets; its positioning and key differentiators\n"
+        "B. CONTENT & CONVERSATION — the conversations/topics it consistently owns; "
+        "   its key content pillars/themes; its brand messaging and tone of voice; "
+        "   how it engages its audience (formats, cadence, CTAs, community tactics)\n\n"
+        "Respond with STRICT JSON only, no prose, matching EXACTLY:\n"
+        '{"what_they_do":"1-2 sentences on what the business actually does",'
+        '"products_services":["3-5 concrete products or services, <=8 words each"],'
+        '"target_audience":"1-2 sentences on who they speak to (segments, life stage, buyer role)",'
+        '"positioning":"1-2 sentences on how they position themselves in the market",'
+        '"differentiators":["2-4 claimed or evident differentiators, <=12 words each"],'
+        '"topics_owned":["2-4 conversations/topics they consistently own, <=8 words each"],'
+        '"content_pillars":["3-5 recurring content pillars/themes, <=8 words each"],'
+        '"messaging_tone":"2-3 sentences on brand messaging and tone of voice",'
+        '"audience_engagement":"2-3 sentences on how they engage their audience — '
+        'formats, posting rhythm, CTAs, comment/community behaviour",'
+        '"confidence":"high|medium|low"}\n\n'
+        "Ground every claim in the bios, captions, hashtags and metrics below — no "
+        "generic category filler. Where the evidence is thin, say so plainly in the "
+        "field and set confidence accordingly (never invent products or audiences).\n\n"
+        "PROFILE BIOS:\n" + ('\n'.join(bios) or '(none captured)') +
+        "\n\nACCOUNT METRICS:\n" + json.dumps(stats, default=str)[:1500] +
+        "\n\nTOP HASHTAGS:\n" + (', '.join(_top(hashtags, 15)) or '(none)') +
+        "\n\nRECENT POST CAPTIONS:\n" + ('\n'.join(caption_lines[:36]) or '(none captured)')
+    )
+    try:
+        r = requests.post('https://api.anthropic.com/v1/messages',
+                          headers={'x-api-key': api_key, 'anthropic-version': '2023-06-01',
+                                   'content-type': 'application/json'},
+                          json={'model': HAIKU_MODEL, 'max_tokens': 1500,
+                                'messages': [{'role': 'user', 'content': prompt}]},
+                          timeout=60)
+        txt = ''.join(b.get('text', '') for b in (r.json().get('content') or [])
+                      if b.get('type') == 'text')
+        txt = re.sub(r'^```[a-z]*\n?|```$', '', txt.strip()).strip()
+        out = json.loads(txt)
+        out['name'] = name
+        out['platforms'] = sorted(set(platforms))
+        out['posts_analyzed'] = len(caption_lines)
+        return out
+    except Exception:
+        return None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Haiku narrative
 # ──────────────────────────────────────────────────────────────────────────────
 def _narrate(brand, client_metrics, competitor_metrics, brand_health, indicators,
-             extra_context='', creative=None):
+             extra_context='', creative=None, competitor_profiles=None):
     api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('CLAUDE_API_KEY')
     facts = {
         'brand': brand,
         'platforms': {p: _platform_card(p, m) for p, m in client_metrics.items()},
         'competitors': competitor_metrics,
+        'competitor_profiles': competitor_profiles or [],
         'brand_health': brand_health,
         'indicators': indicators,
         'creative_audit': creative,
@@ -2418,7 +2525,11 @@ def _narrate(brand, client_metrics, competitor_metrics, brand_health, indicators
         "engagement, cadence, content mix, hashtags and top posts to the brand's); "
         "otherwise return it as empty arrays. A creative_audit object (content "
         "themes, tone of voice, visual style, brand consistency) may be present — "
-        "factor its findings into the summary, strengths/gaps and action plan.\n\nAUDIT DATA:\n"
+        "factor its findings into the summary, strengths/gaps and action plan. A "
+        "competitor_profiles array (what each competitor does, who they target, "
+        "how they position, the topics they own) may also be present — use it so "
+        "the competitor comparison is about positioning and content, not just "
+        "numbers.\n\nAUDIT DATA:\n"
         + json.dumps(facts, default=str)[:16000]
         + (("\n\nADDITIONAL CONTEXT the user uploaded (briefs, analytics, brand docs) "
             "— use it to sharpen the verdict, goals and action plan:\n" + extra_context[:8000])
