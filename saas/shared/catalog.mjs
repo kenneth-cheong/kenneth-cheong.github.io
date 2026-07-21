@@ -1153,17 +1153,25 @@ export const INPUTS = {
     { name: 'url', label: 'Website', type: 'url', placeholder: 'https://acme.co' },
     { name: 'location', label: 'Location', type: 'select', options: LOCATIONS, default: 'Singapore' },
   ],
+  // The three optional boxes each carry `suggest` — the form shows an "AI suggest"
+  // button that crawls the site (free, one crawl shared by all three) and drafts
+  // the text, so the user edits a real draft instead of facing a blank box.
   'llms-txt': [
     { name: 'input', label: 'Website URL', type: 'url', placeholder: 'https://example.com', required: true },
-    { name: 'summary', label: 'Summary / blockquote (optional)', type: 'textarea', placeholder: 'Leave blank to auto-write it from the site' },
+    { name: 'summary', label: 'Summary / blockquote (optional)', type: 'textarea', placeholder: 'Leave blank to auto-write it from the site', suggest: true },
     { name: 'geoPrompts', label: 'Questions AI should answer with your site (optional, one per line)', type: 'textarea',
       placeholder: 'What makes Acme the best choice?\nHow does Acme help teams stay productive?',
-      help: 'AI assistants like ChatGPT answer questions — list the questions you want your site to be the answer to.' },
-    { name: 'highlights', label: 'Extra highlights (optional)', type: 'textarea', placeholder: 'Anything else to surface in the file' },
+      help: 'AI assistants like ChatGPT answer questions — list the questions you want your site to be the answer to.', suggest: true },
+    { name: 'highlights', label: 'Extra highlights (optional)', type: 'textarea', placeholder: 'Anything else to surface in the file', suggest: true },
   ],
   'geo-onpage': [
     { name: 'input', label: 'Page URL', type: 'url', placeholder: 'https://example.com/page', required: true },
-    { name: 'prompts', label: 'Target prompts (one per line, 1–3)', type: 'textarea', placeholder: 'e.g. What is the best project management tool for small teams?', required: true },
+    // The prompt box is where a beginner stalls — they know their page, not the
+    // questions they want AI to cite it for. `suggest` reads the Page URL above
+    // and drafts three; the same free pass also fills the empty context fields
+    // below (brand / industry / audience), which it can infer from the page.
+    { name: 'prompts', label: 'Target prompts (one per line, 1–3)', type: 'textarea', placeholder: 'e.g. What is the best project management tool for small teams?', required: true,
+      suggest: true },
     { name: 'brand', label: 'Brand name', type: 'text', placeholder: 'e.g. Acme Co' },
     { name: 'industry', label: 'Industry / niche', type: 'text', placeholder: 'e.g. SaaS / Project management' },
     { name: 'audience', label: 'Target audience', type: 'text', placeholder: 'e.g. startup founders, small business owners' },
@@ -1176,7 +1184,11 @@ export const INPUTS = {
     { name: 'input', label: 'URL or brand description', type: 'textarea', placeholder: 'A website URL, or describe the brand + audience', required: true },
     { name: 'manual', label: 'Audience details to focus on', type: 'textarea',
       placeholder: 'Target audience: Men aged 25–40\nGeography / market: Singapore, Southeast Asia\nCustomer behaviour: Frequent online shoppers, bargain hunters\nLifestyle / interests: Fitness, travel, tech early-adopters',
-      hint: 'The more you give, the sharper the personas. Add any of: target audience (e.g. Men aged 25–40), geography or market, customer behaviour, lifestyle or interests, budget/income.' },
+      // `suggest` puts an "AI suggest" button on the box: it reads the URL (or
+      // brand description) above and drafts the audience lines, because people
+      // arrive with a website, not a demographic brief. Free, and editable after.
+      hint: 'The more you give, the sharper the personas. Add any of: target audience (e.g. Men aged 25–40), geography or market, customer behaviour, lifestyle or interests, budget/income. Or hit AI suggest to draft it from your site.',
+      suggest: true },
     { name: 'count', label: 'Number of personas', type: 'number', default: '10' },
   ],
   'media-plan': [

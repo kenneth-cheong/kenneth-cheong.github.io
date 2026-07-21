@@ -91,6 +91,8 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
   // Pending destructive Search Console op, awaiting an explicit yes.
   const [confirmOp, setConfirmOp] = useState(null);
   const [showAdv, setShowAdv] = useState(false); // reveal collapsed optional fields on long forms
+  const [suggesting, setSuggesting] = useState(null); // field name whose "AI suggest" is in flight
+  const suggestCache = useRef({ key: '', data: null }); // one crawl per source URL, shared by every suggestible field
   const shownRef = useRef([]); // latest visible fields, for the auto-started tour
 
   // Reset the form + result when navigating between tools (same route component).
@@ -183,6 +185,59 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
     if (!example) return;
     setValues((s) => ({ ...s, ...example }));
     toast('Example filled in', 'info');
+  }
+
+  // ── "AI suggest" on a long optional box (catalog `suggest: true`) ──────────
+  // A blank textarea tells a beginner nothing about what to write or what the
+  // result will look like. The tool's `action:'suggest'` reads their site and
+  // drafts every suggestible field in one free pass; we cache that pass per
+  // source URL so the second and third buttons fill instantly, and the user is
+  // always left with editable text rather than a committed run.
+  async function suggestField(f) {
+    const srcName = f.suggestFrom || 'input';
+    const src = String(values[srcName] || '').trim();
+    if (!src) {
+      setNudge(true);
+      document.querySelector(`[data-tour-field="${srcName}"] input`)?.focus();
+      document.querySelector(`[data-tour-field="${srcName}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      toast('Enter your website URL first, then AI suggest.', 'info');
+      return;
+    }
+    setSuggesting(f.name);
+    try {
+      const cacheKey = `${tool.id}|${src}`;
+      let data = suggestCache.current.key === cacheKey ? suggestCache.current.data : null;
+      if (!data) {
+        const res = await api.runTool(tool.id, { action: 'suggest', input: src }, tool.slow);
+        if (typeof res?.creditsRemaining === 'number') setCredits(res.creditsRemaining, res.topupRemaining);
+        data = res.result || {};
+        if (data.text && !data[f.name]) throw new Error(data.text); // soft failure (unreachable site, bad JSON)
+        suggestCache.current = { key: cacheKey, data };
+      }
+      const v = data[f.name];
+      const text = (Array.isArray(v) ? v.join('\n') : String(v || '')).trim();
+      if (!text) { toast('Nothing worth suggesting for this one — write it yourself.', 'info'); return; }
+      set(f.name, text);
+      // The pass also returns whatever context fields it could infer (GEO
+      // On-Page: brand / industry / audience). Fill only the ones still empty —
+      // anything the user typed themselves is theirs, and stays.
+      let extras = 0;
+      for (const other of shown) {
+        if (other.name === f.name || !data[other.name] || String(values[other.name] || '').trim()) continue;
+        set(other.name, String(data[other.name]).trim());
+        extras++;
+      }
+      toast(extras
+        ? `Drafted from your page, and filled ${extras} more field${extras > 1 ? 's' : ''} — edit anything before you run.`
+        : 'Drafted from your site — edit anything before you run.', 'success');
+    } catch (e) {
+      const msg = e instanceof ApiError && e.status === 402
+        ? 'Out of credits — top up to use AI suggest.'
+        : (e?.message || 'Something went wrong.');
+      toast('AI suggest failed: ' + msg, 'error');
+    } finally {
+      setSuggesting(null);
+    }
   }
 
   // Guided tour: pre-fill the worked example + render its real result on the
@@ -321,7 +376,8 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
       <div className={`card ${embedded ? 'mt-3' : tabs ? 'mt-4' : 'mt-6'} p-5`}>
         <div className="space-y-4">
           {primaryFields.map((f, i) => (
-            <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} setValue={set} autoFocus={i === 0} provider={tool.integration} values={values} invalid={isMissing(f)} />
+            <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} setValue={set} autoFocus={i === 0} provider={tool.integration} values={values} invalid={isMissing(f)}
+              onSuggest={unlocked && f.suggest ? () => suggestField(f) : null} suggesting={suggesting === f.name} />
           ))}
           {advancedFields.length > 0 && (
             <div className="border-t border-hair pt-3">
@@ -334,7 +390,8 @@ export default function ToolRunner({ toolId: toolIdProp, initialValues, embedded
               {showAdv && (
                 <div className="mt-4 space-y-4">
                   {advancedFields.map((f) => (
-                    <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} setValue={set} provider={tool.integration} values={values} />
+                    <Field key={f.name} field={f} value={values[f.name]} onChange={(v) => set(f.name, v)} setValue={set} provider={tool.integration} values={values}
+                      onSuggest={unlocked && f.suggest ? () => suggestField(f) : null} suggesting={suggesting === f.name} />
                   ))}
                 </div>
               )}
@@ -1504,16 +1561,30 @@ function FileField({ field, onFill }) {
   );
 }
 
-function Field({ field, value, onChange, autoFocus, provider, values, invalid, setValue }) {
+function Field({ field, value, onChange, autoFocus, provider, values, invalid, setValue, onSuggest, suggesting }) {
   const base = `field mt-1.5${invalid ? ' !border-amber-400 !ring-4 !ring-amber-400/20' : ''}`;
   // Plain-English help on the label itself: an explicit `help` string from the
   // catalog wins, else fall back to the glossary (same matching as result tips).
   const tip = field.help || glossaryFor(field.label);
   return (
     <label className={`block ${invalid ? '-ml-3 rounded-lg border-l-2 border-amber-400 bg-amber-50/50 dark:bg-amber-500/10 pl-3' : ''}`} data-tour-field={field.name}>
-      <span className="text-sm font-medium text-body">
-        {field.label}{field.required && <span className={invalid ? 'font-bold text-amber-600 dark:text-amber-400' : 'text-amber-500'}> *</span>}
-        {tip && <InfoTip text={tip} className="ml-1" />}
+      <span className="flex items-start justify-between gap-3 text-sm font-medium text-body">
+        <span>
+          {field.label}{field.required && <span className={invalid ? 'font-bold text-amber-600 dark:text-amber-400' : 'text-amber-500'}> *</span>}
+          {tip && <InfoTip text={tip} className="ml-1" />}
+        </span>
+        {onSuggest && (
+          // Drafts this box from the user's site so they start from real text.
+          // A label wraps the whole field, so stopPropagation keeps the click
+          // from also focusing the textarea and scrolling the fill out of view.
+          <button type="button" disabled={suggesting}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSuggest(); }}
+            title="Read my site and draft this for me — you can edit it before running"
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/10 px-2 py-1 text-xs font-medium text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-500/20 disabled:opacity-60">
+            {suggesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Sparkles className="h-3.5 w-3.5" aria-hidden />}
+            {suggesting ? 'Drafting…' : 'AI suggest'}
+          </button>
+        )}
       </span>
       {field.type === 'file' ? (
         <FileField field={field} onFill={(text) => setValue(field.fills || field.name, text)} />

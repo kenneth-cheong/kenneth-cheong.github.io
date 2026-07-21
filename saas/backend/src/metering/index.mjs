@@ -526,6 +526,17 @@ async function callUpstreamRaw(tool, body) {
   // llms.txt Generator: crawl the site → validate (llms.txt/robots/AI-bots/key
   // pages) → generate a spec-compliant llms.txt + llms-full.txt + recommendations.
   if (tool.id === 'llms-txt') return llmsTxtRun(body);
+  // Persona Generator: free "AI suggest" pass on the audience-details box —
+  // reads the site (or the pasted brand description) and drafts it. Never
+  // charged; the real run still goes through the adapter below.
+  if (tool.id === 'persona' && String(body.action || '').trim() === 'suggest') return personaSuggest(body);
+  // SEM Ad Copy: free "Auto-suggest keywords" pass on the keywords box — reads
+  // the site (or expands the seeds they already typed) for the chosen market.
+  // Never charged; the real ad-copy run still goes through the adapter below.
+  if (tool.id === 'sem-copy' && String(body.action || '').trim() === 'suggest') return semCopySuggest(body);
+  // GEO On-Page: same free pass on the target-prompts box (plus the brand /
+  // industry / audience context it can read off the page).
+  if (tool.id === 'geo-onpage' && String(body.action || '').trim() === 'suggest') return geoOnPageSuggest(body);
 
   const url = UPSTREAMS[tool.upstream];
   if (!url) throw new Error(`No upstream URL for ${tool.upstream}`);
@@ -2137,6 +2148,10 @@ function faParseRobots(robotsBody, d) {
 // readiness, then builds a spec-compliant llms.txt + llms-full.txt from real
 // internal links (organised + described by the AI), plus a recommendations list.
 async function llmsTxtRun(body) {
+  // Free helper: "AI suggest" on the optional text boxes — crawls the site and
+  // drafts the summary / GEO prompts / highlights so the user edits rather than
+  // faces a blank box. Never charged (`_noCharge`).
+  if (String(body.action || '').trim() === 'suggest') return llmsTxtSuggest(body);
   let target = (body.input || body.url || '').trim();
   if (!target) throw new Error('A website URL is required.');
   if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
@@ -2268,6 +2283,147 @@ function extractSiteLinks(html, host, rootDomain) {
     out.push({ label: text, url });
   }
   return out;
+}
+
+// ── Free helper: draft the optional text boxes from the live site ────────────
+// The three long boxes (summary / GEO prompts / highlights) are the ones people
+// stall on: they're optional, but a blank box gives no idea of what to write or
+// what the file will look like. One crawl + one AI pass fills all three at once
+// (the frontend caches the response per URL, so the other buttons are instant).
+// Keys match the catalog field names so the frontend can stay generic.
+async function llmsTxtSuggest(body) {
+  let target = String(body.input || body.url || '').trim();
+  if (!target) return { _noCharge: true, _failed: true, text: 'Enter your website URL first.' };
+  if (!/^https?:\/\//i.test(target)) target = 'https://' + target;
+  let u;
+  try { u = new URL(target); } catch { return { _noCharge: true, _failed: true, text: 'That website URL does not look valid.' }; }
+  const rootDomain = u.origin;
+  const host = u.hostname.replace(/^www\./, '');
+
+  // Same two-step fetch as the full run: the headless renderer first (it gets
+  // past JS-only sites), a direct fetch as the fallback for slow/blocked ones.
+  let homeHtml = await Promise.race([
+    postUpstream(UPSTREAMS.getHtml, { url: rootDomain }),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 20000)),
+  ]).then((r) => (typeof r === 'string' ? r : (r && typeof r.body === 'string' ? r.body : ''))).catch(() => '');
+  if (!homeHtml || homeHtml.length < 200) homeHtml = await directFetchHtml(rootDomain, 12000);
+  if (!homeHtml || homeHtml.length < 200) {
+    return { _noCharge: true, _failed: true, text: `Could not read ${rootDomain} — check the URL is public, or fill these in yourself.` };
+  }
+
+  const title = (homeHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || host).replace(/\s+/g, ' ').trim();
+  const metaDesc = (homeHtml.match(/<meta[^>]+name=["']description["'][^>]*content=["']([^"']*)["']/i)?.[1] || '').trim();
+  const links = extractSiteLinks(homeHtml, host, rootDomain);
+
+  const list = links.slice(0, 30).map((l) => `${l.label} | ${l.url}`).join('\n');
+  const userPrompt =
+    `Output ONLY strict JSON (no markdown fences, no prose). You are pre-filling the optional fields of an llms.txt generator for the website "${title}" (${rootDomain}).` +
+    (metaDesc ? ` Homepage meta description: "${metaDesc}".` : '') +
+    `\nReal internal pages found by crawling the homepage (label | url):\n${list || '(none found)'}\n` +
+    `\nReturn JSON of shape: {"summary": string, "geo_prompts": string[], "highlights": string[]}.` +
+    ` Rules: "summary" = ONE sentence describing what this business offers and who it is for (it becomes the > blockquote at the top of the file).` +
+    ` "geo_prompts" = 4 natural questions a real person would type into ChatGPT or another AI assistant that this site should be the cited answer to — no brand-stuffing, phrase them the way a customer would.` +
+    ` "highlights" = 3-5 short factual bullet lines worth surfacing to an AI (services, markets served, credentials, notable clients, differentiators) — each under 15 words, drawn only from what the site actually shows. Omit anything you cannot support.`;
+
+  let j = null;
+  try {
+    const raw = await postUpstream(UPSTREAMS.aiOptimiser, { action: 'content_freeform', userPrompt });
+    let s = aiText(raw).trim();
+    if (s.startsWith('```')) s = s.replace(/^```[a-z]*\n?/i, '').replace(/```$/, '').trim();
+    j = JSON.parse(s);
+  } catch { j = null; }
+  if (!j || typeof j !== 'object') {
+    return { _noCharge: true, _failed: true, text: "Couldn't draft suggestions for that site — fill these in yourself." };
+  }
+
+  const lines = (v) => (Array.isArray(v) ? v : String(v || '').split('\n')).map((s) => String(s).trim()).filter(Boolean);
+  return {
+    _noCharge: true,
+    summary: String(j.summary || metaDesc || '').trim(),
+    geoPrompts: lines(j.geo_prompts).slice(0, 6).join('\n'),
+    // Highlights land verbatim in the file, so keep them as markdown bullets.
+    highlights: lines(j.highlights).slice(0, 5).map((s) => (s.startsWith('-') ? s : `- ${s}`)).join('\n'),
+  };
+}
+
+// ── Persona Generator: draft the audience-details box from the brand ─────────
+// The personas are only as sharp as the "audience details" box, and that box is
+// exactly where people stop — they came with a URL, not a demographic brief. So
+// read whatever they already typed (a URL: crawl it; a description: use it as
+// written) and draft the five lines the box asks for. Free (`_noCharge`) and
+// always editable afterwards — it's a starting point, not the run.
+async function personaSuggest(body) {
+  const src = String(body.input || body.url || '').trim();
+  if (!src) return { _noCharge: true, _failed: true, text: 'Enter your website URL or brand description first.' };
+
+  // A URL gets crawled; anything else is treated as the brand description the
+  // field also accepts (the input is "URL or brand description").
+  const looksUrl = /^https?:\/\//i.test(src) || /^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(src);
+  let brandContext = '', label = src;
+  if (looksUrl) {
+    let u;
+    try { u = new URL(/^https?:\/\//i.test(src) ? src : 'https://' + src); }
+    catch { return { _noCharge: true, _failed: true, text: 'That website URL does not look valid.' }; }
+    const rootDomain = u.origin;
+    label = u.hostname.replace(/^www\./, '');
+    // Same two-step fetch as llmsTxtSuggest: renderer first, direct fetch after.
+    let html = await Promise.race([
+      postUpstream(UPSTREAMS.getHtml, { url: rootDomain }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 20000)),
+    ]).then((r) => (typeof r === 'string' ? r : (r && typeof r.body === 'string' ? r.body : ''))).catch(() => '');
+    if (!html || html.length < 200) html = await directFetchHtml(rootDomain, 12000);
+    if (!html || html.length < 200) {
+      return { _noCharge: true, _failed: true, text: `Could not read ${rootDomain} — check the URL is public, or describe the brand instead.` };
+    }
+    const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || label).replace(/\s+/g, ' ').trim();
+    const metaDesc = (html.match(/<meta[^>]+name=["']description["'][^>]*content=["']([^"']*)["']/i)?.[1] || '').trim();
+    const links = extractSiteLinks(html, label, rootDomain).slice(0, 25).map((l) => l.label).join(', ');
+    const text = html
+      .replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 5000);
+    brandContext = `Website: ${rootDomain}\nPage title: ${title}` +
+      (metaDesc ? `\nMeta description: ${metaDesc}` : '') +
+      (links ? `\nMain navigation / pages: ${links}` : '') +
+      `\nHomepage copy:\n${text}`;
+  } else {
+    brandContext = `The user describes the brand as:\n${src.slice(0, 4000)}`;
+  }
+
+  const userPrompt =
+    `Output ONLY strict JSON (no markdown fences, no prose). You are pre-filling the "audience details" box of an audience-persona generator for "${label}".\n` +
+    `${brandContext}\n\n` +
+    `Return JSON of shape: {"audience": string, "geography": string, "behaviour": string, "lifestyle": string, "budget": string}.` +
+    ` Each value is ONE short line (under 20 words), written as the user would type it — no labels, no full sentences.` +
+    ` "audience" = who actually buys (role/demographic, age range if it can be inferred).` +
+    ` "geography" = the markets the brand clearly serves.` +
+    ` "behaviour" = how these customers buy or decide.` +
+    ` "lifestyle" = interests or values that fit them.` +
+    ` "budget" = income or spending level.` +
+    ` Ground every line in what the brand actually shows; if something genuinely cannot be inferred, return "" for that key rather than inventing it.`;
+
+  let j = null;
+  try {
+    const raw = await postUpstream(UPSTREAMS.aiOptimiser, { action: 'content_freeform', userPrompt });
+    let s = aiText(raw).trim();
+    if (s.startsWith('```')) s = s.replace(/^```[a-z]*\n?/i, '').replace(/```$/, '').trim();
+    j = JSON.parse(s);
+  } catch { j = null; }
+  if (!j || typeof j !== 'object') {
+    return { _noCharge: true, _failed: true, text: "Couldn't draft audience details for that — fill the box in yourself." };
+  }
+
+  // Same labelled shape as the field's placeholder, so the draft reads like the
+  // example the user was already looking at.
+  const line = (lbl, v) => { const t = String(v || '').trim(); return t ? `${lbl}: ${t}` : ''; };
+  const manual = [
+    line('Target audience', j.audience),
+    line('Geography / market', j.geography),
+    line('Customer behaviour', j.behaviour),
+    line('Lifestyle / interests', j.lifestyle),
+    line('Budget / income', j.budget),
+  ].filter(Boolean).join('\n');
+  if (!manual) return { _noCharge: true, _failed: true, text: "Couldn't draft audience details for that — fill the box in yourself." };
+  return { _noCharge: true, manual };
 }
 
 /** Ask the AI to organise crawled links into sections + write summary/prompts. */
