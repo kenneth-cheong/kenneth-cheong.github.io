@@ -879,6 +879,39 @@ function sectionsToText(sections) {
 // First tabular section, for the CSV button.
 function firstTable(sections) { return (sections || []).find((s) => s.type === 'table' && s.rows && s.rows.length); }
 
+// Free plain-English summary, auto-fetched for every real run (runId present —
+// the guided tour's sample results skip it). Cached per run so re-renders and
+// remounts never refetch. Fails silently: the raw result is still on screen.
+const tldrCache = new Map();
+function TldrPanel({ tool, r, runId }) {
+  const [state, setState] = useState(() => tldrCache.get(runId) || { loading: true, text: '' });
+  useEffect(() => {
+    let alive = true;
+    const hit = tldrCache.get(runId);
+    if (hit) { setState(hit); return undefined; }
+    setState({ loading: true, text: '' });
+    api.explainResult(tool.name, copyableOf(r).slice(0, 5000))
+      .then((d) => { const s = { loading: false, text: String(d.summary || '').trim() }; tldrCache.set(runId, s); if (alive) setState(s); })
+      .catch(() => { const s = { loading: false, text: '' }; tldrCache.set(runId, s); if (alive) setState(s); });
+    return () => { alive = false; };
+    // eslint-disable-next-line
+  }, [runId]);
+  if (!state.loading && !state.text) return null;
+  return (
+    <div className="dm-no-print mb-4 rounded-xl border border-brand-200 dark:border-brand-500/30 bg-brand-50/60 dark:bg-brand-500/10 p-4">
+      <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-brand-700 dark:text-brand-300">
+        <Sparkles size={13} aria-hidden /> What this means — in plain English
+      </div>
+      {state.loading ? (
+        <div className="mt-2.5 space-y-1.5" aria-label="Writing your summary…">
+          {[92, 78, 60].map((w) => <div key={w} className="h-3 animate-pulse rounded bg-brand-100 dark:bg-brand-500/20" style={{ width: `${w}%` }} />)}
+        </div>
+      ) : (
+        <TldrText text={state.text} />
+      )}
+    </div>
+  );
+}
 
 // Light renderer for the explainer reply: paragraphs + the fixed labels bolded.
 // (The upstream returns plain text / light markdown; we don't ship a full
